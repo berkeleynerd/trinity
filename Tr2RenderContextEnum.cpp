@@ -1,0 +1,763 @@
+#include "StdAfx.h"
+
+#include "Tr2RenderContextEnum.h"
+#include "ALLog.h"
+
+using namespace Tr2RenderContextEnum;
+
+bool Tr2RenderContextEnum::IsCompressedFormat( PixelFormat format )
+{
+	switch( format )
+	{
+	case PIXEL_FORMAT_BC1_TYPELESS:
+	case PIXEL_FORMAT_BC1_UNORM:
+	case PIXEL_FORMAT_BC1_UNORM_SRGB:
+	case PIXEL_FORMAT_BC2_TYPELESS:
+	case PIXEL_FORMAT_BC2_UNORM:
+	case PIXEL_FORMAT_BC2_UNORM_SRGB:
+	case PIXEL_FORMAT_BC3_TYPELESS:
+	case PIXEL_FORMAT_BC3_UNORM:
+	case PIXEL_FORMAT_BC3_UNORM_SRGB:
+	case PIXEL_FORMAT_BC4_TYPELESS:
+	case PIXEL_FORMAT_BC4_UNORM:
+	case PIXEL_FORMAT_BC4_SNORM:
+	case PIXEL_FORMAT_BC5_TYPELESS:
+	case PIXEL_FORMAT_BC5_UNORM:
+	case PIXEL_FORMAT_BC5_SNORM:
+	case PIXEL_FORMAT_BC6H_TYPELESS:
+	case PIXEL_FORMAT_BC6H_UF16:
+	case PIXEL_FORMAT_BC6H_SF16:
+	case PIXEL_FORMAT_BC7_TYPELESS:
+	case PIXEL_FORMAT_BC7_UNORM:
+	case PIXEL_FORMAT_BC7_UNORM_SRGB:
+		return true;
+
+	default:
+		return false;
+	}
+}
+
+unsigned Tr2RenderContextEnum::GetBlockByteSize( PixelFormat format )
+{
+	switch( format )
+	{
+		case PIXEL_FORMAT_BC1_TYPELESS:
+		case PIXEL_FORMAT_BC1_UNORM:
+		case PIXEL_FORMAT_BC1_UNORM_SRGB:
+			return 8;
+
+		case PIXEL_FORMAT_BC2_TYPELESS:
+		case PIXEL_FORMAT_BC2_UNORM:
+		case PIXEL_FORMAT_BC2_UNORM_SRGB:
+		case PIXEL_FORMAT_BC3_TYPELESS:
+		case PIXEL_FORMAT_BC3_UNORM:
+		case PIXEL_FORMAT_BC3_UNORM_SRGB:
+		case PIXEL_FORMAT_BC4_TYPELESS:
+		case PIXEL_FORMAT_BC4_UNORM:
+		case PIXEL_FORMAT_BC4_SNORM:
+		case PIXEL_FORMAT_BC5_TYPELESS:
+		case PIXEL_FORMAT_BC5_UNORM:
+		case PIXEL_FORMAT_BC5_SNORM:
+		case PIXEL_FORMAT_BC6H_TYPELESS:
+		case PIXEL_FORMAT_BC6H_UF16:
+		case PIXEL_FORMAT_BC6H_SF16:
+		case PIXEL_FORMAT_BC7_TYPELESS:
+		case PIXEL_FORMAT_BC7_UNORM:
+		case PIXEL_FORMAT_BC7_UNORM_SRGB:
+			return 16;
+
+		default:
+			// Not a block image.
+			return 0;
+	};
+
+}
+
+namespace {
+
+const unsigned bytesPerPixelLookup[] = {
+
+	// PIXEL_FORMAT_UNKNOWN
+	0,
+	
+	/*
+		PIXEL_FORMAT_R32G32B32A32_TYPELESS       = 1,
+		PIXEL_FORMAT_R32G32B32A32_FLOAT          = 2,
+		PIXEL_FORMAT_R32G32B32A32_UINT           = 3,
+		PIXEL_FORMAT_R32G32B32A32_SINT           = 4,
+		PIXEL_FORMAT_R32G32B32_TYPELESS          = 5,
+		PIXEL_FORMAT_R32G32B32_FLOAT             = 6,
+		PIXEL_FORMAT_R32G32B32_UINT              = 7,
+		PIXEL_FORMAT_R32G32B32_SINT              = 8,
+		*/
+	16, 16, 16, 16, 
+	16, 16, 16, 16,
+
+	/*
+		PIXEL_FORMAT_R16G16B16A16_TYPELESS       = 9,
+		PIXEL_FORMAT_R16G16B16A16_FLOAT          = 10,
+		PIXEL_FORMAT_R16G16B16A16_UNORM          = 11,
+		PIXEL_FORMAT_R16G16B16A16_UINT           = 12,
+		PIXEL_FORMAT_R16G16B16A16_SNORM          = 13,
+		PIXEL_FORMAT_R16G16B16A16_SINT           = 14,
+		*/
+	8, 8, 8, 8, 8, 8,
+
+	/*
+		PIXEL_FORMAT_R32G32_TYPELESS             = 15,
+		PIXEL_FORMAT_R32G32_FLOAT                = 16,
+		PIXEL_FORMAT_R32G32_UINT                 = 17,
+		PIXEL_FORMAT_R32G32_SINT                 = 18,
+		PIXEL_FORMAT_R32G8X24_TYPELESS           = 19,
+		*/
+	8, 8, 8, 8, 8, 
+
+	/*
+		PIXEL_FORMAT_D32_FLOAT_S8X24_UINT        = 20,
+		PIXEL_FORMAT_R32_FLOAT_X8X24_TYPELESS    = 21,
+		PIXEL_FORMAT_X32_TYPELESS_G8X24_UINT     = 22,
+		*/
+	8, 8, 8,
+
+	/*
+		PIXEL_FORMAT_R10G10B10A2_TYPELESS        = 23,
+		PIXEL_FORMAT_R10G10B10A2_UNORM           = 24,
+		PIXEL_FORMAT_R10G10B10A2_UINT            = 25,
+		PIXEL_FORMAT_R11G11B10_FLOAT             = 26,
+		PIXEL_FORMAT_R8G8B8A8_TYPELESS           = 27,
+		PIXEL_FORMAT_R8G8B8A8_UNORM              = 28,
+		PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB         = 29,
+		PIXEL_FORMAT_R8G8B8A8_UINT               = 30,
+		PIXEL_FORMAT_R8G8B8A8_SNORM              = 31,
+		PIXEL_FORMAT_R8G8B8A8_SINT               = 32,
+		PIXEL_FORMAT_R16G16_TYPELESS             = 33,
+		PIXEL_FORMAT_R16G16_FLOAT                = 34,
+		PIXEL_FORMAT_R16G16_UNORM                = 35,
+		PIXEL_FORMAT_R16G16_UINT                 = 36,
+		PIXEL_FORMAT_R16G16_SNORM                = 37,
+		PIXEL_FORMAT_R16G16_SINT                 = 38,
+		PIXEL_FORMAT_R32_TYPELESS                = 39,
+		PIXEL_FORMAT_D32_FLOAT                   = 40,
+		PIXEL_FORMAT_R32_FLOAT                   = 41,
+		PIXEL_FORMAT_R32_UINT                    = 42,
+		PIXEL_FORMAT_R32_SINT                    = 43,
+		PIXEL_FORMAT_R24G8_TYPELESS              = 44,
+		PIXEL_FORMAT_D24_UNORM_S8_UINT           = 45,
+		PIXEL_FORMAT_R24_UNORM_X8_TYPELESS       = 46,
+		PIXEL_FORMAT_X24_TYPELESS_G8_UINT        = 47,
+		*/
+	4, 4, 4, 4, 4,
+	4, 4, 4, 4, 4, 
+	4, 4, 4, 4, 4,
+	4, 4, 4, 4, 4, 
+	4, 4, 4, 4, 4, 
+
+	/*
+		PIXEL_FORMAT_R8G8_TYPELESS               = 48,
+		PIXEL_FORMAT_R8G8_UNORM                  = 49,
+		PIXEL_FORMAT_R8G8_UINT                   = 50,
+		PIXEL_FORMAT_R8G8_SNORM                  = 51,
+		PIXEL_FORMAT_R8G8_SINT                   = 52,
+		PIXEL_FORMAT_R16_TYPELESS                = 53,
+		PIXEL_FORMAT_R16_FLOAT                   = 54,
+		PIXEL_FORMAT_D16_UNORM                   = 55,
+		PIXEL_FORMAT_R16_UNORM                   = 56,
+		PIXEL_FORMAT_R16_UINT                    = 57,
+		PIXEL_FORMAT_R16_SNORM                   = 58,
+		PIXEL_FORMAT_R16_SINT                    = 59,
+		*/
+	2, 2, 2, 2, 2, 2,
+	2, 2, 2, 2, 2, 2, 
+
+	/*
+		PIXEL_FORMAT_R8_TYPELESS                 = 60,
+		PIXEL_FORMAT_R8_UNORM                    = 61,
+		PIXEL_FORMAT_R8_UINT                     = 62,
+		PIXEL_FORMAT_R8_SNORM                    = 63,
+		PIXEL_FORMAT_R8_SINT                     = 64,
+		PIXEL_FORMAT_A8_UNORM                    = 65,
+		*/
+	1, 1, 1, 1, 1, 1, 
+
+	/*
+		PIXEL_FORMAT_R1_UNORM                    = 66,
+		*/
+	0,
+
+	/*
+		PIXEL_FORMAT_R9G9B9E5_SHAREDEXP          = 67,
+		PIXEL_FORMAT_R8G8_B8G8_UNORM             = 68,
+		PIXEL_FORMAT_G8R8_G8B8_UNORM             = 69,
+		*/
+	4, 4, 4, 
+
+	/*
+		PIXEL_FORMAT_BC1_TYPELESS                = 70,
+		PIXEL_FORMAT_BC1_UNORM                   = 71,
+		PIXEL_FORMAT_BC1_UNORM_SRGB              = 72,
+		PIXEL_FORMAT_BC2_TYPELESS                = 73,
+		PIXEL_FORMAT_BC2_UNORM                   = 74,
+		PIXEL_FORMAT_BC2_UNORM_SRGB              = 75,
+		PIXEL_FORMAT_BC3_TYPELESS                = 76,
+		PIXEL_FORMAT_BC3_UNORM                   = 77,
+		PIXEL_FORMAT_BC3_UNORM_SRGB              = 78,
+		PIXEL_FORMAT_BC4_TYPELESS                = 79,
+		PIXEL_FORMAT_BC4_UNORM                   = 80,
+		PIXEL_FORMAT_BC4_SNORM                   = 81,
+		PIXEL_FORMAT_BC5_TYPELESS                = 82,
+		PIXEL_FORMAT_BC5_UNORM                   = 83,
+		PIXEL_FORMAT_BC5_SNORM                   = 84,
+		*/
+	0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 
+	0, 0, 0, 0, 0, 
+
+	/*
+		PIXEL_FORMAT_B5G6R5_UNORM                = 85,
+		PIXEL_FORMAT_B5G5R5A1_UNORM              = 86,
+		*/
+	2, 2, 
+
+	/*
+		PIXEL_FORMAT_B8G8R8A8_UNORM              = 87,
+		PIXEL_FORMAT_B8G8R8X8_UNORM              = 88,
+		PIXEL_FORMAT_R10G10B10_XR_BIAS_A2_UNORM  = 89,
+		PIXEL_FORMAT_B8G8R8A8_TYPELESS           = 90,
+		PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB         = 91,
+		PIXEL_FORMAT_B8G8R8X8_TYPELESS           = 92,
+		PIXEL_FORMAT_B8G8R8X8_UNORM_SRGB         = 93,
+		*/
+	4, 4, 4, 4,
+	4, 4, 4, 
+
+	/*
+		PIXEL_FORMAT_BC6H_TYPELESS               = 94,
+		PIXEL_FORMAT_BC6H_UF16                   = 95,
+		PIXEL_FORMAT_BC6H_SF16                   = 96,
+		PIXEL_FORMAT_BC7_TYPELESS                = 97,
+		PIXEL_FORMAT_BC7_UNORM                   = 98,
+		PIXEL_FORMAT_BC7_UNORM_SRGB              = 99,*/
+	0, 0, 0, 0, 0, 0 
+};
+
+}
+
+static_assert( sizeof( bytesPerPixelLookup ) / sizeof( bytesPerPixelLookup[0] ) == PIXEL_FORMAT_SENTINEL, "Missing pixel format table entries" );
+
+unsigned Tr2RenderContextEnum::GetBytesPerPixel( PixelFormat format )
+{
+	return format < PIXEL_FORMAT_SENTINEL ? bytesPerPixelLookup[ format ] : 0;
+}
+
+Tr2RenderContextEnum::PixelFormat Tr2RenderContextEnum::ConvertD3DBackBufferFormat( /*D3DFORMAT*/ unsigned fmt )
+{
+	switch( fmt )
+	{
+		case 116 /*D3DFMT_A32B32G32R32F*/: return PIXEL_FORMAT_R32G32B32A32_FLOAT;
+        case 113 /*D3DFMT_A16B16G16R16F*/: return PIXEL_FORMAT_R16G16B16A16_FLOAT;
+		case  36 /*D3DFMT_A16B16G16R16 */: return PIXEL_FORMAT_R16G16B16A16_UNORM;
+		case  35 /*D3DFMT_A2R10G10B10  */: return PIXEL_FORMAT_R10G10B10A2_UNORM;
+		case  32 /*D3DFMT_A8B8G8R8     */: return PIXEL_FORMAT_R8G8B8A8_UNORM;
+		case  23 /*D3DFMT_R5G6B5       */: return PIXEL_FORMAT_B5G6R5_UNORM;
+		case  25 /*D3DFMT_A1R5G5B5     */: return PIXEL_FORMAT_B5G5R5A1_UNORM;
+		case  21 /*D3DFMT_A8R8G8B8     */: return PIXEL_FORMAT_B8G8R8A8_UNORM;
+		case  22 /*D3DFMT_X8R8G8B8     */: return PIXEL_FORMAT_B8G8R8X8_UNORM;
+	}
+	return PIXEL_FORMAT_UNKNOWN;
+}
+
+Tr2RenderContextEnum::PixelFormat Tr2RenderContextEnum::MakeTypeless( Tr2RenderContextEnum::PixelFormat format )
+{
+	using namespace Tr2RenderContextEnum;
+	switch( format )
+	{
+	case PIXEL_FORMAT_R32G32B32A32_FLOAT:
+	case PIXEL_FORMAT_R32G32B32A32_UINT:
+	case PIXEL_FORMAT_R32G32B32A32_SINT:
+		return PIXEL_FORMAT_R32G32B32A32_TYPELESS;
+	case PIXEL_FORMAT_R32G32B32_FLOAT:
+	case PIXEL_FORMAT_R32G32B32_UINT:
+	case PIXEL_FORMAT_R32G32B32_SINT:
+		return PIXEL_FORMAT_R32G32B32_TYPELESS;
+	case PIXEL_FORMAT_R16G16B16A16_FLOAT:
+	case PIXEL_FORMAT_R16G16B16A16_UINT:
+	case PIXEL_FORMAT_R16G16B16A16_SINT:
+	case PIXEL_FORMAT_R16G16B16A16_UNORM:
+	case PIXEL_FORMAT_R16G16B16A16_SNORM:
+		return PIXEL_FORMAT_R16G16B16A16_TYPELESS;
+	case PIXEL_FORMAT_R32G32_FLOAT:
+	case PIXEL_FORMAT_R32G32_UINT:
+	case PIXEL_FORMAT_R32G32_SINT:
+		return PIXEL_FORMAT_R32G32_TYPELESS;
+	case PIXEL_FORMAT_R10G10B10A2_UINT:
+	case PIXEL_FORMAT_R10G10B10A2_UNORM:
+		return PIXEL_FORMAT_R10G10B10A2_TYPELESS;
+	case PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB:
+	case PIXEL_FORMAT_R8G8B8A8_UNORM:
+	case PIXEL_FORMAT_R8G8B8A8_UINT:
+	case PIXEL_FORMAT_R8G8B8A8_SINT:
+	case PIXEL_FORMAT_R8G8B8A8_SNORM:
+		return PIXEL_FORMAT_R8G8B8A8_TYPELESS;
+	case PIXEL_FORMAT_R16G16_FLOAT:
+	case PIXEL_FORMAT_R16G16_UNORM:
+	case PIXEL_FORMAT_R16G16_UINT:
+	case PIXEL_FORMAT_R16G16_SNORM:
+	case PIXEL_FORMAT_R16G16_SINT:
+		return PIXEL_FORMAT_R16G16_TYPELESS;
+	case PIXEL_FORMAT_R32_FLOAT:
+	case PIXEL_FORMAT_R32_UINT:
+	case PIXEL_FORMAT_R32_SINT:
+		return PIXEL_FORMAT_R32_TYPELESS;
+	case PIXEL_FORMAT_R8G8_UNORM:
+	case PIXEL_FORMAT_R8G8_UINT:
+	case PIXEL_FORMAT_R8G8_SNORM:
+	case PIXEL_FORMAT_R8G8_SINT:
+		return PIXEL_FORMAT_R8G8_TYPELESS;
+	case PIXEL_FORMAT_R16_FLOAT:
+	case PIXEL_FORMAT_R16_UNORM:
+	case PIXEL_FORMAT_R16_UINT:
+	case PIXEL_FORMAT_R16_SNORM:
+	case PIXEL_FORMAT_R16_SINT:
+		return PIXEL_FORMAT_R16_TYPELESS;
+	case PIXEL_FORMAT_R8_UNORM:
+	case PIXEL_FORMAT_R8_UINT:
+	case PIXEL_FORMAT_R8_SNORM:
+	case PIXEL_FORMAT_R8_SINT:
+		return PIXEL_FORMAT_R8_TYPELESS;
+	case PIXEL_FORMAT_BC1_UNORM_SRGB:
+	case PIXEL_FORMAT_BC1_UNORM:
+		return PIXEL_FORMAT_BC1_TYPELESS;
+	case PIXEL_FORMAT_BC2_UNORM_SRGB:
+	case PIXEL_FORMAT_BC2_UNORM:
+		return PIXEL_FORMAT_BC2_TYPELESS;
+	case PIXEL_FORMAT_BC3_UNORM_SRGB:
+	case PIXEL_FORMAT_BC3_UNORM:
+		return PIXEL_FORMAT_BC3_TYPELESS;
+	case PIXEL_FORMAT_BC4_SNORM:
+	case PIXEL_FORMAT_BC4_UNORM:
+		return PIXEL_FORMAT_BC4_TYPELESS;
+	case PIXEL_FORMAT_BC5_SNORM:
+	case PIXEL_FORMAT_BC5_UNORM:
+		return PIXEL_FORMAT_BC5_TYPELESS;
+	case PIXEL_FORMAT_B8G8R8A8_UNORM:
+	case PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB:
+		return PIXEL_FORMAT_B8G8R8A8_TYPELESS;
+	case PIXEL_FORMAT_B8G8R8X8_UNORM:
+	case PIXEL_FORMAT_B8G8R8X8_UNORM_SRGB:
+		return PIXEL_FORMAT_B8G8R8X8_TYPELESS;
+	case PIXEL_FORMAT_BC6H_UF16:
+	case PIXEL_FORMAT_BC6H_SF16:
+		return PIXEL_FORMAT_BC6H_TYPELESS;
+	case PIXEL_FORMAT_BC7_UNORM_SRGB:
+	case PIXEL_FORMAT_BC7_UNORM:
+		return PIXEL_FORMAT_BC7_TYPELESS;
+	default:
+		return format;
+	}
+}
+
+Tr2RenderContextEnum::PixelFormat Tr2RenderContextEnum::MakeSrgb( Tr2RenderContextEnum::PixelFormat format )
+{
+	switch( format )
+	{
+	case PIXEL_FORMAT_R8G8B8A8_TYPELESS:
+	case PIXEL_FORMAT_R8G8B8A8_UNORM:
+		return PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB;
+
+	case PIXEL_FORMAT_BC1_TYPELESS:
+	case PIXEL_FORMAT_BC1_UNORM:
+		return PIXEL_FORMAT_BC1_UNORM_SRGB;
+
+	case PIXEL_FORMAT_BC2_TYPELESS:
+	case PIXEL_FORMAT_BC2_UNORM:
+		return PIXEL_FORMAT_BC2_UNORM_SRGB;
+
+	case PIXEL_FORMAT_BC3_TYPELESS:
+	case PIXEL_FORMAT_BC3_UNORM:
+		return PIXEL_FORMAT_BC3_UNORM_SRGB;
+
+	case PIXEL_FORMAT_B8G8R8A8_UNORM:
+	case PIXEL_FORMAT_B8G8R8A8_TYPELESS:
+		return PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
+
+	case PIXEL_FORMAT_B8G8R8X8_UNORM:
+	case PIXEL_FORMAT_B8G8R8X8_TYPELESS:
+		return PIXEL_FORMAT_B8G8R8X8_UNORM_SRGB;
+
+	case PIXEL_FORMAT_BC7_TYPELESS:
+	case PIXEL_FORMAT_BC7_UNORM:
+		return PIXEL_FORMAT_BC7_UNORM_SRGB;
+
+	default:
+		return format;
+	}
+
+}
+
+
+bool Tr2RenderContextEnum::ValidateUsage( BufferUsage usage )
+{
+	if( usage & USAGE_IMMUTABLE )
+	{
+		// USAGE_IMMUTABLE is mutually exclusive with everything
+		// except hints and READ
+		return ( usage & ~( USAGE_HINT_MANAGED | USAGE_CPU_READ ) ) == USAGE_IMMUTABLE;
+	}
+	if( ( usage & USAGE_LOCK_FREQUENTLY ) && ( usage & USAGE_CPU_READ ) )
+	{
+		// No reading from USAGE_LOCK_FREQUENTLY resources
+		return false;
+	}
+	return true;
+}
+
+#ifdef _WIN32
+
+D3DFORMAT Tr2RenderContextEnum::ConvertToD3D9Format( Tr2RenderContextEnum::PixelFormat format )
+{
+	switch( format )
+	{
+	case PIXEL_FORMAT_R32G32B32A32_TYPELESS:
+	case PIXEL_FORMAT_R32G32B32A32_FLOAT:
+	case PIXEL_FORMAT_R32G32B32A32_UINT:
+	case PIXEL_FORMAT_R32G32B32A32_SINT:
+		return D3DFMT_A32B32G32R32F;
+
+	case PIXEL_FORMAT_R32G32B32_TYPELESS:
+	case PIXEL_FORMAT_R32G32B32_FLOAT:
+	case PIXEL_FORMAT_R32G32B32_UINT:
+	case PIXEL_FORMAT_R32G32B32_SINT:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_R16G16B16A16_FLOAT:
+		return D3DFMT_A16B16G16R16F;
+
+	case PIXEL_FORMAT_R16G16B16A16_TYPELESS:
+	case PIXEL_FORMAT_R16G16B16A16_UNORM:
+	case PIXEL_FORMAT_R16G16B16A16_UINT:
+	case PIXEL_FORMAT_R16G16B16A16_SNORM:
+	case PIXEL_FORMAT_R16G16B16A16_SINT:
+		return D3DFMT_A16B16G16R16;
+	
+	case PIXEL_FORMAT_R32G32_TYPELESS:
+	case PIXEL_FORMAT_R32G32_FLOAT:
+	case PIXEL_FORMAT_R32G32_UINT:
+	case PIXEL_FORMAT_R32G32_SINT:
+		return D3DFMT_G32R32F;
+
+	case PIXEL_FORMAT_R32G8X24_TYPELESS:
+	case PIXEL_FORMAT_D32_FLOAT_S8X24_UINT:
+	case PIXEL_FORMAT_R32_FLOAT_X8X24_TYPELESS:
+	case PIXEL_FORMAT_X32_TYPELESS_G8X24_UINT:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_R10G10B10A2_TYPELESS:
+	case PIXEL_FORMAT_R10G10B10A2_UNORM:
+	case PIXEL_FORMAT_R10G10B10A2_UINT:
+		return D3DFMT_A2R10G10B10;
+
+	case PIXEL_FORMAT_R11G11B10_FLOAT:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_R8G8B8A8_TYPELESS:
+	case PIXEL_FORMAT_R8G8B8A8_UNORM:
+	case PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB:
+	case PIXEL_FORMAT_R8G8B8A8_UINT:
+	case PIXEL_FORMAT_R8G8B8A8_SNORM:
+	case PIXEL_FORMAT_R8G8B8A8_SINT:
+		return D3DFMT_A8B8G8R8;
+
+	case PIXEL_FORMAT_R16G16_TYPELESS:
+	case PIXEL_FORMAT_R16G16_FLOAT:
+		return D3DFMT_G16R16F;
+
+	case PIXEL_FORMAT_R16G16_UNORM:
+	case PIXEL_FORMAT_R16G16_UINT:
+	case PIXEL_FORMAT_R16G16_SNORM:
+	case PIXEL_FORMAT_R16G16_SINT:
+		return D3DFMT_G16R16;
+
+	case PIXEL_FORMAT_R32_TYPELESS:
+		return D3DFMT_R32F;
+
+	case PIXEL_FORMAT_D32_FLOAT:
+		return D3DFMT_D32F_LOCKABLE;
+
+	case PIXEL_FORMAT_R32_FLOAT:
+		return D3DFMT_R32F;
+
+	case PIXEL_FORMAT_R32_UINT:
+	case PIXEL_FORMAT_R32_SINT:
+		return D3DFMT_R32F;	// no R32 :(
+
+	case PIXEL_FORMAT_R24G8_TYPELESS:
+	case PIXEL_FORMAT_D24_UNORM_S8_UINT:
+	case PIXEL_FORMAT_R24_UNORM_X8_TYPELESS:
+	case PIXEL_FORMAT_X24_TYPELESS_G8_UINT:
+		return D3DFMT_D24S8;
+
+	case PIXEL_FORMAT_R8G8_TYPELESS:
+	case PIXEL_FORMAT_R8G8_UNORM:
+	case PIXEL_FORMAT_R8G8_UINT:
+	case PIXEL_FORMAT_R8G8_SNORM:
+	case PIXEL_FORMAT_R8G8_SINT:
+		//return D3DFMT_UNKNOWN;
+		return D3DFMT_A8L8;	// bit of a hack here.. A8L8 doesn't exist anymore in DX11, so ask for R8G8 and map it back to A8L8 for Dx9 :S TODO shader branching needed :(
+
+	case PIXEL_FORMAT_R16_TYPELESS:
+	case PIXEL_FORMAT_R16_FLOAT:
+		return D3DFMT_R16F;
+
+	case PIXEL_FORMAT_D16_UNORM:
+	case PIXEL_FORMAT_R16_UNORM:
+	case PIXEL_FORMAT_R16_UINT:
+	case PIXEL_FORMAT_R16_SNORM:
+	case PIXEL_FORMAT_R16_SINT:
+		return D3DFMT_R16F;	// no R16 :(
+
+	case PIXEL_FORMAT_R8_TYPELESS:
+	case PIXEL_FORMAT_R8_UNORM:
+	case PIXEL_FORMAT_R8_UINT:
+	case PIXEL_FORMAT_R8_SNORM:
+	case PIXEL_FORMAT_R8_SINT:
+		return D3DFMT_L8;
+
+	case PIXEL_FORMAT_A8_UNORM:
+		return D3DFMT_A8;
+
+	case PIXEL_FORMAT_R1_UNORM:
+	case PIXEL_FORMAT_R9G9B9E5_SHAREDEXP:
+	case PIXEL_FORMAT_R8G8_B8G8_UNORM:
+	case PIXEL_FORMAT_G8R8_G8B8_UNORM:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_BC1_TYPELESS:
+	case PIXEL_FORMAT_BC1_UNORM:
+	case PIXEL_FORMAT_BC1_UNORM_SRGB:
+		return D3DFMT_DXT1;
+
+	case PIXEL_FORMAT_BC2_TYPELESS:
+	case PIXEL_FORMAT_BC2_UNORM:
+	case PIXEL_FORMAT_BC2_UNORM_SRGB:
+		return D3DFMT_DXT3;
+
+	case PIXEL_FORMAT_BC3_TYPELESS:
+	case PIXEL_FORMAT_BC3_UNORM:
+	case PIXEL_FORMAT_BC3_UNORM_SRGB:
+		return D3DFMT_DXT5;
+
+	case PIXEL_FORMAT_BC4_TYPELESS:
+	case PIXEL_FORMAT_BC4_UNORM:
+	case PIXEL_FORMAT_BC4_SNORM:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_BC5_TYPELESS:
+	case PIXEL_FORMAT_BC5_UNORM:
+	case PIXEL_FORMAT_BC5_SNORM:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_B5G6R5_UNORM:
+		return D3DFMT_R5G6B5;
+
+	case PIXEL_FORMAT_B5G5R5A1_UNORM:
+		return D3DFMT_A1R5G5B5;
+
+	case PIXEL_FORMAT_B8G8R8A8_UNORM:
+		return D3DFMT_A8R8G8B8;
+
+	case PIXEL_FORMAT_B8G8R8X8_UNORM:
+		return D3DFMT_X8R8G8B8;
+
+	case PIXEL_FORMAT_R10G10B10_XR_BIAS_A2_UNORM:
+		return D3DFMT_UNKNOWN;
+
+	case PIXEL_FORMAT_B8G8R8A8_TYPELESS:
+	case PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB:
+		return D3DFMT_A8R8G8B8;
+
+	case PIXEL_FORMAT_B8G8R8X8_TYPELESS:
+	case PIXEL_FORMAT_B8G8R8X8_UNORM_SRGB:
+		return D3DFMT_X8R8G8B8;
+
+	case PIXEL_FORMAT_BC6H_TYPELESS:
+	case PIXEL_FORMAT_BC6H_UF16:
+	case PIXEL_FORMAT_BC6H_SF16:
+	case PIXEL_FORMAT_BC7_TYPELESS:
+	case PIXEL_FORMAT_BC7_UNORM:
+	case PIXEL_FORMAT_BC7_UNORM_SRGB:
+		return D3DFMT_UNKNOWN;
+
+	default:
+		CCP_AL_LOGWARN( "Trying to use unknown format %d", format );
+		return D3DFMT_UNKNOWN;
+	}
+}
+
+Tr2RenderContextEnum::PixelFormat Tr2RenderContextEnum::ConvertFromD3D9Format( D3DFORMAT format )
+{
+	switch( format )
+	{
+	case D3DFMT_A32B32G32R32F:
+		return PIXEL_FORMAT_R32G32B32A32_FLOAT;
+
+	case D3DFMT_A16B16G16R16F:
+		return PIXEL_FORMAT_R16G16B16A16_FLOAT;
+
+	case D3DFMT_G32R32F:
+		return PIXEL_FORMAT_R32G32_FLOAT;
+
+	case D3DFMT_A2R10G10B10:
+		return PIXEL_FORMAT_R10G10B10A2_UNORM;
+
+	case D3DFMT_A8B8G8R8:
+		return PIXEL_FORMAT_R8G8B8A8_UNORM;
+
+	case D3DFMT_G16R16F:
+		return PIXEL_FORMAT_R16G16_FLOAT;
+
+	case D3DFMT_G16R16:
+		return PIXEL_FORMAT_R16G16_UNORM;
+
+	case D3DFMT_R32F:
+		return PIXEL_FORMAT_R32_FLOAT;
+
+	case D3DFMT_D32F_LOCKABLE:
+		return PIXEL_FORMAT_D32_FLOAT;
+
+	case D3DFMT_D24S8:
+		return PIXEL_FORMAT_D24_UNORM_S8_UINT;
+
+	case D3DFMT_A8L8:
+		return PIXEL_FORMAT_R8G8_UNORM;	// bit of a hack here.. A8L8 doesn't exist anymore in DX11, so ask for R8G8 and map it back to A8L8 for Dx9 :S TODO shader branching needed :(
+
+	case D3DFMT_R16F:
+		return PIXEL_FORMAT_R16_FLOAT;
+
+	case D3DFMT_L8:
+		return PIXEL_FORMAT_R8_UNORM;
+
+	case D3DFMT_A8:
+		return PIXEL_FORMAT_A8_UNORM;
+
+	case D3DFMT_DXT1:
+		return PIXEL_FORMAT_BC1_UNORM;
+
+	case D3DFMT_DXT2:
+		return PIXEL_FORMAT_BC2_UNORM;
+
+	case D3DFMT_DXT5:
+		return PIXEL_FORMAT_BC3_UNORM;
+
+	case D3DFMT_R5G6B5:
+		return PIXEL_FORMAT_B5G6R5_UNORM;
+
+	case D3DFMT_A1R5G5B5:
+		return PIXEL_FORMAT_B5G5R5A1_UNORM;
+
+	case D3DFMT_A8R8G8B8:
+		return PIXEL_FORMAT_B8G8R8A8_UNORM;
+
+	case D3DFMT_X8R8G8B8:
+		return PIXEL_FORMAT_B8G8R8X8_UNORM;
+
+	default:
+		CCP_AL_LOGWARN( "Trying to use unknown format %d", format );
+		return PIXEL_FORMAT_UNKNOWN;
+	}
+}
+
+D3DFORMAT Tr2RenderContextEnum::ConvertToD3D9DepthStencilFormat( Tr2RenderContextEnum::DepthStencilFormat format )
+{
+	D3DFORMAT format9;
+	switch( format )
+	{
+	case DSFMT_D24S8:
+		format9 = D3DFMT_D24S8;
+		break;
+	case DSFMT_D24X8:
+		format9 = D3DFMT_D24X8;
+		break;
+	case DSFMT_D24FS8:
+		format9 = D3DFMT_D24FS8;
+		break;
+	case DSFMT_D32F: 
+		format9 = D3DFMT_D32F_LOCKABLE; 
+		break;
+	case DSFMT_READABLE: 
+		format9 = (D3DFORMAT)MAKEFOURCC( 'I', 'N', 'T', 'Z' ); 
+		break;
+
+	case DSFMT_D32:
+		format9 = D3DFMT_D32;
+		break;
+	case DSFMT_D16_LOCKABLE:
+		format9 = D3DFMT_D16_LOCKABLE;
+		break;
+	case DSFMT_D15S1:
+		format9 = D3DFMT_D15S1;
+		break;
+	case DSFMT_D24X4S4:
+		format9 = D3DFMT_D24X4S4;
+		break;
+	case DSFMT_D16:
+		format9 = D3DFMT_D16;
+		break;
+	case DSFMT_D32F_LOCKABLE:
+		format9 = D3DFMT_D32F_LOCKABLE;
+		break;
+	case DSFMT_AUTO:
+		format9 = D3DFMT_UNKNOWN;
+		break;
+	default:
+		CCP_AL_LOGERR( "Unsupported depth stencil format %d", format );
+		format9 = D3DFMT_UNKNOWN;
+		break;
+	}
+	return format9;
+}
+
+#pragma warning ( disable: 4063 ) // INTZ enum value
+
+Tr2RenderContextEnum::DepthStencilFormat Tr2RenderContextEnum::ConvertFromD3D9DepthStencilFormat( D3DFORMAT format )
+{
+	Tr2RenderContextEnum::DepthStencilFormat dsFormat;
+	switch( format )
+	{
+	case D3DFMT_D24S8:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D24S8;
+		break;
+	case D3DFMT_D24X8:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D24X8;
+		break;
+	case D3DFMT_D24FS8:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D24FS8;
+		break;
+	case (D3DFORMAT)MAKEFOURCC( 'I', 'N', 'T', 'Z' ): 
+		dsFormat = Tr2RenderContextEnum::DSFMT_READABLE; 
+		break;
+	case D3DFMT_D32:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D32;
+		break;
+	case D3DFMT_D16_LOCKABLE:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D16_LOCKABLE;
+		break;
+	case D3DFMT_D15S1:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D15S1;
+		break;
+	case D3DFMT_D24X4S4:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D24X4S4;
+		break;
+	case D3DFMT_D16:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D16;
+		break;
+	case D3DFMT_D32F_LOCKABLE:
+		dsFormat = Tr2RenderContextEnum::DSFMT_D32F_LOCKABLE;
+		break;
+	default:
+		CCP_AL_LOGERR( "Unsupported depth stencil format %d", format );
+		dsFormat = Tr2RenderContextEnum::DSFMT_UNKNOWN;
+	}
+	return dsFormat;
+}
+
+#endif

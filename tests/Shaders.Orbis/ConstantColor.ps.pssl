@@ -1,0 +1,13 @@
+#include "ShadowState.fxh"
+
+struct VS_OUTPUT
+{
+	float4 Position : S_POSITION;
+};
+
+float4 main(VS_OUTPUT In) : S_TARGET_OUTPUT0
+{
+    float4 color = float4( 1, 0, 0, 1 );
+    SHADOW_PS_PART(color);
+    return color;
+}

@@ -1,0 +1,235 @@
+ProjectGuid: 504BC561-AF34-424A-82B7-D381566FA473
+Imports:
+- ../core_project.yaml
+
+General:
+  ConfigurationType: Application
+  UseOfMfc: false
+  IntDir: ../temp/$(ProjectName)/$(Platform)/$(Configuration)/$(PlatformToolset)/
+  OutDir: ../../autobuild/TrinityALTest/$(Platform)/$(PlatformToolset)/
+  TargetExt: .exe
+
+ClCompile:
+  CppExceptions: true
+  EnableEnhancedInstructionSet: StreamingSIMDExtensions2
+  DebugInformationFormat: OldStyle
+  WarningLevel: Level3
+  TreatWarningAsError: true
+  BufferSecurityCheck: false
+  PrecompiledHeader: Use
+  PrecompiledHeaderFile: StdAfx.h
+  PrecompiledHeaderOutputFile: $(IntDir)trinity.pch
+  AdditionalIncludeDirectories:
+  - .
+  PreprocessorDefinitions:
+  - CCPMATH_IMPLEMENT_D3DX_FUNCTIONS=1
+  - TRINITY_AL_WITH_BLUE_EXPOSURE=0
+  - NOMINMAX
+  - BLUEBUILD
+
+Link:
+  GenerateDebugInformation: true
+  ProgramDatabaseFile: $(TargetDir)$(TargetName).pdb
+
+BaseConfigurations:
+  Dev:
+    UserMacros:
+      CcpConfigType: Dev
+    General:
+      LinkIncremental: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      - CCP_ASSERT_ENABLED=1
+      - TRINITYDEV
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDLL
+      DebugInformationFormat: EditAndContinue
+
+  Debug:
+    UserMacros:
+      CcpConfigType: Dev
+    General:
+      LinkIncremental: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - _DEBUG
+      - CCP_ASSERT_ENABLED=1
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDebugDLL
+      DebugInformationFormat: EditAndContinue
+
+  Release:
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      Optimization: MaxSpeed
+      RuntimeLibrary: MultiThreadedDLL
+
+  CodeCoverage:
+    Imports:
+    - ../TrinityAL/uses_TrinityALGLES2Coverage.yaml
+    General: 
+      GenerateCodeCoverage: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDLL
+      DebugInformationFormat: ProgramDatabase
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gles2_cc.lib
+
+  D3D9:
+    # These are settings that apply to all variants of Trinity that use D3D9
+    Imports:
+    - ../TrinityAL/uses_TrinityALDX9.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+
+  D3D11:
+    # These are settings that apply to all variants of Trinity that use D3D11
+    Imports:
+    - ../TrinityAL/uses_TrinityALDX11.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - D3DTARGET=9
+
+  Orbis:
+    # These are settings that apply to all variants of Trinity that use Orbis
+    Imports:
+    - ../TrinityAL/uses_TrinityALOrbis.yaml
+    - ../CcpCore/uses_CcpCore.yaml
+    Link:
+      AdditionalDependencies:
+      - SceUserService_stub_weak
+      - ScePad_stub_weak
+
+  GLES2:
+    # These are settings that apply to all variants of Trinity that use OpenGL ES 2
+    Imports:
+    - ../TrinityAL/uses_TrinityALGLES2.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - D3DTARGET=9
+      
+  WithGoogleTest:
+    Imports:
+    - ../../../../../../sdk/GoogleTest/1.6.0/gtest.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - D3DTARGET=9
+      
+  Android:
+    General:
+      AndroidTargetAPI: android-14
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRACK_AL_RESOURCES=0
+    Link:
+      AdditionalDependencies:
+      - log
+      - android
+
+Configurations:
+  Dev_DX9|Win32,x64:
+    BaseConfigurations:
+    - Dev
+    - D3D9
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestDX9_dev
+
+  Release_DX9|Win32,x64:
+    BaseConfigurations:
+    - Release
+    - D3D9
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestDX9
+
+  Dev_DX11|Win32,x64:
+    BaseConfigurations:
+    - Dev
+    - D3D11
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestDX11_dev
+
+  Release_DX11|Win32,x64:
+    BaseConfigurations:
+    - Release
+    - D3D11
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestDX11
+
+  Dev_GLES2|Win32,x64:
+    BaseConfigurations:
+    - Dev
+    - GLES2
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestGLES2_dev
+
+  Debug_GLES2|Mac64:
+    BaseConfigurations:
+    - Debug
+    - GLES2
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestGLES2_dev
+
+  Release_GLES2|Win32,x64,Mac64:
+    BaseConfigurations:
+    - Release
+    - GLES2
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestGLES2
+
+  Release_GLES2_Coverage|Mac64:
+    BaseConfigurations:
+    - CodeCoverage
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestGLES2_cc
+
+  Debug_GLES2|Tegra-Android:
+    BaseConfigurations:
+    - Debug
+    - GLES2
+    - Android
+    General: 
+      TargetName: libTrinityALTestGLES2_d
+    AntBuild:
+      AndroidManifestLocation: AndroidManifest_d.xml
+
+  Release_GLES2|Tegra-Android:
+    BaseConfigurations:
+    - Release
+    - GLES2
+    - Android
+    General: 
+      TargetName: libTrinityALTestGLES2
+    ClCompile:
+      GenerateDebugInformation: False
+      OptimizationLevel: O3
+    AntBuild:
+      AndroidManifestLocation: AndroidManifest.xml
+
+  Debug_Orbis|ORBIS:
+    BaseConfigurations:
+    - Debug
+    - Orbis
+    General: 
+      TargetName: TrinityALTestOrbis_dev
+
+  Release_Orbis|ORBIS:
+    BaseConfigurations:
+    - Release
+    - Orbis
+    General:
+      TargetName: TrinityALTestOrbis

@@ -1,0 +1,555 @@
+#pragma once
+#ifndef Tr2RenderContextEnum_h
+#define Tr2RenderContextEnum_h
+
+namespace Tr2RenderContextEnum
+{
+	enum ObjectType
+	{
+		OT_CONSTANT_BUFFER,
+		OT_DEPTH_STENCIL,
+		OT_INDEX_BUFFER,
+		OT_RENDER_CONTEXT,
+		OT_RENDER_TARGET,
+		OT_SHADER,
+		OT_SAMPLER_STATE,
+		OT_TEXTURE,
+		OT_VERTEX_BUFFER,
+		OT_VERTEX_LAYOUT,
+		OT_OCCLUSION_QUERY,
+		OT_SWAP_CHAIN,
+		OT_GPU_BUFFER,
+		OT_FENCE,
+
+		OBJECT_TYPE_COUNT
+	};
+
+	enum ShaderType
+	{
+		VERTEX_SHADER,
+		PIXEL_SHADER,
+		COMPUTE_SHADER,
+		GEOMETRY_SHADER,
+		HULL_SHADER,
+		DOMAIN_SHADER,
+
+		INVALID_SHADER,
+		SHADER_TYPE_FIRST = VERTEX_SHADER,
+		SHADER_TYPE_COUNT = INVALID_SHADER,
+	};
+
+	// Special case constant buffers added to handle trinity
+	enum
+	{
+		CBUFFER_FFE		= SHADER_TYPE_COUNT,
+		CBUFFER_GUI,
+		CBUFFER_COUNT	// total number of cbuffers passed to SetPerObjectToDevice
+	};
+
+	// Clearing bound renderTarget and/or depth stencil
+	enum ClearFlags
+	{
+		CLEARFLAGS_TARGET  = 1,
+		CLEARFLAGS_ZBUFFER = 2,
+		CLEARFLAGS_STENCIL = 4,
+	};
+    
+    enum CullMode
+    {
+        CULLMODE_NONE   = 1,
+        CULLMODE_CW     = 2,
+        CULLMODE_CCW    = 3,
+    };
+
+	enum ColorWriteEnable
+	{
+		COLORWRITEENABLE_RED	= 1 << 0,
+		COLORWRITEENABLE_GREEN	= 1 << 1,
+		COLORWRITEENABLE_BLUE	= 1 << 2,
+		COLORWRITEENABLE_ALPHA	= 1 << 3,
+	};
+
+
+	// Formats for depth/stencil bufers
+	enum DepthStencilFormat
+	{
+		DSFMT_UNKNOWN,	// invalid, zero, make sure any valid enum is > 0
+
+		DSFMT_D24S8,
+		DSFMT_D24X8,
+		DSFMT_D24FS8,
+		DSFMT_D32F,
+		DSFMT_D32,
+		DSFMT_READABLE,
+
+		DSFMT_AUTO,		// "don't care, use what's most likely to work"
+
+		// These are just here for completeness, probably not a great idea to try and use them.
+		DSFMT_D16_LOCKABLE,		
+		DSFMT_D15S1,		
+	    DSFMT_D24X4S4,
+		DSFMT_D16,
+		DSFMT_D32F_LOCKABLE
+	};
+
+	// Locking buffers
+	enum LockType
+	{
+		LOCK_READONLY,
+		LOCK_WRITEONLY,
+		LOCK_NO_OVERWRITE,
+		LOCK_INVALID
+	};
+
+	// Vertex/index buffer usage flags
+	enum BufferUsageFlags
+	{
+		// Resource is inteded to be locked for reading
+		USAGE_CPU_READ			= 1 << 0,
+		// Resource is inteded to be locked for writing
+		USAGE_CPU_WRITE			= 1 << 1,
+		// Resource is inteded to be locked more than once per frame
+		USAGE_LOCK_FREQUENTLY	= 1 << 2,
+		// Resource is immutable (no CPU or GPU modifications)
+		USAGE_IMMUTABLE			= 1 << 3,
+		// DX9-specific: put resource into managed pool
+		USAGE_HINT_MANAGED		= 1 << 4,
+		// Access resource as a unordered access view in shaders
+		USAGE_UNORDERED_ACCESS	= 1 << 5,
+		// Access resource to be accessed shaders (as shader resources); applies to buffers
+		USAGE_SHADER_RESOURCE   = 1 << 6,
+	};
+
+	// Combination of BufferUsageFlags
+	typedef int BufferUsage;
+
+	bool ValidateUsage( BufferUsage );
+
+	// Topology
+	enum Topology
+	{
+		TOP_INVALID,
+
+		TOP_TRIANGLES,
+		TOP_TRIANGLE_STRIP,
+		TOP_TRIANGLE_FAN,		// invalid on DX11!
+		TOP_LINES,
+		TOP_LINE_STRIP,
+		TOP_POINTS,
+
+		TOP_MAX_TOPOLOGY
+	};
+
+	// Index buffer element types.. 16 or 32 bit
+	enum IndexBufferBitcount
+	{
+		IB_16BIT,
+		IB_32BIT
+	};
+
+	// Comparison functions
+	enum CompareFunc
+	{
+		CMP_NEVER                = 1,
+		CMP_LESS                 = 2,
+		CMP_EQUAL                = 3,
+		CMP_LESSEQUAL            = 4,
+		CMP_GREATER              = 5,
+		CMP_NOTEQUAL             = 6,
+		CMP_GREATEREQUAL         = 7,
+		CMP_ALWAYS               = 8,
+
+		CMP_FORCE_DWORD			 = 0xffffffff
+	};
+    
+    enum FillMode
+    {
+        FM_POINT                 = 1,
+        FM_WIREFRAME             = 2,
+        FM_SOLID                 = 3,
+        FM_FORCE_DWORD           = 0xffffffff
+    };
+    
+    enum BlendMode
+    {
+        BM_ZERO                 = 1,
+        BM_ONE                  = 2,
+        BM_SRCCOLOR             = 3,
+        BM_INVSRCCOLOR          = 4,
+        BM_SRCALPHA             = 5,
+        BM_INVSRCALPHA          = 6,
+        BM_DESTALPHA            = 7,
+        BM_INVDESTALPHA         = 8,
+        BM_DESTCOLOR            = 9,
+        BM_INVDESTCOLOR         = 10,
+        BM_SRCALPHASAT          = 11,
+        BM_BOTHSRCALPHA         = 12,
+        BM_BOTHINVSRCALPHA      = 13,
+        BM_BLENDFACTOR          = 14,
+        BM_INVBLENDFACTOR       = 15,
+        BM_FORCE_DWORD          = 0xffffffff
+    };
+    
+    enum BlendOperation
+    {
+        BO_DISABLE              = 0,
+        BO_ADD                  = 1,
+        BO_SUBTRACT             = 2,
+        BO_REVSUBTRACT          = 3,
+        BO_MIN                  = 4,
+        BO_MAX                  = 5,
+        BO_FORCE_DWORD          = 0xffffffff
+    };
+
+	// Texture types
+	enum TextureType
+	{
+		TEX_TYPE_1D		= 1,
+		TEX_TYPE_2D,
+		TEX_TYPE_3D,
+		TEX_TYPE_CUBE,
+
+		TEX_TYPE_TYPELESS,	// valid but unknown dimensions
+
+		TEX_TYPE_INVALID
+	};
+
+	// Texture locking
+	enum TextureLockSupport
+	{
+		TEX_LOCK_NONE,
+		TEX_LOCK_CPU_LOCKABLE
+	};
+
+	// Magical flags for CreateEx and friends
+	enum ExFlag
+	{
+		EX_CREATE_SHARED			= 1 << 0,		
+		EX_BIND_UNORDERED_ACCESS	= 1 << 1,
+		EX_WRITABLE_UAV				= 1 << 2,
+		EX_DRAW_INDIRECT			= 1 << 3,
+		EX_PICKING_BUFFER_WORKAROUND= 1 << 4,
+	};
+
+	// Texture color space
+	enum ColorSpace
+	{
+		COLOR_SPACE_LINEAR,
+		COLOR_SPACE_SRGB,
+	};
+
+	// Rasterization states for backward compatibility
+	enum RenderState
+	{
+		RS_ZENABLE                   = 7,    /* D3DZBUFFERTYPE (or TRUE/FALSE for legacy) */
+		RS_FILLMODE                  = 8,    /* D3DFILLMODE */
+		RS_SHADEMODE                 = 9,    /* D3DSHADEMODE */
+		RS_ZWRITEENABLE              = 14,   /* TRUE to enable z writes */
+		RS_ALPHATESTENABLE           = 15,   /* TRUE to enable alpha tests */
+		RS_LASTPIXEL                 = 16,   /* TRUE for last-pixel on lines */
+		RS_SRCBLEND                  = 19,   /* D3DBLEND */
+		RS_DESTBLEND                 = 20,   /* D3DBLEND */
+		RS_CULLMODE                  = 22,   /* D3DCULL */
+		RS_ZFUNC                     = 23,   /* D3DCMPFUNC */
+		RS_ALPHAREF                  = 24,   /* D3DFIXED */
+		RS_ALPHAFUNC                 = 25,   /* D3DCMPFUNC */
+		RS_DITHERENABLE              = 26,   /* TRUE to enable dithering */
+		RS_ALPHABLENDENABLE          = 27,   /* TRUE to enable alpha blending */
+		RS_FOGENABLE                 = 28,   /* TRUE to enable fog blending */
+		RS_SPECULARENABLE            = 29,   /* TRUE to enable specular */
+		RS_FOGCOLOR                  = 34,   /* D3DCOLOR */
+		RS_FOGTABLEMODE              = 35,   /* D3DFOGMODE */
+		RS_FOGSTART                  = 36,   /* Fog start (for both vertex and pixel fog) */
+		RS_FOGEND                    = 37,   /* Fog end      */
+		RS_FOGDENSITY                = 38,   /* Fog density  */
+		RS_RANGEFOGENABLE            = 48,   /* Enables range-based fog */
+		RS_STENCILENABLE             = 52,   /* BOOL enable/disable stenciling */
+		RS_STENCILFAIL               = 53,   /* D3DSTENCILOP to do if stencil test fails */
+		RS_STENCILZFAIL              = 54,   /* D3DSTENCILOP to do if stencil test passes and Z test fails */
+		RS_STENCILPASS               = 55,   /* D3DSTENCILOP to do if both stencil and Z tests pass */
+		RS_STENCILFUNC               = 56,   /* D3DCMPFUNC fn.  Stencil Test passes if ((ref & mask) stencilfn (stencil & mask)) is true */
+		RS_STENCILREF                = 57,   /* Reference value used in stencil test */
+		RS_STENCILMASK               = 58,   /* Mask value used in stencil test */
+		RS_STENCILWRITEMASK          = 59,   /* Write mask applied to values written to stencil buffer */
+		RS_TEXTUREFACTOR             = 60,   /* D3DCOLOR used for multi-texture blend */
+		RS_WRAP0                     = 128,  /* wrap for 1st texture coord. set */
+		RS_WRAP1                     = 129,  /* wrap for 2nd texture coord. set */
+		RS_WRAP2                     = 130,  /* wrap for 3rd texture coord. set */
+		RS_WRAP3                     = 131,  /* wrap for 4th texture coord. set */
+		RS_WRAP4                     = 132,  /* wrap for 5th texture coord. set */
+		RS_WRAP5                     = 133,  /* wrap for 6th texture coord. set */
+		RS_WRAP6                     = 134,  /* wrap for 7th texture coord. set */
+		RS_WRAP7                     = 135,  /* wrap for 8th texture coord. set */
+		RS_CLIPPING                  = 136,
+		RS_LIGHTING                  = 137,
+		RS_AMBIENT                   = 139,
+		RS_FOGVERTEXMODE             = 140,
+		RS_COLORVERTEX               = 141,
+		RS_LOCALVIEWER               = 142,
+		RS_NORMALIZENORMALS          = 143,
+		RS_DIFFUSEMATERIALSOURCE     = 145,
+		RS_SPECULARMATERIALSOURCE    = 146,
+		RS_AMBIENTMATERIALSOURCE     = 147,
+		RS_EMISSIVEMATERIALSOURCE    = 148,
+		RS_VERTEXBLEND               = 151,
+		RS_CLIPPLANEENABLE           = 152,
+		RS_POINTSIZE                 = 154,   /* float point size */
+		RS_POINTSIZE_MIN             = 155,   /* float point size min threshold */
+		RS_POINTSPRITEENABLE         = 156,   /* BOOL point texture coord control */
+		RS_POINTSCALEENABLE          = 157,   /* BOOL point size scale enable */
+		RS_POINTSCALE_A              = 158,   /* float point attenuation A value */
+		RS_POINTSCALE_B              = 159,   /* float point attenuation B value */
+		RS_POINTSCALE_C              = 160,   /* float point attenuation C value */
+		RS_MULTISAMPLEANTIALIAS      = 161,  // BOOL - set to do FSAA with multisample buffer
+		RS_MULTISAMPLEMASK           = 162,  // DWORD - per-sample enable/disable
+		RS_PATCHEDGESTYLE            = 163,  // Sets whether patch edges will use float style tessellation
+		RS_DEBUGMONITORTOKEN         = 165,  // DEBUG ONLY - token to debug monitor
+		RS_POINTSIZE_MAX             = 166,   /* float point size max threshold */
+		RS_INDEXEDVERTEXBLENDENABLE  = 167,
+		RS_COLORWRITEENABLE          = 168,  // per-channel write enable
+		RS_TWEENFACTOR               = 170,   // float tween factor
+		RS_BLENDOP                   = 171,   // D3DBLENDOP setting
+		RS_POSITIONDEGREE            = 172,   // NPatch position interpolation degree. D3DDEGREE_LINEAR or D3DDEGREE_CUBIC (default)
+		RS_NORMALDEGREE              = 173,   // NPatch normal interpolation degree. D3DDEGREE_LINEAR (default) or D3DDEGREE_QUADRATIC
+		RS_SCISSORTESTENABLE         = 174,
+		RS_SLOPESCALEDEPTHBIAS       = 175,
+		RS_ANTIALIASEDLINEENABLE     = 176,
+		RS_MINTESSELLATIONLEVEL      = 178,
+		RS_MAXTESSELLATIONLEVEL      = 179,
+		RS_ADAPTIVETESS_X            = 180,
+		RS_ADAPTIVETESS_Y            = 181,
+		RS_ADAPTIVETESS_Z            = 182,
+		RS_ADAPTIVETESS_W            = 183,
+		RS_ENABLEADAPTIVETESSELLATION = 184,
+		RS_TWOSIDEDSTENCILMODE       = 185,   /* BOOL enable/disable 2 sided stenciling */
+		RS_CCW_STENCILFAIL           = 186,   /* D3DSTENCILOP to do if ccw stencil test fails */
+		RS_CCW_STENCILZFAIL          = 187,   /* D3DSTENCILOP to do if ccw stencil test passes and Z test fails */
+		RS_CCW_STENCILPASS           = 188,   /* D3DSTENCILOP to do if both ccw stencil and Z tests pass */
+		RS_CCW_STENCILFUNC           = 189,   /* D3DCMPFUNC fn.  ccw Stencil Test passes if ((ref & mask) stencilfn (stencil & mask)) is true */
+		RS_COLORWRITEENABLE1         = 190,   /* Additional ColorWriteEnables for the devices that support D3DPMISCCAPS_INDEPENDENTWRITEMASKS */
+		RS_COLORWRITEENABLE2         = 191,   /* Additional ColorWriteEnables for the devices that support D3DPMISCCAPS_INDEPENDENTWRITEMASKS */
+		RS_COLORWRITEENABLE3         = 192,   /* Additional ColorWriteEnables for the devices that support D3DPMISCCAPS_INDEPENDENTWRITEMASKS */
+		RS_BLENDFACTOR               = 193,   /* D3DCOLOR used for a constant blend factor during alpha blending for devices that support D3DPBLENDCAPS_BLENDFACTOR */
+		RS_SRGBWRITEENABLE           = 194,   /* Enable rendertarget writes to be DE-linearized to SRGB (for formats that expose D3DUSAGE_QUERY_SRGBWRITE) */
+		RS_DEPTHBIAS                 = 195,
+		RS_WRAP8                     = 198,   /* Additional wrap states for vs_3_0+ attributes with D3DDECLUSAGE_TEXCOORD */
+		RS_WRAP9                     = 199,
+		RS_WRAP10                    = 200,
+		RS_WRAP11                    = 201,
+		RS_WRAP12                    = 202,
+		RS_WRAP13                    = 203,
+		RS_WRAP14                    = 204,
+		RS_WRAP15                    = 205,
+		RS_SEPARATEALPHABLENDENABLE  = 206,  /* TRUE to enable a separate blending function for the alpha channel */
+		RS_SRCBLENDALPHA             = 207,  /* SRC blend factor for the alpha channel when RS_SEPARATEDESTALPHAENABLE is TRUE */
+		RS_DESTBLENDALPHA            = 208,  /* DST blend factor for the alpha channel when RS_SEPARATEDESTALPHAENABLE is TRUE */
+		RS_BLENDOPALPHA              = 209,  /* Blending operation for the alpha channel when RS_SEPARATEDESTALPHAENABLE is TRUE */
+
+		// from DX8?
+		RS_ZBIAS					 = 47,
+
+
+		RS_MAX_STATE			     = 210,
+
+		RS_FORCE_DWORD               = 0x7fffffff, /* force 32-bit size enum */
+	};
+
+	enum PixelFormat
+	{
+		PIXEL_FORMAT_UNKNOWN	                    = 0,
+		PIXEL_FORMAT_R32G32B32A32_TYPELESS       = 1,
+		PIXEL_FORMAT_R32G32B32A32_FLOAT          = 2,
+		PIXEL_FORMAT_R32G32B32A32_UINT           = 3,
+		PIXEL_FORMAT_R32G32B32A32_SINT           = 4,
+		PIXEL_FORMAT_R32G32B32_TYPELESS          = 5,
+		PIXEL_FORMAT_R32G32B32_FLOAT             = 6,
+		PIXEL_FORMAT_R32G32B32_UINT              = 7,
+		PIXEL_FORMAT_R32G32B32_SINT              = 8,
+		PIXEL_FORMAT_R16G16B16A16_TYPELESS       = 9,
+		PIXEL_FORMAT_R16G16B16A16_FLOAT          = 10,
+		PIXEL_FORMAT_R16G16B16A16_UNORM          = 11,
+		PIXEL_FORMAT_R16G16B16A16_UINT           = 12,
+		PIXEL_FORMAT_R16G16B16A16_SNORM          = 13,
+		PIXEL_FORMAT_R16G16B16A16_SINT           = 14,
+		PIXEL_FORMAT_R32G32_TYPELESS             = 15,
+		PIXEL_FORMAT_R32G32_FLOAT                = 16,
+		PIXEL_FORMAT_R32G32_UINT                 = 17,
+		PIXEL_FORMAT_R32G32_SINT                 = 18,
+		PIXEL_FORMAT_R32G8X24_TYPELESS           = 19,
+		PIXEL_FORMAT_D32_FLOAT_S8X24_UINT        = 20,
+		PIXEL_FORMAT_R32_FLOAT_X8X24_TYPELESS    = 21,
+		PIXEL_FORMAT_X32_TYPELESS_G8X24_UINT     = 22,
+		PIXEL_FORMAT_R10G10B10A2_TYPELESS        = 23,
+		PIXEL_FORMAT_R10G10B10A2_UNORM           = 24,
+		PIXEL_FORMAT_R10G10B10A2_UINT            = 25,
+		PIXEL_FORMAT_R11G11B10_FLOAT             = 26,
+		PIXEL_FORMAT_R8G8B8A8_TYPELESS           = 27,
+		PIXEL_FORMAT_R8G8B8A8_UNORM              = 28,
+		PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB         = 29,
+		PIXEL_FORMAT_R8G8B8A8_UINT               = 30,
+		PIXEL_FORMAT_R8G8B8A8_SNORM              = 31,
+		PIXEL_FORMAT_R8G8B8A8_SINT               = 32,
+		PIXEL_FORMAT_R16G16_TYPELESS             = 33,
+		PIXEL_FORMAT_R16G16_FLOAT                = 34,
+		PIXEL_FORMAT_R16G16_UNORM                = 35,
+		PIXEL_FORMAT_R16G16_UINT                 = 36,
+		PIXEL_FORMAT_R16G16_SNORM                = 37,
+		PIXEL_FORMAT_R16G16_SINT                 = 38,
+		PIXEL_FORMAT_R32_TYPELESS                = 39,
+		PIXEL_FORMAT_D32_FLOAT                   = 40,
+		PIXEL_FORMAT_R32_FLOAT                   = 41,
+		PIXEL_FORMAT_R32_UINT                    = 42,
+		PIXEL_FORMAT_R32_SINT                    = 43,
+		PIXEL_FORMAT_R24G8_TYPELESS              = 44,
+		PIXEL_FORMAT_D24_UNORM_S8_UINT           = 45,
+		PIXEL_FORMAT_R24_UNORM_X8_TYPELESS       = 46,
+		PIXEL_FORMAT_X24_TYPELESS_G8_UINT        = 47,
+		PIXEL_FORMAT_R8G8_TYPELESS               = 48,
+		PIXEL_FORMAT_R8G8_UNORM                  = 49,
+		PIXEL_FORMAT_R8G8_UINT                   = 50,
+		PIXEL_FORMAT_R8G8_SNORM                  = 51,
+		PIXEL_FORMAT_R8G8_SINT                   = 52,
+		PIXEL_FORMAT_R16_TYPELESS                = 53,
+		PIXEL_FORMAT_R16_FLOAT                   = 54,
+		PIXEL_FORMAT_D16_UNORM                   = 55,
+		PIXEL_FORMAT_R16_UNORM                   = 56,
+		PIXEL_FORMAT_R16_UINT                    = 57,
+		PIXEL_FORMAT_R16_SNORM                   = 58,
+		PIXEL_FORMAT_R16_SINT                    = 59,
+		PIXEL_FORMAT_R8_TYPELESS                 = 60,
+		PIXEL_FORMAT_R8_UNORM                    = 61,
+		PIXEL_FORMAT_R8_UINT                     = 62,
+		PIXEL_FORMAT_R8_SNORM                    = 63,
+		PIXEL_FORMAT_R8_SINT                     = 64,
+		PIXEL_FORMAT_A8_UNORM                    = 65,
+		PIXEL_FORMAT_R1_UNORM                    = 66,
+		PIXEL_FORMAT_R9G9B9E5_SHAREDEXP          = 67,
+		PIXEL_FORMAT_R8G8_B8G8_UNORM             = 68,
+		PIXEL_FORMAT_G8R8_G8B8_UNORM             = 69,
+		PIXEL_FORMAT_BC1_TYPELESS                = 70,
+		PIXEL_FORMAT_BC1_UNORM                   = 71,
+		PIXEL_FORMAT_BC1_UNORM_SRGB              = 72,
+		PIXEL_FORMAT_BC2_TYPELESS                = 73,
+		PIXEL_FORMAT_BC2_UNORM                   = 74,
+		PIXEL_FORMAT_BC2_UNORM_SRGB              = 75,
+		PIXEL_FORMAT_BC3_TYPELESS                = 76,
+		PIXEL_FORMAT_BC3_UNORM                   = 77,
+		PIXEL_FORMAT_BC3_UNORM_SRGB              = 78,
+		PIXEL_FORMAT_BC4_TYPELESS                = 79,
+		PIXEL_FORMAT_BC4_UNORM                   = 80,
+		PIXEL_FORMAT_BC4_SNORM                   = 81,
+		PIXEL_FORMAT_BC5_TYPELESS                = 82,
+		PIXEL_FORMAT_BC5_UNORM                   = 83,
+		PIXEL_FORMAT_BC5_SNORM                   = 84,
+		PIXEL_FORMAT_B5G6R5_UNORM                = 85,
+		PIXEL_FORMAT_B5G5R5A1_UNORM              = 86,
+		PIXEL_FORMAT_B8G8R8A8_UNORM              = 87,
+		PIXEL_FORMAT_B8G8R8X8_UNORM              = 88,
+		PIXEL_FORMAT_R10G10B10_XR_BIAS_A2_UNORM  = 89,
+		PIXEL_FORMAT_B8G8R8A8_TYPELESS           = 90,
+		PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB         = 91,
+		PIXEL_FORMAT_B8G8R8X8_TYPELESS           = 92,
+		PIXEL_FORMAT_B8G8R8X8_UNORM_SRGB         = 93,
+		PIXEL_FORMAT_BC6H_TYPELESS               = 94,
+		PIXEL_FORMAT_BC6H_UF16                   = 95,
+		PIXEL_FORMAT_BC6H_SF16                   = 96,
+		PIXEL_FORMAT_BC7_TYPELESS                = 97,
+		PIXEL_FORMAT_BC7_UNORM                   = 98,
+		PIXEL_FORMAT_BC7_UNORM_SRGB              = 99,
+
+		PIXEL_FORMAT_SENTINEL,
+
+		PIXEL_FORMAT_FORCE_UINT                  = 0xffffffff
+	};
+
+	enum TextureFilter
+	{
+		TF_NONE				= 0,
+		TF_POINT			= 1,
+		TF_LINEAR			= 2,
+		TF_ANISOTROPIC		= 3,
+		TF_COMPARISON		= 0x80,
+	};
+
+	enum TextureAddressMode
+	{
+		TA_WRAP				= 1,
+		TA_MIRROR			= 2,
+		TA_CLAMP			= 3,
+		TA_BORDER			= 4,
+		TA_MIRROR_ONCE		= 5,
+	};
+
+	enum CubemapFace
+	{
+		CUBEMAP_FACE_POSITIVE_X = 0,
+		CUBEMAP_FACE_NEGATIVE_X = 1,
+		CUBEMAP_FACE_POSITIVE_Y = 2,
+		CUBEMAP_FACE_NEGATIVE_Y = 3,
+		CUBEMAP_FACE_POSITIVE_Z = 4,
+		CUBEMAP_FACE_NEGATIVE_Z = 5,
+
+		CUBEMAP_FACE_COUNT,
+		CUBEMAP_FACE_FIRST = CUBEMAP_FACE_POSITIVE_X
+	};
+
+	enum ScanlineOrdering
+	{
+		SCANLINE_ORDER_UNSPECIFIED        = 0,
+		SCANLINE_ORDER_PROGRESSIVE        = 1,
+		SCANLINE_ORDER_UPPER_FIELD_FIRST  = 2,
+		SCANLINE_ORDER_LOWER_FIELD_FIRST  = 3
+	};
+
+	enum DisplayScaling
+	{
+		DISPLAY_SCALING_UNSPECIFIED   = 0,
+		DISPLAY_SCALING_CENTERED      = 1,
+		DISPLAY_SCALING_STRETCHED     = 2
+	};
+
+	enum SwapEffect
+	{
+		SWAP_EFFECT_DISCARD			= 0,
+		SWAP_EFFECT_SEQUENTIAL		= 1,
+	};
+
+	enum PresentInterval
+	{
+		PRESENT_INTERVAL_IMMEDIATE		= 0x10,
+		PRESENT_INTERVAL_ONE			= 0x11,
+		PRESENT_INTERVAL_TWO			= 0x12,
+		PRESENT_INTERVAL_THREE			= 0x13,
+		PRESENT_INTERVAL_FOUR			= 0x14,
+	};
+
+	bool	 IsCompressedFormat( PixelFormat format );
+	unsigned GetBlockByteSize( PixelFormat format );
+	unsigned GetBytesPerPixel( PixelFormat format );
+
+	PixelFormat ConvertD3DBackBufferFormat( /*D3DFORMAT*/ unsigned fmt );
+
+	PixelFormat	MakeTypeless( PixelFormat fmt );
+	PixelFormat MakeSrgb( PixelFormat format );
+
+#ifdef _WIN32
+	// Debug helper while texture work is WIP
+	D3DFORMAT ConvertToD3D9Format( Tr2RenderContextEnum::PixelFormat format );
+	Tr2RenderContextEnum::PixelFormat ConvertFromD3D9Format( D3DFORMAT format );
+	D3DFORMAT ConvertToD3D9DepthStencilFormat( Tr2RenderContextEnum::DepthStencilFormat format );
+	Tr2RenderContextEnum::DepthStencilFormat ConvertFromD3D9DepthStencilFormat( D3DFORMAT format );
+#endif
+
+
+	static const int CONSTANT_BUFFER_FOR_EFFECT_PARAMETERS = 0;
+	static const int CONSTANT_BUFFER_FOR_FRAGMENT_PARAMETERS = 7;
+	static const int CONSTANT_BUFFER_FOR_FRAGMENT_OP_EMULATION = 10;
+
+	static const int VERTEX_BUFFER_ZERO_STREAM_RESERVED = 4;
+
+// Check if shader type (Tr2RenderContextEnum::ShaderType) exists on the current platform
+#define SHADER_TYPE_EXISTS( shaderType ) ( Tr2RenderContextAL::SHADER_TYPE_MASK & ( 1 << ( shaderType ) ) )
+
+}
+
+#endif // Tr2RenderContextEnum_h

@@ -1,0 +1,24 @@
+#include "ShadowState.fxh"
+
+struct VS_OUTPUT
+{
+	float4 Position : S_POSITION;
+	float2 texCoord: TEXCOORD;
+	SHADOW_VS_OUTPUT
+};
+
+struct VS_INPUT
+{
+	float2 texCoord: TEXCOORD;
+    float3 Position : POSITION;
+    uint id : S_VERTEX_ID;
+};
+
+VS_OUTPUT main( VS_INPUT input )
+{
+	VS_OUTPUT Output;
+	Output.Position = float4(input.Position, 1);
+	Output.texCoord = input.texCoord;
+    SHADOW_VS_PART(Output, Position);
+	return Output;    
+}

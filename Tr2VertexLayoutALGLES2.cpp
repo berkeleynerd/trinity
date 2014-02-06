@@ -1,0 +1,65 @@
+#include "StdAfx.h"
+#include "Tr2VertexLayoutALGLES2.h"
+
+#if( TRINITY_PLATFORM==TRINITY_OPENGLES2 )
+
+using namespace Tr2RenderContextEnum;
+
+Tr2VertexLayoutAL::Tr2VertexLayoutAL()
+{
+}
+
+#if TRINITY_HAVE_CPP0X
+Tr2VertexLayoutAL::Tr2VertexLayoutAL( Tr2VertexLayoutAL&& other )
+	:m_definition( std::move( other.m_definition ) )
+{
+}
+
+Tr2VertexLayoutAL& Tr2VertexLayoutAL::operator=( Tr2VertexLayoutAL&& other )
+{
+	if( this == &other )
+	{
+		return *this;
+	}
+
+	m_definition.release();
+	m_definition = std::move( other.m_definition );
+
+	return *this;
+}
+#endif // TRINITY_HAVE_CPP0X
+
+ALResult Tr2VertexLayoutAL::Create( const Tr2VertexDefinition& definition, Tr2RenderContextAL& renderContext )
+{
+	AL_FUZZ( OT_VERTEX_LAYOUT );
+
+	if( !renderContext.IsValid() )
+	{
+		return E_FAIL;
+	}
+
+	m_definition = std::unique_ptr<Tr2VertexDefinition>( new Tr2VertexDefinition( definition ) );
+	if( definition.m_items.empty() )
+	{
+		return E_FAIL;
+	}
+	return S_OK;
+}
+
+ALResult Tr2VertexLayoutAL::SetLayout( const Tr2ShaderAL* /*vertexShader*/, Tr2RenderContextAL& /*renderContext*/ )
+{
+	// We set the actual layout in Tr2RenderContextAL::ApplyShadowRenderStates
+	return E_FAIL;
+}
+
+bool Tr2VertexLayoutAL::IsValid() const
+{
+	return m_definition.get() != nullptr;
+}
+
+void Tr2VertexLayoutAL::Destroy()
+{
+	m_definition.release();
+}
+
+#endif // DX9?

@@ -1,0 +1,312 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files"/>
+    <Filter Include="Source Files\Shaders.DX11"/>
+    <Filter Include="Source Files\Shaders.DX9"/>
+    <Filter Include="Source Files\Shaders.GLES2"/>
+    <Filter Include="Source Files\Shaders.Orbis"/>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="autoversion.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dxt1Image.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dxt3Image.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Dxt5Image.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="FakeGoogleTest.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderWindow.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="StdAfx.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WithRenderContextFixture.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WithValidRenderContextFixture.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="WithWindowFixture.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\ConstantColor.ps.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\ConstantColor.ps.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\InstancedRendering.vs.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\InstancedRendering.vs.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\OutputTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\OutputTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\PositionOnly.vs.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\PositionOnly.vs.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\PositionOnlyWithPerObjectData.vs.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\PositionOnlyWithPerObjectData.vs.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\SampleTextureFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\SampleTextureFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\TexCoordAndPosition.vs.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\TexCoordAndPosition.vs.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\ConstantColor.ps.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\ConstantColor.ps.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\InstancedRendering.vs.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\InstancedRendering.vs.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\OutputTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\OutputTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\PositionOnly.vs.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\PositionOnly.vs.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\PositionOnlyWithPerObjectData.vs.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\PositionOnlyWithPerObjectData.vs.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\SampleTextureFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\SampleTextureFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\TexCoordAndPosition.vs.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\TexCoordAndPosition.vs.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\ConstantColor.ps.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\ConstantColor.ps.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\InstancedRendering.vs.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\InstancedRendering.vs.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\OutputTexCoord.ps.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\OutputTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\PositionOnly.vs.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\PositionOnly.vs.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\PositionOnlyWithPerObjectData.vs.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\PositionOnlyWithPerObjectData.vs.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\SampleTextureFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\SampleTextureFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\TexCoordAndPosition.vs.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\TexCoordAndPosition.vs.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\ConstantColor.ps.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\ConstantColor.ps.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\InstancedRendering.vs.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\InstancedRendering.vs.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\OutputTexCoord.ps.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\OutputTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\PositionOnly.vs.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\PositionOnly.vs.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\PositionOnlyWithPerObjectData.vs.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\PositionOnlyWithPerObjectData.vs.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\SampleTextureFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\SampleTextureFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\TexCoordAndPosition.vs.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.Orbis\TexCoordAndPosition.vs.patched.h">
+      <Filter>Source Files\Shaders.Orbis</Filter>
+    </ClInclude>
+    <ClCompile Include="ALResultTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="BitmapDimensions.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ConstantBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DepthStencil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Fence.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GpuBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="IndexBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="OcclusionQuery.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderContext.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderContextCreation.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Rendering.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderTarget.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderWindow_Egl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderWindow_Glfw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderWindow_Orbis.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderWindow_Win32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SamplerState.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Shader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="StdAfx.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SwapChain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Texture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TextureSubresource.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TrackedObjects.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="TrinityALTest.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VertexBuffer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VertexDefinition.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VertexLayout.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="VideoAdapterInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithRenderContextFixture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithValidRenderContextFixture.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithWindowFixture_Egl.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithWindowFixture_Glfw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithWindowFixture_Orbis.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithWindowFixture_Win32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

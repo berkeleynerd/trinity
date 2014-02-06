@@ -1,0 +1,249 @@
+# These are the SDKs that are used by all configurations
+Imports:
+- ../core_project.yaml
+- ../CcpCore/uses_CcpCore.yaml
+
+# Settings from the General section, for all configurations
+General:
+  ConfigurationType: StaticLibrary
+  UseOfMfc: false
+  IntDir: ../temp/TrinityAL/$(Platform)/$(Configuration)/$(PlatformToolset)/
+  OutDir: ../../autobuild/TrinityAL/$(Platform)/$(PlatformToolset)/
+  TargetExt: .lib
+
+ClCompile:
+  CppExceptions: true
+  RuntimeTypeInfo: true
+  WarningLevel: Level4
+  TreatWarningAsError: true
+  BufferSecurityCheck: false
+  EnableEnhancedInstructionSet: StreamingSIMDExtensions2
+  AdditionalIncludeDirectories:
+  - ..
+  PreprocessorDefinitions:
+  - TRINITY_AL_WITH_BLUE_EXPOSURE=0
+
+Link:
+  GenerateDebugInformation: true
+  ProgramDatabaseFile: $(TargetDir)$(TargetName).pdb
+
+BaseConfigurations:
+  Windows:
+    Imports:
+    - ../../../../../../sdk/directx/february2010/directx_february2010.yaml
+    - ../../../../../../sdk/nvidia/NVAPI/R265/NVAPI_R265.yaml
+    - ../../../../../../sdk/ATI/CrossFire Detect/CrossFire.yaml
+
+  Posix:
+    Imports:
+    - ../../../../../../sdk/glfw/3.0/glfw_3.0.yaml
+  
+  Debug:
+    General: 
+      LinkIncremental: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - _DEBUG
+      - CCP_ASSERT_ENABLED=1
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDebugDLL
+      DebugInformationFormat: EditAndContinue
+  
+  Dev:
+    General: 
+      LinkIncremental: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      - TRINITYDEV
+      - CCP_ASSERT_ENABLED=1
+      - AL_TACK_RESOURCE_USAGE=1
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDLL
+      DebugInformationFormat: EditAndContinue
+
+  Release:
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      Optimization: MaxSpeed
+      RuntimeLibrary: MultiThreadedDLL
+      DebugInformationFormat: ProgramDatabase
+      WholeProgramOptimization: true
+    Link:
+      LinkTimeCodeGeneration: UseLinkTimeCodeGeneration
+
+  CodeCoverage:
+    General: 
+      GenerateCodeCoverage: true
+    ClCompile:
+      PreprocessorDefinitions:
+      - NDEBUG
+      Optimization: Disabled
+      RuntimeLibrary: MultiThreadedDLL
+      DebugInformationFormat: ProgramDatabase
+  
+  D3D9:
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_DIRECTX9
+
+  D3D11:
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_DIRECTX11
+
+  GLES2:
+    Imports:
+    - ../../../../../../sdk/glew/1.7.0/glew_1.7.0.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_OPENGLES2
+
+  Orbis:
+    ClCompile:
+      GenerateDebugInformation: true
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_ORBIS
+      - TRACK_AL_RESOURCES=0
+      
+  Android:
+    General:
+      AndroidTargetAPI: android-14
+      TargetExt: .a
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRACK_AL_RESOURCES=0
+
+Configurations:
+  Debug_D3D9|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Debug
+    - D3D9
+    General:
+      TargetName: TrinityAL_dx9_d
+  
+  Dev_D3D9|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Dev
+    - D3D9
+    General:
+      TargetName: TrinityAL_dx9_dev
+  
+  Release_D3D9|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Release
+    - D3D9
+    General:
+      TargetName: TrinityAL_dx9
+  
+  Debug_D3D11|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Debug
+    - D3D11
+    General:
+      TargetName: TrinityAL_dx11_d
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_AL_GUARD_LOCKS=1
+
+  Dev_D3D11|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Dev
+    - D3D11
+    General:
+      TargetName: TrinityAL_dx11_dev
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_AL_GUARD_LOCKS=1
+
+  Release_D3D11|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Release
+    - D3D11
+    General:
+      TargetName: TrinityAL_dx11
+
+  Debug_GLES2|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Debug
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2_d
+
+  Dev_GLES2|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Dev
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2_dev
+
+  Release_GLES2|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Release
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2
+
+  Debug_GLES2|Linux32,Linux64,Mac32,Mac64:
+    BaseConfigurations:
+    - Posix
+    - Debug
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2_d
+  
+  Release_GLES2_Coverage|Mac32,Mac64:
+    BaseConfigurations:
+    - Posix
+    - CodeCoverage
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2_cc
+  
+  Release_GLES2|Linux32,Linux64,Mac32,Mac64:
+    BaseConfigurations:
+    - Posix
+    - Release
+    - GLES2
+    General:
+      TargetName: TrinityAL_gles2
+
+  Debug_GLES2|Tegra-Android:
+    BaseConfigurations:
+    - Debug
+    - GLES2
+    - Android
+    General:
+      TargetName: libTrinityAL_gles2_d
+
+  Release_GLES2|Tegra-Android:
+    BaseConfigurations:
+    - Release
+    - GLES2
+    - Android
+    General:
+      TargetName: libTrinityAL_gles2
+
+  Debug_Orbis|ORBIS:
+    BaseConfigurations:
+    - Debug
+    - Orbis
+    General:
+      TargetName: libTrinityAL_orbis_d
+  
+  Release_Orbis|ORBIS:
+    BaseConfigurations:
+    - Release
+    - Orbis
+    General:
+      TargetName: libTrinityAL_orbis

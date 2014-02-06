@@ -1,0 +1,39 @@
+#pragma once
+#ifndef WithWindowFixture_H
+#define WithWindowFixture_H
+
+class WithWindow: public ::testing::Test 
+{
+public:
+	static void SetUpTestCase();
+	static void TearDownTestCase();
+
+	template <typename T>
+	static void RunLoop( T& t )
+	{
+		extern bool g_interactive;
+		if( g_interactive )
+		{
+			BeginLoopProcessing();
+			while( true )
+			{
+				if( !DoLoopProcessing() )
+				{
+					return;
+				}
+				t();
+			}
+		}
+		else
+		{
+			t();
+		}
+	}
+
+	static Tr2WindowHandle GetWindowHandle();
+private:
+	static void BeginLoopProcessing();
+	static bool DoLoopProcessing();
+};
+
+#endif

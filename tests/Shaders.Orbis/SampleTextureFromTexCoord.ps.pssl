@@ -1,0 +1,17 @@
+#include "ShadowState.fxh"
+
+struct VS_OUTPUT
+{
+	float4 Position : S_POSITION;
+	float2 texCoord: TEXCOORD;
+};
+
+SamplerState samp0 : register(s0);
+Texture2D colorMap : register( t0 );
+
+float4 main(VS_OUTPUT In) : S_TARGET_OUTPUT0
+{
+    float4 color = colorMap.Sample( samp0, In.texCoord );
+    SHADOW_PS_PART(color);
+    return color;
+}
