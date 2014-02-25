@@ -3,7 +3,6 @@
 #include "Tr2EffectStateManager.h"
 #include "blue/include/IBlueResMan.h"
 #include "Resources/TriTextureRes.h"
-#include "blue/include/TransGaming.h"
 
 TriTexture2DParameter::TriTexture2DParameter(IRoot* lockobj):
 	m_isUsedByEffect( false ),
@@ -170,10 +169,8 @@ void TriTexture2DParameter::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType 
 			renderContext.m_esm.ApplyTexture( inputType, ix, *tex, colorSpace );
 		}
 	}
-	else if( !IsTransgaming() )
+	else
 	{
-		// For some reason doing this on the Mac seems to cause more problems - we get a black
-		// screen on character select, at least on some older Macs with 9400m or 320m video cards
 		if( isUav )
 		{
 			// TODO: Fix the signature of SetUav to take a const reference
