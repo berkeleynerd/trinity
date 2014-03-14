@@ -171,12 +171,12 @@ void EveLensflare::PrepareRender( const TriFrustum& frustum )
 
 	for( auto it = m_xDistanceToCenter.begin(); it != m_xDistanceToCenter.end(); ++it )
 	{
-		( *it )->UpdateValue( abs( direction.x ) );
+		( *it )->UpdateValue( direction.x + 10.0f );
 	}
 
 	for( auto it = m_yDistanceToCenter.begin(); it != m_yDistanceToCenter.end(); ++it )
 	{
-		( *it )->UpdateValue( abs( direction.y ) );
+		( *it )->UpdateValue( direction.y + 10.0f );
 	}
 
 	for( auto it = m_bindings.begin(); it != m_bindings.end(); ++it )

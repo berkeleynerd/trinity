@@ -46,12 +46,12 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 		MAP_ATTRIBUTE( 
 			"xDistanceToCenter", 
 			m_xDistanceToCenter, 
-			"List of curves that accept distance to screen center along x axis as an argument", 
+			"List of curves that accept signed distance to screen center along x axis as an argument (biased by +10)", 
 			Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( 
 			"yDistanceToCenter", 
 			m_yDistanceToCenter, 
-			"List of curves that accept distance to screen center along y axis as an argument", 
+			"List of curves that accept signed distance to screen center along y axis as an argument (biased by +10)", 
 			Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( 
 			"bindings", 
