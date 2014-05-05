@@ -97,6 +97,7 @@ public:
 	Vector3 m_position;
 	Vector3 m_scaling;
 	Quaternion m_rotation;
+	Color m_color;
 	Vector4 m_layer1Transform, m_layer2Transform, m_layer1Scroll, m_layer2Scroll;
 	int m_boneIndex;
 };

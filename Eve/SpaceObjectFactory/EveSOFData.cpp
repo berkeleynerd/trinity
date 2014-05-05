@@ -146,6 +146,7 @@ EveSOFDataHullPlaneSetItem::EveSOFDataHullPlaneSetItem( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
 	m_rotation( 0.f, 0.f, 0.f, 1.f ),
 	m_scaling( 1.f, 1.f, 1.f ),
+	m_color( 1.f, 1.f, 1.f, 1.f ),
 	m_layer1Transform( 0.f, 0.f, 0.f, 0.f ),
 	m_layer2Transform( 0.f, 0.f, 0.f, 0.f ),
 	m_layer1Scroll( 0.f, 0.f, 0.f, 0.f ),
