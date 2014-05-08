@@ -215,13 +215,10 @@ void Tr2Effect::AddResourceTexture2D( const char* name, const char* resPath )
 // --------------------------------------------------------------------------------
 void Tr2Effect::AddParameterVector4( const char* name, const Vector4* value )
 {
-	// alloc and init the vec4 parameter
-	Tr2Vector4ParameterPtr param;
-	param.CreateInstance();
-	param->m_name = BlueSharedString( name );
-	param->m_value = *value;
-	// add it to this effect's parameters
-	m_parameters.Append( param->GetRawRoot() );
+	Tr2ConstantEffectParameter param;
+	param.name = BlueSharedString( name );
+	param.value = *value;
+	m_constParameters.Append( &param );
 }
 
 // --------------------------------------------------------------------------------
@@ -231,13 +228,10 @@ void Tr2Effect::AddParameterVector4( const char* name, const Vector4* value )
 // --------------------------------------------------------------------------------
 void Tr2Effect::AddParameterColor( const char* name, const Color* value )
 {
-	// alloc and init the vec4 parameter
-	Tr2Vector4ParameterPtr param;
-	param.CreateInstance();
-	param->m_name = BlueSharedString( name );
-	param->m_value = *reinterpret_cast<const Vector4*>( value );
-	// add it to this effect's parameters
-	m_parameters.Append( param->GetRawRoot() );
+	Tr2ConstantEffectParameter param;
+	param.name = BlueSharedString( name );
+	param.value = *reinterpret_cast<const Vector4*>( value );
+	m_constParameters.Append( &param );
 }
 
 // ---------------------------------------------------------------
