@@ -240,7 +240,6 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 		MAP_ATTRIBUTE( "lodLevel", m_lodLevel, "Current lod-level of this spaceobject\n", Be::READ )
 		MAP_ATTRIBUTE( "highDetailLodFader", m_highDetailLodFader, "Intensity of the high detail LOD towards becoming medium LOD\n", Be::READ )
 
-		MAP_ATTRIBUTE( "spaceObjectData", m_spaceObjectData, "Actual data we pass down to all the shaders via per-object data\n", Be::READ )
 		MAP_ATTRIBUTE( "customMask", m_customMask, "\n", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE

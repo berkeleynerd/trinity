@@ -193,7 +193,7 @@ Tr2PerObjectData* EveShip2::GetPerObjectData( ITriRenderBatchAccumulator* accumu
 	}
 
 	// extra data for ps and vs: booster glow intensity
-	m_spaceObjectData.x = boosterGlowIntensity;
+	m_spaceObjectMiscData.x = boosterGlowIntensity;
 
 	// parent
 	return EveMobile::GetPerObjectData( accumulator );
@@ -346,10 +346,14 @@ bool EveShip2::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::str
 	{
 	case ANIM_CMD_TURNOFF_BOOSTERS:
 		return true;
+
 	case ANIM_CMD_TURNON_BOOSTERS:
 		return true;
+
+	default:
+		// not handled here, so pass it up the chain
+		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data );
 	}
 
-	// not handled here, so pass it up the chain
-	return EveMobile::ExecuteAnimationStateCommand( cmd, data );
+	return false;
 }

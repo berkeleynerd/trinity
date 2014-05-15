@@ -5,6 +5,7 @@
 //
 #include "StdAfx.h"
 
+#include "include/TriMath.h"
 #include "Tr2GrannyAnimation.h"
 
 #include "EveMobile.h"
@@ -20,7 +21,9 @@
 EveMobile::EveMobile( IRoot* lockobj ) :
 	PARENTLOCK( m_turretSets ),
 	m_activationDelta( 0.f ),
-	m_playActivationCurve( false )
+	m_playActivationCurve( false ),
+	m_clipSphereFactor( 0.f ),
+	m_clipSphereCenter( 0.f, 0.f, 0.f )
 {
 	// ship class needs to know if turrets get added or removed
 	m_turretSets.SetNotify( this );
@@ -142,8 +145,17 @@ void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
 	{
 		float deltaT = updateContext.GetDeltaT();
 		m_activationDelta += deltaT;
-		m_spaceObjectData.y = m_activationStrengthCurve->Update( m_activationDelta );
+		m_spaceObjectMiscData.y = m_activationStrengthCurve->Update( m_activationDelta );
 	}
+
+	// the m_clipSphereFactor goes from 0.0 to 1.0 and is the "amount" of visibility of this whole
+	// object: 0.0 = fully visible, 1.0 = invisible.
+	// the following formula calculates a special number to pass to the shader to help determine this
+	float nearDist = std::max( 0.f, D3DXVec3Length( &m_clipSphereCenter ) - GetBoundingSphereRadius() );
+	float insideSpherePercentage = std::min( 1.f, D3DXVec3Length( &m_clipSphereCenter ) / GetBoundingSphereRadius() );
+	float disolveRadius = nearDist + m_clipSphereFactor * GetBoundingSphereRadius() * ( 1.f + insideSpherePercentage );
+	m_spaceObjectClipData = Vector4( m_clipSphereCenter + GetBoundingSphereCenter(), TriFloatSign( disolveRadius ) * disolveRadius * disolveRadius );
+	m_spaceObjectClipDataEx = Vector4( TriFloatSign( disolveRadius ), 0.f, 0.f, 0.f );
 }
 
 // --------------------------------------------------------------------------------
@@ -519,9 +531,9 @@ void EveMobile::ResetTurretLocatorCounter( bool updateTotal )
 // --------------------------------------------------------------------------------
 bool EveMobile::DisplayChildren() const
 {
-	// so in m_spaceObjectData.y we store the current activation strength.
+	// so in m_spaceObjectMiscData.y we store the current activation strength.
 	// if it is more than .5 -> render the children!
-	return ( m_spaceObjectData.y > 0.5f );
+	return ( m_spaceObjectMiscData.y > 0.5f );
 }
 
 // --------------------------------------------------------------------------------
@@ -581,17 +593,19 @@ bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::st
 		return true;
 
 	case ANIM_CMD_ACTIVATION_STRENGTH_ZERO:
-		m_spaceObjectData.y = 0.f;
+		m_spaceObjectMiscData.y = 0.f;
 		m_playActivationCurve = false;
 		return true;
 
 	case ANIM_CMD_ACTIVATION_STRENGTH_ONE:
-		m_spaceObjectData.y = 1.f;
+		m_spaceObjectMiscData.y = 1.f;
 		m_playActivationCurve = false;
 		return true;
-	}
 
-	// not handled here, so pass it up the chain
-	return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data );
+	default:
+		// not handled here, so pass it up the chain
+		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data );
+	}
+	return false;
 }
 

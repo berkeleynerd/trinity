@@ -60,9 +60,10 @@ EveSpaceObjectDecal::EveSpaceObjectDecal( IRoot* lockobj ) :
 {
 	// init
 	PrepareResources();
+	memset( &m_parentData, 0, sizeof( ParentData ) );
 	D3DXMatrixIdentity( &m_decalMatrix );
 	D3DXMatrixIdentity( &m_invDecalMatrix );
-	D3DXMatrixIdentity( &m_parentTransform );
+	D3DXMatrixIdentity( &m_parentData.transform );
 	D3DXMatrixIdentity( &m_parentBoneMatrix );
 }
 
@@ -125,7 +126,7 @@ bool EveSpaceObjectDecal::OnPrepareResources()
 }
 
 // ------------------------------------------------------------------------------------------------------
-void EveSpaceObjectDecal::GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix* worldMatrix )
+void EveSpaceObjectDecal::GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
 {
 	if( !geomRes || !m_decalEffect )
 	{
@@ -161,8 +162,8 @@ void EveSpaceObjectDecal::GetRenderables( TriGeometryResPtr geomRes, const TriFr
 
 	renderables.push_back( this );
 
-	// store the parent transform for later use
-	m_parentTransform = *worldMatrix;
+	// store the parent transform etc. for later use
+	m_parentData = *parentData;
 }
 
 // --------------------------------------------------------------------------------
@@ -240,7 +241,7 @@ Tr2PerObjectData* EveSpaceObjectDecal::GetPerObjectData( ITriRenderBatchAccumula
 	}
 
 	// world matrix
-	D3DXMatrixTranspose( &perObjectData->m_worldMatrix, &m_parentTransform );
+	D3DXMatrixTranspose( &perObjectData->m_worldMatrix, &m_parentData.transform );
 	// inv world matrix
 	D3DXMatrixInverse( &perObjectData->m_invWorldMatrix, NULL, &perObjectData->m_worldMatrix );
 
@@ -250,6 +251,11 @@ Tr2PerObjectData* EveSpaceObjectDecal::GetPerObjectData( ITriRenderBatchAccumula
 
 	// matrix from possible bone animation of parent
 	D3DXMatrixTranspose( &perObjectData->m_parentBoneMatrix, &m_parentBoneMatrix );
+
+	// clip sphere data from parent
+	perObjectData->m_shipData = m_parentData.shipData;
+	perObjectData->m_clipData1 = m_parentData.clipData;
+	perObjectData->m_clipData2 = m_parentData.clipDataEx;
 
 	return perObjectData;
 }
@@ -648,10 +654,8 @@ void EveDecalPerObjectData::SetPerObjectDataToDevice( Tr2ConstantBufferAL** buff
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	// add up constant count, see EveDecalPerObjectData
-
-	auto& vsBuffer = *buffers[Tr2RenderContextEnum::VERTEX_SHADER];
-
-	FillAndSetConstants( vsBuffer, &m_worldMatrix, 5 * 64, VERTEX_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
+	FillAndSetConstants( *buffers[VERTEX_SHADER], &m_worldMatrix, 5 * 64, VERTEX_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
+	FillAndSetConstants( *buffers[PIXEL_SHADER], &m_shipData, 3 * 16, PIXEL_SHADER, Tr2Renderer::GetPerObjectPSStartRegister(), renderContext );
 }
 
 

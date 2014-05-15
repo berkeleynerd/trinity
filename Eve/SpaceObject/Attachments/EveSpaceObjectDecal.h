@@ -34,7 +34,9 @@ public:
 	Matrix m_invDecalMatrix;
 	Matrix m_parentBoneMatrix;
 	// pixel shader per object data
-	// empty for now...
+	Vector4 m_shipData;
+	Vector4 m_clipData1;
+	Vector4 m_clipData2;
 };
 
 // --------------------------------------------------------------------------------
@@ -80,6 +82,16 @@ public:
 	~EveSpaceObjectDecal();
 
 	//////////////////////////////////////////////////////////////////////////////////////
+	// public structs
+	struct ParentData
+	{
+		Matrix transform;
+		Vector4 shipData;
+		Vector4 clipData;
+		Vector4 clipDataEx;
+	};
+
+	//////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
 	bool Initialize();
 	
@@ -106,7 +118,7 @@ public:
 	virtual Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator );
 
 	// access
-	void GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix* worldMatrix );
+	void GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData );
 
 	// access position etc.
 	const Vector3& GetPosition() const;
@@ -136,8 +148,8 @@ private:
 	bool m_display;
 	bool m_displayBoundingBox;
 
-	// parent matrix
-	Matrix m_parentTransform;
+	// parent ship data
+	ParentData m_parentData;
 
 	// decal shader
 	Tr2EffectPtr m_decalEffect;

@@ -95,7 +95,9 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_localAabbMax( 0,0,0 ),
 	m_lastCurveUpdateTime( 0 ),
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
-	m_spaceObjectData( 1.f, 1.f, 1.f, 1.f ),
+	m_spaceObjectMiscData( 1.f, 1.f, 1.f, 1.f ),
+	m_spaceObjectClipData( 0.f, 0.f, 0.f, 0.f ),
+	m_spaceObjectClipDataEx( 0.f, 0.f, 0.f, 0.f ),
 	m_psPointLightCount( 0 ),
 	m_displayChildren( true )
 {
@@ -311,7 +313,7 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 	m_perObjectDataPs.InvalidateBufferData();
 
 	// prepare shader data: shader needs to know size of this object for some surface-scaling issues
-	m_spaceObjectData.w = GetBoundingSphereRadius();
+	m_spaceObjectMiscData.w = GetBoundingSphereRadius();
 
 	if( m_boundingSphereRadius > 0.0f )
 	{
@@ -910,7 +912,7 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 {
 	if( shaderType == Tr2RenderContextEnum::PIXEL_SHADER )
 	{
-		uint32_t sz = 16; // m_spaceObjectData
+		uint32_t sz = 16 + 16 + 16; // m_spaceObjectMiscData + m_spaceObjectClipData + m_spaceObjectClipDataEx
 		if( m_customMask )
 		{
 			sz += 64 + 16;  // customMask data is optional for now
@@ -934,14 +936,18 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 
 void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shaderType, uint32_t size, void* data )
 {
-	m_spaceObjectData.w = GetBoundingSphereRadius();
+	m_spaceObjectMiscData.w = GetBoundingSphereRadius();
 
 
 	if( shaderType == Tr2RenderContextEnum::PIXEL_SHADER )
 	{
 		uint8_t* perObjectPS = (uint8_t*)data;
 
-		memcpy( perObjectPS, &m_spaceObjectData, sizeof( Vector4 ) );
+		memcpy( perObjectPS, &m_spaceObjectMiscData, sizeof( Vector4 ) );
+		perObjectPS += sizeof( Vector4 );
+		memcpy( perObjectPS, &m_spaceObjectClipData, sizeof( Vector4 ) );
+		perObjectPS += sizeof( Vector4 );
+		memcpy( perObjectPS, &m_spaceObjectClipDataEx, sizeof( Vector4 ) );
 		perObjectPS += sizeof( Vector4 );
 
 		if( m_customMask )
@@ -956,7 +962,7 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 	else
 	{
 		D3DXMatrixTranspose( reinterpret_cast<Matrix*>( data ), &m_worldTransform );
-		*reinterpret_cast<Vector4*>( static_cast<uint8_t*>( data ) + 64 ) = m_spaceObjectData;
+		*reinterpret_cast<Vector4*>( static_cast<uint8_t*>( data ) + 64 ) = m_spaceObjectMiscData;
 		data = static_cast<uint8_t*>( data ) + 64 + 16;
 		size -= 64 + 16;
 
@@ -1071,7 +1077,12 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 						(*it)->SetBoneMatrix( m_animationUpdater->GetMeshBoneMatrixList(), m_animationUpdater->GetMeshBoneCount() );
 					}
 					// now prep to get the renderables
-					(*it)->GetRenderables( geometryRes, frustum, renderables, &m_worldTransform );
+					EveSpaceObjectDecal::ParentData pd;
+					pd.transform = m_worldTransform;
+					pd.shipData = m_spaceObjectMiscData;
+					pd.clipData = m_spaceObjectClipData;
+					pd.clipDataEx = m_spaceObjectClipDataEx;
+					(*it)->GetRenderables( geometryRes, frustum, renderables, &pd );
 				}
 				m_decalCache->Clear();
 			}

@@ -280,7 +280,9 @@ protected:
 	Tr2PersistentPerObjectData<EveSpaceObject2> m_perObjectDataPs;
 	EveSpaceSceneLightMgrPtr m_lightManager;
 	unsigned m_psPointLightCount;
-	Vector4 m_spaceObjectData;
+	Vector4 m_spaceObjectMiscData;
+	Vector4 m_spaceObjectClipData;
+	Vector4 m_spaceObjectClipDataEx;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// lod level
