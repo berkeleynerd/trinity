@@ -38,6 +38,7 @@
 #include <limits>
 #include <stack>
 #include <float.h>
+#include <math.h>
 // TODO - remove using statements
 using std::min;
 using std::max;

@@ -4,6 +4,12 @@
 #include "ITriFunction.h"
 #include "ITriCurveLength.h"
 
+#include <math.h>
+#ifdef _WIN32
+#define isnan(x) _isnan(x)
+#define isinf(x) !_finite(x)
+#endif
+
 enum Interpolation
 {
 	CONSTANT,
@@ -309,6 +315,11 @@ template <class Key, class KeyList, class KeyValue>
 KeyValue Tr2Curve<Key, KeyList, KeyValue>::GetValueAt( double time )
 {
 	KeyValue result;
+
+	if( isnan( time ) )
+	{
+		time = 0.0;
+	}
 
 	time = time / (double)m_timeScale - (double)m_timeOffset;
 
