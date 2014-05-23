@@ -930,6 +930,7 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 		return
 			64 +				// m_vsWorldMatrix
 			16 +				// m_vsSpaceObjectData
+			16 +				// m_spaceObjectClipData
 			boneCount * 3 * 16;	// m_vsBonesMatrix (3x4)
 	}
 }
@@ -961,15 +962,20 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 	}
 	else
 	{
-		D3DXMatrixTranspose( reinterpret_cast<Matrix*>( data ), &m_worldTransform );
-		*reinterpret_cast<Vector4*>( static_cast<uint8_t*>( data ) + 64 ) = m_spaceObjectMiscData;
-		data = static_cast<uint8_t*>( data ) + 64 + 16;
-		size -= 64 + 16;
+		uint8_t* perObjectVS = (uint8_t*)data;
+
+		D3DXMatrixTranspose( reinterpret_cast<Matrix*>( perObjectVS ), &m_worldTransform );
+		perObjectVS += sizeof( Matrix );
+		memcpy( perObjectVS, &m_spaceObjectMiscData, sizeof( Vector4 ) );
+		perObjectVS += sizeof( Vector4 );
+		memcpy( perObjectVS, &m_spaceObjectClipData, sizeof( Vector4 ) );
+		perObjectVS += sizeof( Vector4 );
 
 		// maybe animated?
+		size -= 64 + 16 + 16;
 		if( size )
 		{
-			memcpy( data, m_animationUpdater->GetMeshBoneMatrixList(), size );
+			memcpy( perObjectVS, m_animationUpdater->GetMeshBoneMatrixList(), size );
 		}
 	}
 }
