@@ -34,6 +34,7 @@ Be::VarChooser Tr2SpriteObjectEffectChooser[] =
 	{ "TR2_SFX_NOALPHA",		BeCast( TR2_SFX_NOALPHA ),		"Primary texture copied, alpha forced to 1.0" },
 	{ "TR2_SFX_COLOROVERLAY",	BeCast( TR2_SFX_COLOROVERLAY ),	"Primary texture colorized with an overlay effect" },
 	{ "TR2_SFX_SOFTLIGHT",		BeCast( TR2_SFX_SOFTLIGHT ),	"Primary texture colorized with a softlight effect" },
+	{ "TR2_SFX_BLUR",			BeCast( TR2_SFX_BLUR ),			"Primary texture is blurred" },
 
 	{ "TR2_SFX_NONE",		BeCast( TR2_SFX_NONE ),			"Nothing is rendered" },
 	{ 0 }

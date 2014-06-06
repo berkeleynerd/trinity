@@ -87,7 +87,8 @@ public:
 		Tr2Sprite2dD3DVertex* destVerts,
 		const Vector2& pos,
 		float width,
-		float height
+		float height,
+		Tr2SpriteObjectEffect sfx
 		);
 
 	void SetSpriteVerticesUVs( Vector2 uv[2][4], float width, float height );

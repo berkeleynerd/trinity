@@ -74,14 +74,14 @@ void Tr2Sprite2d::GatherSprites( Tr2Sprite2dScene* renderer )
 			m_vertexCount += 4;
 			SetShadowRenderState( renderer );
 			Vector2 offsetTranslation = m_translation + m_shadowOffset;
-			renderer->PrepareSpriteVerts( &m_vertices[0], offsetTranslation, displayWidth, displayHeight );
+			renderer->PrepareSpriteVerts( &m_vertices[0], offsetTranslation, displayWidth, displayHeight, m_spriteEffect );
 		}
 
 		SetRegularRenderState( renderer );
 
-		renderer->PrepareSpriteVerts( &m_vertices[4], m_translation, displayWidth, displayHeight );
+		renderer->PrepareSpriteVerts( &m_vertices[4], m_translation, displayWidth, displayHeight, m_spriteEffect );
 
-		if( m_spriteEffect < TR2_SFX_TWO_TEXTURES )
+		if( m_spriteEffect < TR2_SFX_TWO_TEXTURES && m_spriteEffect != TR2_SFX_BLUR )
 		{
 			for( int i = 4; i < 8; ++i )
 			{
@@ -104,7 +104,7 @@ void Tr2Sprite2d::GatherSprites( Tr2Sprite2dScene* renderer )
 			float width = displayWidth + offset2;
 			float height = displayHeight + offset2;
 
-			renderer->PrepareSpriteVerts( &m_vertices[8], pos, width, height );
+			renderer->PrepareSpriteVerts( &m_vertices[8], pos, width, height, m_spriteEffect );
 		}
 
 		m_isDirty = false;

@@ -812,7 +812,8 @@ bool Tr2Sprite2dScene::PrepareSpriteVerts(
 	Tr2Sprite2dD3DVertex* destVerts,
 	const Vector2& pos,
 	float width,
-	float height
+	float height,
+	Tr2SpriteObjectEffect sfx
 	)
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
@@ -825,17 +826,51 @@ bool Tr2Sprite2dScene::PrepareSpriteVerts(
 
 	//texture coordinates
 	Vector2 uv[2][4];
+	Vector2 uvInitial[2][4];
 
 	SetSpriteVerticesUVs( uv, width, height );
+	memcpy( uvInitial, uv, sizeof( Vector2 ) * 2 * 4 );
 
 
 	//set vertex data
-	const Vector2 verts[4] = {
+	Vector2 verts[4] = {
 		pos,
 		pos + Vector2( width, 0.f ),
 		pos + Vector2( width, height ),
 		pos + Vector2( 0.f, height )
 	};
+
+
+	if( sfx == TR2_SFX_BLUR )
+	{
+		float textureWidthReciprocal = 1.f;
+		float textureHeightReciprocal = 1.f;
+		if( m_texture[0] )
+		{
+			textureWidthReciprocal = 1.f / m_texture[0]->GetTextureWidth();
+			textureHeightReciprocal = 1.f / m_texture[0]->GetTextureHeight();
+		}
+
+		verts[0].x -= 1;
+		verts[0].y -= 1;
+		uv[0][0].x -= textureWidthReciprocal;
+		uv[0][0].y -= textureHeightReciprocal;
+
+		verts[1].x += 1;
+		verts[1].y -= 1;
+		uv[0][1].x += textureWidthReciprocal;
+		uv[0][1].y -= textureHeightReciprocal;
+
+		verts[2].x += 1;
+		verts[2].y += 1;
+		uv[0][2].x += textureWidthReciprocal;
+		uv[0][2].y += textureHeightReciprocal;
+
+		verts[3].x -= 1;
+		verts[3].y += 1;
+		uv[0][3].x -= textureWidthReciprocal;
+		uv[0][3].y += textureHeightReciprocal;
+	}
 
 	{
 		//CCP_STATS_ZONE( __FUNCTION__ " vertices" );
@@ -847,7 +882,14 @@ bool Tr2Sprite2dScene::PrepareSpriteVerts(
 			vertex.position.z = m_depth;
 			vertex.color = m_color;
 			vertex.texCoord[0] = uv[0][i];
-			vertex.texCoord[1] = uv[1][i];
+			if( sfx == TR2_SFX_BLUR )
+			{
+				vertex.texCoord[1] = uvInitial[0][( i + 2 ) % 4];
+			}
+			else
+			{
+				vertex.texCoord[1] = uv[1][i];
+			}
 			vertex.blendMode = m_blendMode;
 			vertex.spriteEffect = m_spriteEffect;
 			vertex.transformIndex = 0;
@@ -1441,7 +1483,7 @@ void Tr2Sprite2dScene::EndLayer( float x, float y, float width, float height )
 	SetTileMode( 0 );
 
 	Tr2Sprite2dD3DVertex vertices[4];
-	PrepareSpriteVerts( &vertices[0], Vector2( x, y ), width, height );
+	PrepareSpriteVerts( &vertices[0], Vector2( x, y ), width, height, TR2_SFX_COPY );
 
 	static unsigned short s_layerIndices[6] = { 0, 1, 3, 3, 1, 2 };
 	RenderTriangleVerts( &vertices[0], 4, s_layerIndices, 6 );

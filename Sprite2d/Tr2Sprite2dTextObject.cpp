@@ -39,20 +39,18 @@ void Tr2Sprite2dTextObject::GatherSprites( Tr2Sprite2dScene* renderer )
 	{
 		if( m_isDirty )
 		{
-			Tr2SpriteObjectEffect effect;
-			if( m_dropShadow )
-			{
-				effect = TR2_SFX_DROPSHADOW;
-			}
-			else
-			{
-				effect = TR2_SFX_COPY;
-			}
-			m_fontMeasurer->PrepareSprites( renderer, m_translation, m_color, effect );
+			m_fontMeasurer->PrepareSprites( renderer, m_translation, m_color, m_spriteEffect );
 			m_isDirty = false;
 		}
 
-		renderer->PushClipRectangle( m_translation.x, m_translation.y, m_textWidth, m_textHeight );
+		if( m_spriteEffect == TR2_SFX_BLUR )
+		{
+			renderer->PushClipRectangle( m_translation.x - 1, m_translation.y - 1, m_textWidth + 2, m_textHeight + 2 );
+		}
+		else
+		{
+			renderer->PushClipRectangle( m_translation.x, m_translation.y, m_textWidth, m_textHeight );
+		}
 		m_fontMeasurer->SubmitSprites( renderer );
 		renderer->PopClipRectangle();
 	}

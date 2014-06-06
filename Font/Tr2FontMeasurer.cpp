@@ -824,6 +824,9 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 				at = cbit.atlasTexture;
 			}
 
+			float textureWidthReciprocal = 1.f;
+			float textureHeightReciprocal = 1.f;
+
 			Vector4 tw;
 			if( at )
 			{
@@ -849,6 +852,8 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 				}
 				
 				at->GetTextureWindow( tw );
+				textureWidthReciprocal = 1.f / at->GetTextureWidth();
+				textureHeightReciprocal = 1.f / at->GetTextureHeight();
 			}
 			else
 			{
@@ -884,11 +889,30 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 			float alphaTop = CalcAlphaForVertical( yTop );
 			float alphaBottom = CalcAlphaForVertical( yTop + height );
 
+			float xZeroInitial = xZero;
+			float yZeroInitial = yZero;
+			float xOneInitial = xOne;
+			float yOneInitial = yOne;
+
+			if( sfx == TR2_SFX_BLUR )
+			{
+				xLeft -= 1;
+				yTop -= 1;
+				width += 2;
+				height += 2;
+				
+				xZero -= textureWidthReciprocal;
+				yZero -= textureHeightReciprocal;
+				xOne += textureWidthReciprocal;
+				yOne += textureHeightReciprocal;
+			}
+
 			Tr2Sprite2dD3DVertex& tl = m_vertices[spriteIx*4];
 			tl.position.x = translation.x + xLeft;
 			tl.position.y = translation.y + yTop;
 			tl.position.z = 0.0f;
 			tl.texCoord[0] = Vector2( xZero, yZero );
+			tl.texCoord[1] = Vector2( xOneInitial, yOneInitial );
 			tl.color.a = alphaLeft * alphaTop * finalColor.a;
 
 			Tr2Sprite2dD3DVertex& tr = m_vertices[spriteIx*4 + 1];
@@ -896,6 +920,7 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 			tr.position.y = tl.position.y;
 			tr.position.z = 0.0f;
 			tr.texCoord[0] = Vector2( xOne, yZero );
+			tr.texCoord[1] = Vector2( xZeroInitial, yOneInitial );
 			tr.color.a = alphaRight * alphaTop * finalColor.a;
 
 			Tr2Sprite2dD3DVertex& br = m_vertices[spriteIx*4 + 2];
@@ -903,6 +928,7 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 			br.position.y = tl.position.y + height;
 			br.position.z = 0.0f;
 			br.texCoord[0] = Vector2( xOne, yOne );
+			br.texCoord[1] = Vector2( xZeroInitial, yZeroInitial );
 			br.color.a = alphaRight * alphaBottom * finalColor.a;
 
 			Tr2Sprite2dD3DVertex& bl = m_vertices[spriteIx*4 + 3];
@@ -910,6 +936,7 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 			bl.position.y = tl.position.y + height;
 			bl.position.z = 0.0f;
 			bl.texCoord[0] = Vector2( xZero, yOne );
+			bl.texCoord[1] = Vector2( xOneInitial, yZeroInitial );
 			bl.color.a = alphaLeft * alphaBottom * finalColor.a;
 
 			curIndex[0] = vertexIx;

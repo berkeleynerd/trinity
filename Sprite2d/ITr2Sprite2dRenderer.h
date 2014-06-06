@@ -33,6 +33,7 @@ enum Tr2SpriteObjectEffect
 	TR2_SFX_DROPSHADOW,							// Primary texture modulated with vertex colors plus a drop shadow
 	TR2_SFX_COLOROVERLAY,						// Primary texture colorized with overlay effect (http://en.wikipedia.org/wiki/Blend_modes#Overlay)
 	TR2_SFX_SOFTLIGHT,							// Primary texture colorized with a soft light effect (http://en.wikipedia.org/wiki/Blend_modes#Soft_Light)
+	TR2_SFX_BLUR,								// Primary texture is blurred
 
 	TR2_SFX_TWO_TEXTURES = 64,
 	TR2_SFX_MODULATE = TR2_SFX_TWO_TEXTURES,	// Primary and secondary textures modulated, then again with vertex colors
