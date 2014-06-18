@@ -2787,8 +2787,8 @@ Be::Result<std::string> TriGrannyRes::BakeBlendshapeFromScript( unsigned int mes
 		return Be::Result<std::string>( "Failed to lock vertex buffer" );
 	}
 
-	BakeBlendshape( meshIx, weights, pVertexData, meshData->m_vertexCount * meshData->m_bytesPerVertex );
+	bool success = BakeBlendshape( meshIx, weights, pVertexData, meshData->m_vertexCount * meshData->m_bytesPerVertex );
 	meshData->m_vertexBuffer.Unlock( renderContext );
 
-	return Be::Result<std::string>();
+	return success ? Be::Result<std::string>() : Be::Result<std::string>( " TriGrannyRes::BakeBlendshape encountered problems. ");
 }
