@@ -409,6 +409,7 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 			pssid.rotation = planeSetItemData->m_rotation;
 			pssid.scaling = planeSetItemData->m_scaling;
 			pssid.color = planeSetItemData->m_color;
+			pssid.groupIndex = planeSetItemData->m_groupIndex;
 			hpsd.items.push_back( pssid );
 		}
 		hd.planeSets.push_back( hpsd );
@@ -568,6 +569,17 @@ void EveSOFDataMgr::GenerateFactionData( FactionData& fd, EveSOFDataFactionPtr s
 		spotcd.spriteColor = spotlightSetData->m_spriteColor;
 
 		fd.spotlightSetsColors[spotlightSetData->m_groupIndex] = spotcd;
+	}
+
+	// planeset set colors
+	for( auto plcit = srcData->m_planeSets.begin(); plcit != srcData->m_planeSets.end(); ++plcit )
+	{
+		EveSOFDataFactionPlaneSetPtr planeSetData = (*plcit);
+
+		FactionPlaneSetColorData plscd;
+		plscd.color = planeSetData->m_color;
+
+		fd.planeSetsColors[planeSetData->m_groupIndex] = plscd;
 	}
 
 	// area parameters

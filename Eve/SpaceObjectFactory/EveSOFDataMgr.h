@@ -77,7 +77,7 @@ public:
 		Quaternion rotation;
 		Color color;
 		Vector4 layer1Transform, layer2Transform, layer1Scroll, layer2Scroll;
-		int boneIndex;
+		int boneIndex, groupIndex;
 	};
 
 	struct HullPlaneSetData
@@ -166,6 +166,11 @@ public:
 		Color spriteColor;
 	};
 
+	struct FactionPlaneSetColorData
+	{
+		Color color;
+	};
+
 	struct FactionAreaData
 	{
 		std::map<std::string, Vector4> parameters;
@@ -183,6 +188,8 @@ public:
 		std::map<int, FactionSpriteSetColorData> spriteSetsColor;
 		// spotlight sets
 		std::map<int, FactionSpotlightSetColorData> spotlightSetsColors;
+		// plane sets
+		std::map<int, FactionPlaneSetColorData> planeSetsColors;
 	};
 
 	// race data structs

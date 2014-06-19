@@ -48,7 +48,8 @@ EveSOFDataFaction::EveSOFDataFaction( IRoot* lockobj ) :
 	PARENTLOCK( m_distortionAreas ),
 	PARENTLOCK( m_decalUsageData ),
 	PARENTLOCK( m_spriteSets ),
-	PARENTLOCK( m_spotlightSets )
+	PARENTLOCK( m_spotlightSets ),
+	PARENTLOCK( m_planeSets )
 {}
 
 
@@ -154,7 +155,8 @@ EveSOFDataHullPlaneSetItem::EveSOFDataHullPlaneSetItem( IRoot* lockobj ) :
 	m_layer2Transform( 0.f, 0.f, 0.f, 0.f ),
 	m_layer1Scroll( 0.f, 0.f, 0.f, 0.f ),
 	m_layer2Scroll( 0.f, 0.f, 0.f, 0.f ),
-	m_boneIndex( -1 )
+	m_boneIndex( -1 ),
+	m_groupIndex( -1 )
 {
 }
 
@@ -182,6 +184,11 @@ EveSOFDataFactionSpotlightSet::EveSOFDataFactionSpotlightSet( IRoot* lockobj ) :
 	m_coneColor( 0.f, 0.f, 0.f, 0.f ),
 	m_spriteColor( 0.f, 0.f, 0.f, 0.f ),
 	m_flareColor( 0.f, 0.f, 0.f, 0.f )
+{}
+
+EveSOFDataFactionPlaneSet::EveSOFDataFactionPlaneSet( IRoot* lockobj ) :
+	m_groupIndex( -1 ),
+	m_color( 0.f, 0.f, 0.f, 0.f )
 {}
 
 EveSOFDataHullBooster::EveSOFDataHullBooster( IRoot* lockobj ) :

@@ -520,7 +520,7 @@ void EveSOF::SetupPlaneSets( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hu
 		// add all individual items
 		for( auto psiit = planeSetData->items.begin(); psiit != planeSetData->items.end(); ++psiit )
 		{
-			// crete it
+			// create it
 			EvePlaneSetItemPtr planeSetItem;
 			planeSetItem.CreateInstance();
 			// fill it up
@@ -533,6 +533,15 @@ void EveSOF::SetupPlaneSets( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hu
 			planeSetItem->m_layer2Transform = psiit->layer2Transform;
 			planeSetItem->m_layer2Scroll = psiit->layer2Scroll;
 			planeSetItem->m_boneIndex = psiit->boneIndex;
+
+			// groupindex allows to overwrite color
+			auto finder = factionData->planeSetsColors.find( psiit->groupIndex );
+			if( finder != factionData->planeSetsColors.end() )
+			{
+				const EveSOFDataMgr::FactionPlaneSetColorData& colors = finder->second;
+				planeSetItem->m_color = colors.color;
+			}
+
 			// add it
 			planeSet->AddPlaneItem( planeSetItem );
 		}

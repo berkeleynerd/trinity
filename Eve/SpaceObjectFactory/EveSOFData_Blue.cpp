@@ -80,6 +80,7 @@ const Be::ClassInfo* EveSOFDataHullPlaneSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "layer2Transform", m_layer2Transform, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "layer2Scroll", m_layer2Scroll, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "groupIndex", m_groupIndex, "", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -126,6 +127,19 @@ const Be::ClassInfo* EveSOFDataFactionSpotlightSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "coneColor", m_coneColor, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "spriteColor", m_spriteColor, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "flareColor", m_flareColor, "", Be::READWRITE | Be::PERSIST )
+    EXPOSURE_END()
+}
+
+
+
+BLUE_DEFINE( EveSOFDataFactionPlaneSet );
+const Be::ClassInfo* EveSOFDataFactionPlaneSet::ExposeToBlue()
+{
+    EXPOSURE_BEGIN( EveSOFDataFactionPlaneSet, "" )
+        MAP_INTERFACE( EveSOFDataFactionPlaneSet )
+
+		MAP_ATTRIBUTE( "groupIndex", m_groupIndex, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "color", m_color, "", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -364,6 +378,7 @@ const Be::ClassInfo* EveSOFDataFaction::ExposeToBlue()
 		MAP_ATTRIBUTE( "decalUsageData", m_decalUsageData, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "spriteSets", m_spriteSets, "All the groups of sprite sets.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "spotlightSets", m_spotlightSets, "All the groups of spotlight sets.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "planeSets", m_planeSets, "All the groups of plane sets.", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
 

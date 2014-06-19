@@ -100,7 +100,7 @@ public:
 	Quaternion m_rotation;
 	Color m_color;
 	Vector4 m_layer1Transform, m_layer2Transform, m_layer1Scroll, m_layer2Scroll;
-	int m_boneIndex;
+	int m_boneIndex, m_groupIndex;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullPlaneSetItem );
 BLUE_DECLARE_VECTOR( EveSOFDataHullPlaneSetItem );
@@ -358,6 +358,22 @@ TYPEDEF_BLUECLASS( EveSOFDataFactionSpotlightSet );
 BLUE_DECLARE_VECTOR( EveSOFDataFactionSpotlightSet );
 
 
+BLUE_CLASS( EveSOFDataFactionPlaneSet ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataFactionPlaneSet( IRoot* lockobj = NULL );
+	~EveSOFDataFactionPlaneSet() {}
+
+	// per-faction data of a planeset
+	int m_groupIndex;
+	Color m_color;
+};
+TYPEDEF_BLUECLASS( EveSOFDataFactionPlaneSet );
+BLUE_DECLARE_VECTOR( EveSOFDataFactionPlaneSet );
+
+
 BLUE_CLASS( EveSOFDataFactionDecal ) :
 	public IRoot
 {
@@ -434,6 +450,7 @@ public:
 
 	PEveSOFDataFactionSpriteSetVector m_spriteSets;
 	PEveSOFDataFactionSpotlightSetVector m_spotlightSets;
+	PEveSOFDataFactionPlaneSetVector m_planeSets;
 
 	PEveSOFDataFactionDecalVector m_decalUsageData;
 };
