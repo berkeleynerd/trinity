@@ -424,6 +424,7 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 		hdd.position = hullDecal->m_position;
 		hdd.rotation = hullDecal->m_rotation;
 		hdd.scaling = hullDecal->m_scaling;
+		hdd.groupIndex = hullDecal->m_groupIndex;
 		hdd.shaderPath = hullDecal->m_shaderPath;
 		for( auto hdtit = hullDecal->m_textures.begin(); hdtit != hullDecal->m_textures.end(); ++hdtit )
 		{
@@ -606,6 +607,31 @@ void EveSOFDataMgr::GenerateFactionData( FactionData& fd, EveSOFDataFactionPtr s
 		plscd.color = planeSetData->m_color;
 
 		fd.planeSetsColors[planeSetData->m_groupIndex] = plscd;
+	}
+
+	// decal faction data
+	for( auto ddit = srcData->m_decals.begin(); ddit != srcData->m_decals.end(); ++ddit )
+	{
+		EveSOFDataFactionDecalPtr decalData = (*ddit);
+
+		FactionDecalData fdd;
+		fdd.isVisible = decalData->m_isVisible;
+		fdd.shaderPath = decalData->m_shaderPath;
+		for( auto ddpit = decalData->m_parameters.begin(); ddpit != decalData->m_parameters.end(); ++ddpit )
+		{
+			EveSOFDataParameterPtr parameterData = (*ddpit);
+			fdd.parameters[parameterData->m_name] = parameterData->m_value;
+		}
+		for( auto ddtit = decalData->m_textures.begin(); ddtit != decalData->m_textures.end(); ++ddtit )
+		{
+			EveSOFDataTexturePtr textureData = (*ddtit);
+
+			TextureData td;
+			td.resFilePath = textureData->m_resFilePath;
+			fdd.textures[textureData->m_name] = td;
+		}
+
+		fd.decalData[decalData->m_groupIndex] = fdd;
 	}
 
 	// area parameters

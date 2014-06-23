@@ -32,7 +32,9 @@ EveSOFDataFactionHullArea::EveSOFDataFactionHullArea( IRoot* lockobj ) :
 
 EveSOFDataFactionDecal::EveSOFDataFactionDecal( IRoot* lockobj ) :
 	PARENTLOCK( m_parameters ),
-	PARENTLOCK( m_textures )
+	PARENTLOCK( m_textures ),
+	m_groupIndex( -1 ),
+	m_isVisible( false )
 {}
 
 
@@ -46,7 +48,7 @@ EveSOFDataFaction::EveSOFDataFaction( IRoot* lockobj ) :
 	PARENTLOCK( m_additiveAreas ),
 	PARENTLOCK( m_depthAreas ),
 	PARENTLOCK( m_distortionAreas ),
-	PARENTLOCK( m_decalUsageData ),
+	PARENTLOCK( m_decals ),
 	PARENTLOCK( m_spriteSets ),
 	PARENTLOCK( m_spotlightSets ),
 	PARENTLOCK( m_planeSets )
@@ -103,7 +105,7 @@ EveSOFDataHullDecal::EveSOFDataHullDecal( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
 	m_rotation( 0.f, 0.f, 0.f, 1.f ),
 	m_scaling( 1.f, 1.f, 1.f ),
-	m_usageID( -1 ),
+	m_groupIndex( -1 ),
 	PARENTLOCK( m_textures ),
 	PARENTLOCK( m_parameters )
 {}

@@ -131,7 +131,7 @@ IRootPtr EveSOF::Build( const char* hullName, const char* factionName, const cha
 	SetupMesh( newShip, hullData, factionData );
 
 	// decals
-	SetupHullDecals( newShip, hullData );
+	SetupDecals( newShip, hullData, factionData );
 
 	// effects on ships
 	SetupSpriteSets( newShip, hullData, factionData );
@@ -818,11 +818,28 @@ void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hul
 // Description:
 //   add the hull decals to the new ship
 // --------------------------------------------------------------------------------
-void EveSOF::SetupHullDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData ) const
+void EveSOF::SetupDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData, const EveSOFDataMgr::FactionData* factionData ) const
 {
 	// create and setup all hull decals
 	for( auto hdit = hullData->hullDecals.begin(); hdit != hullData->hullDecals.end(); ++hdit )
 	{
+		// do we have faction data for this decal?
+		const EveSOFDataMgr::FactionDecalData* fdd = nullptr;
+		if( hdit->groupIndex != -1 )
+		{
+			auto finder = factionData->decalData.find( hdit->groupIndex );
+			if( finder != factionData->decalData.end() )
+			{
+				fdd = &finder->second;
+			}
+		}
+
+		// decal can be invisibe for this faction
+		if( fdd && !fdd->isVisible )
+		{
+			continue;
+		}
+
 		// create
 		EveSpaceObjectDecalPtr decal;
 		decal.CreateInstance();
@@ -834,17 +851,40 @@ void EveSOF::SetupHullDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* h
 		Tr2EffectPtr shader;
 		shader.CreateInstance();
 		shader->StartUpdate();
-		shader->SetEffectPathName( hdit->shaderPath.c_str() );
-		// set parameters
+
+		// shader name, either base or factional
+		if( fdd )
+		{
+			shader->SetEffectPathName( fdd->shaderPath.c_str() );
+		}
+		else
+		{
+			shader->SetEffectPathName( hdit->shaderPath.c_str() );
+		}
+
+		// always set hull parameters & textures for this decal
 		for( auto hdpit = hdit->parameters.begin(); hdpit != hdit->parameters.end(); ++hdpit )
 		{
 			shader->AddParameterVector4( hdpit->first.c_str(), &hdpit->second );
 		}
-		// set textures
 		for( auto hdtit = hdit->textures.begin(); hdtit != hdit->textures.end(); ++hdtit )
 		{
 			shader->AddResourceTexture2D( hdtit->first.c_str(), hdtit->second.resFilePath.c_str() );
 		}
+
+		// then set the factional
+		if( fdd)
+		{
+			for( auto fdpit = fdd->parameters.begin(); fdpit != fdd->parameters.end(); ++fdpit )
+			{
+				shader->AddParameterVector4( fdpit->first.c_str(), &fdpit->second );
+			}
+			for( auto fdtit = fdd->textures.begin(); fdtit != fdd->textures.end(); ++fdtit )
+			{
+				shader->AddResourceTexture2D( fdtit->first.c_str(), fdtit->second.resFilePath.c_str() );
+			}
+		}
+
 		// init and add
 		shader->EndUpdate();
 		decal->SetEffect( shader );

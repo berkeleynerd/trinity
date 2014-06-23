@@ -118,6 +118,7 @@ public:
 		Vector3 position;
 		Quaternion rotation;
 		Vector3 scaling;
+		int groupIndex;
 		std::string shaderPath;
 		std::map<std::string, TextureData> textures;
 		std::map<std::string, Vector4> parameters;
@@ -197,6 +198,15 @@ public:
 		std::map<std::string, Vector4> parameters;
 	};
 
+	struct FactionDecalData
+	{
+		int groupIndex;
+		bool isVisible;
+		std::string shaderPath;
+		std::map<std::string, TextureData> textures;
+		std::map<std::string, Vector4> parameters;
+	};
+
 	struct FactionData
 	{
 		// texture insert
@@ -211,6 +221,8 @@ public:
 		std::map<int, FactionSpotlightSetColorData> spotlightSetsColors;
 		// plane sets
 		std::map<int, FactionPlaneSetColorData> planeSetsColors;
+		// decals
+		std::map<int, FactionDecalData> decalData;
 	};
 
 	// race data structs

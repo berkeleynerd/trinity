@@ -50,7 +50,7 @@ private:
 	void SetupPlaneSets( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData, const EveSOFDataMgr::FactionData* factionData ) const;
 	void SetupChildrenAndAnimations( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData ) const;
 	void SetupBoosters( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData, const EveSOFDataMgr::RaceData* raceData ) const;
-	void SetupHullDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData ) const;
+	void SetupDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData, const EveSOFDataMgr::FactionData* factionData ) const;
 	void SetupModelCurves( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullData ) const;
 
 	// helper functions

@@ -295,7 +295,7 @@ public:
 	Vector3 m_position, m_scaling;
 	Quaternion m_rotation;
 	std::string m_shaderPath;
-	int m_usageID;
+	int m_groupIndex;
 	PEveSOFDataTextureVector m_textures;
 	PEveSOFDataParameterVector m_parameters;
 };
@@ -420,7 +420,11 @@ public:
 	EveSOFDataFactionDecal( IRoot* lockobj = NULL );
 	~EveSOFDataFactionDecal() {}
 
-	// list of textures and params
+	// group
+	int m_groupIndex;
+	// data for visual overrrides
+	bool m_isVisible;
+	std::string m_shaderPath;
 	PEveSOFDataParameterVector m_parameters;
 	PEveSOFDataTextureVector m_textures;
 };
@@ -489,8 +493,7 @@ public:
 	PEveSOFDataFactionSpriteSetVector m_spriteSets;
 	PEveSOFDataFactionSpotlightSetVector m_spotlightSets;
 	PEveSOFDataFactionPlaneSetVector m_planeSets;
-
-	PEveSOFDataFactionDecalVector m_decalUsageData;
+	PEveSOFDataFactionDecalVector m_decals;
 };
 TYPEDEF_BLUECLASS( EveSOFDataFaction );
 BLUE_DECLARE_VECTOR( EveSOFDataFaction );
