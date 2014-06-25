@@ -872,14 +872,14 @@ void EveSOF::SetupDecals( EveShip2Ptr ship, const EveSOFDataMgr::HullData* hullD
 		shader.CreateInstance();
 		shader->StartUpdate();
 
-		// shader name, either base or factional
+		// shader name is base, but can be overwritten, if provided
+		shader->SetEffectPathName( hdit->shaderPath.c_str() );
 		if( fdd )
 		{
-			shader->SetEffectPathName( fdd->shaderPath.c_str() );
-		}
-		else
-		{
-			shader->SetEffectPathName( hdit->shaderPath.c_str() );
+			if( !fdd->shaderPath.empty() )
+			{
+				shader->SetEffectPathName( fdd->shaderPath.c_str() );
+			}
 		}
 
 		// always set hull parameters & textures for this decal
