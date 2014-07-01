@@ -39,6 +39,8 @@ BLUE_DECLARE_VECTOR( TriCurveSet );
 BLUE_DECLARE( Tr2RenderJobs );
 BLUE_DECLARE( Tr2RenderTargetGrabber );
 
+extern const Be::VarChooser TriDeviceTypeChooser[];
+
 // Global pointer to device, guaranteed to be a valid device.
 // Any rendering code or resource creation code that needs access
 // to the device can get it through this variable and does _not_
@@ -138,6 +140,12 @@ public:
 	{
 		WINDOWED,
 		FULLSCREEN,
+	};
+
+	enum DeviceType
+	{
+		DEVICE_TYPE_HARDWARE,
+		DEVICE_TYPE_SOFTWARE,
 	};
 
 	bool CreateSimpleDevice( Tr2WindowHandle hwnd, unsigned int width, unsigned int height, DeviceScreenType type );
@@ -291,6 +299,8 @@ private:
 
 
 private:
+	DeviceType m_deviceType;
+	
 	int mAdapter;	
 	PresentationParameters mPresentParam;
 

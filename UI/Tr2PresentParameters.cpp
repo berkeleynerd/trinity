@@ -17,5 +17,6 @@ Tr2PresentParameters::Tr2PresentParameters( IRoot* lockobj /*= nullptr */ )
 	depthStencilFormat = Tr2RenderContextEnum::DSFMT_AUTO;
 	outputWindow = 0;
 	windowed = false;
+	software = false;
 	presentInterval = Tr2RenderContextEnum::PRESENT_INTERVAL_ONE;
 }

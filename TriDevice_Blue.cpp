@@ -72,6 +72,19 @@ PyObject* TriDevice::PyGetPickRayFromViewport( PyObject* args )
 }
 #endif
 
+const Be::VarChooser TriDeviceTypeChooser[] =
+{
+	// Name		   Value		    Docstring
+	{ "HARDWARE",			BeCast( TriDevice::DEVICE_TYPE_HARDWARE),			"Hardware device" }, 
+	{ "SOFTWARE",			BeCast( TriDevice::DEVICE_TYPE_SOFTWARE ),			"Software device" },
+	{ 0 }
+};
+
+BLUE_REGISTER_ENUM_EX( "TriDeviceType", 
+					   TriDevice::DeviceType, 
+					   TriDeviceTypeChooser, ENUM_REG_ENUM_OBJECT_ON_MODULE );
+
+
 const Be::ClassInfo* TriDevice::ExposeToBlue()
 {
 	/////////////////////////////////////////
@@ -101,6 +114,7 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 		MAP_ATTRIBUTE( "width", mWidth, "na", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "height", mHeight, "na", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "viewport", mViewport, "na", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE_WITH_CHOOSER( "deviceType", m_deviceType, "Hardware/Software device", Be::READWRITE| Be::ENUM, TriDeviceTypeChooser )
 
 		MAP_ATTRIBUTE( "backBufferCount", mBackBufferCount, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST )	
 		MAP_ATTRIBUTE( "tickInterval", mTickInterval, "na", Be::READWRITE )

@@ -284,6 +284,8 @@ bool App::Initialize3DEnvironment()
 	present.swapEffect = Tr2RenderContextEnum::SWAP_EFFECT_DISCARD;
 	present.outputWindow = mHwnd;
 	present.windowed = mWindowed;
+	present.software = false;
+	
 	present.depthStencilFormat = Tr2RenderContextEnum::DSFMT_D16;
 
 	present.presentInterval =

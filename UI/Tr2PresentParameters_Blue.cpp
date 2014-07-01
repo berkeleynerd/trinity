@@ -6,6 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2PresentParameters.h"
+#include "TriDevice.h"
 
 BLUE_DEFINE( Tr2PresentParameters );
 
@@ -32,6 +33,14 @@ const Be::ClassInfo* Tr2PresentParameters::ExposeToBlue()
 			windowed,
 			"",
 			Be::READWRITE
+		)
+		MAP_ATTRIBUTE_WITH_CHOOSER
+		(
+			"software",
+			software,
+			"",
+			Be::READWRITE | Be::ENUM,
+			TriDeviceTypeChooser
 		)
 		MAP_ATTRIBUTE
 		(

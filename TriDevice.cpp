@@ -127,6 +127,7 @@ TriDevice::TriDevice(IRoot* lockobj) :
 	mBackBufferCount ( 1                     ),
 	mSwapEffect		 ( SWAP_EFFECT_DISCARD ),
 	mDeviceLost( true ),
+	m_deviceType( TriDevice::DEVICE_TYPE_HARDWARE ),
 
 	mAdapter ( 0 ),
 	mTickInterval ( 10 ), // ten ms between ticks
@@ -213,6 +214,7 @@ bool TriDevice::CreateSimpleDevice(
 	pp.mode.width  = width;
 	pp.mode.height = height;
 	pp.outputWindow = hwnd;
+	pp.software = (m_deviceType == TriDevice::DEVICE_TYPE_SOFTWARE);
 
 	if( type == FULLSCREEN )
 	{

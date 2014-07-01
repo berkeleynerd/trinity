@@ -30,6 +30,7 @@ bool PresentationParameters::Set(PyObject *_dict)
 	GETINT(MultiSampleType) msaaType = unsigned( i.Int() );
 	GETINT(MultiSampleQuality) msaaQuality = unsigned( i.Int() );
 	GETINT(SwapEffect) swapEffect = Tr2RenderContextEnum::SwapEffect( i.Int() );
+	GETINT(Software) software = unsigned( i.Int() );
 
 	outputWindow = NULL;
 	BluePy py = dict.Get("hDeviceWindow");
