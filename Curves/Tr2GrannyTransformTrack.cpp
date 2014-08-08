@@ -2,6 +2,7 @@
 #include "Tr2GrannyTransformTrack.h"
 #include "Resources/TriGrannyRes.h"
 #include "include/TriMath.h"
+#include "Utilities/GrannyCurveHelpers.h"
 
 // Curve set
 Tr2GrannyTransformTrack::Tr2GrannyTransformTrack( IRoot* lockobj ): 
@@ -26,7 +27,7 @@ void Tr2GrannyTransformTrack::UpdateValueImpl( double time )
 	float scaleShear[9];
 	if( GrannyCurveIsKeyframed( m_positionCurve ) )
 	{
-		GetKeyFrameAtT( m_positionCurve, time, m_translation );
+		GetKeyFrameAtT( m_positionCurve, time, m_translation, m_duration );
 	}
 	else
 	{
@@ -35,7 +36,7 @@ void Tr2GrannyTransformTrack::UpdateValueImpl( double time )
 
 	if( GrannyCurveIsKeyframed( m_orientationCurve ) )
 	{
-		GetKeyFrameAtT( m_orientationCurve, time, m_rotation );
+		GetKeyFrameAtT( m_orientationCurve, time, m_rotation, m_duration );
 	}
 	else
 	{

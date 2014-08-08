@@ -19,6 +19,7 @@ public:
 	bool TracksReady( void );
 
 protected:
+
 	float m_value;
 	granny_curve2* m_valueCurve;
 };

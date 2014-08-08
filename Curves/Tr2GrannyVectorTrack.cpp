@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "Tr2GrannyVectorTrack.h"
 #include "Resources/TriGrannyRes.h"
+#include "Utilities/GrannyCurveHelpers.h"
 
 // Curve set
 Tr2GrannyVectorTrack::Tr2GrannyVectorTrack( IRoot* lockobj ): 
@@ -18,7 +19,14 @@ bool Tr2GrannyVectorTrack::TracksReady( void )
 void Tr2GrannyVectorTrack::UpdateValueImpl( double time )
 {
 	float defaultValue = 0.f;
-	GrannyEvaluateCurveAtT( 1, false, false, m_valueCurve, false, m_duration, (float)time,(float*)&m_value, &defaultValue );
+	if( GrannyCurveIsKeyframed( m_valueCurve ) )
+	{
+		GetKeyFrameAtT( m_valueCurve, time, m_value, m_duration );
+	}
+	else
+	{
+		GrannyEvaluateCurveAtT( 1, false, false, m_valueCurve, false, m_duration, (float)time,(float*)&m_value, &defaultValue );
+	}
 }
 
 void Tr2GrannyVectorTrack::ResetTracks( void )
