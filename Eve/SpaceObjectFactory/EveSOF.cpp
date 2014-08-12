@@ -86,7 +86,7 @@ IRootPtr EveSOF::Load( const char* resFile, const char* hullName, const char* fa
 	dna.CreateInstance();
 
 	// init it with given dna string
-	std::string dnaString = std::string( hullName ) + "." + std::string( factionName ) + "." + std::string( raceName );
+	std::string dnaString = std::string( hullName ) + ":" + std::string( factionName ) + ":" + std::string( raceName );
 	dna->Setup( dnaString.c_str(), &m_dataMgr );
 
 	// if this dna is not correct, we are done here
