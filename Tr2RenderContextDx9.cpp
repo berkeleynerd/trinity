@@ -17,6 +17,8 @@ using namespace Tr2RenderContextEnum;
 CCP_STATS_DECLARE( primitiveCount		, "Trinity/AL/primitiveCount"		, true, CST_COUNTER_HIGH, "Primitive count in DrawPrimitive calls." );
 CCP_STATS_DECLARE( vertexCount			, "Trinity/AL/vertexCount"			, true, CST_COUNTER_HIGH, "Vertex count in DrawPrimitive calls." );
 CCP_STATS_DECLARE( sceneDrawcallCount	, "Trinity/AL/sceneDrawcallCount"	, true, CST_COUNTER_LOW,  "Number of DrawPrimitive calls." );
+CCP_STATS_DECLARE( numAFRGroups, "Trinity/AL/AFR/numAFRGroups", false, CST_COUNTER_LOW, "Number of active AFR (SLI or Crossfire) groups." );
+
 
 namespace
 {
@@ -854,7 +856,10 @@ ALResult Tr2RenderContextAL::CreateDevice(
 	{
 		m_events->OnContextCreated( *this );
 	}
-
+	
+	uint32_t numSLIGroups;
+	CR( GetAFRGroupCount(numSLIGroups) );
+	CCP_STATS_SET(numAFRGroups, numSLIGroups);
 
 	return hr;
 }

@@ -109,6 +109,11 @@ BaseConfigurations:
       PreprocessorDefinitions:
       - TRINITY_PLATFORM=TRINITY_ORBIS
       - TRACK_AL_RESOURCES=0
+
+  Stub:
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_STUB
       
   Android:
     General:
@@ -250,3 +255,24 @@ Configurations:
     - Orbis
     General:
       TargetName: libTrinityAL_orbis
+
+  Debug_Stub|Win32,x64,Mac32,Mac64:
+    BaseConfigurations:
+    - Debug
+    - Stub
+    General:
+      TargetName: TrinityAL_stub_d
+
+  Dev_Stub|Win32, x64:
+    BaseConfigurations:
+    - Dev
+    - Stub
+    General:
+      TargetName: TrinityAL_stub_dev
+  
+  Release_Stub|Win32,x64,Mac32,Mac64:
+    BaseConfigurations:
+    - Release
+    - Stub
+    General:
+      TargetName: TrinityAL_stub

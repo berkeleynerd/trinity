@@ -25,6 +25,7 @@ CCP_STATS_DECLARE( dx11CPrimitives, "Trinity/AL/dx11/CPrimitives", false, CST_CO
 CCP_STATS_DECLARE( dx11PSInvocations, "Trinity/AL/dx11/PSInvocations", false, CST_COUNTER_HIGH, "Number of times a pixel shader was invoked" );
 CCP_STATS_DECLARE( dx11HSInvocations, "Trinity/AL/dx11/HSInvocations", false, CST_COUNTER_HIGH, "Number of times a hull shader was invoked" );
 CCP_STATS_DECLARE( dx11DSInvocations, "Trinity/AL/dx11/DSInvocations", false, CST_COUNTER_HIGH, "Number of times a domain shader was invoked" );
+CCP_STATS_DECLARE( numAFRGroups, "Trinity/AL/AFR/numAFRGroups", false, CST_COUNTER_LOW, "Number of active AFR (SLI or Crossfire) groups." );
 
 namespace Tr2RenderContextImpl {
 	struct NullContext;
@@ -94,6 +95,7 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 												Tr2WindowHandle  hFocusWindow, 
 												const Tr2PresentParametersAL& pp )
 {
+	const bool isWindowless = (hFocusWindow == 0) && pp.software;
 
 	DXGI_SWAP_CHAIN_DESC sd;
 	memset( &sd, 0, sizeof( sd ) );
@@ -129,19 +131,23 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 
 	const D3D_FEATURE_LEVEL levelWanted = D3D_FEATURE_LEVEL_11_0;
 	D3D_FEATURE_LEVEL levelSupported;
-
 	CComPtr<IDXGIAdapter1> adapterPtr;
-	if( FAILED( Tr2VideoAdapterInfo::GetVideoAdapterDX11( adapter, &adapterPtr, &m_dxgiOutput ) ) )
-	{
-		return E_FAIL;
-	}
 
-	m_adapterVendorId = 0;
-	DXGI_ADAPTER_DESC1 desc1;
-	if( SUCCEEDED( adapterPtr->GetDesc1( &desc1 ) ) )
+	if( !isWindowless ) 
 	{
-		CCP_AL_LOG( "DX11 creating device for adapter %s", (LPCTSTR)CW2A( desc1.Description ) );
-		m_adapterVendorId = uint32_t( desc1.VendorId );
+	
+		if( FAILED( Tr2VideoAdapterInfo::GetVideoAdapterDX11( adapter, &adapterPtr, &m_dxgiOutput ) ) )
+		{
+			return E_FAIL;
+		}
+
+		m_adapterVendorId = 0;
+		DXGI_ADAPTER_DESC1 desc1;
+		if( SUCCEEDED( adapterPtr->GetDesc1( &desc1 ) ) )
+		{
+			CCP_AL_LOG( "DX11 creating device for adapter %s", (LPCTSTR)CW2A( desc1.Description ) );
+			m_adapterVendorId = uint32_t( desc1.VendorId );
+		}
 	}
 	
 	m_context.Release();
@@ -154,7 +160,27 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 		driverType = D3D_DRIVER_TYPE_WARP;
 	}
 
-	HRESULT HR = D3D11CreateDeviceAndSwapChain(
+	CCP_AL_LOG( "DX11: driverType: %i", driverType );
+
+	HRESULT HR = 0;
+	
+	if( isWindowless ) 
+	{
+		CCP_AL_LOG( "DX11: Creating device without a swap chain" );
+
+		HR = D3D11CreateDevice(
+			NULL,
+			driverType,
+			0,
+			dwFlags,
+			&levelWanted,
+			1,
+			D3D11_SDK_VERSION,
+			&m_d3dDevice11,
+			&levelSupported,
+			&m_context );
+	} else 	{
+		HR = D3D11CreateDeviceAndSwapChain(
 				pp.software ? NULL : adapterPtr,
 				driverType,
 				0,
@@ -167,6 +193,8 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 				&m_d3dDevice11,
 				&levelSupported,
 				&m_context );
+	}
+	
 
 	if( SUCCEEDED( HR ) )		
 	{
@@ -182,19 +210,34 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 		// Try once again without DEVICE_DEBUG flag for people without DirectX SDK
 		dwFlags &= ~D3D11_CREATE_DEVICE_DEBUG;
 
-		HR = D3D11CreateDeviceAndSwapChain (
-			pp.software ? NULL : adapterPtr,
-			driverType,
-			0,
-			dwFlags,
-			&levelWanted,
-			1,
-			D3D11_SDK_VERSION,
-			&sd,
-			&m_swapChain,
-			&m_d3dDevice11,
-			&levelSupported,
-			&m_context );
+		if( isWindowless ) 
+		{
+			HR = D3D11CreateDevice(
+				NULL,
+				driverType,
+				0,
+				dwFlags,
+				&levelWanted,
+				1,
+				D3D11_SDK_VERSION,
+				&m_d3dDevice11,
+				&levelSupported,
+				&m_context );
+		} else 	{
+			HR = D3D11CreateDeviceAndSwapChain(
+					pp.software ? NULL : adapterPtr,
+					driverType,
+					0,
+					dwFlags,
+					&levelWanted,
+					1,
+					D3D11_SDK_VERSION,
+					&sd,
+					&m_swapChain,
+					&m_d3dDevice11,
+					&levelSupported,
+					&m_context );
+		}
 
 		if( SUCCEEDED( HR ) )
 		{
@@ -207,7 +250,7 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 		}
 	}
 
-	if( !m_swapChain || !m_d3dDevice11 || !m_context )
+	if( !m_d3dDevice11 || !m_context || (!isWindowless && !m_swapChain) )
 	{
 		CCP_AL_LOGERR( "Failed to D3D11CreateDeviceAndSwapChain" );
 		m_swapChain		= nullptr;
@@ -218,20 +261,26 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 	}
 
 	// Disable Windows support for alt-enter fullscreen
-	adapterPtr->GetParent(__uuidof(IDXGIFactory), (void **)&m_dxgiFactory);
-	if( m_dxgiFactory )
+	if( adapterPtr ) 
 	{
-		m_dxgiFactory->MakeWindowAssociation( Tr2WindowHandle( pp.outputWindow ), DXGI_MWA_NO_WINDOW_CHANGES );
-	}
+		adapterPtr->GetParent(__uuidof(IDXGIFactory), (void **)&m_dxgiFactory);
 
-	if( !pp.windowed )
+		if( m_dxgiFactory )
+		{
+			m_dxgiFactory->MakeWindowAssociation( Tr2WindowHandle( pp.outputWindow ), DXGI_MWA_NO_WINDOW_CHANGES );
+		}
+	}
+	
+	if( !isWindowless && !pp.windowed )
 	{
 		CR( m_swapChain->ResizeTarget( &sd.BufferDesc ) );
+
 		CR( m_swapChain->ResizeBuffers(	sd.BufferCount, 
 										sd.BufferDesc.Width,
 										sd.BufferDesc.Height,
 										sd.BufferDesc.Format,
 										DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH ) );
+
 		CR( m_swapChain->SetFullscreenState( TRUE, m_dxgiOutput ) );
 	}
 
@@ -248,7 +297,10 @@ ALResult Tr2PrimaryRenderContextAL::CreateDevice(	uint32_t  adapter,
 									1, &m_zeroVertexBuffer.m_buffer.p, 
 									&zero, &zero );
 
-	CR_RETURN_HR( CreateBackBuffers( pp ) );
+	if( !isWindowless ) 
+	{
+		CR_RETURN_HR( CreateBackBuffers( pp ) );
+	}
 
 	if( dwFlags & D3D11_CREATE_DEVICE_DEBUG )
 	{
@@ -346,6 +398,9 @@ ALResult Tr2PrimaryRenderContextAL::SetPresentParameters( unsigned adapter, cons
 
 	m_vsyncInterval = presentationParameters.presentInterval & 0xf;
 
+	uint32_t numSLIGroups;
+	CR( GetAFRGroupCount(numSLIGroups) );
+	CCP_STATS_SET(numAFRGroups, numSLIGroups);
 	return CreateBackBuffers( presentationParameters );
 }
 

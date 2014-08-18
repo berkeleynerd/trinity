@@ -90,6 +90,25 @@ TEST_F( WithValidRenderContext, CanLockConstantBuffer )
 	ASSERT_HRESULT_SUCCEEDED( vb.Unlock( *renderContext ) );
 }
 
+#if( TRINITYPLATFORM == TRINITY_STUB )
+TEST_F( WithValidRenderContext, UnlockingConstantBufferThatHasNotBeenLockedFails )
+{
+	Tr2ConstantBufferAL vb;
+	ASSERT_HRESULT_SUCCEEDED( vb.Create( 128, *renderContext ) );
+	ASSERT_HRESULT_FAILED( vb.Unlock( *renderContext ) );
+}
+
+
+TEST_F( WithValidRenderContext, LockingImmutableConstantBufferFails )
+{
+	Tr2ConstantBufferAL vb;
+	char initialData[128];
+	ASSERT_HRESULT_SUCCEEDED( vb.Create( 128, Tr2RenderContextEnum::USAGE_IMMUTABLE, initialData, *renderContext ) );
+	void* data;
+	ASSERT_HRESULT_FAILED( vb.Lock( &data, *renderContext ) );
+}
+#endif
+
 TEST_F( WithValidRenderContext, CanUpdateFromMirror )
 {
 	Tr2ConstantBufferAL vb;

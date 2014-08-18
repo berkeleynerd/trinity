@@ -194,3 +194,18 @@ TEST_F( WithValidRenderContext, CanGetLockedRenderTarget )
 	lockedRT.Destroy();
 	EXPECT_FALSE( lockedRT.IsValid() );
 }
+
+#if( TRINITYPLATFORM == TRINITY_STUB )
+TEST_F( WithValidRenderContext, UnlockingUnlockedLockedRenderTargetFails )
+{
+	Tr2RenderTargetAL rt;
+	ASSERT_HRESULT_SUCCEEDED( rt.Create( 128, 64, 0, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 1, 0, *renderContext ) );
+
+	Tr2LockedRenderTargetAL lockedRT;
+	ASSERT_HRESULT_SUCCEEDED( rt.GetLockedRenderTarget( 0, nullptr, lockedRT, *renderContext ) );
+	
+	ASSERT_HRESULT_FAILED( lockedRT.Unlock( *renderContext ) );
+
+	lockedRT.Destroy();
+}
+#endif

@@ -7,8 +7,10 @@
 #include "StdAfx.h"
 #include "ALResult.h"
 #include "ALLog.h"
-
-#ifdef _WIN32
+#if (defined(_WIN32) && TRINITY_PLATFORM!=TRINITY_STUB )
+#define HAS_DXERR
+#endif
+#ifdef HAS_DXERR
 #include <dxerr.h>
 #endif
 
@@ -24,7 +26,7 @@ std::map<HRESULT, std::string> s_errorMessages;
 void ReportHresultError( const char* fileName, int lineNumber, const char* statement, HRESULT hr )
 {
 	const char* msgFormat = "%s(%d) : '%s' returned error %s\n";
-#ifdef _WIN32
+#ifdef HAS_DXERR
 	const char* errorString = DXGetErrorStringA( hr );
 #else
     char errorString[64];
@@ -127,7 +129,7 @@ const char* Be::GetErrorMessage( const Result<HRESULT>& result )
 	auto found = s_errorMessages.find( result );
 	if( found == s_errorMessages.end() )
 	{
-#ifdef _WIN32
+#ifdef HAS_DXERR
 		const char* name = DXGetErrorString( result );
 		const char* message = DXGetErrorDescription( result );
 #else

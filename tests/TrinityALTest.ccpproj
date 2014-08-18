@@ -114,6 +114,11 @@ BaseConfigurations:
     ClCompile:
       PreprocessorDefinitions:
       - D3DTARGET=9
+
+  STUB:
+    # These are settings that apply to all variants of Trinity that use the stub
+    Imports:
+    - ../TrinityAL/uses_TrinityALStub.yaml
       
   WithGoogleTest:
     Imports:
@@ -235,3 +240,27 @@ Configurations:
     - Orbis
     General:
       TargetName: TrinityALTestOrbis
+
+  Dev_STUB|Win32,x64:
+    BaseConfigurations:
+    - Dev
+    - STUB
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestSTUB_dev
+
+  Debug_STUB|Mac64:
+    BaseConfigurations:
+    - Debug
+    - STUB
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestSTUB_d
+
+  Release_STUB|Win32,x64,Mac64:
+    BaseConfigurations:
+    - Release
+    - STUB
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestSTUB

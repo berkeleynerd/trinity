@@ -109,3 +109,31 @@ TEST_F( WithValidRenderContext, DifferentShadersAreNotEqual )
 	EXPECT_FALSE( vs1 == vs2 );
 }
 
+#if( TRINITYPLATFORM == TRINITY_STUB )
+TEST_F( WithValidRenderContext, ShaderStoresType )
+{
+	uint32_t vsBytecode[] = {
+#include INCLUDE_SHADER_CODE( PositionOnly.vs )
+	};
+
+	Tr2ShaderInputDefinition vsInput;
+	vsInput.elements.resize( 1 );
+	vsInput.elements[0].usage = Tr2VertexDefinition::POSITION;
+	vsInput.elements[0].usageIndex = 0;
+	vsInput.ComputeHash();
+
+	Tr2ShaderAL vs;
+	ASSERT_HRESULT_SUCCEEDED( vs.Create( 
+		*renderContext, 
+		Tr2RenderContextEnum::HULL_SHADER,
+		vsBytecode,
+		sizeof( vsBytecode ),
+		nullptr,
+		0,
+		vsInput ) );
+
+	Tr2RenderContextEnum::ShaderType expected = Tr2RenderContextEnum::HULL_SHADER;
+	int actual = vs.GetType();
+	EXPECT_EQ( expected, actual  );
+}
+#endif

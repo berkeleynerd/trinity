@@ -28,9 +28,12 @@ typedef int32_t HRESULT;
 #define E_INVALIDCALL HRESULT(0x8876086C)
 #define E_OUTOFMEMORY HRESULT(0x8007000E)
 #define E_DEVICELOST HRESULT(0x88760868)
-#else
+#elif (TRINITYPLATFORM != TRINITYSTUB)
 #define E_INVALIDCALL D3DERR_INVALIDCALL
 #define E_DEVICELOST D3DERR_DEVICELOST
+#else
+#define E_INVALIDCALL HRESULT(0x8876086C)
+#define E_DEVICELOST HRESULT(0x88760868)
 #endif
 
 
@@ -279,7 +282,7 @@ const char* GetErrorMessage( const Result<HRESULT>& result );
 // GetException function for ALResult. We declare it here so that it's picked up
 // by BlueExposure whenever ALResult is used. Its body needs to be defined outside
 // TrinityAL.
-PyObject* GetException( const Result<HRESULT>& result );
+template<> PyObject* GetException( const Result<HRESULT>& result );
 
 #endif
 

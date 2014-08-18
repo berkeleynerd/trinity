@@ -132,13 +132,52 @@ TEST_F( WithValidRenderContext, TextureEqualsItself )
 	EXPECT_TRUE( tex == tex );
 }
 
-TEST_F( WithValidRenderContext, DifferentTexuresAreNotEqual )
+TEST_F( WithValidRenderContext, DifferentTexturesAreNotEqual )
 {
 	Tr2TextureAL tex1;
 	ASSERT_HRESULT_SUCCEEDED( tex1.Create2D( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_WRITE, nullptr, *renderContext ) );
 	Tr2TextureAL tex2;
 	ASSERT_HRESULT_SUCCEEDED( tex2.Create2D( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_WRITE, nullptr, *renderContext ) );
 	EXPECT_FALSE( tex1 == tex2 );
+}
+
+TEST_F( WithValidRenderContext, Texture2DUsageIsSetAfterCreate )
+{
+	Tr2TextureAL tex1;
+	ASSERT_HRESULT_SUCCEEDED( tex1.Create2D( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_WRITE, nullptr, *renderContext ) );
+	EXPECT_EQ( tex1.GetUsage(), USAGE_CPU_WRITE );
+	Tr2TextureAL tex2;
+	ASSERT_HRESULT_SUCCEEDED( tex2.Create2D( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_READ, nullptr, *renderContext ) );
+	EXPECT_EQ( tex2.GetUsage(), USAGE_CPU_READ );
+}
+
+#if TRINITY_PLATFORM != TRINITY_OPENGLES2
+TEST_F( WithValidRenderContext, TextrueVolumeUsageIsSetAfterCreate )
+{
+	uint32_t pixels[4 * 4 * 4] = { 0 };
+	Tr2SubresourceData initialData;
+	initialData.m_height = 4;
+	initialData.m_sysMemPitch = 4 * 4;
+	initialData.m_sysMemSlicePitch = 4 * 4 * 4;
+	initialData.m_sysMem = pixels;
+
+	Tr2TextureAL tex1;
+	ASSERT_HRESULT_SUCCEEDED( tex1.CreateVolume( 4, 4, 4, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_WRITE, &initialData, *renderContext ) );
+	EXPECT_EQ( tex1.GetUsage(), USAGE_CPU_WRITE );
+	Tr2TextureAL tex2;
+	ASSERT_HRESULT_SUCCEEDED( tex2.CreateVolume( 4, 4, 4, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_READ, &initialData, *renderContext ) );
+	EXPECT_EQ( tex2.GetUsage(), USAGE_CPU_READ );
+}
+#endif
+
+TEST_F( WithValidRenderContext, TextureCubeUsageIsSetAfterCreate )
+{
+	Tr2TextureAL tex1;
+	ASSERT_HRESULT_SUCCEEDED( tex1.CreateCube( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, 0, nullptr, *renderContext ) );
+	EXPECT_EQ( tex1.GetUsage(), 0 );
+	Tr2TextureAL tex2;
+	ASSERT_HRESULT_SUCCEEDED( tex2.CreateCube( 128, 128, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_CPU_READ, nullptr, *renderContext ) );
+	EXPECT_EQ( tex2.GetUsage(), USAGE_CPU_READ );
 }
 
 TEST_F( WithValidRenderContext, LockingInvalidTextureFails )

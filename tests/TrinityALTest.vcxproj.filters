@@ -251,6 +251,9 @@
     <ClCompile Include="RenderWindow_Orbis.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="RenderWindow_Stub.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="RenderWindow_Win32.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -303,6 +306,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WithWindowFixture_Orbis.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="WithWindowFixture_Stub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="WithWindowFixture_Win32.cpp">

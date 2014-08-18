@@ -1,38 +1,18 @@
-////////////////////////////////////////////////////////////
-//
-//    Created:   April 2012
-//    Copyright: CCP 2012
-//
-
 #include "StdAfx.h"
 
-#if TRINITY_PLATFORM==TRINITY_OPENGLES2
+#if TRINITY_PLATFORM==TRINITY_STUB
 
-#include "Tr2SwapChainALGLES2.h"
-#if !defined(_WIN32) && !defined(TRINITY_AL_MOBILE)
-#include "GLFW/glfw3.h"
-#endif
+#include "Tr2SwapChainALStub.h"
+#include "ALLog.h"
 
-using namespace Tr2RenderContextEnum;
 
 // --------------------------------------------------------------------------------------
 // Description:
 //   Tr2SwapChainAL default constructor
 // --------------------------------------------------------------------------------------
 Tr2SwapChainAL::Tr2SwapChainAL()
-	:
-#ifdef _WIN32
-	m_hDC( 0 ),
-#endif
-	m_hWnd( 0 ),
-	m_width( 0 ),
-	m_height( 0 )
+	:m_isValid(false)
 {
-}
-
-Tr2SwapChainAL::~Tr2SwapChainAL()
-{
-	Destroy();
 }
 
 // --------------------------------------------------------------------------------------
@@ -44,7 +24,7 @@ Tr2SwapChainAL::~Tr2SwapChainAL()
 // --------------------------------------------------------------------------------------
 void Tr2SwapChainAL::ReleaseALResource()
 {
-	m_backBuffer.Destroy();
+	m_isValid = false;
 }
 
 // --------------------------------------------------------------------------------------
@@ -57,56 +37,7 @@ void Tr2SwapChainAL::ReleaseALResource()
 // --------------------------------------------------------------------------------------
 void Tr2SwapChainAL::PrepareALResource( Tr2PrimaryRenderContextAL& renderContext )
 {
-	if( !m_hWnd || m_backBuffer.IsValid() )
-	{
-		return;
-	}
-	CR( CreateFramebuffer( renderContext ) );
-}
-
-ALResult Tr2SwapChainAL::CreateFramebuffer( Tr2RenderContextAL& renderContext )
-{
-#ifdef _WIN32
-	m_width = 0;
-	m_height = 0;
-
-	RECT rect = { 0 };
-	GetClientRect( (Tr2WindowHandle)m_hWnd, &rect );
-
-	if( rect.right > rect.left )
-	{
-		m_width = uint32_t( rect.right - rect.left );
-	}
-	else
-	{
-		m_width = 8;
-	}
-	if( rect.bottom > rect.top )
-	{
-		m_height = uint32_t( rect.bottom - rect.top );
-	}
-	else
-	{
-		m_height = 8;
-	}
-#elif defined(TRINITY_AL_MOBILE)
-    return E_FAIL;
-#else
-    int width = 16, height = 16;
-    glfwGetWindowSize( reinterpret_cast<GLFWwindow*>( m_hWnd ), &width, &height );
-    m_width = width;
-    m_height = height;
-#endif
-	CR_RETURN_HR( m_backBuffer.Create(
-		m_width,
-		m_height,
-		1,
-		PIXEL_FORMAT_B8G8R8A8_UNORM,
-		1,
-		0,
-		renderContext ) );
-
-	return S_OK;
+	CR( Create( 0, renderContext ) );
 }
 
 // --------------------------------------------------------------------------------------
@@ -120,35 +51,28 @@ ALResult Tr2SwapChainAL::CreateFramebuffer( Tr2RenderContextAL& renderContext )
 // --------------------------------------------------------------------------------------
 ALResult Tr2SwapChainAL::Create( Tr2WindowHandle windowHandle, Tr2RenderContextAL& renderContext )
 {
-	AL_FUZZ( Tr2RenderContextEnum::OT_SWAP_CHAIN );
-
-	Destroy();
-
-	if( !renderContext.IsValid() )
+	if ( !renderContext.IsValid() )
 	{
 		return E_INVALIDARG;
 	}
-#if defined(TRINITY_AL_MOBILE)
-    return E_FAIL;
-#endif
-	m_hWnd = windowHandle;
+	Destroy();
+	m_isValid = true;
+	Tr2RenderTargetAL& defaultRenderTarget = renderContext.GetDefaultBackBuffer();
 #ifdef _WIN32
-	m_hDC = GetDC( (Tr2WindowHandle)m_hWnd );
-
-	PIXELFORMATDESCRIPTOR pfd;
-	ZeroMemory( &pfd, sizeof( pfd ) );
-	pfd.nSize = sizeof( pfd );
-	pfd.nVersion = 1;
-	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.cColorBits = 32;
-	pfd.cDepthBits = 32;
-	pfd.iLayerType = PFD_MAIN_PLANE;
-	int iFormat = ChoosePixelFormat( m_hDC, &pfd );
-	SetPixelFormat( m_hDC, iFormat, &pfd );
+	RECT sizeRect;
+	GetClientRect(windowHandle, &sizeRect);
+	uint32_t width = sizeRect.right - sizeRect.left;
+	uint32_t height = sizeRect.bottom - sizeRect.top;
+#elif defined(TRINITY_AL_MOBILE)
+    return E_FAIL;
+#else
+    uint32_t width = ( windowHandle & 0xffff );
+    uint32_t height = ( windowHandle >> 16 ) & 0xffff;
 #endif
-	CreateFramebuffer( renderContext );
-	ChangeObjectId();
+	uint32_t one = 1;
+	width = std::max(width, one);
+	height = std::max(height, one);
+	m_backBuffer.Create(width, height, defaultRenderTarget.GetMipCount(), defaultRenderTarget.GetFormat(), renderContext);
 	return S_OK;
 }
 
@@ -158,11 +82,7 @@ ALResult Tr2SwapChainAL::Create( Tr2WindowHandle windowHandle, Tr2RenderContextA
 // --------------------------------------------------------------------------------------
 void Tr2SwapChainAL::Destroy()
 {
-	m_backBuffer.Destroy();
-#ifdef _WIN32
-	::ReleaseDC( (Tr2WindowHandle)m_hWnd, m_hDC );
-	m_hDC = 0;
-#endif
+	m_isValid = false;
 }
 
 // --------------------------------------------------------------------------------------
@@ -174,7 +94,7 @@ void Tr2SwapChainAL::Destroy()
 // --------------------------------------------------------------------------------------
 bool Tr2SwapChainAL::IsValid() const
 {
-	return m_backBuffer.IsValid();
+	return m_isValid;
 }
 
 // --------------------------------------------------------------------------------------
@@ -185,33 +105,7 @@ bool Tr2SwapChainAL::IsValid() const
 // --------------------------------------------------------------------------------------
 ALResult Tr2SwapChainAL::Present( Tr2RenderContextAL& renderContext )
 {
-#ifdef TRINITY_AL_MOBILE
-    return E_FAIL;
-#else
-#ifdef _WIN32
-#pragma warning( disable: 4189 )	// scopeguard
-
-	if( !renderContext.IsValid() || !m_backBuffer.IsValid() )
-	{
-		return E_FAIL;
-	}
-	wglMakeCurrent( m_hDC, renderContext.m_hRC );
-#else
-    glfwMakeContextCurrent( reinterpret_cast<GLFWwindow*>( m_hWnd ) );
-#endif
-
-	AL_UPDATE_RESOURCE_FRAME_USAGE( *this );
-	renderContext.InternalBlitToBackBuffer( m_backBuffer.GetTexture() );
-
-#ifdef _WIN32
-	SwapBuffers( m_hDC );
-	wglMakeCurrent( renderContext.m_hDC, renderContext.m_hRC );
-#else
-    glfwSwapBuffers( reinterpret_cast<GLFWwindow*>( m_hWnd ) );
-    glfwMakeContextCurrent( reinterpret_cast<GLFWwindow*>( renderContext.m_hWnd ) );
-#endif
 	return S_OK;
-#endif
 }
 
 // --------------------------------------------------------------------------------------
@@ -223,7 +117,7 @@ ALResult Tr2SwapChainAL::Present( Tr2RenderContextAL& renderContext )
 // --------------------------------------------------------------------------------------
 int Tr2SwapChainAL::GetWidth() const
 {
-	return m_width;
+	return m_backBuffer.GetWidth();
 }
 
 // --------------------------------------------------------------------------------------
@@ -235,7 +129,6 @@ int Tr2SwapChainAL::GetWidth() const
 // --------------------------------------------------------------------------------------
 int Tr2SwapChainAL::GetHeight() const
 {
-	return m_height;
+	return m_backBuffer.GetHeight();
 }
-
-#endif // TRINITY_PLATFORM==TRINITY_DIRECTX9
+#endif // TRINITY_PLATFORM==TRINITY_STUB

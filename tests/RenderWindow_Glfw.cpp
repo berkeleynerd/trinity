@@ -1,5 +1,5 @@
 #include "StdAfx.h"
-#if !defined(__ORBIS__) && !defined(_WIN32) && !defined(TRINITY_AL_MOBILE)
+#if !defined(__ORBIS__) && !defined(_WIN32) && !defined(TRINITY_AL_MOBILE) && (TRINITY_PLATFORM != TRINITY_STUB)
 #include "RenderWindow.h"
 #include "WithWindowFixture.h"
 #include "GLFW/glfw3.h"

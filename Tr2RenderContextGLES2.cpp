@@ -1135,6 +1135,9 @@ ALResult Tr2RenderContextAL::SetPresentParameters( unsigned /*adapter*/, const T
     {
         CR_RETURN_HR( CreateOpenGLContext( presentationParameters ) );
     }
+#if !defined(TRINITY_AL_MOBILE)
+    glfwSwapInterval( pp.presentInterval & 0xf );
+#endif
 #endif
 
 	CR_RETURN_HR( m_defaultBackBuffer.Create(	
@@ -1230,12 +1233,6 @@ ALResult Tr2RenderContextAL::Present()
 	extern uint64_t g_trackCurrentFrame;
 	++g_trackCurrentFrame;
 #endif
-#ifdef _WIN32
-	if( !wglMakeCurrent( m_hDC, m_hRC ) )
-	{
-		return E_FAIL;
-	}
-#endif
 
 	InternalBlitToBackBuffer( m_defaultBackBuffer.GetTexture() );
 
@@ -1288,10 +1285,10 @@ ALResult Tr2RenderContextAL::SetShader( const Tr2ShaderAL& shader )
 
 ALResult Tr2RenderContextAL::SetProgram()
 {
-	m_boundProgramObject = nullptr;
 	if( !m_vertexShader || !m_vertexShader->IsValid() || 
 		!m_pixelShader || !m_pixelShader->IsValid() )
 	{
+		m_boundProgramObject = nullptr;
 		return E_FAIL;
 	}
 
@@ -1304,6 +1301,10 @@ ALResult Tr2RenderContextAL::SetProgram()
 	auto found = s_programs.find( key );
 	if( found != s_programs.end() )
 	{
+		if( m_boundProgramObject == found->second )
+		{
+			return S_OK;
+		}
 		m_boundProgramObject = found->second;
 		if( m_boundProgramObject->program )
 		{
@@ -1811,9 +1812,6 @@ ALResult Tr2RenderContextAL::SetNumberOfLights( uint32_t numLights )
 ALResult Tr2RenderContextAL::SetViewport( const Tr2Viewport& viewport )
 {
 	m_currentViewport = viewport;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	GetRenderTargetSize( width, height );
 	CR_GL( glViewport(	GLint( viewport.m_x ), 
 						GLint( viewport.m_y ), 
 						GLint( viewport.m_width ), 
@@ -2447,17 +2445,10 @@ bool Tr2RenderContextAL::ApplyShadowRenderStates( ShadowStateRestoreInfo& info )
 	}
 	if( m_boundProgramObject->shadowStateOffsets >= 0 )
 	{
-		uint32_t width = 0;
-		uint32_t height = 0;
-		if( m_boundRenderTarget[0] && m_boundRenderTarget[0]->IsValid() )
-		{
-			width = m_boundRenderTarget[0]->GetWidth();
-			height = m_boundRenderTarget[0]->GetHeight();
-		}
 		glUniform3f( 
 			m_boundProgramObject->shadowStateOffsets,
-			1.0f / float( width ),
-			-1.0f / float( height ),
+			1.0f / float( m_currentViewport.m_width ),
+			-1.0f / float( m_currentViewport.m_height ),
 			-1.f );
 	}
 

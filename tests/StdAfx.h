@@ -21,6 +21,8 @@ typedef uintptr_t Tr2WindowHandle;
 #define SHADER_PATH Shaders.gles2
 #elif( TRINITY_PLATFORM==TRINITY_ORBIS )
 #define SHADER_PATH Shaders.orbis
+#elif( TRINITY_PLATFORM==TRINITY_STUB )
+#define SHADER_PATH Shaders.dx11
 #endif
 
 #define INCLUDE_SHADER_CODE( name ) CCP_STRINGIZE(SHADER_PATH/name.h)

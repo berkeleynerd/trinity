@@ -139,7 +139,22 @@ ALResult DoGetDriverVersion( uint32_t deviceId, Tr2VideoDriverInfo& info )
 
 namespace Tr2DriverUtilities
 {
-
+#if( TRINITY_PLATFORM==TRINITY_STUB )
+ALResult GetDriverVersion( uint32_t deviceId, Tr2VideoDriverInfo& info )
+{
+	if ( deviceId == 0xffffffff )
+	{
+		return E_FAIL;
+	}
+	info.driverDate = "01/01/01";
+	info.driverVendor = "Stub";
+	info.driverVersion = 31337;
+	info.driverVersionString = "31337";
+	info.isAmdDynamicSwitchable = false;
+	info.isOptimus = false;
+	return S_OK;
+}
+#else
 ALResult GetDriverVersion( uint32_t deviceId, Tr2VideoDriverInfo& info )
 {
 	auto found = s_fetchedDriverInfo.insert( std::make_pair( deviceId, DriverInfo() ) );
@@ -151,5 +166,5 @@ ALResult GetDriverVersion( uint32_t deviceId, Tr2VideoDriverInfo& info )
 	info = found.first->second.info;
 	return found.first->second.fetchResult;
 }
-
+#endif
 }

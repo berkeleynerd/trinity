@@ -1,8 +1,8 @@
 #include "StdAfx.h"
 
-bool g_wantsEXDevice = false;
-
 #if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
+
+bool g_wantsEXDevice = false;
 
 #include "Tr2VideoAdapterInfoALDx9.h"
 

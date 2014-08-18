@@ -15,6 +15,7 @@
 #define TRINITY_DIRECTX11	2
 #define TRINITY_OPENGLES2	3
 #define TRINITY_ORBIS		4
+#define TRINITY_STUB		5
 
 #ifndef TRINITY_PLATFORM
 #	error TRINITY_PLATFORM must be set
@@ -36,9 +37,10 @@
 #include <Windows.h>
 // for CComPtr support
 #include <atlbase.h>
-
+#if( TRINITY_PLATFORM!=TRINITY_STUB )
 #include <D3D9.h>
 #include <d3dx9.h>
+#endif
 #endif
 #include <cstdint>
 #include <algorithm>
@@ -242,6 +244,33 @@ const float AL_TEXEL_OFFSET = 0.0f;
 #include "Tr2OcclusionQueryALDx11.h"
 #include "Tr2FenceALDx11.h"
 #include "Tr2LockedRenderTargetALDx11.h"
+
+#elif( TRINITY_PLATFORM==TRINITY_STUB )
+
+#define TRINITY_PLATFORM_NAME "dx11" // In order to use the dx11 platform specific res files as our own
+
+const float AL_TEXEL_OFFSET = 0.0f;
+
+#include "Tr2VideoAdapterInfoALStub.h"
+
+#include "Tr2VertexBufferALStub.h"
+#include "Tr2IndexBufferALStub.h"
+#include "Tr2ConstantBufferALStub.h"
+#include "Tr2VertexLayoutALStub.h"
+#include "Tr2ShaderALStub.h"
+#include "Tr2TextureALStub.h"
+#include "Tr2SamplerStateALStub.h"
+#include "Tr2GpuBufferALStub.h"
+
+#include "Tr2RenderTargetALStub.h"
+#include "Tr2DepthStencilALStub.h"
+#include "Tr2SwapChainALStub.h"
+
+#include "Tr2RenderContextStub.h"
+
+#include "Tr2OcclusionQueryALStub.h"
+#include "Tr2FenceALStub.h"
+#include "Tr2LockedRenderTargetALStub.h"
 
 #endif
 
