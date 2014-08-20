@@ -616,6 +616,9 @@
     <ClInclude Include="EffectParameter\Tr2Matrix4Parameter.h">
       <Filter>Source Files\EffectParameter</Filter>
     </ClInclude>
+    <ClInclude Include="EffectParameter\Tr2Texture2dLodParameter.h">
+      <Filter>Source Files\EffectParameter</Filter>
+    </ClInclude>
     <ClInclude Include="EffectParameter\Tr2Vector2Parameter.h">
       <Filter>Source Files\EffectParameter</Filter>
     </ClInclude>
@@ -1301,6 +1304,9 @@
       <Filter>Source Files\Resources</Filter>
     </ClInclude>
     <ClInclude Include="Resources\Tr2ImageRes.h">
+      <Filter>Source Files\Resources</Filter>
+    </ClInclude>
+    <ClInclude Include="Resources\Tr2LodResource.h">
       <Filter>Source Files\Resources</Filter>
     </ClInclude>
     <ClInclude Include="Resources\Tr2MaterialRes.h">
@@ -2332,6 +2338,12 @@
     <ClCompile Include="EffectParameter\Tr2Matrix4Parameter_Blue.cpp">
       <Filter>Source Files\EffectParameter</Filter>
     </ClCompile>
+    <ClCompile Include="EffectParameter\Tr2Texture2dLodParameter.cpp">
+      <Filter>Source Files\EffectParameter</Filter>
+    </ClCompile>
+    <ClCompile Include="EffectParameter\Tr2Texture2dLodParameter_Blue.cpp">
+      <Filter>Source Files\EffectParameter</Filter>
+    </ClCompile>
     <ClCompile Include="EffectParameter\Tr2Vector2Parameter.cpp">
       <Filter>Source Files\EffectParameter</Filter>
     </ClCompile>
@@ -3317,6 +3329,12 @@
       <Filter>Source Files\Resources</Filter>
     </ClCompile>
     <ClCompile Include="Resources\Tr2ImageRes_Blue.cpp">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="Resources\Tr2LodResource.cpp">
+      <Filter>Source Files\Resources</Filter>
+    </ClCompile>
+    <ClCompile Include="Resources\Tr2LodResource_Blue.cpp">
       <Filter>Source Files\Resources</Filter>
     </ClCompile>
     <ClCompile Include="Resources\Tr2MaterialRes.cpp">

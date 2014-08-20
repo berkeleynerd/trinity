@@ -2745,6 +2745,7 @@
     <ClInclude Include="EffectParameter\Tr2FloatParameter.h"/>
     <ClInclude Include="EffectParameter\Tr2GeometryBufferParameter.h"/>
     <ClInclude Include="EffectParameter\Tr2Matrix4Parameter.h"/>
+    <ClInclude Include="EffectParameter\Tr2Texture2dLodParameter.h"/>
     <ClInclude Include="EffectParameter\Tr2Vector2Parameter.h"/>
     <ClInclude Include="EffectParameter\Tr2Vector3Parameter.h"/>
     <ClInclude Include="EffectParameter\Tr2Vector4Parameter.h"/>
@@ -2974,6 +2975,7 @@
     <ClInclude Include="Resources\Tr2AsyncSave.h"/>
     <ClInclude Include="Resources\Tr2EffectRes.h"/>
     <ClInclude Include="Resources\Tr2ImageRes.h"/>
+    <ClInclude Include="Resources\Tr2LodResource.h"/>
     <ClInclude Include="Resources\Tr2MaterialRes.h"/>
     <ClInclude Include="Resources\Tr2RadiosityRes.h"/>
     <ClInclude Include="Resources\TriGeometryRes.h"/>
@@ -3321,6 +3323,8 @@
     <ClCompile Include="EffectParameter\Tr2GeometryBufferParameter_Blue.cpp"/>
     <ClCompile Include="EffectParameter\Tr2Matrix4Parameter.cpp"/>
     <ClCompile Include="EffectParameter\Tr2Matrix4Parameter_Blue.cpp"/>
+    <ClCompile Include="EffectParameter\Tr2Texture2dLodParameter.cpp"/>
+    <ClCompile Include="EffectParameter\Tr2Texture2dLodParameter_Blue.cpp"/>
     <ClCompile Include="EffectParameter\Tr2Vector2Parameter.cpp"/>
     <ClCompile Include="EffectParameter\Tr2Vector2Parameter_Blue.cpp"/>
     <ClCompile Include="EffectParameter\Tr2Vector3Parameter.cpp"/>
@@ -3650,6 +3654,8 @@
     <ClCompile Include="Resources\Tr2EffectRes_Blue.cpp"/>
     <ClCompile Include="Resources\Tr2ImageRes.cpp"/>
     <ClCompile Include="Resources\Tr2ImageRes_Blue.cpp"/>
+    <ClCompile Include="Resources\Tr2LodResource.cpp"/>
+    <ClCompile Include="Resources\Tr2LodResource_Blue.cpp"/>
     <ClCompile Include="Resources\Tr2MaterialRes.cpp"/>
     <ClCompile Include="Resources\Tr2MaterialRes_Blue.cpp"/>
     <ClCompile Include="Resources\Tr2RadiosityRes.cpp"/>
