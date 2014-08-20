@@ -29,7 +29,6 @@ Tr2Mesh::Tr2Mesh( IRoot* lockobj ) :
 	m_deferGeometryLoad( false ),
 	m_immutable( false ),
 	m_computeAccess( false ),
-	m_isLowDetail( false ),
 	m_areBoundsValid( false ),
 	m_isLoading( false ),
     m_pBoneList(NULL),
@@ -74,11 +73,6 @@ Tr2Mesh::Tr2Mesh( IRoot* lockobj ) :
 
 Tr2Mesh::~Tr2Mesh()
 {
-	if( m_lowDetailGeometryResource )
-	{
-		m_lowDetailGeometryResource->RemoveNotifyTarget( this );
-	}
-
 	if( m_geometryResource )
 	{
 		m_geometryResource->RemoveNotifyTarget( this );
@@ -106,7 +100,6 @@ bool Tr2Mesh::Initialize()
 	if( !m_deferGeometryLoad )
 	{
 		InitializeGeometryResource();
-		InitializeLowDetailGeometryResource();
 	}
 
 	return true;
@@ -176,10 +169,6 @@ bool Tr2Mesh::OnModified( Be::Var* value )
 	if( IsMatch( value, m_meshResPath ) )
 	{
 		InitializeGeometryResource();
-	}
-	else if( IsMatch( value, m_lowDetailMeshResPath ) )
-	{
-		InitializeLowDetailGeometryResource();
 	}
 	else if( IsMatch( value, m_deferGeometryLoad ) )
 	{
@@ -361,12 +350,6 @@ unsigned int Tr2Mesh::FindJoint( const std::string* boneList, const int numBones
 	return 0xffffffff;
 }
 
-void Tr2Mesh::SetLowDetailGeometryRes( TriGeometryRes* res )
-{
-	m_lowDetailMeshResPath.clear();
-	m_lowDetailGeometryResource = res;
-}
-
 void Tr2Mesh::SetGeometryRes( TriGeometryRes* res )
 {
 	// Remove existing callback setup if any, set new geometry resource and attach callback
@@ -429,14 +412,7 @@ void Tr2Mesh::GetBatches( ITriRenderBatchAccumulator* batches,
 		{
 			batch->SetShaderMaterial( shadMat );
 			batch->SetPerObjectData( data );
-			if( m_isLowDetail && m_lowDetailGeometryResource )
-			{
-				batch->SetGeometryResource( m_lowDetailGeometryResource );
-			}
-			else
-			{
-				batch->SetGeometryResource( m_geometryResource );
-			}
+			batch->SetGeometryResource( m_geometryResource );
 			batch->SetMeshParameters( m_meshIndex, area->GetIndex(), area->GetCount(), area->GetReversed() );
 
 			if( callback )
@@ -498,32 +474,6 @@ void Tr2Mesh::InitializeGeometryResource()
 	}
 
 	SetGeometryRes( res );
-}
-
-void Tr2Mesh::InitializeLowDetailGeometryResource()
-{
-	if( m_lowDetailGeometryResource )
-	{
-		m_lowDetailGeometryResource->RemoveNotifyTarget( this );
-	}
-
-	m_lowDetailGeometryResource.Unlock();
-
-	if( strcmp( m_lowDetailMeshResPath.c_str(), m_meshResPath.c_str() ) == 0 )
-	{
-		// Low detail mesh is set to the same as the high detail mesh
-		return;
-	}
-
-	if( !m_lowDetailMeshResPath.empty()  )
-	{
-		BeResMan->GetResource( m_lowDetailMeshResPath.c_str(), m_geomResourceEx.c_str(), m_lowDetailGeometryResource );
-
-		if( m_lowDetailGeometryResource )
-		{
-			m_lowDetailGeometryResource->AddNotifyTarget( this );
-		}
-	}
 }
 
 void Tr2Mesh::RebuildCachedData( BlueAsyncRes* p )

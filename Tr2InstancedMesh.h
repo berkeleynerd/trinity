@@ -117,8 +117,6 @@ private:
 	int m_instanceMeshIndex;
 	// Combined vertex declaration
 	mutable unsigned int m_vertexDeclaration;
-	// Combined vertex declaration for low-detail geometry
-	mutable unsigned int m_lowDetailVertexDeclaration;
 
 	// Map from area properties to indirect parameter buffers
 	std::map<AreaKey, Tr2GpuBufferAL*> m_indirectParams;

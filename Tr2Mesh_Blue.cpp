@@ -106,17 +106,6 @@ const Be::ClassInfo* Tr2Mesh::ExposeToBlue()
 			Be::READWRITE | Be::NOTIFY | Be::PERSIST, 
 			TriGR2Chooser
 		)
-		MAP_ATTRIBUTE( "lowDetailGeometry", m_lowDetailGeometryResource, "na", Be::READ )			
-		MAP_ATTRIBUTE_WITH_CHOOSER
-		( 
-			"lowDetailGeometryResPath", 
-			m_lowDetailMeshResPath, 
-			"Resource path to low detail granny file. Note that this granny file\n"
-			"must have the exact same structure of the main granny file\n", 
-			Be::READWRITE | Be::NOTIFY | Be::PERSIST, 
-			TriGR2Chooser
-		)
-		MAP_ATTRIBUTE( "isLowDetail", m_isLowDetail, "If set, use low detail geometry resource when building batches.", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE( "deferGeometryLoad", m_deferGeometryLoad, "Defers geometry load when loading mesh objects", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE
 		( 

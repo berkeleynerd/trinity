@@ -99,7 +99,6 @@ Tr2InstancedMesh::Tr2InstancedMesh( IRoot* lockobj )
 	:Tr2Mesh( lockobj ),
 	m_instanceMeshIndex( 0 ),
 	m_vertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
-	m_lowDetailVertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_minBounds( 0.0f, 0.0f, 0.0f ),
 	m_maxBounds( 0.0f, 0.0f, 0.0f )
 {
@@ -147,7 +146,6 @@ bool Tr2InstancedMesh::Initialize()
 void Tr2InstancedMesh::ReleaseResources( TriStorage s )
 {
 	m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
-	m_lowDetailVertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 }
 
 // --------------------------------------------------------------------------------------
@@ -275,18 +273,17 @@ Tr2GpuBufferAL* Tr2InstancedMesh::GetIndirectBuffer( const AreaKey& key )
 	unsigned areaIx = key.index;
 	unsigned areaCount = key.count;
 
-	TriGeometryRes* geometryRes = m_isLowDetail ? m_lowDetailGeometryResource : m_geometryResource;
-	if( !geometryRes || !geometryRes->IsGood() )
+	if( !m_geometryResource || !m_geometryResource->IsGood() )
 	{
 		return nullptr;
 	}
 
-	if( m_meshIndex >= int( geometryRes->GetMeshCount() ) )
+	if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
 	{
 		return nullptr;
 	}
 
-	TriGeometryResMeshData* pMesh = geometryRes->GetMeshData( m_meshIndex );
+	TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
 	if( !pMesh )
 	{
 		return nullptr;
@@ -399,26 +396,12 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 	{
 		return;
 	}
-	if( m_isLowDetail )
+	if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
 	{
-		if( m_lowDetailVertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
-		{
-			CreateVertexDeclaration();
-			if( m_lowDetailVertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
-			{
-				return;
-			}
-		}
-	}
-	else
-	{
+		CreateVertexDeclaration();
 		if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
 		{
-			CreateVertexDeclaration();
-			if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
-			{
-				return;
-			}
+			return;
 		}
 	}
 
@@ -554,18 +537,17 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 {
 	if( m_instanceCount )
 	{
-		TriGeometryRes* geometryRes = m_isLowDetail ? m_lowDetailGeometryResource : m_geometryResource;
-		if( !geometryRes || !geometryRes->IsGood() )
+		if( !m_geometryResource || !m_geometryResource->IsGood() )
 		{
 			return;
 		}
 
-		if( m_meshIndex >= int( geometryRes->GetMeshCount() ) )
+		if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
 		{
 			return;
 		}
 
-		TriGeometryResMeshData* pMesh = geometryRes->GetMeshData( m_meshIndex );
+		TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
 		if( !pMesh )
 		{
 			return;
@@ -592,7 +574,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 		renderContext.m_esm.ApplyStreamSource( 0, pMesh->m_vertexBuffer, 0, pMesh->m_bytesPerVertex );
 		if( reversed )
 		{
-			geometryRes->ReverseIndexBuffer( m_meshIndex, renderContext );
+			m_geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
 			renderContext.m_esm.ApplyIndexBuffer( pMesh->m_reversedIndexBuffer );
 		}
 		else
@@ -605,14 +587,12 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 	}
 	else
 	{
-		unsigned int declaration = m_isLowDetail ? m_lowDetailVertexDeclaration : m_vertexDeclaration;
-		if( declaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
+		if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
 		{
 			return;
 		}
 
-		TriGeometryRes* geometryRes = m_isLowDetail ? m_lowDetailGeometryResource : m_geometryResource;
-		if( !geometryRes || !geometryRes->IsGood() )
+		if( !m_geometryResource || !m_geometryResource->IsGood() )
 		{
 			return;
 		}
@@ -622,7 +602,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			return;
 		}
 
-		if( m_meshIndex >= int( geometryRes->GetMeshCount() ) )
+		if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
 		{
 			return;
 		}
@@ -632,7 +612,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			return;
 		}
 
-		TriGeometryResMeshData* pMesh = geometryRes->GetMeshData( m_meshIndex );
+		TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
 		if( !pMesh )
 		{
 			return;
@@ -661,7 +641,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 
 		if( primCount && instanceCount )
 		{
-			renderContext.m_esm.ApplyVertexDeclaration( declaration );
+			renderContext.m_esm.ApplyVertexDeclaration( m_vertexDeclaration );
 			renderContext.m_esm.ApplyStreamSource( 0, pMesh->m_vertexBuffer, 0, pMesh->m_bytesPerVertex );
 			Tr2VertexBufferAL* vb;
 			unsigned stride;
@@ -669,7 +649,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			renderContext.m_esm.ApplyStreamSource( 1, *vb, 0, stride );
 			if( reversed )
 			{
-				geometryRes->ReverseIndexBuffer( m_meshIndex, renderContext );
+				m_geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
 				renderContext.m_esm.ApplyIndexBuffer( pMesh->m_reversedIndexBuffer );
 			}
 			else
@@ -760,14 +740,8 @@ static unsigned int MergeVertexDeclarations( const Tr2VertexDefinition& meshVD,
 // --------------------------------------------------------------------------------------
 void Tr2InstancedMesh::CreateVertexDeclaration() const
 {
-	if( m_isLowDetail )
-	{
-		m_lowDetailVertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
-	}
-	else
-	{
-		m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
-	}
+	m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
+
 	if( !Tr2Renderer::IsResourceCreationAllowed() )
 	{
 		return;
@@ -778,10 +752,6 @@ void Tr2InstancedMesh::CreateVertexDeclaration() const
 		if( m_geometryResource && m_geometryResource->IsGood() && m_geometryResource->GetMeshData( m_meshIndex ) )
 		{
 			m_vertexDeclaration = m_geometryResource->GetMeshData( m_meshIndex )->m_vertexDeclaration;
-		}
-		if( m_lowDetailGeometryResource && m_lowDetailGeometryResource->IsGood() && m_lowDetailGeometryResource->GetMeshData( m_meshIndex ) )
-		{
-			m_lowDetailVertexDeclaration = m_lowDetailGeometryResource->GetMeshData( m_meshIndex )->m_vertexDeclaration;
 		}
 	}
 	else
@@ -805,10 +775,6 @@ void Tr2InstancedMesh::CreateVertexDeclaration() const
 		if( GetMeshVertexDeclaration( m_geometryResource, m_meshIndex, meshVD ) )
 		{
 			m_vertexDeclaration = MergeVertexDeclarations( meshVD, instanceVD );
-		}
-		if( GetMeshVertexDeclaration( m_lowDetailGeometryResource, m_meshIndex, meshVD ) )
-		{
-			m_lowDetailVertexDeclaration = MergeVertexDeclarations( meshVD, instanceVD );
 		}
 	}
 }

@@ -71,7 +71,7 @@ public:
 	const Tr2MeshAreaVector* GetAreas( TriBatchType areaType ) const;
 	void CollectAreaBlocks( std::vector<TriRenderBatchAreaBlock>& areaBlockVector, TriBatchType areaType ) const;
 	
-	void SetLowDetail( bool b ) { m_isLowDetail = b; }
+	void SetLowDetail( bool b ) { }
 	
 	const char* GetMeshResPath() const { return m_meshResPath.c_str(); }
 	void SetMeshResPath( const char* path );
@@ -80,9 +80,6 @@ public:
 
 	TriGeometryRes* GetGeometryResource() { return m_geometryResource; };
 	void SetGeometryRes( TriGeometryRes* res );
-
-	TriGeometryRes* GetLowDetailGeometryResource() { return m_lowDetailGeometryResource; }
-	void SetLowDetailGeometryRes( TriGeometryRes* res );
 
 	bool DeferGeometryLoad() const { return m_deferGeometryLoad; }
 	void DeferGeometryLoad(bool val) { m_deferGeometryLoad = val; }
@@ -142,7 +139,7 @@ public:
 
 private:
 	void InitializeGeometryResource();
-	void InitializeLowDetailGeometryResource();
+
 	unsigned int FindJoint( const std::string* boneList, const int numBones, const char* name ) const;
 
 	static void StaticResourceLoadFinished( void* pContext );
@@ -154,16 +151,13 @@ private:
 protected:
 	std::string m_name;
 	std::string m_meshResPath;
-	std::string m_lowDetailMeshResPath;
 	bool m_deferGeometryLoad;
 	bool m_immutable;
 	bool m_computeAccess;
 	TriGeometryResPtr m_geometryResource;
-	TriGeometryResPtr m_lowDetailGeometryResource;
 	int	m_meshIndex;
 	std::string m_geomResourceEx;
 
-	bool m_isLowDetail;
 	bool m_isLoading;
 	CcpAtomic<uint32_t> m_resourceLoadCbId;
 	CcpAtomic<uint32_t> m_resourcePrepCbId;

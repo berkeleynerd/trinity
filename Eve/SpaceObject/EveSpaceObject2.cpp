@@ -567,15 +567,6 @@ void EveSpaceObject2::GetBatchesFromMeshAreaVector( const Tr2MeshAreaVector* are
 {
 	TriGeometryRes* geomRes = NULL;
 
-	if( m_estimatedPixelDiameter < g_eveSpaceSceneLowDetailThreshold )
-	{
-		geomRes = m_mesh->GetLowDetailGeometryResource();
-		if( geomRes && !geomRes->IsGood() )
-		{
-			geomRes = NULL;
-		}
-	}
-	
 	if( !geomRes )
 	{
 		geomRes = m_mesh->GetGeometryResource();
@@ -625,15 +616,6 @@ void EveSpaceObject2::GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVecto
 {
 	TriGeometryRes* geomRes = NULL;
 
-	if( m_estimatedPixelDiameter < g_eveSpaceSceneLowDetailThreshold )
-	{
-		geomRes = m_mesh->GetLowDetailGeometryResource();
-		if( geomRes && !geomRes->IsGood() )
-		{
-			geomRes = NULL;
-		}
-	}
-	
 	if( !geomRes )
 	{
 		geomRes = m_mesh->GetGeometryResource();
@@ -710,15 +692,6 @@ void EveSpaceObject2::GetBatchesFromOverlayVector( ITriRenderBatchAccumulator* b
 	}
 
 	TriGeometryRes* geomRes = NULL;
-	if( m_estimatedPixelDiameter < g_eveSpaceSceneLowDetailThreshold )
-	{
-		geomRes = m_mesh->GetLowDetailGeometryResource();
-		if( geomRes && !geomRes->IsGood() )
-		{
-			geomRes = NULL;
-		}
-	}
-	
 	if( !geomRes )
 	{
 		geomRes = m_mesh->GetGeometryResource();
