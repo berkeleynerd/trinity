@@ -288,6 +288,21 @@ void Tr2MeshBase::GetBatches( ITriRenderBatchAccumulator* batches,
 
 // -------------------------------------------------------------
 // Description:
+//   Returns the respath to the currently used geometry. Might
+//   be LOD based.
+// -------------------------------------------------------------
+const wchar_t* Tr2MeshBase::GetGeometryResPath() const
+{
+	const TriGeometryRes* currentRes = GetGeometryResource();
+	if( !currentRes )
+	{
+		return nullptr;
+	}
+	return currentRes->GetPath();
+}
+
+// -------------------------------------------------------------
+// Description:
 //   Gets the mesh area vector, depending on the batch type 
 //	 requested. Defaults to NULL if there is no vector for the given batch type.
 // Arguments:

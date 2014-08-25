@@ -186,6 +186,7 @@ const Be::ClassInfo* TriTexture2DParameter::ExposeToBlue()
 		)
 
 		MAP_METHOD_AND_WRAP( "SetResource", SetResource, "Takes a TriTextureRes and sets it directly, without using a resourcePath.")
+		MAP_METHOD_AND_WRAP( "GetResourcePath", GetResourcePath, "Returns the respath to the currently used texture. Might be LOD dependent." )
 
 	EXPOSURE_END( )
 }

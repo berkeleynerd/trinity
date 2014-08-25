@@ -47,9 +47,19 @@ void TriTexture2DParameter::SetParameterName( const char* name )
 	m_name = BlueSharedString( name );
 }
 
-const char* TriTexture2DParameter::GetResourcePath() const
+// -------------------------------------------------------------
+// Description:
+//   Returns the respath to the currently used texture. Might
+//   be LOD based.
+// -------------------------------------------------------------
+const wchar_t* TriTexture2DParameter::GetResourcePath() const
 {
-	return m_resourcePath.c_str();
+	const TriTextureRes* currentRes = GetResource();
+	if( !currentRes )
+	{
+		return nullptr;
+	}
+	return currentRes->GetPath();
 }
 
 void TriTexture2DParameter::SetResourcePath( const char* resourcePath )

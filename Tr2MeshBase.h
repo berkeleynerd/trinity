@@ -76,6 +76,7 @@ public:
 	virtual bool IsLoading() const = 0;
 
 	const char* GetName() const { return m_name.c_str(); }
+	const wchar_t* GetGeometryResPath() const;
 
 	virtual TriGeometryRes* GetGeometryResource() const = 0;
 

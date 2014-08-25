@@ -98,7 +98,7 @@ public:
 	
 	// access strings
 	void SetParameterName( const char* name );
-	const char* GetResourcePath() const;
+	const wchar_t* GetResourcePath() const;
 	void SetResourcePath( const char* resourcePath );
 
 protected:

@@ -32,6 +32,8 @@ const Be::ClassInfo* Tr2MeshBase::ExposeToBlue()
 		MAP_ATTRIBUTE( "decalPrepassAreas", m_decalPrepassAreas, "Prepass areas that are rendered in the order that they exist, before transparency", Be::READWRITE | Be::PERSIST )
         MAP_ATTRIBUTE( "geometryEraserAreas", m_geometryEraserAreas, "Areas that erase geometry", Be::READWRITE | Be::PERSIST )
         MAP_ATTRIBUTE( "distortionAreas", m_distortionAreas, "", Be::READWRITE | Be::PERSIST )
+
+		MAP_METHOD_AND_WRAP( "GetGeometryResPath", GetGeometryResPath, "Returns the respath to the currently used geometry" )
 		
     EXPOSURE_END()
 }

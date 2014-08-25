@@ -325,39 +325,6 @@ void EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodRe
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Helper function for replacting resource path strings
-// --------------------------------------------------------------------------------
-void EveSOF::ModifyResourcePathsForLOD( const Tr2MeshAreaVector* areas, const char* lodInsert ) const
-{
-	const char* name = nullptr;
-	for( auto it = areas->begin(); it != areas->end(); ++it )
-	{
-		Tr2EffectPtr effect; 
-		if( !(*it)->GetMaterialInterface()->QueryInterface( BlueInterfaceIID<Tr2Effect>(), (void**)&effect ) )
-		{
-			continue;
-		}
-		for( auto resIt = effect->m_resources.begin(); resIt != effect->m_resources.end(); ++resIt )
-		{
-			TriTexture2DParameterPtr textureRes;
-			name = (*resIt)->GetParameterName();
-			if( !strcmp( name, "PgsMap" ) || !strcmp( name, "NormalMap" ) || !strcmp( name, "DiffuseMap" ) || !strcmp( name, "AoMap" ) )
-			{
-				if( (*resIt)->QueryInterface( BlueInterfaceIID<TriTexture2DParameter>(), (void**)&textureRes ) )
-				{
-					std::string resPathCopy = textureRes->GetResourcePath();
-					if( StringInsertStub( resPathCopy, ".dds", lodInsert ) )
-					{
-						textureRes->SetResourcePath( resPathCopy.c_str() );
-					}
-				}
-			}
-		}
-	}
-}
-
-// --------------------------------------------------------------------------------
-// Description:
 //   Helper function to build two med and low level texture res paths
 // --------------------------------------------------------------------------------
 bool EveSOF::GenerateLodResourcePaths( std::string& mediumResPath, std::string& lowResPath, const char* resPath, const char* usage ) const
