@@ -1495,6 +1495,8 @@ void Tr2Sprite2dScene::EndLayer( float x, float y, float width, float height )
 		// Once we exit the final layer the 2d render context is determined by the scene
 		m_is2dRenderContext = m_is2dRender;
 	}
+
+	DetermineViewportSize();
 }
 
 void Tr2Sprite2dScene::SetColor( const Color& color )
