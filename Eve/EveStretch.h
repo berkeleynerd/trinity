@@ -44,7 +44,6 @@ public:
 	// IEveTranfrom
 	virtual void Update( EveUpdateContext& updateContext );
 	virtual void UpdateViewDependentData( const Matrix& parentTransform ) {};
-	virtual void SetLowDetail( bool b ) {};
 	virtual LodLevel GetLODLevel() const { return m_lodLevel; }
 
 	unsigned int GetCurveSetCount() const { return (unsigned int)m_curveSets.size(); }

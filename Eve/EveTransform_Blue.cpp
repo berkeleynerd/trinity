@@ -13,7 +13,7 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 		MAP_INTERFACE( IEveSpaceObject2 )
 		MAP_INTERFACE( ITr2Pickable )
 		MAP_INTERFACE( IWorldPosition )
-		MAP_INTERFACE( IUnloadable )
+		MAP_INTERFACE( IInitialize )
 
 		MAP_ATTRIBUTE
 		( 
@@ -102,6 +102,14 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 			m_lodLevel,
 			"Current LOD level, 1(high) to 3(low)",
 			Be::READ
+		)
+
+		MAP_ATTRIBUTE
+		(
+			"meshLod",
+			m_meshLod,
+			"",
+			Be::READWRITE | Be::PERSIST
 		)
 
     EXPOSURE_CHAINTO( Tr2Transform )

@@ -10,7 +10,8 @@
 
 
 Tr2MeshLod::Tr2MeshLod( IRoot* lockobj /*= NULL */ ) :
-	PARENTLOCK( m_associatedResources )
+	PARENTLOCK( m_associatedResources ),
+	m_selectedLod( TR2_LOD_UNSPECIFIED )
 {
 
 }

@@ -355,14 +355,9 @@ void EvePlanet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rende
 		// visible, so resources are needed after all
 		m_needResources = true;
 
-		// what lod level? there is only low and high
-		bool useLowLOD = ( estimatedPixelDiameter < GetMediumDetailThreshold() );
-
 		// use EveTransform's/Tr2Mesh's inbuild low-detail mechanism
 		if( m_highDetail )
 		{
-			m_highDetail->SetLowDetail( useLowLOD );
-
 			// now we can get the renderables, finally
 			if ( m_resourcesReady )
 			{

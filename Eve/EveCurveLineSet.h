@@ -38,7 +38,6 @@ public:
 	// IEveTransform
 	void Update( EveUpdateContext& updateContext );
 	void UpdateViewDependentData( const Matrix& parentTransform );
-	void SetLowDetail( bool b ) {};
 	LodLevel GetLODLevel() const { return LOD_HIGH; }
 
 	// No sensible implementation?

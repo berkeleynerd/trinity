@@ -12,6 +12,7 @@
 #include "EveLODHelper.h"
 #include "Curves/TriCurveSet.h"
 #include "Tr2Mesh.h"
+#include "Tr2MeshLod.h"
 
 extern float g_eveSpaceSceneLowDetailThreshold;
 extern float g_eveSpaceSceneMediumDetailThreshold;
@@ -29,13 +30,22 @@ EveTransform::EveTransform( IRoot* lockobj ) :
 	m_isVisible( true ),
 	m_hideOnLowQuality( false ),
 	m_visibilityThreshold( 2.0f ),
-	m_usingLowDetailMesh( false ),
 	m_lastRelativePosition(0,0,0),
 	m_lastDeltaTime(0.f),
 	m_lastCurveUpdateDelta( g_eveSpaceSceneLowUpdateRate ),
 	m_useLodLevel( true ),
 	m_lodLevel( LOD_LOW )
 {
+}
+
+bool EveTransform::Initialize()
+{
+	if( m_meshLod )
+	{
+		m_meshLod->SelectLod( TR2_LOD_LOW );
+		m_mesh = m_meshLod;
+	}
+	return true;
 }
 
 Tr2PerObjectData* EveTransform::GetPerObjectData( ITriRenderBatchAccumulator* accumulator )
@@ -258,6 +268,11 @@ void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 					m_lodLevel = LOD_MEDIUM;
 				}
 
+				if( m_meshLod )
+				{
+					m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
+				}
+
 				if( estimatedSize > m_visibilityThreshold )
 				{
 					renderables.push_back( this );
@@ -396,24 +411,6 @@ void EveTransform::GetCurrentModelCenterWorldPosition( Vector3 &position )
 	Vector3 zeroVector( 0.0f, 0.0f, 0.0f );
 	D3DXVec3TransformCoord( &position, &zeroVector, &m_worldTransform );
 }
-bool EveTransform::UsingLowDetail()
-{ 
-	return m_usingLowDetailMesh; 
-}
-
-void EveTransform::SetLowDetail( bool b )
-{
-	m_usingLowDetailMesh = b;
-	if ( m_mesh )
-	{
-		m_mesh->SetLowDetail( b );
-	}
-
-	for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
-	{
-		(*it)->SetLowDetail( b );
-	}
-}
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -426,45 +423,6 @@ void EveTransform::PlayCurveSets()
 		(*it)->Play();
 	}
 }
-
-void EveTransform::UnloadWhenUnreferenced()
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	for( auto it = m_children.begin(); it != m_children.end(); ++it )
-	{
-		IUnloadablePtr p = BlueCastPtr( *it );
-		if( p )
-		{
-			p->UnloadWhenUnreferenced();
-		}
-	}
-
-	if( m_mesh )
-	{
-		m_mesh->UnloadWhenUnreferenced();
-	}
-}
-
-void EveTransform::ReloadWhenReferenced()
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	for( auto it = m_children.begin(); it != m_children.end(); ++it )
-	{
-		IUnloadablePtr p = BlueCastPtr( *it );
-		if( p )
-		{
-			p->ReloadWhenReferenced();
-		}
-	}
-
-	if( m_mesh )
-	{
-		m_mesh->ReloadWhenReferenced();
-	}
-}
-
 
 
 

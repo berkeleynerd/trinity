@@ -8,7 +8,7 @@
 
 BLUE_DECLARE( Tr2Transform );
 BLUE_DECLARE_VECTOR( Tr2Transform );
-BLUE_DECLARE( Tr2Mesh );
+BLUE_DECLARE( Tr2MeshBase );
 BLUE_DECLARE( TriCurveSet );
 BLUE_DECLARE_VECTOR( TriCurveSet );
 
@@ -82,7 +82,7 @@ protected:
 	float m_distanceBasedScaleArg1;
 	float m_distanceBasedScaleArg2;
 
-	Tr2MeshPtr m_mesh;
+	Tr2MeshBasePtr m_mesh;
 	PTriCurveSetVector m_curveSets;
 
 	float m_sortValueMultiplier;

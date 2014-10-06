@@ -78,7 +78,6 @@ public:
 	// IEveTransform
 	virtual void Update( EveUpdateContext& updateContext );
 	virtual void UpdateViewDependentData( const Matrix& parentTransform );
-	virtual void SetLowDetail( bool b ) {};
 	LodLevel GetLODLevel() const { return LOD_HIGH; }
 
 	/////////////////////////////////////////////////////////////////////////////////////

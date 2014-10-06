@@ -57,7 +57,6 @@ public:
 	// IEveTransform
 	virtual void Update( EveUpdateContext& updateContext );
 	virtual void UpdateViewDependentData( const Matrix& parentTransform );
-	virtual void SetLowDetail( bool b ) {};
 
 	// No sensible implementation?
 	virtual void GetModelCenterWorldPosition( Vector3 &position, Be::Time t ) {}

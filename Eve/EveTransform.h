@@ -14,8 +14,7 @@
 #include "IWorldPosition.h"
 #include "Tr2GPUParticleEmitter.h"
 
-#include "blue/Include/IUnloadable.h"
-
+BLUE_DECLARE( Tr2MeshLod );
 BLUE_DECLARE( Tr2ParticleSystem );
 BLUE_DECLARE_VECTOR( Tr2ParticleSystem );
 BLUE_DECLARE( Tr2ParticleSystem );
@@ -34,7 +33,7 @@ BLUE_CLASS( EveTransform ):
 	public IEveSpaceObject2,
 	public ITr2Pickable,
 	public IWorldPosition,
-	public IUnloadable
+	public IInitialize
 {
 public:
     EXPOSE_TO_BLUE();
@@ -71,16 +70,10 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2Pickable
 	virtual IRoot* GetID() { return this->GetRawRoot(); }
-
-	//////////////////////////////////////////////////////////////////////////
-	// IUnloadable
-	virtual void UnloadWhenUnreferenced();
-	virtual void ReloadWhenReferenced();
-
-	// Low detail mesh
-	bool m_usingLowDetailMesh;
-	void SetLowDetail( bool b );
-	bool UsingLowDetail();
+	
+	//////////////////////////////////////////////////////////////////////////////////////
+	// IInitialize
+	bool Initialize();
 
 	// EveTransforms can be under EveTransforms
 	PIEveTransformVector m_children;
@@ -111,6 +104,8 @@ protected:
 	Vector3 m_lastRelativePosition;
 	float m_lastDeltaTime;
 	float m_lastCurveUpdateDelta;
+	
+	Tr2MeshLodPtr m_meshLod;
 };
 
 TYPEDEF_BLUECLASS( EveTransform );
