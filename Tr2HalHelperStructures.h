@@ -16,7 +16,6 @@ struct Tr2SubresourceData
 	void*		m_sysMem;			// pointer to pixels for this mip
 	uint32_t	m_sysMemPitch;		// size in bytes of one line of pixels
 	uint32_t	m_sysMemSlicePitch;	// size in bytes of entire mip level. cannot be zero!
-	uint32_t	m_height;			// number of lines in this mip level
 };
 
 // -------------------------------------------------------------

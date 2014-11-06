@@ -423,7 +423,6 @@ TEST_F( Rendering, CanSampleTexture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -549,15 +548,12 @@ TEST_F( Rendering, CanSampleMipMappedTexture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 	textureData[1].m_sysMem = texturePixels1;
 	textureData[1].m_sysMemPitch = 8;
 	textureData[1].m_sysMemSlicePitch = sizeof( texturePixels1 );
-	textureData[1].m_height = 2;
 	textureData[2].m_sysMem = texturePixels2;
 	textureData[2].m_sysMemPitch = 4;
 	textureData[2].m_sysMemSlicePitch = sizeof( texturePixels2 );
-	textureData[2].m_height = 1;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 3, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -582,8 +578,8 @@ TEST_F( Rendering, CanSampleMipMappedTexture )
 				1,
 				Tr2RenderContextEnum::CMP_ALWAYS,
 				border,
-				float( g & 0xff ) / 255.0f * 2.0f,
-				2.0f ) ) );
+				float( ( g & 0xff ) / 128 ),
+				std::numeric_limits<float>::max() ) ) );
 
 
 		ASSERT_HRESULT_SUCCEEDED( renderContext->BeginScene() );
@@ -1612,6 +1608,10 @@ TEST_F( Rendering, CanUseClippingPlaneAndScissor )
 #include INCLUDE_SHADER_CODE( PositionOnly.vs )
 	};
 
+	uint32_t vsBytecodePatched[] = {
+#include INCLUDE_SHADER_CODE( PositionOnly.vs.patched )
+	};
+
 	Tr2ShaderInputDefinition vsInput;
 	vsInput.elements.resize( 1 );
 	vsInput.elements[0].usage = Tr2VertexDefinition::POSITION;
@@ -1624,8 +1624,8 @@ TEST_F( Rendering, CanUseClippingPlaneAndScissor )
 		Tr2RenderContextEnum::VERTEX_SHADER,
 		vsBytecode,
 		sizeof( vsBytecode ),
-		nullptr,
-		0,
+		vsBytecodePatched,
+		sizeof( vsBytecodePatched ),
 		vsInput ) );
 
 	uint32_t psBytecode[] = {
@@ -1991,7 +1991,6 @@ TEST_F( Rendering, CanPerformAlphaTestGreaterEqual )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -2121,7 +2120,6 @@ TEST_F( Rendering, CanPerformAlphaTestLessEqual )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -2251,7 +2249,6 @@ TEST_F( Rendering, CanPerformAlphaTestEqual )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -2391,7 +2388,6 @@ TEST_F( Rendering, CanPerformAlphaBlend )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = textureSize * 4;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( textureSize, textureSize, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -2473,7 +2469,7 @@ TEST_F( Rendering, CanGenerateRenderTargetMips )
 		vsInput ) );
 
 	uint32_t psBytecode[] = {
-#include INCLUDE_SHADER_CODE( SampleTextureFromTexCoord.ps )
+#include INCLUDE_SHADER_CODE( SampleTextureMipFromTexCoord.ps )
 	};
 
 	Tr2ShaderAL ps;
@@ -2536,11 +2532,14 @@ TEST_F( Rendering, CanGenerateRenderTargetMips )
 	definition.Add( Tr2VertexDefinition::FLOAT32_3, Tr2VertexDefinition::POSITION );
 	definition.Add( Tr2VertexDefinition::FLOAT32_2, Tr2VertexDefinition::TEXCOORD );
 
+	Tr2ConstantBufferAL cb;
+	ASSERT_HRESULT_SUCCEEDED( cb.Create( sizeof( PerObjectData ), Tr2RenderContextEnum::USAGE_CPU_WRITE, nullptr, *renderContext ) );
+
 	Tr2VertexLayoutAL vertexLayout;
 	ASSERT_HRESULT_SUCCEEDED( vertexLayout.Create( definition, *renderContext ) );
 
 	float border[4] = { 0 };
-	Tr2SamplerStateAL samplers[8];
+	Tr2SamplerStateAL sampler;
 	Tr2SamplerDescription samplerDesc( 
 		Tr2RenderContextEnum::TF_POINT,
 		Tr2RenderContextEnum::TF_POINT,
@@ -2554,13 +2553,8 @@ TEST_F( Rendering, CanGenerateRenderTargetMips )
 		Tr2RenderContextEnum::CMP_ALWAYS,
 		border,
 		0.0f,
-		0.0f );
-	for( uint32_t i = 0; i < 8; ++i )
-	{
-		ASSERT_HRESULT_SUCCEEDED( samplers[i].Create( *renderContext, samplerDesc ) );
-		samplerDesc.m_minLOD += 1.f;
-		samplerDesc.m_maxLOD += 1.f;
-	}
+		std::numeric_limits<float>::max() );
+	ASSERT_HRESULT_SUCCEEDED( sampler.Create( *renderContext, samplerDesc ) );
 
 	uint32_t g = 127;
 
@@ -2598,9 +2592,12 @@ TEST_F( Rendering, CanGenerateRenderTargetMips )
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetRenderState( Tr2RenderContextEnum::RS_CULLMODE, Tr2RenderContextEnum::CULLMODE_NONE ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetTexture( Tr2RenderContextEnum::PIXEL_SHADER, 0, rt.GetTexture() ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetTopology( Tr2RenderContextEnum::TOP_TRIANGLE_STRIP ) );
+		ASSERT_HRESULT_SUCCEEDED( renderContext->SetSamplerState( sampler, Tr2RenderContextEnum::PIXEL_SHADER, 0 ) );
 		for( uint32_t i = 0; i < 8; ++i )
 		{
-			ASSERT_HRESULT_SUCCEEDED( renderContext->SetSamplerState( samplers[i], Tr2RenderContextEnum::PIXEL_SHADER, 0 ) );
+			static_cast<PerObjectData*>( cb.GetBufferMirror( *renderContext ) )->x = float( i );
+			ASSERT_HRESULT_SUCCEEDED( cb.UpdateFromMirror( *renderContext ) );
+			ASSERT_HRESULT_SUCCEEDED( renderContext->SetConstants( cb, Tr2RenderContextEnum::PIXEL_SHADER, 0 ) );
 			ASSERT_HRESULT_SUCCEEDED( renderContext->SetStreamSource( 0, quads[i], 0, vbStride ) );
 			ASSERT_HRESULT_SUCCEEDED( renderContext->DrawPrimitive( 0, 2 ) );
 		}
@@ -2840,7 +2837,6 @@ TEST_F( Rendering, CanSampleBc1Texture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = sizeof( texturePixels0 ) / height * 4; // *4 because it's a compressed format
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = height;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( width, height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_BC1_UNORM, 0, textureData, *renderContext ) );
@@ -3050,7 +3046,6 @@ TEST_F( Rendering, CanSampleBc2Texture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = sizeof( texturePixels0 ) / height * 4; // *4 because it's a compressed format
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = height;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( width, height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_BC2_UNORM, 0, textureData, *renderContext ) );
@@ -3172,7 +3167,6 @@ TEST_F( Rendering, CanSampleBc3Texture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = sizeof( texturePixels0 ) / height * 4; // *4 because it's a compressed format
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = height;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( width, height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_BC3_UNORM, 0, textureData, *renderContext ) );
@@ -3388,7 +3382,6 @@ TEST_F( Rendering, CanLockTextureTwice )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 4;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 1;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 1, 1, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -3524,7 +3517,6 @@ TEST_F( Rendering, CanSampleSrgbTexture )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );
@@ -3643,7 +3635,6 @@ TEST_F( Rendering, CanOutputToSrgbTarget )
 	textureData[0].m_sysMem = texturePixels0;
 	textureData[0].m_sysMemPitch = 16;
 	textureData[0].m_sysMemSlicePitch = sizeof( texturePixels0 );
-	textureData[0].m_height = 4;
 
 	Tr2TextureAL tex;
 	ASSERT_HRESULT_SUCCEEDED( tex.Create2D( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 0, textureData, *renderContext ) );

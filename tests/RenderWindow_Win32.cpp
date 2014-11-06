@@ -22,14 +22,17 @@ RenderWindow::RenderWindow( uint32_t width, uint32_t height )
 		RegisterClass( &wndClass );
 		wndClassInitialized = true;
 	}
+	DWORD style = WS_OVERLAPPEDWINDOW;
+	RECT rect = { 0, 0, width, height };
+	::AdjustWindowRect( &rect, style, FALSE );
 	m_handle = ::CreateWindow(
 		wndClass.lpszClassName,
 		g_moduleName,
-		WS_OVERLAPPEDWINDOW,
+		style,
 		CW_USEDEFAULT, 
 		CW_USEDEFAULT,
-		width, 
-		height,
+		rect.right - rect.left, 
+		rect.bottom - rect.top,
 		0L,
 		NULL,
 		wndClass.hInstance,

@@ -210,8 +210,6 @@ ALResult Tr2RenderTargetAL::CopySubresourceRegion(
 		return E_FAIL;
 	}
 
-	y = source.GetHeight() - y - height;
-
 	AL_UPDATE_RESOURCE_FRAME_USAGE( *this );
 	AL_UPDATE_RESOURCE_FRAME_USAGE( source );
 
@@ -244,6 +242,9 @@ ALResult Tr2RenderTargetAL::GenerateMipMaps( Tr2RenderContextAL& /*renderContext
 	}
 	AL_UPDATE_RESOURCE_FRAME_USAGE( *this );
 	GL_FAIL( glBindTexture( GL_TEXTURE_2D, *m_backingStore.m_texture ) );
+#if !defined(TRINITY_AL_MOBILE)
+	GL_IGNORE_ERROR( glTexParameteri( GL_TEXTURE_2D, GL_TEXTURE_SRGB_DECODE_EXT, GL_SKIP_DECODE_EXT  ) );
+#endif
 	GL_FAIL( glGenerateMipmap( GL_TEXTURE_2D ) );
 
 	return S_OK;

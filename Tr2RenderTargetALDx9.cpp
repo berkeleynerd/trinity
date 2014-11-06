@@ -146,7 +146,7 @@ ALResult Tr2RenderTargetAL::CreateEx(
 	}
 
 	const bool shared = flags & EX_CREATE_SHARED;
-	const auto msaa = static_cast<D3DMULTISAMPLE_TYPE>(msaaType);
+	const auto msaa = static_cast<D3DMULTISAMPLE_TYPE>( msaaType > 1 ? msaaType : 0 );
 	
 	if( ( flags & EX_PICKING_BUFFER_WORKAROUND ) && IsTransgaming() )
 	{

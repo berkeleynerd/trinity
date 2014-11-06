@@ -80,11 +80,7 @@ void Tr2TextureAL::Destroy()
 #endif
 	m_texture = nullptr;
 
-	m_currentSampler.m_magFilter = 0;
-	m_currentSampler.m_minFilter = 0;
-	m_currentSampler.m_wrapR = 0;
-	m_currentSampler.m_wrapS = 0;
-	m_currentSampler.m_wrapT = 0;
+	memset( &m_currentSampler, 0, sizeof( m_currentSampler ) );
 }
 
 Tr2TextureAL::~Tr2TextureAL()
@@ -278,6 +274,21 @@ ALResult Tr2TextureAL::Create2D( uint32_t width,
 	m_mipCount = mipLevelCount;
 	m_isAlias = false;
 	ChangeObjectId();
+	float borderColor[4] = { 0.f, 0.f, 0.f, 0.f };
+	Tr2SamplerStateAL::CreateStateData( Tr2SamplerDescription( TF_POINT,
+													TF_POINT,
+													TF_POINT,
+													false,
+													TA_CLAMP,
+													TA_CLAMP,
+													TA_CLAMP,
+													0,
+													0,
+													CMP_ALWAYS,
+													borderColor,
+													0,
+													1 ), m_currentSampler );
+	Tr2SamplerStateAL::Apply( GL_TEXTURE_2D, false, m_currentSampler );
 
 	return S_OK;
 }
@@ -412,6 +423,21 @@ ALResult Tr2TextureAL::CreateCube( uint32_t width,
 	m_mipCount = mipLevelCount;
 	m_isAlias = false;
 	ChangeObjectId();
+	float borderColor[4] = { 0.f, 0.f, 0.f, 0.f };
+	Tr2SamplerStateAL::CreateStateData( Tr2SamplerDescription( TF_POINT,
+													TF_POINT,
+													TF_POINT,
+													false,
+													TA_CLAMP,
+													TA_CLAMP,
+													TA_CLAMP,
+													0,
+													0,
+													CMP_ALWAYS,
+													borderColor,
+													0,
+													1 ), m_currentSampler );
+	Tr2SamplerStateAL::Apply( GL_TEXTURE_2D, false, m_currentSampler );
 
 	return S_OK;
 }

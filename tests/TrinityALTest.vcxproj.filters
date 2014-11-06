@@ -74,6 +74,12 @@
     <ClInclude Include="Shaders.DX11\SampleTextureFromTexCoord.ps.patched.h">
       <Filter>Source Files\Shaders.DX11</Filter>
     </ClInclude>
+    <ClInclude Include="Shaders.DX11\SampleTextureMipFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX11\SampleTextureMipFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX11</Filter>
+    </ClInclude>
     <ClInclude Include="Shaders.DX11\TexCoordAndPosition.vs.h">
       <Filter>Source Files\Shaders.DX11</Filter>
     </ClInclude>
@@ -116,6 +122,12 @@
     <ClInclude Include="Shaders.DX9\SampleTextureFromTexCoord.ps.patched.h">
       <Filter>Source Files\Shaders.DX9</Filter>
     </ClInclude>
+    <ClInclude Include="Shaders.DX9\SampleTextureMipFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.DX9\SampleTextureMipFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.DX9</Filter>
+    </ClInclude>
     <ClInclude Include="Shaders.DX9\TexCoordAndPosition.vs.h">
       <Filter>Source Files\Shaders.DX9</Filter>
     </ClInclude>
@@ -156,6 +168,12 @@
       <Filter>Source Files\Shaders.GLES2</Filter>
     </ClInclude>
     <ClInclude Include="Shaders.GLES2\SampleTextureFromTexCoord.ps.patched.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\SampleTextureMipFromTexCoord.ps.h">
+      <Filter>Source Files\Shaders.GLES2</Filter>
+    </ClInclude>
+    <ClInclude Include="Shaders.GLES2\SampleTextureMipFromTexCoord.ps.patched.h">
       <Filter>Source Files\Shaders.GLES2</Filter>
     </ClInclude>
     <ClInclude Include="Shaders.GLES2\TexCoordAndPosition.vs.h">

@@ -219,7 +219,7 @@ ALResult Tr2TextureAL::Create2D( uint32_t width,
 				return hr;
 			}
 
-			const uint32_t numRows = std::min( GetMipNumRows( i ), initialData[i].m_height );
+			const uint32_t numRows = GetMipNumRows( i );
 			const uint32_t mipLevelSize = std::min( GetMipSize( i ), initialData[i].m_sysMemSlicePitch );
 
 			if ( l.Pitch * numRows == mipLevelSize )

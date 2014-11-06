@@ -836,6 +836,8 @@
     <ClInclude Include="Shaders.DX11\PositionOnlyWithPerObjectData.vs.patched.h"/>
     <ClInclude Include="Shaders.DX11\SampleTextureFromTexCoord.ps.h"/>
     <ClInclude Include="Shaders.DX11\SampleTextureFromTexCoord.ps.patched.h"/>
+    <ClInclude Include="Shaders.DX11\SampleTextureMipFromTexCoord.ps.h"/>
+    <ClInclude Include="Shaders.DX11\SampleTextureMipFromTexCoord.ps.patched.h"/>
     <ClInclude Include="Shaders.DX11\TexCoordAndPosition.vs.h"/>
     <ClInclude Include="Shaders.DX11\TexCoordAndPosition.vs.patched.h"/>
     <ClInclude Include="Shaders.DX9\ConstantColor.ps.h"/>
@@ -850,6 +852,8 @@
     <ClInclude Include="Shaders.DX9\PositionOnlyWithPerObjectData.vs.patched.h"/>
     <ClInclude Include="Shaders.DX9\SampleTextureFromTexCoord.ps.h"/>
     <ClInclude Include="Shaders.DX9\SampleTextureFromTexCoord.ps.patched.h"/>
+    <ClInclude Include="Shaders.DX9\SampleTextureMipFromTexCoord.ps.h"/>
+    <ClInclude Include="Shaders.DX9\SampleTextureMipFromTexCoord.ps.patched.h"/>
     <ClInclude Include="Shaders.DX9\TexCoordAndPosition.vs.h"/>
     <ClInclude Include="Shaders.DX9\TexCoordAndPosition.vs.patched.h"/>
     <ClInclude Include="Shaders.GLES2\ConstantColor.ps.h"/>
@@ -864,6 +868,8 @@
     <ClInclude Include="Shaders.GLES2\PositionOnlyWithPerObjectData.vs.patched.h"/>
     <ClInclude Include="Shaders.GLES2\SampleTextureFromTexCoord.ps.h"/>
     <ClInclude Include="Shaders.GLES2\SampleTextureFromTexCoord.ps.patched.h"/>
+    <ClInclude Include="Shaders.GLES2\SampleTextureMipFromTexCoord.ps.h"/>
+    <ClInclude Include="Shaders.GLES2\SampleTextureMipFromTexCoord.ps.patched.h"/>
     <ClInclude Include="Shaders.GLES2\TexCoordAndPosition.vs.h"/>
     <ClInclude Include="Shaders.GLES2\TexCoordAndPosition.vs.patched.h"/>
     <ClInclude Include="Shaders.Orbis\ConstantColor.ps.h"/>

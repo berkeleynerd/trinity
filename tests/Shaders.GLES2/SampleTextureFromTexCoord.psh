@@ -23,8 +23,16 @@ discard;
 }
 else
 {
+if(ssi.x>0.0)
+{
 if(av==ssi.y)
 discard;
+}
+else
+{
+if(av!=ssi.y)
+discard;
+}
 }
 if(ssv<0.0)discard;
 #endif

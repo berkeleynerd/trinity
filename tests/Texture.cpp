@@ -26,7 +26,6 @@ TEST_F( WithRenderContext, CreatingVolumeTextureWithoutRenderContextFails )
 {
 	uint32_t pixels[4 * 4 * 4] = { 0 };
 	Tr2SubresourceData initialData;
-	initialData.m_height = 4;
 	initialData.m_sysMemPitch = 4 * 4;
 	initialData.m_sysMemSlicePitch = 4 * 4 * 4;
 	initialData.m_sysMem = pixels;
@@ -75,7 +74,6 @@ TEST_F( WithValidRenderContext, TextureVolumeIsValidAfterCreation )
 {
 	uint32_t pixels[4 * 4 * 4] = { 0 };
 	Tr2SubresourceData initialData;
-	initialData.m_height = 4;
 	initialData.m_sysMemPitch = 4 * 4;
 	initialData.m_sysMemSlicePitch = 4 * 4 * 4;
 	initialData.m_sysMem = pixels;
@@ -156,7 +154,6 @@ TEST_F( WithValidRenderContext, TextrueVolumeUsageIsSetAfterCreate )
 {
 	uint32_t pixels[4 * 4 * 4] = { 0 };
 	Tr2SubresourceData initialData;
-	initialData.m_height = 4;
 	initialData.m_sysMemPitch = 4 * 4;
 	initialData.m_sysMemSlicePitch = 4 * 4 * 4;
 	initialData.m_sysMem = pixels;
