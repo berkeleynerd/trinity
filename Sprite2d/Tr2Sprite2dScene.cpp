@@ -1273,34 +1273,14 @@ bool Tr2Sprite2dScene::OnPrepareResources()
 
 bool Tr2Sprite2dScene::IsInside( const Vector2& pointIn, const Vector2& topLeft, float width, float height, float radius )
 {
+	if( !IsInsideClipRect( pointIn ) )
+	{
+		return false;
+	}
+
 	//local copy so we can manipulate it
 	//this makes non-translation transforms easier to implement
-	Vector4 point( (const float*)pointIn );
-
-	// Clip stack is in absolute coordinates. If a clip rectangle is set, we first
-	// look to see if the point is inside it.
-	if( !m_clipStack->empty() )
-	{
-		const Tr2Sprite2dClipRect& clipRect = m_clipStack->back();
-
-		if( point.x < clipRect.left )
-		{
-			return false;
-		}
-		if( point.x > clipRect.right )
-		{
-			return false;
-		}
-
-		if( point.y < clipRect.top )
-		{
-			return false;
-		}
-		if( point.y > clipRect.bottom )
-		{
-			return false;
-		}
-	}
+	Vector2 point = pointIn;
 
 	float top;
 	float left;
@@ -1339,12 +1319,7 @@ bool Tr2Sprite2dScene::IsInside( const Vector2& pointIn, const Vector2& topLeft,
 			Matrix inv;
 			D3DXMatrixInverse( &inv, NULL, &transform );
 
-			Vector4 point4( point.x, point.y, 0, 1 );
-			Vector4 transformed;
-			D3DXVec4Transform( &transformed, &point4, &inv );
-
-			point.x = transformed.x;
-			point.y = transformed.y;
+			TransformPoint(point, inv);
 		}
 	}
 
@@ -1402,6 +1377,78 @@ bool Tr2Sprite2dScene::IsInside( const Vector2& pointIn, const Vector2& topLeft,
 				return false;
 			}
 		}
+	}
+
+	return true;
+}
+
+bool Tr2Sprite2dScene::IsInsideLineSegment( const Vector2& pointIn, const Vector2& start, const Vector2& end, float lineWidth )
+{
+	if( !IsInsideClipRect( pointIn ) )
+	{
+		return false;
+	}
+
+	Vector2 startTransformed;
+	Vector2 endTransformed;
+
+	if( m_transformStack->empty() )
+	{
+		startTransformed.x = start.x;
+		startTransformed.y = start.y;
+		endTransformed.x = end.x;
+		endTransformed.y = end.y;
+	}
+	else
+	{
+		const TransformStackEntry& topEntry = m_transformStack->back();
+
+		if( topEntry.isTranslationOnly )
+		{
+			startTransformed.x = start.x + topEntry.translation.x;
+			startTransformed.y = start.y + topEntry.translation.y;
+			endTransformed.x = end.x + topEntry.translation.x;
+			endTransformed.y = end.y + topEntry.translation.y;
+		}
+		else
+		{
+			const Matrix& transform = topEntry.transform;
+
+			startTransformed = start;
+			TransformPoint( startTransformed, transform );
+
+			endTransformed = end;
+			TransformPoint( endTransformed, transform );
+		}
+	}
+
+	// http://en.wikipedia.org/wiki/Distance_from_a_point_to_a_line
+
+	float dx = endTransformed.x - startTransformed.x;
+	float dy = endTransformed.y - startTransformed.y;
+
+	float den = sqrtf(dx*dx + dy*dy);
+	if( den < FLT_EPSILON )
+	{
+		return false;
+	}
+
+	float nom = fabs( dy*pointIn.x - dx*pointIn.y - startTransformed.x*endTransformed.y + startTransformed.y*endTransformed.x );
+	float distance = nom / den;
+
+	if( distance > lineWidth )
+	{
+		return false;
+	}
+
+	// Check that we are between the end points of the segment
+
+	Vector2 centerPoint = 0.5f * (startTransformed + endTransformed);
+	Vector2 pointToCenter = pointIn - centerPoint;
+	float distanceFromCenter = sqrtf( pointToCenter.x*pointToCenter.x + pointToCenter.y*pointToCenter.y );
+	if( distanceFromCenter > den * 0.5f )
+	{
+		return false;
 	}
 
 	return true;
@@ -2375,6 +2422,46 @@ bool Tr2Sprite2dScene::EnsureBufferSpace( unsigned int vertexCount, unsigned sho
 	}
 
 	return true;
+}
+
+bool Tr2Sprite2dScene::IsInsideClipRect( const Vector2& point )
+{
+	// Clip stack is in absolute coordinates. If a clip rectangle is set, we first
+	// look to see if the point is inside it.
+	if( !m_clipStack->empty() )
+	{
+		const Tr2Sprite2dClipRect& clipRect = m_clipStack->back();
+
+		if( point.x < clipRect.left )
+		{
+			return false;
+		}
+		if( point.x > clipRect.right )
+		{
+			return false;
+		}
+
+		if( point.y < clipRect.top )
+		{
+			return false;
+		}
+		if( point.y > clipRect.bottom )
+		{
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Tr2Sprite2dScene::TransformPoint( Vector2 &point, Matrix m )
+{
+	Vector4 point4( point.x, point.y, 0, 1 );
+	Vector4 transformed;
+	D3DXVec4Transform( &transformed, &point4, &m );
+
+	point.x = transformed.x;
+	point.y = transformed.y;
 }
 
 #if BLUE_WITH_PYTHON

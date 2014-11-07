@@ -188,8 +188,46 @@ void Tr2Sprite2dLineTrace::GatherSprites( Tr2Sprite2dScene* renderer )
 
 ITr2SpriteObject* Tr2Sprite2dLineTrace::PickPoint( float x, float y, Tr2Sprite2dScene* renderer )
 {
-	// TODO: Implement!
-	return NULL;
+	if( !m_display )
+	{
+		return nullptr;
+	}
+
+	if( m_pickState == TR2_SPS_ON )
+	{
+		if( m_vertices.size() < 2 )
+		{
+			return nullptr;
+		}
+
+		Vector2 fromPos = m_vertices[0]->m_position;
+		float halfWidth = m_lineWidth * 0.5f;
+
+		for( auto it = m_vertices.begin() + 1; it != m_vertices.end(); ++it )
+		{
+			const Vector2& toPos = (*it)->m_position;
+			Vector2 d = toPos - fromPos;
+			d = XMVector2Normalize( d );
+			if( renderer->IsInsideLineSegment( Vector2( x, y ), fromPos + d, toPos - d, halfWidth ) )
+			{
+				return this;
+			}
+			fromPos = toPos;
+		}
+
+		if( m_isLoop )
+		{
+			const Vector2& toPos =  m_vertices[0]->m_position;
+			Vector2 d = toPos - fromPos;
+			d = XMVector2Normalize( d );
+			if( renderer->IsInsideLineSegment( Vector2( x, y ), fromPos + d, toPos - d, halfWidth ) )
+			{
+				return this;
+			}
+		}
+	}
+
+	return nullptr;
 }
 
 float Tr2Sprite2dLineTrace::CalcLength()

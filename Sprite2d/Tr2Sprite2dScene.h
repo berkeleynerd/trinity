@@ -83,6 +83,10 @@ public:
 
 	bool IsInside( const Vector2& point, const Vector2& topLeft, float width, float height, float radius );
 
+	bool IsInsideLineSegment( const Vector2& pointIn, const Vector2& start, const Vector2& end, float lineWidth );
+
+	bool IsInsideClipRect( const Vector2& point );
+
 	bool PrepareSpriteVerts( 
 		Tr2Sprite2dD3DVertex* destVerts,
 		const Vector2& pos,
@@ -161,9 +165,10 @@ private:
 	void GrowCaptureVertexBuffer( unsigned int vertexCount );
 
 
+	void TransformPoint( Vector2 &point, Matrix m );
+
 private:
 	inline bool TexturesReady() const;
-
 	std::wstring m_name;
 	bool m_display;
 

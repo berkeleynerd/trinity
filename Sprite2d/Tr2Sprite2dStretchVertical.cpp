@@ -22,7 +22,8 @@ static const Color WHITE( 1.0f, 1.0f, 1.0f, 1.0f );
 Tr2Sprite2dStretchVertical::Tr2Sprite2dStretchVertical( IRoot* lockobj ) : 
 	m_topEdgeSize( 0 ),
 	m_bottomEdgeSize( 0 ),
-	m_fillCenter( true )
+	m_fillCenter( true ),
+	m_offset( 0 )
 {
 }
 
