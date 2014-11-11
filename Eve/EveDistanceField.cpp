@@ -25,8 +25,12 @@ void EveDistanceField::CalculateFieldCoverage( Be::Time t )
 	Vector3 minBounds( FLT_MAX, FLT_MAX, FLT_MAX );
 	Vector3 maxBounds( FLT_MIN, FLT_MIN, FLT_MIN );
 	Vector3 averagePos( 0, 0, 0 );
-
 	Vector3 posObj;
+
+	if( m_objects.empty() )
+	{
+		return;
+	}
 	float oneOverCount = 1.f / (float)m_objects.size();
 
 	// Find average distance from average position(can be calculated when list is modified)
@@ -162,7 +166,7 @@ void EveDistanceField::OnListModified(
 		m_dirty = true;
 		break;
 	case BELIST_REMOVED:
-		if( !m_objects.size() )
+		if( m_objects.empty() )
 		{
 			SetNeutralValues();
 		}
