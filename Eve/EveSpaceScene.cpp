@@ -28,6 +28,7 @@
 #include "TbbStub.h"
 #include "Include/TriMath.h"
 #include "EveDistanceField.h"
+#include "Renderable/EveSceneStaticParticles.h"
 
 using namespace Tr2RenderContextEnum;
 
@@ -204,6 +205,8 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 
 	m_planets.SetNotify( this );
 	m_objects.SetNotify( this );
+
+	m_staticParticles.CreateInstance();
 }
 
 EveSpaceScene::~EveSpaceScene()

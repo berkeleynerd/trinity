@@ -2795,6 +2795,7 @@
     <ClInclude Include="Eve\Renderable\EveMetaball.h"/>
     <ClInclude Include="Eve\Renderable\EveMetaballItem.h"/>
     <ClInclude Include="Eve\Renderable\EveMetaballTables.h"/>
+    <ClInclude Include="Eve\Renderable\EveSceneStaticParticles.h"/>
     <ClInclude Include="Eve\SpaceObject\EveMissile.h"/>
     <ClInclude Include="Eve\SpaceObject\EveMissileWarhead.h"/>
     <ClInclude Include="Eve\SpaceObject\EveMobile.h"/>
@@ -3410,6 +3411,8 @@
     <ClCompile Include="Eve\Renderable\EveMetaballItem.cpp"/>
     <ClCompile Include="Eve\Renderable\EveMetaballItem_Blue.cpp"/>
     <ClCompile Include="Eve\Renderable\EveMetaball_Blue.cpp"/>
+    <ClCompile Include="Eve\Renderable\EveSceneStaticParticles.cpp"/>
+    <ClCompile Include="Eve\Renderable\EveSceneStaticParticles_Blue.cpp"/>
     <ClCompile Include="Eve\SpaceObject\EveMissile.cpp"/>
     <ClCompile Include="Eve\SpaceObject\EveMissileWarhead.cpp"/>
     <ClCompile Include="Eve\SpaceObject\EveMissileWarhead_Blue.cpp"/>

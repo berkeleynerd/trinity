@@ -53,6 +53,7 @@ BLUE_DECLARE( EveTransform );
 BLUE_DECLARE_VECTOR( EveTransform );
 BLUE_DECLARE( EveDistanceField );
 BLUE_DECLARE_VECTOR( EveDistanceField );
+BLUE_DECLARE( EveSceneStaticParticles );
 
 class EveSpaceScene :
 	public ITr2Scene,
@@ -428,6 +429,8 @@ protected:
 	
 	EveTransformPtr m_cloudfield;
 	EveDustfieldConstraintPtr m_cloudfieldConstaint;
+
+	EveSceneStaticParticlesPtr m_staticParticles;
 
 	// For tracking the sunlight direction
 	ITriVectorFunctionPtr m_sunBall;

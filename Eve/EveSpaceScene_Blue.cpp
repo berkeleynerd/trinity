@@ -404,6 +404,13 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 		)
 		MAP_ATTRIBUTE
 		( 
+			"staticParticles", 
+			m_staticParticles, 
+			"n/a",
+			Be::READWRITE
+		)
+		MAP_ATTRIBUTE
+		( 
 			"ballpark", 
 			m_ballpark, 
 			"The ballpark for this space scene", 

@@ -766,6 +766,9 @@
     <ClInclude Include="Eve\Renderable\EveMetaballTables.h">
       <Filter>Source Files\Eve\Renderable</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\Renderable\EveSceneStaticParticles.h">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClInclude>
     <ClInclude Include="Eve\SpaceObject\EveMissile.h">
       <Filter>Source Files\Eve\SpaceObject</Filter>
     </ClInclude>
@@ -2597,6 +2600,12 @@
       <Filter>Source Files\Eve\Renderable</Filter>
     </ClCompile>
     <ClCompile Include="Eve\Renderable\EveMetaball_Blue.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveSceneStaticParticles.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveSceneStaticParticles_Blue.cpp">
       <Filter>Source Files\Eve\Renderable</Filter>
     </ClCompile>
     <ClCompile Include="Eve\SpaceObject\EveMissile.cpp">
