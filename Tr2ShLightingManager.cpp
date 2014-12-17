@@ -334,7 +334,7 @@ void Tr2ShLightingManager::CalculateSecondaryLighting( const Vector3& position, 
 		float r[ShSolver<Order>::ORDER * ShSolver<Order>::ORDER];
 		ShSolver<Order>::SHEvalSphericalLight( dir, XMVectorGetX( distance ), source->radius, r );
 
-		XMVECTOR dot = XMVector3Dot( lightDirection, dir );
+		XMVECTOR dot = XMVectorMultiplyAdd( XMVector3Dot( lightDirection, dir ), g_XMOneHalf, g_XMOneHalf );
 		XMVECTOR color = XMLoadFloat4A( reinterpret_cast<const XMFLOAT4A*>( &source->albedo ) );
 		color = XMVectorMultiply( dot, color );
 		color = XMVectorMultiply( lightColor, color );
