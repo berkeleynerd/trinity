@@ -6,6 +6,7 @@
 #include "../TriDevice.h"
 #include "Tr2MouseCursor.h"
 #include "Tr2PresentParameters.h"
+#include "WindowIcon.h"
 
 static CcpLogChannel_t s_appChannel = CCP_LOG_DEFINE_CHANNEL( "App" );
 
@@ -133,8 +134,7 @@ App::App()
 		osinfo.dwOSVersionInfoSize = sizeof osinfo;
 		isWinNT = (GetVersionEx(&osinfo) && osinfo.dwPlatformId == VER_PLATFORM_WIN32_NT);
 
-		HMODULE hModule = GetModuleHandle(0);
-		HANDLE hIcon = LoadImage(hModule, MAKEINTRESOURCE(101), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+		HICON hIcon = GetWindowIcon();
 
 		if (isWinNT) {
 			//We need to use the wide char version here, so that we get Unicode key input.
@@ -142,7 +142,7 @@ App::App()
 			wclass.lpfnWndProc = _WndProc;
 			wclass.hInstance = gInstance;
 			wclass.lpszClassName = L"triuiScreen";
-			wclass.hIcon = (HICON) hIcon;
+			wclass.hIcon = hIcon;
 			// Register the windows class
 			mWndClassAtom = RegisterClassExW(&wclass);
 		} else {
@@ -151,7 +151,7 @@ App::App()
 			wclass.lpfnWndProc = _WndProc;
 			wclass.hInstance = gInstance;
 			wclass.lpszClassName = "triuiScreen";
-			wclass.hIcon = (HICON) hIcon;
+			wclass.hIcon = hIcon;
 			mWndClassAtom = RegisterClassExA(&wclass);
 		}
 	}

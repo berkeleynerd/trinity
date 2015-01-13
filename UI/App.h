@@ -69,6 +69,7 @@ public:
 	EXPOSE_TO_BLUE();
 
 	App();
+
 	~App();
 
 	uint32_t mWindowStyle;
