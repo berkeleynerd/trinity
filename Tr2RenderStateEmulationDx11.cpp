@@ -77,6 +77,11 @@ ALResult Tr2RenderStateEmulation::GetBlendState( CComPtr<ID3D11BlendState>& blen
 			D3D11_BLEND_SRC_ALPHA_SAT,
 			D3D11_BLEND_BLEND_FACTOR,
 			D3D11_BLEND_INV_BLEND_FACTOR,
+
+			D3D11_BLEND_SRC1_ALPHA,
+			D3D11_BLEND_INV_SRC1_ALPHA,
+			D3D11_BLEND_SRC1_ALPHA,
+			D3D11_BLEND_INV_SRC1_ALPHA
 		};
 		desc.BlendOpAlpha = desc.BlendOp;
 		desc.SrcBlendAlpha = alphaBlendRemap[desc.SrcBlend];
