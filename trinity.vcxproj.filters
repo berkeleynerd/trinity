@@ -733,6 +733,12 @@
     <ClInclude Include="Eve\Animation\EveAnimationState.h">
       <Filter>Source Files\Eve\Animation</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\Renderable\EveCloud.h">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClInclude>
+    <ClInclude Include="Eve\Renderable\EveCloudEditableVolume.h">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClInclude>
     <ClInclude Include="Eve\Renderable\EveMetaball.h">
       <Filter>Source Files\Eve\Renderable</Filter>
     </ClInclude>
@@ -2505,6 +2511,18 @@
     </ClCompile>
     <ClCompile Include="Eve\Animation\EveAnimationState_Blue.cpp">
       <Filter>Source Files\Eve\Animation</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveCloud.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveCloudEditableVolume.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveCloudEditableVolume_Blue.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Renderable\EveCloud_Blue.cpp">
+      <Filter>Source Files\Eve\Renderable</Filter>
     </ClCompile>
     <ClCompile Include="Eve\Renderable\EveMetaball.cpp">
       <Filter>Source Files\Eve\Renderable</Filter>
