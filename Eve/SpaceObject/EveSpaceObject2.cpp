@@ -94,7 +94,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_localAabbMax( 0,0,0 ),
 	m_lastCurveUpdateTime( 0 ),
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
-	m_spaceObjectMiscData( 1.f, 1.f, 1.f, 1.f ),
+	m_spaceObjectMiscData( 1.f, 1.f, -10.f, 1.f ),
 	m_spaceObjectClipData( 0.f, 0.f, 0.f, 0.f ),
 	m_spaceObjectClipDataEx( 0.f, 0.f, 0.f, 0.f ),
 	m_psPointLightCount( 0 ),
@@ -879,7 +879,6 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shaderType, uint32_t size, void* data )
 {
 	m_spaceObjectMiscData.w = GetBoundingSphereRadius();
-
 
 	if( shaderType == Tr2RenderContextEnum::PIXEL_SHADER )
 	{

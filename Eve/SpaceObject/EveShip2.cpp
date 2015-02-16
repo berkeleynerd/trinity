@@ -14,14 +14,20 @@ using namespace Tr2RenderContextEnum;
 
 CCP_STATS_DECLARE( eveShipsRendered, "Trinity/EveShip2/ShipsRendered", true, CST_COUNTER_LOW, "Number of EveShip objects rendered per frame." );
 
-EveShip2::EveShip2( IRoot* lockobj )
+// --------------------------------------------------------------------------------
+// Description:
+//   Initialize data members
+// --------------------------------------------------------------------------------
+EveShip2::EveShip2( IRoot* lockobj ) :
+	m_maxSpeed( 0.f ),
+	m_dirtLevel( -10.f )
 {
 	m_speed.CreateInstance();
 
-	m_maxSpeed = 0.0f;
-	m_audioParameterInfo.destinationValue = NULL;
-	m_audioParameterInfo.classInfo = NULL;
-	m_audioParameterInfo.entry = NULL;
+	// 0
+	m_audioParameterInfo.destinationValue = nullptr;
+	m_audioParameterInfo.classInfo = nullptr;
+	m_audioParameterInfo.entry = nullptr;
 }
 
 EveShip2::~EveShip2()
@@ -195,6 +201,8 @@ Tr2PerObjectData* EveShip2::GetPerObjectData( ITriRenderBatchAccumulator* accumu
 
 	// extra data for ps and vs: booster glow intensity
 	m_spaceObjectMiscData.x = boosterGlowIntensity;
+	// dirt level of a spaceship
+	m_spaceObjectMiscData.z = m_dirtLevel;
 
 	// parent
 	return EveMobile::GetPerObjectData( accumulator );

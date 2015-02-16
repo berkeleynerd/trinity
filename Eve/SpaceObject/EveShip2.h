@@ -51,6 +51,9 @@ private:
 	// keep track of some ship's speed (in m/s)
 	TriFloatPtr m_speed;
 
+	// ships can have a dirt level
+	float m_dirtLevel;
+
 	// For Audio
 	IRootPtr m_audioSpeedParameter;
 	INotifyPtr m_audioSpeedNotify;
