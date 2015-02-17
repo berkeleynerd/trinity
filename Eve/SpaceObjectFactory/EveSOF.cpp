@@ -98,6 +98,9 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	EveShip2Ptr newShip;
 	newShip.CreateInstance();
 
+	// set all easey consts
+	SetupConsts( newShip, dna );
+
 	// get us the base geometry
 	SetupMesh( newShip, dna );
 
@@ -137,6 +140,18 @@ IRootPtr EveSOF::Build( const char* hullName, const char* factionName, const cha
 
 	// pass on to real build function
 	return BuildFromDNA( dnaString.c_str() );
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Set mostly simple constants values to the ship
+// --------------------------------------------------------------------------------
+void EveSOF::SetupConsts( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+
+	// dirt level
+	ship->SetDirtLevel( dna->GetDirtLevel() );
 }
 
 // --------------------------------------------------------------------------------

@@ -36,6 +36,7 @@ public:
 	{
 		CMD_INVALID = 0,
 		CMD_MESH,
+		CMD_DIRTLEVEL,
 		CMD_MAX
 	}; 
 
@@ -79,6 +80,9 @@ public:
 	const EveSOFDataMgr::FactionPlaneSetColorData* GetFactionPlaneSetData( int groupIndex ) const;
 	const EveSOFDataMgr::FactionSpotlightSetColorData* GetFactionSpotlightSetData( int groupIndex ) const;
 	const EveSOFDataMgr::FactionSpriteSetColorData* GetFactionSpriteSetData( int groupIndex ) const;
+
+	// get dna data
+	float GetDirtLevel() const;
 
 
 private:

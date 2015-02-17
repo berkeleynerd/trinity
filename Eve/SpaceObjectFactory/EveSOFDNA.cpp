@@ -24,6 +24,7 @@ static char s_dnaSeperatorList = ';';
 static std::string s_dnaCommands[] = {
 	"invalid",				// CMD_INVALID
 	"mesh",					// CMD_MESH
+	"dirtlevel",			// CMD_DIRTLEVEL
 };
 
 // material prefixes
@@ -133,6 +134,25 @@ void EveSOFDNA::Setup( const char* dnaString, EveSOFDataMgrPtr dataMgr )
 	}
 	// generics
 	m_genericData = m_dataMgr->GetGenericData();
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Return dirt level from DNA
+// --------------------------------------------------------------------------------
+float EveSOFDNA::GetDirtLevel() const
+{
+	// there is a dna command for the dirt level
+	std::vector<std::string> dirtLevelCommandArgs;
+	if( GetDnaCommandArgs( CMD_DIRTLEVEL, dirtLevelCommandArgs ) )
+	{
+		// has only one parameter: a float!
+		if( dirtLevelCommandArgs.size() == 1 )
+		{
+			return std::stof( dirtLevelCommandArgs[0] );
+		}
+	}
+	return -10.f;
 }
 
 // --------------------------------------------------------------------------------

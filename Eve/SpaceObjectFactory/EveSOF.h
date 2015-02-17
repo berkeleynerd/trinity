@@ -48,6 +48,7 @@ public:
 
 private:
 	// all setup functions for the to-be-created spaceship
+	void SetupConsts( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;
 	void SetupMesh( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;
 	void SetupSpriteSets( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;
 	void SetupSpotlightSets( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;

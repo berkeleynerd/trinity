@@ -149,6 +149,15 @@ void EveShip2::SetBoosterSet( EveBoosterSet2Ptr set )
 	m_boosters = set;
 }
 
+// -----------------------------------------------------------------------------
+// Description:
+//   Set the dirt level of this ship from the outside
+// -----------------------------------------------------------------------------
+void EveShip2::SetDirtLevel( float lvl )
+{
+	m_dirtLevel = lvl;
+}
+
 void EveShip2::RebuildBoosterSet()
 {
 	if( !m_boosters )

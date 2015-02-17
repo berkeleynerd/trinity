@@ -47,6 +47,9 @@ public:
 	// re-positions all attached boosters to the corresponding locators
 	void RebuildBoosterSet();
 
+	// dirt level
+	void SetDirtLevel( float lvl );
+
 private:
 	// keep track of some ship's speed (in m/s)
 	TriFloatPtr m_speed;
