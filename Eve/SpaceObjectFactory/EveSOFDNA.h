@@ -28,9 +28,6 @@ public:
 	EveSOFDNA( IRoot* lockobj = NULL );
 	~EveSOFDNA();
 
-	// global definition place for the three material prefixes
-	const static std::string s_materialPrefixes[3];
-
 	// commands from the dna
 	enum DnaCommand
 	{

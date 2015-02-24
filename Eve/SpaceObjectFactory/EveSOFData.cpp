@@ -43,7 +43,12 @@ EveSOFDataTexture::EveSOFDataTexture( IRoot* lockobj )
 {}
 
 
+EveSOFDataGenericString::EveSOFDataGenericString( IRoot* lockobj )
+{}
+
+
 EveSOFDataGeneric::EveSOFDataGeneric( IRoot* lockobj ) :
+	PARENTLOCK( m_materialPrefixes ),
 	PARENTLOCK( m_hullAreas )
 {}
 

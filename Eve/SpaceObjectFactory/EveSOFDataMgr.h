@@ -225,9 +225,8 @@ public:
 		// texture insert
 		std::string resPathInsert;
 
-		// material usage ids
-		int materialUsageMain;
-		int materialUsageMask;
+		// material usage ids (for turrets, etc.)
+		int materialUsageList[4];
 
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> areaParameters;
@@ -270,6 +269,8 @@ public:
 		std::string shaderPrefix, shaderPrefixAnimated;
 		std::string areaShaderLocation;
 		std::string decalShaderLocation;
+		// material perfixes
+		std::vector<std::string> materialPrefixes;
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> hullAreaParameters;
 	};

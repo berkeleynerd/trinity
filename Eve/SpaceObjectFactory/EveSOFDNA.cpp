@@ -27,9 +27,6 @@ static std::string s_dnaCommands[] = {
 	"dirtlevel",			// CMD_DIRTLEVEL
 };
 
-// material prefixes
-const std::string EveSOFDNA::s_materialPrefixes[3] = { "Material", "Mask", "SubMask" };
-
 // --------------------------------------------------------------------------------
 // Description:
 //   Initialize data members
@@ -479,13 +476,13 @@ const Vector4* EveSOFDNA::GetFactionMeshAreaParameters( const BlueSharedString& 
 		size_t argIdx = (size_t)-1;
 		std::string materialDataParameterName = std::string( parameterName.c_str() );
 		// identify material mask, submask
-		for( size_t i = 0; i < 3; ++i )
+		for( size_t i = 0; i < m_genericData->materialPrefixes.size(); ++i )
 		{
-			if( StringStartsWithI( parameterName.c_str(), s_materialPrefixes[i].c_str() ) )
+			if( StringStartsWithI( parameterName.c_str(), m_genericData->materialPrefixes[i].c_str() ) )
 			{
 				// found it!
 				argIdx = i;
-				StringRemove( materialDataParameterName, s_materialPrefixes[i].c_str() );
+				StringRemove( materialDataParameterName, m_genericData->materialPrefixes[i].c_str() );
 				break;
 			}
 		}

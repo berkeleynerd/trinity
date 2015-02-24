@@ -975,37 +975,36 @@ void EveSOF::SetupLocators( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 // Description:
 //   This function calculates a specific value for a turret's material parameter.
 //   It takes in a faction and looks into that faction hull data to determine
-//   the turret's materal parameter.
+//   the turret's material parameter.
 // Arguments:
 //   value - A reference to a pointer, which will receive a pointer to the correct value
-//   parameterName - the parameter in question, like "MaterialGloss"
-//   matUsageMain - used to swap masks
-//   matUsageMask - used to swap masks
+//   parameterName - the parameter in question, like "Mtl1Gloss"
+//   matUsageIdxList - array to swap material indices
 //   areaData - the faction data to look into
 // Return Value:
 //   Success!
 // --------------------------------------------------------------------------------
-bool EveSOF::GetTurretMaterialParameter( const Vector4* &value, const char* parameterName, int matUsageMain, int matUsageMask, const EveSOFDataMgr::FactionAreaData* areaData ) const
+bool EveSOF::GetTurretMaterialParameter( const Vector4* &value, const char* parameterName, const int* matUsageIdxList, const EveSOFDataMgr::FactionAreaData* areaData ) const
 {
+	// get generic data
+	const EveSOFDataMgr::GenericData* genericData = m_dataMgr.GetGenericData();
 	// source parameter name
 	std::string paramName( parameterName );
-	// determine which of the 3 faction materials are requested
-	int materialID = -1;
-	if( StringStartsWithI( paramName.c_str(), EveSOFDNA::s_materialPrefixes[0].c_str() ) )
+	// determine which material it is
+	int materialIdx = -1;
+	for( size_t i = 0; i < genericData->materialPrefixes.size(); ++i )
 	{
-		materialID = matUsageMain;
-		StringRemove( paramName, EveSOFDNA::s_materialPrefixes[0].c_str() );
-	}
-	else if( StringStartsWithI( paramName.c_str(), EveSOFDNA::s_materialPrefixes[1].c_str() ) )
-	{
-		materialID = matUsageMask;
-		StringRemove( paramName, EveSOFDNA::s_materialPrefixes[1].c_str() );
+		if( StringStartsWithI( paramName.c_str(), genericData->materialPrefixes[i].c_str() ) )
+		{
+			materialIdx = int(i);
+			StringRemove( paramName, genericData->materialPrefixes[i].c_str() );
+		}
 	}
 	// find it?
-	if( ( materialID >= 0  ) && ( materialID < 3 ) )
+	if( materialIdx != -1 )
 	{
-		// insert the prefic based on what is set in the faction data
-		paramName.insert( 0, EveSOFDNA::s_materialPrefixes[ materialID ] );
+		// insert the prefix based on what is set in the faction data's turret materials
+		paramName.insert( 0, genericData->materialPrefixes[ matUsageIdxList[ materialIdx ] ] );
 
 		// try to find this param and use it's value
 		auto paramFinder = areaData->parameters.find( BlueSharedString( paramName ) );
@@ -1033,11 +1032,14 @@ bool EveSOF::GetTurretMaterialParameter( const Vector4* &value, const char* para
 // --------------------------------------------------------------------------------
 Vector4 EveSOF::CombineTurretMaterial( const char* parameterName, const Vector4* parentValue, const Vector4* turretValue, const char* overrideMethod ) const
 {
-	// need the pure material name, no mask prefix!
+	// get generic data
+	const EveSOFDataMgr::GenericData* genericData = m_dataMgr.GetGenericData();
+	// need the pure material name, no mask prefix! So remove all possible prefixes
 	std::string name( parameterName );
-	StringRemove( name, EveSOFDNA::s_materialPrefixes[0].c_str() );
-	StringRemove( name, EveSOFDNA::s_materialPrefixes[1].c_str() );
-	StringRemove( name, EveSOFDNA::s_materialPrefixes[2].c_str() );
+	for( size_t i = 0; i < genericData->materialPrefixes.size(); ++i )
+	{
+		StringRemove( name, genericData->materialPrefixes[i].c_str() );
+	}
 
 	if( strcmp( overrideMethod, "overridable" ) == 0 )
 	{
@@ -1075,6 +1077,8 @@ Vector4 EveSOF::CombineTurretMaterial( const char* parameterName, const Vector4*
 // --------------------------------------------------------------------------------
 void EveSOF::SetupTurretMaterial( EveTurretSet* turretSet, const char* parentFactionName, const char* turretFactionName )
 {
+	// get generic data
+	const EveSOFDataMgr::GenericData* genericData = m_dataMgr.GetGenericData();
 	// get parent (aka ship) and turret's factional data (which is also good on a turret)
 	const EveSOFDataMgr::FactionData* parentFactionData = m_dataMgr.GetFactionData( parentFactionName );
 	const EveSOFDataMgr::FactionData* turretFactionData = m_dataMgr.GetFactionData( turretFactionName );
@@ -1121,11 +1125,11 @@ void EveSOF::SetupTurretMaterial( EveTurretSet* turretSet, const char* parentFac
 				const Vector4* turretValue = nullptr;
 				if( parentAreaData )
 				{
-					GetTurretMaterialParameter( parentValue, it->name.c_str(), parentFactionData->materialUsageMain, parentFactionData->materialUsageMask, parentAreaData );
+					GetTurretMaterialParameter( parentValue, it->name.c_str(), parentFactionData->materialUsageList, parentAreaData );
 				}
 				if( turretAreaData )
 				{
-					GetTurretMaterialParameter( turretValue, it->name.c_str(), turretFactionData->materialUsageMain, turretFactionData->materialUsageMask, turretAreaData );
+					GetTurretMaterialParameter( turretValue, it->name.c_str(), turretFactionData->materialUsageList, turretAreaData );
 				}
 				it->value = CombineTurretMaterial( it->name.c_str(), parentValue, turretValue, shader->GetName() );
 			}
@@ -1140,11 +1144,11 @@ void EveSOF::SetupTurretMaterial( EveTurretSet* turretSet, const char* parentFac
 				const Vector4* turretValue = nullptr;
 				if( parentAreaData )
 				{
-					GetTurretMaterialParameter( parentValue, (*it)->GetParameterName(), parentFactionData->materialUsageMain, parentFactionData->materialUsageMask, parentAreaData );
+					GetTurretMaterialParameter( parentValue, (*it)->GetParameterName(), parentFactionData->materialUsageList, parentAreaData );
 				}
 				if( turretAreaData )
 				{
-					GetTurretMaterialParameter( turretValue, (*it)->GetParameterName(), turretFactionData->materialUsageMain, turretFactionData->materialUsageMask, turretAreaData );
+					GetTurretMaterialParameter( turretValue, (*it)->GetParameterName(), turretFactionData->materialUsageList, turretAreaData );
 				}
 				Vector4 value = CombineTurretMaterial( (*it)->GetParameterName(), parentValue, turretValue, shader->GetName() );
 

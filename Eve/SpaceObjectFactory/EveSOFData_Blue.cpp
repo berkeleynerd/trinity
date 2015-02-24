@@ -462,6 +462,18 @@ const Be::ClassInfo* EveSOFDataMaterial::ExposeToBlue()
 
 
 
+BLUE_DEFINE( EveSOFDataGenericString );
+const Be::ClassInfo* EveSOFDataGenericString::ExposeToBlue()
+{
+    EXPOSURE_BEGIN( EveSOFDataGenericString, "" )
+        MAP_INTERFACE( EveSOFDataGenericString )
+
+		MAP_ATTRIBUTE( "str", m_str, "The actual string", Be::READWRITE | Be::PERSIST )
+    EXPOSURE_END()
+}
+
+
+
 BLUE_DEFINE( EveSOFDataGeneric );
 const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 {
@@ -472,6 +484,7 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "decalShaderLocation", m_decalShaderLocation, "The location of all the decal shaders", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shaderPrefix", m_shaderPrefix, "A prefix for all shaders", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shaderPrefixAnimated", m_shaderPrefixAnimated, "A prefix for all skinned shaders", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "materialPrefixes", m_materialPrefixes, "List of all the support material prefixes", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hullAreas", m_hullAreas, "Global hull area shader data", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }

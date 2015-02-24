@@ -62,7 +62,7 @@ private:
 	// helper functions
 	void FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodResCollector, Tr2MeshAreaVector* meshAreaVector, TriBatchType areaType, const EveSOFDNAPtr dna ) const;
 	bool GenerateLodResourcePaths( std::string& mediumResPath, std::string& lowResPath, const char* resPath, const char* usage ) const;
-	bool GetTurretMaterialParameter( const Vector4* &value, const char* parameterName, int matUsageMain, int matUsageMask, const EveSOFDataMgr::FactionAreaData* areaData ) const;
+	bool GetTurretMaterialParameter( const Vector4* &value, const char* parameterName, const int* matUsageIdxList, const EveSOFDataMgr::FactionAreaData* areaData ) const;
 	Vector4 CombineTurretMaterial( const char* parameterName, const Vector4* parentValue, const Vector4* turretValue, const char* overrideMethod ) const;
 
 	// all the source data

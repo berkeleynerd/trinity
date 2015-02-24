@@ -585,6 +585,19 @@ BLUE_DECLARE_VECTOR( EveSOFDataMaterial );
 // All data storage classes for generic data
 // --------------------------------------------------------------------------------
 
+BLUE_CLASS( EveSOFDataGenericString ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataGenericString( IRoot* lockobj = NULL );
+	~EveSOFDataGenericString() {}
+
+	std::string m_str;
+};
+TYPEDEF_BLUECLASS( EveSOFDataGenericString );
+BLUE_DECLARE_VECTOR( EveSOFDataGenericString );
+
 BLUE_CLASS( EveSOFDataGeneric ) :
 	public IRoot
 {
@@ -598,6 +611,9 @@ public:
 	std::string m_shaderPrefixAnimated;
 	std::string m_areaShaderLocation;
 	std::string m_decalShaderLocation;
+
+	// shader material pre-fixes
+	PEveSOFDataGenericStringVector m_materialPrefixes;
 
 	// hull area data
 	PEveSOFDataFactionHullAreaVector m_hullAreas;
