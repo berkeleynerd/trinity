@@ -1359,6 +1359,11 @@ void TriDevice::AddPostUpdateCallback( IBlueCallbackMan::CallbackFunc cb, void* 
 	m_postUpdateCallbacks->Add( cb, context, IBlueCallbackMan::BCBF_NONE, nullptr );
 }
 
+void TriDevice::SetTickInterval( int value )
+{
+	mTickInterval = value;
+}
+
 //  Description:
 //    This class is an RAII implementation of management for an 'IsDeviceResetting' state
 //    It is intended to prevent python from calling functions that would trigger a device

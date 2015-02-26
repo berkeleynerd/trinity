@@ -578,10 +578,10 @@ void App::OnAppWindowFocused( bool focused )
         gTriDev->ApplicationActivated( TriDevice::APP_DEACTIVATED );
     }
     
-    if( mReady && BeOS )
-    {
-        BeOS->GetInfo()->mSleepTime = mActive ? 0 : 1;
-    }
+	if( gTriDev )
+	{
+		gTriDev->SetTickInterval( mActive ? 0 : 10 );
+	}
 
     long lRes;
     CallEventHandler( WM_ACTIVATE, focused ? 1 : 0, 0, lRes );

@@ -64,16 +64,16 @@ static void TGNotificationCallback( TG_NOTIFY_TYPE type, DWORD state, int data, 
 	{
 	case TGAS_MINIMIZE:
 		g_app->mIsHidden = TRUE;
-		if( g_app->mReady && BeOS )
+		if( gTriDev )
 		{
-			BeOS->GetInfo()->mSleepTime = 1;
+			gTriDev->SetTickInterval( 10 );
 		}
 		break;
 	case TGAS_GAINFOCUS:
 		g_app->mIsHidden = FALSE;
-		if( g_app->mReady && BeOS )
+		if( gTriDev )
 		{
-			BeOS->GetInfo()->mSleepTime = 0;
+			gTriDev->SetTickInterval( 0 );
 		}
 		break;
 	case TGAS_NONE:

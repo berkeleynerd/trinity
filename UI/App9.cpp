@@ -146,9 +146,9 @@ LRESULT App::WndProc(HWND hwnd, UINT msg, WPARAM w, LPARAM l)
 			}
 		}
 
-		if (mReady && BeOS)
+		if( gTriDev )
 		{
-			BeOS->GetInfo()->mSleepTime = mActive ? 0 : 1;
+			gTriDev->SetTickInterval( mActive ? 0 : 10 );
 		}
 		break;
 

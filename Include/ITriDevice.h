@@ -109,6 +109,8 @@ BLUE_INTERFACE(ITriDevice) : public IRoot
 	virtual void RegisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData ) = 0;
 	virtual void UnregisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData ) = 0;
 	virtual void GetBackBufferGrabber( ITr2RenderTargetGrabber** grabber ) = 0;
+
+	virtual void SetTickInterval( int value ) = 0;
 };
 
 #endif
