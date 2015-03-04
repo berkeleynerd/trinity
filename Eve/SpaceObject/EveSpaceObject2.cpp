@@ -1185,7 +1185,9 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 		m_geometryResFromMesh = nullptr;
 		return;
 	}
-	m_isAnimated = m_geometryResFromMesh && m_geometryResFromMesh->GetAnimationCount();
+	// Objects with only one animation just have a default animation and aren't treated as
+	// animated in terms of bounds calculations and such.
+	m_isAnimated = m_geometryResFromMesh && m_geometryResFromMesh->GetAnimationCount() > 1;
 
 	m_animationUpdater->SetUseMeshBinding( true );	
 	m_animationUpdater->SetSharedGeometryRes( m_geometryResFromMesh );
@@ -1681,8 +1683,15 @@ void EveSpaceObject2::GetCurrentModelCenterWorldPosition( Vector3 &position )
 
 bool EveSpaceObject2::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
 {
-	// Animated objects get their bounds from the animation updater
-	if( m_mesh && !m_isAnimated )
+	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
+	{
+		Vector4 bs;
+		m_animationUpdater->GetDynamicBounds( bs, min, max );
+		m_localAabbMin = min;
+		m_localAabbMax = max;
+		return true;
+	}
+	else if( m_mesh )
 	{
 		if( m_mesh->GetBoundingBox( min, max ) )
 		{
