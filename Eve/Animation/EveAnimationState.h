@@ -34,7 +34,7 @@ public:
 	void Stop( EveAnimationStateMachine* sm, EveSpaceObject2* owner );
 	void Update( Be::Time time, EveSpaceObject2* owner );
 	
-	void SetParameter( std::string parameterName, float parameterValue );
+	void SetParameter( const std::string& parameterName, float parameterValue );
 
 	EveAnimationStateProgress GetProgress() const { return m_progress; }
 	const std::string& GetName() const { return m_name; }

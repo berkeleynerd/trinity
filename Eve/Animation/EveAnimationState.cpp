@@ -120,7 +120,7 @@ void EveAnimationState::Start( EveAnimationStateMachine* sm, EveSpaceObject2* so
 // Side Effect:
 //   sets m_parameters[parameterName] to parameterValue
 // --------------------------------------------------------------------------------
-void EveAnimationState::SetParameter( std::string parameterName, float parameterValue )
+void EveAnimationState::SetParameter( const std::string& parameterName, float parameterValue )
 {
 	m_parameters[parameterName] = parameterValue;
 }
