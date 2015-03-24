@@ -6,7 +6,7 @@
 #include "StdAfx.h"
 #include "Utilities/StringUtils.h"
 #include "EveSOFDNA.h"
-
+#include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "ITr2Renderable.h"
 
 bool FileExists( const std::string& path )
@@ -149,7 +149,7 @@ float EveSOFDNA::GetDirtLevel() const
 			return float( atof( dirtLevelCommandArgs[0].c_str() ) );
 		}
 	}
-	return -10.f;
+	return EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT;
 }
 
 // --------------------------------------------------------------------------------

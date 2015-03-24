@@ -95,7 +95,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_localAabbMax( 0,0,0 ),
 	m_lastCurveUpdateTime( 0 ),
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
-	m_spaceObjectMiscData( 1.f, 1.f, -10.f, 1.f ),
+	m_spaceObjectMiscData( 1.f, 1.f, EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT, 1.f ),
 	m_spaceObjectClipData( 0.f, 0.f, 0.f, 0.f ),
 	m_spaceObjectClipDataEx( 0.f, 0.f, 0.f, 0.f ),
 	m_psPointLightCount( 0 ),

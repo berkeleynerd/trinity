@@ -22,6 +22,9 @@
 #include "Tr2ShLightingManager.h"
 #include "Eve/SpaceObject/Attachments/EveMeshOverlayEffect.h"
 
+// consts
+#define EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT (0.55f)
+
 // forwards
 BLUE_DECLARE( EveSpaceObject2 );
 BLUE_DECLARE_VECTOR( EveSpaceObject2 );

@@ -20,7 +20,7 @@ CCP_STATS_DECLARE( eveShipsRendered, "Trinity/EveShip2/ShipsRendered", true, CST
 // --------------------------------------------------------------------------------
 EveShip2::EveShip2( IRoot* lockobj ) :
 	m_maxSpeed( 0.f ),
-	m_dirtLevel( -10.f )
+	m_dirtLevel( EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT )
 {
 	m_speed.CreateInstance();
 
