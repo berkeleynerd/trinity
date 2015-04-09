@@ -2642,6 +2642,7 @@
     <ClInclude Include="Tr2RotationTool.h"/>
     <ClInclude Include="Tr2RuntimeInstanceData.h"/>
     <ClInclude Include="Tr2ScalingTool.h"/>
+    <ClInclude Include="Tr2ShaderBuffer.h"/>
     <ClInclude Include="Tr2ShaderManager.h"/>
     <ClInclude Include="Tr2ShaderMaterial.h"/>
     <ClInclude Include="Tr2ShaderParameterDescription.h"/>
@@ -3133,6 +3134,8 @@
     <ClCompile Include="Tr2RuntimeInstanceData_Blue.cpp"/>
     <ClCompile Include="Tr2ScalingTool.cpp"/>
     <ClCompile Include="Tr2ScalingTool_Blue.cpp"/>
+    <ClCompile Include="Tr2ShaderBuffer.cpp"/>
+    <ClCompile Include="Tr2ShaderBuffer_Blue.cpp"/>
     <ClCompile Include="Tr2ShaderManager.cpp"/>
     <ClCompile Include="Tr2ShaderManager_blue.cpp"/>
     <ClCompile Include="Tr2ShaderMaterial.cpp"/>
