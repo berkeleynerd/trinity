@@ -616,12 +616,6 @@
     <ClInclude Include="EffectParameter\TriFloatArrayParameter.h">
       <Filter>Source Files\EffectParameter</Filter>
     </ClInclude>
-    <ClInclude Include="EffectParameter\TriTexture2DParameter.h">
-      <Filter>Source Files\EffectParameter</Filter>
-    </ClInclude>
-    <ClInclude Include="EffectParameter\TriTextureCubeParameter.h">
-      <Filter>Source Files\EffectParameter</Filter>
-    </ClInclude>
     <ClInclude Include="EffectParameter\TriTextureParameter.h">
       <Filter>Source Files\EffectParameter</Filter>
     </ClInclude>
@@ -2324,15 +2318,6 @@
       <Filter>Source Files\EffectParameter</Filter>
     </ClCompile>
     <ClCompile Include="EffectParameter\TriFloatArrayParameter_Blue.cpp">
-      <Filter>Source Files\EffectParameter</Filter>
-    </ClCompile>
-    <ClCompile Include="EffectParameter\TriTexture2DParameter.cpp">
-      <Filter>Source Files\EffectParameter</Filter>
-    </ClCompile>
-    <ClCompile Include="EffectParameter\TriTexture2DParameter_Blue.cpp">
-      <Filter>Source Files\EffectParameter</Filter>
-    </ClCompile>
-    <ClCompile Include="EffectParameter\TriTextureCubeParameter_Blue.cpp">
       <Filter>Source Files\EffectParameter</Filter>
     </ClCompile>
     <ClCompile Include="EffectParameter\TriTextureParameter.cpp">
