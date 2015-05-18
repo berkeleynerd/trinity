@@ -8,7 +8,6 @@
 #include "Tr2Mesh.h"
 #include "Tr2MeshLod.h"
 #include "Tr2Effect.h"
-#include "Miniball3.h"
 #include "Eve/SpaceObject/Utils/EveLocator2.h"
 #include "Utilities/BoundingSphere.h"
 

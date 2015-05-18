@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include "Include/TriMath.h"
 #include "BoundingSphere.h"
 
 void BoundingSphereInitialize( Vector4& sphere )
@@ -121,3 +122,134 @@ void BoundingSphereFromBox( Vector4& sphere, const Vector3& minBounds, const Vec
 	sphere.w = D3DXVec3Length( &min );
 	sphere *= 0.5f;
 }
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Local recursive function used by the bounding sphere generation algorithm
+// --------------------------------------------------------------------------------
+Vector4 recurBoundingSphereCreate( Vector3 const** p, size_t len, size_t b )
+{
+	Vector4 mb;
+
+	// in case of the "trivial" ones we have an easy solution
+	switch( b )
+	{
+	case 0:
+		BoundingSphereFromPoints( mb, nullptr, 0 );
+		break;
+	case 1:
+		BoundingSphereFromPoints( mb, &p[-1], 1 );
+		break;
+	case 2:
+		BoundingSphereFromPoints( mb, &p[-2], 2 );
+		break;
+	case 3:
+		BoundingSphereFromPoints( mb, &p[-3], 3 );
+		break;
+	case 4:
+		BoundingSphereFromPoints( mb, &p[-4], 4 );
+		return mb;
+	}
+
+	for( size_t i = 0; i < len; ++i )
+	{
+		if( !BoundingSphereIsInside( mb, *p[i] ) )
+		{
+			// avoid duplicates in the four points
+			bool isDuplicate = false;
+			for( size_t j = 0; j < b; ++j )
+			{
+				if( TriVectorIsIdentical( p[i], p[-(int32_t)j - 1] ) )
+				{
+					isDuplicate = true;
+					break;
+				}
+			}
+			if( !isDuplicate )
+			{
+				for( size_t j = i; j > 0; --j )
+				{
+					const Vector3* t = p[j];
+					p[j] = p[j - 1];
+					p[j - 1] = t;
+				}
+
+				mb = recurBoundingSphereCreate( p + 1, i, b + 1 );
+			}
+		}
+	}
+
+	return mb;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Create a bounding sphere by a given number of points.
+// --------------------------------------------------------------------------------
+void BoundingSphereFromPoints( Vector4& sphere, Vector3 const** points, size_t pointsCount )
+{
+	const float radiusEpsilon = 1e-4f;
+
+	// if we have zero to four points, generation is easy!
+	switch( pointsCount )
+	{
+	case 0:
+		BoundingSphereInitialize( sphere );
+		break;
+	case 1:
+		{
+			sphere = Vector4( *points[0], 0.f + radiusEpsilon );
+		}
+		break;
+	case 2:
+		{
+			Vector3 a = 0.5f * ( *points[1] - *points[0] );
+			sphere = Vector4( a + *points[0], D3DXVec3Length( &a ) + radiusEpsilon );
+		}
+		break;
+	case 3:
+		{
+			Vector3 a = *points[1] - *points[0];
+			Vector3 b = *points[2] - *points[0];
+			Vector3 axb, axbxa, bxaxb;
+			D3DXVec3Cross( &axb, &a, &b );
+			D3DXVec3Cross( &axbxa, &axb, &a );
+			D3DXVec3Cross( &bxaxb, &b, &axb );
+			float denom = 2.f * D3DXVec3Dot( &axb, &axb );
+			float a2 = D3DXVec3Dot( &a, &a );
+			float b2 = D3DXVec3Dot( &b, &b );
+			Vector3 o = ( b2 * axbxa + a2 * bxaxb ) / denom;
+			sphere = Vector4( o + *points[0], D3DXVec3Length( &o ) + radiusEpsilon );
+		}
+		break;
+	case 4:
+		{
+			Vector3 a = *points[1] - *points[0];
+			Vector3 b = *points[2] - *points[0];
+			Vector3 c = *points[3] - *points[0];
+			float denom = 2.f * ( a.x * (b.y * c.z - c.y * b.z) - b.x * (a.y * c.z - c.y * a.z) + c.x * (a.y * b.z - b.y * a.z) );
+			if( denom == 0.f )
+			{
+				// fail, must try with three points
+				CCP_LOGWARN("BoundingSphereFromPoints: failed because denominator is zero! Using fallback...");
+				return BoundingSphereFromPoints( sphere, points, 3 );
+			}
+			float a2 = D3DXVec3Dot( &a, &a );
+			float b2 = D3DXVec3Dot( &b, &b );
+			float c2 = D3DXVec3Dot( &c, &c );
+			Vector3 axb, cxa, bxc;
+			D3DXVec3Cross( &axb, &a, &b );
+			D3DXVec3Cross( &cxa, &c, &a );
+			D3DXVec3Cross( &bxc, &b, &c );
+			Vector3 o = ( c2 * axb + b2 * cxa + a2 * bxc ) / denom;
+			sphere = Vector4( o + *points[0], D3DXVec3Length( &o ) + radiusEpsilon );
+		}
+		break;
+	default:
+		sphere = recurBoundingSphereCreate( points, pointsCount, 0 );
+		break;
+	}
+}
+
+
+

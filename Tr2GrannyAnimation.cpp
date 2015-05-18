@@ -1,5 +1,4 @@
 #include "StdAfx.h"
-#include "Miniball3.h"
 #include "Tr2GrannyAnimation.h"
 #include "Resources/TriGrannyRes.h"
 #include "Resources/TriGeometryRes.h"
@@ -520,7 +519,7 @@ Vector4 Tr2GrannyAnimation::CalculateSkinnedBoundingSphere( granny_file_info* fi
 
 	if( !m_meshBinding )
 	{
-		return Vector4(0,0,0,-1);
+		return Vector4( 0.f, 0.f, 0.f, -1.f );
 	}
 
 	if( !fi )
@@ -529,7 +528,7 @@ Vector4 Tr2GrannyAnimation::CalculateSkinnedBoundingSphere( granny_file_info* fi
 	}
 	if( !fi )
 	{
-		return Vector4(0,0,0,-1);
+		return Vector4( 0.f, 0.f, 0.f, -1.f );
 	}
 
     // Known input and output vertex format
@@ -547,45 +546,22 @@ Vector4 Tr2GrannyAnimation::CalculateSkinnedBoundingSphere( granny_file_info* fi
                                                                GrannyDontAllowUncopiedTail);
 	if( !deformer )
 	{
-		return Vector4(0,0,0,-1);
+		return Vector4( 0.f, 0.f, 0.f, -1.f );
 	}
 
 	GrannyDeformVertices(deformer, GrannyGetMeshBindingFromBoneIndices( m_meshBinding ),
                         (granny_real32*)GrannyGetWorldPoseComposite4x4Array( m_worldPose ), vertCount, &sourceVerts[0], &deformedVerts[0] );
 
+	// Gather a list of pointers to the positions
+	std::vector<const Vector3*> points( vertCount );
+	for( int32_t p = 0; p < vertCount; ++p )
+	{
+		points[p] = (const Vector3*)&deformedVerts[p].Position;
+	}
+
 	// Calculate the bounding sphere
 	Vector4 boundingSphere;
-
-	typedef double* const* PointIterator; 
-	typedef const double* CoordIterator;
-	typedef Miniball::Miniball <Miniball::CoordAccessor<PointIterator, CoordIterator>> MB;
-
-	// Figure out how many points
-	double** samplePoints = new double*[vertCount];		
-
-	// Add points to the bounding object. We'll get duplicates, but this is ok.
-	for (int v = 0; v < vertCount; ++v)
-    {
-        double* point = new double[3];
-		point[0] = deformedVerts[v].Position[0];
-		point[1] = deformedVerts[v].Position[1];
-		point[2] = deformedVerts[v].Position[2];
-		samplePoints[v] = point;
-    }
-
-	MB mb( 3, samplePoints, samplePoints + vertCount );	
-	const double* boundingSphereCenter = mb.center();
-
-	boundingSphere.x = float( boundingSphereCenter[0] ) + fi->Models[ m_modelIndex ]->InitialPlacement.Position[0];
-	boundingSphere.y = float( boundingSphereCenter[1] ) + fi->Models[ m_modelIndex ]->InitialPlacement.Position[1];
-	boundingSphere.z = float( boundingSphereCenter[2] ) + fi->Models[ m_modelIndex ]->InitialPlacement.Position[2];
-	boundingSphere.w = float( sqrt( mb.squared_radius() ) );
-
-	for( int j=0; j< vertCount; ++j )
-	{
-		delete[] samplePoints[j];
-	}
-	delete[] samplePoints;
+	BoundingSphereFromPoints( boundingSphere, &points[0], points.size() );
 	
 	return boundingSphere;
 }

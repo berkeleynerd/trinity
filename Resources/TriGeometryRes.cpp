@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include "Include/TriMath.h"
 #include "TriGeometryRes.h"
 #include "TriGrannyRes.h"
 #include "Tr2PerObjectData.h"
@@ -6,8 +7,8 @@
 
 #include "TriSettingsRegistrar.h"
 
-#include "Miniball3.h"
 #include "Utilities/GeometryUtils.h"
+#include "Utilities/BoundingSphere.h"
 
 using namespace Tr2RenderContextEnum;
 
@@ -1065,71 +1066,49 @@ void TriGeometryRes::PrepareFromGrannyRes( TriGrannyRes* g )
 	SetGood( true );
 }
 
-struct CalcMiniballContext
-{
-	double **samplePoints;
-	int pointCount;
-};
-
-void CalcMiniball( void* context, const Vector3& p1, const Vector3& p2, const Vector3& p3 )
-{	
-	CalcMiniballContext* ctx = static_cast<CalcMiniballContext*>( context );
-
-	// Add points to the bounding object. We'll get duplicates, but this is ok.
-	double* point = new double[3];
-	point[0] = p1.x;
-	point[1] = p1.y;
-	point[2] = p1.z;
-	ctx->samplePoints[ctx->pointCount++] = point;
-	
-	point = new double[3];
-	point[0] = p2.x;
-	point[1] = p2.y;
-	point[2] = p2.z;
-	ctx->samplePoints[ctx->pointCount++] = point;
-
-	point = new double[3];
-	point[0] = p3.x;
-	point[1] = p3.y;
-	point[2] = p3.z;
-	ctx->samplePoints[ctx->pointCount++] = point;
-}
-
 void TriGeometryRes::RecalculateBoundingSphere()
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+	USE_MAIN_THREAD_RENDER_CONTEXT();
 
-	size_t nMeshes = m_meshes.size();
-	for ( size_t i = 0; i < nMeshes; i++ )
+	for ( auto meshIt = m_meshes.begin(); meshIt != m_meshes.end(); ++meshIt )
 	{
-		if( m_meshes[i] == NULL )
+		TriGeometryResMeshData* mesh = (*meshIt);
+		if( mesh == nullptr )
 		{
 			continue;
 		}
 
-		typedef double* const* PointIterator; 
-		typedef const double* CoordIterator;
-		typedef Miniball::Miniball <Miniball::CoordAccessor<PointIterator, CoordIterator> > MB;
-
-		CalcMiniballContext context;
-		// Figure out how many points
-		context.samplePoints = new double*[m_meshes[i]->m_primitiveCount*3];		
-		context.pointCount = 0;
-		ProcessMeshTriangles( (int)i, &CalcMiniball, &context );
-		MB mb( 3, context.samplePoints, context.samplePoints+m_meshes[i]->m_primitiveCount*3 );
-		
-		const double* boundingSphereCenter = mb.center();
-
-		m_meshes[i]->m_boundingSphere.x = float( boundingSphereCenter[0] );
-		m_meshes[i]->m_boundingSphere.y = float( boundingSphereCenter[1] );
-		m_meshes[i]->m_boundingSphere.z = float( boundingSphereCenter[2] );
-		m_meshes[i]->m_boundingSphere.w = float( sqrt( mb.squared_radius() ) );
-
-		for( int j=0; j< context.pointCount; ++j )
+		// need all the verts
+		if( !mesh->m_vertexBuffer.IsValid() )
 		{
-			delete[] context.samplePoints[j];
+			continue;
 		}
-		delete[] context.samplePoints;
+
+		// vertex info
+		uint32_t vertSize = mesh->m_bytesPerVertex;
+		uint8_t* pVertices;
+		if( SUCCEEDED( mesh->m_vertexBuffer.Lock(0, 0, (void**)&pVertices, LOCK_READONLY, renderContext ) ) )
+		{
+			// need vertex declaration to get offset of position element in the vertex
+			Tr2VertexDefinition decl;
+			if( Tr2EffectStateManager::GetVertexDeclarationElements( mesh->m_vertexDeclaration, decl ) )
+			{
+				auto position = decl.Find( decl.POSITION, 0 );
+
+				// build a list of pointers to the positions
+				std::vector<const Vector3*> points( mesh->m_vertexCount );
+				for( uint32_t p = 0; p < mesh->m_vertexCount; ++p )
+				{
+					points[p] = (const Vector3*)&pVertices[p * vertSize + position->m_offset];
+				}
+
+				// all is done in this recursive function
+				BoundingSphereFromPoints( mesh->m_boundingSphere, &points[0], points.size() );
+
+				mesh->m_vertexBuffer.Unlock( renderContext );
+			}
+		}
 	}
 }
 
