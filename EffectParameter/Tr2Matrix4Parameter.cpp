@@ -19,6 +19,12 @@ const char* Tr2Matrix4Parameter::GetParameterName() const
 	return m_name.c_str();
 }
 
+unsigned Tr2Matrix4Parameter::GetHashValue( unsigned startingHash ) const
+{
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), CcpHashFNV1( &m_value, sizeof( m_value ), startingHash ) );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Determines whether the determinant of this matrix parameter is 0 and be ignored when

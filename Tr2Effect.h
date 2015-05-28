@@ -84,6 +84,8 @@ public:
 	void Render( IRenderCallback* cb, Tr2RenderContext& renderContext );
 	void RenderForPicking( IRenderCallback* cb, int objId, Tr2RenderContext& renderContext );
 
+	unsigned GetHashValue() const;
+
 	////////////////////////////////////////////
 	// IShaderMaterial
 	///////////////

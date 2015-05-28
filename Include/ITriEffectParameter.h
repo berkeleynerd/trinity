@@ -49,6 +49,8 @@ BLUE_INTERFACE(ITriEffectParameter) : public ITr2EffectValue
 	//	 false Otherwise
 	// --------------------------------------------------------------------------------------
 	virtual bool IsPrepared() const { return true; }
+
+	virtual unsigned GetHashValue( unsigned startingHash ) const = 0;
 };
 BLUE_DECLARE_IVECTOR( ITriEffectParameter );
 typedef BlueDict<ITriEffectParameter> ITriEffectParameterDict;

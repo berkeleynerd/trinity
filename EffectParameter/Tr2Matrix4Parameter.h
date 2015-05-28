@@ -48,6 +48,7 @@ public:
 	const char* GetParameterName() const;
 	virtual bool IsZeroOrNull( void ) const;
 	void RebuildEffectHandles( ITr2ShaderState* effectRes );
+	unsigned GetHashValue( unsigned startingHash ) const;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITriReroutable

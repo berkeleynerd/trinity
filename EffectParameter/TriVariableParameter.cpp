@@ -20,6 +20,12 @@ const char* TriVariableParameter::GetParameterName() const
 	return m_name.c_str();
 }
 
+unsigned TriVariableParameter::GetHashValue( unsigned startingHash ) const
+{
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), startingHash );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Determines whether the TriVariable stored in this parameter is NULL and can be 

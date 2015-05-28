@@ -1030,6 +1030,40 @@ void Tr2Effect::RenderForPicking( IRenderCallback* cb, int objId, Tr2RenderConte
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   This method computes a hash value for the effect based on its path name and 
+//   parameters. It is not without faults: the method doen't check which parameters are
+//   actually used by the effect, doesn't do anything with values coming from a variable
+//   store. The method is not light-weight and should not be called every frame.
+// Return Value:
+//   Hash value for the effect
+// --------------------------------------------------------------------------------------
+unsigned Tr2Effect::GetHashValue() const
+{
+	unsigned hash = 0;
+	if( m_effectResource )
+	{
+		hash = CcpHashFNV1( m_effectResource->GetPath(), wcslen( m_effectResource->GetPath() ) * sizeof( wchar_t ) );
+	}
+	for( auto it = m_constParameters.begin(); it != m_constParameters.end(); ++it )
+	{
+		auto name = it->name.c_str();
+		// looks scary, but it's a constant string, so the pointer is unique
+		hash = CcpHashFNV1( &name, sizeof( name ), hash );
+		hash = CcpHashFNV1( &it->value, sizeof( it->value ), hash );
+	}
+	for( auto it = m_parameters.begin(); it != m_parameters.end(); ++it )
+	{
+		hash = ( *it )->GetHashValue( hash );
+	}
+	for( auto it = m_resources.begin(); it != m_resources.end(); ++it )
+	{
+		hash = ( *it )->GetHashValue( hash );
+	}
+	return hash;
+}
+
 ITriEffectParameter* Tr2Effect::FindParameterByName( const char* name ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );

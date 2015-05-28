@@ -70,6 +70,16 @@ const char* Tr2GeometryBufferParameter::GetParameterName() const
 	return m_name.c_str();
 }
 
+unsigned Tr2GeometryBufferParameter::GetHashValue( unsigned startingHash ) const
+{
+	if( !m_resourcePath.empty() )
+	{
+		startingHash = CcpHashFNV1( m_resourcePath.c_str(), m_resourcePath.length() * sizeof( wchar_t ), startingHash );
+	}
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), startingHash );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Implements ITriEffectResourceParameter interface. Checks if parameter is empty, 

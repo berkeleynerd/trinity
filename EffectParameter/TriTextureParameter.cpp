@@ -25,6 +25,16 @@ void TriTextureParameter::SetParameterName( const BlueSharedString& name )
 	m_name = name;
 }
 
+unsigned TriTextureParameter::GetHashValue( unsigned startingHash ) const
+{
+	if( m_resource )
+	{
+		startingHash = CcpHashFNV1( m_resource->GetPath(), wcslen( m_resource->GetPath() ) * sizeof( wchar_t ), startingHash );
+	}
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), startingHash );
+}
+
 // -------------------------------------------------------------
 // Description:
 //   Returns the respath to the currently used texture. Might

@@ -44,6 +44,16 @@ const char* TriFloatArrayParameter::GetParameterName() const
 	return m_name.c_str();
 }
 
+unsigned TriFloatArrayParameter::GetHashValue( unsigned startingHash ) const
+{
+	auto name = m_name.c_str();
+	for( auto it = m_value.begin(); it != m_value.end(); ++it )
+	{
+		startingHash = CcpHashFNV1( &( *it )->m_data, sizeof( Vector4 ), startingHash );
+	}
+	return CcpHashFNV1( &name, sizeof( name ), startingHash );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Determines whether the length of all vector4 parameters in the array is 0 and so the

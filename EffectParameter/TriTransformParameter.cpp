@@ -19,6 +19,13 @@ size_t TriTransformParameter::GetValueSize() const
 	return sizeof(Matrix);
 }
 
+unsigned TriTransformParameter::GetHashValue( unsigned startingHash ) const
+{
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), 
+		CcpHashFNV1( &m_transformBase, sizeof( TRITRANSFORMBASE ) + 3 * sizeof( Vector3 ) + sizeof( Quaternion ) + sizeof( Matrix ), startingHash ) );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Determines whether the determinant of the matrix underlying this transform parameter 

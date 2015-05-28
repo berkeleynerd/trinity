@@ -65,6 +65,7 @@ public:
 							unsigned char* destHandle, 
 							size_t isSRGB,
 							Tr2RenderContext &renderContext ) const;
+	unsigned GetHashValue( unsigned startingHash ) const;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// INotify

@@ -22,6 +22,12 @@ const char* Tr2FloatParameter::GetParameterName() const
 	return m_name.c_str();
 }
 
+unsigned Tr2FloatParameter::GetHashValue( unsigned startingHash ) const
+{
+	auto name = m_name.c_str();
+	return CcpHashFNV1( &name, sizeof( name ), CcpHashFNV1( &m_value, sizeof( m_value ), startingHash ) );
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Determines whether the value of this float parameter is 0 and be ignored when

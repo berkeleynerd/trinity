@@ -34,6 +34,7 @@ public:
 	// The following methods are potentially used by the old scene.  This parameter will
 	// never be used there so I'm simply going to stub them out.
 	void RebuildEffectHandles( ITr2ShaderState* effectRes ) {};
+	unsigned GetHashValue( unsigned startingHash ) const;
 
 
 	EXPOSE_TO_BLUE();
