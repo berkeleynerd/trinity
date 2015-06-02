@@ -96,6 +96,31 @@ void EveShip2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Render
 	}
 }
 
+void EveShip2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	EveSpaceObject2::RegisterWithQuadRenderer( quadRenderer );
+	if( m_boosters )
+	{
+		m_boosters->RegisterWithQuadRenderer( quadRenderer );
+	}
+}
+
+void EveShip2::AddQuadsToQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	if( !m_isInFrustum )
+	{
+		return;
+	}
+	EveSpaceObject2::AddQuadsToQuadRenderer( quadRenderer );
+	if( m_boosters )
+	{
+		if( DisplayChildren() )
+		{
+			m_boosters->AddToQuadRenderer( quadRenderer, m_worldTransform );
+		}
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Update view distance info using this object's bounds. Should be called AFTER

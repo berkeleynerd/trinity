@@ -2,10 +2,28 @@
 #include "EveSpriteSet.h"
 #include "Tr2Effect.h"
 #include "TriRenderBatch.h"
+#include "Utilities/MatrixUtils.h"
+#include "Tr2QuadRenderer.h"
 
 CCP_STATS_DECLARED_ELSEWHERE( primitiveCount );
 
 using namespace Tr2RenderContextEnum;
+
+const Tr2VertexDefinition& EveSpriteSet::PoolVertex::GetDefinition()
+{
+	static Tr2VertexDefinition s_spriteVertexDecl;
+	if( s_spriteVertexDecl.m_items.empty() )
+	{
+		Tr2VertexDefinition& vd = s_spriteVertexDecl;
+		vd.Add( vd.FLOAT32_1, vd.TEXCOORD, 5 );
+
+		vd.Add( vd.FLOAT32_3, vd.POSITION, 0, 1, 1 );
+		vd.Add( vd.FLOAT16_4, vd.TEXCOORD, 0, 1, 1 );
+		vd.Add( vd.FLOAT16_2, vd.TEXCOORD, 1, 1, 1 );
+		vd.Add( vd.UBYTE_4_NORM , vd.COLOR, 0, 1, 1 );
+	}
+	return s_spriteVertexDecl;
+}
 
 struct SpriteVertex
 {
@@ -26,7 +44,12 @@ EveSpriteSet::EveSpriteSet( IRoot* lockobj ) :
 	PARENTLOCK( m_sprites ),
 	m_vertexCount( 0 ),
 	m_display( true ),
-	m_vertexDeclHandle( Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
+	m_vertexDeclHandle( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
+	m_useQuadRenderer( false ),
+	m_skinned( false ),
+	m_effectHash( 0 ),
+	m_buffer( "EveSpriteSet::m_buffer" ),
+	m_spriteData( "EveSpriteSet::m_spriteData" )
 {
 }
 
@@ -40,6 +63,35 @@ bool EveSpriteSet::Initialize()
 	return true;
 }
 
+// --------------------------------------------------------------------------------
+// Description:
+//   Switches sprite set to use shared quad renderer.
+// Arguments:
+//   useQuadRenderer - if the quad renderer should be used
+//   skinned - if the spotlight set should use skinning (only matters for quad rendering)
+// --------------------------------------------------------------------------------
+void EveSpriteSet::UseQuadRenderer( bool useQuadRenderer, bool skinned )
+{
+	if( useQuadRenderer && !m_effect )
+	{
+		CCP_ASSERT_M( false, "effect must be initialized before using quad renderer" );
+		useQuadRenderer = false;
+	}
+	if( m_useQuadRenderer == useQuadRenderer )
+	{
+		return;
+	}
+	m_useQuadRenderer = useQuadRenderer;
+	m_skinned = skinned;
+	if( m_useQuadRenderer )
+	{
+		m_effectHash = m_effect->GetHashValue();
+		ReleaseResources( TRISTORAGE_ALL );
+		PrepareResources();
+	}
+	PrepareResources();
+}
+
 void EveSpriteSet::ReleaseResources( TriStorage s )
 {
 	m_vertexDeclHandle = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
@@ -48,6 +100,36 @@ void EveSpriteSet::ReleaseResources( TriStorage s )
 
 bool EveSpriteSet::OnPrepareResources()
 {
+	if( m_useQuadRenderer )
+	{
+		int n = (unsigned int)m_sprites.GetSize();
+		m_buffer.resize( n );
+		for( int i = 0; i < n; ++i )
+		{
+			auto sprite = m_sprites[i];
+			auto& vertex = m_buffer[i];
+			vertex.m_position = sprite->m_position;
+			uint32_t color = sprite->m_color;
+			vertex.m_color = 
+				( ( color & 0xff0000 ) >> 16 ) |
+				( color & 0xff00ff00 ) |
+				( ( color & 0xff ) << 16 );
+			vertex.m_blinkPhase = sprite->m_blinkPhase;
+			vertex.m_blinkRate = sprite->m_blinkRate;
+			vertex.m_minScale = sprite->m_minScale;
+			vertex.m_maxScale = sprite->m_maxScale;
+			vertex.m_falloff = sprite->m_falloff;
+		}
+
+		m_spriteData.resize( n );
+		for( int i = 0; i < n; ++i )
+		{
+			m_spriteData[i].position = m_sprites[i]->m_position;
+			m_spriteData[i].boneIndex = m_sprites[i]->m_boneIndex;
+		}
+		return true;
+	}
+
 	if( m_vertexBuffer.IsValid() )
 	{
 		return true;
@@ -118,6 +200,112 @@ bool EveSpriteSet::OnPrepareResources()
 	return true;
 }
 
+// --------------------------------------------------------------------------------
+// Description:
+//   Adds sprites to render as booster glow with quad renderer if quad rendering 
+//   was enabled with UseQuadRenderer call.
+// Arguments:
+//   quadRenderer - quad renderer
+//   world - parent local to world transform
+//   boosterGain - parent booster intensity
+// --------------------------------------------------------------------------------
+void EveSpriteSet::AddBoosterGlowToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world, float boosterGain )
+{
+	if( !m_useQuadRenderer || !m_display || m_spriteData.empty() )
+	{
+		return;
+	}
+	Matrix m = Tr2Renderer::GetIdentityTransform();
+	auto n = m_spriteData.size();
+
+	XMVector3TransformCoordStream( reinterpret_cast
+		<XMFLOAT3*>( &m_buffer[0].m_position ), 
+		sizeof( PoolVertex ), 
+		reinterpret_cast<XMFLOAT3*>( &m_spriteData[0].position ), 
+		sizeof( SpriteData ), 
+		uint32_t( n ), 
+		world );
+
+	D3DXVECTOR3_16F zDir( world.GetZ() );
+	uint32_t gain = std::min( uint32_t( boosterGain * 255.f ), 255u ) << 24;
+	for( size_t i = 0; i < n; ++i )
+	{
+		auto& vert = m_buffer[i];
+		vert.activation = zDir.x;
+		vert.m_blinkRate = zDir.y;
+		vert.m_falloff = zDir.z;
+		vert.m_color = ( vert.m_color & 0xffffff ) | gain;
+
+	}
+	quadRenderer.AddQuads( m_effectHash, &m_buffer[0], m_sprites.GetSize() );
+}
+
+void EveSpriteSet::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	if( m_useQuadRenderer )
+	{
+		quadRenderer.RegisterEffect( m_effectHash, sizeof( PoolVertex ), 1, PoolVertex::GetDefinition(), m_effect );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Adds sprites to render with quad renderer if quad rendering was enabled with 
+//   UseQuadRenderer call.
+// Arguments:
+//   quadRenderer - quad renderer
+//   world - parent local to world transform
+//   activation - parent "activation" state
+//   bones - array of bone transforms
+//   boneCount - number of bones
+// --------------------------------------------------------------------------------
+void EveSpriteSet::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world, float activation, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	if( !m_useQuadRenderer || !m_display || m_spriteData.empty() )
+	{
+		return;
+	}
+	Matrix m = Tr2Renderer::GetIdentityTransform();
+	auto n = m_spriteData.size();
+	if( !m_skinned )
+	{
+		XMVector3TransformCoordStream( 
+			reinterpret_cast<XMFLOAT3*>( &m_buffer[0].m_position ), 
+			sizeof( PoolVertex ), 
+			reinterpret_cast<XMFLOAT3*>( &m_spriteData[0] ), 
+			sizeof( SpriteData ), 
+			uint32_t( n ), 
+			world );
+	}
+	else
+	{
+		for( size_t i = 0; i < n; ++i )
+		{
+			auto boneIndex = m_spriteData[i].boneIndex;
+			if( boneIndex < boneCount )
+			{
+				TriMatrixCopyFrom3x4( &m, &bones[boneIndex] );
+				XMVECTOR position = XMVector3TransformCoord( XMLoadFloat3( reinterpret_cast<XMFLOAT3*>( &m_spriteData[i] ) ), m );
+				XMStoreFloat3A( 
+					reinterpret_cast<XMFLOAT3*>( &m_buffer[i].m_position ), 
+					XMVector3TransformCoord( position, world ) );
+			}
+			else
+			{
+				XMStoreFloat3A( 
+					reinterpret_cast<XMFLOAT3*>( &m_buffer[i].m_position ), 
+					XMVector3TransformCoord( XMLoadFloat3( reinterpret_cast<XMFLOAT3*>( &m_spriteData[i] ) ), world ) );
+			}
+		}
+	}
+	D3DXFLOAT16 activation16 = activation;
+	for( size_t i = 0; i < n; ++i )
+	{
+		m_buffer[i].activation = activation16;
+	}
+	quadRenderer.AddQuads( m_effectHash, &m_buffer[0], m_sprites.GetSize() );
+}
+
 void EveSpriteSet::Clear()
 {
 	m_vertexDeclHandle = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
@@ -166,7 +354,7 @@ void EveSpriteSet::SubmitGeometry( Tr2RenderContext& renderContext )
 
 void EveSpriteSet::GetBatches( ITriRenderBatchAccumulator* accumulator, const Tr2PerObjectData* perObjectData )
 {
-	if( !m_vertexBuffer.IsValid() || !m_effect )
+	if( !m_vertexBuffer.IsValid() || !m_effect || m_useQuadRenderer )
 	{
 		return;
 	}

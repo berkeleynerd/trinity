@@ -8,6 +8,7 @@ struct ViewDistanceInfo;
 class TriFrustum;
 class Tr2RenderContext;
 class EveUpdateContext;
+class Tr2QuadRenderer;
 
 BLUE_INTERFACE( IEveSpaceObject2 ) : public IRoot
 {
@@ -28,6 +29,11 @@ BLUE_INTERFACE( IEveSpaceObject2 ) : public IRoot
 	virtual bool GetLocalBoundingBox( Vector3 &min, Vector3 &max ) = 0;
 	// Get the local to world transform
 	virtual void GetLocalToWorldTransform( Matrix &transform ) = 0;
+
+	// Registers an object and its attachments with the quad renderer
+	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer ) {}
+	// Adds quads from space object and its attachments to the quad renderer. ATTENTION: this function is called in-parallel
+	virtual void AddQuadsToQuadRenderer( Tr2QuadRenderer& quadRenderer ) {}
 };
 
 BLUE_DECLARE_IVECTOR( IEveSpaceObject2 );

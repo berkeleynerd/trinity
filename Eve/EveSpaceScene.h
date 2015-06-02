@@ -17,6 +17,7 @@
 #include "Tr2Variable.h"
 #include "EveUpdateContext.h"
 #include "Tr2GPUParticlePool.h"
+#include "Tr2QuadRenderer.h"
 
 class TriProjection;
 class TriView;
@@ -509,6 +510,11 @@ private:
 		const std::vector<ShadowReceiver>& objectsReceivingShadow, 
 		const std::vector<IEveSpaceObject2*>& objectsNotReceivingShadow );
 
+	void UpdateQuadRenderer( 
+		const std::vector<ShadowReceiver>& objectsReceivingShadow, 
+		const std::vector<IEveSpaceObject2*>& objectsNotReceivingShadow, 
+		Tr2RenderContext& renderContext );
+
 	bool m_dynamicClipPlanes;
 	float m_nearClip;
 	float m_farClip;
@@ -523,6 +529,8 @@ private:
 
 	float m_taaPixelOffsetScale;
 	void TAAOffset();
+
+	Tr2QuadRendererPtr m_quadRenderer;
 };
 
 TYPEDEF_BLUECLASS( EveSpaceScene );

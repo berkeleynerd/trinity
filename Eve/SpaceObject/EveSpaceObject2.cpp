@@ -1068,6 +1068,58 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Registers space object attachments (sprite and spotlight sets) with quad 
+//   renderer.
+// Arguments:
+//   quadRenderer - quad renderer
+// --------------------------------------------------------------------------------
+void EveSpaceObject2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	for( auto it = m_spriteSets.begin(); it != m_spriteSets.end(); ++it )
+	{
+		(*it)->RegisterWithQuadRenderer( quadRenderer );
+	}
+	for( auto it = m_spotlightSets.begin(); it != m_spotlightSets.end(); ++it )
+	{
+		(*it)->RegisterWithQuadRenderer( quadRenderer );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Adds sprites from sprite sets and spotlight sets to quad renderer.
+// Arguments:
+//   quadRenderer - quad renderer
+// --------------------------------------------------------------------------------
+void EveSpaceObject2::AddQuadsToQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	if( !m_isInFrustum )
+	{
+		return;
+	}
+	size_t boneCount = 0;
+	const granny_matrix_3x4* bones = nullptr;
+	if( m_animationUpdater && m_animationUpdater->IsInitialized() )
+	{
+		boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
+		if( boneCount )
+		{
+			bones = m_animationUpdater->GetMeshBoneMatrixList();
+		}
+	}
+
+	for( auto it = m_spriteSets.begin(); it != m_spriteSets.end(); ++it )
+	{
+		(*it)->AddToQuadRenderer( quadRenderer, m_worldTransform, m_spaceObjectMiscData.y, bones, boneCount );
+	}
+	for( auto it = m_spotlightSets.begin(); it != m_spotlightSets.end(); ++it )
+	{
+		(*it)->AddToQuadRenderer( quadRenderer, m_worldTransform, m_spaceObjectMiscData.y, m_spaceObjectMiscData.x, bones, boneCount );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Gets shadow caster renderables.
 //   Warning: this function can be called on different threads, so it needs to be
 //   thread-safe.

@@ -127,6 +127,7 @@ using std::max;
 #include "tbb/parallel_do.h"
 #include "tbb/parallel_for.h"
 #include "tbb/task.h"
+#include "tbb/combinable.h"
 
 #endif
 

@@ -70,6 +70,7 @@ ALResult Tr2DynamicRingBuffer::PutData(
 	LockType lockType;
 	if( !GetUnusedRegion( size, bufferOffset ) )
 	{
+		CCP_STATS_ZONE( "Tr2DynamicRingBuffer full buffer lock" );
 		bufferOffset = 0;
 		lockType = LOCK_WRITEONLY;
 		RemoveRegions( m_regions.begin(), m_regions.end() );
@@ -297,6 +298,15 @@ bool Tr2DynamicRingBuffer::UseNoOverwriteRegions() const
 	}
 	return g_ringBufferUseNoOverwrite;
 #endif
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Returns the current size of the buffer in bytes.
+// --------------------------------------------------------------------------------------
+uint32_t Tr2DynamicRingBuffer::GetBufferSize() const
+{
+	return m_bufferSize;
 }
 
 

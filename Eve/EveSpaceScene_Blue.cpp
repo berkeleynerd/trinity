@@ -587,6 +587,12 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			m_taaPattern,
 			"Time of the last call to Update, for this scene",
 			Be::READWRITE )
+			
+		MAP_ATTRIBUTE(
+			"quadRenderer",
+			m_quadRenderer,
+			"Quad renderer used for batch-rendering of space object attachments",
+			Be::READ )
 
     EXPOSURE_END()
 }

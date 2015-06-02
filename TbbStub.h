@@ -14,6 +14,7 @@
 #define Tr2ParallelDo tbb::parallel_do
 #define Tr2BlockedRange tbb::blocked_range
 #define Tr2ParallelSort tbb::parallel_sort
+#define Tr2EnumerableThreadSpecific tbb::enumerable_thread_specific
 
 #else
 
@@ -53,6 +54,29 @@ inline void Tr2ParallelFor( const Tr2BlockedRange<T>& range, Func func )
 		func( Tr2BlockedRange<T>( begin, std::min( begin + range.m_step, range.end() ) ) );
 	}
 }
+
+template <typename T>
+class Tr2EnumerableThreadSpecific
+{
+public:
+	T& local()
+	{
+		return m_data;
+	}
+
+	T* begin()
+	{
+		return &m_data;
+	}
+
+	T* end()
+	{
+		return ( &m_data ) + 1;
+	}
+private:
+	T m_data;
+};
+
 #endif
 
 

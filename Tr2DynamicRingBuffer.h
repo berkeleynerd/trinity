@@ -36,6 +36,8 @@ public:
 		Tr2RenderContext& renderContext );
 	void DoneUsingData( Tr2RenderContext& renderContext );
 
+	uint32_t GetBufferSize() const;
+
 	virtual bool IsValid() const = 0;
 
 	//////////////////////////////////////////////////////////////////////////

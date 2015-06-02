@@ -159,6 +159,8 @@ public:
 	virtual void GetCurrentModelCenterWorldPosition( Vector3 &position );
 	virtual bool GetLocalBoundingBox( Vector3 &min, Vector3 &max );
 	virtual void GetLocalToWorldTransform( Matrix &transform );
+	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
+	virtual void AddQuadsToQuadRenderer( Tr2QuadRenderer& quadRenderer );
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveShadowCaster

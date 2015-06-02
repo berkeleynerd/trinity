@@ -70,7 +70,7 @@ private:
 	PEveSOFDataMgr m_dataMgr;
 
 	// shared
-	Tr2EffectPtr m_spriteSetEffect, m_spriteSetEffectSkinned;
+	Tr2EffectPtr m_spriteSetEffect;
 	Tr2EffectPtr m_shadowEffect, m_shadowEffectSkinned;
 };
 

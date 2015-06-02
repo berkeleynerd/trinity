@@ -1035,6 +1035,35 @@ void EveBoosterSet2::UpdateViewDistanceInfo( const TriFrustum& frustum, ViewDist
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Registers glow sprites with quad renderer.
+// Arguments:
+//   quadRenderer - quad renderer
+// --------------------------------------------------------------------------------
+void EveBoosterSet2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
+{
+	if( m_glows )
+	{
+		m_glows->RegisterWithQuadRenderer( quadRenderer );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Adds glow sprites to quad renderer.
+// Arguments:
+//   quadRenderer - quad renderer
+//   world - parent local to world transform
+// --------------------------------------------------------------------------------
+void EveBoosterSet2::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world )
+{
+	if( m_glows )
+	{
+		m_glows->AddBoosterGlowToQuadRenderer( quadRenderer, world, m_overallIntensity );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Copy all the matrices to HW
 // --------------------------------------------------------------------------------
 void EveBoosterSetPerObjectData::SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const

@@ -42,6 +42,10 @@ public:
     EveSpotlightSet( IRoot* lockobj = NULL );
 	~EveSpotlightSet();
 
+	void UseQuadRenderer( bool useQuadRenderer, bool skinned );
+	void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
+	void AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world, float activation, float boosterGain, const granny_matrix_3x4* bones, size_t boneCount );
+
 	void GetBatches( ITriRenderBatchAccumulator* accumulator, const Tr2PerObjectData* perObjectData );
 
 	/////////////////////////////////////////////////////////////////////////////////////
@@ -77,6 +81,8 @@ public:
 private:
 	bool OnPrepareResources();
 	bool m_display;	
+	bool m_useQuadRenderer;
+	bool m_skinned;
 	std::string m_name;
 
 	PEveSpotlightSetItemVector m_spotlightItems;
@@ -90,6 +96,46 @@ private:
 
 	unsigned int m_spriteVertexCount;
 	Tr2VertexBufferAL m_spriteVertexBuffer;
+
+	struct GlowPoolVertex
+	{
+		Vector4 m_transform1;
+		Vector4 m_transform2;
+		Vector4 m_transform3;
+		D3DXFLOAT16 m_spriteColor[3];
+		D3DXFLOAT16 m_activation;
+		D3DXFLOAT16 m_flareColor[3];
+		D3DXFLOAT16 _unused;
+		D3DXFLOAT16 m_scale[3];
+		D3DXFLOAT16 m_boosterGainInfluence;
+
+		static const Tr2VertexDefinition& GetDefinition();
+	};
+
+	struct ConePoolVertex
+	{
+		Vector4 m_transform1;
+		Vector4 m_transform2;
+		Vector4 m_transform3;
+		D3DXFLOAT16 m_color[3];
+		D3DXFLOAT16 m_activation;
+		D3DXFLOAT16 m_boosterGainInfluence;
+		D3DXFLOAT16 _unused;
+
+		static const Tr2VertexDefinition& GetDefinition();
+	};
+
+	unsigned m_coneEffectHash;
+	unsigned m_glowEffectHash;
+	TrackableStdVector<ConePoolVertex> m_coneBuffer;
+	TrackableStdVector<GlowPoolVertex> m_glowBuffer;
+	struct SpotlightData
+	{
+		Matrix transform;
+		uint32_t boneIndex;
+		float boosterGainInfluence;
+	};
+	TrackableStdVector<SpotlightData> m_spotlightData;
 };
 
 TYPEDEF_BLUECLASS( EveSpotlightSet );

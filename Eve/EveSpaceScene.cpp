@@ -229,6 +229,8 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_taaSamplingPatterns[6] = Vector2( -.67f, -.1f );
 	m_taaSamplingPatterns[7] = Vector2( .1f, .67f );
 	m_taaSamplingPatterns[8] = Vector2( .67f, -.67f );
+
+	m_quadRenderer.CreateInstance();
 }
 
 EveSpaceScene::~EveSpaceScene()
@@ -1292,6 +1294,9 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 		obj->GetRenderables( frustum, shadowRenderables, Tr2Renderer::GetIdentityTransform() );
 	}
 
+	UpdateQuadRenderer( objectsReceivingShadow, objectsNotReceivingShadow, renderContext );
+	m_quadRenderer->GetBatches( m_primaryBatches[TRIBATCHTYPE_ADDITIVE] );
+
 	GetAllBatchesFromRenderables( renderables, transparentObjects, m_primaryBatches );
 	GetTransparentBatchesFromRenderables( shadowRenderables, transparentObjects, m_primaryBatches );
 	PrepareTransparentBatch( transparentObjects, m_primaryBatches );
@@ -1352,6 +1357,41 @@ void EveSpaceScene::UpdateShLighting(
 			}
 		} );
 	}
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Adds quads from visible space objects to a quad renderer.
+// Arguments:
+//   objectsReceivingShadow - list of visible object
+//   objectsNotReceivingShadow - another list of visible object
+//   renderContext - current render context
+// --------------------------------------------------------------------------------------
+void EveSpaceScene::UpdateQuadRenderer( 
+	const std::vector<ShadowReceiver>& objectsReceivingShadow, 
+	const std::vector<IEveSpaceObject2*>& objectsNotReceivingShadow, 
+	Tr2RenderContext& renderContext )
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+
+	auto& quadRenderer = *m_quadRenderer;
+
+	Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, objectsReceivingShadow.size(), 20 ), [&] ( Tr2BlockedRange<size_t> range ) 
+	{
+		for( auto i = range.begin(); i != range.end(); ++i )
+		{
+			objectsReceivingShadow[i].object->AddQuadsToQuadRenderer( quadRenderer );
+		}
+	} );
+
+	Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, objectsNotReceivingShadow.size(), 20 ), [&] ( Tr2BlockedRange<size_t> range ) 
+	{
+		for( auto i = range.begin(); i != range.end(); ++i )
+		{
+			objectsNotReceivingShadow[i]->AddQuadsToQuadRenderer( quadRenderer );
+		}
+	} );
+	quadRenderer.BeginRendering( renderContext );
 }
 
 // --------------------------------------------------------------------------------------
@@ -1656,6 +1696,8 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 		return;
 	}
 
+	m_quadRenderer->DoneRendering( renderContext );
+
 	renderContext.m_esm.BeginManagedRendering();
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
 
@@ -1848,6 +1890,8 @@ void EveSpaceScene::ClearBatches( BatchMap& batches )
 // --------------------------------------------------------------------------------------
 void EveSpaceScene::FinalizeBatches( BatchMap& batches )
 {
+	CCP_STATS_ZONE( __FUNCTION__ );
+
 	for( auto it = batches.begin(); it != batches.end(); ++it )
 	{
 		it->second->Finalize();
@@ -2123,32 +2167,40 @@ void EveSpaceScene::OnListModified(
 	IRoot* value,
 	const struct IList* theList )
 {
-	if( !m_shLightingManager )
-	{
-		return;
-	}
 	switch( event & BELIST_EVENTMASK )
 	{
 	case BELIST_INSERTED:
 		{
-			ITr2SecondaryLightSourcePtr lightSource = BlueCastPtr( value );
-			if( lightSource )
+			if( m_shLightingManager )
 			{
-				lightSource->RegisterSecondaryLightSource( *m_shLightingManager );
+				ITr2SecondaryLightSourcePtr lightSource = BlueCastPtr( value );
+				if( lightSource )
+				{
+					lightSource->RegisterSecondaryLightSource( *m_shLightingManager );
+				}
+			}
+
+			IEveSpaceObject2Ptr spaceObject = BlueCastPtr( value );
+			if( spaceObject )
+			{
+				spaceObject->RegisterWithQuadRenderer( *m_quadRenderer );
 			}
 		}
 		break;
 	case BELIST_REMOVED:
 		{
-			ITr2SecondaryLightSourcePtr lightSource = BlueCastPtr( value );
-			if( lightSource )
+			if( m_shLightingManager )
 			{
-				lightSource->UnregisterSecondaryLightSource( *m_shLightingManager );
-			}
-			ITr2ShLightingReceiverPtr receiver = BlueCastPtr( value );
-			if( receiver )
-			{
-				receiver->ClearShLighting();
+				ITr2SecondaryLightSourcePtr lightSource = BlueCastPtr( value );
+				if( lightSource )
+				{
+					lightSource->UnregisterSecondaryLightSource( *m_shLightingManager );
+				}
+				ITr2ShLightingReceiverPtr receiver = BlueCastPtr( value );
+				if( receiver )
+				{
+					receiver->ClearShLighting();
+				}
 			}
 		}
 		break;

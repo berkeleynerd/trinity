@@ -15,6 +15,7 @@ class ITriRenderBatchAccumulator;
 class Tr2PerObjectData;
 class TriFrustum;
 struct ViewDistanceInfo;
+class Tr2QuadRenderer;
 BLUE_DECLARE( Tr2Effect );
 BLUE_DECLARE( EveSpriteSet );
 BLUE_DECLARE( EveTrailsSet );
@@ -164,6 +165,9 @@ public:
 	// get the transformed bounding sphere, ready for use
 	void GetBoundingSphere( Vector4& boundingSphere ) const;
 	void UpdateViewDistanceInfo( const TriFrustum& frustum, ViewDistanceInfo& viewDistance ) const;
+
+	void RegisterWithQuadRenderer( Tr2QuadRenderer& pool );
+	void AddToQuadRenderer( Tr2QuadRenderer& pool, const Matrix& world );
 
 private:
 	// re-alloc and init the instance vertex buffers
