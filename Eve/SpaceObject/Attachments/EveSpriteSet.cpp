@@ -226,14 +226,16 @@ void EveSpriteSet::AddBoosterGlowToQuadRenderer( Tr2QuadRenderer& quadRenderer, 
 		uint32_t( n ), 
 		world );
 
-	D3DXVECTOR3_16F zDir( world.GetZ() );
+	D3DXFLOAT16 zDirX = world.GetZ().x;
+	D3DXFLOAT16 zDirY = world.GetZ().y;
+	D3DXFLOAT16 zDirZ = world.GetZ().z;
 	uint32_t gain = std::min( uint32_t( boosterGain * 255.f ), 255u ) << 24;
 	for( size_t i = 0; i < n; ++i )
 	{
 		auto& vert = m_buffer[i];
-		vert.activation = zDir.x;
-		vert.m_blinkRate = zDir.y;
-		vert.m_falloff = zDir.z;
+		vert.activation = zDirX;
+		vert.m_blinkRate = zDirY;
+		vert.m_falloff = zDirZ;
 		vert.m_color = ( vert.m_color & 0xffffff ) | gain;
 
 	}
