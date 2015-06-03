@@ -6,7 +6,8 @@ EveLocalPositionCurve::EveLocalPositionCurve(IRoot* lockobj) :
 	m_value( 0.0f, 0.0f, 0.0f ),
 	m_boundingBoxSize( 0.0f, 0.0f, 0.0f ),
 	m_index( -1 ),
-	m_behavior ( POS_NONE )
+	m_behavior ( POS_NONE ),
+	m_offset( 0.0f )
 {	
 }
 
@@ -14,8 +15,8 @@ EveLocalPositionCurve::~EveLocalPositionCurve()
 {
 }
 
-Vector3* EveLocalPositionCurve::CalculateNearestBoundingPoint( Vector3* in, Be::Time t )
-{	
+Vector3* EveLocalPositionCurve::CalculateNearestBoundingPointWithAddedOffset( Vector3* in, Be::Time t, float offset )
+{
 	if (m_parentPositionCurve && m_alignPositionCurve && m_parentRotationCurve)
 	{
 		
@@ -49,7 +50,7 @@ Vector3* EveLocalPositionCurve::CalculateNearestBoundingPoint( Vector3* in, Be::
 		// Dir is now transformed into the direction in relation to the rotation of the ship
 		// We can now compute the scaling that's required on the vector using a standard ellipsiod equation
 
-		float scalingValue = 0.0f;
+		float scalingValue = offset;
 
 		// if the object is really small (or the bounding size is erroring), just use the center of it, rather than
 		// giving a NaN result in this formula
@@ -61,7 +62,7 @@ Vector3* EveLocalPositionCurve::CalculateNearestBoundingPoint( Vector3* in, Be::
 			// (all three axes equally) for the vector to satisfy the ellipsiod equation
 			// solution to 1 = (x*theta)^2/a^2 + ....
 			// (always want the positive answer)
-			scalingValue = fabs(
+			scalingValue += fabs(
 								(m_boundingBoxSize.x * m_boundingBoxSize.y * m_boundingBoxSize.z) /
 								sqrt(
 									(transformedDir.x * transformedDir.x) * (m_boundingBoxSize.y * m_boundingBoxSize.y) * (m_boundingBoxSize.z * m_boundingBoxSize.z) + 
@@ -142,11 +143,13 @@ Vector3* EveLocalPositionCurve::Update(
 	switch( m_behavior )
 	{
 	case POS_NEAREST_BOUNDING_POINT:
-		return CalculateNearestBoundingPoint( in, t );
+		return CalculateNearestBoundingPointWithAddedOffset( in, t, 0.0f );
 	case POS_CENTER_BOUNDING_POINT:
 		return GetCenterBoundingSphere( in, t );
 	case POS_TARGET_DMG_LOCATOR:
 		return GetDamageLocator( in, t );
+	case POS_OFFSET_NEAREST_BOUNDING_POINT:
+		return CalculateNearestBoundingPointWithAddedOffset( in, t, m_offset );
 	default:
 		break;
 	}

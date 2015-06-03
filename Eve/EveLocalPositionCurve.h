@@ -27,11 +27,12 @@ public:
 
 	enum LocalPositionBehavior
 	{
-		POS_NONE                   = 0,
-		POS_NEAREST_BOUNDING_POINT = 1,
-		POS_CENTER_BOUNDING_POINT  = 2,
-		POS_TARGET_DMG_LOCATOR     = 3,
-		POS_COUNT                  = 4,
+		POS_NONE							= 0,
+		POS_NEAREST_BOUNDING_POINT			= 1,
+		POS_CENTER_BOUNDING_POINT			= 2,
+		POS_TARGET_DMG_LOCATOR				= 3,
+		POS_OFFSET_NEAREST_BOUNDING_POINT	= 4,
+		POS_COUNT							= 5,
 	};
 
 	LocalPositionBehavior m_behavior;
@@ -62,10 +63,12 @@ private:
 	ITriVectorFunctionPtr		m_parentPositionCurve;
 	ITriQuaternionFunctionPtr	m_parentRotationCurve;
 	ITriVectorFunctionPtr		m_alignPositionCurve;
+	float m_offset;
 	Vector3 m_value;
 	Vector3 m_boundingBoxSize;
 
-	Vector3* CalculateNearestBoundingPoint( Vector3* in, Be::Time t );
+
+	Vector3* CalculateNearestBoundingPointWithAddedOffset( Vector3* in, Be::Time t, float offset );
 	Vector3* GetCenterBoundingSphere( Vector3* in, Be::Time t );
 	Vector3* GetDamageLocator( Vector3* in, Be::Time t );
 	void SetBehavior( LocalPositionBehavior behavior );
