@@ -16,11 +16,6 @@ Be::VarChooser EveLocalPositionChooser[] =
 		"use the closest point on the ellyptical bounding sphere of the parent object."
 	},
 	{
-		"offsetNearestBounds",
-		BeCast( EveLocalPositionCurve::POS_OFFSET_NEAREST_BOUNDING_POINT),     
-		"offset closest point on the ellyptical bounding sphere of the parent object."
-	},
-	{
 		"centerBounds",
 		BeCast( EveLocalPositionCurve::POS_CENTER_BOUNDING_POINT),
 		"Use the center of the bounding sphere of the parent object."

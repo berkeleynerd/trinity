@@ -15,7 +15,7 @@ EveLocalPositionCurve::~EveLocalPositionCurve()
 {
 }
 
-Vector3* EveLocalPositionCurve::CalculateNearestBoundingPointWithAddedOffset( Vector3* in, Be::Time t, float offset )
+Vector3* EveLocalPositionCurve::CalculateNearestBoundingPoint( Vector3* in, Be::Time t )
 {
 	if (m_parentPositionCurve && m_alignPositionCurve && m_parentRotationCurve)
 	{
@@ -50,7 +50,7 @@ Vector3* EveLocalPositionCurve::CalculateNearestBoundingPointWithAddedOffset( Ve
 		// Dir is now transformed into the direction in relation to the rotation of the ship
 		// We can now compute the scaling that's required on the vector using a standard ellipsiod equation
 
-		float scalingValue = offset;
+		float scalingValue = m_offset;
 
 		// if the object is really small (or the bounding size is erroring), just use the center of it, rather than
 		// giving a NaN result in this formula
@@ -143,13 +143,11 @@ Vector3* EveLocalPositionCurve::Update(
 	switch( m_behavior )
 	{
 	case POS_NEAREST_BOUNDING_POINT:
-		return CalculateNearestBoundingPointWithAddedOffset( in, t, 0.0f );
+		return CalculateNearestBoundingPoint( in, t );
 	case POS_CENTER_BOUNDING_POINT:
 		return GetCenterBoundingSphere( in, t );
 	case POS_TARGET_DMG_LOCATOR:
 		return GetDamageLocator( in, t );
-	case POS_OFFSET_NEAREST_BOUNDING_POINT:
-		return CalculateNearestBoundingPointWithAddedOffset( in, t, m_offset );
 	default:
 		break;
 	}

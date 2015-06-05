@@ -31,8 +31,7 @@ public:
 		POS_NEAREST_BOUNDING_POINT			= 1,
 		POS_CENTER_BOUNDING_POINT			= 2,
 		POS_TARGET_DMG_LOCATOR				= 3,
-		POS_OFFSET_NEAREST_BOUNDING_POINT	= 4,
-		POS_COUNT							= 5,
+		POS_COUNT							= 4,
 	};
 
 	LocalPositionBehavior m_behavior;
@@ -68,7 +67,7 @@ private:
 	Vector3 m_boundingBoxSize;
 
 
-	Vector3* CalculateNearestBoundingPointWithAddedOffset( Vector3* in, Be::Time t, float offset );
+	Vector3* CalculateNearestBoundingPoint( Vector3* in, Be::Time t );
 	Vector3* GetCenterBoundingSphere( Vector3* in, Be::Time t );
 	Vector3* GetDamageLocator( Vector3* in, Be::Time t );
 	void SetBehavior( LocalPositionBehavior behavior );
