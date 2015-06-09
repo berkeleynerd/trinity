@@ -17,6 +17,7 @@ BLUE_REGISTER_RESOURCE_EXTENSION( L"sddatlas", CreateTr2AtlasTextureRes );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"pngatlas", CreateTr2AtlasTextureRes );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"jpgatlas", CreateTr2AtlasTextureRes );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"jpegatlas", CreateTr2AtlasTextureRes );
+BLUE_REGISTER_RESOURCE_EXTENSION( L"ecsatlas", CreateTr2AtlasTextureRes );
 
 #if BLUE_WITH_PYTHON
 static PyObject* PyLockBuffer( PyObject* self, PyObject* args )

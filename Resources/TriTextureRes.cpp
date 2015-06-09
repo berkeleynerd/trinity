@@ -43,6 +43,7 @@ BLUE_REGISTER_RESOURCE_EXTENSION( L"tga", CreateTextureResource );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"jpg", CreateTextureResource );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"jpeg", CreateTextureResource );
 BLUE_REGISTER_RESOURCE_EXTENSION( L"bmp", CreateTextureResource );
+BLUE_REGISTER_RESOURCE_EXTENSION( L"ecs", CreateTextureResource );
 
 } // end of anonymous namespace
 
@@ -366,8 +367,16 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 	m_loadedBitmap.reset( CCP_NEW( "TriTextureRes::m_loadedBitmap" ) ImageIO::HostBitmap );
 	CCP_ASSERT( m_loadedBitmap != nullptr );
 
-	ImageIO::LoadParameters params( m_path.c_str(), ComputeMipSkipCount(), m_mipLevelMaxCount );
-	auto result = ImageIO::ReadImage( *m_dataStream, params, *m_loadedBitmap, &m_metadata );
+	ImageIO::Result result;
+	if( Tr2ImageIOHelpers::IsCairoScriptPath( GetFilePath().c_str() ) )
+	{
+		result = Tr2ImageIOHelpers::RasterizeCairoScript( m_dataStream, m_queryArguments, *m_loadedBitmap );
+	}
+	else
+	{
+		ImageIO::LoadParameters params( m_path.c_str(), ComputeMipSkipCount(), m_mipLevelMaxCount );
+		result = ImageIO::ReadImage( *m_dataStream, params, *m_loadedBitmap, &m_metadata );
+	}
 	if( !result )
 	{
 		CCP_LOGERR( "Tr2ImageHandler failed to load texture '%S': %s", GetPath(), result.GetErrorMessage().c_str() );

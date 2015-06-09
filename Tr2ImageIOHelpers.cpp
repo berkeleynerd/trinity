@@ -1,5 +1,7 @@
 #include "StdAfx.h"
 #include "Tr2ImageIOHelpers.h"
+#include "cairo.h"
+#include "cairo-script-interpreter.h"
 
 using namespace Tr2RenderContextEnum;
 
@@ -96,6 +98,59 @@ bool CreateVolumeTexture( ImageIO::HostBitmap& bitmap, Tr2TextureAL &out,
 	}
 
 	return true;
+}
+
+
+
+struct CairoData
+{
+	cairo_surface_t* surface;
+	uint32_t width;
+	uint32_t height;
+	double originalWidth;
+	double originalHeight;
+};
+
+cairo_surface_t* SurfaceCreate( void *closure, cairo_content_t, double width, double height, long )
+{
+	auto data = static_cast<CairoData*>( closure );
+	data->originalWidth = width;
+	data->originalHeight = height;
+	if( data->width == 0 && data->height == 0 )
+	{
+		data->width = uint32_t( width + 0.5f );
+		data->height = uint32_t( height + 0.5f );
+	}
+	else if( data->width == 0 )
+	{
+		data->width = uint32_t( width * data->height / height + 0.5f );
+	}
+	else if( data->height == 0 )
+	{
+		data->height = uint32_t( width * data->width / height + 0.5f );
+	}
+	data->surface = cairo_image_surface_create( CAIRO_FORMAT_ARGB32, data->width, data->height );
+	return cairo_surface_reference( data->surface );
+}
+
+cairo_t* ContextCreate( void *closure, cairo_surface_t *surface )
+{
+	auto data = static_cast<CairoData*>( closure );
+	auto context = cairo_create( surface );
+	cairo_scale( context, data->width / data->originalWidth, data->height / data->originalHeight );
+	return context;
+}
+
+const BlueAsyncRes::QueryArgument* FindFirstQueryArgumentByName( const BlueAsyncRes::QueryArguments& arguments, const wchar_t* name )
+{
+	for( auto it = std::begin( arguments ); it != std::end( arguments ); ++it )
+	{
+		if( it->first == name )
+		{
+			return &( *it );
+		}
+	}
+	return nullptr;
 }
 
 
@@ -357,6 +412,116 @@ void AddMargin(	const Tr2RenderContextEnum::PixelFormat format,
 
 		CCP_ASSERT( dst == &output[0] + output.size() );
 	}
+}
+
+bool IsCairoScriptPath( const wchar_t* path )
+{
+	auto length = wcslen( path );
+	return length > 4 && _wcsicmp( path + length - 4, L".ecs" ) == 0;
+}
+
+bool RasterizeCairoScript( const char* script, size_t length, uint32_t width, uint32_t height, ImageIO::HostBitmap& bitmap )
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+
+	std::unique_ptr<CairoData> data( new CairoData );
+	data->surface = nullptr;
+	data->width = width;
+	data->height = height;
+	data->originalWidth = width;
+	data->originalHeight = height;
+
+	cairo_script_interpreter_hooks_t hooks = {
+		data.get(),
+		&SurfaceCreate,
+		nullptr,
+		&ContextCreate,
+	};
+
+	bool success;
+
+	{
+		CCP_STATS_ZONE( "Cairo rasterizing" );
+
+		auto interpreter = cairo_script_interpreter_create();
+		cairo_script_interpreter_install_hooks( interpreter, &hooks );
+		success = cairo_script_interpreter_feed_string( interpreter, script, length ) == CAIRO_STATUS_SUCCESS;
+		cairo_script_interpreter_finish( interpreter );
+		cairo_script_interpreter_destroy( interpreter );
+	}
+
+	if( !data->surface )
+	{
+		success = false;
+	}
+
+	if( success )
+	{
+		if( bitmap.Create( data->width, data->height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ) )
+		{
+			auto src = cairo_image_surface_get_data( data->surface );
+			auto srcStride = cairo_image_surface_get_stride( data->surface );
+			auto dest = bitmap.GetRawData();
+			auto destStride = bitmap.GetPitch();
+
+			for( uint32_t j = 0; j < data->height; ++j )
+			{
+				memcpy( dest, src, std::min( unsigned( srcStride ), destStride ) );
+				src += srcStride;
+				dest += destStride;
+			}
+		}
+		else
+		{
+			success = false;
+		}
+	}
+	if( data->surface )
+	{
+		cairo_surface_destroy( data->surface );
+	}
+	return true;
+}
+
+ImageIO::Result RasterizeCairoScript( IBlueStream* stream, const BlueAsyncRes::QueryArguments& arguments, ImageIO::HostBitmap& bitmap )
+{
+	if( !stream )
+	{
+		return ImageIO::Result( ImageIO::Result::INVALID_DATA );
+	}
+
+	uint32_t width = 0;
+	uint32_t height = 0;
+
+	auto widthArgument = FindFirstQueryArgumentByName( arguments, L"width" );
+	if( widthArgument )
+	{
+		width = _wtoi( widthArgument->second.c_str() );
+	}
+
+	auto heightArgument = FindFirstQueryArgumentByName( arguments, L"height" );
+	if( heightArgument )
+	{
+		height = _wtoi( heightArgument->second.c_str() );
+	}
+
+	CcpMallocBuffer script( "RasterizeCairoScript", stream->GetSize() );
+	if( !script.size() )
+	{
+		CCP_LOGERR( "RasterizeCairoScript: out of memory when reading stream of size %" CCP_SIZET_FORMAT, size_t( stream->GetSize() ) );
+		return ImageIO::Result( ImageIO::Result::OUT_OF_MEMORY );
+	}
+	if( stream->Read( script.get(), script.size() ) != script.size() )
+	{
+		CCP_LOGERR( "RasterizeCairoScript: failed to read file" );
+		return ImageIO::Result( ImageIO::Result::READ_FAILURE );
+	}
+
+	if( !RasterizeCairoScript( script.get(), script.size(), width, height, bitmap ) )
+	{
+		return ImageIO::Result( ImageIO::Result::INVALID_DATA );
+	}
+	return ImageIO::Result( ImageIO::Result::OK );
 }
 
 }
