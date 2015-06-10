@@ -101,8 +101,6 @@ bool CreateVolumeTexture( ImageIO::HostBitmap& bitmap, Tr2TextureAL &out,
 }
 
 
-#ifndef _WIN64
-
 struct CairoData
 {
 	cairo_surface_t* surface;
@@ -141,8 +139,6 @@ cairo_t* ContextCreate( void *closure, cairo_surface_t *surface )
 	cairo_scale( context, data->width / data->originalWidth, data->height / data->originalHeight );
 	return context;
 }
-
-#endif
 
 const BlueAsyncRes::QueryArgument* FindFirstQueryArgumentByName( const BlueAsyncRes::QueryArguments& arguments, const wchar_t* name )
 {
@@ -419,12 +415,15 @@ void AddMargin(	const Tr2RenderContextEnum::PixelFormat format,
 bool IsCairoScriptPath( const wchar_t* path )
 {
 	auto length = wcslen( path );
-	return length > 4 && _wcsicmp( path + length - 4, L".ecs" ) == 0;
+    auto ext = path + length - 4;
+	return length > 4 && ext[0] == L'.' &&
+        ( ext[1] == L'e' || ext[1] == L'E' ) &&
+        ( ext[1] == L'C' || ext[1] == L'C' ) &&
+        ( ext[1] == L'S' || ext[1] == L'S' );
 }
 
 bool RasterizeCairoScript( const char* script, size_t length, uint32_t width, uint32_t height, ImageIO::HostBitmap& bitmap )
 {
-#ifndef _WIN64
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	std::unique_ptr<CairoData> data( new CairoData );
@@ -484,9 +483,6 @@ bool RasterizeCairoScript( const char* script, size_t length, uint32_t width, ui
 		cairo_surface_destroy( data->surface );
 	}
 	return true;
-#else
-	return false;
-#endif
 }
 
 ImageIO::Result RasterizeCairoScript( IBlueStream* stream, const BlueAsyncRes::QueryArguments& arguments, ImageIO::HostBitmap& bitmap )
@@ -502,13 +498,13 @@ ImageIO::Result RasterizeCairoScript( IBlueStream* stream, const BlueAsyncRes::Q
 	auto widthArgument = FindFirstQueryArgumentByName( arguments, L"width" );
 	if( widthArgument )
 	{
-		width = _wtoi( widthArgument->second.c_str() );
+		width = uint32_t( wcstol( widthArgument->second.c_str(), nullptr, 10 ) );
 	}
 
 	auto heightArgument = FindFirstQueryArgumentByName( arguments, L"height" );
 	if( heightArgument )
 	{
-		height = _wtoi( heightArgument->second.c_str() );
+		height = uint32_t( wcstol( heightArgument->second.c_str(), nullptr, 10 ) );
 	}
 
 	CcpMallocBuffer script( "RasterizeCairoScript", stream->GetSize() );
