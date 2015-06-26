@@ -1556,7 +1556,6 @@ float EveTurretSet::PlayAnimation( unsigned int turretIndex, const std::string& 
 			}
 			if( animIx == grannyFileInfo->AnimationCount )
 			{
-				CCP_LOGWARN( "Animation %s not found in %s!", animName.c_str(), m_name.c_str() );
 				return 0.f;
 			}
 		}
@@ -1574,7 +1573,6 @@ float EveTurretSet::PlayAnimation( unsigned int turretIndex, const std::string& 
 			}
 			if( idleIx == grannyFileInfo->AnimationCount )
 			{
-				CCP_LOGWARN( "Animation %s not found in %s!", animNameIdle.c_str(), m_name.c_str() );
 				return 0.f;
 			}
 		}
