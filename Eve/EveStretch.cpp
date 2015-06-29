@@ -268,9 +268,15 @@ void EveStretch::Start()
 	m_startTime = -1;
 	m_moving = true;
 	m_moveCompleted = false;
+	
 	if( m_moveObject )
 	{
 		m_moveObject->SetDisplay( true );
+	}
+
+	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
+	{
+		(*it)->Play();
 	}
 }
 
