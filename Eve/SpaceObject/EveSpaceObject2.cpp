@@ -1987,6 +1987,15 @@ void EveSpaceObject2::AddToChildrenList( EveTransformPtr transform )
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Add a child to the effectChildren list
+// --------------------------------------------------------------------------------
+void EveSpaceObject2::AddToEffectChildrenList( IEveSpaceObjectChildPtr child ) 
+{
+	m_effectChildren.Append( child->GetRootObject() );
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Add a model rotation curve
 // --------------------------------------------------------------------------------
 void EveSpaceObject2::SetModelRotationCurve( ITriQuaternionFunctionPtr rotationCurve )

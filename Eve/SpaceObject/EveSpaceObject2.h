@@ -258,6 +258,9 @@ public:
 	// access to children
 	void AddToChildrenList( EveTransformPtr transform );
 
+	// add to children
+	void AddToEffectChildrenList( IEveSpaceObjectChildPtr child );
+
 	// access to curves
 	void SetModelRotationCurve( ITriQuaternionFunctionPtr rotationCurve );
 	void SetModelTranslationCurve( ITriVectorFunctionPtr translationCurve );
