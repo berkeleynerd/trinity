@@ -103,6 +103,9 @@ void Tr2LightManager::AddPointLight( const Vector3& position, float radius, cons
 		m_frustum.GetPixelSizeAccross( reinterpret_cast<Vector4*>( &data.position ) ) > CUTOFF_PIXEL_SIZE  )
 	{
 		data.color = reinterpret_cast<const Vector3&>( color );
+		data.color.x *= radius;
+		data.color.y *= radius;
+		data.color.z *= radius;
 		m_lightData.Add( data, "Tr2LightManager::m_lightData" );
 	}
 }
