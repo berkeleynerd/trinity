@@ -574,6 +574,11 @@ void Tr2ParticleSystem::UpdateSimulation( float dt )
 		unsigned velocityStride;
 		GetElementStream( Tr2ParticleElementDeclarationName::VELOCITY, velocity, velocityStride );
 
+		if( m_insertDeleteMutex )
+		{
+			m_insertDeleteMutex->Acquire();
+		}
+
 		for( unsigned i = 0; i < m_aliveCount; ++i )
 		{
 			lifetime[0] += dt / lifetime[1];
@@ -583,12 +588,7 @@ void Tr2ParticleSystem::UpdateSimulation( float dt )
 				{
 					m_emissionOnDeathEmitter->SpawnParticles( reinterpret_cast<Vector3*>( position ), 
 															  reinterpret_cast<Vector3*>( velocity ) );
-				}
-
-				if( m_insertDeleteMutex )
-				{
-					m_insertDeleteMutex->Acquire();
-				}
+				}				
 
 				m_aliveCount -= 1;
 				if( i < m_aliveCount )
@@ -602,11 +602,6 @@ void Tr2ParticleSystem::UpdateSimulation( float dt )
 				}
 
 				--i;
-
-				if( m_insertDeleteMutex )
-				{
-					m_insertDeleteMutex->Release();
-				}
 			}
 			else
 			{
@@ -622,6 +617,11 @@ void Tr2ParticleSystem::UpdateSimulation( float dt )
 			}
 		}
 		m_bufferDirty = true;
+
+		if( m_insertDeleteMutex )
+		{
+			m_insertDeleteMutex->Release();
+		}
 	}
 	
 	s_aliveParticleCount += m_aliveCount;
