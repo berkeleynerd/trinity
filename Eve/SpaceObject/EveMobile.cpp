@@ -130,14 +130,13 @@ void EveMobile::UpdateSyncronous( EveUpdateContext& updateContext )
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Override base ::UpdateAsyncronous() function, so we can update the turrets and 
-//   their positions (if they are attached to animated bones!)
+//   Override base ::PrepareShaderData() function
 // --------------------------------------------------------------------------------
-void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
+void EveMobile::PrepareShaderData( EveUpdateContext& updateContext )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	EveSpaceObject2::UpdateAsyncronous( updateContext );
+	EveSpaceObject2::PrepareShaderData( updateContext );
 
 	// prepare shader data:
 	if( m_activationStrengthCurve && m_playActivationCurve )
@@ -160,9 +159,21 @@ void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
 	float nearDist = std::max( 0.f, D3DXVec3Length( &m_clipSphereCenter ) - GetBoundingSphereRadius() );
 	float insideSpherePercentage = std::min( 1.f, D3DXVec3Length( &m_clipSphereCenter ) / GetBoundingSphereRadius() );
 	float disolveRadius = nearDist + m_clipSphereFactor * GetBoundingSphereRadius() * ( 1.f + insideSpherePercentage );
-	m_spaceObjectClipData = Vector4( m_clipSphereCenter + GetBoundingSphereCenter(), TriFloatSign( disolveRadius ) * disolveRadius * disolveRadius );
-	m_spaceObjectClipDataEx = Vector4( TriFloatSign( disolveRadius ), 0.f, 0.f, 0.f );
+	m_psData.m_spaceObjectClipData = m_vsData.m_spaceObjectClipData = Vector4( m_clipSphereCenter + GetBoundingSphereCenter(), TriFloatSign( disolveRadius ) * disolveRadius * disolveRadius );
+	m_psData.m_spaceObjectClipDataEx = Vector4( TriFloatSign( disolveRadius ), 0.f, 0.f, 0.f );
+}
 
+// --------------------------------------------------------------------------------
+// Description:
+//   Override base ::UpdateAsyncronous() function, so we can update the turrets and 
+//   their positions (if they are attached to animated bones!)
+// --------------------------------------------------------------------------------
+void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+
+	EveSpaceObject2::UpdateAsyncronous( updateContext );
+	
 	Be::Time time = updateContext.GetTime();
 	float deltaT = updateContext.GetDeltaT();
 
@@ -170,8 +181,8 @@ void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
 	EveTurretSet::ParentData pd;
 	pd.transform = m_worldTransform;
 	pd.shipData = m_spaceObjectMiscData;
-	pd.clipData = m_spaceObjectClipData;
-	pd.clipDataEx = m_spaceObjectClipDataEx;
+	pd.clipData = m_psData.m_spaceObjectClipData;
+	pd.clipDataEx = m_psData.m_spaceObjectClipDataEx;
 
 	for( EveTurretSetVector::iterator it = m_turretSets.begin(); it != m_turretSets.end(); ++it )
 	{
@@ -196,7 +207,7 @@ void EveMobile::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rende
 	// collect renderables of the turrets
 	for( EveTurretSetVector::iterator it = m_turretSets.begin(); it != m_turretSets.end(); ++it )
 	{
-		(*it)->GetRenderables( frustum, renderables, m_shLightingCoefficients );
+		(*it)->GetRenderables( frustum, renderables, m_psData.m_shLightingCoefficients );
 	}
 }
 

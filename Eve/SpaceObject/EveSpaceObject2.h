@@ -80,19 +80,26 @@ BLUE_DECLARE_STRUCTURE_LIST( EveDamageLocator );
 
 // --------------------------------------------------------------------------------
 // Description:
-//   This class holds the per object data for space objects
-// SeeAlso:
-//   Tr2PerObjectData
+//   This struct holds the per vs data for spaceobjects, excluding bones.
 // --------------------------------------------------------------------------------
-class EveSpaceObjectPerObjectData : public Tr2PerObjectDataWithPersistentBuffers<EveSpaceObject2>
+struct EveSpaceObjectVSData
 {
-public:
-	virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const;
-
-	unsigned int m_psPointLightCount;
+	Matrix m_worldTransform;
+	Vector4 m_spaceObjectMiscData;
+	Vector4 m_spaceObjectClipData;
 };
 
-
+// --------------------------------------------------------------------------------
+// Description:
+//   This struct holds the per s data for spaceobjects.
+// --------------------------------------------------------------------------------
+struct EveSpaceObjectPSData
+{
+	Vector4 m_spaceObjectMiscData;
+	Vector4 m_spaceObjectClipData;
+	Vector4 m_spaceObjectClipDataEx;
+	Vector4 m_shLightingCoefficients[Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT];
+};
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -155,6 +162,7 @@ public:
 	// IEveSpaceObject2
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
+	virtual void PrepareShaderData( EveUpdateContext& updateContext );
 	virtual void RenderDebugInfo( Tr2RenderContext& renderContext );
 	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
 	virtual bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
@@ -276,6 +284,7 @@ public:
 	uint32_t GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType shaderType ) const;
 	void UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shaderType, uint32_t size, void* );
 
+	void GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpaceObjectPSData& psData ) const;
 protected:
 	// LODing
 	void UnloadLodIfNeeded( Be::Time time );
@@ -314,8 +323,6 @@ protected:
 	Vector3 m_worldPosition; // used to expose the position of the object to python
 	float m_modelScale;
 
-	Vector4 m_shLightingCoefficients[Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT];
-
 	Tr2MeshBasePtr m_mesh;
 	Tr2MeshLodPtr m_meshLod;
 
@@ -326,8 +333,8 @@ protected:
 	EveSpaceSceneLightMgrPtr m_lightManager;
 	unsigned m_psPointLightCount;
 	Vector4 m_spaceObjectMiscData;
-	Vector4 m_spaceObjectClipData;
-	Vector4 m_spaceObjectClipDataEx;
+	EveSpaceObjectPSData m_psData;
+	EveSpaceObjectVSData m_vsData;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// lod level

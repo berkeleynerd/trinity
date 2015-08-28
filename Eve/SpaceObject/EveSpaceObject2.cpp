@@ -53,16 +53,6 @@ static BlueStructureDefinition EveDamageLocatorStructureDef[] =
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Copy all the matrices to HW
-// --------------------------------------------------------------------------------
-void EveSpaceObjectPerObjectData::SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
-{
-	Tr2PerObjectDataWithPersistentBuffers<EveSpaceObject2>::SetPerObjectDataToDevice( buffers, constantTypeMask, renderContext );
-	renderContext.SetNumberOfLights( m_psPointLightCount );
-}
-
-// --------------------------------------------------------------------------------
-// Description:
 //   The base class for most of the objects in a space scene
 // --------------------------------------------------------------------------------
 EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
@@ -105,8 +95,6 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_lastCurveUpdateTime( 0 ),
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
 	m_spaceObjectMiscData( 1.f, 1.f, EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT, 1.f ),
-	m_spaceObjectClipData( 0.f, 0.f, 0.f, 0.f ),
-	m_spaceObjectClipDataEx( 0.f, 0.f, 0.f, 0.f ),
 	m_psPointLightCount( 0 ),
 	m_displayChildren( true ),
 	m_dirtLevel( EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT ),
@@ -125,7 +113,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 
 	m_animationUpdater.CreateInstance();
 	m_persistedDamageLocators.SetStructureDefinition( EveDamageLocatorStructureDef );
-	memset( m_shLightingCoefficients, 0, sizeof( m_shLightingCoefficients ) );
+	memset( m_psData.m_shLightingCoefficients, 0, sizeof( m_psData.m_shLightingCoefficients ) );
 }
 
 EveSpaceObject2::~EveSpaceObject2()
@@ -315,22 +303,10 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 	m_perObjectDataVs.InvalidateBufferData();
 	m_perObjectDataPs.InvalidateBufferData();
 
-	// prepare shader data: shader needs to know size of this object for some surface-scaling issues
-	m_spaceObjectMiscData.w = GetBoundingSphereRadius();
-	// prepare shader data: dirt level of a spaceobject
-	m_spaceObjectMiscData.z = m_dirtLevel;
-
-	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
-	{
-		m_animationUpdater->GetDynamicBounds( m_dynamicBoundingSphere, m_localAabbMin, m_localAabbMax );
-		D3DXVec3TransformCoord( (Vector3*)&m_boundingSphereWorld, (Vector3*)&m_dynamicBoundingSphere, &m_worldTransform );
-		m_boundingSphereWorld.w = m_modelScale * m_dynamicBoundingSphere.w;
-	}
-	else if( m_boundingSphereRadius > 0.0f )
-	{
-		D3DXVec3TransformCoord( (Vector3*)&m_boundingSphereWorld, &m_boundingSphereCenter, &m_worldTransform );
-		m_boundingSphereWorld.w = m_modelScale * m_boundingSphereRadius;
-	}
+	PrepareShaderData( updateContext );
+	m_psData.m_spaceObjectMiscData = m_spaceObjectMiscData;
+	D3DXMatrixTranspose( &m_vsData.m_worldTransform, &m_worldTransform );
+	m_vsData.m_spaceObjectMiscData = m_spaceObjectMiscData;
 
 	if( !m_curveSets.empty() || !m_overlayEffects.empty() )
 	{
@@ -360,6 +336,26 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 	{
 		(*ecIt)->UpdateAsyncronous( updateContext, this );
 	}
+}
+
+void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext ) 
+{
+	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
+	{
+		m_animationUpdater->GetDynamicBounds( m_dynamicBoundingSphere, m_localAabbMin, m_localAabbMax );
+		D3DXVec3TransformCoord( (Vector3*)&m_boundingSphereWorld, (Vector3*)&m_dynamicBoundingSphere, &m_worldTransform );
+		m_boundingSphereWorld.w = m_modelScale * m_dynamicBoundingSphere.w;
+	}
+	else if( m_boundingSphereRadius > 0.0f )
+	{
+		D3DXVec3TransformCoord( (Vector3*)&m_boundingSphereWorld, &m_boundingSphereCenter, &m_worldTransform );
+		m_boundingSphereWorld.w = m_modelScale * m_boundingSphereRadius;
+	}
+
+	// prepare shader data: shader needs to know size of this object for some surface-scaling issues
+	m_spaceObjectMiscData.w = GetBoundingSphereRadius();
+	// prepare shader data: dirt level of a spaceobject
+	m_spaceObjectMiscData.z = m_dirtLevel;
 }
 
 void EveSpaceObject2::RenderDebugInfo( Tr2RenderContext& renderContext )
@@ -827,19 +823,19 @@ bool EveSpaceObject2::FindLocatorTransformByName( const char* name, unsigned int
 
 void EveSpaceObject2::UpdateShLighting( Tr2ShLightingManager& manager )
 {
-	memset( m_shLightingCoefficients, 0, sizeof( m_shLightingCoefficients ) );
-	if( m_display && m_isInFrustum && m_estimatedPixelDiameterWithChildren > g_eveSpaceSceneLowDetailThreshold )
+	memset( m_psData.m_shLightingCoefficients, 0, sizeof( m_psData.m_shLightingCoefficients ) );
+	if( m_estimatedPixelDiameterWithChildren > g_eveSpaceSceneLowDetailThreshold )
 	{
 		float intensityFadeRadius = ( g_eveSpaceSceneMediumDetailThreshold - g_eveSpaceSceneLowDetailThreshold ) * 0.25f;
 		float intensity = ( m_estimatedPixelDiameterWithChildren - g_eveSpaceSceneLowDetailThreshold ) / intensityFadeRadius;
 		intensity = std::min( std::max( intensity, 0.f ), 1.f );
-		manager.GetLighting( m_worldPosition, intensity, m_boundingSphereRadius * g_secondaryLightingRadiusCutoffFactor, m_shLightingCoefficients );
+		manager.GetLighting( m_worldPosition, intensity, m_boundingSphereRadius * g_secondaryLightingRadiusCutoffFactor, m_psData.m_shLightingCoefficients );
 	}
 }
 
 void EveSpaceObject2::ClearShLighting()
 {
-	memset( m_shLightingCoefficients, 0, sizeof( m_shLightingCoefficients ) );
+	memset( m_psData.m_shLightingCoefficients, 0, sizeof( m_psData.m_shLightingCoefficients ) );
 }
 
 // --------------------------------------------------------------------------------
@@ -851,13 +847,12 @@ void EveSpaceObject2::ClearShLighting()
 // --------------------------------------------------------------------------------
 Tr2PerObjectData* EveSpaceObject2::GetPerObjectData( ITriRenderBatchAccumulator* accumulator )
 {
-	EveSpaceObjectPerObjectData* perObjectData = accumulator->Allocate<EveSpaceObjectPerObjectData>();
+	Tr2PerObjectDataWithPersistentBuffers<EveSpaceObject2>* perObjectData = accumulator->Allocate<Tr2PerObjectDataWithPersistentBuffers<EveSpaceObject2>>();
 	if( !perObjectData )
 	{
 		return NULL;
 	}
 	perObjectData->Initialize( this, &m_perObjectDataVs, &m_perObjectDataPs );
-	perObjectData->m_psPointLightCount = m_psPointLightCount;
 
 	return perObjectData;
 }
@@ -866,7 +861,7 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 {
 	if( shaderType == Tr2RenderContextEnum::PIXEL_SHADER )
 	{
-		uint32_t sz = 16 + 16 + 16 + sizeof( m_shLightingCoefficients ); // m_spaceObjectMiscData + m_spaceObjectClipData + m_spaceObjectClipDataEx
+		uint32_t sz = sizeof( m_psData ); // m_spaceObjectMiscData + m_spaceObjectClipData + m_spaceObjectClipDataEx
 		if( m_customMask )
 		{
 			sz += 64 + 16;  // customMask data is optional for now
@@ -882,9 +877,7 @@ uint32_t EveSpaceObject2::GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType
 		}
 
 		return
-			64 +				// m_vsWorldMatrix
-			16 +				// m_vsSpaceObjectData
-			16 +				// m_spaceObjectClipData
+			sizeof( m_vsData ) +
 			boneCount * 3 * 16;	// m_vsBonesMatrix (3x4)
 	}
 }
@@ -897,14 +890,8 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 	{
 		uint8_t* perObjectPS = (uint8_t*)data;
 
-		memcpy( perObjectPS, &m_spaceObjectMiscData, sizeof( Vector4 ) );
-		perObjectPS += sizeof( Vector4 );
-		memcpy( perObjectPS, &m_spaceObjectClipData, sizeof( Vector4 ) );
-		perObjectPS += sizeof( Vector4 );
-		memcpy( perObjectPS, &m_spaceObjectClipDataEx, sizeof( Vector4 ) );
-		perObjectPS += sizeof( Vector4 );
-		memcpy( perObjectPS, m_shLightingCoefficients, sizeof( m_shLightingCoefficients ) );
-		perObjectPS += sizeof( m_shLightingCoefficients );
+		memcpy( perObjectPS, &m_psData, sizeof( m_psData ) );
+		perObjectPS += sizeof( m_psData );
 
 		if( m_customMask )
 		{
@@ -918,21 +905,22 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 	else
 	{
 		uint8_t* perObjectVS = (uint8_t*)data;
-
-		D3DXMatrixTranspose( reinterpret_cast<Matrix*>( perObjectVS ), &m_worldTransform );
-		perObjectVS += sizeof( Matrix );
-		memcpy( perObjectVS, &m_spaceObjectMiscData, sizeof( Vector4 ) );
-		perObjectVS += sizeof( Vector4 );
-		memcpy( perObjectVS, &m_spaceObjectClipData, sizeof( Vector4 ) );
-		perObjectVS += sizeof( Vector4 );
+		memcpy( perObjectVS, &m_vsData, sizeof( m_vsData ) );
+		perObjectVS += sizeof( m_vsData );
 
 		// maybe animated?
-		size -= 64 + 16 + 16;
+		size -= sizeof( m_vsData );
 		if( size )
 		{
 			memcpy( perObjectVS, m_animationUpdater->GetMeshBoneMatrixList(), size );
 		}
 	}
+}
+
+void EveSpaceObject2::GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpaceObjectPSData& psData ) const
+{
+	vsData = m_vsData;
+	psData = m_psData;
 }
 
 Vector4 EveSpaceObject2::CalculateSkinnedBoundingSphere()
@@ -1075,9 +1063,9 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 					EveSpaceObjectDecal::ParentData pd;
 					pd.transform = m_worldTransform;
 					pd.shipData = m_spaceObjectMiscData;
-					pd.clipData = m_spaceObjectClipData;
-					pd.clipDataEx = m_spaceObjectClipDataEx;
-					pd.shLighting = m_shLightingCoefficients;
+					pd.clipData = m_psData.m_spaceObjectClipData;
+					pd.clipDataEx = m_psData.m_spaceObjectClipDataEx;
+					pd.shLighting = m_psData.m_shLightingCoefficients;
 					(*it)->GetRenderables( geometryRes, frustum, renderables, &pd );
 				}
 				m_decalCache->Clear();

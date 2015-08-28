@@ -41,6 +41,7 @@ public:
 	// Overrides of EveSpaceObject2 implementations
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
+	virtual void PrepareShaderData( EveUpdateContext& updateContext );
 	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
 	virtual void RenderDebugInfo( Tr2RenderContext& renderContext );
 	virtual void UpdateViewDistanceInfo( const TriFrustum& frustum, ViewDistanceInfo& viewDistance ) const;
