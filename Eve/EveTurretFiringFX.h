@@ -33,6 +33,8 @@ public:
 
 	EveTurretFiringFX(IRoot* lockobj = NULL);
 	~EveTurretFiringFX();
+	
+	void CleanUp();
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize

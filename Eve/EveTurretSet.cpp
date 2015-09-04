@@ -135,6 +135,11 @@ EveTurretSet::EveTurretSet( IRoot* lockobj ) :
 // --------------------------------------------------------------------------------
 EveTurretSet::~EveTurretSet()
 {
+	if( m_firingEffect )
+	{
+		m_firingEffect->CleanUp();
+	}
+
 	Cleanup();
 
 	if( m_geometryResource )

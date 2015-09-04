@@ -47,6 +47,15 @@ EveTurretFiringFX::~EveTurretFiringFX()
 {
 }
 
+void EveTurretFiringFX::CleanUp()
+{
+	// shut down the firing effect and send the stop_play
+	this->StopFiring();		
+	// Kick the curves so any sound change will trigger (playing -> stop) 
+	this->Update( BeOS->GetCurrentFrameTime(), 0.0f );
+	
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   If loading from a .red file, everything is read now
@@ -224,6 +233,11 @@ void EveTurretFiringFX::StartMuzzleEffect( int muzzleID )
 // --------------------------------------------------------------------------------
 void EveTurretFiringFX::StopFiring()
 {
+	if( !m_isFiring )
+	{
+		return;
+	}
+
 	for( unsigned int m = 0; m < m_stretch.size(); ++m )
 	{
 		// get the running effect
