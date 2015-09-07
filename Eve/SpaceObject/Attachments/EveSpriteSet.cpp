@@ -317,9 +317,6 @@ void EveSpriteSet::Clear()
 
 void EveSpriteSet::Add( const Vector3& pos, float blinkRate, float blinkPhase, float minScale, float maxScale, float falloff, Color color )
 {
-	CCP_ASSERT( minScale < 10000.0f );
-	CCP_ASSERT( maxScale < 10000.0f );
-
 	EveSpriteSetItemPtr item;
 	item.CreateInstance();
 
