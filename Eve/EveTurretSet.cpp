@@ -24,12 +24,15 @@ using namespace Tr2RenderContextEnum;
 static std::string s_systemBoneSkeletonNames[] = {
 	"invalid",				// SYSBONE_INVALID
 	"Sys_Rotation_Arm",		// SYSBONE_ROTATION
+	"Sys_Rotation_Arm01",	// SYSBONE_ROTATION1
+	"Sys_Rotation_Arm02",	// SYSBONE_ROTATION2
 	"Sys_CounterRotation",	// SYSBONE_COUNTER_ROTATION
 	"Sys_Pitch_Barrel",		// SYSBONE_PITCH
 	"Sys_Pitch_Barrel1",	// SYSBONE_PITCH1
 	"Sys_Height",			// SYSBONE_SCALED_HEIGHT
 	"Sys_Pitch_Arm01",		// SYSBONE_SCALED_PITCH01
 	"Sys_Pitch_Arm02",		// SYSBONE_SCALED_PITCH02
+	"Sys_Pitch_Arm03",		// SYSBONE_SCALED_PITCH03
 };
 
 // names of position bones like they are in the granny file
@@ -97,6 +100,8 @@ EveTurretSet::EveTurretSet( IRoot* lockobj ) :
 	m_sysBonePitch01Factor( 1.f ),
 	m_sysBonePitch02Offset( 0.f ),
 	m_sysBonePitch02Factor( 1.f ),
+	m_sysBonePitch03Offset( 0.f ),
+	m_sysBonePitch03Factor( 1.f ),
 	m_state( STATE_IDLE ),
 	m_activeTurret( INVALID_TURRET_INDEX ),
 	m_recheckTimeLeft( -1.f ),
@@ -914,6 +919,8 @@ void EveTurretSet::ModifySystemBoneTransform( SystemBones bone, const Vector3* t
 	case SYSBONE_INVALID:
 		break;
 	case SYSBONE_ROTATION:
+	case SYSBONE_ROTATION01:
+	case SYSBONE_ROTATION02:
 		if( transform )
 		{
 			// rotation of turret 360 degress, alpha is between -pi and pi
@@ -949,21 +956,7 @@ void EveTurretSet::ModifySystemBoneTransform( SystemBones bone, const Vector3* t
 	case SYSBONE_PITCH1:
 		if( transform )
 		{
-			// pitch of barrel 90 degrees
-			Vector3 dirNrm;
-			D3DXVec3Normalize( &dirNrm, target );
-			float alpha = Clamp( asinf( dirNrm.y ), XMConvertToRadians( m_sysBonePitchMin ), XM_PI / 2.f );
-			// modify!
-			alpha = m_sysBonePitchFactor * alpha + XMConvertToRadians( m_sysBonePitchOffset );
-			// never forget do apply influence!
-			alpha *= m_trackingInfluence;
-			// 1st: make quaternion
-			Quaternion quat;
-			D3DXQuaternionRotationYawPitchRoll( &quat, 0.f, -alpha, 0.f );
-			// 2nd: apply this quat after the original one
-			D3DXQuaternionMultiply( &quat, (Quaternion*)&transform->Orientation, &quat );
-			// 2nd: make granny_transform from quat
-			GrannySetTransform( transform, transform->Position, (float*)&quat, (float*)transform->ScaleShear );
+			CalcTransformForPitchBone( target, transform, XMConvertToRadians( m_sysBonePitchMin ), m_sysBonePitchFactor, m_sysBonePitchOffset );
 		}
 		break;
 	case SYSBONE_SCALED_HEIGHT:
@@ -983,44 +976,21 @@ void EveTurretSet::ModifySystemBoneTransform( SystemBones bone, const Vector3* t
 	case SYSBONE_SCALED_PITCH01:
 		if( transform )
 		{
-			// pitch of barrel 90 degrees
-			Vector3 dirNrm;
-			D3DXVec3Normalize( &dirNrm, target );
-			float alpha = Clamp( asinf( dirNrm.y ), 0.f, XM_PI / 2.f );
-			// modify!
-			alpha = m_sysBonePitch01Factor * alpha + XMConvertToRadians( m_sysBonePitch01Offset );
-			// never forget do apply influence!
-			alpha *= m_trackingInfluence;
-			// 1st: make quaternion
-			Quaternion quat;
-			D3DXQuaternionRotationYawPitchRoll( &quat, 0.f, -alpha, 0.f );
-			// 2nd: apply this quat after the original one
-			D3DXQuaternionMultiply( &quat, (Quaternion*)&transform->Orientation, &quat );
-			// 2nd: make granny_transform from quat
-			GrannySetTransform( transform, transform->Position, (float*)&quat, (float*)transform->ScaleShear );
+			CalcTransformForPitchBone( target, transform, 0.0f, m_sysBonePitch01Factor, m_sysBonePitch01Offset );
 		}
 		break;
 	case SYSBONE_SCALED_PITCH02:
 		if( transform )
 		{
-			// pitch of barrel 90 degrees
-			Vector3 dirNrm;
-			D3DXVec3Normalize( &dirNrm, target );
-			float alpha = Clamp( asinf( dirNrm.y ), 0.f, XM_PI / 2.f );
-			// modify!
-			alpha = m_sysBonePitch02Factor * alpha + XMConvertToRadians( m_sysBonePitch02Offset );
-			// never forget do apply influence!
-			alpha *= m_trackingInfluence;
-			// 1st: make quaternion
-			Quaternion quat;
-			D3DXQuaternionRotationYawPitchRoll( &quat, 0.f, -alpha, 0.f );
-			// 2nd: apply this quat after the original one
-			D3DXQuaternionMultiply( &quat, (Quaternion*)&transform->Orientation, &quat );
-			// 2nd: make granny_transform from quat
-			GrannySetTransform( transform, transform->Position, (float*)&quat, (float*)transform->ScaleShear );
+			CalcTransformForPitchBone( target, transform, 0.0f, m_sysBonePitch02Factor, m_sysBonePitch02Offset );			
 		}
 		break;
-
+	case SYSBONE_SCALED_PITCH03:
+		if( transform )
+		{
+			CalcTransformForPitchBone( target, transform, 0.0f, m_sysBonePitch03Factor, m_sysBonePitch03Offset );
+		}
+		break;
 	default:
 		break;
 	}
@@ -2352,6 +2322,30 @@ void EveTurretSet::SetEffectEndPoint()
 	{
 		m_firingEffect->SetEndPosition( &m_targetPosition );
 	}
+}
+
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Calculates the transform for a pitch bone 
+// --------------------------------------------------------------------------------
+void EveTurretSet::CalcTransformForPitchBone( const Vector3* target, granny_transform* transform, float minPitch, float pitchFactor, float pitchOffset ) const
+{
+	// pitch of barrel 90 degrees
+	Vector3 dirNrm;
+	D3DXVec3Normalize( &dirNrm, target );
+	float alpha = Clamp( asinf( dirNrm.y ), minPitch, XM_PI / 2.f );
+	// modify!
+	alpha = pitchFactor * alpha + XMConvertToRadians( pitchOffset );
+	// never forget do apply influence!
+	alpha *= m_trackingInfluence;
+	// 1st: make quaternion
+	Quaternion quat;
+	D3DXQuaternionRotationYawPitchRoll( &quat, 0.f, -alpha, 0.f );
+	// 2nd: apply this quat after the original one
+	D3DXQuaternionMultiply( &quat, (Quaternion*)&transform->Orientation, &quat );
+	// 2nd: make granny_transform from quat
+	GrannySetTransform( transform, transform->Position, (float*)&quat, (float*)transform->ScaleShear );
 }
 
 

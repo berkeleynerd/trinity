@@ -212,12 +212,15 @@ private:
 	{
 		SYSBONE_INVALID = 0,
 		SYSBONE_ROTATION,
+		SYSBONE_ROTATION01,
+		SYSBONE_ROTATION02,
 		SYSBONE_COUNTER_ROTATION,
 		SYSBONE_PITCH,
 		SYSBONE_PITCH1,
 		SYSBONE_SCALED_HEIGHT,
 		SYSBONE_SCALED_PITCH01,
 		SYSBONE_SCALED_PITCH02,
+		SYSBONE_SCALED_PITCH03,
 		SYSBONE_MAX,
 	};
 	// accuracy of shot
@@ -241,6 +244,10 @@ private:
 	bool UpdateLOD();
 	// set transform for tracking
 	void ModifySystemBoneTransform( SystemBones bone, const Vector3* target, granny_transform* transform ) const;
+
+	// Calculates the pitch for a bone based on the parameters
+	void CalcTransformForPitchBone( const Vector3* target, granny_transform* transform, float minPitch, float pitchFactor, float pitchOffset ) const;
+
 	// animation
 	float PlayAnimation( unsigned int turretIndex, const std::string& animName, const std::string& animNameIdle, float delay );
 	void StopAnimation( unsigned int turretIndex, float delay );
@@ -366,6 +373,8 @@ private:
 	float m_sysBonePitch01Factor;
 	float m_sysBonePitch02Offset;
 	float m_sysBonePitch02Factor;
+	float m_sysBonePitch03Offset;
+	float m_sysBonePitch03Factor;
 
 	// state of turret set
 	State m_state;
