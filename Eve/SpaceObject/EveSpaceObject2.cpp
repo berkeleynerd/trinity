@@ -2286,17 +2286,17 @@ void EveSpaceObject2::GetPickingBatches( ITriRenderBatchAccumulator* batches, Tr
 		uint16_t areaIDOffset = ATTACHMENT_TYPE_SPRITE_SET << ATTACHMENT_TYPE_OFFSET;
 		for( auto it = m_spriteSets.begin(); it != m_spriteSets.end(); ++it )
 		{
-			(*it)->GetPickingBatches( m_worldTransform, batches, areaIDOffset, perObjectData );
+			(*it)->GetPickingBatches( batches, areaIDOffset, perObjectData );
 		}
 		areaIDOffset = ATTACHMENT_TYPE_SPOTLIGHT_SET << ATTACHMENT_TYPE_OFFSET;
 		for( auto it = m_spotlightSets.begin(); it != m_spotlightSets.end(); ++it )
 		{
-			(*it)->GetPickingBatches( m_worldTransform, batches, areaIDOffset, perObjectData );
+			(*it)->GetPickingBatches( batches, areaIDOffset, perObjectData );
 		}
 		areaIDOffset = ATTACHMENT_TYPE_PLANE_SET << ATTACHMENT_TYPE_OFFSET;
 		for( auto it = m_planeSets.begin(); it != m_planeSets.end(); ++it )
 		{
-			(*it)->GetPickingBatches( m_worldTransform, batches, areaIDOffset, perObjectData );
+			(*it)->GetPickingBatches( batches, areaIDOffset, perObjectData );
 		}
 	}
 }
