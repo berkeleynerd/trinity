@@ -58,33 +58,29 @@ void EveChildLink::UpdateAsyncronous( EveUpdateContext& updateContext, EveSpaceO
 		(*it)->CopyValue();
 	}
 
-	// need some matrices to position this guy
-	Matrix localRotationMat, localToWorldMat;
+	// get parent worldmatrix
+	parent->GetLocalToWorldTransform( m_worldTransform );
 
-	// we need the size of the parent ship to scale the link object
-	Vector3 ellipsoidData( 1.f, 1.f, 1.f ), parentBBoxMin( -1.f, -1.f, -1.f ), parentBBoxMax( 1.f, 1.f, 1.f );
-	if( parent->GetLocalBoundingBox( parentBBoxMin, parentBBoxMax ) )
-	{
-		ellipsoidData = m_scale * ( parentBBoxMax - parentBBoxMin );
-	}
-
-	// need world matrix from parent, but only translation
-	parent->GetLocalToWorldTransform( localToWorldMat );
-	D3DXMatrixTranslation( &localToWorldMat, localToWorldMat.GetTranslation().x, localToWorldMat.GetTranslation().y, localToWorldMat.GetTranslation().z );
-
-	// local rotation comes from direction
+	// link rotation comes from direction
 	Vector3 linkMeshDir( 0.f, 1.f, 0.f );
-	TriMatrixRotationArc( &localRotationMat, &linkMeshDir, &m_direction );
+	Matrix linkRotationMat;
+	TriMatrixRotationArc( &linkRotationMat, &linkMeshDir, &m_direction );
 
-	// update the worldmatrix
-	D3DXMatrixMultiply( &m_worldTransform, &localRotationMat, &localToWorldMat );
+	// need inverse rotation-only from worldmatrix
+	Matrix invRotationWorldMat;
+	TriMatrixRemoveTranslation( &invRotationWorldMat, &m_worldTransform );
+	D3DXMatrixInverse( &invRotationWorldMat, nullptr, &invRotationWorldMat );
+
+	// combine inverse to link matrix, so we can do the intersection calculation in axis-aligned space
+	D3DXMatrixMultiply( &linkRotationMat, &linkRotationMat, &invRotationWorldMat );
 
 	// update perobject data buffers
 	m_perObjectDataVs.InvalidateBufferData();
 	m_perObjectDataPs.InvalidateBufferData();
 	parent->GetPerObjectStructs( m_vsData, m_psData );
+	m_vsData.worldTransformLast = linkRotationMat;
 	D3DXMatrixTranspose( &m_vsData.worldTransform, &m_worldTransform );
-//	m_vsData.ellpsoidData = Vector4( ellipsoidData, 0.f );
+	D3DXMatrixTranspose( &m_vsData.worldTransformLast, &linkRotationMat );
 
 //	EveChildMesh::UpdateAsyncronous( updateContext, parent );
 }
