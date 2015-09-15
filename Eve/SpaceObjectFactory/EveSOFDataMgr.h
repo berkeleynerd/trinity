@@ -309,7 +309,8 @@ public:
 		// material perfixes
 		std::vector<std::string> materialPrefixes;
 		// shader-specific data
-		std::map<BlueSharedString, GenericShaderData> shaderData;
+		std::map<BlueSharedString, GenericShaderData> areaShaderData;
+		std::map<BlueSharedString, GenericShaderData> decalShaderData;
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> hullAreaParameters;
 	};

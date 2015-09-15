@@ -277,16 +277,29 @@ const char* EveSOFDNA::GetShaderPrefix( bool isAnimated ) const
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Return the generic textures for a given shader
+//   Return the generic textures for a given area shader
 // --------------------------------------------------------------------------------
-const EveSOFDataMgr::GenericShaderData* EveSOFDNA::GetGenericShaderData( const BlueSharedString& shaderName ) const
+const EveSOFDataMgr::GenericShaderData* EveSOFDNA::GetGenericAreaShaderData( const BlueSharedString& shaderName ) const
 {
-	auto finder = m_genericData->shaderData.find( shaderName );
-	if( finder == m_genericData->shaderData.end() )
+	auto finder = m_genericData->areaShaderData.find( shaderName );
+	if( finder == m_genericData->areaShaderData.end() )
 	{
 		return nullptr;
 	}
+	return &finder->second;
+}
 
+// --------------------------------------------------------------------------------
+// Description:
+//   Return the generic textures for a given decal shader
+// --------------------------------------------------------------------------------
+const EveSOFDataMgr::GenericShaderData* EveSOFDNA::GetGenericDecalShaderData( const BlueSharedString& shaderName ) const
+{
+	auto finder = m_genericData->decalShaderData.find( shaderName );
+	if( finder == m_genericData->decalShaderData.end() )
+	{
+		return nullptr;
+	}
 	return &finder->second;
 }
 

@@ -322,7 +322,7 @@ void EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodRe
 	for( auto area = hullAreas->begin(); area != hullAreas->end(); ++area )
 	{
 		// find data on this shader from generics, we need it!
-		const EveSOFDataMgr::GenericShaderData* shaderData = dna->GetGenericShaderData( area->shader );
+		const EveSOFDataMgr::GenericShaderData* shaderData = dna->GetGenericAreaShaderData( area->shader );
 		if( shaderData )
 		{
 

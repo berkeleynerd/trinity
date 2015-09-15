@@ -688,7 +688,8 @@ public:
 	PEveSOFDataGenericStringVector m_materialPrefixes;
 
 	// shader-specific data
-	PEveSOFDataGenericShaderVector m_shaders;
+	PEveSOFDataGenericShaderVector m_areaShaders;
+	PEveSOFDataGenericShaderVector m_decalShaders;
 
 	// hull area data
 	PEveSOFDataFactionHullAreaVector m_hullAreas;

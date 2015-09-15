@@ -944,8 +944,8 @@ void EveSOFDataMgr::GenerateGenericData( GenericData& gd, EveSOFDataGenericPtr s
 	}
 
 	// shader-specific data
-	gd.shaderData.clear();
-	for( auto sit = srcData->m_shaders.begin(); sit != srcData->m_shaders.end(); ++sit )
+	gd.areaShaderData.clear();
+	for( auto sit = srcData->m_areaShaders.begin(); sit != srcData->m_areaShaders.end(); ++sit )
 	{
 		EveSOFDataGenericShaderPtr shaderData = (*sit);
 
@@ -962,7 +962,7 @@ void EveSOFDataMgr::GenerateGenericData( GenericData& gd, EveSOFDataGenericPtr s
 			gsd.parameters.push_back( BlueSharedString( paramData->m_str ) );
 		}
 
-		gd.shaderData[ shaderData->m_shader ] = gsd;
+		gd.areaShaderData[ shaderData->m_shader ] = gsd;
 	}
 
 	// hull area parameters

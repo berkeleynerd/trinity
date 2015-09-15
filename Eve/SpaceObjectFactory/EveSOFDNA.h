@@ -50,7 +50,8 @@ public:
 	const char* GetAreaShaderLocationResPath() const;
 	const char* GetDecalShaderLocationResPath() const;
 	const char* GetShaderPrefix( bool isAnimated ) const;
-	const EveSOFDataMgr::GenericShaderData* GetGenericShaderData( const BlueSharedString& shaderName ) const;
+	const EveSOFDataMgr::GenericShaderData* GetGenericAreaShaderData( const BlueSharedString& shaderName ) const;
+	const EveSOFDataMgr::GenericShaderData* GetGenericDecalShaderData( const BlueSharedString& shaderName ) const;
 
 	// get racial data
 	const EveSOFDataMgr::RaceBoosterData* GetRaceBoosterData() const;
