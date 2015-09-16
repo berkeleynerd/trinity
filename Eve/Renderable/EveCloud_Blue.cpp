@@ -21,6 +21,7 @@ const Be::ClassInfo* EveCloud::ExposeToBlue()
 		MAP_INTERFACE( IInitialize )
 		MAP_INTERFACE( INotify )
 		MAP_INTERFACE( IEveSpaceObjectChild )
+		MAP_INTERFACE( ITr2SecondaryLightSource )
 
 		MAP_ATTRIBUTE( "name", m_name, "The name of the cloud", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "display", m_display, "Toggle display", Be::READWRITE )
@@ -47,5 +48,15 @@ const Be::ClassInfo* EveCloud::ExposeToBlue()
 		MAP_ATTRIBUTE( "boundingSphere", m_boundingSphere, "Used for culling", Be::READ )
 		MAP_ATTRIBUTE( "preTesselationLevel", m_preTesselationLevel, "Number of triangles per width/heigth", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "volume", m_volume, "Shape volume texture editor", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"secondaryLightingSphereRadius", 
+			m_secondaryLightingSphereRadiusLocal, 
+			"Radius of secondary light source", 
+			Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"secondaryLightingEmissiveColor", 
+			m_secondaryLightingEmissiveColor, 
+			"Color of the secondary light source", 
+			Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }

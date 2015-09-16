@@ -163,7 +163,10 @@ EveCloud::EveCloud( IRoot* lockobj )
 	m_preTesselationLevel( 32 ),
 	m_min( -0.5f, -0.5f, -0.5f ),
 	m_max( 0.5f, 0.5f, 0.5f ),
-	m_sortingModifier( 1.0f )
+	m_sortingModifier( 1.0f ),
+	m_secondaryLightingSphereRadiusLocal( 0.5f ),
+	m_secondaryLightingSphereRadiusWorld( 0.5f ),
+	m_secondaryLightingEmissiveColor( 0.f, 0.f, 0.f, 0.f )
 {
 	PrepareResources();
 }
@@ -210,6 +213,8 @@ void EveCloud::UpdateSyncronous( EveUpdateContext& updateContext )
 
 	D3DXMatrixTransformation( &m_localTransform, 0, 0, &m_scaling, 0, &rotation, &translation );
 	m_worldTransform = m_localTransform;
+	m_secondaryLightingSphereRadiusWorld = m_secondaryLightingSphereRadiusLocal * 
+		( D3DXVec3Length( &m_worldTransform.GetX() ) +  D3DXVec3Length( &m_worldTransform.GetY() ) + D3DXVec3Length( &m_worldTransform.GetZ() ) ) / 3.f;
 }
 
 void EveCloud::UpdateAsyncronous( EveUpdateContext& updateContext )
@@ -220,6 +225,8 @@ void EveCloud::UpdateAsyncronous( EveUpdateContext& updateContext )
 void EveCloud::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform )
 {
 	m_worldTransform = m_localTransform * parentTransform;
+	m_secondaryLightingSphereRadiusWorld = m_secondaryLightingSphereRadiusLocal * 
+		( D3DXVec3Length( &m_worldTransform.GetX() ) +  D3DXVec3Length( &m_worldTransform.GetY() ) + D3DXVec3Length( &m_worldTransform.GetZ() ) ) / 3.f;
 	BoundingSphereFromBox( m_boundingSphere, m_min, m_max, &m_worldTransform );
 	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) )
 	{
@@ -472,4 +479,19 @@ void EveCloud::StopCurveSet( const std::string& name )
 float EveCloud::GetCurveSetDuration( const std::string& name ) const
 {
 	return 0;
+}
+
+void EveCloud::RegisterSecondaryLightSource( Tr2ShLightingManager& manager )
+{
+	static const Color s_noAlbedoColor( 0.f, 0.f, 0.f, 0.f );
+	manager.RegisterSecondaryLightSource( 
+		&m_worldTransform.GetTranslation(), 
+		&m_secondaryLightingSphereRadiusWorld, 
+		&s_noAlbedoColor, 
+		&m_secondaryLightingEmissiveColor );
+}
+
+void EveCloud::UnregisterSecondaryLightSource( Tr2ShLightingManager& manager )
+{
+	manager.UnregisterSecondaryLightSource( &m_worldTransform.GetTranslation() );
 }

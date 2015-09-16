@@ -13,6 +13,7 @@
 #include "Eve/IEveSpaceObject2.h"
 #include "Eve/SpaceObject/Children/IEveSpaceObjectChild.h"
 #include "Tr2Renderer.h"
+#include "Tr2ShLightingManager.h"
 
 BLUE_DECLARE( EveCloudEditableVolume );
 BLUE_DECLARE_INTERFACE( ITriVectorFunction );
@@ -31,7 +32,8 @@ BLUE_CLASS( EveCloud ) :
 	public Tr2DeviceResource,
 	public IInitialize,
 	public INotify,
-	public IEveSpaceObjectChild
+	public IEveSpaceObjectChild,
+	public ITr2SecondaryLightSource
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -88,6 +90,11 @@ public:
     virtual IRoot* GetID( uint16_t areaId );
 	virtual void GetPickingBatches( ITriRenderBatchAccumulator* batches, Tr2PickTypes pickTypes, const Tr2PerObjectData* perObjectData );
 
+	//////////////////////////////////////////////////////////////////////////////////////
+	// ITr2SecondaryLightSource
+	virtual void RegisterSecondaryLightSource( Tr2ShLightingManager& );
+	virtual void UnregisterSecondaryLightSource( Tr2ShLightingManager& );
+
 private:
 	bool OnPrepareResources();
 
@@ -120,6 +127,10 @@ private:
 	Vector3 m_max;
 
 	float m_sortingModifier;
+
+	float m_secondaryLightingSphereRadiusLocal;
+	float m_secondaryLightingSphereRadiusWorld;
+	Color m_secondaryLightingEmissiveColor;
 };
 
 TYPEDEF_BLUECLASS( EveCloud );
