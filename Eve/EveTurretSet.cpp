@@ -35,18 +35,6 @@ static std::string s_systemBoneSkeletonNames[] = {
 	"Sys_Pitch_Arm03",		// SYSBONE_SCALED_PITCH03
 };
 
-// names of position bones like they are in the granny file
-static std::string s_positionBoneSkeletonNames[] = {
-	"Pos_Fire01",
-	"Pos_Fire02",
-	"Pos_Fire03",
-	"Pos_Fire04",
-	"Pos_Fire05",
-	"Pos_Fire06",
-	"Pos_Fire07",
-	"Pos_Fire08",
-};
-
 // invalids
 const unsigned int INVALID_BONE_INDEX = 0xffffffff;
 const unsigned int INVALID_TURRET_INDEX = 0xffffffff;
@@ -276,8 +264,26 @@ void EveTurretSet::InitializeFiringEffect()
 				// find all the granny bone indices and store them
 				for( unsigned int i = 0; i < m_firingEffect->GetPerMuzzleEffectCount(); ++i )
 				{
+					if( i == 99 )
+					{
+						CCP_LOGERR("Upper limit of firing bones is 99, this turret has %d", m_firingEffect->GetPerMuzzleEffectCount());
+						break;
+					}
+
+					// firing bones should always be on the format Pos_FireXX where XX can range form 01 to 99
+					char boneNameBuffer[10];
+					unsigned int boneNameIndex = i+1;
+					if(boneNameIndex < 10)
+					{
+						sprintf_s(boneNameBuffer, "Pos_Fire0%d", boneNameIndex);
+					}
+					else
+					{
+						sprintf_s(boneNameBuffer, "Pos_Fire%d", boneNameIndex);
+					}
+
 					// in case we don't find positional bone, ::FindJoint() returns 0xffffffff
-					m_firingEffect->SetMuzzleBoneID( i, skeletonData->FindJoint( s_positionBoneSkeletonNames[i].c_str() ) );
+					m_firingEffect->SetMuzzleBoneID( i, skeletonData->FindJoint( boneNameBuffer ) );
 				}
 			}
 		}
@@ -914,6 +920,7 @@ Matrix EveTurretSet::GetFiringBoneWorldTransform( unsigned int muzzle ) const
 // --------------------------------------------------------------------------------
 void EveTurretSet::ModifySystemBoneTransform( SystemBones bone, const Vector3* target, granny_transform* transform ) const
 {
+	CCP_LOGWARN("bone index %d, max bone %d", bone, SYSBONE_MAX);
 	switch( bone )
 	{
 	case SYSBONE_INVALID:
