@@ -72,6 +72,8 @@ public:
 	void SetMuzzleTransform( int muzzleID, const Matrix* transform );
 	// setup this effect: end position
 	void SetEndPosition( const Vector3* endPos );
+	// set the scale of the destination object
+	void SetScaleByRadius( float radius );
 
 	// action: prepare (== "start with delay" ) firing
 	void PrepareFiring( float delay, unsigned int muzzleID = 0xffffffff );
@@ -92,6 +94,13 @@ private:
 
 	// per-muzzle effects
 	void StartMuzzleEffect( int muzzleID );
+
+	// Used for scaling the target object of the stretch object
+	bool m_scaleEffectTarget;
+	float m_minRadius;
+	float m_maxRadius;
+	float m_minScale;
+	float m_maxScale;
 
 	// visible
 	bool m_display;

@@ -33,6 +33,7 @@ BLUE_INTERFACE(ITriTargetable): IRoot
 	virtual void GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out ) = 0;
 	virtual int GetInterestingDamageLocatorIndex( const Vector3 &position ) const = 0;
 	virtual int GetGoodDamageLocatorIndex( const Vector3& position ) = 0;
+	virtual float GetRadius() const = 0;
 };
 
 

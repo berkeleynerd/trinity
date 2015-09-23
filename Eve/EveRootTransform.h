@@ -34,6 +34,7 @@ public:
 	void GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out );
 	int GetInterestingDamageLocatorIndex( const Vector3 &position ) const;
 	int GetGoodDamageLocatorIndex( const Vector3& position );
+	float GetRadius() const;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// Tr2Transform

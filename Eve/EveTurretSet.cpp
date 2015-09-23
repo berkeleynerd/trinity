@@ -756,7 +756,7 @@ void EveTurretSet::UpdateAsyncronous( float deltaT, Be::Time time, const ParentD
 	if( m_targetObject )
 	{
 		m_targetObject->GetDamageLocatorPosition( &m_targetPosition, m_targetLocator );
-
+		
 		if( m_targetPositionOldInfluence > 0.f )
 		{
 			// lerp the old position "in"
@@ -2118,7 +2118,7 @@ void EveTurretSet::CalcRandomDelay()
 //   m_targetPosition and (if target has them) which damage locator
 //   is closest by.
 // SeeAlso:
-//   ITr2Targetable
+//   ITriTargetable
 // Arguments:
 //   closestTurretIx - reference to the turret index, which will get the result
 //   closestLocatorIx - reference to the locator index, which will get the result
@@ -2321,6 +2321,40 @@ void EveTurretSet::SetEffectEndPoint()
 	}
 }
 
+// --------------------------------------------------------------------------------
+// Description:
+//   Sets the scale of the firing effect using the target's radius.
+// --------------------------------------------------------------------------------
+void EveTurretSet::SetTargetScale()
+{
+	if ( m_firingEffect )
+	{
+		float radius = m_targetObject->GetRadius();
+		m_firingEffect->SetScaleByRadius( radius );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Sets the target object. This is part of the targetObject property.
+// --------------------------------------------------------------------------------
+void EveTurretSet::SetTargetObject( IRoot* target )
+{
+	if ( !target )
+	{
+		return;
+	}
+
+	m_targetObject = nullptr;
+	if( target->QueryInterface( BlueInterfaceIID<ITriTargetable>(), (void**)&m_targetObject ) )
+	{
+		SetTargetScale();
+	}
+	else
+	{
+		CCP_LOGERR( "EveTurretSet::SetTarget: ITriTargetable object required." );
+	}
+}
 
 // --------------------------------------------------------------------------------
 // Description:

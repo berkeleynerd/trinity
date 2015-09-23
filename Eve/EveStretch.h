@@ -59,6 +59,9 @@ public:
 
 	void UpdateCurves( EveUpdateContext& updateContext );
 	void Start();
+
+	void SetSourceObjectScale( float scale ) { m_sourceObjectScale = scale; };
+	void SetDestObjectScale( float scale ) { m_destObjectScale = scale; };
 private:
 	Tr2Lod m_lodLevel;
 	Be::Time m_lastCurveUpdateTime;
@@ -69,6 +72,9 @@ private:
 	bool m_update;
 	bool m_displaySourceObject;
 	bool m_displayDestObject;
+
+	float m_sourceObjectScale;
+	float m_destObjectScale;
 
 	// Set to true when source transform is set to point towards the destination.
 	// This is used for turret firing effects - the turrets already take care of aiming

@@ -26,7 +26,12 @@ EveTurretFiringFX::EveTurretFiringFX( IRoot* lockobj ) :
 	m_useMuzzleTransform( false ),
 	m_isFiring( false ),
 	m_isLoopFiring( false ),
-	m_firingDuration( 1000.f )
+	m_firingDuration( 1000.f ),
+	m_maxRadius( 3000.0 ),
+	m_minRadius( 30.0 ),
+	m_maxScale( 10.0 ),
+	m_minScale( 1.0 ),
+	m_scaleEffectTarget( false )
 {
 	for( unsigned int i = 0; i < MUZZLECOUNT_MAX; ++i )
 	{
@@ -121,6 +126,28 @@ void EveTurretFiringFX::SetEndPosition( const Vector3* endPos )
 {
 	// set
 	m_endPosition = *endPos;
+}
+
+// Description:
+//   Use this function to scale the destination object, using the target's radius.
+// Arguments:
+//   radius - the radius of the target object.
+
+void EveTurretFiringFX::SetScaleByRadius( float radius )
+{
+	if ( !m_scaleEffectTarget )
+	{
+		return;
+	}
+
+	// The scale is a linear scale from min scale to max scale when radius is within min and max radius. Other values get clamped.
+	float scale = ( radius - m_minRadius ) * ( m_maxScale - m_minScale ) / ( m_maxRadius - m_minRadius ) + m_minScale;
+	scale = max( m_minScale, min( m_maxScale, scale) );
+
+	for ( auto it = m_stretch.begin(); it != m_stretch.end(); it++ )
+	{
+		(*it)->SetDestObjectScale( scale );
+	}
 }
 
 // --------------------------------------------------------------------------------

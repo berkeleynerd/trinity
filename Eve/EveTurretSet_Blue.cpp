@@ -57,7 +57,7 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "visibleCount", m_visibleCount, "How many turrets are visible in this frame", Be::READ )
 		MAP_ATTRIBUTE( "estimatedPixelDiameter", m_estimatedPixelDiameter, "value for LOD selection", Be::READ )
 		MAP_ATTRIBUTE( "lodLevel", m_lodLevel, "current LOD", Be::READ )
-		MAP_ATTRIBUTE( "trackingInfluence", m_trackingInfluence, "How much tracking is aloud?", Be::READ )
+		MAP_ATTRIBUTE( "trackingInfluence", m_trackingInfluence, "How much tracking is alowed?", Be::READ )
 
 		MAP_ATTRIBUTE( "targetPosition", m_targetPosition, "Test shooting target", Be::READWRITE )
 
@@ -65,8 +65,15 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "bottomClipHeight", m_bottomClipHeight, "Everything gets cut-off below this height (y-coord)", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "locatorName", m_locatorName, "locator name for all turrets of this pair (A, B, C is auto-attached!)", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "slotNumber", m_slotNumber, "the slot number of the turret", Be::READWRITE )
-		MAP_ATTRIBUTE( "targetObject", m_targetObject, "object this pair of turret will track", Be::READWRITE )
+		MAP_ATTRIBUTE( "slotNumber", m_slotNumber, "the slot number of the turret", Be::READWRITE | Be::PERSIST )
+		
+		MAP_PROPERTY
+		(
+			"targetObject",
+			GetTargetObject,
+			SetTargetObject,
+			"object this set of turrets will track"
+		)
 
 		MAP_ATTRIBUTE( "turretEffect", m_turretEffect, "The effect to use to draw the turret pair", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "geometryResource", m_geometryResource, "geometry resource for this turret, is read-only", Be::READ )

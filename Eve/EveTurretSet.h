@@ -326,6 +326,11 @@ private:
 	// instance vertex stream
 	Tr2VertexBufferAL m_instanceBuffer;
 
+	// Assign the target object
+	void SetTargetObject( IRoot* target );
+	ITriTargetablePtr GetTargetObject() { return m_targetObject; };
+	void SetTargetScale();
+
 	// target (object we are tracking)
 	ITriTargetablePtr m_targetObject;
 	int m_targetLocator;

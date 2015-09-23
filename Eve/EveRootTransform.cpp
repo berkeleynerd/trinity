@@ -91,6 +91,11 @@ int EveRootTransform::GetGoodDamageLocatorIndex( const Vector3 &position )
 	return 0;
 }
 
+float EveRootTransform::GetRadius() const
+{
+	return m_boundingSphereRadius;
+}
+
 void EveRootTransform::GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out )
 {
 	GetDamageLocatorPosition(out,-1);

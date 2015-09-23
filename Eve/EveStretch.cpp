@@ -22,7 +22,9 @@ EveStretch::EveStretch( IRoot* lockobj ) :
 	m_lodLevel( TR2_LOD_LOW ),
 	m_startTime( -1 ),
 	m_moveCompleted( false ),
-	m_moving( false )
+	m_moving( false ),
+	m_destObjectScale( 1.0f ),
+	m_sourceObjectScale( 1.0f )
 {
 	m_length.CreateInstance();
 
@@ -186,8 +188,9 @@ void EveStretch::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rend
 		D3DXQuaternionMultiply(&rotation,				
 			TriQuaternionRotationArc(&tmpResult, &Y_AXIS, &directionVec), &rotation);
 
+		Vector3 scaling = Vector3( m_destObjectScale, m_destObjectScale, m_destObjectScale );
 		Matrix m;
-		D3DXMatrixTransformation( &m, NULL, NULL, NULL, NULL, &rotation, &m_destinationPosition );
+		D3DXMatrixTransformation( &m, NULL, NULL, &scaling, NULL, &rotation, &m_destinationPosition );
 
 		m_destObject->GetRenderables( frustum, renderables, m );
 		// The object's LOD is a combination of it's move, stretch, dest and source object's LODs

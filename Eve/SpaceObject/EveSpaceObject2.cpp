@@ -1568,6 +1568,11 @@ int EveSpaceObject2::GetGoodDamageLocatorIndex( const Vector3& position )
 	return bestLocator;
 }
 
+float EveSpaceObject2::GetRadius() const
+{
+	return GetBoundingSphereRadius();
+}
+
 bool EveSpaceObject2::GetDamageLocatorPosition( Vector3* out, int index )
 {
 	if( (index < 0) || ((unsigned int)index >= m_allocatedDamageLocatorCount) || !m_damageLocatorPositions || !m_transformedDamageLocators )
