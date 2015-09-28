@@ -128,11 +128,12 @@ void EveTurretFiringFX::SetEndPosition( const Vector3* endPos )
 	m_endPosition = *endPos;
 }
 
+// --------------------------------------------------------------------------------
 // Description:
 //   Use this function to scale the destination object, using the target's radius.
 // Arguments:
 //   radius - the radius of the target object.
-
+// --------------------------------------------------------------------------------
 void EveTurretFiringFX::SetScaleByRadius( float radius )
 {
 	if ( !m_scaleEffectTarget )
