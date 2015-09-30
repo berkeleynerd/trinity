@@ -131,13 +131,30 @@ void TriVariable::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType inputType,
 			if( m_gpuBuffer )
 			{
 				uint32_t samplerIx = *destHandle;
+				uint32_t initialCount = reinterpret_cast<uint32_t*>( destHandle )[1];
+				bool isUav = ( size & RESOURCE_FLAG_UAV ) != 0;
+
 				if( Tr2GpuBufferAL* buffer = m_gpuBuffer->GetGpuBuffer( 0 ) )
 				{		
-					renderContext.m_esm.ApplyShaderBuffer( inputType, samplerIx, *buffer );
+					if( isUav )
+					{
+						renderContext.SetUav( inputType, samplerIx, *buffer, initialCount );
+					}
+					else
+					{
+						renderContext.m_esm.ApplyShaderBuffer( inputType, samplerIx, *buffer );
+					}
 				}
 				else
 				{
-					renderContext.m_esm.ApplyShaderBuffer( inputType, samplerIx, nullGB );
+					if( isUav )
+					{
+						renderContext.SetUav( inputType, samplerIx, nullGB );
+					}
+					else
+					{
+						renderContext.m_esm.ApplyShaderBuffer( inputType, samplerIx, nullGB );
+					}
 				}
 			}
 			break;
