@@ -43,7 +43,7 @@ void Tr2RuntimeInstanceData::SaveToGranny( const char* resPath ) const
 	std::wstring filename = BePaths->ResolvePathForWritingW( resPathW );
 
 	granny_data_type_definition* definition = CCP_NEW( "Tr2RuntimeInstanceData::SaveToGranny" ) granny_data_type_definition[m_layout.m_items.size() + 1];
-	if( !ConvertVertexDeclToGranny( m_layout, definition, m_layout.m_items.size() ) )
+	if( !ConvertVertexDeclToGranny( m_layout, definition, (unsigned int)( m_layout.m_items.size() ) ) )
 	{
 		return;
 	}
