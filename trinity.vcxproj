@@ -2991,6 +2991,7 @@
     <ClInclude Include="Eve\SpaceObject\Children\EveChildLink.h"/>
     <ClInclude Include="Eve\SpaceObject\Children\EveChildMesh.h"/>
     <ClInclude Include="Eve\SpaceObject\Children\EveChildParticleSystem.h"/>
+    <ClInclude Include="Eve\SpaceObject\Children\EveChildTransform.h"/>
     <ClInclude Include="Eve\SpaceObject\Children\IEveSpaceObjectChild.h"/>
     <ClInclude Include="Eve\SpaceObject\Utils\EveCustomMask.h"/>
     <ClInclude Include="Eve\SpaceObject\Utils\EveLocator2.h"/>
@@ -3626,6 +3627,7 @@
     <ClCompile Include="Eve\SpaceObject\Children\EveChildMesh_Blue.cpp"/>
     <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSystem.cpp"/>
     <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSystem_Blue.cpp"/>
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildTransform.cpp"/>
     <ClCompile Include="Eve\SpaceObject\Utils\EveCustomMask.cpp"/>
     <ClCompile Include="Eve\SpaceObject\Utils\EveCustomMask_Blue.cpp"/>
     <ClCompile Include="Eve\SpaceObject\Utils\EveLocator2.cpp"/>
