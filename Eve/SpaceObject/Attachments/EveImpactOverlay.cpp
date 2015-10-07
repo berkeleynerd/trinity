@@ -272,8 +272,7 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	D3DXVec3Normalize( &sid.direction, &sid.direction );
 	sid.damageLocatorIndex = damageLocatorIndex;
 	sid.interceptPosition = Vector3( 0.f, 0.f, 0.f );
-	sid.lifeTime = lifeTime;
-	sid.timeLeft = 2.f * lifeTime;
+	sid.lifeTime = sid.timeLeft = 2.f * lifeTime;
 	m_shieldImpactData[ m_shieldImpactDataNextIdx ] = sid;
 	return m_shieldImpactDataNextIdx++;
 }
