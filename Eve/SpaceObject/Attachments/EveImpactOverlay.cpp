@@ -14,7 +14,7 @@
 
 EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ):
 	m_display( true ),
-	m_speed( 1.f ),
+	m_overallShieldImpact( -1.f ),
 	m_maxShieldImpacts( 128 ),
 	m_shieldEllipsoidCenter( 0.f, 0.f, 0.f ),
 	m_shieldEllipsoidRadii( 1.f, 1.f, 1.f ),
@@ -103,8 +103,7 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 			// first one is special
 			if( x == 0 )
 			{
-				texelRow0->x = float( m_shieldTexelData.size() );
-				texelRow0->y = texelRow0->z = texelRow0->w = 0.f;
+				*texelRow0 = Vector4( float( m_shieldTexelData.size() ), m_overallShieldImpact, 0.f, 0.f );
 				memset( texelRow1, 0, sizeof(Vector4) );
 			}
 			else
@@ -131,8 +130,7 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 			// first one is special
 			if( x == 0 )
 			{
-				texelRow0->x = float( m_armorTexelData.size() );
-				texelRow0->y = texelRow0->z = texelRow0->w = 0.f;
+				*texelRow0 = Vector4( float( m_armorTexelData.size() ), 0.f, 0.f, 0.f );
 				memset( texelRow1, 0, sizeof(Vector4) );
 			}
 			else
@@ -250,14 +248,14 @@ void EveImpactOverlay::GetBatches( ITriRenderBatchAccumulator* accumulator, TriB
 	{
 		return;
 	}
-	if( m_shieldTexelData.empty() )
-	{
-		return;
-	}
 
-	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_shieldDataTexture );
-	const Tr2MeshAreaVector* areas = m_mesh->GetAreas( batchType );
-	m_mesh->GetBatches( accumulator, areas, perObjectData );
+	// anything on shields?
+	if( !m_shieldTexelData.empty() || ( m_overallShieldImpact > 0.f ) )
+	{
+		GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_shieldDataTexture );
+		const Tr2MeshAreaVector* areas = m_mesh->GetAreas( batchType );
+		m_mesh->GetBatches( accumulator, areas, perObjectData );
+	}
 }
 
 // --------------------------------------------------------------------------------

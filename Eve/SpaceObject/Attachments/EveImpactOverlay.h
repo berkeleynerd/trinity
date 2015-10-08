@@ -97,7 +97,9 @@ private:
 	// general data
 	BlueSharedString m_name;
 	bool m_display;
-	float m_speed;
+
+	// non-directional impacts
+	float m_overallShieldImpact;
 
 	// limits
 	uint32_t m_maxShieldImpacts;

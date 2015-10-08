@@ -22,6 +22,8 @@ const Be::ClassInfo* EveImpactOverlay::ExposeToBlue()
 		MAP_ATTRIBUTE( "shieldEllipsoidCenter", m_shieldEllipsoidCenter, "", Be::READ )
 		MAP_ATTRIBUTE( "shieldEllipsoidRadii", m_shieldEllipsoidRadii, "", Be::READ )
 		MAP_ATTRIBUTE( "shieldImpactDataNextIdx", m_shieldImpactDataNextIdx, "", Be::READ )
+		MAP_ATTRIBUTE( "overallShieldImpact", m_overallShieldImpact, "", Be::READWRITE )
+
 		MAP_ATTRIBUTE( "armorImpactDataNextIdx", m_armorImpactDataNextIdx, "", Be::READ )
 
 		MAP_ATTRIBUTE( "armorDamageShader", m_armorDamageShader, "", Be::READWRITE | Be::PERSIST )
