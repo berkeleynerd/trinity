@@ -7,6 +7,7 @@
 #ifndef _EVEREMOTEPOSITIONCURVE_H_
 #define _EVEREMOTEPOSITIONCURVE_H_
 
+#include "Vector3d.h"
 #include "include/ITriFunction.h"
 
 BLUE_CLASS( EveRemotePositionCurve ) :
@@ -33,6 +34,22 @@ public:
 	Vector3d* InterpolatedPosition( Vector3d* out, Be::Time time );
 
 private:
+	// the start point curve
+	ITriVectorFunctionPtr m_startPositionCurve;
+
+	// the current value
+	Vector3 m_value;
+
+	// the two offset vectors
+	Vector3 m_offsetDir1;
+	Vector3 m_offsetDir2;
+
+	// times
+	Be::Time m_startTime;
+	float m_totalTime;
+
+	// behaviour
+	bool m_cycle;
 };
 
 TYPEDEF_BLUECLASS( EveRemotePositionCurve );
