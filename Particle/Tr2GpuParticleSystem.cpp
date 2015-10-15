@@ -698,7 +698,7 @@ void Tr2GpuParticleSystem::UpdateGpuEmitterParams( Tr2RenderContext& renderConte
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
-		m_emitterParamsTexture->Create( 4, m_emitterParams.size(), 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, renderContext );
+		m_emitterParamsTexture->Create( 4, uint32_t( m_emitterParams.size() ), 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, renderContext );
 		texture = m_emitterParamsTexture->GetTexture();
 		if( !texture )
 		{
