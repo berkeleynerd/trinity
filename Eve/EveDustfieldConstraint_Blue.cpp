@@ -15,7 +15,7 @@ const Be::ClassInfo* EveDustfieldConstraint::ExposeToBlue()
         MAP_INTERFACE( EveDustfieldConstraint )
 		MAP_INTERFACE( ITr2GenericParticleConstraint )
 
-		MAP_ATTRIBUTE( "camera", m_camera, "na", Be::READWRITE )
+		MAP_ATTRIBUTE( "cameraView", m_cameraView, "na", Be::READWRITE )
 		MAP_ATTRIBUTE( "referencePosition", m_referencePosition, "Center of the dustfield sphere", Be::READ )
 		MAP_ATTRIBUTE( "velocityStretch", m_velocityStretch, "Velocity stretch effect parameter", Be::READ )
 

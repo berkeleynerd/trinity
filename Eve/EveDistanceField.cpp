@@ -2,8 +2,10 @@
 #include "EveDistanceField.h"
 
 #include "EveCamera.h"
+#include "TriView.h"
 #include "EveUpdateContext.h"
 #include "Curves/TriCurveSet.h"
+
 
 static const float MAX_DISTANCE = 1e6;
 
@@ -77,9 +79,9 @@ void EveDistanceField::Update( const EveUpdateContext& updateContext )
 	Vector3 posObj;
 
 	Vector3 posRef( 0, 0, 0 );
-	if( m_camera )
+	if( m_cameraView )
 	{
-		posRef = *m_camera->GetPosition();
+		posRef = m_cameraView->GetTransform().GetTranslation();
 	}
 	Be::Time t = updateContext.GetTime();
 	

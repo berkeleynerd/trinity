@@ -7,11 +7,11 @@
 #include "StdAfx.h"
 #include "include/IEveBallpark.h"
 #include "EveDustfieldConstraint.h"
-#include "EveCamera.h"
 #include "EveUpdateContext.h"
 #include "Particle/Tr2ParticleSystem.h"
 #include "Curves/Tr2ScalarCurve.h"
 #include <limits>
+#include "TriView.h"
 
 
 
@@ -92,7 +92,7 @@ void EveDustfieldConstraint::Bind( Tr2ParticleSystem* system )
 // --------------------------------------------------------------------------------------
 void EveDustfieldConstraint::Update( const EveUpdateContext& updateContext, IEveBallparkPtr ballpark )
 {
-	if( !m_camera || !ballpark )
+	if( !m_cameraView || !ballpark )
 	{
 		return;
 	}
@@ -108,7 +108,8 @@ void EveDustfieldConstraint::Update( const EveUpdateContext& updateContext, IEve
 	}
 	m_originShift *= m_movementScale;
 
-	m_referencePosition = *(m_camera->GetPosition());
+	m_referencePosition = m_cameraView->GetTransform().GetTranslation();
+
 
 	Vector3 direction;
 	Vector3 velocity;
@@ -124,7 +125,7 @@ void EveDustfieldConstraint::Update( const EveUpdateContext& updateContext, IEve
 
 	if( m_distanceFunction )
 	{
-		double distance = (double)D3DXVec3Length( m_camera->GetPosition() );
+		double distance = (double)D3DXVec3Length( &m_referencePosition );
 		m_distanceFunction->UpdateValue( distance );
 	}
 }

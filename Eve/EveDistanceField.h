@@ -7,11 +7,11 @@
 #ifndef EveDistanceField_H
 #define EveDistanceField_H
 
-BLUE_DECLARE( EveCamera );
 BLUE_DECLARE( EveUpdateContext );
 BLUE_DECLARE_INTERFACE( ITriVectorFunction );
 BLUE_DECLARE_VECTOR( ITriVectorFunction );
 BLUE_DECLARE( TriCurveSet );
+BLUE_DECLARE( TriView );
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -36,7 +36,7 @@ private:
 
 	TriCurveSetPtr m_curveSet;
 
-	EveCameraPtr m_camera;
+	TriViewPtr m_cameraView;
 
         // distance value used by curve set
 	float m_distance;

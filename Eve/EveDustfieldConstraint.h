@@ -13,8 +13,8 @@
 
 BLUE_DECLARE_INTERFACE( IEveBallpark );
 BLUE_DECLARE( Tr2ScalarCurve );
-BLUE_DECLARE( EveCamera );
 BLUE_DECLARE( EveUpdateContext );
+BLUE_DECLARE( TriView );
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -49,9 +49,7 @@ private:
 	// Particle element data for particle lifetime
 	Tr2ParticleElementData m_lifetimeElement;
 
-	// I'd love to replace this with TriView or smth but I don't think it's possible
-	// while we're still using EveCamera in it's current state.
-	EveCameraPtr m_camera;
+	TriViewPtr m_cameraView;
 
 	// Resulting velocity stretch value
 	float m_velocityStretch;
