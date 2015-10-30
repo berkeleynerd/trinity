@@ -75,6 +75,7 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 			"object this set of turrets will track"
 		)
 
+		MAP_ATTRIBUTE( "targetLocatorID", m_targetLocator, "targetLocatorID of the target object", Be::READWRITE )
 		MAP_ATTRIBUTE( "turretEffect", m_turretEffect, "The effect to use to draw the turret pair", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "geometryResource", m_geometryResource, "geometry resource for this turret, is read-only", Be::READ )
 		MAP_ATTRIBUTE( "geometryResPath", m_geomResPath, "resource path to the turrets granny file", Be::READWRITE | Be::NOTIFY | Be::PERSIST )

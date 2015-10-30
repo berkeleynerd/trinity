@@ -2114,14 +2114,12 @@ Vector3 EveSpaceObject2::GetDamageLocator( unsigned index ) const
 	return Vector3( (float*)&m_damageLocatorPositions[index] );
 }
 
-Vector3 EveSpaceObject2::GetTransformedDamageLocator( unsigned index ) const
+Vector3 EveSpaceObject2::GetTransformedDamageLocator( unsigned index )
 {
-	if( index > m_allocatedDamageLocatorCount )
-	{
-		return Vector3(0,0,0);
-	}
+	Vector3 pos;
+	GetDamageLocatorPosition(&pos, index);
+	return pos;
 	
-	return Vector3( (float*)&m_transformedDamageLocators[index] );
 }
 
 Be::Result<std::string> EveSpaceObject2::GetLocalBoundingBoxFromScript( std::pair<Vector3, Vector3>& result )

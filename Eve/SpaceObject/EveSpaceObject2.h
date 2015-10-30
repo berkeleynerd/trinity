@@ -299,7 +299,7 @@ protected:
 	// damage locators
 	unsigned GetDamageLocatorCount() const;
 	Vector3 GetDamageLocator( unsigned index ) const;
-	Vector3 GetTransformedDamageLocator( unsigned index ) const;
+	Vector3 GetTransformedDamageLocator( unsigned index );
 	void UpdateDamageLocatorPositions();
 	void UpdateDamageLocatorDirections();
 
