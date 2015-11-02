@@ -801,6 +801,9 @@
     <ClInclude Include="Eve\Turret\EveTurretSet.h">
       <Filter>Source Files\Eve\Turret</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\Turret\EveTurretTarget.h">
+      <Filter>Source Files\Eve\Turret</Filter>
+    </ClInclude>
     <ClInclude Include="Font\Tr2FontManager.h">
       <Filter>Source Files\Font</Filter>
     </ClInclude>
@@ -2668,6 +2671,12 @@
       <Filter>Source Files\Eve\Turret</Filter>
     </ClCompile>
     <ClCompile Include="Eve\Turret\EveTurretSet_Blue.cpp">
+      <Filter>Source Files\Eve\Turret</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Turret\EveTurretTarget.cpp">
+      <Filter>Source Files\Eve\Turret</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Turret\EveTurretTarget_Blue.cpp">
       <Filter>Source Files\Eve\Turret</Filter>
     </ClCompile>
     <ClCompile Include="Font\Tr2FontManager.cpp">

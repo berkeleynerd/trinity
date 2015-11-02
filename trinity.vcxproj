@@ -2981,6 +2981,7 @@
     <ClInclude Include="Eve\SpaceObjectFactory\EveSOFUtils.h"/>
     <ClInclude Include="Eve\Turret\EveTurretFiringFX.h"/>
     <ClInclude Include="Eve\Turret\EveTurretSet.h"/>
+    <ClInclude Include="Eve\Turret\EveTurretTarget.h"/>
     <ClInclude Include="Font\Tr2FontManager.h"/>
     <ClInclude Include="Font\Tr2FontMeasurer.h"/>
     <ClInclude Include="Font\Tr2SBit.h"/>
@@ -3608,6 +3609,8 @@
     <ClCompile Include="Eve\Turret\EveTurretFiringFX_Blue.cpp"/>
     <ClCompile Include="Eve\Turret\EveTurretSet.cpp"/>
     <ClCompile Include="Eve\Turret\EveTurretSet_Blue.cpp"/>
+    <ClCompile Include="Eve\Turret\EveTurretTarget.cpp"/>
+    <ClCompile Include="Eve\Turret\EveTurretTarget_Blue.cpp"/>
     <ClCompile Include="Font\Tr2FontManager.cpp"/>
     <ClCompile Include="Font\Tr2FontManager_Blue.cpp"/>
     <ClCompile Include="Font\Tr2FontMeasurer.cpp"/>
