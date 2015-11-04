@@ -26,7 +26,7 @@ public:
 
 	// access locator
 	int GetLocator() const;
-	void StartFireAtLocator( int l );
+	void StartFireAtLocator( int l, float delay, float length );
 	void StopFireAtLocator();
 	const Vector3* GetTargetPosition() const;
 	int FindClosestLocator( const Vector3* source, Vector3* position ) const;
@@ -39,9 +39,7 @@ public:
 	bool GetShotMissed() const;
 	void SetShotMissed( bool missed );
 	double GetLastShotTime() const;
-	void PopShotMissed();
-	void ResetMissQueue();
-	void UpdateMissPosition( const Matrix* );
+	bool PopShotMissed();
 	size_t MissQueueSize() const;
 
 	// target object queries
@@ -64,13 +62,12 @@ private:
 	Vector3 m_dirToSource;
 
 	// hit/miss related data
-	Vector3 m_targetPositionMiss;
+	Vector3 m_positionMiss;
 	TrackableStdDeque<bool> m_missQueue;
 	bool m_lastShotIsMiss;
 	double m_lastShotTime;
 	bool m_laserMissBehaviour, m_projectileMissBehaviour;
 	bool m_readyToFireEffect;
-	bool m_trackMissPoint;
 	float m_randomMissDistanceOffset;
 	Vector3 m_randomMissPositionOffset;
 };

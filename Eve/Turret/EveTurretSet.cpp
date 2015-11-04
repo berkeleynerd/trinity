@@ -623,7 +623,7 @@ void EveTurretSet::UpdateSyncronous( float deltaT, Be::Time time, const Matrix* 
 							if( ( currentClosestTurret != m_activeTurret ) || ( currentClosestLocator != m_target->GetLocator() ) )
 							{				
 								// Set up the firing states correctly
-								SetupFiringState( );
+								SetupFiringState();
 							}
 						}
 						// recheck every 2 seconds
@@ -771,21 +771,7 @@ void EveTurretSet::UpdateAsyncronous( float deltaT, Be::Time time, const ParentD
 			m_firingEffectMuzzlePosSet = true;
 		}
 
-		if( m_firingEffect->ReadyToFire() )
-		{
-			m_target->PopShotMissed();
-			m_target->UpdateMissPosition( &m_parentData.transform );
-			SetEffectEndPoint();
-		}
-		else if( m_laserMissBehaviour )
-		{
-			m_target->UpdateMissPosition( &m_parentData.transform );
-			SetEffectEndPoint();
-		}		
-		else
-		{
-			SetEffectEndPoint();
-		}
+		m_firingEffect->SetEndPosition( m_target->GetTargetPosition() );
 
 		// time update (return value tells us if effect is ready to fire!)
 		if( m_firingEffect->Update( time, deltaT ) )
@@ -1641,8 +1627,6 @@ void EveTurretSet::EnterStateDeactive()
 		{
 			PlayAnimation( i, "Pack", "Inactive", TRACKING_FADE_TIME );
 		}
-
-		m_target->ResetMissQueue();
 		break;
 
 	default:
@@ -1700,8 +1684,6 @@ void EveTurretSet::EnterStateIdle()
 		{
 			PlayAnimation( i, "", "Active", TRACKING_FADE_TIME );
 		}
-
-		m_target->ResetMissQueue();
 		break;
 	}
 	// finally, we can set state
@@ -1755,8 +1737,6 @@ void EveTurretSet::EnterStateTargeting()
 		{
 			PlayAnimation( i, "", "Active", 0.f );
 		}
-		
-		m_target->ResetMissQueue();
 		break;
 
 	default:
@@ -1832,8 +1812,11 @@ bool EveTurretSet::SetupFiringState()
 		}
 	}
 
-	// apply a randomized fire delay
+	// timing: apply a randomized fire delay
 	CalcRandomDelay();
+
+	// timing: is the length of the firing effect known?
+	float effectTotalTime = m_firingEffect ? m_firingEffect->GetFiringDuration() : 0.f;
 
 	// what state are we in?
 	switch( m_state )
@@ -1862,7 +1845,7 @@ bool EveTurretSet::SetupFiringState()
 			}
 		}
 		// assign locator and turret
-		m_target->StartFireAtLocator( closestLocator );
+		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay, effectTotalTime );
 		m_activeTurret = closestTurret;
 		break;
 	case STATE_FIRING:
@@ -1883,7 +1866,7 @@ bool EveTurretSet::SetupFiringState()
 		}
 		// switch to new location
 		m_activeTurret = closestTurret;
-		m_target->StartFireAtLocator( closestLocator );
+		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay, effectTotalTime );
 		break;
 
 	default:
@@ -1928,8 +1911,6 @@ void EveTurretSet::EnterStateReloading()
 		{
 			PlayAnimation( i, "Reload", "Active", TRACKING_FADE_TIME );
 		}
-
-		m_target->ResetMissQueue();
 		break;
 
 	default:
@@ -2161,15 +2142,6 @@ size_t EveTurretSet::MissQueueSize() const
 double EveTurretSet::GetLastShotTime() const
 {
 	return m_target->GetLastShotTime();
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Sets the end point of the firingEffect
-// --------------------------------------------------------------------------------
-void EveTurretSet::SetEffectEndPoint()
-{
-	m_firingEffect->SetEndPosition( m_target->GetTargetPosition() );
 }
 
 // --------------------------------------------------------------------------------

@@ -141,8 +141,6 @@ public:
 	void UpdateSyncronous( float deltaT, Be::Time time, const Matrix* parentMatrix );
 	void UpdateAsyncronous( float deltaT, Be::Time time, const ParentData* parentData );
 
-	void SetEffectEndPoint();
-
 	// rendering
 	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Vector4* shLighting );
 	void GetRenderablesCastingShadow( const TriFrustumOrtho& frustum, std::vector<ITr2Renderable*>& renderables );

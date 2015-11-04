@@ -67,6 +67,8 @@ public:
 	bool IsLooping() const;
 	// query: get start position
 	bool GetStartPosition( Vector3& pos ) const;
+	// query: get effect length
+	float GetFiringDuration() const;
 
 	// setup this effect: muzzle bone IDs
 	void SetMuzzleBoneID( int muzzleID, unsigned int boneID );

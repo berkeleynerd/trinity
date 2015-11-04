@@ -21,14 +21,13 @@ EveTurretTarget::EveTurretTarget( IRoot* lockobj ) :
 	m_positionOld( 0.f, 0.f, 0.f ),
 	m_positionOldInfluence( -1.f ),
 	m_dirToSource( 0.f, 0.f, 0.f ),
-	m_targetPositionMiss( 0.f, 0.f, 0.f ),
+	m_positionMiss( 0.f, 0.f, 0.f ),
 	m_missQueue( "EveTurretTarget::m_missQueue" ),
 	m_lastShotIsMiss( false ),
 	m_lastShotTime( 0.0 ),
 	m_laserMissBehaviour( false ),
 	m_projectileMissBehaviour( false ),
 	m_readyToFireEffect( false ),
-	m_trackMissPoint( false ),
 	m_randomMissDistanceOffset( 0.5f ),
 	m_randomMissPositionOffset( 0.f, 0.f, 0.f )
 {
@@ -89,7 +88,7 @@ int EveTurretTarget::GetLocator() const
 // Description:
 //   Start the firing procedure at a given locator
 // --------------------------------------------------------------------------------
-void EveTurretTarget::StartFireAtLocator( int l )
+void EveTurretTarget::StartFireAtLocator( int l, float delay, float length )
 {
 	// remember this locator
 	m_locator = l;
@@ -101,9 +100,14 @@ void EveTurretTarget::StartFireAtLocator( int l )
 	float theta = acosf( 1.f - sqrtf( v ) ) * 2.f;
 	TriVectorSpherical( &m_randomMissPositionOffset, phi, theta, 3.f );
 
-	if( m_object )
+	// pop a miss/hit from the queue
+	if( !PopShotMissed() )
 	{
-//		m_shieldImpactID = m_object->CreateShieldImpact( m_locator, m_dirToSource, 5.f );
+		// ok, we assume we hit! create an impact
+		if( m_object )
+		{
+//			m_shieldImpactID = m_object->CreateShieldImpact( m_locator, m_dirToSource, length );
+		}
 	}
 }
 
@@ -113,9 +117,13 @@ void EveTurretTarget::StartFireAtLocator( int l )
 // --------------------------------------------------------------------------------
 void EveTurretTarget::StopFireAtLocator()
 {
-	// clear out the locator and also stopp anyt influence
+	// clear out the locator
 	m_locator = -1;
+	// stopp anyy influence
 	m_positionOldInfluence = -1.f;
+	// reset the miss-system
+	m_lastShotIsMiss = false;
+	m_missQueue.clear();
 }
 
 // --------------------------------------------------------------------------------
@@ -130,6 +138,24 @@ void EveTurretTarget::Update( float deltaT, const Vector3* source )
 		// update the position & diretion
 		m_object->GetDamageLocatorPosition( &m_position, m_locator );
 		m_dirToSource = *source - m_position;
+
+		// update the miss position
+		m_object->GetMissPosition( &m_position, source, &m_positionMiss );
+		m_positionMiss += m_randomMissPositionOffset;
+		Vector3 direction = m_positionMiss - *source;
+
+		if( m_laserMissBehaviour )
+		{
+			D3DXVec3Normalize( &direction, &direction );
+			m_positionMiss += direction * 250000.f;
+		}
+		else
+		{
+			float dist = D3DXVec3Length( &direction );
+			direction /= dist;
+			m_positionMiss += direction * ( dist + 5000.f) * ( 1.f + 0.5f * m_randomMissDistanceOffset );
+		}
+
 
 		// update the impacts
 		if( m_shieldImpactID != -1 )
@@ -156,7 +182,7 @@ const Vector3* EveTurretTarget::GetTargetPosition() const
 {
 	if( GetShotMissed() )
 	{
-		return &m_targetPositionMiss;
+		return &m_positionMiss;
 	}
 	else
 	{
@@ -197,29 +223,16 @@ void EveTurretTarget::SetBehaviour( bool laserMiss, bool projectileMiss )
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Clears the miss queue. Do this when changing target, disabling turrets etc.
-// --------------------------------------------------------------------------------
-void EveTurretTarget::ResetMissQueue()
-{
-	m_lastShotIsMiss = false;
-	m_trackMissPoint = false;
-	while( !m_missQueue.empty() ) 
-	{
-		m_missQueue.pop_front();
-	}
-}
-
-// --------------------------------------------------------------------------------
-// Description:
 //   Method to pop from the miss queue.
 // --------------------------------------------------------------------------------
-void EveTurretTarget::PopShotMissed() 
+bool EveTurretTarget::PopShotMissed() 
 { 
 	m_lastShotIsMiss = m_missQueue.empty() ? false : m_missQueue.front();
 	if( !m_missQueue.empty() )
 	{
 		m_missQueue.pop_front(); 
 	}
+	return m_lastShotIsMiss;
 }
 
 // --------------------------------------------------------------------------------
@@ -235,13 +248,8 @@ bool EveTurretTarget::GetShotMissed() const
 // Description:
 //   Add a hit/miss to the shot queue.
 // --------------------------------------------------------------------------------
-void EveTurretTarget::SetShotMissed( bool missed ) 
+void EveTurretTarget::SetShotMissed( bool missed )
 { 
-	if( !m_trackMissPoint )
-	{
-		m_lastShotIsMiss = missed;
-	}
-	m_trackMissPoint = true;
 	m_missQueue.push_back( missed );
 	m_lastShotTime = TimeAsDouble( BeOS->GetActualTime() );
 	// in case we get way behind, start dropping miss events, rather than infinitely accumulating.
@@ -249,39 +257,6 @@ void EveTurretTarget::SetShotMissed( bool missed )
 	while( m_missQueue.size() > 4 )
 	{
 		m_missQueue.pop_front();
-	}
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Still to come
-// --------------------------------------------------------------------------------
-void EveTurretTarget::UpdateMissPosition( const Matrix *parentMatrix )
-{
-	// early out if we're not tracking miss positions
-	if( !m_trackMissPoint || !m_object )
-	{
-		m_targetPositionMiss = *GetTargetPosition();
-		return;
-	}
-
-	Vector3 muzzlePos = Vector3( parentMatrix->_41, parentMatrix->_42, parentMatrix->_43 );
-
-	m_object->GetMissPosition( &m_position, &muzzlePos, &m_targetPositionMiss );
-
-	m_targetPositionMiss += m_randomMissPositionOffset;
-	Vector3 direction = m_targetPositionMiss - muzzlePos;
-
-	if( m_laserMissBehaviour )
-	{
-		D3DXVec3Normalize( &direction, &direction );
-		m_targetPositionMiss += direction * 250000.f;
-	}
-	else
-	{
-		float dist = D3DXVec3Length( &direction );
-		direction /= dist;
-		m_targetPositionMiss += direction * ( dist + 5000.f) * ( 1.f + 0.5f * m_randomMissDistanceOffset );
 	}
 }
 

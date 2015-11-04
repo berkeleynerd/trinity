@@ -250,6 +250,15 @@ bool EveTurretFiringFX::GetStartPosition( Vector3& pos ) const
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Return the length of this effect, based on the curve length
+// --------------------------------------------------------------------------------
+float EveTurretFiringFX::GetFiringDuration() const
+{
+	return m_firingDuration;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Start a muzzle effect, usually means calling ::Play() on the right
 //   curvesets. The right curveset is determined with a name.
 // Arguments:
