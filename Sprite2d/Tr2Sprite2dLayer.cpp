@@ -20,6 +20,10 @@ Tr2Sprite2dLayer::Tr2Sprite2dLayer( IRoot* lockobj ) :
 Tr2Sprite2dLayer::~Tr2Sprite2dLayer()
 {
 	FreeRenderTarget();
+	if( m_textureSecondary )
+	{
+		m_textureSecondary->UnregisterForChangeNotification( this );
+	}
 }
 
 void Tr2Sprite2dLayer::SetChildDirty( ITr2SpriteObject* child )

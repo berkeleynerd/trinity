@@ -210,6 +210,18 @@ Tr2TexturedSpriteObject::Tr2TexturedSpriteObject( IRoot* lockobj /*= NULL */ )
 
 }
 
+Tr2TexturedSpriteObject::~Tr2TexturedSpriteObject()
+{
+	if( m_texturePrimary )
+	{
+		m_texturePrimary->UnregisterForChangeNotification( this );
+	}
+	if( m_textureSecondary )
+	{
+		m_textureSecondary->UnregisterForChangeNotification( this );
+	}
+}
+
 void Tr2TexturedSpriteObject::Sprite2dTextureChanged( ITr2Sprite2dTexture* p )
 {
 	SetDirty();

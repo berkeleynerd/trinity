@@ -117,6 +117,7 @@ public:
 	EXPOSE_TO_BLUE();
 
 	Tr2TexturedSpriteObject( IRoot* lockobj = NULL );
+	~Tr2TexturedSpriteObject();
 
 	void SetTexturePrimary( ITr2Sprite2dTexture* t );
 	ITr2Sprite2dTexture* GetTexturePrimary() const;
