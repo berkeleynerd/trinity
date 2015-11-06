@@ -54,7 +54,7 @@ private:
 	// impacts
 	float m_impactDelay;
 	float m_impactLength;
-	int m_shieldImpactID;
+	int m_impactID;
 
 	// actual target position and smoothing
 	Vector3 m_position;

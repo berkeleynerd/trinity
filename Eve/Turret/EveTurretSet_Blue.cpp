@@ -66,7 +66,7 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "slotNumber", m_slotNumber, "the slot number of the turret", Be::READWRITE )
 		
 		MAP_PROPERTY( "targetObject", GetTargetObject, SetTargetObject, "object this set of turrets will track"	)
-//		MAP_ATTRIBUTE( "target", m_target, "Info on the target", Be::READ )
+		MAP_ATTRIBUTE( "target", m_target, "Info on the target", Be::READ )
 
 		MAP_ATTRIBUTE( "turretEffect", m_turretEffect, "The effect to use to draw the turret pair", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "geometryResource", m_geometryResource, "geometry resource for this turret, is read-only", Be::READ )

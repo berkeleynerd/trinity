@@ -35,9 +35,8 @@ public:
 	int GetInterestingDamageLocatorIndex( const Vector3 &position ) const;
 	int GetGoodDamageLocatorIndex( const Vector3& position );
 	float GetRadius() const;
-	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
-	bool UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex );
-	int CreateArmorImpact( int damageLocatorIndex, float size );
+	int CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
+	bool UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// Tr2Transform

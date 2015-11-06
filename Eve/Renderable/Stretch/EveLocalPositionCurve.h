@@ -27,13 +27,12 @@ public:
 
 	enum LocalPositionBehavior
 	{
-		POS_NONE							= 0,
-		POS_NEAREST_BOUNDING_POINT			= 1,
-		POS_CENTER_BOUNDING_POINT			= 2,
-		POS_TARGET_DMG_LOCATOR				= 3,
-		POS_TARGET_DMG_LOCATOR_SHIELDIMPACT = 4,
-		POS_TARGET_DMG_LOCATOR_ARMORIMPACT  = 5,
-		POS_COUNT							= 6,
+		POS_NONE = 0,
+		POS_NEAREST_BOUNDING_POINT,
+		POS_CENTER_BOUNDING_POINT,
+		POS_TARGET_DMG_LOCATOR,
+		POS_TARGET_DMG_LOCATOR_IMPACT,
+		POS_COUNT,
 	};
 	LocalPositionBehavior m_behavior;
 
@@ -77,8 +76,7 @@ private:
 	Vector3* CalculateNearestBoundingPoint( Vector3* in, Be::Time t );
 	Vector3* GetCenterBoundingSphere( Vector3* in, Be::Time t );
 	Vector3* GetDamageLocator( Vector3* in, Be::Time t );
-	Vector3* GetDamageLocatorShieldImpact( Vector3* in, Be::Time t );
-	Vector3* GetDamageLocatorArmorImpact( Vector3* in, Be::Time t );
+	Vector3* GetDamageLocatorImpact( Vector3* in, Be::Time t );
 };
 
 TYPEDEF_BLUECLASS(EveLocalPositionCurve);

@@ -18,7 +18,7 @@ EveTurretTarget::EveTurretTarget( IRoot* lockobj ) :
 	m_locator( -1 ),
 	m_impactLength( -1.f ),
 	m_impactDelay( -1.f ),
-	m_shieldImpactID( -1 ),
+	m_impactID( -1 ),
 	m_position( 0.f, 0.f, 0.f ),
 	m_positionOld( 0.f, 0.f, 0.f ),
 	m_positionOldInfluence( -1.f ),
@@ -165,15 +165,15 @@ void EveTurretTarget::Update( float deltaT, const Vector3* source )
 			m_impactDelay -= deltaT;
 			if( m_impactDelay < 0.f )
 			{
-				m_shieldImpactID = m_object->CreateShieldImpact( m_locator, dirToSource, m_impactLength );
+				m_impactID = m_object->CreateImpact( m_locator, dirToSource, m_impactLength );
 				m_impactDelay = -1.f;
 			}
 		}
 
 		// update the impacts
-		if( m_shieldImpactID != -1 )
+		if( m_impactID != -1 )
 		{
-			m_object->UpdateShieldImpact( m_position, dirToSource, m_shieldImpactID );
+			m_object->UpdateImpact( m_position, dirToSource, m_impactID );
 		}
 	}
 
@@ -312,7 +312,7 @@ float EveTurretTarget::GetRadius() const
 bool EveTurretTarget::ShowDestObject() const
 {
 	// never show it when we have an active shield impact
-	if( m_shieldImpactID != -1 )
+	if( m_impactID != -1 )
 	{
 		return false;
 	}

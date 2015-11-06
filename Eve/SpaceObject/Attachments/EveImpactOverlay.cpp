@@ -7,11 +7,11 @@
 #include "StdAfx.h"
 #include "EveImpactOverlay.h"
 
-#include "include/TriMath.h"
 #include "Curves/TriCurveSet.h"
 #include "Utilities/BoundingSphere.h"
 #include "Tr2MeshBase.h"
 #include "Shader/Utils/Tr2DataTextureManager.h"
+#include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveUpdateContext.h"
 
 // settings
@@ -21,13 +21,13 @@ extern bool g_eveSpaceObjectImpactEffectEnabled;
 EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
 	PARENTLOCK( m_curveSets ),
 	m_display( true ),
+	m_configuration( IMPACT_INVALID ),
 	m_overallShieldImpact( -1.f ),
 	m_maxShieldImpacts( 8 ),
 	m_shieldEllipsoidCenter( 0.f, 0.f, 0.f ),
 	m_shieldEllipsoidRadii( 1.f, 1.f, 1.f ),
 	m_parentBoundingSphere( 0.f, 0.f, 0.f, -1.f ),
-	m_shieldImpactDataNextIdx( 1 ),
-	m_armorImpactDataNextIdx( 1 ),
+	m_impactDataNextIdx( 1 ),
 	m_dataTextureBlockID( -1 ),
 	m_dataTextureOffset( -1 ),
 	m_armorImpactSizeFactor( 1.f / 77.5f ),
@@ -261,9 +261,20 @@ void EveImpactOverlay::StopAllCurveSets()
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Use this method to add a new shield impact
+//   Sets what effects are going to be triggered. Should only change future
+//   impacts
 // --------------------------------------------------------------------------------
-int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+void EveImpactOverlay::SetConfiguration( ImpactConfiguration cfg )
+{
+	m_configuration = cfg;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Use this method to add a new impact effect. Internal states determines
+//   what effect to use
+// --------------------------------------------------------------------------------
+int EveImpactOverlay::CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
 {
 	// settings
 	if( !g_eveSpaceObjectImpactEffectEnabled )
@@ -271,6 +282,62 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 		return -1;
 	}
 
+	// what's the situation?
+	switch( m_configuration )
+	{
+	case IMPACT_SHIELD:
+		return CreateShieldImpact( damageLocatorIndex, direction, lifeTime );
+	case IMPACT_ARMOR:
+		return CreateArmorImpact( damageLocatorIndex, 1.f );
+	case IMPACT_HULL:
+		// todo
+		return -1;
+	}
+
+	return -1;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Shield impacts are special, they need constant updating with the direction
+//   to the target. Also it returns the actual impact position
+// --------------------------------------------------------------------------------
+bool EveImpactOverlay::UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex )
+{
+	// valid?
+	if( impactIndex == -1 )
+	{
+		return false;
+	}
+
+	// is it a shield effect?
+	auto shieldData = m_shieldImpactData.find( impactIndex );
+	if( shieldData != m_shieldImpactData.end() )
+	{
+		// put new direction in there
+		D3DXVec3Normalize( &shieldData->second.direction, &direction );
+		// and return the old "intercept" position
+		out = shieldData->second.interceptPosition;
+		return true;
+	}
+
+	// is it an armor effect?
+	auto armorData = m_armorImpactData.find( impactIndex );
+	if( armorData != m_armorImpactData.end() )
+	{
+		// nothing to do here
+		return true;
+	}
+
+	return false;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Use this method to add a new shield impact
+// --------------------------------------------------------------------------------
+int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+{
 	// only need normal
 	Vector3 nrmDir;
 	D3DXVec3Normalize( &nrmDir, &direction );
@@ -311,28 +378,8 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	sid.damageLocatorIndex = damageLocatorIndex;
 	sid.interceptPosition = Vector3( 0.f, 0.f, 0.f );
 	sid.lifeTime = sid.timeLeft = 2.f * lifeTime;
-	m_shieldImpactData[ m_shieldImpactDataNextIdx ] = sid;
-	return m_shieldImpactDataNextIdx++;
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Shield impacts are special, they need constant updating with the direction
-//   to the target. Also it returns the actual impact position
-// --------------------------------------------------------------------------------
-bool EveImpactOverlay::UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex )
-{
-	// find the impact in our map
-	auto finder = m_shieldImpactData.find( shieldImpactIndex );
-	if( finder == m_shieldImpactData.end() )
-	{
-		return false;
-	}
-	// put new direction in there
-	D3DXVec3Normalize( &finder->second.direction, &direction );
-	// and return the old "intercept" position
-	out = finder->second.interceptPosition;
-	return true;
+	m_shieldImpactData[ m_impactDataNextIdx ] = sid;
+	return m_impactDataNextIdx++;
 }
 
 // --------------------------------------------------------------------------------
@@ -341,18 +388,12 @@ bool EveImpactOverlay::UpdateShieldImpact( Vector3& out, const Vector3& directio
 // --------------------------------------------------------------------------------
 int EveImpactOverlay::CreateArmorImpact( int damageLocatorIndex, float size )
 {
-	// settings
-	if( !g_eveSpaceObjectImpactEffectEnabled )
-	{
-		return -1;
-	}
-
 	// fill our struct, but keep it in world space
 	ArmorImpactData aid;
 	aid.damageLocatorIndex = damageLocatorIndex;
 	aid.size = size;
-	m_armorImpactData[ m_armorImpactDataNextIdx ] = aid;
-	return m_armorImpactDataNextIdx++;
+	m_armorImpactData[ m_impactDataNextIdx ] = aid;
+	return m_impactDataNextIdx++;
 }
 
 // --------------------------------------------------------------------------------

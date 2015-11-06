@@ -20,6 +20,7 @@
 #include "Tr2ShLightingManager.h"
 #include "Eve/SpaceObject/Attachments/EveMeshOverlayEffect.h"
 #include "Eve/SpaceObject/Attachments/EveSpaceObjectDecal.h"
+#include "Eve/SpaceObject/Attachments/EveImpactOverlay.h"
 #include "Eve/SpaceObject/Children/IEveSpaceObjectChild.h"
 
 // consts
@@ -44,7 +45,6 @@ BLUE_DECLARE_VECTOR( EvePlaneSet );
 BLUE_DECLARE( Tr2GrannyAnimation );
 BLUE_DECLARE( EveTransform );
 BLUE_DECLARE( EveCustomMask );
-BLUE_DECLARE( EveImpactOverlay );
 BLUE_DECLARE( TriCurveSet );
 BLUE_DECLARE_VECTOR( TriCurveSet );
 
@@ -208,9 +208,8 @@ public:
 	int GetInterestingDamageLocatorIndex( const Vector3 &position ) const;
 	int GetGoodDamageLocatorIndex( const Vector3& position );
 	float GetRadius() const;
-	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
-	bool UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex );
-	int CreateArmorImpact( int damageLocatorIndex, float size );
+	int CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
+	bool UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IWorldPosition
@@ -285,6 +284,7 @@ public:
 
 	// access to impacts
 	void SetImpactOverlay( EveImpactOverlayPtr overlay );
+	void SetImpactConfiguration( EveImpactOverlay::ImpactConfiguration cfg );
 
 	uint32_t GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType shaderType ) const;
 	void UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shaderType, uint32_t size, void* );

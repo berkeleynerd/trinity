@@ -98,34 +98,23 @@ float EveRootTransform::GetRadius() const
 
 // -----------------------------------------------------------------------------
 // Description:
-//   Create a shield impact effect on this object
+//   Create an impact effect on this object
 //   Is empty for transforms!
 // -----------------------------------------------------------------------------
-int EveRootTransform::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+int EveRootTransform::CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
 {
 	return -1;
 }
 
 // -----------------------------------------------------------------------------
 // Description:
-//   Update the shield effec on this object
+//   Update the effect on this object
 //   Is empty for transforms!
 // -----------------------------------------------------------------------------
-bool EveRootTransform::UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex )
+bool EveRootTransform::UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex )
 {
 	return false;
 }
-
-// -----------------------------------------------------------------------------
-// Description:
-//   Create an armor impact effect on this object
-//   Is empty for transforms!
-// -----------------------------------------------------------------------------
-int EveRootTransform::CreateArmorImpact( int damageLocatorIndex, float size )
-{
-	return -1;
-}
-
 
 void EveRootTransform::GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out )
 {

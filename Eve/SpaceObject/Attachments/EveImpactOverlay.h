@@ -8,7 +8,7 @@
 #ifndef EveImpactOverlay_H
 #define EveImpactOverlay_H
 
-#include "Eve/SpaceObject/EveSpaceObject2.h"
+//#include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "ITr2Renderable.h"
 #include "ITr2GeometryProvider.h"
 #include "Resources/Tr2LodResource.h"
@@ -16,6 +16,10 @@
 BLUE_DECLARE( TriFrustum );
 BLUE_DECLARE( Tr2MeshBase );
 BLUE_DECLARE( EveUpdateContext );
+BLUE_DECLARE( EveSpaceObject2 );
+BLUE_DECLARE( Tr2Effect );
+BLUE_DECLARE( TriCurveSet );
+BLUE_DECLARE_VECTOR( TriCurveSet );
 
 BLUE_CLASS( EveImpactOverlay ) :
 	public IInitialize
@@ -25,6 +29,14 @@ public:
 
 	EveImpactOverlay( IRoot* lockobj = NULL );
 	~EveImpactOverlay();
+
+	enum ImpactConfiguration
+	{
+		IMPACT_INVALID = 0,
+		IMPACT_SHIELD,
+		IMPACT_ARMOR,
+		IMPACT_HULL,
+	};
 
 	enum
 	{
@@ -79,20 +91,26 @@ public:
 	void PlayCurveSet( const std::string& name );
 	void StopAllCurveSets();
 
-	// control shield impacts
-	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
-	bool UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex );
+	// set the configuration
+	void SetConfiguration( ImpactConfiguration cfg );
 
-	// control armor impacts
-	int CreateArmorImpact( int damageLocatorIndex, float size );
+	// control impacts
+	int CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
+	bool UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex );
 
 	// helper for checking activity
 	bool HasActivity() const;
 
 private:
+	// helper functions to create the different types of impacts
+	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
+	int CreateArmorImpact( int damageLocatorIndex, float size );
+
 	// general data
 	BlueSharedString m_name;
 	bool m_display;
+	ImpactConfiguration m_configuration;
+	int m_impactDataNextIdx;
 
 	// non-directional impacts
 	float m_overallShieldImpact;
@@ -106,14 +124,12 @@ private:
 	Vector4 m_parentBoundingSphere;
 
 	// a map of all shield impacts going on at the moment
-	int m_shieldImpactDataNextIdx;
 	std::map<int, ShieldImpactData> m_shieldImpactData;
 
 	// a list of data used in the data texture
 	std::vector<DataRow> m_impactTexelData;
 
 	// a map of all armor impacts going on at the moment
-	int m_armorImpactDataNextIdx;
 	std::map<int, ArmorImpactData> m_armorImpactData;
 
 	// the data texture block ID

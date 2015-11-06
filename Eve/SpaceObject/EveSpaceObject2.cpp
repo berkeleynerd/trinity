@@ -2048,43 +2048,42 @@ void EveSpaceObject2::SetImpactOverlay( EveImpactOverlayPtr overlay )
 	m_impactOverlay = overlay;
 }
 
-// -----------------------------------------------------------------------------
+// --------------------------------------------------------------------------------
 // Description:
-//   Create a shield impact effect on this object
-// -----------------------------------------------------------------------------
-int EveSpaceObject2::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+//   Set the impact overlay configuration: shields up? Armor intact? etc.
+// --------------------------------------------------------------------------------
+void EveSpaceObject2::SetImpactConfiguration( EveImpactOverlay::ImpactConfiguration cfg )
 {
 	if( m_impactOverlay )
 	{
-		return m_impactOverlay->CreateShieldImpact( damageLocatorIndex, direction, lifeTime );
+		m_impactOverlay->SetConfiguration( cfg );
+	}
+}
+
+// -----------------------------------------------------------------------------
+// Description:
+//   Create an impact effect on this object
+// -----------------------------------------------------------------------------
+int EveSpaceObject2::CreateImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+{
+	if( m_impactOverlay )
+	{
+		return m_impactOverlay->CreateImpact( damageLocatorIndex, direction, lifeTime );
 	}
 	return -1;
 }
 
 // -----------------------------------------------------------------------------
 // Description:
-//   Update the shield effec on this object
+//   Update the effect on this object
 // -----------------------------------------------------------------------------
-bool EveSpaceObject2::UpdateShieldImpact( Vector3& out, const Vector3& direction, int shieldImpactIndex )
+bool EveSpaceObject2::UpdateImpact( Vector3& out, const Vector3& direction, int impactIndex )
 {
 	if( m_impactOverlay )
 	{
-		return m_impactOverlay->UpdateShieldImpact( out, direction, shieldImpactIndex );
+		return m_impactOverlay->UpdateImpact( out, direction, impactIndex );
 	}
 	return false;
-}
-
-// -----------------------------------------------------------------------------
-// Description:
-//   Create an armor impact effect on this object
-// -----------------------------------------------------------------------------
-int EveSpaceObject2::CreateArmorImpact( int damageLocatorIndex, float size )
-{
-	if( m_impactOverlay )
-	{
-		return m_impactOverlay->CreateArmorImpact( damageLocatorIndex, size );
-	}
-	return -1;
 }
 
 

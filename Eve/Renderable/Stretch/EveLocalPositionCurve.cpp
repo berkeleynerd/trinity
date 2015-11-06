@@ -137,10 +137,9 @@ Vector3* EveLocalPositionCurve::GetDamageLocator( Vector3* in, Be::Time t )
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Calculate impact position onto the surface of the shield aiming for a
-//   damage locator
+//   Calculate impact position onto the target aiming for a damage locator
 // --------------------------------------------------------------------------------
-Vector3* EveLocalPositionCurve::GetDamageLocatorShieldImpact( Vector3* in, Be::Time t )
+Vector3* EveLocalPositionCurve::GetDamageLocatorImpact( Vector3* in, Be::Time t )
 {	
 	if( m_alignPositionCurve && m_parentObject )
 	{
@@ -165,74 +164,22 @@ Vector3* EveLocalPositionCurve::GetDamageLocatorShieldImpact( Vector3* in, Be::T
 		Vector3 locatorPos;
 		target->GetDamageLocatorPosition( &locatorPos, m_damageLocatorIndex );
 
-		// create a shield impact on the target object
+		// create an impact on the target object
 		if( m_impactEffectIndex == -1 )
 		{
-			m_impactEffectIndex = target->CreateShieldImpact( m_damageLocatorIndex, parentPos - locatorPos, 2.f );
+			m_impactEffectIndex = target->CreateImpact( m_damageLocatorIndex, parentPos - locatorPos, 2.f );
 		}
 
-		// update shield impact effect and get the position from that shield impact effect
-		if( m_impactEffectIndex != -1 )
-		{
-			Vector3 shieldPos;
-			if( target->UpdateShieldImpact( shieldPos, parentPos - locatorPos, m_impactEffectIndex ) )
-			{
-				in->x = shieldPos.x;
-				in->y = shieldPos.y;
-				in->z = shieldPos.z;
-			}
-		}
+		// update impact effect and get the position from that impact effect or use locator pos
+		target->UpdateImpact( locatorPos, parentPos - locatorPos, m_impactEffectIndex );
+
+		// out
+		in->x = locatorPos.x;
+		in->y = locatorPos.y;
+		in->z = locatorPos.z;
 	}
 	return in;
 }
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Calculate impact position onto the surface of the ship with armor
-// --------------------------------------------------------------------------------
-Vector3* EveLocalPositionCurve::GetDamageLocatorArmorImpact( Vector3* in, Be::Time t )
-{	
-	if( m_alignPositionCurve && m_parentObject )
-	{
-		ITriTargetablePtr target;
-		if( !m_parentObject->QueryInterface( BlueInterfaceIID<ITriTargetable>(), (void**)&target ) )
-		{
-			CCP_LOGERR( "Parent object is not targetable. Unable to get valid damage locators." );
-			return in;
-		}
-
-		// need shooter's pos
-		Vector3 parentPos;
-		m_alignPositionCurve->GetValueAt( &parentPos, t );
-
-		// find a damage locator first
-		if( m_damageLocatorIndex == -1 )
-		{
-			m_damageLocatorIndex = target->GetGoodDamageLocatorIndex( parentPos );
-		}
-
-		// get it's position
-		Vector3 locatorPos;
-		target->GetDamageLocatorPosition( &locatorPos, m_damageLocatorIndex );
-
-		// create a armor impact on the target object
-		if( m_impactEffectIndex == -1 )
-		{
-			m_impactEffectIndex = target->CreateArmorImpact( m_damageLocatorIndex, m_impactSize );
-		}
-
-		// now use the pos as output
-		if( m_damageLocatorIndex != -1 )
-		{
-			in->x = locatorPos.x;
-			in->y = locatorPos.y;
-			in->z = locatorPos.z;
-		}
-	}
-	return in;
-}
-
-
 
 /////////////////////////////////////////////////////////////////////////////////////
 // ITriFunction
@@ -251,10 +198,8 @@ Vector3* EveLocalPositionCurve::Update(
 		return GetCenterBoundingSphere( in, t );
 	case POS_TARGET_DMG_LOCATOR:
 		return GetDamageLocator( in, t );
-	case POS_TARGET_DMG_LOCATOR_SHIELDIMPACT:
-		return GetDamageLocatorShieldImpact( in, t );
-	case POS_TARGET_DMG_LOCATOR_ARMORIMPACT:
-		return GetDamageLocatorArmorImpact( in, t );
+	case POS_TARGET_DMG_LOCATOR_IMPACT:
+		return GetDamageLocatorImpact( in, t );
 	default:
 		break;
 	}
