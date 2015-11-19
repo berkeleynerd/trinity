@@ -27,6 +27,7 @@ EveTurretFiringFX::EveTurretFiringFX( IRoot* lockobj ) :
 	m_isFiring( false ),
 	m_isLoopFiring( false ),
 	m_firingDuration( 1000.f ),
+	m_firingPeakTime( 0.f ),
 	m_maxRadius( 3000.0 ),
 	m_minRadius( 30.0 ),
 	m_maxScale( 10.0 ),
@@ -255,6 +256,15 @@ bool EveTurretFiringFX::GetStartPosition( Vector3& pos ) const
 float EveTurretFiringFX::GetFiringDuration() const
 {
 	return m_firingDuration;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Return the time to peak of
+// --------------------------------------------------------------------------------
+float EveTurretFiringFX::GetFiringPeakTime() const
+{
+	return m_firingPeakTime;
 }
 
 // --------------------------------------------------------------------------------

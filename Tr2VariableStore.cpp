@@ -26,6 +26,13 @@ Tr2VariableStore::Tr2VariableStore( IRoot* lockobj, int )
 Tr2VariableStore::~Tr2VariableStore()
 {
 	ReleaseResources( TRISTORAGE_ALL );
+    VariableMap::iterator end = m_variableMap.end();
+	for( VariableMap::iterator it = m_variableMap.begin(); it != end; ++it )
+	{
+		TriVariable* var = *it;
+		var->~TriVariable();
+		CCP_FREE( var );
+	}
 }
 
 // -------------------------------------------------------------

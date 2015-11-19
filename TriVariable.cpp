@@ -178,6 +178,7 @@ void TriVariable::Clear()
 	m_texture		= nullptr;	
 	m_depthStencil	= nullptr;
 	m_renderTarget	= nullptr;
+	m_gpuBuffer = nullptr;
 
 	memset( m_value, 0, GetTypeSize() );
 }

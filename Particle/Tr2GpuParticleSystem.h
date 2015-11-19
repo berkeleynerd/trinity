@@ -41,6 +41,7 @@ BLUE_CLASS( Tr2GpuParticleSystem ):
 {
 public:
 	Tr2GpuParticleSystem( IRoot* lockObj = nullptr );
+	~Tr2GpuParticleSystem();
 
 	EXPOSE_TO_BLUE();
 

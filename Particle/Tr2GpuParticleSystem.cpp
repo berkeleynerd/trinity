@@ -135,6 +135,21 @@ Tr2GpuParticleSystem::Tr2GpuParticleSystem( IRoot* )
 	m_renderTimer.Create( renderContext );
 }
 
+Tr2GpuParticleSystem::~Tr2GpuParticleSystem()
+{
+	auto backup = m_variableStore;
+	m_variableStore = nullptr;
+	SetVariableStore( m_emit );
+	SetVariableStore( m_update );
+	SetVariableStore( m_render );
+	SetVariableStore( m_clear );
+	SetVariableStore( m_setDrawParameters );
+	SetVariableStore( m_setSortParameters );
+	SetVariableStore( m_sort );
+	SetVariableStore( m_sortStep );
+	SetVariableStore( m_sortInner );
+}
+
 #if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
 
 // --------------------------------------------------------------------------------------

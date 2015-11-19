@@ -69,6 +69,8 @@ public:
 	bool GetStartPosition( Vector3& pos ) const;
 	// query: get effect length
 	float GetFiringDuration() const;
+	// query: get effect peak time
+	float GetFiringPeakTime() const;
 
 	// setup this effect: muzzle bone IDs
 	void SetMuzzleBoneID( int muzzleID, unsigned int boneID );
@@ -95,6 +97,8 @@ private:
 
 	// Maximum curve duration of firing effect
 	float m_firingDuration;
+	// peak time of effect
+	float m_firingPeakTime;
 
 	// per-muzzle effects
 	void StartMuzzleEffect( int muzzleID );

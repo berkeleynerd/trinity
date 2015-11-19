@@ -108,7 +108,7 @@ void EveTurretTarget::StartFireAtLocator( int l, float delay, float length )
 		// ok, we assume we hit! create an impact
 		if( m_object )
 		{
-			m_impactLength = length;
+			m_impactLength = std::max( length, 0.f );
 			m_impactDelay = delay;
 		}
 	}
@@ -313,9 +313,12 @@ float EveTurretTarget::GetRadius() const
 bool EveTurretTarget::ShowDestObject() const
 {
 	// never show it when we have an active shield impact
-	if( m_object->HasImpactConfigurationShield() )
+	if( m_object )
 	{
-		return false;
+		if( m_object->HasImpactConfigurationShield() )
+		{
+			return false;
+		}
 	}
 
 	// never show it when we are a projectile weapon and are missing

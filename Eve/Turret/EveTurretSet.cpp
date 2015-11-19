@@ -1822,6 +1822,7 @@ bool EveTurretSet::SetupFiringState()
 
 	// timing: is the length of the firing effect known?
 	float effectTotalTime = m_firingEffect ? m_firingEffect->GetFiringDuration() : 0.f;
+	float effectPeakTime = m_firingEffect ? m_firingEffect->GetFiringPeakTime() : 0.f;
 
 	// what state are we in?
 	switch( m_state )
@@ -1850,7 +1851,7 @@ bool EveTurretSet::SetupFiringState()
 			}
 		}
 		// assign locator and turret
-		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay, effectTotalTime );
+		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay + effectPeakTime, effectTotalTime - effectPeakTime );
 		m_activeTurret = closestTurret;
 		break;
 	case STATE_FIRING:
@@ -1871,7 +1872,7 @@ bool EveTurretSet::SetupFiringState()
 		}
 		// switch to new location
 		m_activeTurret = closestTurret;
-		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay, effectTotalTime );
+		m_target->StartFireAtLocator( closestLocator, m_randomFiringDelay + effectPeakTime, effectTotalTime - effectPeakTime );
 		break;
 
 	default:
