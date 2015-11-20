@@ -378,6 +378,12 @@ void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext )
 		m_boundingSphereWorld.w = m_modelScale * m_boundingSphereRadius;
 	}
 
+	// if we have an impact overlay it can modify the activation strength
+	if( m_impactOverlay )
+	{
+		m_spaceObjectShipData.y = m_impactOverlay->GetActivationStrength( updateContext );
+	}
+
 	// shader needs to know size of this object for some surface-scaling issues
 	m_spaceObjectShipData.w = GetBoundingSphereRadius();
 	// dirt level of a spaceobject
@@ -1628,7 +1634,7 @@ bool EveSpaceObject2::HasImpactConfigurationShield() const
 
 void EveSpaceObject2::GetImpactPosition( Vector3& out, int damageLocatorIndex, const Vector3& direction )
 {
-	if( !m_impactOverlay || m_impactOverlay->GetImpactConfiguration() != EveImpactOverlay::IMPACT_SHIELD )
+	if( !HasImpactConfigurationShield() )
 	{
 		GetDamageLocatorPosition( &out, damageLocatorIndex );
 		return;

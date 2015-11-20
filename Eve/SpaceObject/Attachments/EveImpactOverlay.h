@@ -13,6 +13,7 @@
 #include "ITr2GeometryProvider.h"
 #include "Resources/Tr2LodResource.h"
 
+BLUE_DECLARE_INTERFACE( ITriScalarFunction );
 BLUE_DECLARE( Tr2ScalarFader );
 BLUE_DECLARE( TriFrustum );
 BLUE_DECLARE( Tr2MeshBase );
@@ -90,7 +91,8 @@ public:
 
 	// getters
 	int32_t GetDataTextureOffset() const;
-	ImpactConfiguration GetImpactConfiguration() const { return m_configuration; };
+	ImpactConfiguration GetImpactConfiguration() const;
+	float GetActivationStrength( EveUpdateContext& updateContext ) const;
 
 	// control animation
 	void ToggleEffect( const std::string& name, bool on );
@@ -142,6 +144,10 @@ private:
 	size_t m_armorImpactGoalCount;
 	float m_armorImpactParentSize;
 	Tr2GpuUniqueEmitterPtr m_armorImpactEmitter;
+
+	// hull damage
+	float m_hullDamageFactor;
+	ITriScalarFunctionPtr m_hullDamageFlickerCurve;
 
 	// extenders
 	Tr2ScalarFaderPtr m_shieldHardening;

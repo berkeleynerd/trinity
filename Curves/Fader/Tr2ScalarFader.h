@@ -37,6 +37,7 @@ private:
 	float m_value;
 	float m_fading;
 	float m_fadeTime;
+	float m_kickInLength;
 };
 
 TYPEDEF_BLUECLASS( Tr2ScalarFader );

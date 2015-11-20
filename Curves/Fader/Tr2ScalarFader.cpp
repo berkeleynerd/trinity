@@ -17,7 +17,8 @@
 Tr2ScalarFader::Tr2ScalarFader( IRoot* lockobj ) :
 	m_value( 0.f ),
 	m_fading( 0.f ),
-	m_fadeTime( 0.f )
+	m_fadeTime( 0.f ),
+	m_kickInLength( 3.f )
 {
 }
 
@@ -60,7 +61,7 @@ void Tr2ScalarFader::Update( EveUpdateContext& updateContext )
 // --------------------------------------------------------------------------------
 void Tr2ScalarFader::StartFade( bool isFadeIn )
 {
-	m_fading = isFadeIn ? 1.f : -1.f;
+	m_fading = isFadeIn ? 1.f / m_kickInLength : -1.f / m_kickInLength;
 	m_fadeTime = 0.f;
 }
 
@@ -85,7 +86,7 @@ float Tr2ScalarFader::GetKickInValue() const
 		return 0.f;
 	}
 	// calc some simple kicking curve
-	return sinf( TRI_PI * pow( Clamp( m_fadeTime, 0.f, 1.f ), 0.5f ) );
+	return sinf( TRI_PI * pow( Clamp( m_fadeTime / m_kickInLength, 0.f, 1.f ), 0.5f ) );
 }
 
 // --------------------------------------------------------------------------------

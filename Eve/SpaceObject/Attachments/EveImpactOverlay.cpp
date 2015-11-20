@@ -21,7 +21,8 @@
 extern bool g_eveSpaceObjectImpactEffectEnabled;
 
 // consts
-static const float IMPACT_ARMOR_HOLE_TO_DAMAGE_RATIO = 15.f;
+static const float IMPACT_HOLE_TO_ARMOR_DAMAGE_RATIO = 15.f;
+static const float IMPACT_HOLE_TO_HULL_DAMAGE_RATIO = 10.f;
 static const float IMPACT_ARMOR_SIZE_FACTOR = 0.0129f;
 static const float IMPACT_ARMOR_SIZE_MAX = 10.f;
 
@@ -36,7 +37,8 @@ EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
 	m_dataTextureOffset( -1 ),
 	m_armorImpactGoalCount( 0 ),
 	m_armorImpactParentSize( 0.f ),
-	m_shieldImpactColorFade( 0.f )
+	m_shieldImpactColorFade( 0.f ),
+	m_hullDamageFactor( 0.f )
 {
 	// create the faders
 	m_armorHardening.CreateInstance();
@@ -357,6 +359,42 @@ int32_t EveImpactOverlay::GetDataTextureOffset() const
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Check if a certain type of defense is there
+// --------------------------------------------------------------------------------
+EveImpactOverlay::ImpactConfiguration EveImpactOverlay::GetImpactConfiguration() const
+{
+	return m_configuration;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   EveImpact overlays can modulate the activation strenth, to let the lights
+//   flciker etc.
+// --------------------------------------------------------------------------------
+float EveImpactOverlay::GetActivationStrength( EveUpdateContext& updateContext ) const
+{
+	// settings
+	if( !g_eveSpaceObjectImpactEffectEnabled )
+	{
+		return 1.f;
+	}
+
+	// comes from a curve ifwe have hull damage
+	if( m_hullDamageFactor > 0.f )
+	{
+		if( m_hullDamageFlickerCurve )
+		{
+			float min = std::max( 0.f, 2.f * m_hullDamageFactor - 1.f );
+			float max = std::min( 1.f, 2.f * m_hullDamageFactor );
+			return TriLinearize( min, max, m_hullDamageFlickerCurve->Update( updateContext.GetTime() ) );
+		}
+	}
+
+	return 1.f;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Easy-to-use access to the internal effects/faders
 // --------------------------------------------------------------------------------
 void EveImpactOverlay::ToggleEffect( const std::string& name, bool on )
@@ -401,7 +439,10 @@ void EveImpactOverlay::SetDamageState( float shield, float armor, float hull, bo
 	}
 
 	// always calculate the expected/desired number of impact effects
-	m_armorImpactGoalCount = (size_t)( IMPACT_ARMOR_HOLE_TO_DAMAGE_RATIO * Clamp( 1.f - armor, 0.f, 1.f ) );
+	m_armorImpactGoalCount = (size_t)( IMPACT_HOLE_TO_ARMOR_DAMAGE_RATIO * Clamp( 1.f - armor, 0.f, 1.f ) + IMPACT_HOLE_TO_HULL_DAMAGE_RATIO * Clamp( 1.f - hull, 0.f, 1.f ) );
+
+	// hull factor
+	m_hullDamageFactor = TriLinearize( 0.9f, 0.1f, hull );
 
 	// have a color fade between full shield and zero shield
 	m_shieldImpactColorFade = Clamp( pow( 1.f - shield, 4.f ), 0.f, 1.f );
@@ -435,10 +476,8 @@ int EveImpactOverlay::CreateImpact( int damageLocatorIndex, const Vector3& direc
 	case IMPACT_SHIELD:
 		return CreateShieldImpact( damageLocatorIndex, direction, lifeTime );
 	case IMPACT_ARMOR:
-		return CreateArmorImpact( damageLocatorIndex, size, true );
 	case IMPACT_HULL:
-		// todo
-		return -1;
+		return CreateArmorImpact( damageLocatorIndex, size, true );
 	}
 
 	return -1;
