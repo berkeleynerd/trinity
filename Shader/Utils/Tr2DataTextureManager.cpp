@@ -10,11 +10,11 @@
 #include "Tr2VariableStore.h"
 
 Tr2DataTextureManager::Tr2DataTextureManager( IRoot* lockobj ) :
-	m_maxDataSize( 32 ),
+	m_textureWidth( 256 ),
 	m_textureHeight( 4 ),
 	m_blockDataNextIdx( 1 ),
 	m_maxBlockCount( 0 ),
-	m_maxTextureCount( 0 )
+	m_maxPixelCount( 0 )
 {
 	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_dataTexture );
 
@@ -23,6 +23,7 @@ Tr2DataTextureManager::Tr2DataTextureManager( IRoot* lockobj ) :
 
 Tr2DataTextureManager::~Tr2DataTextureManager()
 {
+	GlobalStore().RegisterVariable( "ImpactShieldDataMap", (TriTextureRes*)nullptr );
 }
 
 // --------------------------------------------------------------------------------
@@ -64,9 +65,9 @@ bool Tr2DataTextureManager::OnPrepareResources()
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	// create the data texture here, prefill it with zeros
-	std::vector<Vector4> t( m_maxDataSize * m_textureHeight, Vector4( 0.f, 0.f, 0.f, 0.f ) );
-	Tr2SubresourceData init = { &t[0], m_maxDataSize * uint32_t(sizeof(Vector4)), m_maxDataSize * m_textureHeight * uint32_t(sizeof(Vector4)) };
-	if( FAILED( m_dataTexture.Create2D( m_maxDataSize, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, &init, renderContext ) ) )
+	std::vector<Vector4> t( m_textureWidth * m_textureHeight, Vector4( 0.f, 0.f, 0.f, 0.f ) );
+	Tr2SubresourceData init = { &t[0], m_textureWidth * uint32_t(sizeof(Vector4)), m_textureWidth * m_textureHeight * uint32_t(sizeof(Vector4)) };
+	if( FAILED( m_dataTexture.Create2D( m_textureWidth, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, &init, renderContext ) ) )
 	{
 		return false;
 	}
@@ -82,8 +83,11 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
+	// need to do this here, always!
+	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_dataTexture );
+
 	// 0
-	m_maxTextureCount = m_maxBlockCount = 0;
+	m_maxPixelCount = m_maxBlockCount = 0;
 
 	// do not update anything if data is totally empty
 	if( m_blockData.empty() )
@@ -107,7 +111,7 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 			BlockData* block = &it->second;
 
 			// check if we still have room for one more block
-			if( pixelOffset + block->blockLength + 1 >= m_maxDataSize )
+			if( pixelOffset + block->blockLength + 1 >= m_textureWidth )
 			{
 				break;
 			}
@@ -139,13 +143,11 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 	}
 
 	// keep track of some numbers, just for debugging
-	m_maxTextureCount = pixelOffset;
+	m_maxPixelCount = pixelOffset;
 	m_maxBlockCount = (uint32_t)m_blockData.size();
 
 	// ok, the texture and the per-block offsets are done, so we don't need the data blocks anymore!
 	m_blockData.clear();
-
-	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_dataTexture );
 }
 
 // --------------------------------------------------------------------------------

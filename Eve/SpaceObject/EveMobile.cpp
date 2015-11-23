@@ -21,6 +21,7 @@
 EveMobile::EveMobile( IRoot* lockobj ) :
 	PARENTLOCK( m_turretSets ),
 	m_activationDelta( 0.f ),
+	m_activationStrenght( 1.f ),
 	m_playActivationCurve( false ),
 	m_playClipSphereFactorCurve( false ),
 	m_clipSphereFactor( 0.f ),
@@ -137,13 +138,15 @@ void EveMobile::PrepareShaderData( EveUpdateContext& updateContext )
 
 	EveSpaceObject2::PrepareShaderData( updateContext );
 
-	// prepare shader data:
+	// play activation curve
 	if( m_activationStrengthCurve && m_playActivationCurve )
 	{
 		float deltaT = updateContext.GetDeltaT();
 		m_activationDelta += deltaT;
-		m_spaceObjectShipData.y = m_activationStrengthCurve->Update( m_activationDelta );
+		m_activationStrenght = m_activationStrengthCurve->Update( m_activationDelta );
 	}
+
+	m_spaceObjectShipData.y *= m_activationStrenght;
 
 	if( m_clipSphereFactorCurve && m_playClipSphereFactorCurve )
 	{
@@ -543,9 +546,8 @@ void EveMobile::ResetTurretLocatorCounter( bool updateTotal )
 // --------------------------------------------------------------------------------
 bool EveMobile::DisplayChildren() const
 {
-	// so in m_spaceObjectShipData.y we store the current activation strength.
 	// if it is more than .5 -> render the children!
-	return ( m_spaceObjectShipData.y > 0.5f );
+	return ( m_activationStrenght > 0.5f );
 }
 
 // --------------------------------------------------------------------------------
@@ -634,12 +636,12 @@ bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::st
 		return true;
 
 	case ANIM_CMD_ACTIVATION_STRENGTH_ZERO:
-		m_spaceObjectShipData.y = 0.f;
+		m_activationStrenght = 0.f;
 		m_playActivationCurve = false;
 		return true;
 
 	case ANIM_CMD_ACTIVATION_STRENGTH_ONE:
-		m_spaceObjectShipData.y = 1.f;
+		m_activationStrenght = 1.f;
 		m_playActivationCurve = false;
 		return true;
 

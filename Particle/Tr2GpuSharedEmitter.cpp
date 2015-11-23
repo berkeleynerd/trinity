@@ -25,7 +25,8 @@ Tr2GpuSharedEmitter::Tr2GpuSharedEmitter( IRoot* lockObj )
 	m_position( 0.f, 0.f, 0.f ),
 	m_direction( 0.f, 1.f, 0.f ),
 	m_prevPosition( 0.f, 0.f, 0.f ),
-	m_continuousEmitter( true )
+	m_continuousEmitter( true ),
+	m_enabled( true )
 {
 	memset( &m_emitter, 0, sizeof( m_emitter ) );
 	memset( &m_params, 0, sizeof( m_params ) );
@@ -45,6 +46,15 @@ bool Tr2GpuSharedEmitter::OnModified( Be::Var* )
 	UpdateHash();
 	GenerateID();
 	return true;
+}
+
+void Tr2GpuSharedEmitter::Enable( bool enable )
+{
+	m_enabled = enable;
+	if( !enable )
+	{
+		m_previousTime = -1;
+	}
 }
 
 uintptr_t Tr2GpuSharedEmitter::GetHash( const Tr2GpuParticleSystem::EmitterParams& params ) const
@@ -92,6 +102,10 @@ void Tr2GpuSharedEmitter::Update( const UpdateArguments& arguments )
 		m_previousTime = Be::Time( -1 );
 		return;
 	}
+	if( !m_enabled )
+	{
+		return;
+	}
 	const bool firstUpdate = m_previousTime == Be::Time( -1 );
 	float dt = firstUpdate ? 0 : TimeAsFloat( arguments.time - m_previousTime );
 	m_previousTime = arguments.time;
@@ -101,6 +115,10 @@ void Tr2GpuSharedEmitter::Update( const UpdateArguments& arguments )
 	if( !firstUpdate )
 	{
 		velocity = ( position - m_prevPosition - arguments.originShift ) / dt;
+	}
+	else
+	{
+		m_prevPosition = position - arguments.originShift;
 	}
 
 	if( m_continuousEmitter )
@@ -114,7 +132,7 @@ void Tr2GpuSharedEmitter::Update( const UpdateArguments& arguments )
 
 void Tr2GpuSharedEmitter::SpawnParticles( const UpdateArguments& arguments, const Vector3* position, const Vector3* velocity, float rateModifier )
 {
-	if( !arguments.system )
+	if( !arguments.system || !m_enabled )
 	{
 		return;
 	}
@@ -133,7 +151,7 @@ void Tr2GpuSharedEmitter::SpawnParticles(
 	const Vector3 *velocityStart, const Vector3 *velocityEnd,
 	float deltaTime )
 {
-	if( !arguments.system )
+	if( !arguments.system || !m_enabled )
 	{
 		return;
 	}
@@ -194,6 +212,11 @@ float Tr2GpuSharedEmitter::SpawnParticles(
 
 void Tr2GpuSharedEmitter::SpawnOnce( const UpdateArguments& arguments, const Vector3& velocity, float scale )
 {
+	if( !arguments.system || !m_enabled )
+	{
+		return;
+	}
+
 	auto emitter = m_emitter;
 	emitter.count = int( m_rate );
 

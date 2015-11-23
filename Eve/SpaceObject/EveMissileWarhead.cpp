@@ -11,6 +11,8 @@
 #include "Tr2Mesh.h"
 #include "include/TriMath.h"
 
+#include "Particle/Tr2GpuSharedEmitter.h"
+
 // keep track of missiles
 CCP_STATS_DECLARE( eveVisibleWarheadObjects, "Trinity/Missiles/visibleWarheadObjects", true, CST_COUNTER_LOW, "Number of individual warheads visible in this frame.");
 
@@ -149,9 +151,12 @@ void EveMissileWarhead::EnableParticleEmitting( bool enable )
 		if( (*it)->QueryInterface( BlueInterfaceIID<EveTransform>(), (void**)&child, BEQI_SILENT ) )
 		{
 			// do we have an attached GPU emitter?
-			for( Tr2GPUParticleEmitterVector::const_iterator emIt = child->m_particleEmittersGPU.begin(); emIt != child->m_particleEmittersGPU.end(); ++emIt )
+			for( auto emIt = child->m_particleEmitters.begin(); emIt != child->m_particleEmitters.end(); ++emIt )
 			{
-				(*emIt)->Enable( enable );
+				if( auto emitter = dynamic_cast<Tr2GpuSharedEmitter*>( *emIt ) )
+				{
+					emitter->Enable( enable );
+				}
 			}
 		}
 	}

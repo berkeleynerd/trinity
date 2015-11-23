@@ -962,6 +962,11 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 			EveImpactOverlayPtr impactOverlay;
 			if( p->QueryInterface( BlueInterfaceIID<EveImpactOverlay>(), (void**)&impactOverlay ) )
 			{
+				// fix shader if animated
+				if( dna->IsHullAnimated() )
+				{
+					impactOverlay->SetToSkinned();
+				}
 				obj->SetImpactOverlay( impactOverlay );
 			}
 		}

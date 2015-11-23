@@ -55,7 +55,7 @@ public:
 private:
 	// general data
 	BlueSharedString m_name;
-	uint32_t m_maxDataSize;
+	uint32_t m_textureWidth;
 	uint32_t m_textureHeight;
 
 	// the data
@@ -68,7 +68,7 @@ private:
 
 	// debug
 	uint32_t m_maxBlockCount;
-	uint32_t m_maxTextureCount;
+	uint32_t m_maxPixelCount;
 };
 
 TYPEDEF_BLUECLASS( Tr2DataTextureManager );

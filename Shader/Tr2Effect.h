@@ -74,6 +74,7 @@ public:
 	void AddParameterColor( const BlueSharedString& name, const Color* value );
 
 	// access parameters and resources
+	const char* GetEffectPathName() const;
 	ITriEffectParameter* GetParameterByName( const char* name ) const;
 
 

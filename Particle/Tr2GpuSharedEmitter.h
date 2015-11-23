@@ -35,6 +35,8 @@ public:
 
 	virtual bool OnModified( Be::Var* value );
 
+	void Enable( bool enable );
+
 	virtual void Update( const UpdateArguments& arguments );
 	virtual void SpawnParticles( const UpdateArguments& arguments,
 								 const Vector3* position = nullptr, 
@@ -83,6 +85,7 @@ protected:
 	Tr2GpuParticleSystem::Emitter m_emitter;
 	Tr2GpuParticleSystem::EmitterParams m_params;
 	bool m_continuousEmitter;
+	bool m_enabled;
 };
 
 TYPEDEF_BLUECLASS( Tr2GpuSharedEmitter );

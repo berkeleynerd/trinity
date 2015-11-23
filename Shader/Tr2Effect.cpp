@@ -833,6 +833,15 @@ const char* Tr2Effect::GetName() const
 	return m_name.c_str();
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Simple getter for the shader file name
+// --------------------------------------------------------------------------------------
+const char* Tr2Effect::GetEffectPathName() const
+{
+	return m_effectFilePath.c_str();
+}
+
 ITriEffectParameter* Tr2Effect::GetParameterByName( const char* name ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );

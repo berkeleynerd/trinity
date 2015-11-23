@@ -7,6 +7,7 @@
 #include "StdAfx.h"
 #include "EveImpactOverlay.h"
 
+#include "Utilities/StringUtils.h"
 #include "include/TriMath.h"
 #include "Curves/TriCurveSet.h"
 #include "Curves/Fader/Tr2ScalarFader.h"
@@ -16,15 +17,18 @@
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveUpdateContext.h"
 #include "Particle/Tr2GpuUniqueEmitter.h"
+#include "Shader/Tr2Effect.h"
 
 // settings
 extern bool g_eveSpaceObjectImpactEffectEnabled;
 
 // consts
 static const float IMPACT_HOLE_TO_ARMOR_DAMAGE_RATIO = 15.f;
-static const float IMPACT_HOLE_TO_HULL_DAMAGE_RATIO = 10.f;
+static const float IMPACT_HOLE_TO_HULL_DAMAGE_RATIO = 0.f;
 static const float IMPACT_ARMOR_SIZE_FACTOR = 0.0129f;
 static const float IMPACT_ARMOR_SIZE_MAX = 10.f;
+static const float IMPACT_SHIELD_SIZE_MAX = 2000.f;
+static const float IMPACT_SHIELD_FADEOUT = 1.5f;
 
 
 EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
@@ -38,6 +42,7 @@ EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
 	m_armorImpactGoalCount( 0 ),
 	m_armorImpactParentSize( 0.f ),
 	m_shieldImpactColorFade( 0.f ),
+	m_shieldImpactParentSize( 0.f ),
 	m_hullDamageFactor( 0.f )
 {
 	// create the faders
@@ -87,7 +92,7 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 		header.v[0] = Vector4( float( m_shieldImpactData.size() ),
 			m_overallShieldImpact,
 			m_shieldImpactColorFade,
-			0.f );
+			m_shieldImpactParentSize );
 		header.v[1] = Vector4( m_shieldHardening->GetFaderValue(),
 			m_shieldBoosting->GetFaderValue(),
 			m_shieldHardening->GetKickInValue(),
@@ -202,6 +207,13 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 		parentInverseWorldTransform = parentWorldTransform;
 	}
 
+	// get parent's bounding sphere
+	Vector4 parentBoundingSphere( 0.f, 0.f, 0.f, -1.f );
+	parent->GetBoundingSphere( parentBoundingSphere );
+	// cut off the parent size at some hard-coded size, so shield and armor impacts on giant ships get smaller
+	m_armorImpactParentSize = std::min( parentBoundingSphere.w, IMPACT_ARMOR_SIZE_MAX / IMPACT_ARMOR_SIZE_FACTOR );
+	m_shieldImpactParentSize = std::min( parentBoundingSphere.w, IMPACT_SHIELD_SIZE_MAX );
+
 	if( !m_shieldImpactData.empty() )
 	{
 		// get parent's bounding ellipsoid shape
@@ -237,13 +249,6 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 
 	if( !m_armorImpactData.empty() )
 	{
-		// get parent's bounding sphere
-		Vector4 parentBoundingSphere( 0.f, 0.f, 0.f, -1.f );
-		parent->GetBoundingSphere( parentBoundingSphere );
-
-		// cut off the parent size at some hard-coded size, so impacts on giant ships get smaller
-		m_armorImpactParentSize = std::min( parentBoundingSphere.w, IMPACT_ARMOR_SIZE_MAX / IMPACT_ARMOR_SIZE_FACTOR );
-
 		// armor
 		size_t i = 0;
 		for( auto aidit = m_armorImpactData.begin(); aidit != m_armorImpactData.end(); ++aidit )
@@ -395,6 +400,20 @@ float EveImpactOverlay::GetActivationStrength( EveUpdateContext& updateContext )
 
 // --------------------------------------------------------------------------------
 // Description:
+//   This function changes this effect to be ready for animated parent objects
+// --------------------------------------------------------------------------------
+void EveImpactOverlay::SetToSkinned()
+{
+	if( m_armorDamageShader )
+	{
+		std::string resPath( m_armorDamageShader->GetEffectPathName() );
+		StringInsertStubAfter( resPath, "/", "Skinned_" );
+		m_armorDamageShader->SetEffectPathName( resPath.c_str() );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Easy-to-use access to the internal effects/faders
 // --------------------------------------------------------------------------------
 void EveImpactOverlay::ToggleEffect( const std::string& name, bool on )
@@ -445,7 +464,7 @@ void EveImpactOverlay::SetDamageState( float shield, float armor, float hull, bo
 	m_hullDamageFactor = TriLinearize( 0.9f, 0.1f, hull );
 
 	// have a color fade between full shield and zero shield
-	m_shieldImpactColorFade = Clamp( pow( 1.f - shield, 4.f ), 0.f, 1.f );
+	m_shieldImpactColorFade = Clamp( pow( 1.f - shield, 2.f ), 0.f, 1.f );
 
 	// do we forcefully have to create the amror impact holes?
 	if( doCreateArmorImpacts )
@@ -547,7 +566,7 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	if( closestImpactAngle > 0.95f )
 	{
 		m_shieldImpactData[ closestImpactIdx ].direction = nrmDir;
-		m_shieldImpactData[ closestImpactIdx ].timeLeft = 2.f * lifeTime;
+		m_shieldImpactData[ closestImpactIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
 		return closestImpactIdx;
 	}
 
@@ -563,7 +582,7 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	D3DXVec3Normalize( &sid.direction, &sid.direction );
 	sid.damageLocatorIndex = damageLocatorIndex;
 	sid.interceptPosition = Vector3( 0.f, 0.f, 0.f );
-	sid.lifeTime = sid.timeLeft = 2.f * lifeTime;
+	sid.lifeTime = sid.timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
 	m_shieldImpactData[ m_impactDataNextIdx ] = sid;
 	return m_impactDataNextIdx++;
 }
@@ -579,8 +598,10 @@ int EveImpactOverlay::CreateArmorImpact( int damageLocatorIndex, float size, boo
 	{
 		if( damageLocatorIndex == it->second.damageLocatorIndex )
 		{
-			it->second.size = size;
-			it->second.requestSpawnDebris = true;
+			// only update the size when it is bigger, so smaller lasers won't shrink the hole
+			it->second.size = std::max( size, it->second.size );
+			// spawn debris depends on the quality setting
+			it->second.requestSpawnDebris = !Tr2Renderer::IsLowQuality();
 			return it->first;
 		}
 	}
@@ -589,7 +610,7 @@ int EveImpactOverlay::CreateArmorImpact( int damageLocatorIndex, float size, boo
 	ArmorImpactData aid;
 	aid.damageLocatorIndex = damageLocatorIndex;
 	aid.size = size;
-	aid.requestSpawnDebris = spawnEffects;
+	aid.requestSpawnDebris = spawnEffects && !Tr2Renderer::IsLowQuality();
 	m_armorImpactData[ m_impactDataNextIdx ] = aid;
 	return m_impactDataNextIdx++;
 }

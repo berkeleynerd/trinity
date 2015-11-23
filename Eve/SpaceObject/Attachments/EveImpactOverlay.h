@@ -95,6 +95,7 @@ public:
 	float GetActivationStrength( EveUpdateContext& updateContext ) const;
 
 	// control animation
+	void SetToSkinned();
 	void ToggleEffect( const std::string& name, bool on );
 
 	// set the damages
@@ -138,6 +139,7 @@ private:
 	Tr2MeshBasePtr m_mesh;
 	uint32_t m_maxShieldImpacts;
 	float m_shieldImpactColorFade;
+	float m_shieldImpactParentSize;
 
 	// armor damage
 	Tr2EffectPtr m_armorDamageShader;

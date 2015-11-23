@@ -77,7 +77,7 @@ float g_eveSpaceSceneGammaBrightness = 1.f;
 TRI_REGISTER_SETTING( "eveSpaceSceneGammaBrightness", g_eveSpaceSceneGammaBrightness );
 
 // enabled impact effects
-bool g_eveSpaceObjectImpactEffectEnabled = false;
+bool g_eveSpaceObjectImpactEffectEnabled = true;
 TRI_REGISTER_SETTING( "eveSpaceObjectImpactEffectEnabled", g_eveSpaceObjectImpactEffectEnabled );
 
 
