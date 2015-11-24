@@ -179,7 +179,8 @@ void EveShip2Builder::CopyDamageLocators( EveDamageLocatorStructureList& locator
 
 	for( unsigned i = 0; i < locators.size(); ++i )
 	{		
-		EveDamageLocator& loc = locators[i];
+		EveDamageLocator loc = locators[i];
+		loc.m_position += offset;
 
 		m_ship->m_persistedDamageLocators.Append( &loc );
 	}

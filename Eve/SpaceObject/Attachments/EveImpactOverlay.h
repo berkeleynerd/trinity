@@ -120,6 +120,7 @@ private:
 	bool m_display;
 	ImpactConfiguration m_configuration;
 	int m_impactDataNextIdx;
+	bool m_debugForceSpawnDebris;
 
 	// non-directional impacts
 	float m_overallShieldImpact;

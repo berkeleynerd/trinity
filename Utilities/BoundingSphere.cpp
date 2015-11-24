@@ -201,6 +201,18 @@ Vector4 recurBoundingSphereCreate( Vector3 const** p, size_t len, size_t b )
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Create a bounding sphere by two given points
+// --------------------------------------------------------------------------------
+void BoundingSphereFromPoints( Vector4& sphere, const Vector3& point1, const Vector3& point2 )
+{
+	const float radiusEpsilon = 1e-4f;
+
+	Vector3 a = 0.5f * ( point2 - point1 );
+	sphere = Vector4( a + point1, D3DXVec3Length( &a ) + radiusEpsilon );
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Create a bounding sphere by a given number of points.
 // --------------------------------------------------------------------------------
 void BoundingSphereFromPoints( Vector4& sphere, Vector3 const** points, size_t pointsCount )
@@ -219,10 +231,7 @@ void BoundingSphereFromPoints( Vector4& sphere, Vector3 const** points, size_t p
 		}
 		break;
 	case 2:
-		{
-			Vector3 a = 0.5f * ( *points[1] - *points[0] );
-			sphere = Vector4( a + *points[0], D3DXVec3Length( &a ) + radiusEpsilon );
-		}
+		BoundingSphereFromPoints( sphere, *points[0], *points[1] );
 		break;
 	case 3:
 		{

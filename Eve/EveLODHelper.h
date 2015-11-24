@@ -9,6 +9,10 @@
 
 #include "Resources/Tr2LodResource.h"
 
+// forwards
+class TriFrustum;
+
+// externs
 extern float g_eveSpaceSceneLowUpdateRate;
 extern float g_eveSpaceSceneMediumUpdateRate;
 
@@ -64,6 +68,19 @@ public:
 		}
 		return ( lod0 > lod1 ) ? lod0 : lod1;
 	}
+
+	// --------------------------------------------------------------------------------
+	// Description:
+	//   Calculates the lod based on the sphere and the frustum and then merges the
+	//   results
+	// Arguments:
+	//   lod0 - first LOD to examine
+	//   sphere - sphere used to calculate second LOD
+	//   frustum - frustum used to calculate second LOD
+	// Return value:
+	//   Returns the higher(valid) LOD
+	// --------------------------------------------------------------------------------
+	static Tr2Lod MergeLOD( Tr2Lod lod0, const Vector4& sphere, const TriFrustum& frustum );
 };
 
 

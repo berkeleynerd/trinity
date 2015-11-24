@@ -71,6 +71,7 @@ private:
 	bool m_update;
 	bool m_displaySourceObject;
 	bool m_displayDestObject;
+	bool m_useCurveLod;
 
 	float m_sourceObjectScale;
 	float m_destObjectScale;

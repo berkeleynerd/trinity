@@ -149,6 +149,13 @@ const Be::ClassInfo* EveStretch::ExposeToBlue()
 			"Current LOD level, 1(high) to 3(low)",
 			Be::READ
 		)
+		MAP_ATTRIBUTE
+		( 
+			"useCurveLod", 
+			m_useCurveLod, 
+			"Should curves be LOD'd", 
+			Be::READWRITE | Be::PERSIST
+		)
 
     EXPOSURE_END()
 }

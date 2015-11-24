@@ -37,6 +37,7 @@ EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
 	m_overallShieldImpact( -1.f ),
 	m_maxShieldImpacts( 8 ),
 	m_impactDataNextIdx( 1 ),
+	m_debugForceSpawnDebris( false ),
 	m_dataTextureBlockID( -1 ),
 	m_dataTextureOffset( -1 ),
 	m_armorImpactGoalCount( 0 ),
@@ -115,28 +116,31 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 	{
 		if( m_armorImpactEmitter )
 		{
-			for( auto aidit = m_armorImpactData.begin(); aidit != m_armorImpactData.end(); ++aidit )
+			if( m_armorImpactParentSize > 0.f )
 			{
-				if( aidit->second.requestSpawnDebris )
+				for( auto aidit = m_armorImpactData.begin(); aidit != m_armorImpactData.end(); ++aidit )
 				{
-					// where?
-					Vector3 impactPosWS( 0.f, 0.f, 0.f );
-					parent->GetDamageLocatorPosition( &impactPosWS, aidit->second.damageLocatorIndex );
-					m_armorImpactEmitter->SetPosition( &impactPosWS );
-					// facing?
-					Vector3 impactDirWS( 0.f, 1.f, 0.f );
-					parent->GetDamageLocatorDirection( &impactDirWS, aidit->second.damageLocatorIndex );
-					m_armorImpactEmitter->SetDirection( &impactDirWS );
-					// velocity?
-					Vector3 parentVelocityWS;
-					parent->GetWorldVelocity( parentVelocityWS );
-					// scaling?
-					float scale = aidit->second.size * m_armorImpactParentSize / ( IMPACT_ARMOR_SIZE_MAX / IMPACT_ARMOR_SIZE_FACTOR );
-					// put together particle update info
-					ITr2GenericEmitter::UpdateArguments args( updateContext.GetTime(), updateContext.GetGpuParticleSystem(), Tr2Renderer::GetIdentityTransform(), updateContext.GetOriginShift() );
-					// do the spawn here once!
-					m_armorImpactEmitter->SpawnOnce( args, parentVelocityWS, scale );
-					aidit->second.requestSpawnDebris = false;
+					if( aidit->second.requestSpawnDebris )
+					{
+						// where?
+						Vector3 impactPosWS( 0.f, 0.f, 0.f );
+						parent->GetDamageLocatorPosition( &impactPosWS, aidit->second.damageLocatorIndex );
+						m_armorImpactEmitter->SetPosition( &impactPosWS );
+						// facing?
+						Vector3 impactDirWS( 0.f, 1.f, 0.f );
+						parent->GetDamageLocatorDirection( &impactDirWS, aidit->second.damageLocatorIndex );
+						m_armorImpactEmitter->SetDirection( &impactDirWS );
+						// velocity?
+						Vector3 parentVelocityWS;
+						parent->GetWorldVelocity( parentVelocityWS );
+						// scaling?
+						float scale = aidit->second.size * m_armorImpactParentSize / ( IMPACT_ARMOR_SIZE_MAX / IMPACT_ARMOR_SIZE_FACTOR );
+						// put together particle update info
+						ITr2GenericEmitter::UpdateArguments args( updateContext.GetTime(), updateContext.GetGpuParticleSystem(), Tr2Renderer::GetIdentityTransform(), updateContext.GetOriginShift() );
+						// do the spawn here once!
+						m_armorImpactEmitter->SpawnOnce( args, parentVelocityWS, scale );
+						aidit->second.requestSpawnDebris = false;
+					}
 				}
 			}
 		}
@@ -469,9 +473,9 @@ void EveImpactOverlay::SetDamageState( float shield, float armor, float hull, bo
 	// do we forcefully have to create the amror impact holes?
 	if( doCreateArmorImpacts )
 	{
-		for( int i = 0; i < (int)m_armorImpactGoalCount; ++i )
+		for( size_t i = m_shieldImpactData.size(); i < m_armorImpactGoalCount; ++i )
 		{
-			CreateArmorImpact( i, 0.2f + 0.8f * TriRand(), false );
+			CreateArmorImpact( (int)i, 0.2f + 0.8f * TriRand(), m_debugForceSpawnDebris );
 		}
 	}
 }
@@ -547,33 +551,44 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	Vector3 nrmDir;
 	D3DXVec3Normalize( &nrmDir, &direction );
 	
-	// be carefull: try to find an already existing impact, which is close enough!
-	int closestImpactIdx = -1;
-	float closestImpactAngle = FLT_MIN;
+	// be carefull: try to find an already existing impact, which is close enough! Preferably at the same damage locator...
+	int closestImpactAtSameDmgLocIdx = -1, closestImpactAtAnyDmgLocIdx = -1;
+	float closestImpactAtSameDmgLocAngle = -FLT_MAX, closestImpactAtAnyDmgLocAngle = -FLT_MAX;
 	for( auto it = m_shieldImpactData.begin(); it != m_shieldImpactData.end(); ++it )
 	{
+		float a = D3DXVec3Dot( &nrmDir, &it->second.direction );
+		if( a > closestImpactAtAnyDmgLocAngle )
+		{
+			closestImpactAtAnyDmgLocAngle = a;
+			closestImpactAtAnyDmgLocIdx = it->first;
+		}
 		if( damageLocatorIndex == it->second.damageLocatorIndex )
 		{
-			float a = D3DXVec3Dot( &nrmDir, &it->second.direction );
-			if( a > closestImpactAngle )
+			if( a > closestImpactAtSameDmgLocAngle )
 			{
-				closestImpactAngle = a;
-				closestImpactIdx = it->first;
+				closestImpactAtSameDmgLocAngle = a;
+				closestImpactAtSameDmgLocIdx = it->first;
 			}
 		}
 	}
 	// if we have one that is close enough, use it instead and hand back that index
-	if( closestImpactAngle > 0.95f )
+	if( closestImpactAtSameDmgLocAngle > 0.95f )
 	{
-		m_shieldImpactData[ closestImpactIdx ].direction = nrmDir;
-		m_shieldImpactData[ closestImpactIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
-		return closestImpactIdx;
+		m_shieldImpactData[ closestImpactAtSameDmgLocIdx ].direction = nrmDir;
+		m_shieldImpactData[ closestImpactAtSameDmgLocIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+		return closestImpactAtSameDmgLocIdx;
 	}
 
 	// check size limitation
 	if( m_shieldImpactData.size() >= m_maxShieldImpacts )
 	{
-		return -1;
+		// if we have no more room, use one of the existing ones, no matter how good they are and what locator they hit
+		if( closestImpactAtAnyDmgLocIdx != -1 )
+		{
+			m_shieldImpactData[ closestImpactAtAnyDmgLocIdx ].direction = nrmDir;
+			m_shieldImpactData[ closestImpactAtAnyDmgLocIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+		}
+		return closestImpactAtAnyDmgLocIdx;
 	}
 
 	// fill our struct, but keep it in world space
@@ -601,7 +616,7 @@ int EveImpactOverlay::CreateArmorImpact( int damageLocatorIndex, float size, boo
 			// only update the size when it is bigger, so smaller lasers won't shrink the hole
 			it->second.size = std::max( size, it->second.size );
 			// spawn debris depends on the quality setting
-			it->second.requestSpawnDebris = !Tr2Renderer::IsLowQuality();
+			it->second.requestSpawnDebris = spawnEffects && !Tr2Renderer::IsLowQuality();
 			return it->first;
 		}
 	}

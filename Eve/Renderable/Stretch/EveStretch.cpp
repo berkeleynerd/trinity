@@ -19,6 +19,7 @@ EveStretch::EveStretch( IRoot* lockobj ) :
 	m_destinationPosition( 0.0f, 0.0f, 0.0f ),
 	m_lastCurveUpdateTime( 0 ),
 	m_lodLevel( TR2_LOD_LOW ),
+	m_useCurveLod( true ),
 	m_startTime( -1 ),
 	m_moveCompleted( false ),
 	m_moving( false ),
@@ -115,7 +116,7 @@ void EveStretch::UpdateCurves( EveUpdateContext& updateContext )
 
 	float delta = (float)TimeAsDouble( time - m_lastCurveUpdateTime );
 	
-	if( EveLODHelper::ShouldUpdate( m_lodLevel, delta ) )
+	if( !m_useCurveLod || EveLODHelper::ShouldUpdate( m_lodLevel, delta ) )
 	{
 		m_lastCurveUpdateTime = time;
 		if( m_moving && m_progressCurve )
@@ -226,6 +227,12 @@ void EveStretch::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rend
 		m_stretchObject->GetRenderables( frustum, renderables, m );		
 		// The object's LOD is a combination of it's move, stretch, dest and source object's LODs
 		m_lodLevel = EveLODHelper::MergeLOD( m_lodLevel, m_stretchObject->GetLODLevel() );
+
+		// also combine in a LOD based on the sphere around dest and source points. This way we avoid getting
+		// too low results when the stretcher is too small (animation!)
+		Vector4 sourceDestSphere;
+		BoundingSphereFromPoints( sourceDestSphere, m_sourcePosition, m_destinationPosition );
+		m_lodLevel = EveLODHelper::MergeLOD( m_lodLevel, sourceDestSphere, frustum );
 	}
 
 	if( m_moveObject )

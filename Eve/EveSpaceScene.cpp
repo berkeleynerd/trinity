@@ -2612,7 +2612,7 @@ void EveSpaceScene::UpdateStatefulParticles(
 	if( !Tr2GPUParticlePool::HardwareSupport() ) return;
 	if( !manager ) return;
 
-	if( !s_gpuParticlesEnabled )
+	if( true )
 	{
 		//destroy all current resources if we turned GPU particles off
 		if( !manager->m_particles.empty() &&
@@ -2626,6 +2626,8 @@ void EveSpaceScene::UpdateStatefulParticles(
 
 		return;
 	}
+
+	return;
 
 
 	static Be::Time previousTime = 0;
@@ -2681,7 +2683,7 @@ void EveSpaceScene::UpdateStatefulParticles(
 
 void EveSpaceScene::RenderStatefulParticles( const Tr2GPUParticleRenderMode mode, Tr2RenderContext &context, Tr2GPUParticlePoolManager* manager )
 {
-	if( !Tr2GPUParticlePool::HardwareSupport() || !s_gpuParticlesEnabled ) return;
+	return;
 	if( !manager ) return;
 
 	if( s_gpuParticlesRender ) 
