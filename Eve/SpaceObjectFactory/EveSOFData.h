@@ -73,6 +73,7 @@ public:
 	// data
 	Vector3 m_position;
 	Quaternion m_rotation;
+	int m_boneIndex;
 };
 TYPEDEF_BLUECLASS( EveSOFDataTransform );
 BLUE_DECLARE_VECTOR( EveSOFDataTransform );

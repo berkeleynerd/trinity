@@ -71,6 +71,7 @@ struct EveDamageLocator
 {
 	Vector3 m_position;
 	Quaternion m_impactDirection;
+	int m_boneIndex;
 };
 
 BLUE_DECLARE_STRUCTURE_LIST( EveDamageLocator );
@@ -330,6 +331,7 @@ protected:
 	bool m_debugShowMeshAreaBoundingBox;
 	bool m_debugRenderDebugInfoForChildren;
 	bool m_debugShowDynamicBounds;
+	bool m_debugShowDamageLocators;
 	bool m_allowLodSelection;
 
 	Matrix m_worldTransform;

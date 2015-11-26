@@ -316,6 +316,7 @@ const Be::ClassInfo* EveSOFDataTransform::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "position", m_position, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "rotation", m_rotation, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
 

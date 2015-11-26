@@ -65,6 +65,7 @@ public:
 		Vector3 direction;
 		float lifeTime;
 		float timeLeft;
+		float size;
 	};
 
 	// armor impacts
@@ -112,7 +113,7 @@ public:
 
 private:
 	// helper functions to create the different types of impacts
-	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime );
+	int CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime, float size );
 	int CreateArmorImpact( int damageLocatorIndex, float size, bool spawnEffects );
 
 	// general data

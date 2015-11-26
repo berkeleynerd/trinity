@@ -207,7 +207,9 @@ public:
 		Vector3* hitpointNear, 
 		Vector3* hitpointNearNormal, 
 		Vector3* hitpointFar, 
-		Vector3* hitpointFarNormal );
+		Vector3* hitpointFarNormal,
+		int* boneIndexNear,
+		int* boneIndexFar );
 	
 	bool GetIntersectionPointAndNormal( 
 		const Vector3* pos, 
@@ -215,7 +217,15 @@ public:
 		Vector3* hitpoint, 
 		Vector3* normal );
 
+	bool GetIntersectionPointNormalBone( 
+		const Vector3* pos, 
+		const Vector3* dir, 
+		Vector3* hitpoint, 
+		Vector3* normal,
+		int* boneIndex);
+
 	std::pair<bool, std::pair<Vector3, Vector3>> GetIntersectionPointAndNormalFromScript( const Vector3& pos, const Vector3& dir );
+	std::pair<bool, std::pair<int, std::pair<Vector3, Vector3>>> GetIntersectionPointNormalBoneFromScript( const Vector3& pos, const Vector3& dir );
 
 	std::pair<float, Vector3> GetClosestVertex( const Vector3& pos );
 

@@ -82,6 +82,14 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"If set animation based bounding info is drawn(if scene is showing debug info).", 
 			Be::READWRITE | Be::PERSIST 
 		)
+		
+		MAP_ATTRIBUTE
+		( 
+			"debugShowDamageLocators", 
+			m_debugShowDamageLocators, 
+			"If set, damage locator positions are rendered (if scene is showing debug info).", 
+			Be::READWRITE
+		)
 
 		MAP_ATTRIBUTE
 		(

@@ -179,12 +179,6 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 	// resize the texture data array based on both shield and armor impact
 	m_impactTexelData.resize( std::max( m_shieldImpactData.size(), m_armorImpactData.size() ) );
 
-	// no activity?
-	if( !HasGeneralActivity() )
-	{
-		return;
-	}
-
 	// the block header is the first column in the data texture, set it!
 	m_impactTexelHeader.v[0] = Vector4( float( m_shieldImpactData.size() ),
 		m_overallShieldImpact,
@@ -202,6 +196,12 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 		m_armorHardening->GetFaderValue(),
 		m_armorRepairing->GetKickInValue(),
 		m_armorHardening->GetKickInValue() );
+
+	// no activity?
+	if( !HasGeneralActivity() )
+	{
+		return;
+	}
 
 	// need the inverse world matrix
 	Matrix parentWorldTransform, parentInverseWorldTransform;
@@ -243,7 +243,7 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 			IntersectEllipsoidRay( p, shieldEllipsoidCenter, shieldEllipsoidRadii, tgtPosOS, dirOS );
 			// "encode" it in texels
 			texelData->v[0] = Vector4( p, shieldData->timeLeft );
-			texelData->v[1] = Vector4( 0.f, 0.f, 0.f, shieldData->lifeTime );
+			texelData->v[1] = Vector4( shieldData->size, 0.f, 0.f, shieldData->lifeTime );
 			// also need this intercept position in WS
 			D3DXVec3TransformCoord( &shieldData->interceptPosition, &p, &parentWorldTransform );
 	
@@ -501,7 +501,7 @@ int EveImpactOverlay::CreateImpact( int damageLocatorIndex, const Vector3& direc
 	switch( m_configuration )
 	{
 	case IMPACT_SHIELD:
-		return CreateShieldImpact( damageLocatorIndex, direction, lifeTime );
+		return CreateShieldImpact( damageLocatorIndex, direction, lifeTime, size );
 	case IMPACT_ARMOR:
 	case IMPACT_HULL:
 		return CreateArmorImpact( damageLocatorIndex, size, true );
@@ -549,7 +549,7 @@ bool EveImpactOverlay::UpdateImpact( Vector3& out, const Vector3& direction, int
 // Description:
 //   Use this method to add a new shield impact
 // --------------------------------------------------------------------------------
-int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime )
+int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3& direction, float lifeTime, float size )
 {
 	// only need normal
 	Vector3 nrmDir;
@@ -578,8 +578,10 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	// if we have one that is close enough, use it instead and hand back that index
 	if( closestImpactAtSameDmgLocAngle > 0.95f )
 	{
-		m_shieldImpactData[ closestImpactAtSameDmgLocIdx ].direction = nrmDir;
-		m_shieldImpactData[ closestImpactAtSameDmgLocIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+		ShieldImpactData* p = &m_shieldImpactData[ closestImpactAtSameDmgLocIdx ];
+		p->direction = nrmDir;
+		p->timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+		p->size = std::max( size, p->size );
 		return closestImpactAtSameDmgLocIdx;
 	}
 
@@ -589,8 +591,10 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 		// if we have no more room, use one of the existing ones, no matter how good they are and what locator they hit
 		if( closestImpactAtAnyDmgLocIdx != -1 )
 		{
-			m_shieldImpactData[ closestImpactAtAnyDmgLocIdx ].direction = nrmDir;
-			m_shieldImpactData[ closestImpactAtAnyDmgLocIdx ].timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+			ShieldImpactData* p = &m_shieldImpactData[ closestImpactAtAnyDmgLocIdx ];
+			p->direction = nrmDir;
+			p->timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+			p->size = std::max( size, p->size );
 		}
 		return closestImpactAtAnyDmgLocIdx;
 	}
@@ -602,6 +606,7 @@ int EveImpactOverlay::CreateShieldImpact( int damageLocatorIndex, const Vector3&
 	sid.damageLocatorIndex = damageLocatorIndex;
 	sid.interceptPosition = Vector3( 0.f, 0.f, 0.f );
 	sid.lifeTime = sid.timeLeft = IMPACT_SHIELD_FADEOUT * lifeTime;
+	sid.size = size;
 	m_shieldImpactData[ m_impactDataNextIdx ] = sid;
 	return m_impactDataNextIdx++;
 }

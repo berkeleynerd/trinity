@@ -200,7 +200,8 @@ EveSOFDataHullLocator::EveSOFDataHullLocator( IRoot* lockobj )
 
 EveSOFDataTransform::EveSOFDataTransform( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
-	m_rotation( 0.f, 0.f, 0.f, 1.f )
+	m_rotation( 0.f, 0.f, 0.f, 1.f ),
+	m_boneIndex( -1 )
 {
 }
 

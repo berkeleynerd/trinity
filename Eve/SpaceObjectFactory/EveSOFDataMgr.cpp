@@ -602,6 +602,7 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 		LocatorDirectionData ldd;
 		ldd.position = locatorData->m_position;
 		ldd.rotation = locatorData->m_rotation;
+		ldd.boneIndex = locatorData->m_boneIndex;
 		hd.locatorDamage.push_back( ldd );
 	}
 

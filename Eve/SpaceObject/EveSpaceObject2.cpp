@@ -2,6 +2,7 @@
 
 #include "Utilities/BoundingBox.h"
 #include "Utilities/BoundingSphere.h"
+#include "Utilities/MatrixUtils.h"
 
 #include "include/ITr2DebugRenderer.h"
 #include "include/IEveBallpark.h"
@@ -47,6 +48,7 @@ static BlueStructureDefinition EveDamageLocatorStructureDef[] =
 { 
 	{ "position", Be::FLOAT32_3, 0 }, 
 	{ "impactDirection", Be::FLOAT32_4, 12 }, 
+	{ "boneIndex", Be::INT32_1, 28 }, 
 	{0} 
 };
 
@@ -89,6 +91,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_debugShowMeshAreaBoundingBox( false ),
 	m_debugRenderDebugInfoForChildren( true ),
 	m_debugShowDynamicBounds( true ),
+	m_debugShowDamageLocators( false ),
 	m_isVisible( false ),
 	m_isMeshVisible( false ),
 	m_localAabbMin( 0.f, 0.f, 0.f ),
@@ -457,6 +460,21 @@ void EveSpaceObject2::RenderDebugInfo( Tr2RenderContext& renderContext )
 			for( EveSpaceObjectDecalVector::iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 			{
 				(*it)->RenderDebugInfo( &m_worldTransform );
+			}
+		}
+	}
+
+	if( m_debugShowDamageLocators )
+	{
+		for( unsigned i = 0; i < m_allocatedDamageLocatorCount; i++ )
+		{
+			Vector3 pos;
+			GetDamageLocatorPosition( &pos, i );
+			Tr2Renderer::DrawSphere( pos, m_boundingSphereRadius / 50.f, 4, 0xffff00ff );
+			Vector3 dir;
+			if( GetDamageLocatorDirection( &dir, i ) )
+			{
+				Tr2Renderer::DrawLine( pos, pos + (dir * m_boundingSphereRadius / 20.f), 0xffff00ff );
 			}
 		}
 	}
@@ -1945,11 +1963,35 @@ void EveSpaceObject2::UpdateDamageLocatorPositions()
 	{
 		// Update the aligned transform matrix
 		*m_alignedTransformMatrix = (XMMATRIX)m_worldTransform;
-
+		
+		// Granny matrices
+		size_t boneCount = 0;
+		const granny_matrix_3x4* bones = nullptr;
+		if( m_animationUpdater && m_animationUpdater->IsInitialized() )
+		{
+			boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
+			if( boneCount )
+			{
+				bones = m_animationUpdater->GetMeshBoneMatrixList();
+			}
+		}
+		
+		Matrix boneTF;
+		D3DXMatrixIdentity( &boneTF );
 		// Transform the coordinates
 		for( unsigned i = 0; i < m_allocatedDamageLocatorCount; ++i )
 		{
-			m_transformedDamageLocators[i] = XMVector3TransformCoord( m_damageLocatorPositions[i], *m_alignedTransformMatrix );
+			// We're assuming for now that the bone 0 isn't animated for performance reasons.
+			if( bones && m_persistedDamageLocators[i].m_boneIndex > 0 )
+			{
+				TriMatrixCopyFrom3x4( &boneTF, &bones[ m_persistedDamageLocators[i].m_boneIndex ] );
+				m_transformedDamageLocators[i] = XMVector3TransformCoord( m_damageLocatorPositions[i], boneTF );
+				m_transformedDamageLocators[i] = XMVector3TransformCoord( m_transformedDamageLocators[i], *m_alignedTransformMatrix );
+			}
+			else
+			{
+				m_transformedDamageLocators[i] = XMVector3TransformCoord( m_damageLocatorPositions[i], *m_alignedTransformMatrix );
+			}
 		}
 
 		m_damageLocatorsUpdatedThisFrame = true;
@@ -1966,10 +2008,31 @@ void EveSpaceObject2::UpdateDamageLocatorDirections()
 	// Update the aligned transform matrix
 	*m_alignedTransformMatrix = (XMMATRIX)m_worldTransform;
 
+	// Granny matrices
+	size_t boneCount = 0;
+	const granny_matrix_3x4* bones = nullptr;
+	if( m_animationUpdater && m_animationUpdater->IsInitialized() )
+	{
+		boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
+		if( boneCount )
+		{
+			bones = m_animationUpdater->GetMeshBoneMatrixList();
+		}
+	}
+
+	Matrix boneTF;
+	D3DXMatrixIdentity( &boneTF );
 	for( unsigned i = 0; i < m_allocatedDamageLocatorCount; ++i )
 	{
-		Quaternion quat = m_persistedDamageLocators[i].m_impactDirection;
+		Quaternion quat;
+		quat = m_persistedDamageLocators[i].m_impactDirection;
 		m_transformedImpactDirections[i] = XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), quat );
+		// We're assuming for now that the bone 0 isn't animated for performance reasons.
+		if( m_persistedDamageLocators[i].m_boneIndex > 0 )
+		{
+			TriMatrixCopyFrom3x4( &boneTF, &bones[ m_persistedDamageLocators[i].m_boneIndex ] );
+			m_transformedImpactDirections[i] = XMVector3TransformNormal( m_transformedImpactDirections[i], boneTF );
+		}
 		m_transformedImpactDirections[i] = XMVector3TransformNormal( m_transformedImpactDirections[i], *m_alignedTransformMatrix );
 	}
 

@@ -168,6 +168,7 @@ static void ConvertDataToVector3( Tr2VertexDefinition::DataType elementType, voi
 	case Tr2VertexDefinition::UBYTE_4:
 		{
 			ConvertUByte4ToVector3(src, dest );
+			break;
 		}
 
 	default:
@@ -1354,7 +1355,17 @@ bool TriGeometryRes::GetIntersectionPointAndNormal( const Vector3* pos, const Ve
 {
 	Vector3 farPoint;
 	Vector3 farPointNormal;
-	return GetIntersectionPoints( pos, dir, hitpoint, normal, &farPoint, &farPointNormal );
+	int farBoneIndex;
+	int nearBoneIndex;
+	return GetIntersectionPoints( pos, dir, hitpoint, normal, &farPoint, &farPointNormal, &nearBoneIndex, &farBoneIndex );
+}
+
+bool TriGeometryRes::GetIntersectionPointNormalBone( const Vector3* pos, const Vector3* dir, Vector3* hitpoint, Vector3* normal, int* boneIndex )
+{
+	Vector3 farPoint;
+	Vector3 farPointNormal;
+	int farBoneIndex;
+	return GetIntersectionPoints( pos, dir, hitpoint, normal, &farPoint, &farPointNormal, boneIndex, &farBoneIndex );
 }
 
 std::pair<bool, std::pair<Vector3, Vector3>> TriGeometryRes::GetIntersectionPointAndNormalFromScript( const Vector3& pos, const Vector3& dir )
@@ -1365,12 +1376,36 @@ std::pair<bool, std::pair<Vector3, Vector3>> TriGeometryRes::GetIntersectionPoin
 	return std::make_pair( result, std::make_pair( hitpoint, normal ) );
 }
 
-bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*dir, Vector3* hitpointNear, Vector3* hitpointNearNormal, Vector3* hitpointFar, Vector3* hitpointFarNormal )
+std::pair<bool, std::pair<int, std::pair<Vector3, Vector3>>> TriGeometryRes::GetIntersectionPointNormalBoneFromScript( const Vector3& pos, const Vector3& dir )
+{
+	Vector3 hitpoint( 0.0f, 0.0f, 0.0f );
+	Vector3 normal( 0.0f, 0.0f, 0.0f );
+	int boneIndex;
+	bool result = GetIntersectionPointNormalBone( &pos, &dir, &hitpoint, &normal, &boneIndex );
+	return std::make_pair( result, std::make_pair( boneIndex, std::make_pair( hitpoint, normal ) ) );
+}
+
+static bool GetBoneIndex( Tr2VertexDefinition::DataType elementType, void* src, int& dest )
+{
+	if( elementType != Tr2VertexDefinition::UBYTE_4 )
+	{
+		CCP_LOGERR( "TriGeometryRes: BELNDINDICE using unsupported format." );
+		return false;
+	}
+
+	unsigned char* vdata = (unsigned char*)src;
+	dest = (int)vdata[0];
+	return true;
+}
+
+bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*dir, Vector3* hitpointNear, Vector3* hitpointNearNormal, Vector3* hitpointFar, Vector3* hitpointFarNormal, int* boneIndexNear, int* boneIndexFar )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-
+	
+	*boneIndexFar = *boneIndexNear = -1;
+	int boneIndex = 0;
 	float minDist = FLT_MAX;
 	float maxDist = FLT_MIN;
 	bool result = false;
@@ -1411,7 +1446,8 @@ bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*di
 		{
 			return false;
 		}
-
+		
+		const Tr2VertexDefinition::Item* const blendIndices = decl.Find( decl.BLENDINDICES );
 		int numPrim = m_meshes[i]->m_primitiveCount;
 		for ( int j = 0; j < numPrim; j++ )
 		{
@@ -1448,6 +1484,10 @@ bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*di
 					D3DXVec3Cross(hitpointNearNormal, &avec, &bvec );
 					D3DXVec3Normalize(hitpointNearNormal, hitpointNearNormal);
 					minDist = dist;
+					if( blendIndices && GetBoneIndex( blendIndices->m_dataType, pVertices + index1 * vertSize + blendIndices->m_offset, boneIndex ) )
+					{
+						*boneIndexNear = boneIndex;
+					}
 				}
 				if ( maxDist < dist )
 				{
@@ -1455,6 +1495,10 @@ bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*di
 					D3DXVec3Cross(hitpointFarNormal, &avec, &bvec );
 					D3DXVec3Normalize(hitpointFarNormal, hitpointFarNormal);
 					maxDist = dist;
+					if( blendIndices && GetBoneIndex( blendIndices->m_dataType, pVertices + index1 * vertSize + blendIndices->m_offset, boneIndex ) )
+					{
+						*boneIndexFar = boneIndex;
+					}
 				}
 				result = true;
 			}
@@ -1466,12 +1510,14 @@ bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*di
 	{
 		*hitpointNear = *hitpointFar;
 		*hitpointNearNormal = *hitpointFarNormal;
+		*boneIndexNear = *boneIndexFar;
 	}
 
 	if ( maxDist == FLT_MIN )
 	{
 		*hitpointFar = *hitpointNear;
 		*hitpointFarNormal = *hitpointNearNormal;
+		*boneIndexFar = *boneIndexNear;
 	}
 
 	return result;

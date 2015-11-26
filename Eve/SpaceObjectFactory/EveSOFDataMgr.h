@@ -37,6 +37,7 @@ public:
 	{
 		Vector3 position;
 		Quaternion rotation;
+		int boneIndex;
 	};
 
 	// hull data structs
