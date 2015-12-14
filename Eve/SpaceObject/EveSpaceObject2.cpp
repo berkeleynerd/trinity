@@ -969,7 +969,7 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 		{
 			m_customMask->GetInvCustomMaskTransform( (Matrix*)perObjectPS );
 			perObjectPS += sizeof( Matrix );
-			m_customMask->GetMaterialMask( (Vector4*)perObjectPS );
+			m_customMask->GetMaterialID( (Vector4*)perObjectPS );
 			perObjectPS += sizeof( Vector4 );
 			m_customMask->GetExtendedData( (Vector4*)perObjectPS );
 			perObjectPS += sizeof( Vector4 );

@@ -29,7 +29,7 @@ public:
 	void GetDebugDrawMatrix( Matrix* matrix, float objectRadius ) const;
 	void GetInvCustomMaskTransform( Matrix* matrix ) const;
 	void GetExtendedData( Vector4* data ) const;
-	void GetMaterialMask( Vector4* data ) const;
+	void GetMaterialID( Vector4* data ) const;
 
 
 private:
@@ -39,8 +39,8 @@ private:
 	Vector3 m_scaling;
 	Quaternion m_rotation;
 
-	// materials
-	Vector4 m_materialMask;
+	// materials index
+	uint8_t m_materialIndex1;
 
 	// options
 	bool m_isMirrored;

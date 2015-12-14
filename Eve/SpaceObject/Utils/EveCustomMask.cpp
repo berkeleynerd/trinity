@@ -15,7 +15,7 @@ EveCustomMask::EveCustomMask( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
 	m_scaling( 1.f, 1.f, 1.f ),
 	m_rotation( 0.f, 0.f, 0.f, 1.f ),
-	m_materialMask( 1.f, 1.f, 1.f, 1.f ),
+	m_materialIndex1( 0 ),
 	m_isMirrored( false )
 {
 }
@@ -65,11 +65,11 @@ void EveCustomMask::GetExtendedData( Vector4* data ) const
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Hands out the four influences on the actual four materials
+//   Hands out the four materials IDs for the four additional materials
 // --------------------------------------------------------------------------------
-void EveCustomMask::GetMaterialMask( Vector4* data ) const
+void EveCustomMask::GetMaterialID( Vector4* data ) const
 {
-	*data = m_materialMask;
+	*data = Vector4( (float)m_materialIndex1, 0.f, 0.f, 0.f );
 }
 
 
