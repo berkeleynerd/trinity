@@ -412,7 +412,7 @@ bool Tr2HostBitmap::CreateFromFile( const std::wstring& file )
 	}
 
 	IBlueStreamPtr stream;
-	if( !Be::IsSuccess( BePaths->GetFileContentsWithYield( file.c_str(), &stream ) ) )
+	if( !BeIsSuccess( BePaths->GetFileContentsWithYield( file.c_str(), &stream ) ) )
 	{
 		CCP_LOGERR( "Error opening file (%S)", file.c_str() );
 		return false;
