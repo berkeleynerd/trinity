@@ -70,30 +70,30 @@ TEST( ALResult, CanQueryResultCategory )
 TEST( ALResult, CanCheckIfResultIsSuccessful )
 {
 	ALResult result1;
-	EXPECT_TRUE( Be::IsSuccess( result1 ) );
+	EXPECT_TRUE( BeIsSuccess( result1 ) );
 
 	ALResult result11( HRESULT( 121 ) );
-	EXPECT_TRUE( Be::IsSuccess( result11 ) );
+	EXPECT_TRUE( BeIsSuccess( result11 ) );
 
 	ALResult result2( E_INVALIDCALL );
-	EXPECT_FALSE( Be::IsSuccess( result2 ) );
+	EXPECT_FALSE( BeIsSuccess( result2 ) );
 
 	ALResult result3( E_INVALIDARG );
-	EXPECT_FALSE( Be::IsSuccess( result3 ) );
+	EXPECT_FALSE( BeIsSuccess( result3 ) );
 
 	ALResult result4( E_OUTOFMEMORY );
-	EXPECT_FALSE( Be::IsSuccess( result4 ) );
+	EXPECT_FALSE( BeIsSuccess( result4 ) );
 
 	ALResult result5( E_DEVICELOST );
-	EXPECT_FALSE( Be::IsSuccess( result5 ) );
+	EXPECT_FALSE( BeIsSuccess( result5 ) );
 
 	ALResult result6( HRESULT( -34 ) );
-	EXPECT_FALSE( Be::IsSuccess( result6 ) );
+	EXPECT_FALSE( BeIsSuccess( result6 ) );
 }
 
 
 TEST( ALResult, CanGetErrorMessage )
 {
-	const char* str = Be::GetErrorMessage( E_INVALIDARG );
+	const char* str = BeGetErrorMessage( ALResult( E_INVALIDARG ) );
 	EXPECT_NE( nullptr, str );
 }

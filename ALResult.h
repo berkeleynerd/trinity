@@ -139,19 +139,22 @@ void ReportGLError( const char* fileName, int lineNumber, const char* statement,
 
 #endif
 
-namespace Be
-{
-
 
 #if !TRINITY_AL_WITH_BLUE_EXPOSURE
 
 // If TrinityAL is compiled without BlueExposure module, we need to
 // declare its Be::Result.
 
+namespace Be
+{
+
 template <typename T>
 struct Result {};
 
-template<typename T> inline bool IsSuccess( const Result<T>& ) { return false; }
+}
+
+template<typename T> inline bool BeIsSuccess( const Be::Result<T>& ) { return false; }
+template<typename T> const char* BeGetErrorMessage( const Be::Result<T>& result ) { return ""; }
 
 #endif
 
@@ -165,7 +168,7 @@ template<typename T> inline bool IsSuccess( const Result<T>& ) { return false; }
 //	 using CR macro.
 // --------------------------------------------------------------------------------------
 template <>
-struct Result<HRESULT>
+struct Be::Result<HRESULT>
 {
 public:
 	// Broad common categories of AL errors
@@ -268,12 +271,12 @@ private:
 #endif
 };
 
-template<> inline bool IsSuccess( const Result<HRESULT>& result )
+template<> inline bool BeIsSuccess( const Be::Result<HRESULT>& result )
 {
 	return SUCCEEDED( result );
 }
 
-const char* GetErrorMessage( const Result<HRESULT>& result );
+template<> const char* BeGetErrorMessage( const Be::Result<HRESULT>& result );
 
 
 #if TRINITY_AL_WITH_BLUE_EXPOSURE && BLUE_WITH_PYTHON
@@ -282,11 +285,9 @@ const char* GetErrorMessage( const Result<HRESULT>& result );
 // GetException function for ALResult. We declare it here so that it's picked up
 // by BlueExposure whenever ALResult is used. Its body needs to be defined outside
 // TrinityAL.
-template<> PyObject* GetException( const Result<HRESULT>& result );
+template<> PyObject* BeGetException( const Be::Result<HRESULT>& result );
 
 #endif
-
-}
 
 typedef Be::Result<HRESULT> ALResult;
 

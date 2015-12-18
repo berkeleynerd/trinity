@@ -124,7 +124,7 @@ void ReportGLError( const char* fileName, int lineNumber, const char* statement,
 // Return value:
 //   Static string with exception message
 // --------------------------------------------------------------------------------------
-const char* Be::GetErrorMessage( const Result<HRESULT>& result )
+template<> const char* BeGetErrorMessage( const Be::Result<HRESULT>& result )
 {
 	auto found = s_errorMessages.find( result );
 	if( found == s_errorMessages.end() )
