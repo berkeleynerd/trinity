@@ -309,6 +309,7 @@ protected:
 	Vector3 GetDamageLocator( uint32_t index ) const;
 	Vector3 GetTransformedDamageLocator( uint32_t index );
 	Vector3 GetTransformedDamageLocatorDirection( uint32_t index );
+	bool IsDamageLocatorFacingPosition( uint32_t index, const Vector3& posInObjectSpace );
 
 	void PrepareForAnimation();
 	void FreeAnimationData();

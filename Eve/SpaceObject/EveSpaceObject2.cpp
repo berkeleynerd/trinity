@@ -164,9 +164,6 @@ void EveSpaceObject2::UpdateSyncronous( EveUpdateContext& updateContext )
 	Be::Time time = updateContext.GetTime();
 	D3DXMatrixTranspose( &m_vsData.worldTransformLast, &m_worldTransform );
 	
-	//is this done in a parent class/subclass anywhere else?
-	D3DXMatrixInverse( &m_invWorldTransform, nullptr, &m_worldTransform );
-
 	UpdateWorldTransform( time );
 
 	if( !m_update )
@@ -1381,6 +1378,19 @@ void EveSpaceObject2::ClearAnimations()
 	}
 }
 
+bool EveSpaceObject2::IsDamageLocatorFacingPosition( uint32_t index, const Vector3& posInObjectSpace )
+{
+	Vector3 damageLocatorDir = GetObjectSpaceDamageLocatorDirection( index );
+	Vector3 lengthOfPos = (Vector3)XMVector3LengthEst( posInObjectSpace );
+	Vector3 lengthOfMovedPos = (Vector3)XMVector3LengthEst( posInObjectSpace - damageLocatorDir);
+	
+	if( XMVector3Less( lengthOfMovedPos, lengthOfPos ) )
+	{
+		return true;
+	}
+	return false;
+}
+
 int EveSpaceObject2::GetClosestDamageLocatorIndex( const Vector3* position )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
@@ -1393,13 +1403,15 @@ int EveSpaceObject2::GetClosestDamageLocatorIndex( const Vector3* position )
 
 	for( unsigned int i = 0; i < m_persistedDamageLocators.size(); ++i )
 	{
-		XMVECTOR thisLength = Vector3( posInObjectSpace );
-		thisLength = GetObjectSpaceDamageLocatorPosition( i ) - thisLength;
-		thisLength = XMVector3LengthEst( thisLength );
-		if ( XMVector3Less( thisLength, closestLength ) )
+		if( IsDamageLocatorFacingPosition( i, posInObjectSpace ) )
 		{
-			closestIndex = i;
-			closestLength = thisLength;
+			XMVECTOR distanceFromDamageLocator = GetObjectSpaceDamageLocatorPosition( i ) - Vector3( posInObjectSpace );
+			distanceFromDamageLocator = XMVector3LengthEst( distanceFromDamageLocator );
+			if ( XMVector3Less( distanceFromDamageLocator, closestLength ) )
+			{
+				closestIndex = i;
+				closestLength = distanceFromDamageLocator;
+			}
 		}
 	}
 	
@@ -1443,38 +1455,48 @@ int EveSpaceObject2::GetGoodDamageLocatorIndex( const Vector3& position )
 	float bestDirectionFit = 0.0f;
 		
 	Vector3 posInObjectSpace = (Vector3) XMVector3Transform( position, m_invWorldTransform );
-	std::vector<Vector3> damageLocatorPositions;
+	std::vector<Vector3> damageLocatorPositions, damageLocatorDirections;
 	Vector3 v;
 
 	for( unsigned i = 0; i < m_persistedDamageLocators.size(); ++i )
 	{
-		Vector3 damageLocatorPosition = GetObjectSpaceDamageLocatorPosition(i);
-		damageLocatorPositions.push_back(damageLocatorPosition);
-		v = XMVectorSubtract( damageLocatorPosition, posInObjectSpace );
-		float length = D3DXVec3Length( &v );
-		minDistance = min( minDistance, length );
-		maxDistance = max( maxDistance, length );
-		D3DXVec3Normalize( &v, &v );
-		float directionFit = GetDirectionFit( (Vector3)damageLocatorPosition , v );
-		bestDirectionFit = max( bestDirectionFit, directionFit );
+		if( IsDamageLocatorFacingPosition( i, posInObjectSpace ) )
+		{
+			Vector3 damageLocatorPosition = GetObjectSpaceDamageLocatorPosition(i);
+			Vector3 damageLocatorDirection = GetObjectSpaceDamageLocatorDirection(i);
+
+			damageLocatorPositions.push_back(damageLocatorPosition);
+			damageLocatorDirections.push_back(damageLocatorDirection);
+
+			v = XMVectorSubtract( damageLocatorPosition, posInObjectSpace );
+			float length = D3DXVec3Length( &v );
+			minDistance = min( minDistance, length );
+			maxDistance = max( maxDistance, length );
+			D3DXVec3Normalize( &v, &v );
+			float directionFit = GetDirectionFit( (Vector3)damageLocatorDirection , v );
+			bestDirectionFit = max( bestDirectionFit, directionFit );
+		}
 	}
 
 	float desiredFit = TriRand() * ( 0.25f - ( 1.0f - bestDirectionFit ) ) + 0.75f;
 	float bestFit = 1.0f;
 	
-	int bestLocator = GetClosestDamageLocatorIndex( &posInObjectSpace );
+	int bestLocator = GetClosestDamageLocatorIndex( &position );
 	for( unsigned i = 0; i < m_persistedDamageLocators.size(); ++i )
 	{
-		Vector3 damageLocatorPos = damageLocatorPositions[i];
-		Vector3 damageLocatorDir = GetObjectSpaceDamageLocatorDirection(i);
-		v = XMVectorSubtract( damageLocatorPos, posInObjectSpace );
-		float fitValue = GetDistanceFit( minDistance, maxDistance - minDistance, v );
-		D3DXVec3Normalize( &v, &v );
-		fitValue *= GetDirectionFit( damageLocatorDir, v );
-		if( std::abs( fitValue - desiredFit ) < bestFit )
+		if( IsDamageLocatorFacingPosition( i, posInObjectSpace ) )
 		{
-			bestFit = std::abs( fitValue - desiredFit );
-			bestLocator = (int)i;
+			Vector3 damageLocatorPos = damageLocatorPositions[i];
+			Vector3 damageLocatorDir = damageLocatorDirections[i];
+			v = XMVectorSubtract( damageLocatorPos, posInObjectSpace );
+			float fitValue = GetDistanceFit( minDistance, maxDistance - minDistance, v );
+			D3DXVec3Normalize( &v, &v );
+			fitValue *= GetDirectionFit( damageLocatorDir, v );
+			if( std::abs( fitValue - desiredFit ) < bestFit )
+			{
+				bestFit = std::abs( fitValue - desiredFit );
+				bestLocator = (int)i;
+			}	
 		}
 	}
 
@@ -1690,6 +1712,8 @@ void EveSpaceObject2::UpdateWorldTransform( Be::Time time )
 		m_worldTransform._42 = m_worldPosition.y;
 		m_worldTransform._43 = m_worldPosition.z;
 	}
+	//is this done in a parent class/subclass anywhere else?
+	D3DXMatrixInverse( &m_invWorldTransform, nullptr, &m_worldTransform );
 }
 
 bool EveSpaceObject2::IsShadowReceiveEnabled()
