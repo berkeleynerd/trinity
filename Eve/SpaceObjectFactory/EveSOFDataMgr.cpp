@@ -846,7 +846,6 @@ void EveSOFDataMgr::GenerateRaceData( RaceData& rd, EveSOFDataRacePtr srcData ) 
 	rd.boosters.warpGlowColor = srcData->m_booster->m_warpGlowColor;
 	rd.boosters.warpHaloColor = srcData->m_booster->m_warpHaloColor;
 	rd.boosters.trailSize = srcData->m_booster->m_trailSize;
-	rd.impactEffectResPath = srcData->m_impactEffectResPath;
 
 	auto copyShape = [=]( RaceBoosterDataShape& dest, EveSOFDataBoosterShape* src )
 	{
@@ -878,6 +877,7 @@ void EveSOFDataMgr::GenerateRaceData( RaceData& rd, EveSOFDataRacePtr srcData ) 
 	rd.boosters.volumetric = srcData->m_booster->m_volumetric;
 
 	// shader data
+	rd.hullAreaParameters.clear();
 	for( auto hait = srcData->m_hullAreas.begin(); hait != srcData->m_hullAreas.end(); ++hait )
 	{
 		EveSOFDataFactionHullAreaPtr hullAreaData = (*hait);
@@ -889,6 +889,43 @@ void EveSOFDataMgr::GenerateRaceData( RaceData& rd, EveSOFDataRacePtr srcData ) 
 			fad.parameters[ param->m_name ] = param->m_value;
 		}
 		rd.hullAreaParameters[ hullAreaData->m_name ] = fad;
+	}
+
+	// damage data
+	rd.damage.armorDamageParameters.clear();
+	rd.damage.armorDamageTextures.clear();
+	rd.damage.shieldDamageParameters.clear();
+	rd.damage.shieldDamageTextures.clear();
+	if( srcData->m_damage )
+	{
+		for( auto adpit = srcData->m_damage->m_armorImpactParameters.begin(); adpit != srcData->m_damage->m_armorImpactParameters.end(); ++adpit )
+		{
+			EveSOFDataParameterPtr param = ( *adpit );
+
+			rd.damage.armorDamageParameters[param->m_name] = param->m_value;
+		}
+		for( auto adtit = srcData->m_damage->m_armorImpactTextures.begin(); adtit != srcData->m_damage->m_armorImpactTextures.end(); ++adtit )
+		{
+			EveSOFDataTexturePtr tex = ( *adtit );
+
+			TextureData td;
+			td.resFilePath = tex->m_resFilePath;
+			rd.damage.armorDamageTextures[tex->m_name] = td;
+		}
+		for( auto sdpit = srcData->m_damage->m_shieldImpactParameters.begin(); sdpit != srcData->m_damage->m_shieldImpactParameters.end(); ++sdpit )
+		{
+			EveSOFDataParameterPtr param = ( *sdpit );
+
+			rd.damage.shieldDamageParameters[param->m_name] = param->m_value;
+		}
+		for( auto sdtit = srcData->m_damage->m_shieldImpactTextures.begin(); sdtit != srcData->m_damage->m_shieldImpactTextures.end(); ++sdtit )
+		{
+			EveSOFDataTexturePtr tex = ( *sdtit );
+
+			TextureData td;
+			td.resFilePath = tex->m_resFilePath;
+			rd.damage.shieldDamageTextures[tex->m_name] = td;
+		}
 	}
 }
 
@@ -961,6 +998,36 @@ void EveSOFDataMgr::GenerateGenericData( GenericData& gd, EveSOFDataGenericPtr s
 	gd.shaderPrefixAnimated = srcData->m_shaderPrefixAnimated;
 	gd.areaShaderLocation = srcData->m_areaShaderLocation;
 	gd.decalShaderLocation = srcData->m_decalShaderLocation;
+
+	// damage
+	if( srcData->m_damage )
+	{
+		gd.damage.flickerPerlinAlpha = srcData->m_damage->m_flickerPerlinAlpha;
+		gd.damage.flickerPerlinBeta = srcData->m_damage->m_flickerPerlinBeta;
+		gd.damage.flickerPerlinN = srcData->m_damage->m_flickerPerlinN;
+		gd.damage.flickerPerlinOffset = srcData->m_damage->m_flickerPerlinOffset;
+		gd.damage.flickerPerlinScale = srcData->m_damage->m_flickerPerlinScale;
+		gd.damage.flickerPerlinSpeed = srcData->m_damage->m_flickerPerlinSpeed;
+
+		gd.damage.armorParticleRate = srcData->m_damage->m_armorParticleRate;
+		gd.damage.armorParticleAngle = srcData->m_damage->m_armorParticleAngle;
+		gd.damage.armorParticleMinMaxSpeed = srcData->m_damage->m_armorParticleMinMaxSpeed;
+		gd.damage.armorParticleMinMaxLifeTime = srcData->m_damage->m_armorParticleMinMaxLifeTime;
+		gd.damage.armorParticleSizes = srcData->m_damage->m_armorParticleSizes;
+		gd.damage.armorParticleColors[0] = srcData->m_damage->m_armorParticleColor0;
+		gd.damage.armorParticleColors[1] = srcData->m_damage->m_armorParticleColor1;
+		gd.damage.armorParticleColors[2] = srcData->m_damage->m_armorParticleColor2;
+		gd.damage.armorParticleColors[3] = srcData->m_damage->m_armorParticleColor3;
+		gd.damage.armorParticleTextureIndex = srcData->m_damage->m_armorParticleTextureIndex;
+		gd.damage.armorParticleVelocityStretchRotation = srcData->m_damage->m_armorParticleVelocityStretchRotation;
+		gd.damage.armorParticleDrag = srcData->m_damage->m_armorParticleDrag;
+		gd.damage.armorParticleTurbulenceAmplitude = srcData->m_damage->m_armorParticleTurbulenceAmplitude;
+		gd.damage.armorParticleTurbulenceFrequency = srcData->m_damage->m_armorParticleTurbulenceFrequency;
+
+		gd.damage.armorShader = srcData->m_damage->m_armorShader;
+		gd.damage.shieldShader = srcData->m_damage->m_shieldShader;
+		gd.damage.shieldGeometryResFilePath = srcData->m_damage->m_shieldGeometryResFilePath;
+	}
 
 	// shader material name prefixes
 	gd.materialPrefixes.clear();

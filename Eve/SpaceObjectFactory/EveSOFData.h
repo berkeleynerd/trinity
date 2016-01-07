@@ -636,6 +636,26 @@ public:
 TYPEDEF_BLUECLASS( EveSOFDataBooster );
 
 
+BLUE_CLASS( EveSOFDataRaceDamage ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataRaceDamage( IRoot* lockobj = NULL );
+	~EveSOFDataRaceDamage() {}
+
+	// armor damage
+	PEveSOFDataParameterVector m_armorImpactParameters;
+	PEveSOFDataTextureVector m_armorImpactTextures;
+
+	// shield damage
+	PEveSOFDataParameterVector m_shieldImpactParameters;
+	PEveSOFDataTextureVector m_shieldImpactTextures;
+};
+TYPEDEF_BLUECLASS( EveSOFDataRaceDamage );
+BLUE_DECLARE_VECTOR( EveSOFDataRaceDamage );
+
+
 BLUE_CLASS( EveSOFDataRace ) :
 	public IRoot
 {
@@ -654,7 +674,7 @@ public:
 	PEveSOFDataFactionHullAreaVector m_hullAreas;
 
 	// impact effect
-	BlueSharedString m_impactEffectResPath;
+	EveSOFDataRaceDamagePtr m_damage;
 };
 TYPEDEF_BLUECLASS( EveSOFDataRace );
 BLUE_DECLARE_VECTOR( EveSOFDataRace );
@@ -704,6 +724,46 @@ public:
 TYPEDEF_BLUECLASS( EveSOFDataGenericString );
 BLUE_DECLARE_VECTOR( EveSOFDataGenericString );
 
+BLUE_CLASS( EveSOFDataGenericDamage ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataGenericDamage( IRoot* lockobj = NULL );
+	~EveSOFDataGenericDamage() {}
+
+	// hull damage flicker
+	float m_flickerPerlinSpeed;
+	float m_flickerPerlinAlpha;
+	float m_flickerPerlinBeta;
+	float m_flickerPerlinOffset;
+	float m_flickerPerlinScale;
+	int m_flickerPerlinN;
+
+	// armor damage particles
+	float m_armorParticleRate;
+	float m_armorParticleAngle;
+	Vector2 m_armorParticleMinMaxSpeed;
+	Vector2 m_armorParticleMinMaxLifeTime;
+	Vector4 m_armorParticleSizes;
+	Color m_armorParticleColor0;
+	Color m_armorParticleColor1;
+	Color m_armorParticleColor2;
+	Color m_armorParticleColor3;
+	uint32_t m_armorParticleTextureIndex;
+	float m_armorParticleVelocityStretchRotation;
+	float m_armorParticleDrag;
+	float m_armorParticleTurbulenceAmplitude;
+	uint32_t m_armorParticleTurbulenceFrequency;
+
+	// resources
+	std::string m_armorShader;
+	std::string m_shieldShader;
+	std::string m_shieldGeometryResFilePath;
+};
+TYPEDEF_BLUECLASS( EveSOFDataGenericDamage );
+BLUE_DECLARE_VECTOR( EveSOFDataGenericDamage );
+
 BLUE_CLASS( EveSOFDataGenericShader ) :
 	public IRoot
 {
@@ -747,6 +807,9 @@ public:
 
 	// texture filename extensions
 	PEveSOFDataKeyValueVector m_textureExtensions;
+
+	// damage data
+	EveSOFDataGenericDamagePtr m_damage;
 
 	// hull area data
 	PEveSOFDataFactionHullAreaVector m_hullAreas;

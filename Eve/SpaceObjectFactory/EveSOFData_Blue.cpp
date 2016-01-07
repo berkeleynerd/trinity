@@ -18,9 +18,9 @@ const Be::ClassInfo* EveSOFDataBoosterShape::ExposeToBlue()
 		MAP_ATTRIBUTE( "noiseAmplitureEnd", m_noiseAmplitureEnd, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "noiseFrequency", m_noiseFrequency, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "color", m_color, "", Be::READWRITE | Be::PERSIST )
-		
 	EXPOSURE_END()
 }
+
 
 
 BLUE_DEFINE( EveSOFDataBooster );
@@ -59,8 +59,22 @@ const Be::ClassInfo* EveSOFDataBooster::ExposeToBlue()
 		MAP_ATTRIBUTE( "lightColor", m_lightColor, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "lightWarpColor", m_lightWarpColor, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "volumetric", m_volumetric, "", Be::READWRITE | Be::PERSIST )
-
     EXPOSURE_END()
+}
+
+
+
+BLUE_DEFINE( EveSOFDataRaceDamage );
+const Be::ClassInfo* EveSOFDataRaceDamage::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataRaceDamage, "" )
+		MAP_INTERFACE( EveSOFDataRaceDamage )
+
+		MAP_ATTRIBUTE( "armorImpactParameters", m_armorImpactParameters, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorImpactTextures", m_armorImpactTextures, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldImpactParameters", m_shieldImpactParameters, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldImpactTextures", m_shieldImpactTextures, "", Be::READWRITE | Be::PERSIST )
+		EXPOSURE_END()
 }
 
 
@@ -95,7 +109,6 @@ const Be::ClassInfo* EveSOFDataHullSpotlightSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "zOffset", m_zOffset, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "coneTextureResPath", m_coneTextureResPath, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "glowTextureResPath", m_glowTextureResPath, "", Be::READWRITE | Be::PERSIST )
-
 		MAP_ATTRIBUTE( "items", m_items, "The items in this spotlightset", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
@@ -579,8 +592,8 @@ const Be::ClassInfo* EveSOFDataRace::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "The race name, eg caldari. This functions as an ID.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "booster", m_booster, "All the booster data for this race.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hullAreas", m_hullAreas, "Per race shader data", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "impactEffectResPath", m_impactEffectResPath, "The res path to the impact effect for this race", Be::READWRITE | Be::PERSIST )
-    EXPOSURE_END()
+		MAP_ATTRIBUTE( "damage", m_damage, "Pre race damage system data", Be::READWRITE | Be::PERSIST )
+		EXPOSURE_END()
 }
 
 
@@ -606,6 +619,40 @@ const Be::ClassInfo* EveSOFDataGenericString::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "str", m_str, "The actual string", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
+}
+
+
+
+BLUE_DEFINE( EveSOFDataGenericDamage );
+const Be::ClassInfo* EveSOFDataGenericDamage::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataGenericDamage, "" )
+		MAP_INTERFACE( EveSOFDataGenericDamage )
+
+		MAP_ATTRIBUTE( "flickerPerlinSpeed", m_flickerPerlinSpeed, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flickerPerlinAlpha", m_flickerPerlinAlpha, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flickerPerlinBeta", m_flickerPerlinBeta, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flickerPerlinOffset", m_flickerPerlinOffset, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flickerPerlinScale", m_flickerPerlinScale, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flickerPerlinN", m_flickerPerlinN, "Hull damage perlin noise flicker speed", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleRate", m_armorParticleRate, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleAngle", m_armorParticleAngle, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleMinMaxSpeed", m_armorParticleMinMaxSpeed, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleMinMaxLifeTime", m_armorParticleMinMaxLifeTime, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleSizes", m_armorParticleSizes, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleColor0", m_armorParticleColor0, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleColor1", m_armorParticleColor1, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleColor2", m_armorParticleColor2, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleColor3", m_armorParticleColor3, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleTextureIndex", m_armorParticleTextureIndex, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleVelocityStretchRotation", m_armorParticleVelocityStretchRotation, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleDrag", m_armorParticleDrag, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleTurbulenceAmplitude", m_armorParticleTurbulenceAmplitude, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorParticleTurbulenceFrequency", m_armorParticleTurbulenceFrequency, "Armor damage impacte particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorShader", m_armorShader, "Shader for armor damage", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldShader", m_shieldShader, "Shader for shield impact", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldGeometryResFilePath", m_shieldGeometryResFilePath, "Geometry for shield impact", Be::READWRITE | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -639,6 +686,7 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "areaShaders", m_areaShaders, "List of all the area shaders and their generic data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "decalShaders", m_decalShaders, "List of all the decal shaders and their generic data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "textureExtensions", m_textureExtensions, "key/values for texturenames and their filename extensions", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "damage", m_damage, "Global visual damage data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hullAreas", m_hullAreas, "Global hull area shader data", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }

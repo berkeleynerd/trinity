@@ -13,10 +13,10 @@
 #include "ITr2GeometryProvider.h"
 #include "Resources/Tr2LodResource.h"
 
-BLUE_DECLARE_INTERFACE( ITriScalarFunction );
+BLUE_DECLARE( TriPerlinCurve );
 BLUE_DECLARE( Tr2ScalarFader );
 BLUE_DECLARE( TriFrustum );
-BLUE_DECLARE( Tr2MeshBase );
+BLUE_DECLARE( Tr2Mesh );
 BLUE_DECLARE( EveUpdateContext );
 BLUE_DECLARE( EveSpaceObject2 );
 BLUE_DECLARE( Tr2Effect );
@@ -90,13 +90,15 @@ public:
 	void GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
 	Tr2EffectPtr GetArmorDamageShader( TriBatchType batchType ) const;
 
+	// setup
+	void Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshPtr shieldImpactMesh );
+
 	// getters
 	int32_t GetDataTextureOffset() const;
 	ImpactConfiguration GetImpactConfiguration() const;
 	float GetActivationStrength( EveUpdateContext& updateContext ) const;
 
 	// control animation
-	void SetToSkinned();
 	void ToggleEffect( const std::string& name, bool on, float duration );
 
 	// set the damages
@@ -143,7 +145,7 @@ private:
 	std::map<int, ArmorImpactData> m_armorImpactData;
 
 	// shield damage
-	Tr2MeshBasePtr m_mesh;
+	Tr2MeshPtr m_mesh;
 	uint32_t m_maxShieldImpacts;
 	float m_shieldImpactColorFade;
 	float m_shieldImpactParentSize;
@@ -156,7 +158,7 @@ private:
 
 	// hull damage
 	float m_hullDamageFactor;
-	ITriScalarFunctionPtr m_hullDamageFlickerCurve;
+	TriPerlinCurvePtr m_hullDamageFlickerCurve;
 
 	// extenders
 	Tr2ScalarFaderPtr m_shieldHardening;

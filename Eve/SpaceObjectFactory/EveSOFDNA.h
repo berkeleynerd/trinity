@@ -52,10 +52,11 @@ public:
 	std::string GetCompleteShaderPath( const char* shaderPath ) const;
 	const EveSOFDataMgr::GenericShaderData* GetGenericAreaShaderData( const BlueSharedString& shaderName ) const;
 	const EveSOFDataMgr::GenericShaderData* GetGenericDecalShaderData( const BlueSharedString& shaderName ) const;
+	const EveSOFDataMgr::GenericDamageData* GetGenericDamageData() const;
 
 	// get racial data
 	const EveSOFDataMgr::RaceBoosterData* GetRaceBoosterData() const;
-	const char* GetImpactEffectResPath() const;
+	const EveSOFDataMgr::RaceDamageData* GetRaceDamageData() const;
 
 	// get hull data
 	EveSOFDataHull::BuildClass GetBuildClass() const;

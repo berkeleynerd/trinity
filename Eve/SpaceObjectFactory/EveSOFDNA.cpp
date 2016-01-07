@@ -289,6 +289,15 @@ const EveSOFDataMgr::GenericShaderData* EveSOFDNA::GetGenericDecalShaderData( co
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Return the generic damage data, impacts are mostly the same for everything
+// --------------------------------------------------------------------------------
+const EveSOFDataMgr::GenericDamageData* EveSOFDNA::GetGenericDamageData() const
+{
+	return &m_genericData->damage;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Return the factional group-decal-data by a given groupindex
 // --------------------------------------------------------------------------------
 const EveSOFDataMgr::FactionDecalData* EveSOFDNA::GetFactionDecalData( int groupIndex ) const
@@ -746,9 +755,9 @@ const EveSOFDataMgr::RaceBoosterData* EveSOFDNA::GetRaceBoosterData() const
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Return the res path to the impact effect for this race
+//   Return a pointer to the racial part of visual damage effects
 // --------------------------------------------------------------------------------
-const char* EveSOFDNA::GetImpactEffectResPath() const
+const EveSOFDataMgr::RaceDamageData* EveSOFDNA::GetRaceDamageData() const
 {
 	// enabled?
 	if( !m_hullData->hasImpactEffect )
@@ -756,13 +765,7 @@ const char* EveSOFDNA::GetImpactEffectResPath() const
 		return nullptr;
 	}
 
-	// set?
-	if( m_raceData->impactEffectResPath.empty() )
-	{
-		return nullptr;
-	}
-
-	return m_raceData->impactEffectResPath.c_str();
+	return &m_raceData->damage;
 }
 
 // --------------------------------------------------------------------------------

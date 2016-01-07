@@ -34,7 +34,9 @@
 #include "Curves/TriRotationCurve.h"
 #include "TriValueBinding.h"
 #include "Particle/Tr2DynamicEmitter.h"
+#include "Particle/Tr2GpuUniqueEmitter.h"
 #include "TriSettingsRegistrar.h"
+#include "TriSequencer.h"
 
 bool g_eveSofUseQuadRenderer = true;
 TRI_REGISTER_SETTING( "eveSofUseQuadRenderer", g_eveSofUseQuadRenderer );
@@ -946,30 +948,91 @@ void EveSOF::SetupInstancedMeshes( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr
 
 // --------------------------------------------------------------------------------
 // Description:
-//   add the booster to the new ship
+//   Add all kinds of effects to the ship
 // --------------------------------------------------------------------------------
 void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 {
-	// impact effect
-	const char* impactEffectPath = dna->GetImpactEffectResPath();
-	if( impactEffectPath )
+	const EveSOFDataMgr::GenericDamageData* genericDamageData = dna->GetGenericDamageData();
+	const EveSOFDataMgr::RaceDamageData* raceDamageData = dna->GetRaceDamageData();
+	if( genericDamageData && raceDamageData )
 	{
-		IRootPtr p;
-		IRoot* tmp = BeResMan->LoadObject( impactEffectPath );
-		if( tmp )
+		// create impact effect
+		EveImpactOverlayPtr impactOverlay;
+		impactOverlay.CreateInstance();
+
+		// shield impact effect via Tr2Mesh
+		Tr2EffectPtr armorShieldShader;
+		armorShieldShader.CreateInstance();
+		armorShieldShader->StartUpdate();
+		std::string shaderPath = dna->GetAreaShaderLocationResPath() + std::string( "/" ) + genericDamageData->shieldShader;
+		armorShieldShader->SetEffectPathName( shaderPath.c_str() );
+		for( auto it = raceDamageData->shieldDamageParameters.begin(); it != raceDamageData->shieldDamageParameters.end(); ++it )
 		{
-			p.Attach( tmp );
-			EveImpactOverlayPtr impactOverlay;
-			if( p->QueryInterface( BlueInterfaceIID<EveImpactOverlay>(), (void**)&impactOverlay ) )
-			{
-				// fix shader if animated
-				if( dna->IsHullAnimated() )
-				{
-					impactOverlay->SetToSkinned();
-				}
-				obj->SetImpactOverlay( impactOverlay );
-			}
+			armorShieldShader->AddParameterVector4( it->first, &it->second );
 		}
+		for( auto it = raceDamageData->shieldDamageTextures.begin(); it != raceDamageData->shieldDamageTextures.end(); ++it )
+		{
+			armorShieldShader->AddResourceTexture2D( it->first, it->second.resFilePath.c_str() );
+		}
+		armorShieldShader->EndUpdate();
+		Tr2MeshAreaPtr meshArea;
+		meshArea.CreateInstance();
+		meshArea->SetMaterial( armorShieldShader );
+		Tr2MeshPtr shieldMesh;
+		shieldMesh.CreateInstance();
+		shieldMesh->SetMeshResPath( genericDamageData->shieldGeometryResFilePath.c_str() );
+		shieldMesh->GetAreas( TRIBATCHTYPE_ADDITIVE )->Append( meshArea );
+
+		// armor damage impact via shader
+		Tr2EffectPtr armorDamageShader;
+		armorDamageShader.CreateInstance();
+		armorDamageShader->StartUpdate();
+		armorDamageShader->SetEffectPathName( dna->GetCompleteShaderPath( genericDamageData->armorShader.c_str() ).c_str() );
+		for( auto it = raceDamageData->armorDamageParameters.begin(); it != raceDamageData->armorDamageParameters.end(); ++it )
+		{
+			armorDamageShader->AddParameterVector4( it->first, &it->second );
+		}
+		for( auto it = raceDamageData->armorDamageTextures.begin(); it != raceDamageData->armorDamageTextures.end(); ++it )
+		{
+			armorDamageShader->AddResourceTexture2D( it->first, it->second.resFilePath.c_str() );
+		}
+		armorDamageShader->EndUpdate();
+
+		// armor damage impact via particlesystem
+		Tr2GpuParticleSystem::Emitter psEmitter;
+		memset( &psEmitter, 0, sizeof( Tr2GpuParticleSystem::Emitter ) );
+		psEmitter.angle = genericDamageData->armorParticleAngle;
+		psEmitter.minSpeed = genericDamageData->armorParticleMinMaxSpeed[0];
+		psEmitter.maxSpeed = genericDamageData->armorParticleMinMaxSpeed[1];
+		Tr2GpuParticleSystem::EmitterParams psParams;
+		memset( &psParams, 0, sizeof( Tr2GpuParticleSystem::EmitterParams ) );
+		psParams.minLifeTime = genericDamageData->armorParticleMinMaxLifeTime[0];
+		psParams.maxLifeTime = genericDamageData->armorParticleMinMaxLifeTime[1];
+		psParams.sizes = Vector3( genericDamageData->armorParticleSizes[0], genericDamageData->armorParticleSizes[1], genericDamageData->armorParticleSizes[2] );
+		psParams.sizeVariance = genericDamageData->armorParticleSizes[3];
+		memcpy( psParams.colors, genericDamageData->armorParticleColors, 4 * sizeof( Color ) );
+		psParams.textureIndex = genericDamageData->armorParticleTextureIndex;
+		psParams.velocityStretchRotation = genericDamageData->armorParticleVelocityStretchRotation;
+		psParams.drag = genericDamageData->armorParticleDrag;
+		psParams.turbulenceAmplitude = genericDamageData->armorParticleTurbulenceAmplitude;
+		psParams.turbulenceFrequency = genericDamageData->armorParticleTurbulenceFrequency;
+		Tr2GpuUniqueEmitterPtr impactEmitter;
+		impactEmitter.CreateInstance();
+		impactEmitter->Setup( genericDamageData->armorParticleRate, &psEmitter, &psParams );
+
+		// hull damage flicker via perlin curve
+		TriPerlinCurvePtr flickerCurve;
+		flickerCurve.CreateInstance();
+		flickerCurve->mAlpha = genericDamageData->flickerPerlinAlpha;
+		flickerCurve->mBeta = genericDamageData->flickerPerlinBeta;
+		flickerCurve->mN = genericDamageData->flickerPerlinN;
+		flickerCurve->mOffset = genericDamageData->flickerPerlinOffset;
+		flickerCurve->mScale = genericDamageData->flickerPerlinScale;
+		flickerCurve->mSpeed = genericDamageData->flickerPerlinSpeed;
+
+		// setup the overlay effect and add it the object
+		impactOverlay->Set( flickerCurve, impactEmitter, armorDamageShader, shieldMesh );
+		obj->SetImpactOverlay( impactOverlay );
 	}
 }
 

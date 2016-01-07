@@ -9,15 +9,15 @@
 
 #include "Utilities/StringUtils.h"
 #include "include/TriMath.h"
-#include "Curves/TriCurveSet.h"
 #include "Curves/Fader/Tr2ScalarFader.h"
 #include "Utilities/BoundingSphere.h"
-#include "Tr2MeshBase.h"
+#include "Tr2Mesh.h"
 #include "Shader/Utils/Tr2DataTextureManager.h"
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveUpdateContext.h"
 #include "Particle/Tr2GpuUniqueEmitter.h"
 #include "Shader/Tr2Effect.h"
+#include "TriSequencer.h"
 
 // settings
 extern bool g_eveSpaceObjectImpactEffectEnabled;
@@ -62,6 +62,18 @@ EveImpactOverlay::EveImpactOverlay( IRoot* lockobj ) :
 
 EveImpactOverlay::~EveImpactOverlay()
 {
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Setup this overlay with data
+// --------------------------------------------------------------------------------
+void EveImpactOverlay::Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshPtr shieldImpactMesh )
+{
+	m_hullDamageFlickerCurve = hullDamageFlickerCurve;
+	m_armorImpactEmitter = armorDamageEmitter;
+	m_armorDamageShader = armorDamageShader;
+	m_mesh = shieldImpactMesh;
 }
 
 // --------------------------------------------------------------------------------
@@ -419,20 +431,6 @@ float EveImpactOverlay::GetActivationStrength( EveUpdateContext& updateContext )
 	}
 
 	return 1.f;
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   This function changes this effect to be ready for animated parent objects
-// --------------------------------------------------------------------------------
-void EveImpactOverlay::SetToSkinned()
-{
-	if( m_armorDamageShader )
-	{
-		std::string resPath( m_armorDamageShader->GetEffectPathName() );
-		StringInsertStubAfter( resPath, "/", "Skinned_" );
-		m_armorDamageShader->SetEffectPathName( resPath.c_str() );
-	}
 }
 
 // --------------------------------------------------------------------------------

@@ -251,6 +251,15 @@ public:
 		std::map<int, FactionDecalData> decalData;
 	};
 
+	// race data structs
+	struct RaceDamageData
+	{
+		std::map<BlueSharedString, Vector4> armorDamageParameters;
+		std::map<BlueSharedString, TextureData> armorDamageTextures;
+		std::map<BlueSharedString, Vector4> shieldDamageParameters;
+		std::map<BlueSharedString, TextureData> shieldDamageTextures;
+	};
+
 	struct RaceBoosterDataShape
 	{
 		float noiseFunction;
@@ -261,7 +270,6 @@ public:
 		Color color;
 	};
 
-	// race data structs
 	struct RaceBoosterData
 	{
 		float glowScale, symHaloScale, haloScaleX, haloScaleY;
@@ -296,8 +304,8 @@ public:
 		RaceBoosterData boosters;
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> hullAreaParameters;
-		// impact effect respath
-		BlueSharedString impactEffectResPath;
+		// impact damage data
+		RaceDamageData damage;
 	};
 
 	// material data structs
@@ -307,7 +315,36 @@ public:
 		std::map<BlueSharedString, Vector4> parameters;
 	};
 
-	// generic shader data
+	// generic data structs
+	struct GenericDamageData
+	{
+		// hull damage perlin noise
+		float flickerPerlinSpeed;
+		float flickerPerlinAlpha;
+		float flickerPerlinBeta;
+		float flickerPerlinOffset;
+		float flickerPerlinScale;
+		int flickerPerlinN;
+
+		// armor damage particlesystem data
+		float armorParticleRate;
+		float armorParticleAngle;
+		Vector2 armorParticleMinMaxSpeed;
+		Vector2 armorParticleMinMaxLifeTime;
+		Vector4 armorParticleSizes;
+		Color armorParticleColors[4];
+		uint32_t armorParticleTextureIndex;
+		float armorParticleVelocityStretchRotation;
+		float armorParticleDrag;
+		float armorParticleTurbulenceAmplitude;
+		uint32_t armorParticleTurbulenceFrequency;
+
+		// shaders & resources
+		std::string armorShader;
+		std::string shieldShader;
+		std::string shieldGeometryResFilePath;
+	};
+
 	struct GenericShaderData
 	{
 		// complete list of parameters
@@ -318,7 +355,6 @@ public:
 		std::map<BlueSharedString, TextureData> defaultTextures;
 	};
 
-	// generic data structs
 	struct GenericData
 	{
 		// shader locations
@@ -332,6 +368,8 @@ public:
 		std::map<BlueSharedString, GenericShaderData> decalShaderData;
 		// texture extensions
 		std::map<BlueSharedString, BlueSharedString> textureExtensions;
+		// damage
+		GenericDamageData damage;
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> hullAreaParameters;
 	};

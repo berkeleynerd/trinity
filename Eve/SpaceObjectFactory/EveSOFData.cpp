@@ -63,6 +63,30 @@ EveSOFDataGenericShader::EveSOFDataGenericShader( IRoot* lockobj ) :
 {}
 
 
+EveSOFDataGenericDamage::EveSOFDataGenericDamage( IRoot* lockobj ) :
+	m_flickerPerlinSpeed( 1.f ),
+	m_flickerPerlinAlpha( 1.1f ),
+	m_flickerPerlinBeta( 2.f ),
+	m_flickerPerlinOffset( 0.f ),
+	m_flickerPerlinScale( 1.f ),
+	m_flickerPerlinN( 3 ),
+	m_armorParticleRate( 0.f ),
+	m_armorParticleAngle( 0.f ),
+	m_armorParticleMinMaxSpeed( 0.f, 0.f ),
+	m_armorParticleMinMaxLifeTime( 0.f, 0.f ),
+	m_armorParticleSizes( 0.f, 0.f, 0.f, 0.f ),
+	m_armorParticleColor0( 0.f, 0.f, 0.f, 0.f ),
+	m_armorParticleColor1( 0.f, 0.f, 0.f, 0.f ),
+	m_armorParticleColor2( 0.f, 0.f, 0.f, 0.f ),
+	m_armorParticleColor3( 0.f, 0.f, 0.f, 0.f ),
+	m_armorParticleTextureIndex( 0 ),
+	m_armorParticleVelocityStretchRotation( 0.f ),
+	m_armorParticleDrag( 0.f ),
+	m_armorParticleTurbulenceAmplitude( 0.f ),
+	m_armorParticleTurbulenceFrequency( 1 )
+{}
+
+
 EveSOFDataGeneric::EveSOFDataGeneric( IRoot* lockobj ) :
 	PARENTLOCK( m_materialPrefixes ),
 	PARENTLOCK( m_areaShaders ),
@@ -123,6 +147,15 @@ EveSOFDataBooster::EveSOFDataBooster( IRoot* lockobj ) :
 	m_shape1.CreateInstance();
 	m_warpShape0.CreateInstance();
 	m_warpShape1.CreateInstance();
+}
+
+
+EveSOFDataRaceDamage::EveSOFDataRaceDamage( IRoot* lockobj ) :
+	PARENTLOCK( m_armorImpactParameters ),
+	PARENTLOCK( m_armorImpactTextures),
+	PARENTLOCK( m_shieldImpactParameters ),
+	PARENTLOCK( m_shieldImpactTextures )
+{
 }
 
 
