@@ -171,6 +171,11 @@ void Tr2LineGraph::Render( float scale )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
+	if( m_isPrepared && ( !s_lineGraphEffect || !s_lineGraphEffect->GetEffectRes() || !s_lineGraphEffect->GetEffectRes()->IsGood() ) )
+	{
+		m_isPrepared = false;
+	}
+
 	if( !m_isPrepared )
 	{
 		PrepareResources();
