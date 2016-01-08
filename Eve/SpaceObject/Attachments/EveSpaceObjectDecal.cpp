@@ -136,10 +136,8 @@ bool EveSpaceObjectDecal::OnPrepareResources()
 }
 
 // ------------------------------------------------------------------------------------------------------
-void EveSpaceObjectDecal::GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
+void EveSpaceObjectDecal::GetRenderables( TriGeometryRes* geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
 {
-	CCP_STATS_ZONE( __FUNCTION__ );
-
 	if( !geomRes || !m_decalEffect )
 	{
 		return;

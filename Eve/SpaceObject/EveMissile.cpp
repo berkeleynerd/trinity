@@ -242,14 +242,14 @@ void EveMissile::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rend
 	// collect the renderables from every warhead this MIRV has
 	for( EveMissileWarheadVector::const_iterator it = m_warheads.begin(); it != m_warheads.end(); ++it )
 	{
-		EveMissileWarheadPtr warhead = (*it);
+		EveMissileWarhead* warhead = (*it);
 		 
 		// apply the offset transform to the transform of this spaceobject
 		Matrix subMissileTransform;
 		D3DXMatrixMultiply( &subMissileTransform, &warhead->GetCurrentOffsetTransform(), &m_worldTransform );
 
 		// final call
-		(*it)->GetRenderables( frustum, renderables, subMissileTransform );
+		warhead->GetRenderables( frustum, renderables, subMissileTransform );
 	}
 }
 

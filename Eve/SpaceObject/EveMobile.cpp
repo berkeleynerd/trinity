@@ -134,8 +134,6 @@ void EveMobile::UpdateSyncronous( EveUpdateContext& updateContext )
 // --------------------------------------------------------------------------------
 void EveMobile::PrepareShaderData( EveUpdateContext& updateContext )
 {
-	CCP_STATS_ZONE( __FUNCTION__ );
-
 	EveSpaceObject2::PrepareShaderData( updateContext );
 
 	// play activation curve
@@ -172,8 +170,6 @@ void EveMobile::PrepareShaderData( EveUpdateContext& updateContext )
 // --------------------------------------------------------------------------------
 void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
 {
-	CCP_STATS_ZONE( __FUNCTION__ );
-
 	EveSpaceObject2::UpdateAsyncronous( updateContext );
 	
 	Be::Time time = updateContext.GetTime();

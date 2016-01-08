@@ -130,7 +130,7 @@ public:
 	virtual Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator );
 
 	// access
-	void GetRenderables( TriGeometryResPtr geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData );
+	void GetRenderables( TriGeometryRes* geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData );
 
 	// access position etc.
 	const Vector3& GetPosition() const;
