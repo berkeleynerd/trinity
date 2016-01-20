@@ -12,7 +12,7 @@
 #include "TriPoolAllocator.h"
 #include "Tr2HostBitmap.h"
 #include "TriRenderBatch.h"
-#include "EveUpdateContext.h"
+#include "Eve/EveUpdateContext.h"
 
 static const char* PIN_PICK_EFFECT_PATH = "res:/Graphics/Effect/Managed/Space/UI/SpherePinPicking.fx";
 

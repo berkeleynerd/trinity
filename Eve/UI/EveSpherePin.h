@@ -4,9 +4,9 @@
 
 
 #include "ITr2Renderable.h"
-#include "IEveTransform.h"
-#include "SpaceObject/EveSpaceObject2.h"
-#include "../Tr2DeviceResource.h"
+#include "Eve/IEveTransform.h"
+#include "Eve/SpaceObject/EveSpaceObject2.h"
+#include "Tr2DeviceResource.h"
 #include "ITr2GeometryProvider.h"
 
 BLUE_DECLARE( EveSpherePin );
