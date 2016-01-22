@@ -667,6 +667,10 @@ bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::st
 		m_clipSphereFactor = 0.0f;
 		m_playClipSphereFactorCurve = false;
 		return true;
+	case ANIM_CMD_SET_CLIPSPHERE:
+		m_clipSphereFactor = 1.1;
+		m_playClipSphereFactorCurve = false;
+		return true;
 
 	default:
 		// not handled here, so pass it up the chain
