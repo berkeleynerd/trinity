@@ -144,7 +144,7 @@ void EveAnimationState::Start( EveAnimationStateMachine* sm, EveSpaceObject2* ow
 	m_startTime = Tr2Renderer::GetAnimationTime();
 	m_animationDuration = 0.f;
 	
-	if( m_overlay == nullptr )
+	if( m_overlay == nullptr && m_overlayPath != "" )
 	{
 		LoadOverlayEffect(owner);
 	}
