@@ -4,8 +4,8 @@
 
 
 #include "ITr2Renderable.h"
-#include "Eve/IEveSpaceObject2.h"
-#include "Eve/IEveTransform.h"
+#include "IEveSpaceObject2.h"
+#include "IEveTransform.h"
 #include "ITr2GeometryProvider.h"
 #include "include/ITriFunction.h"
 

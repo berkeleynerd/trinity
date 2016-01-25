@@ -4,7 +4,7 @@
 #include "Eve/EveConstantBufferFormats.h"
 #include "TriRenderBatch.h"
 #include "Tr2PerObjectData.h"
-#include "Eve/EveUpdateContext.h"
+#include "EveUpdateContext.h"
 #include "TriRenderBatch.h"
 #include "Shader/Tr2Effect.h"
 

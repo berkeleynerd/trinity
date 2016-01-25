@@ -2,9 +2,9 @@
 #ifndef EveCurveLineSet_H
 #define EveCurveLineSet_H
 
-#include "Tr2CurveLineSet.h"
-#include "Eve/IEveTransform.h"
-#include "Eve/IEveSpaceObject2.h"
+#include "../Tr2CurveLineSet.h"
+#include "IEveTransform.h"
+#include "IEveSpaceObject2.h"
 
 BLUE_DECLARE( EveCurveLineSet );
 
