@@ -588,25 +588,29 @@ void EveMobile::ModifyClipSphereCurve( const std::map<std::string, float>& param
 // Return Value:
 //   Returns true if this implementation has handled the command.
 // --------------------------------------------------------------------------------
-bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::string& data, const std::map<std::string, float>& parameters )
+bool EveMobile::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, const std::map<std::string, float>& parameters )
 {
-	switch( cmd )
+	std::string commandData = cmd.m_data;
+	float commandFloatValue = cmd.m_floatValue;
+	EveAnimationCmd commandType = cmd.m_command;
+
+	switch( commandType )
 	{
 	case ANIM_CMD_PLAYACTIVATION:
-		if( !data.empty() )
+		if( !commandData.empty() )
 		{
 			IRootPtr p;
-			p.Attach( BeResMan->LoadObject( data.c_str() ) );
+			p.Attach( BeResMan->LoadObject( commandData.c_str() ) );
 			if( p == NULL )
 			{
-				CCP_LOGERR( "EveMobile: Couldn't find PlayActivationCurve data resource file: %s", data.c_str() );
+				CCP_LOGERR( "EveMobile: Couldn't find PlayActivationCurve data resource file: %s", commandData.c_str() );
 				return true;
 			}
 
 			ITriScalarFunctionPtr ptr;
 			if( !p->QueryInterface( BlueInterfaceIID<ITriScalarFunction>(), (void**)&ptr ) )
 			{
-				CCP_LOGERR( "EveMobile: PlayActivationCurve resource file %s is not of correct type!", data.c_str() );
+				CCP_LOGERR( "EveMobile: PlayActivationCurve resource file %s is not of correct type!", commandData.c_str() );
 				return true;
 			}
 			m_activationStrengthCurve = ptr;
@@ -639,24 +643,25 @@ bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::st
 		return true;
 
 	case ANIM_CMD_PLAY_CLIPSPHERE:
-		if( !data.empty() )
+		if( !commandData.empty() )
 		{
 			IRootPtr p;
-			p.Attach( BeResMan->LoadObject( data.c_str() ) );
+			p.Attach( BeResMan->LoadObject( commandData.c_str() ) );
 			if( p == NULL )
 			{
-				CCP_LOGERR( "EveMobile: Couldn't find curve data resource file: %s", data.c_str() );
+				CCP_LOGERR( "EveMobile: Couldn't find curve data resource file: %s", commandData.c_str() );
 				return true;
 			}
 
 			ITriScalarFunctionPtr ptr;
 			if( !p->QueryInterface( BlueInterfaceIID<ITriScalarFunction>(), (void**)&ptr ) )
 			{
-				CCP_LOGERR( "EveMobile: Curve resource file %s is not of correct type!", data.c_str() );
+				CCP_LOGERR( "EveMobile: Curve resource file %s is not of correct type!", commandData.c_str() );
 				return true;
 			}
 
 			m_clipSphereFactorCurve = ptr;
+			m_clipSphereCenter = Vector3( -m_boundingSphereCenter.x, -m_boundingSphereCenter.y, -m_boundingSphereCenter.z );
 
 			ModifyClipSphereCurve( parameters );			
 			PlayClipSphereFactorCurve();
@@ -666,15 +671,17 @@ bool EveMobile::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::st
 	case ANIM_CMD_STOP_CLIPSPHERE:
 		m_clipSphereFactor = 0.0f;
 		m_playClipSphereFactorCurve = false;
+		m_clipSphereCenter = Vector3( 0.0, 0.0, 0.0 );
 		return true;
 	case ANIM_CMD_SET_CLIPSPHERE:
-		m_clipSphereFactor = 1.1;
+		m_clipSphereFactor = commandFloatValue;
 		m_playClipSphereFactorCurve = false;
+		m_clipSphereCenter = Vector3( -m_boundingSphereCenter.x, -m_boundingSphereCenter.y, -m_boundingSphereCenter.z );
 		return true;
 
 	default:
 		// not handled here, so pass it up the chain
-		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data,  parameters );
+		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd,  parameters );
 	}
 	return false;
 }

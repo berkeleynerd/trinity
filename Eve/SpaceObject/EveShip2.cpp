@@ -359,9 +359,11 @@ void EveShip2::UpdateShipSpeedForAudio()
 // Return Value:
 //   Returns true if this implementation has handled the command.
 // --------------------------------------------------------------------------------
-bool EveShip2::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::string& data, const std::map<std::string, float>& parameters )
+bool EveShip2::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, const std::map<std::string, float>& parameters )
 {
-	switch( cmd )
+	EveAnimationCmd commandType = cmd.m_command;
+
+	switch( commandType )
 	{
 	case ANIM_CMD_TURNOFF_BOOSTERS:
 		return true;
@@ -371,7 +373,7 @@ bool EveShip2::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::str
 
 	default:
 		// not handled here, so pass it up the chain
-		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data, parameters );
+		return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, parameters );
 	}
 
 	return false;

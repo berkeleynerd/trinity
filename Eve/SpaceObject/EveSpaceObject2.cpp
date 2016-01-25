@@ -2328,7 +2328,7 @@ float EveSpaceObject2::GetCurveSetDuration( const std::string& name ) const
 // Return Value:
 //   Returns true if this implementation has handled the command.
 // --------------------------------------------------------------------------------
-bool EveSpaceObject2::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::string& data, const std::map<std::string, float>& parameters )
+bool EveSpaceObject2::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, const std::map<std::string, float>& parameters )
 {
 	return false;
 }

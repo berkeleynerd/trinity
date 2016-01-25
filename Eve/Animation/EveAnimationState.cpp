@@ -218,13 +218,13 @@ void EveAnimationState::ExecuteCommands( EveSpaceObject2* owner )
 	{
 		for( auto it = m_initCommands.cbegin(); it != m_initCommands.cend(); it++ )
 		{
-			owner->ExecuteAnimationStateCommand( (*it)->m_command, (*it)->m_data, m_parameters );
+			owner->ExecuteAnimationStateCommand( **it, m_parameters );
 		}
 	}
 	
 	for( auto it = m_commands.cbegin(); it != m_commands.cend(); it++ )
 	{
-		owner->ExecuteAnimationStateCommand( (*it)->m_command, (*it)->m_data, m_parameters );
+		owner->ExecuteAnimationStateCommand( **it, m_parameters );
 	}
 }
 

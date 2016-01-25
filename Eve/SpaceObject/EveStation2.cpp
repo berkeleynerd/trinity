@@ -65,9 +65,9 @@ void EveStation2::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType 
 // Return Value:
 //   Returns true if this implementation has handled the command.
 // --------------------------------------------------------------------------------
-bool EveStation2::ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::string& data, const std::map<std::string, float>& parameters )
+bool EveStation2::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, const std::map<std::string, float>& parameters )
 {
-	return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, data, parameters );
+	return EveSpaceObject2::ExecuteAnimationStateCommand( cmd, parameters );
 }
 
 

@@ -226,7 +226,7 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// animation controller
-	virtual bool ExecuteAnimationStateCommand( EveAnimationCmd cmd, const std::string& data, const std::map<std::string, float>& parameters );
+	virtual bool ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, const std::map<std::string, float>& parameters );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// decal

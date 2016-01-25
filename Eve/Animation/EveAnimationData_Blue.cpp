@@ -47,6 +47,7 @@ const Be::ClassInfo* EveAnimationCommand::ExposeToBlue()
         MAP_INTERFACE( EveAnimationCommand )
 
 		MAP_ATTRIBUTE_WITH_CHOOSER( "command", m_command, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveAnimCommandChooser )
-		MAP_ATTRIBUTE_WITH_CHOOSER( "data", m_data, "", Be::READWRITE | Be::PERSIST, NULL )
+		MAP_ATTRIBUTE( "data", m_data, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "floatValue", m_floatValue, "", Be::READWRITE | Be::PERSIST ) 
     EXPOSURE_END()
 }

@@ -72,6 +72,7 @@ public:
 
 	EveAnimationCmd m_command;
 	std::string m_data;
+	float m_floatValue;
 };
 TYPEDEF_BLUECLASS( EveAnimationCommand );
 BLUE_DECLARE_VECTOR( EveAnimationCommand );
