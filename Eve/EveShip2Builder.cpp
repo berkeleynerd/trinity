@@ -326,6 +326,9 @@ void EveShip2Builder::CopyDecals( const EveSpaceObjectDecalVector* src, EveSpace
 		BeClasses->CopyTo( (*srcIt)->GetRawRoot(), (IRoot**)&decal );
 		decal->SetPosition( decal->GetPosition() + offset );
 
+		// need to remove any pre-calculated indices, they are no longer valid since geo bake
+		decal->SetIndices( nullptr, 0 );
+
 		// add it to target ship
 		dst->Insert( -1, decal->GetRawRoot() );
 	}
