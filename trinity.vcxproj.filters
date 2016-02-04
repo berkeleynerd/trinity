@@ -594,6 +594,9 @@
     <ClInclude Include="Eve\EveEffectRoot.h">
       <Filter>Source Files\Eve</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\EveEffectRoot2.h">
+      <Filter>Source Files\Eve</Filter>
+    </ClInclude>
     <ClInclude Include="Eve\EveLensflare.h">
       <Filter>Source Files\Eve</Filter>
     </ClInclude>
@@ -2302,6 +2305,12 @@
       <Filter>Source Files\Eve</Filter>
     </ClCompile>
     <ClCompile Include="Eve\EveEffectRoot.cpp">
+      <Filter>Source Files\Eve</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\EveEffectRoot2.cpp">
+      <Filter>Source Files\Eve</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\EveEffectRoot2_Blue.cpp">
       <Filter>Source Files\Eve</Filter>
     </ClCompile>
     <ClCompile Include="Eve\EveEffectRoot_Blue.cpp">
