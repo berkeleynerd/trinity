@@ -85,6 +85,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_albedoColor( 0.f, 0.f, 0.f, 1.f ),
 	m_secondaryLightingSphereRadius( 0.f ),
 	m_modelScale( 1.f ),
+	m_worldPosition( 0.f, 0.f, 0.f ),
 	m_worldVelocity( 0.f, 0.f, 0.f ),
 	m_worldRotation( 0.f, 0.f, 0.f, 1.f ),
 	m_lodLevel( TR2_LOD_UNSPECIFIED ),
@@ -107,6 +108,9 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_dirtLevel( EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT ),
 	m_isAnimated( false )
 {
+	m_worldTransform = XMMatrixIdentity();
+	m_invWorldTransform = XMMatrixIdentity();
+
 	m_positionDelta.CreateInstance();
 
 	m_decalCache = CCP_NEW( "EveSpaceObject2::m_decalCache" ) EveSpaceObjectDecalCache;
@@ -413,10 +417,10 @@ void EveSpaceObject2::RenderDebugInfo( Tr2RenderContext& renderContext )
 		for( unsigned i = 0; i < m_persistedDamageLocators.size(); i++ )
 		{
 			Vector3 pos;
-			GetDamageLocatorPosition( &pos, i );
+			GetDamageLocatorPosition( &pos, i, true );
 			Tr2Renderer::DrawSphere( pos, m_boundingSphereRadius / 50.f, 4, 0xffff00ff );
 			Vector3 dir;
-			if( GetDamageLocatorDirection( &dir, i ) )
+			if( GetDamageLocatorDirection( &dir, i, true ) )
 			{
 				Tr2Renderer::DrawLine( pos, pos + (dir * m_boundingSphereRadius / 20.f), 0xffff00ff );
 			}
@@ -1525,16 +1529,16 @@ float EveSpaceObject2::GetRadius() const
 	return GetBoundingSphereRadius();
 }
 
-bool EveSpaceObject2::GetDamageLocatorPosition( Vector3* out, int index )
+bool EveSpaceObject2::GetDamageLocatorPosition( Vector3* out, int index, bool inWorldSpace )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
-	if( (index < 0) || ((unsigned int)index >= m_persistedDamageLocators.size()) )
+	if( ( index < 0 ) || ( index >= int( m_persistedDamageLocators.size() ) ) )
 	{
-		*out = m_worldTransform.GetTranslation();
+		*out = inWorldSpace ? m_worldTransform.GetTranslation() : Vector3( 0.f, 0.f, 0.f );
 		return false;
 	}
 
-	*out = GetTransformedDamageLocator( (unsigned int) index);
+	*out = inWorldSpace ? GetTransformedDamageLocator( index ) : GetObjectSpaceDamageLocatorPosition( index );
 	
 	return true;
 }
@@ -1553,12 +1557,12 @@ void EveSpaceObject2::GetImpactPosition( Vector3& out, int damageLocatorIndex, c
 {
 	if( !HasImpactConfigurationShield() )
 	{
-		GetDamageLocatorPosition( &out, damageLocatorIndex );
+		GetDamageLocatorPosition( &out, damageLocatorIndex, true );
 		return;
 	}
 
 	Vector3 tgtPosWS( 0.f, 0.f, 0.f );
-	GetDamageLocatorPosition( &tgtPosWS, damageLocatorIndex );
+	GetDamageLocatorPosition( &tgtPosWS, damageLocatorIndex, true );
 
 	// convert position and direction into object space
 	Vector3 tgtPosOS, dirOS;
@@ -1571,15 +1575,15 @@ void EveSpaceObject2::GetImpactPosition( Vector3& out, int damageLocatorIndex, c
 	D3DXVec3TransformCoord( &out, &out, &m_worldTransform );
 }
 
-bool EveSpaceObject2::GetDamageLocatorDirection( Vector3* out, int index )
+bool EveSpaceObject2::GetDamageLocatorDirection( Vector3* out, int index, bool inWorldSpace )
 {
-	if( index < 0 || (unsigned int)index >= m_persistedDamageLocators.size() )
+	if( ( index < 0 ) || ( index >= int( m_persistedDamageLocators.size() ) ) )
 	{
 		*out = Vector3( 0.f, 1.f, 0.f );
 		return false;
 	}
 
-	*out = GetTransformedDamageLocatorDirection( (unsigned int) index );
+	*out = inWorldSpace ? GetTransformedDamageLocatorDirection( index ) : GetObjectSpaceDamageLocatorDirection( index );
 
 	return true;
 }
@@ -1634,7 +1638,7 @@ void EveSpaceObject2::GetMissPosition( const Vector3* hit, const Vector3* source
 	}
 	else
 	{
-		GetDamageLocatorPosition( out, -1 );
+		GetDamageLocatorPosition( out, -1, true );
 	}
 }
 
@@ -2085,9 +2089,9 @@ bool EveSpaceObject2::UpdateImpact( Vector3& out, const Vector3& direction, int 
 }
 
 
-unsigned EveSpaceObject2::GetDamageLocatorCount() const 
+unsigned int EveSpaceObject2::GetDamageLocatorCount() const 
 {
-	return unsigned( m_persistedDamageLocators.size() );
+	return unsigned int( m_persistedDamageLocators.size() );
 }
 
 Vector3 EveSpaceObject2::GetDamageLocator( uint32_t index ) const

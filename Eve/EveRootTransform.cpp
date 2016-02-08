@@ -70,13 +70,22 @@ void EveRootTransform::UpdateViewDependentData( const Matrix& /*parentTransform*
 	EveTransform::UpdateViewDependentData( m_lastUpdateMatrix );	
 }
 
-bool EveRootTransform::GetDamageLocatorPosition( Vector3* out, int index )
+// --------------------------------------------------------------------------------
+// Description:
+//   Is mostly used for effects, so no damage locators at all!
+// --------------------------------------------------------------------------------
+unsigned int EveRootTransform::GetDamageLocatorCount() const
+{
+	return 0;
+}
+
+bool EveRootTransform::GetDamageLocatorPosition( Vector3* out, int index, bool inWorldSpace )
 {
 	*out = m_worldTransform.GetTranslation();
 	return true;
 }
 
-bool EveRootTransform::GetDamageLocatorDirection( Vector3* out, int index )
+bool EveRootTransform::GetDamageLocatorDirection( Vector3* out, int index, bool inWorldSpace )
 {
 	*out = Vector3( 0.f, 1.f, 0.f );
 	return true;
@@ -84,7 +93,7 @@ bool EveRootTransform::GetDamageLocatorDirection( Vector3* out, int index )
 
 void EveRootTransform::GetImpactPosition( Vector3& out, int damageLocatorIndex, const Vector3& direction )
 {
-	GetDamageLocatorPosition( &out, damageLocatorIndex );
+	GetDamageLocatorPosition( &out, damageLocatorIndex, true );
 }
 
 bool EveRootTransform::HasImpactConfigurationShield() const
@@ -129,7 +138,7 @@ bool EveRootTransform::UpdateImpact( Vector3& out, const Vector3& direction, int
 
 void EveRootTransform::GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out )
 {
-	GetDamageLocatorPosition(out,-1);
+	GetDamageLocatorPosition(out, -1, true );
 	
 	if( hit && source ) 
 	{

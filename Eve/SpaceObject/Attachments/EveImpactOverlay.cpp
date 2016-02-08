@@ -123,11 +123,11 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 					{
 						// where?
 						Vector3 impactPosWS( 0.f, 0.f, 0.f );
-						parent->GetDamageLocatorPosition( &impactPosWS, aidit->second.damageLocatorIndex );
+						parent->GetDamageLocatorPosition( &impactPosWS, aidit->second.damageLocatorIndex, true );
 						m_armorImpactEmitter->SetPosition( &impactPosWS );
 						// facing?
 						Vector3 impactDirWS( 0.f, 1.f, 0.f );
-						parent->GetDamageLocatorDirection( &impactDirWS, aidit->second.damageLocatorIndex );
+						parent->GetDamageLocatorDirection( &impactDirWS, aidit->second.damageLocatorIndex, true );
 						m_armorImpactEmitter->SetDirection( &impactDirWS );
 						// velocity?
 						Vector3 parentVelocityWS;
@@ -264,7 +264,7 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 
 			// get worldpos of damagelocator from parent
 			Vector3 tgtPosWS( 0.f, 0.f, 0.f );
-			parent->GetDamageLocatorPosition( &tgtPosWS, shieldData->damageLocatorIndex );
+			parent->GetDamageLocatorPosition( &tgtPosWS, shieldData->damageLocatorIndex, true );
 			// convert position and direction into object space
 			Vector3 tgtPosOS, dirOS;
 			D3DXVec3TransformCoord( &tgtPosOS, &tgtPosWS, &parentInverseWorldTransform );
@@ -295,7 +295,7 @@ void EveImpactOverlay::UpdateAsyncronous( EveUpdateContext& updateContext, EveSp
 			float size = armorData->size * IMPACT_ARMOR_SIZE_FACTOR * m_armorImpactParentSize;
 			// get position from damage locator
 			Vector3 tgtPosWS( 0.f, 0.f, 0.f );
-			parent->GetDamageLocatorPosition( &tgtPosWS, armorData->damageLocatorIndex );
+			parent->GetDamageLocatorPosition( &tgtPosWS, armorData->damageLocatorIndex, true );
 			// convert position and direction into object space
 			Vector3 tgtPosOS;
 			D3DXVec3TransformCoord( &tgtPosOS, &tgtPosWS, &parentInverseWorldTransform );

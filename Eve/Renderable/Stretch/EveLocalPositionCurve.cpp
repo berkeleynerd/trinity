@@ -142,12 +142,12 @@ Vector3* EveLocalPositionCurve::GetDamageLocator( Vector3* in, Be::Time t )
 			m_damageLocatorIndex = target->GetGoodDamageLocatorIndex( parentPos );
 		}
 
-		Vector3 locatorPos;
-		target->GetDamageLocatorPosition( &locatorPos, m_damageLocatorIndex );
+		Vector3 locatorPosWS;
+		target->GetDamageLocatorPosition( &locatorPosWS, m_damageLocatorIndex, true );
 
-		in->x = locatorPos.x;
-		in->y = locatorPos.y;
-		in->z = locatorPos.z;
+		in->x = locatorPosWS.x;
+		in->y = locatorPosWS.y;
+		in->z = locatorPosWS.z;
 	}
 	return in;
 }
@@ -178,22 +178,22 @@ Vector3* EveLocalPositionCurve::GetDamageLocatorImpact( Vector3* in, Be::Time t 
 		}
 
 		// get it's position
-		Vector3 locatorPos;
-		target->GetDamageLocatorPosition( &locatorPos, m_damageLocatorIndex );
+		Vector3 locatorPosWS;
+		target->GetDamageLocatorPosition( &locatorPosWS, m_damageLocatorIndex, true );
 
 		// create an impact on the target object
 		if( m_impactEffectIndex == -1 )
 		{
-			m_impactEffectIndex = target->CreateImpact( m_damageLocatorIndex, parentPos - locatorPos, 2.f, 1.f );
+			m_impactEffectIndex = target->CreateImpact( m_damageLocatorIndex, parentPos - locatorPosWS, 2.f, 1.f );
 		}
 
 		// update impact effect and get the position from that impact effect or use locator pos
-		target->UpdateImpact( locatorPos, parentPos - locatorPos, m_impactEffectIndex );
+		target->UpdateImpact( locatorPosWS, parentPos - locatorPosWS, m_impactEffectIndex );
 
 		// out
-		in->x = locatorPos.x;
-		in->y = locatorPos.y;
-		in->z = locatorPos.z;
+		in->x = locatorPosWS.x;
+		in->y = locatorPosWS.y;
+		in->z = locatorPosWS.z;
 	}
 	return in;
 }

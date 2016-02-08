@@ -139,7 +139,7 @@ void EveTurretTarget::Update( float deltaT, const Vector3* source )
 	if( m_object )
 	{
 		// update the position & diretion
-		m_object->GetDamageLocatorPosition( &m_position, m_locator );
+		m_object->GetDamageLocatorPosition( &m_position, m_locator, true );
 		Vector3 dirToSource( *source - m_position );
 
 		// update the miss position
@@ -217,7 +217,7 @@ int EveTurretTarget::FindClosestLocator( const Vector3* source, Vector3* positio
 
 	// find closest locator to source
 	int loc = m_object->GetClosestDamageLocatorIndex( source );
-	if( !m_object->GetDamageLocatorPosition( position, loc ) )
+	if( !m_object->GetDamageLocatorPosition( position, loc, true ) )
 	{
 		return -1;
 	}

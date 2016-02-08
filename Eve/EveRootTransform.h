@@ -29,9 +29,10 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITriTargetable
+	unsigned int GetDamageLocatorCount() const;
 	int GetClosestDamageLocatorIndex( const Vector3* position );
-	bool GetDamageLocatorPosition( Vector3* out, int index );
-	bool GetDamageLocatorDirection( Vector3* out, int index );
+	bool GetDamageLocatorPosition( Vector3* out, int index, bool inWorldSpace );
+	bool GetDamageLocatorDirection( Vector3* out, int index, bool inWorldSpace );
 	void GetMissPosition( const Vector3* hit, const Vector3* source, Vector3* out );
 	int GetGoodDamageLocatorIndex( const Vector3& position );
 	float GetRadius() const;
