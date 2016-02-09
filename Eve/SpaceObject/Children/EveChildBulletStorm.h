@@ -15,7 +15,7 @@
 #include "Tr2PersistentPerObjectData.h"
 
 // forwards
-BLUE_DECLARE_IVECTOR( ITriVectorFunction );
+BLUE_DECLARE_IVECTOR( IEveSpaceObject2 );
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -106,7 +106,7 @@ private:
 	ITriTargetablePtr m_sourceObject;
 
 	// targets
-	PITriVectorFunctionVector m_targetObjects;
+	PIEveSpaceObject2Vector m_targetObjects;
 	std::vector<Vector4> m_targetBlobs;
 
 	// this shader renders them all

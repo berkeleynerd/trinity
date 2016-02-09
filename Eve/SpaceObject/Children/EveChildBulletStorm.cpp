@@ -12,6 +12,10 @@
 #include "Shader/Tr2Effect.h"
 #include "Include/TriMath.h"
 
+// consts
+static const size_t BULLETSTORM_MAX_TARGETBLOBS = 10;
+static const float BULLETSTORM_MIN_TARGETSIZE = 4050.f;
+
 // vertex layout struct
 struct BulletStormVertex
 {
@@ -220,13 +224,6 @@ bool EveChildBulletStorm::GetBoundingSphere( Vector4& sphere, BoundingSphereQuer
 // --------------------------------------------------------------------------------
 void EveChildBulletStorm::UpdateSyncronous( EveUpdateContext& updateContext, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
 {
-	// combining target blobs from the actuall spaceship targets
-	m_targetBlobs.resize( m_targetObjects.size() );
-	for( size_t i = 0; i < m_targetObjects.size(); ++i )
-	{
-		m_targetObjects[i]->GetValueAt( (Vector3*)&m_targetBlobs[i], updateContext.GetTime() );
-		m_targetBlobs[i].w = 1.f;
-	}
 }
 
 // --------------------------------------------------------------------------------
@@ -235,9 +232,24 @@ void EveChildBulletStorm::UpdateSyncronous( EveUpdateContext& updateContext, IEv
 // --------------------------------------------------------------------------------
 void EveChildBulletStorm::UpdateAsyncronous( EveUpdateContext& updateContext, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
 {
+	// we need to move with our parent
 	if( spaceObjectParent )
 	{
 		spaceObjectParent->GetLocalToWorldTransform( m_worldTransform );
+	}
+
+	// combining target blobs from the actuall spaceship targets
+	m_targetBlobs.resize( min( m_targetObjects.size(), BULLETSTORM_MAX_TARGETBLOBS ) );
+	for( size_t i = 0; i < m_targetBlobs.size(); ++i )
+	{
+		// world position
+		Vector3 targetPosWS;
+		m_targetObjects[i]->GetCurrentModelCenterWorldPosition( targetPosWS );
+		// radius
+		Vector4 targetSize;
+		m_targetObjects[i]->GetBoundingSphere( targetSize );
+
+		m_targetBlobs[i] = Vector4( targetPosWS, max( targetSize.w, BULLETSTORM_MIN_TARGETSIZE ) );
 	}
 }
 
