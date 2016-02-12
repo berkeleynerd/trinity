@@ -35,6 +35,12 @@ Be::VarChooser EveLocalPositionChooser[] =
 		BeCast( EveLocalPositionCurve::POS_OFFSET_POSITION ),
 		"Calculate a position based on an offset from parent position"
 	},
+	{
+		"offsetPlaneRotation",
+		BeCast( EveLocalPositionCurve::POS_OFFSET_PLANE_ROTATION ),
+		"Moves the vector from parentPositionCurve(or 0, 0, 0) to alignedPositionCurve OR positionOffset to the xz plane "
+		"containing parentPositionCurve, maintaining the vector's length."
+	},
 	{ 0 }
 };
 

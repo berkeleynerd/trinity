@@ -2,6 +2,7 @@
 #include "EveLocalPositionCurve.h"
 #include "Vector3d.h"
 #include "Eve/SpaceObject/EveSpaceObject2.h"
+#include "include/TriMath.h"
 
 
 EveLocalPositionCurve::EveLocalPositionCurve(IRoot* lockobj) :
@@ -20,6 +21,27 @@ EveLocalPositionCurve::~EveLocalPositionCurve()
 {
 }
 
+Vector3* EveLocalPositionCurve::CalculateOffsetPlaneRotation( Vector3* in, Be::Time t )
+{
+	Vector3 parentPosition( 0.f, 0.f, 0.f );
+	Vector3 offsetPosition;
+	Vector3 normal( 0.f, 1.f, 0.f );
+	if( m_parentPositionCurve )
+	{
+		m_parentPositionCurve->GetValueAt( &parentPosition, t );
+	}
+
+	if( m_alignPositionCurve )
+	{
+		m_alignPositionCurve->GetValueAt( &offsetPosition, t );
+	}
+	else
+	{
+		offsetPosition = m_positionOffset;
+	}
+
+	return TriVectorRotateToPlane( in, &offsetPosition, &parentPosition, &normal );
+}
 
 Vector3* EveLocalPositionCurve::CalculateOffsetPosition( Vector3* in, Be::Time t )
 {
@@ -219,6 +241,8 @@ Vector3* EveLocalPositionCurve::Update(
 		return GetDamageLocatorImpact( in, t );
 	case POS_OFFSET_POSITION:
 		return CalculateOffsetPosition( in, t );
+	case POS_OFFSET_PLANE_ROTATION:
+		return CalculateOffsetPlaneRotation( in, t );
 	default:
 		break;
 	}

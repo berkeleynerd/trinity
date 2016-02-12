@@ -33,6 +33,7 @@ public:
 		POS_TARGET_DMG_LOCATOR,
 		POS_TARGET_DMG_LOCATOR_IMPACT,
 		POS_OFFSET_POSITION,
+		POS_OFFSET_PLANE_ROTATION,
 		POS_COUNT,
 	};
 	LocalPositionBehavior m_behavior;
@@ -74,7 +75,8 @@ private:
 	// impact data
 	int m_impactEffectIndex;
 	float m_impactSize;
-
+	
+	Vector3* CalculateOffsetPlaneRotation( Vector3* in, Be::Time t );
 	Vector3* CalculateOffsetPosition( Vector3* in, Be::Time t );
 	Vector3* CalculateNearestBoundingPoint( Vector3* in, Be::Time t );
 	Vector3* GetCenterBoundingSphere( Vector3* in, Be::Time t );
