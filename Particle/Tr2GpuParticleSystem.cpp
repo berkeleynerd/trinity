@@ -715,6 +715,12 @@ void Tr2GpuParticleSystem::UpdateGpuEmitterParams( Tr2RenderContext& renderConte
 	{
 		m_emitterParamsBuffer->Create( std::max( 64u, uint32_t( m_emitterParams.size() ) ), sizeof( EmitterParamsGpu ), Tr2GpuStructuredBuffer::CPU_WRITABLE );
 	}
+
+	if( m_emitterParams.size() == 0 )
+	{
+		return;
+	}
+
 	m_emitterParamsBuffer->GetGpuBuffer( 0 )->UpdateBuffer( 0, uint32_t( m_emitterParams.size() * sizeof( m_emitterParams[0] ) ), &m_emitterParams[0], renderContext );
 }
 
