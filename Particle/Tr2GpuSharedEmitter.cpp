@@ -209,7 +209,7 @@ float Tr2GpuSharedEmitter::SpawnParticles(
 	}
 
 	carryOverCount = total - std::floor( total );
-	m_emitter.count = int( total );
+	m_emitter.count = std::max( int( total ), 0 );
 
 	if( m_emitter.count )
 	{

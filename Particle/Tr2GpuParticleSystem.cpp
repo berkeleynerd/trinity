@@ -163,6 +163,7 @@ void Tr2GpuParticleSystem::InitializeBuffers()
 	m_visibleList.CreateInstance();
 	m_emitterParamsBuffer.CreateInstance();
 	m_drawParameters.CreateInstance();
+	m_sortParameters.CreateInstance();
 }
 
 // --------------------------------------------------------------------------------------
@@ -175,6 +176,7 @@ void Tr2GpuParticleSystem::RegisterVariables()
 	m_variableStore->RegisterVariable( "DeadBuffer", m_deadList );
 	m_variableStore->RegisterVariable( "VisibleBuffer", m_visibleList );
 	m_variableStore->RegisterVariable( "DrawParameters", m_drawParameters );
+	m_variableStore->RegisterVariable( "SortParameters", m_sortParameters );
 	m_variableStore->RegisterVariable( "Emitters", m_emitterParamsBuffer );
 }
 
@@ -268,6 +270,10 @@ bool Tr2GpuParticleSystem::OnPrepareResources()
 	if( !m_drawParameters->IsValid() )
 	{
 		m_drawParameters->Create( 4, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, Tr2GpuBuffer::GPU_WRITABLE | Tr2GpuBuffer::DRAW_INDIRECT );
+	}
+	if( !m_sortParameters->IsValid() )
+	{
+		m_sortParameters->Create( 4, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, Tr2GpuBuffer::GPU_WRITABLE | Tr2GpuBuffer::DRAW_INDIRECT );
 	}
 	if( !m_particleData->IsValid() )
 	{
@@ -907,7 +913,7 @@ void Tr2GpuParticleSystem::Sort( Tr2RenderContext& renderContext )
 
 	renderContext.m_esm.UnsetAllTextures();
 	Tr2Renderer::RunComputeShader( m_setSortParameters, 1, 1, 1, renderContext );
-	Tr2Renderer::RunComputeShaderIndirect( m_sort, *m_drawParameters, 0, renderContext );
+	Tr2Renderer::RunComputeShaderIndirect( m_sort, *m_sortParameters, 0, renderContext );
 
 	if( m_maxParticles > 512 )
 	{
@@ -919,8 +925,6 @@ void Tr2GpuParticleSystem::Sort( Tr2RenderContext& renderContext )
 			presorted *= 2;
 		}
 	}
-
-	renderContext.CopyBufferCounter( *m_drawParameters, 0, *m_visibleList );
 }
 
 // --------------------------------------------------------------------------------------

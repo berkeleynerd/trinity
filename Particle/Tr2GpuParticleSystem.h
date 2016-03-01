@@ -162,6 +162,7 @@ private:
 	Tr2GpuStructuredBufferPtr m_visibleList;
 	// buffer for ...Indirect call parameters
 	Tr2GpuBufferPtr m_drawParameters;
+	Tr2GpuBufferPtr m_sortParameters;
 	// buffer with persistent emitter data (see EmitterParams)
 	Tr2GpuStructuredBufferPtr m_emitterParamsBuffer;
 #else
