@@ -13,38 +13,6 @@ CCP_STATS_DECLARED_ELSEWHERE( primitiveCount );
 
 using namespace Tr2RenderContextEnum;
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   EveSpaceObjectDecalCache default constructor
-// --------------------------------------------------------------------------------------
-EveSpaceObjectDecalCache::EveSpaceObjectDecalCache()
-:	m_vertices( NULL ),
-	m_indices( NULL )
-{
-
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   EveSpaceObjectDecalCache destructor
-// --------------------------------------------------------------------------------------
-EveSpaceObjectDecalCache::~EveSpaceObjectDecalCache()
-{
-	Clear();
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Clears cached vertex and index buffer data.
-// --------------------------------------------------------------------------------------
-void EveSpaceObjectDecalCache::Clear()
-{
-	CCP_DELETE( m_vertices );
-	m_vertices = NULL;
-	CCP_DELETE( m_indices );
-	m_indices = NULL;
-}
-
 static BlueStructureDefinition s_eveSpaceObjectDecalIndexDef[] =
 { 
 	{ "index",	Be::UINT32_1,	0 }, 
@@ -61,7 +29,6 @@ EveSpaceObjectDecal::EveSpaceObjectDecal( IRoot* lockobj ) :
 	m_parentBoneIndex( -1 ),
 	m_rebuildIndexBuffer( false ),
 	m_decalPrimitiveCount( 0 ),
-	m_cache( NULL ),
 	PARENTLOCK( m_indices )
 {
 	// init
@@ -357,16 +324,6 @@ void EveSpaceObjectDecal::RenderDebugInfo( const Matrix* worldMatrix ) const
 
 // --------------------------------------------------------------------------------------
 // Description:
-//   Assigns a cache object to decal. Cache is shared between all decals of a single 
-//   space object.
-// --------------------------------------------------------------------------------------
-void EveSpaceObjectDecal::SetCache( EveSpaceObjectDecalCache* cache )
-{
-	m_cache = cache;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
 //   Here the parent has it's chance to give in a bone matrix, if the parent is
 //   animated.
 // Arguments:
@@ -515,182 +472,147 @@ void EveSpaceObjectDecal::CreateDecalIndexBuffer( TriGeometryResPtr geomRes )
 	unsigned char* originalVertices = NULL;
 	unsigned char* originalIndices = NULL;
 
-	if( m_cache != NULL )
+	if( FAILED( meshData->m_vertexBuffer.Lock( originalVertices, LOCK_READONLY, renderContext ) ) )
 	{
-		if( m_cache->m_indices == NULL )
-		{
+		return;
+	}
+	ON_BLOCK_EXIT( [&] { meshData->m_vertexBuffer.Unlock( renderContext ); } );
 
-			if( SUCCEEDED( meshData->m_vertexBuffer.Lock( originalVertices, LOCK_READONLY, renderContext ) ) )
-			{
-				if( SUCCEEDED( meshData->m_indexBuffer.Lock( 0, 0, (void**)&originalIndices, LOCK_READONLY, renderContext) ) )
-				{
-					m_cache->m_vertices = CCP_NEW( "EveSpaceObjectDecal::Cache::m_vertices" ) unsigned char[meshData->m_bytesPerVertex * meshData->m_vertexCount];
-					m_cache->m_indices = CCP_NEW( "EveSpaceObjectDecal::Cache::m_indices" ) unsigned char[meshData->m_primitiveCount * 3 * meshData->m_indexBuffer.BytesPerIndex() ];
-					memcpy( m_cache->m_vertices, originalVertices, meshData->m_bytesPerVertex * meshData->m_vertexCount );
-					memcpy( m_cache->m_indices, originalIndices, meshData->m_primitiveCount * 3 * meshData->m_indexBuffer.BytesPerIndex() );
-					meshData->m_indexBuffer.Unlock( renderContext );
-				}
-				meshData->m_vertexBuffer.Unlock( renderContext );
-			}
-		}
-		if( m_cache->m_indices == NULL || m_cache->m_vertices == NULL )
-		{
-			return;
-		}
-		originalVertices = m_cache->m_vertices;
-		originalIndices = m_cache->m_indices;
+
+	if( FAILED( meshData->m_indexBuffer.Lock( 0, 0, (void**)&originalIndices, LOCK_READONLY, renderContext) ) )
+	{
+		return;
+	}
+	ON_BLOCK_EXIT( [&] { meshData->m_indexBuffer.Unlock( renderContext ); } );
+
+	// correct source pointers
+	const unsigned int* indices32 = (const unsigned int*)originalIndices;
+	const unsigned short* indices16 = (const unsigned short*)originalIndices;
+	const Vector3* positions = (const Vector3*)originalVertices;
+	// collect indices for decal geometry
+	std::vector<unsigned int> decalIndices32;
+	std::vector<unsigned short> decalIndices16;
+	if( meshData->m_indexBuffer.Is16Bit() )
+	{
+		decalIndices16.reserve( meshData->m_primitiveCount * 3 );
+	}
+	else
+	{
+		decalIndices32.reserve( meshData->m_primitiveCount * 3 );
 	}
 
-	bool unlockBuffers = false;
-
-	if( originalVertices == NULL )
+	// is vertex compressed to 16bit floats?
+	bool vertexPositionCompressed = false;
+	Tr2VertexDefinition vd;
+	if( Tr2EffectStateManager::GetVertexDeclarationElements( meshData->m_vertexDeclaration, vd ) )
 	{
-		unlockBuffers = true;
-	}
-
-	if( originalVertices || SUCCEEDED( meshData->m_vertexBuffer.Lock( originalVertices, LOCK_READONLY, renderContext ) ) )
-	{
-		if( originalIndices || SUCCEEDED( meshData->m_indexBuffer.Lock( 0, 0, (void**)&originalIndices, LOCK_READONLY, renderContext ) ) )
+		if( auto pos = vd.Find( vd.POSITION ) )
 		{
-			// correct source pointers
-			const unsigned int* indices32 = (const unsigned int*)originalIndices;
-			const unsigned short* indices16 = (const unsigned short*)originalIndices;
-			const Vector3* positions = (const Vector3*)originalVertices;
-			// collect indices for decal geometry
-			std::vector<unsigned int> decalIndices32;
-			std::vector<unsigned short> decalIndices16;
-			if( meshData->m_indexBuffer.Is16Bit() )
-			{
-				decalIndices16.reserve( meshData->m_primitiveCount * 3 );
-			}
-			else
-			{
-				decalIndices32.reserve( meshData->m_primitiveCount * 3 );
-			}
-
-			// is vertex compressed to 16bit floats?
-			bool vertexPositionCompressed = false;
-			Tr2VertexDefinition vd;
-			if( Tr2EffectStateManager::GetVertexDeclarationElements( meshData->m_vertexDeclaration, vd ) )
-			{
-				if( auto pos = vd.Find( vd.POSITION ) )
-				{
-					vertexPositionCompressed = pos->m_dataType == vd.FLOAT16_4;
-				}
-			}
+			vertexPositionCompressed = pos->m_dataType == vd.FLOAT16_4;
+		}
+	}
 			
 
-			Vector3 aabbMin( -1.f, -1.f, -1.f );
-			Vector3 aabbMax( 1.f, 1.f, 1.f );
-			BoundingBoxTransform( aabbMin, aabbMax, m_decalMatrix );
+	Vector3 aabbMin( -1.f, -1.f, -1.f );
+	Vector3 aabbMax( 1.f, 1.f, 1.f );
+	BoundingBoxTransform( aabbMin, aabbMax, m_decalMatrix );
 
-			for( unsigned int t = 0; t < meshData->m_primitiveCount; ++t )
-			{
-				// get triangle indices
-				unsigned int index0 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[0] : indices32[0];
-				unsigned int index1 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[1] : indices32[1];
-				unsigned int index2 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[2] : indices32[2];
-				// do real collision detection here
-				if( vertexPositionCompressed )
-				{
-					Vector3 pos[3];
-					D3DXFloat16To32Array( (float*)&pos[0], (const D3DXFLOAT16*)(originalVertices + index0 * meshData->m_bytesPerVertex), 3 );
-					D3DXFloat16To32Array( (float*)&pos[1], (const D3DXFLOAT16*)(originalVertices + index1 * meshData->m_bytesPerVertex), 3 );
-					D3DXFloat16To32Array( (float*)&pos[2], (const D3DXFLOAT16*)(originalVertices + index2 * meshData->m_bytesPerVertex), 3 );
-					if( IntersectTriangleAABB( pos, pos + 1, pos + 2, aabbMin, aabbMax ) )
-					{
-						if( IntersectTriangleOrientedBox( pos, pos + 1, pos + 2, m_invDecalMatrix ) )
-						{
-							if( meshData->m_indexBuffer.Is16Bit() )
-							{
-								decalIndices16.push_back( index0 );
-								decalIndices16.push_back( index1 );
-								decalIndices16.push_back( index2 );
-							}
-							else
-							{
-								decalIndices32.push_back( index0 );
-								decalIndices32.push_back( index1 );
-								decalIndices32.push_back( index2 );
-							}
-						}
-					}
-				}
-				else
-				{
-					Vector3* v0 = reinterpret_cast<Vector3*>( originalVertices + index0 * meshData->m_bytesPerVertex );
-					Vector3* v1 = reinterpret_cast<Vector3*>( originalVertices + index1 * meshData->m_bytesPerVertex );
-					Vector3* v2 = reinterpret_cast<Vector3*>( originalVertices + index2 * meshData->m_bytesPerVertex );
-
-					if( IntersectTriangleAABB( v0, v1, v2, aabbMin, aabbMax ) )
-					{
-						if( IntersectTriangleOrientedBox( v0, v1, v2, m_invDecalMatrix ) )
-						{
-							if( meshData->m_indexBuffer.Is16Bit() )
-							{
-								decalIndices16.push_back( index0 );
-								decalIndices16.push_back( index1 );
-								decalIndices16.push_back( index2 );
-							}
-							else
-							{
-								decalIndices32.push_back( index0 );
-								decalIndices32.push_back( index1 );
-								decalIndices32.push_back( index2 );
-							}
-						}
-					}
-				}
-				// next!
-				indices16 += 3;
-				indices32 += 3;
-			}
-
-			// primitive count and index size
-			unsigned int decalIdxBufferSize = 0;
-			unsigned decalIndexCount = 0;
-			const void* decalIdxSrc = NULL;
-			if( meshData->m_indexBuffer.Is16Bit() )
-			{
-				m_decalPrimitiveCount = (unsigned int)decalIndices16.size() / 3;
-				decalIdxBufferSize = (unsigned int)decalIndices16.size() * sizeof(unsigned short);
-				decalIndexCount = (unsigned int)decalIndices16.size();
-				decalIdxSrc = &decalIndices16[0];
-			}
-			else
-			{
-				m_decalPrimitiveCount = (unsigned int)decalIndices32.size() / 3;
-				decalIdxBufferSize = (unsigned int)decalIndices32.size() * sizeof(unsigned int);
-				decalIndexCount = (unsigned int)decalIndices32.size();
-				decalIdxSrc = &decalIndices32[0];
-			}
-
-			// dont create empty buffer
-			if( decalIdxBufferSize )
-			{
-				if( SUCCEEDED( m_indexBuffer.Create(	decalIndexCount, 
-														USAGE_IMMUTABLE | USAGE_HINT_MANAGED, 
-														meshData->m_indexBuffer.GetIBBitcount(), 
-														decalIdxSrc, 
-														renderContext ) ) )
-				{
-					m_rebuildIndexBuffer = false;
-				}
-			}
-			else
-			{
-				m_rebuildIndexBuffer = false;
-			}
-
-			if( unlockBuffers )
-			{
-				meshData->m_indexBuffer.Unlock( renderContext );
-			}
-		}
-		if( unlockBuffers )
+	for( unsigned int t = 0; t < meshData->m_primitiveCount; ++t )
+	{
+		// get triangle indices
+		unsigned int index0 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[0] : indices32[0];
+		unsigned int index1 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[1] : indices32[1];
+		unsigned int index2 = meshData->m_indexBuffer.Is16Bit() ? (unsigned int)indices16[2] : indices32[2];
+		// do real collision detection here
+		if( vertexPositionCompressed )
 		{
-			meshData->m_vertexBuffer.Unlock( renderContext );
+			Vector3 pos[3];
+			D3DXFloat16To32Array( (float*)&pos[0], (const D3DXFLOAT16*)(originalVertices + index0 * meshData->m_bytesPerVertex), 3 );
+			D3DXFloat16To32Array( (float*)&pos[1], (const D3DXFLOAT16*)(originalVertices + index1 * meshData->m_bytesPerVertex), 3 );
+			D3DXFloat16To32Array( (float*)&pos[2], (const D3DXFLOAT16*)(originalVertices + index2 * meshData->m_bytesPerVertex), 3 );
+			if( IntersectTriangleAABB( pos, pos + 1, pos + 2, aabbMin, aabbMax ) )
+			{
+				if( IntersectTriangleOrientedBox( pos, pos + 1, pos + 2, m_invDecalMatrix ) )
+				{
+					if( meshData->m_indexBuffer.Is16Bit() )
+					{
+						decalIndices16.push_back( index0 );
+						decalIndices16.push_back( index1 );
+						decalIndices16.push_back( index2 );
+					}
+					else
+					{
+						decalIndices32.push_back( index0 );
+						decalIndices32.push_back( index1 );
+						decalIndices32.push_back( index2 );
+					}
+				}
+			}
 		}
+		else
+		{
+			Vector3* v0 = reinterpret_cast<Vector3*>( originalVertices + index0 * meshData->m_bytesPerVertex );
+			Vector3* v1 = reinterpret_cast<Vector3*>( originalVertices + index1 * meshData->m_bytesPerVertex );
+			Vector3* v2 = reinterpret_cast<Vector3*>( originalVertices + index2 * meshData->m_bytesPerVertex );
+
+			if( IntersectTriangleAABB( v0, v1, v2, aabbMin, aabbMax ) )
+			{
+				if( IntersectTriangleOrientedBox( v0, v1, v2, m_invDecalMatrix ) )
+				{
+					if( meshData->m_indexBuffer.Is16Bit() )
+					{
+						decalIndices16.push_back( index0 );
+						decalIndices16.push_back( index1 );
+						decalIndices16.push_back( index2 );
+					}
+					else
+					{
+						decalIndices32.push_back( index0 );
+						decalIndices32.push_back( index1 );
+						decalIndices32.push_back( index2 );
+					}
+				}
+			}
+		}
+		// next!
+		indices16 += 3;
+		indices32 += 3;
+	}
+
+	// primitive count and index size
+	unsigned int decalIdxBufferSize = 0;
+	unsigned decalIndexCount = 0;
+	const void* decalIdxSrc = NULL;
+	if( meshData->m_indexBuffer.Is16Bit() )
+	{
+		m_decalPrimitiveCount = (unsigned int)decalIndices16.size() / 3;
+		decalIdxBufferSize = (unsigned int)decalIndices16.size() * sizeof(unsigned short);
+		decalIndexCount = (unsigned int)decalIndices16.size();
+		decalIdxSrc = &decalIndices16[0];
+	}
+	else
+	{
+		m_decalPrimitiveCount = (unsigned int)decalIndices32.size() / 3;
+		decalIdxBufferSize = (unsigned int)decalIndices32.size() * sizeof(unsigned int);
+		decalIndexCount = (unsigned int)decalIndices32.size();
+		decalIdxSrc = &decalIndices32[0];
+	}
+
+	// dont create empty buffer
+	if( decalIdxBufferSize )
+	{
+		if( SUCCEEDED( m_indexBuffer.Create(	decalIndexCount, 
+												USAGE_IMMUTABLE | USAGE_HINT_MANAGED, 
+												meshData->m_indexBuffer.GetIBBitcount(), 
+												decalIdxSrc, 
+												renderContext ) ) )
+		{
+			m_rebuildIndexBuffer = false;
+		}
+	}
+	else
+	{
+		m_rebuildIndexBuffer = false;
 	}
 }
 

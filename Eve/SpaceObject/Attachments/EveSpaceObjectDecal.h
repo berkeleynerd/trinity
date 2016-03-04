@@ -45,28 +45,6 @@ public:
 
 // --------------------------------------------------------------------------------
 // Description:
-//   This class stores mesh vertex and index buffer data to speed up decal 
-//   construction when a space object has several decals and either vertex or index
-//   buffer of a mesh is in slow access memory (may happen with extended D3D 
-//   device).
-// --------------------------------------------------------------------------------
-class EveSpaceObjectDecalCache
-{
-public:
-	EveSpaceObjectDecalCache();
-	~EveSpaceObjectDecalCache();
-
-	void Clear();
-private:
-	// Vertex buffer mirror data
-	unsigned char* m_vertices;
-	// Index buffer mirror data
-	unsigned char* m_indices;
-	friend class EveSpaceObjectDecal;
-};
-
-// --------------------------------------------------------------------------------
-// Description:
 //   ToDo
 // --------------------------------------------------------------------------------
 BLUE_CLASS( EveSpaceObjectDecal ) : 
@@ -147,7 +125,6 @@ public:
 	void RenderDebugInfo( const Matrix* worldMatrix ) const;
 
 	// set things from the parent, the spaceobject
-	void SetCache( EveSpaceObjectDecalCache* cache );
 	void SetBoneMatrix( const granny_matrix_3x4* bonesMatrices, int bonesMatricesCount );
 	void SetEffect( Tr2EffectPtr newEffect );
 
@@ -193,8 +170,6 @@ private:
 	// num of primitives for this decal
 	unsigned int m_decalPrimitiveCount;
 
-	// Shared mesh data cache
-	EveSpaceObjectDecalCache* m_cache;
 	PEveSpaceObjectDecalIndexStructureList m_indices;
 };
 

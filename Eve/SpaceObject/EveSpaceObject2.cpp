@@ -115,8 +115,6 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 
 	m_positionDelta.CreateInstance();
 
-	m_decalCache = CCP_NEW( "EveSpaceObject2::m_decalCache" ) EveSpaceObjectDecalCache;
-	
 	m_animationUpdater.CreateInstance();
 	m_persistedDamageLocators.SetStructureDefinition( EveDamageLocatorStructureDef );
 
@@ -132,8 +130,6 @@ EveSpaceObject2::~EveSpaceObject2()
 	{
 		m_geometryResFromMesh->RemoveNotifyTarget( this );
 	}
-
-	CCP_DELETE m_decalCache;
 }
 
 bool EveSpaceObject2::Initialize()
@@ -988,8 +984,6 @@ void EveSpaceObject2::PushRenderables( const TriFrustum& frustum, std::vector<IT
 			// runn over every decal and update it
 			for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 			{
-				// assign this space-object's cache to the decal
-				(*it)->SetCache( m_decalCache );
 				// tell the decal of animation, IF we have any
 				if( m_animationUpdater && m_animationUpdater->GetMeshBoneCount() && m_animationUpdater->IsInitialized() )
 				{
@@ -998,7 +992,6 @@ void EveSpaceObject2::PushRenderables( const TriFrustum& frustum, std::vector<IT
 				// now prep to get the renderables
 				(*it)->GetRenderables( geometryRes, frustum, renderables, &pd );
 			}
-			m_decalCache->Clear();
 		}
 	}
 }
