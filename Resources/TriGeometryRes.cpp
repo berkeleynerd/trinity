@@ -1068,6 +1068,33 @@ void TriGeometryRes::PrepareFromGrannyRes( TriGrannyRes* g )
 	SetupSkeletons( gi );
 	CreateMeshesFromGrannyFile( gi, renderContext );
 
+	m_sourceGranny = g;
+
+	SetPrepared( true );
+	SetGood( true );
+}
+
+void TriGeometryRes::PrepareFromBuffers( Tr2VertexBufferAL&& vb, Tr2IndexBufferAL&& ib, unsigned int vertexDeclaration, unsigned int bytesPerVertex, const TriGeometryResAreaData* areas, size_t areaCount )
+{
+	m_meshes.resize( 1 );
+	TriGeometryResMeshData* mesh = CCP_NEW( "pMesh" ) TriGeometryResMeshData;
+	m_meshes[0] = mesh;
+
+	mesh->m_areas.insert( mesh->m_areas.begin(), areas, areas + areaCount );
+	mesh->m_vertexDeclaration = vertexDeclaration;
+	mesh->m_bytesPerVertex = bytesPerVertex;
+	mesh->m_vertexCount = vb.GetTotalSizeInBytes() / bytesPerVertex;
+	mesh->m_primitiveCount = ib.GetIBBitcount() / 3;
+	mesh->m_vertexBuffer = std::move( vb );
+	mesh->m_indexBuffer = std::move( ib );
+
+	InitializeBounds( mesh->m_minBounds, mesh->m_maxBounds );
+	for( auto it = mesh->m_areas.begin(); it != mesh->m_areas.end(); ++it )
+	{
+		UpdateBounds( mesh->m_minBounds, mesh->m_maxBounds, it->m_minBounds );
+		UpdateBounds( mesh->m_minBounds, mesh->m_maxBounds, it->m_maxBounds );
+	}
+
 	SetPrepared( true );
 	SetGood( true );
 }

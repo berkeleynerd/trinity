@@ -237,6 +237,7 @@ public:
 	Be::Result<std::string> GetBoundingSphereFromScript( unsigned int meshIx, std::pair<Vector3, float>& bounds );
 
 	void PrepareFromGrannyRes( TriGrannyRes* g );
+	void PrepareFromBuffers( Tr2VertexBufferAL&& vb, Tr2IndexBufferAL&& ib, unsigned int vertexDeclaration, unsigned int bytesPerVertex, const TriGeometryResAreaData* areas, size_t areaCount );
 
 	bool GetRayAreaIntersection( const Vector3& rayOrigin, 
 								 const Vector3& rayDirection, 
@@ -329,6 +330,7 @@ public:
 
 	bool	m_immutable;
 	bool	m_computeAccess;
+	TriGrannyResPtr m_sourceGranny;
 
 private:
 	void* m_data;

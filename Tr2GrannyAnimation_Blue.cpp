@@ -1,5 +1,7 @@
 #include "StdAfx.h"
 #include "Tr2GrannyAnimation.h"
+#include "Resources/TriGeometryRes.h"
+#include "Resources/TriGrannyRes.h"
 
 BLUE_DEFINE( Tr2GrannyAnimation );
 
@@ -118,6 +120,18 @@ const Be::ClassInfo* Tr2GrannyAnimation::ExposeToBlue()
 			m_eventListener,
 			"An event listener that's triggered by granny text track events.",
 			Be::READWRITE
+		)
+
+		MAP_METHOD_AND_WRAP
+		(
+			"CreateStaticGeometry",
+			CreateStaticGeometry,
+			"Bakes several skinned geometries into a single static one applying current animation in the process.\n"
+			"Returns a tuple (geometry, remapping) where geometry is the newly created TriGeometryRes and remapping\n"
+			"is a dict (TriGeometryRes, meshIndex) -> areaStartIndex that maps input geometry res objects and their\n"
+			"mesh indices to the area index in the resulting static mesh.\n"
+			"Arguments:\n"
+			"geometries - list of TriGeometryRes objects to merge"
 		)
 	EXPOSURE_END()
 }

@@ -6,6 +6,7 @@
 #include "include/ITr2DebugRenderer.h"
 #include "Utilities/BoundingBox.h"
 #include "Utilities/BoundingSphere.h"
+#include "Tr2VertexDefinitionUtilities.h"
 
 static const int MAX_JOINT_COUNT = 58;
 
@@ -924,4 +925,185 @@ void Tr2GrannyAnimation::RemoveAnimationLayerBone( const char* layerName, const 
 	}
 
 	layer->RemoveBone( this, boneName );
+}
+
+namespace
+{
+
+template <typename T>
+bool CopyIndices( Tr2IndexBufferAL& from, CcpMallocBuffer& to, uint32_t offset )
+{
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+
+	auto ibOffset = to.size();
+	to.resize( "ib", to.size() + from.GetNumIndices() * 4 );
+	if( !to.get() )
+	{
+		return false;
+	}
+
+	T* src;
+	if( FAILED( from.Lock( src, Tr2RenderContextEnum::LOCK_READONLY, renderContext ) ) )
+	{
+		return false;
+	}
+
+	uint32_t* dest = reinterpret_cast<uint32_t*>( to.get() + ibOffset );
+	for( uint32_t j = 0; j < from.GetNumIndices(); ++j )
+	{
+		*dest++ = offset + *src++;
+	}
+	from.Unlock( renderContext );
+	return true;
+}
+
+}
+
+std::pair<TriGeometryRes*, std::map<std::pair<TriGeometryRes*, uint32_t>, uint32_t>> Tr2GrannyAnimation::CreateStaticGeometry( std::vector<TriGeometryRes*> grannies )
+{
+	PrePhysicsAnimation( 0, Tr2Renderer::GetIdentityTransform() );
+
+	std::map<std::pair<TriGeometryRes*, uint32_t>, uint32_t> result;
+
+	if( grannies.empty() )
+	{
+		return std::make_pair( nullptr, result );
+	}
+
+	TriGeometryResPtr newGeometry;
+	newGeometry.CreateInstance();
+
+	if( !newGeometry )
+	{
+		return std::make_pair( nullptr, result );
+	}
+
+	std::vector<TriGeometryResAreaData> areas;
+
+	CcpMallocBuffer vbMirror;
+	CcpMallocBuffer ibMirror;
+
+	std::vector<granny_data_type_definition> layout;
+	uint32_t vertexSize = 0;
+
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+
+	auto pose = GrannyGetWorldPoseComposite4x4Array( m_worldPose );
+
+	for( auto it = grannies.begin(); it != grannies.end(); ++it )
+	{
+		auto geometry = *it;
+		auto granny = geometry->m_sourceGranny;
+		if( !granny )
+		{
+			result.clear();
+			return std::make_pair( nullptr, result );
+		}
+
+		granny_file_info* fi = GrannyGetFileInfo( granny->GetGrannyFile() );
+		if( !fi )
+		{
+			result.clear();
+			return std::make_pair( nullptr, result );
+		}
+
+		auto count = geometry->GetMeshCount();
+		for( unsigned i = 0; i < count; ++i )
+		{
+			if( layout.empty() )
+			{
+				auto grannyVertexDecl = fi->Meshes[i]->PrimaryVertexData->VertexType;
+				while( grannyVertexDecl->Type != GrannyEndMember )
+				{
+					if( strcmp( grannyVertexDecl->Name, GrannyVertexBoneIndicesName ) && 
+						strcmp( grannyVertexDecl->Name, GrannyVertexBoneWeightsName ) )
+					{
+						layout.push_back( *grannyVertexDecl );
+					}
+					++grannyVertexDecl;
+				}
+				layout.push_back( *grannyVertexDecl );
+				vertexSize = GrannyGetTotalObjectSize( &layout[0] );
+			}
+
+			auto binding = GrannyNewMeshBinding( fi->Meshes[i], m_skeleton, m_skeleton );
+			ON_BLOCK_EXIT( [&] { GrannyFreeMeshBinding( binding ); } );
+			auto indices = GrannyGetMeshBindingFromBoneIndices( binding );
+
+			auto deformer = GrannyNewMeshDeformer( 
+				fi->Meshes[i]->PrimaryVertexData->VertexType, 
+				&layout[0], 
+				GrannyDeformPositionNormalTangentBinormal, 
+				GrannyDontAllowUncopiedTail );
+			ON_BLOCK_EXIT( [&] { GrannyFreeMeshDeformer( deformer ); } );
+
+			auto data = geometry->GetMeshData( i );
+
+			auto vbOffset = vbMirror.size();
+			vbMirror.resize( "vbMirror", vbMirror.size() + vertexSize * data->m_vertexCount );
+
+			void* locked;
+			if( FAILED( data->m_vertexBuffer.Lock( 0, 0, &locked, Tr2RenderContextEnum::LOCK_READONLY, renderContext ) ) )
+			{
+				result.clear();
+				return std::make_pair( nullptr, result );
+			}
+			auto* dest = vbMirror.get() + vbOffset;
+			GrannyDeformVertices( 
+				deformer, 
+				indices, 
+				reinterpret_cast<const granny_real32*>( pose ), 
+				data->m_vertexCount, 
+				locked, 
+				vbMirror.get() + vbOffset );
+			data->m_vertexBuffer.Unlock( renderContext );
+
+			auto ibOffset = ibMirror.size();
+
+			if( data->m_indexBuffer.GetIBBitcount() == Tr2RenderContextEnum::IB_16BIT )
+			{
+				if( !CopyIndices<uint16_t>( data->m_indexBuffer, ibMirror, uint32_t( vbOffset ) / vertexSize ) )
+				{
+					result.clear();
+					return std::make_pair( nullptr, result );
+				}
+			}
+			else
+			{
+				if( !CopyIndices<uint32_t>( data->m_indexBuffer, ibMirror, uint32_t( vbOffset ) / vertexSize ) )
+				{
+					result.clear();
+					return std::make_pair( nullptr, result );
+				}
+			}
+
+			result[std::make_pair( *it, i )] = areas.size();
+
+			for( auto ai = data->m_areas.begin(); ai != data->m_areas.end(); ++ai )
+			{
+				TriGeometryResAreaData area( *ai );
+				area.m_firstIndex += int( ibOffset ) / 4;
+				areas.push_back( area );
+			}
+		}
+	}
+
+	Tr2VertexBufferAL vb;
+	vb.Create( vbMirror.size(), Tr2RenderContextEnum::USAGE_IMMUTABLE, vbMirror.get(), renderContext );
+
+	Tr2IndexBufferAL ib;
+	ib.Create( ibMirror.size() / 4, Tr2RenderContextEnum::USAGE_IMMUTABLE, Tr2RenderContextEnum::IB_32BIT, ibMirror.get(), renderContext ); 
+
+	auto declaration = Tr2EffectStateManager::GetVertexDeclarationHandle( 
+		BuildFromGrannyVertexDecl( &layout[0] ) );
+
+	newGeometry->PrepareFromBuffers( 
+		std::move( vb ), 
+		std::move( ib ), 
+		declaration, 
+		vertexSize, 
+		&areas.front(), 
+		areas.size() );
+
+	return std::make_pair( newGeometry.Detach(), result );
 }
