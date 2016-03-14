@@ -5,7 +5,9 @@
 #include "TriFrustum.h"
 #include "Tr2PointLight.h"
 #include "Tr2LightManager.h"
-#include "EveUpdateContext.h"
+#include "Eve/EveUpdateContext.h"
+#include "Eve/SpaceObject/EveSpaceObject2.h"
+
 extern float g_eveSpaceObjectResourceUnloadingTimeThreshold;
 extern float g_eveSpaceSceneMediumDetailThreshold;
 extern float g_eveSpaceSceneLowDetailThreshold;
@@ -185,4 +187,25 @@ void EveEffectRoot2::GetLights( Tr2LightManager& lightManager ) const
 			( *it )->m_radius, 
 			( *it )->m_color );
 	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Called by all children. It is similar to what spaceobjects send to vs/ps
+// --------------------------------------------------------------------------------
+void EveEffectRoot2::GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpaceObjectPSData& psData ) const
+{
+	// vs
+	memset( &vsData, 0, sizeof( EveSpaceObjectVSData ) );
+	// activation
+	vsData.shipData.y = 1.f;
+	// boundingsphere
+	vsData.shipData.w = 1.f;
+
+	// ps
+	memset( &psData, 0, sizeof( EveSpaceObjectPSData ) );
+	// activation
+	psData.shipData.y = 1.f;
+	// boundingsphere
+	psData.shipData.w = 1.f;
 }

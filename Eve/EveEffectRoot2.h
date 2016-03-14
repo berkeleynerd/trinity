@@ -37,7 +37,8 @@ public:
 	void RenderDebugInfo( Tr2RenderContext& renderContext );
 	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
-	virtual void GetLights( Tr2LightManager& lightManager ) const;
+	void GetLights( Tr2LightManager& lightManager ) const;
+	void GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpaceObjectPSData& psData ) const;
 
 	// This version of the function should perform an update on the model / ball position
 	void GetModelCenterWorldPosition( Vector3 &position, Be::Time t );
