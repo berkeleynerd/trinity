@@ -2988,6 +2988,7 @@
     <ClInclude Include="Eve\UI\EveProjectBracket.h"/>
     <ClInclude Include="Eve\UI\EveSpherePin.h"/>
     <ClInclude Include="Eve\UI\EveSpherePinIndexTree.h"/>
+    <ClInclude Include="Eve\UI\EveTacticalOverlay.h"/>
     <ClInclude Include="Font\Tr2FontManager.h"/>
     <ClInclude Include="Font\Tr2FontMeasurer.h"/>
     <ClInclude Include="Font\Tr2SBit.h"/>
@@ -3629,6 +3630,8 @@
     <ClCompile Include="Eve\UI\EveSpherePin.cpp"/>
     <ClCompile Include="Eve\UI\EveSpherePinIndexTree.cpp"/>
     <ClCompile Include="Eve\UI\EveSpherePin_Blue.cpp"/>
+    <ClCompile Include="Eve\UI\EveTacticalOverlay.cpp"/>
+    <ClCompile Include="Eve\UI\EveTacticalOverlay_Blue.cpp"/>
     <ClCompile Include="Font\Tr2FontManager.cpp"/>
     <ClCompile Include="Font\Tr2FontManager_Blue.cpp"/>
     <ClCompile Include="Font\Tr2FontMeasurer.cpp"/>

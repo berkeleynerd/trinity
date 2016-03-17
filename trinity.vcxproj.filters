@@ -825,6 +825,9 @@
     <ClInclude Include="Eve\UI\EveSpherePinIndexTree.h">
       <Filter>Source Files\Eve\UI</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\UI\EveTacticalOverlay.h">
+      <Filter>Source Files\Eve\UI</Filter>
+    </ClInclude>
     <ClInclude Include="Font\Tr2FontManager.h">
       <Filter>Source Files\Font</Filter>
     </ClInclude>
@@ -2734,6 +2737,12 @@
       <Filter>Source Files\Eve\UI</Filter>
     </ClCompile>
     <ClCompile Include="Eve\UI\EveSpherePin_Blue.cpp">
+      <Filter>Source Files\Eve\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\UI\EveTacticalOverlay.cpp">
+      <Filter>Source Files\Eve\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\UI\EveTacticalOverlay_Blue.cpp">
       <Filter>Source Files\Eve\UI</Filter>
     </ClCompile>
     <ClCompile Include="Font\Tr2FontManager.cpp">
