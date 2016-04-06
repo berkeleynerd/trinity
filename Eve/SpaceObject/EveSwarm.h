@@ -106,12 +106,16 @@ public:
 	struct BehaviorProperties
 	{
 		BehaviorProperties() :
-			m_speedMultiplier( 1.5f ),
-			m_speedMinimum( 50.f ),
+			m_speedMultiplier( 1.1f ),
+			m_speedMinimum( 10.f ),
 			m_mass( 1.f ),
-			m_maxDistance( 5000.f ),
+			m_agility( 2.f ),
+			m_maxDistance0( 500.f ),
+			m_maxDistance1( 125.f ),
 			m_timeMultiplier( 1.f ),
 			m_maxTime( 1.f ),
+			m_speed0( 700.f ),
+			m_speed1( 1000.f ),
 
 			// Behavior characteristics
 			m_wanderDistance( 100.f ),
@@ -119,25 +123,31 @@ public:
 			m_wanderFluctuation( 0.05f ),
 			m_weightAlign( 50.f ),
 			m_weightAnchor( 0.5f ),
+			m_anchorRadius0( 75.f ),
+			m_anchorRadius1( 250.f ),
 			m_weightCohesion( 0.1f ),
 			m_weightSeparation( 0.1f ),
 			m_separationDistance( 250.f ),
-			m_weightWander( 0.25f ),
+			m_weightWander( 0.33f ),
 			m_weightDecelerate( 0.1f ),
 			m_maxDeceleration( 200.f ),
 			m_weightFormation( 1.f ),
-			m_formationDistance( 50.f ),
-			m_weightParentVelocity( 0.25f ),
-			m_weightParentAcceleration( 1.f )
+			m_formationDistance( 50.f )
 		{}
 
 		float m_mass;
 		float m_speedMultiplier;
 		float m_speedMinimum;
+		float m_agility;
 	
-		float m_maxDistance;  // Max allowed distance from ball
+		float m_maxDistance0;  // Max allowed distance from ball
+		float m_maxDistance1;  // Max allowed distance from ball
 		float m_timeMultiplier; // Time multiplier, mostly for debug
 		float m_maxTime; // Never update by more than this, anything too long and things stop making sense
+
+		// Alter some values based on linearization of these two speeds
+		float m_speed0;
+		float m_speed1;
 
 		// Cohesion: steers all vehicles/swarmers towards their average position, keeps vehicles close to each other
 		float m_weightCohesion;
@@ -160,6 +170,8 @@ public:
 
 		// Anchor: Steer vehicles toward the center point/ball
 		float m_weightAnchor;
+		float m_anchorRadius0;
+		float m_anchorRadius1;
 
 		// Decelerate: Basically works to avoid the vehicles maintaining maximum velocity all the time(if the ball is stationary f.x.) resulting
 		// in ugly orbiting style behaviors
@@ -169,10 +181,6 @@ public:
 		// Formation: Have all swarmer except the first try to form a v behind the swarmer 0
 		float m_weightFormation;
 		float m_formationDistance;
-
-		// Velocity and acceleration inherited from parent position function
-		float m_weightParentVelocity;
-		float m_weightParentAcceleration;
 	};
 	void SetBehavior( const BehaviorProperties* behavior ) { m_behavior = *behavior; }
 
@@ -245,7 +253,7 @@ private:
 	// Behavior data and functions
 	BehaviorProperties m_behavior;
 
-	Vector3 CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, const Vector3& centerOfMass, const Vector3& alignment, const Vector3& formationDirection, const Vector3& formationSide, float timeSeconds );
+	Vector3 CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, const Vector3& followPosition, const Vector3& centerOfMass, const Vector3& alignment, const Vector3& formationDirection, const Vector3& formationSide, float timeSeconds );
 	Vector3 Calculate_Cohesion( Vector3 p0, Vector3 p1 );
 	Vector3 Calculate_Separation( Vector3 p0, Vector3 p1 );
 	Vector3 Calculate_Wander( SwarmVehicle& s, float wanderDistance, float radius, float fluctuation, float t );

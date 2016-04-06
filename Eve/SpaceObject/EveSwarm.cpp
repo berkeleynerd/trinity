@@ -251,8 +251,9 @@ void EveSwarm::UpdateOrientation( SwarmVehicle* vehicle, float timeDiff )
 		// Roll is based on how large acceleration is in the direction of the side vector
 		roll = 0.8f * D3DXVec3Dot( &vehicle->acceleration, &side ) * TRI_PI / speed;
 	}
-	vehicle->roll = Lerp( vehicle->roll, roll, timeDiff );
-	D3DXQuaternionRotationYawPitchRoll( &vehicle->rotation, yaw, pitch, vehicle->roll );
+	Quaternion rotation;
+	D3DXQuaternionRotationYawPitchRoll( &rotation, yaw, pitch, roll );
+	D3DXQuaternionSlerp( &vehicle->rotation, &vehicle->rotation, &rotation, timeDiff * m_behavior.m_agility );
 }
 
 // --------------------------------------------------------------------------------
@@ -319,6 +320,7 @@ void EveSwarm::UpdateSwarm( Be::Time t )
 	}
 	
 	UpdateWorldTransform( t );
+	float timeDelta = TimeAsFloat( t - m_timeLast );
 	float timeSeconds = TimeAsFloat( t - m_timeLast ) * m_behavior.m_timeMultiplier;
 	if( timeSeconds > m_behavior.m_maxTime )
 	{
@@ -386,12 +388,11 @@ void EveSwarm::UpdateSwarm( Be::Time t )
 	D3DXVec3Normalize( &formationDirection, &m_vehicles[0].velocity );
 	D3DXVec3Cross( &formationSide, &formationDirection, &up );
 
+	Vector3 followPosition = m_worldPosition + ( m_worldVelocity + m_worldAcceleration * timeDelta ) * timeDelta;
 	// Calculate forces and acceleration
 	for( unsigned i = 0; i < m_vehicles.size(); i++ )
 	{
-		Vector3 force = CalculateForces( i, m_vehicles, center, alignment, formationDirection, formationSide, timeSeconds );
-		force += m_behavior.m_weightParentVelocity * m_worldVelocity;
-		force += m_behavior.m_weightParentAcceleration * m_worldAcceleration;
+		Vector3 force = CalculateForces( i, m_vehicles, followPosition, center, alignment, formationDirection, formationSide, timeSeconds );
 		Vector3 acc = force * 1.f / m_behavior.m_mass;
 		m_vehicles[i].acceleration = acc;
 		TriVectorClampLength( &m_vehicles[i].acceleration, maxAcceleration );
@@ -411,15 +412,18 @@ void EveSwarm::UpdateSwarm( Be::Time t )
 	center = 0.5f * (m_squadBoundsMin + m_squadBoundsMax);
 	Vector3 d = m_worldPosition - center;
 	float distance = D3DXVec3Length( &d );
-	if( distance > m_behavior.m_maxDistance )
+	float maxDistance = Lerp( m_behavior.m_maxDistance0, m_behavior.m_maxDistance1, TriLinearize( m_behavior.m_speed0, m_behavior.m_speed1, D3DXVec3Length( &m_worldVelocity ) ) );
+	if( distance > maxDistance )
 	{
 		// Move the center of the squad to maxDistance away from the world position
 		D3DXVec3Normalize( &d, &d );
-		d *= distance - m_behavior.m_maxDistance;
+		d *= distance - maxDistance;
 		for( unsigned i = 0; i < m_vehicles.size(); i++ )
 		{
 			m_vehicles[i].position += d;
 		}
+		m_squadBoundsMax += d;
+		m_squadBoundsMin += d;
 	}
 }
 // --------------------------------------------------------------------------------
@@ -554,7 +558,6 @@ void EveSwarm::UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t )
 {
 	if( m_swarmingEnabled )
 	{
-		UpdateWorldTransform( t );
 		UpdateSwarm( t );
 		position = ( m_squadBoundsMax + m_squadBoundsMin ) * 0.5f;
 	}
@@ -586,7 +589,7 @@ void EveSwarm::GetModelCenterWorldPosition( Vector3 &position ) const
 // --------------------------------------------------------------------------------
 bool EveSwarm::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
 {
-	if( EveShip2::GetLocalBoundingBox( min, max ) )
+	if( m_mesh && m_mesh->GetBoundingBox( min, max ) )
 	{
 		min += m_squadBoundsMin;
 		max += m_squadBoundsMax;
@@ -598,6 +601,8 @@ bool EveSwarm::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
 	}
 	m_localAabbMin = min - m_worldPosition;
 	m_localAabbMax = max - m_worldPosition;
+	min = m_localAabbMin;
+	max = m_localAabbMax;
 	return true;
 }
 
@@ -816,13 +821,16 @@ bool EveSwarm::GetDamageLocatorPosition( Vector3* out, int index, bool inWorldSp
 // Description:
 //   Calculate all forces influencing the swarm vehicle i0
 // --------------------------------------------------------------------------------
-Vector3 EveSwarm::CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, const Vector3& centerOfMass, const Vector3& alignment, const Vector3& formationDirection, const Vector3& formationSide, float timeSeconds )
+Vector3 EveSwarm::CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, const Vector3& followPosition, const Vector3& centerOfMass, const Vector3& alignment, const Vector3& formationDirection, const Vector3& formationSide, float timeSeconds )
 {
 	Vector3 force( 0, 0, 0 ), wander, separation( 0, 0, 0 ), align, cohesion, anchor, decelerate, formation;
 
 	wander = m_behavior.m_weightWander * Calculate_Wander( swarmers[i0], m_behavior.m_wanderDistance, m_behavior.m_wanderRadius, m_behavior.m_wanderFluctuation, timeSeconds );
 	cohesion = m_behavior.m_weightCohesion * Calculate_Cohesion( swarmers[i0].position, centerOfMass );
-	anchor = m_behavior.m_weightAnchor * Calculate_Cohesion( swarmers[i0].position, m_worldPosition );
+	anchor = Calculate_Cohesion( swarmers[i0].position, followPosition );
+	float anchorDistance = D3DXVec3Length( &anchor ); 
+	anchorDistance = TriLinearize( m_behavior.m_anchorRadius0, m_behavior.m_anchorRadius1, anchorDistance );
+	anchor = anchorDistance * m_behavior.m_weightAnchor * anchor;
 	align = m_behavior.m_weightAlign * alignment;
 	decelerate = swarmers[i0].velocity * -m_behavior.m_weightDecelerate;
 	TriVectorClampLength( &decelerate, m_behavior.m_maxDeceleration );
