@@ -257,7 +257,7 @@ private:
 			}
 
 			USE_MAIN_THREAD_RENDER_CONTEXT();
-			m_vertexBuffer.Create( m_vertexCount * m_vertexSize, m_usage, nullptr, renderContext );
+			m_vertexBuffer.Create( m_vertexCount * m_vertexSize, m_usage, m_vertexBufferMirrorSize == m_vertexCount * m_vertexSize ? m_vertexBufferMirror : nullptr, renderContext );
 		}
 
 		return true;
