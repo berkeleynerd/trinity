@@ -654,7 +654,7 @@ void EveSpaceScene::PrepareTransparentBatch( Tr2RenderableSortList& objectsWithT
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	// Sort objects front to back
-	std::sort( objectsWithTransparencies.begin(),  objectsWithTransparencies.end() );
+	std::stable_sort( objectsWithTransparencies.begin(),  objectsWithTransparencies.end() );
 
 	// Add the objects, back to front 
 	for( Tr2RenderableSortList::const_reverse_iterator it =  objectsWithTransparencies.rbegin(); it !=  objectsWithTransparencies.rend(); ++it )

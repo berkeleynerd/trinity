@@ -159,11 +159,12 @@ void EveChildMesh::UpdateAsyncronous( EveUpdateContext& updateContext, IEveSpace
 	{
 		spaceObjectParent->GetLocalToWorldTransform( localToWorldTransform );
 		spaceObjectParent->GetPerObjectStructs( m_vsData, m_psData );
-		m_vsData.worldTransformLast = m_worldTransform;
+		D3DXMatrixTranspose( &m_vsData.worldTransformLast, &m_worldTransform );
 	}
 	else if ( childParent )
 	{
 		childParent->GetLocalToWorldTransform( localToWorldTransform );
+		D3DXMatrixTranspose( &m_vsData.worldTransformLast, &m_worldTransform );
 	}
 	else
 	{

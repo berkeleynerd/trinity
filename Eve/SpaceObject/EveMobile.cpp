@@ -668,7 +668,8 @@ bool EveMobile::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, co
 			}
 
 			m_clipSphereFactorCurve = ptr;
-			m_clipSphereCenter = Vector3( -m_boundingSphereCenter.x, -m_boundingSphereCenter.y, -m_boundingSphereCenter.z );
+
+			m_clipSphereCenter = -1.0f * GetBoundingSphereCenter();
 
 			ModifyClipSphereCurve( parameters );			
 			PlayClipSphereFactorCurve();
@@ -682,7 +683,7 @@ bool EveMobile::ExecuteAnimationStateCommand( const EveAnimationCommand& cmd, co
 	case ANIM_CMD_SET_CLIPSPHERE:
 		m_clipSphereFactor = commandFloatValue;
 		m_playClipSphereFactorCurve = false;
-		m_clipSphereCenter = Vector3( -m_boundingSphereCenter.x, -m_boundingSphereCenter.y, -m_boundingSphereCenter.z );
+		m_clipSphereCenter = -1.0f * GetBoundingSphereCenter();
 		return true;
 
 	default:
