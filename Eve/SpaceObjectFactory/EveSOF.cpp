@@ -1344,40 +1344,14 @@ void EveSOF::SetupDecals( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 		shader.CreateInstance();
 		shader->StartUpdate();
 
-		// what shader to use?
-		std::string shaderName;
-		if( fdd && !fdd->shader.empty() )
-		{
-			shaderName = fdd->shader;
-		}
-		else if( !hdit->shader.empty() )
-		{
-			shaderName = hdit->shader;
-		}
-		else
-		{
-			// we couldn't construct a valid shader path. So no decal!
-			continue;
-		}
-
-		/*
 		// shader is hull-only and MUST exist!
 		if( hdit->shader.empty() )
 		{
 			continue;
 		}
-		// also it must match the faction-data, if that exists
-		if( fdd && !fdd->shader.empty() )
-		{
-			if( fdd->shader != hdit->shader )
-			{
-				continue;
-			}
-		}
-		*/
 
 		// construct shader path and set it on the Tr2Effect
-		std::string shaderPath = dna->GetDecalShaderLocationResPath() + std::string("/") + dna->GetShaderPrefix( false ) + shaderName;
+		std::string shaderPath = dna->GetDecalShaderLocationResPath() + std::string("/") + dna->GetShaderPrefix( false ) + hdit->shader;
 		shader->SetEffectPathName( shaderPath.c_str() );
 
 		// always set hull parameters & textures for this decal
@@ -1404,7 +1378,7 @@ void EveSOF::SetupDecals( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 		}
 
 		// find data on this shader from generics, we need it!
-		const EveSOFDataMgr::GenericShaderData* shaderData = dna->GetGenericDecalShaderData( BlueSharedString( shaderName ) );
+		const EveSOFDataMgr::GenericShaderData* shaderData = dna->GetGenericDecalShaderData( BlueSharedString( hdit->shader ) );
 		if( shaderData )
 		{
 			// default shader textures from the generic data
