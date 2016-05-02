@@ -468,6 +468,7 @@ public:
 	PEveSOFDataHullPlaneSetVector m_planeSets;
 	PEveSOFDataHullSpriteLineSetVector m_spriteLineSets;
 	ImpactEffectType m_hasImpactEffect;
+	ImpactEffectType m_impactEffectType;
 
 	// decals
 	PEveSOFDataHullDecalVector m_hullDecals;

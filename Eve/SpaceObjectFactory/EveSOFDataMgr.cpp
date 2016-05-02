@@ -395,7 +395,7 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 	hd.shapeEllipsoidRadius = srcData->m_shapeEllipsoidRadius;
 	hd.isSkinned = srcData->m_isSkinned;
 	hd.audioPosition = srcData->m_audioPosition;
-	hd.impactEffectType = srcData->m_hasImpactEffect;
+	hd.impactEffectType = srcData->m_impactEffectType;
 
 	// boosters
 	if( srcData->m_booster )
