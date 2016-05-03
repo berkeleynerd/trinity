@@ -6,5 +6,4 @@ p4 edit TrinityAL.orbis.vcxproj
 p4 edit TrinityAL.orbis.vcxproj.filters
 echo Regenerating
 ..\..\..\..\..\..\shared_tools\python\27\python.exe ..\..\tools\ProjectFileGenerator\ProjectFileGenerator.py -i TrinityAL.ccpproj
-..\..\..\..\..\..\shared_tools\python\27\python.exe ..\..\tools\ProjectFileGenerator\ProjectFileGenerator.py -i TrinityAL.ccpproj --orbis
 pause

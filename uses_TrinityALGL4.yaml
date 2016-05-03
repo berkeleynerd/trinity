@@ -1,0 +1,68 @@
+# This file defines settings for all modules that link against TrinityAL built with OpenGL
+
+Imports:
+- ../core_project.yaml
+- ../CcpCore/uses_CcpCore.yaml
+- ../../../../../../sdk/glew/1.7.0/glew_1.7.0.yaml
+
+ClCompile:
+  PreprocessorDefinitions:
+  - TRINITY_PLATFORM=TRINITY_OPENGL4
+Link:
+  AdditionalLibraryDirectories:
+  - ../../autobuild/TrinityAL/$(Platform)/$(PlatformToolset)/
+
+Configurations:
+  Debug|Win32,x64:
+    Imports:
+    - ../../../../../../sdk/directx/february2010/directx_february2010.yaml
+    - ../../../../../../sdk/nvidia/NVAPI/R265/NVAPI_R265.yaml
+    - ../../../../../../sdk/ATI/CrossFire Detect/CrossFire.yaml
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4_d.lib
+  
+  Dev|Win32,x64:
+    Imports:
+    - ../../../../../../sdk/directx/february2010/directx_february2010.yaml
+    - ../../../../../../sdk/nvidia/NVAPI/R265/NVAPI_R265.yaml
+    - ../../../../../../sdk/ATI/CrossFire Detect/CrossFire.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - AL_TACK_RESOURCE_USAGE=1
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4_dev.lib
+  
+  Release|Win32,x64:
+    Imports:
+    - ../../../../../../sdk/directx/february2010/directx_february2010.yaml
+    - ../../../../../../sdk/nvidia/NVAPI/R265/NVAPI_R265.yaml
+    - ../../../../../../sdk/ATI/CrossFire Detect/CrossFire.yaml
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4.lib
+
+  Debug|Linux32,Linux64,Mac32,Mac64:
+    Imports:
+    - ../../../../../../sdk/glfw/3.0/glfw_3.0.yaml
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4_d.lib
+
+  Dev|Linux32,Linux64,Mac32,Mac64:
+    Imports:
+    - ../../../../../../sdk/glfw/3.0/glfw_3.0.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - AL_TACK_RESOURCE_USAGE=1
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4_dev.lib
+  
+  Release|Linux32,Linux64,Mac32,Mac64:
+    Imports:
+    - ../../../../../../sdk/glfw/3.0/glfw_3.0.yaml
+    Link:
+      AdditionalDependencies:
+      - TrinityAL_gl4.lib

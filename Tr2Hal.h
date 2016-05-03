@@ -15,6 +15,7 @@
 #define TRINITY_DIRECTX11	2
 #define TRINITY_OPENGLES2	3
 #define TRINITY_STUB		5
+#define TRINITY_OPENGL4		6
 
 #ifndef TRINITY_PLATFORM
 #	error TRINITY_PLATFORM must be set
@@ -65,6 +66,8 @@ class Tr2GpuBufferAL;
 class Tr2FenceAL;
 class Tr2GpuTimerAL;
 class Tr2LockedRenderTargetAL;
+class Tr2OcclusionQueryAL;
+class Tr2SwapChainAL;
 
 #if( TRINITY_PLATFORM != TRINITY_DIRECTX11 )
 #	define	Tr2PrimaryRenderContextAL		Tr2RenderContextAL
@@ -242,6 +245,44 @@ const float AL_TEXEL_OFFSET = 0.0f;
 #include "Tr2FenceALStub.h"
 #include "Tr2GpuTimerALStub.h"
 #include "Tr2LockedRenderTargetALStub.h"
+
+#elif( TRINITY_PLATFORM==TRINITY_OPENGL4 )
+
+#if defined(_WIN32)
+#include <GL/glew.h>
+#include <GL/gl.h>
+#elif defined(__APPLE__)
+#include <GL/glew.h>
+#include <OpenGL/gl.h>
+#else
+#include <GL/glew.h>
+#endif
+
+#define TRINITY_PLATFORM_NAME "gl4"
+
+const float AL_TEXEL_OFFSET = 0.0f;
+
+#include "Tr2VideoAdapterInfoALGL4.h"
+
+#include "Tr2VertexBufferALGL4.h"
+#include "Tr2IndexBufferALGL4.h"
+#include "Tr2ConstantBufferALGL4.h"
+#include "Tr2VertexLayoutALGL4.h"
+#include "Tr2ShaderALGL4.h"
+#include "Tr2SamplerStateALGL4.h"
+#include "Tr2TextureALGL4.h"
+#include "Tr2GpuBufferALGL4.h"
+
+#include "Tr2RenderTargetALGL4.h"
+#include "Tr2DepthStencilALGL4.h"
+#include "Tr2SwapChainALGL4.h"
+
+#include "Tr2RenderContextGL4.h"
+
+#include "Tr2OcclusionQueryALGL4.h"
+#include "Tr2FenceALGL4.h"
+#include "Tr2GpuTimerALGL4.h"
+#include "Tr2LockedRenderTargetALGL4.h"
 
 #endif
 

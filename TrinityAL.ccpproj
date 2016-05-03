@@ -96,6 +96,13 @@ BaseConfigurations:
       PreprocessorDefinitions:
       - TRINITY_PLATFORM=TRINITY_DIRECTX11
 
+  GL4:
+    Imports:
+    - ../../../../../../sdk/glew/1.7.0/glew_1.7.0.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_PLATFORM=TRINITY_OPENGL4
+
   GLES2:
     Imports:
     - ../../../../../../sdk/glew/1.7.0/glew_1.7.0.yaml
@@ -170,6 +177,36 @@ Configurations:
     - D3D11
     General:
       TargetName: TrinityAL_dx11
+  
+  Debug_GL4|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Debug
+    - GL4
+    General:
+      TargetName: TrinityAL_gl4_d
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_AL_GUARD_LOCKS=1
+
+  Dev_GL4|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Dev
+    - GL4
+    General:
+      TargetName: TrinityAL_gl4_dev
+    ClCompile:
+      PreprocessorDefinitions:
+      - TRINITY_AL_GUARD_LOCKS=1
+
+  Release_GL4|Win32,x64:
+    BaseConfigurations:
+    - Windows
+    - Release
+    - GL4
+    General:
+      TargetName: TrinityAL_gl4
 
   Debug_GLES2|Win32,x64:
     BaseConfigurations:

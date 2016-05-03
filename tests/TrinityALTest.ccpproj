@@ -105,6 +105,14 @@ BaseConfigurations:
       PreprocessorDefinitions:
       - D3DTARGET=9
 
+  GL4:
+    # These are settings that apply to all variants of Trinity that use OpenGL ES 2
+    Imports:
+    - ../TrinityAL/uses_TrinityALGL4.yaml
+    ClCompile:
+      PreprocessorDefinitions:
+      - D3DTARGET=9
+
   STUB:
     # These are settings that apply to all variants of Trinity that use the stub
     Imports:
@@ -116,17 +124,6 @@ BaseConfigurations:
     ClCompile:
       PreprocessorDefinitions:
       - D3DTARGET=9
-      
-  Android:
-    General:
-      AndroidTargetAPI: android-14
-    ClCompile:
-      PreprocessorDefinitions:
-      - TRACK_AL_RESOURCES=0
-    Link:
-      AdditionalDependencies:
-      - log
-      - android
 
 Configurations:
   Dev_DX9|Win32,x64:
@@ -184,6 +181,24 @@ Configurations:
     - WithGoogleTest
     General:
       TargetName: TrinityALTestGLES2
+
+
+  Dev_GL4|Win32,x64:
+    BaseConfigurations:
+    - Dev
+    - GL4
+    - WithGoogleTest
+    General: 
+      TargetName: TrinityALTestGL4_dev
+
+  Release_GL4|Win32,x64,Mac64:
+    BaseConfigurations:
+    - Release
+    - GL4
+    - WithGoogleTest
+    General:
+      TargetName: TrinityALTestGL4
+
 
   Release_GLES2_Coverage|Mac64:
     BaseConfigurations:
