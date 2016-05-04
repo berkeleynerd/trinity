@@ -86,76 +86,89 @@ const Be::ClassInfo* Tr2GpuSharedEmitter::ExposeToBlue()
 			m_emitter.maxSpeed, 
 			"Maximum particle initial speed", 
 			Be::READWRITE | Be::PERSIST )
-
         MAP_ATTRIBUTE( 
 			"minLifeTime", 
 			m_params.minLifeTime, 
-			"Minimum particle life time in seconds (stored on GPU)", 
+			"Minimum particle life time in seconds (stored on GPU)\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"maxLifeTime", 
 			m_params.maxLifeTime, 
-			"Maximum particle life time in seconds (stored on GPU)", 
+			"Maximum particle life time in seconds (stored on GPU)\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"sizes", 
 			m_params.sizes, 
-			"Particle sizes at 0, 50%, 100% of its age", 
+			"Particle sizes at 0, 50%, 100% of its age\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"sizeVariance", 
 			m_params.sizeVariance, 
-			"Particle size variance (0 to 1)", 
+			"Particle size variance (0 to 1)\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"color0", 
 			m_params.colors[0], 
-			"Particle color at 0% age", 
+			"Particle color at 0% age\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"color1", 
 			m_params.colors[1], 
-			"Particle color at 33% age", 
+			"Particle color at 33% age\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"color2", 
 			m_params.colors[2], 
-			"Particle color at 66% age", 
+			"Particle color at 66% age\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"color3", 
 			m_params.colors[3], 
-			"Particle color at 100% age", 
+			"Particle color at 100% age\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"textureIndex", 
 			m_params.textureIndex, 
-			"Particle atlas texture index (stored on GPU)", 
+			"Particle atlas texture index (stored on GPU)\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"velocityStretchRotation", 
 			m_params.velocityStretchRotation, 
-			"Particle maximum rotation speed or velocity stretch coefficient if negative (stored on GPU)", 
+			"Particle maximum rotation speed or velocity stretch coefficient if negative (stored on GPU)\n"
+			":jessica-group: Particle", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"drag", 
 			m_params.drag, 
-			"Drag force coefficient (stored on GPU)", 
+			"Drag force coefficient (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"turbulenceAmplitude", 
 			m_params.turbulenceAmplitude, 
-			"Turbulence force amplitude (stored on GPU)", 
+			"Turbulence force amplitude (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"turbulenceFrequency", 
 			m_params.turbulenceFrequency, 
-			"Turbulence force frequency (stored on GPU)", 
+			"Turbulence force frequency (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
         MAP_ATTRIBUTE( 
 			"gravity", 
 			m_params.gravity, 
-			"Gravity force along Y axis (stored on GPU)", 
+			"Gravity force along Y axis (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
     EXPOSURE_END()
 }

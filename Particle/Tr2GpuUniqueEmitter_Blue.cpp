@@ -18,12 +18,14 @@ const Be::ClassInfo* Tr2GpuUniqueEmitter::ExposeToBlue()
 		MAP_ATTRIBUTE( 
 			"attractorPosition", 
 			m_attractorPosition, 
-			"Attractor force center (stored on GPU)", 
+			"Attractor force center (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( 
 			"attractorStrength", 
 			m_params.attractorStrength, 
-			"Attractor force coefficient (stored on GPU)", 
+			"Attractor force coefficient (stored on GPU)\n"
+			":jessica-group: Dynamics", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 	EXPOSURE_CHAINTO( Tr2GpuSharedEmitter )
 }
