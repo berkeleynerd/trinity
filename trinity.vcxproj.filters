@@ -591,9 +591,6 @@
     <ClInclude Include="Eve\EveDustfieldConstraint.h">
       <Filter>Source Files\Eve</Filter>
     </ClInclude>
-    <ClInclude Include="Eve\EveEffectRoot.h">
-      <Filter>Source Files\Eve</Filter>
-    </ClInclude>
     <ClInclude Include="Eve\EveEffectRoot2.h">
       <Filter>Source Files\Eve</Filter>
     </ClInclude>
@@ -2316,16 +2313,10 @@
     <ClCompile Include="Eve\EveDustfieldConstraint_Blue.cpp">
       <Filter>Source Files\Eve</Filter>
     </ClCompile>
-    <ClCompile Include="Eve\EveEffectRoot.cpp">
-      <Filter>Source Files\Eve</Filter>
-    </ClCompile>
     <ClCompile Include="Eve\EveEffectRoot2.cpp">
       <Filter>Source Files\Eve</Filter>
     </ClCompile>
     <ClCompile Include="Eve\EveEffectRoot2_Blue.cpp">
-      <Filter>Source Files\Eve</Filter>
-    </ClCompile>
-    <ClCompile Include="Eve\EveEffectRoot_Blue.cpp">
       <Filter>Source Files\Eve</Filter>
     </ClCompile>
     <ClCompile Include="Eve\EveLensflare.cpp">
