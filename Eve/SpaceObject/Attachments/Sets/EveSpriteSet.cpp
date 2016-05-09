@@ -38,7 +38,7 @@ struct SpriteVertex
 	float m_falloff;
 	uint8_t m_index;
 	uint8_t m_boneIndex;
-	// cppcheck-suppress unusedStructMember 
+	// cppcheck-suppress unusedStructMember 
 	uint8_t m_padding[2];
 };
 

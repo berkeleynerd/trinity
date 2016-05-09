@@ -26,7 +26,7 @@ struct PlaneVertex
 	uint8_t index;
 	uint8_t boneIndex;
 	uint8_t maskMapAtlasIndex;
-	// cppcheck-suppress unusedStructMember 
+	// cppcheck-suppress unusedStructMember 
 	uint8_t padding;
 };
 
