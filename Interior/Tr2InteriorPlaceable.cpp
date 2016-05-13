@@ -944,6 +944,7 @@ void Tr2InteriorPlaceable::LoadPlaceableRes()
 
 	m_placeableRes = BlueCastPtr( p );
 	BindLowLevelShaders();
+	CreateMirrors();
 }
 
 bool Tr2InteriorPlaceable::IsStatic( void ) const
