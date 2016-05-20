@@ -161,7 +161,10 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_planetCameraScale( 1e6 ),
 	m_taaPixelOffsetScale( 0.5f ),
 	m_taaSamplingIndex( 0 ),
-	m_taaPattern( TAA_NONE )
+	m_taaPattern( TAA_NONE ),
+	m_sunColor( 1.0f, 1.0f, 1.0f, 1.0f ),
+	m_sunColorWithDynamicLights( 1.0f, 1.0f, 1.0f, 1.0f ),
+	m_useSunColorWithDynamicLights( false )
 {
 	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
 	m_primaryBatches[TRIBATCHTYPE_OPAQUE] = CCP_NEW( "EveSpaceScene/m_batches" ) TriRenderBatchAccumulator<EffectKeyGenerator>( allocator );
@@ -1907,6 +1910,8 @@ void EveSpaceScene::PopulatePerFrameVSData( PerFrameVSData &data )
 
 	// sun data
 	data.Sun = m_sunData;
+	data.Sun.DiffuseColor = m_useSunColorWithDynamicLights && g_eveSpaceSceneDynamicLighting ? m_sunColorWithDynamicLights : m_sunColor;
+
 	// make sure whatever direction we get in here, it is normalized! And inverted: Shaders work with direction to light...
 	D3DXVec3Normalize( &data.Sun.DirWorld, &data.Sun.DirWorld );
 	data.Sun.DirWorld = -data.Sun.DirWorld;
@@ -1951,6 +1956,7 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data )
 	D3DXMatrixTranspose( &data.EnvMapRotationMat, &data.EnvMapRotationMat );
 
 	data.Sun = m_sunData;
+	data.Sun.DiffuseColor = m_useSunColorWithDynamicLights && g_eveSpaceSceneDynamicLighting ? m_sunColorWithDynamicLights : m_sunColor;
 	// make sure whatever direction we get in here, it is normalized! And inverted: Shaders work with direction to light...
 	D3DXVec3Normalize( &data.Sun.DirWorld, &data.Sun.DirWorld );
 	data.Sun.DirWorld = -data.Sun.DirWorld;

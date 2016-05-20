@@ -472,7 +472,23 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			Be::READWRITE
 		)
 
-		MAP_ATTRIBUTE( "sunDiffuseColor", m_sunData.DiffuseColor, ":jessica-group: Lighting", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"sunDiffuseColor", m_sunColor, 
+			"Sun color when dynamic lighting is turned off or when useSunDiffuseColorWithDynamicLights is False\n"
+			":jessica-group: Lighting", 
+			Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"sunDiffuseColorWithDynamicLights", 
+			m_sunColorWithDynamicLights, 
+			"Sun color when dynamic lighting is turned on and useSunDiffuseColorWithDynamicLights is True\n"
+			":jessica-group: Lighting", 
+			Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"useSunDiffuseColorWithDynamicLights", 
+			m_useSunColorWithDynamicLights, 
+			"Use sunDiffuseColorWithDynamicLights when dynamic lighting is turned on\n"
+			":jessica-group: Lighting", 
+			Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "sunDirection", m_sunData.DirWorld, ":jessica-group: Lighting", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "ambientColor", m_ambientColor, ":jessica-group: Lighting", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "nebulaIntensity", m_nebulaIntensity, ":jessica-group: Lighting", Be::READWRITE | Be::PERSIST )

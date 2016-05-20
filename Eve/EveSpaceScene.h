@@ -400,6 +400,9 @@ protected:
 	Tr2RenderTargetPtr m_velocityMap;
 
 	SunData m_sunData;
+	Color m_sunColor;
+	Color m_sunColorWithDynamicLights;
+	bool m_useSunColorWithDynamicLights;
 
 	Color m_ambientColor;
 	Color m_fogColor;
