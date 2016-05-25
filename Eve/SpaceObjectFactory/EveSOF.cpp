@@ -21,6 +21,8 @@
 #include "Eve/SpaceObject/Attachments/EveBoosterSet2.h"
 #include "Eve/SpaceObject/Attachments/EveSpaceObjectDecal.h"
 #include "Eve/SpaceObject/Children/EveChildMesh.h"
+#include "Eve/SpaceObject/Children/EveChildContainer.h"
+#include "Eve/SpaceObject/Children/EveChildParticleSystem.h"
 #include "Eve/SpaceObject/Utils/EveLocator2.h"
 #include "Tr2InstancedMesh.h"
 #include "Tr2MeshLod.h"
@@ -838,6 +840,36 @@ void RecursiveBindParticleEmitters( EveTransformPtr transform, TriCurveSetPtr cu
 	}
 }
 
+void RecursiveBindParticleEmitters( IEveSpaceObjectChild* child, TriCurveSetPtr curveSet, Tr2ScalarCurvePtr curve )
+{
+	EveChildContainerPtr container;
+	EveChildParticleSystemPtr psys;
+
+	if( container = BlueCastPtr( child ) )
+	{
+		for( auto childIt = container->m_objects.begin(); childIt != container->m_objects.end(); ++childIt )
+		{
+			RecursiveBindParticleEmitters( *childIt, curveSet, curve );
+		}
+	}
+	else if( psys = BlueCastPtr( child ) )
+	{
+		for( auto emitterIt = psys->m_particleEmitters.begin(); emitterIt != psys->m_particleEmitters.end(); ++emitterIt )
+		{
+			Tr2DynamicEmitterPtr dynamicEmitter;
+			if( dynamicEmitter = BlueCastPtr( *emitterIt ) )
+			{
+				TriValueBindingPtr binding;
+				binding.CreateInstance();
+				binding->SetSource( "currentValue", curve->GetRawRoot() );
+				binding->SetDestination( "rate", dynamicEmitter->GetRawRoot() );
+				binding->Initialize();
+				curveSet->AddBinding( (ITr2ValueBindingPtr)binding );
+			}
+		}
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Add Children and Animations to the ship
@@ -848,6 +880,7 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	std::map<int, std::vector<EveTransformPtr>> childrenToBindTo;
+	std::map<int, std::vector<IEveSpaceObjectChildPtr>> soChildrenToBindTo;
 
 	const std::vector<EveSOFDataMgr::HullChild>& hullChildren = dna->GetHullChildren();
 	for( auto childIt = hullChildren.begin(); childIt != hullChildren.end(); ++childIt )
@@ -880,6 +913,10 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 		{
 			effectChild->Setup( &childIt->scaling, &childIt->rotation, &childIt->translation, childIt->lowestLodVisible );
 			obj->AddToEffectChildrenList( effectChild );
+			if( childIt->id != -1 )
+			{
+				soChildrenToBindTo[childIt->id].push_back( effectChild );
+			}
 		}
 		else
 		{
@@ -909,6 +946,11 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 			for( auto transformIt = transformVector.begin(); transformIt != transformVector.end(); ++transformIt )
 			{
 				RecursiveBindParticleEmitters( (*transformIt), curveSet, scalarCurve );
+			}
+			std::vector<IEveSpaceObjectChildPtr> childVector = soChildrenToBindTo[animIt->id];
+			for( auto childIt = childVector.begin(); childIt != childVector.end(); ++childIt )
+			{
+				RecursiveBindParticleEmitters( (*childIt), curveSet, scalarCurve );
 			}
 
 			curveSet->AddCurve( (ITriFunctionPtr)scalarCurve );

@@ -61,7 +61,8 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
 	virtual bool Initialize();
-
+	
+	PITr2GenericEmitterVector m_particleEmitters;
 private:
 	BlueSharedString m_name;
 	bool m_display;
@@ -70,7 +71,6 @@ private:
 
 	Tr2InstancedMeshPtr m_mesh;
 	PTr2ParticleSystemVector m_particleSystems;
-	PITr2GenericEmitterVector m_particleEmitters;
 
 	// Lodding
 	bool m_useDynamicLod;
