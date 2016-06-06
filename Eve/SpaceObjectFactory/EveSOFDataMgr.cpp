@@ -1017,6 +1017,11 @@ void EveSOFDataMgr::GenerateMaterialData( MaterialData& rd, EveSOFDataMaterialPt
 // --------------------------------------------------------------------------------
 bool EveSOFDataMgr::LoadGenericData( EveSOFDataPtr srcData )
 {
+	if( !srcData->m_generic )
+	{
+		return false;
+	}
+
 	GenerateGenericData( m_genericData, srcData->m_generic );
 
 	return true;
