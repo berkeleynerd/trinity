@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 
-#if( TRINITY_PLATFORM==TRINITY_OPENGLES2 )
+#if( TRINITY_PLATFORM==TRINITY_OPENGLES2 || TRINITY_PLATFORM==TRINITY_OPENGL4 )
 
 #include "TriDevice.h"
 #include "UI/App.h"

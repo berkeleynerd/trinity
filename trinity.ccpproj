@@ -183,6 +183,11 @@ BaseConfigurations:
       PreprocessorDefinitions:
       - D3DTARGET=9
 
+  GL4:
+    # These are settings that apply to all variants of Trinity that use OpenGL 4
+    Imports:
+    - ../TrinityAL/uses_TrinityALGL4.yaml
+
   STUB:
     # These are settings that apply to all variants of Trinity that use the stub
     Imports:
@@ -266,6 +271,17 @@ Configurations:
     - ../blue/uses_blue.yaml
     General:
       TargetName: _trinity_gles2_dev
+
+  DevGL4|Win32:
+    BaseConfigurations:
+    - Windows    
+    - DevBase
+    - ReleaseRuntime
+    - GL4
+    Imports:
+    - ../blue/uses_blue.yaml
+    General:
+      TargetName: _trinity_gl4_dev
 
   DevStub|Win32,x64:
     BaseConfigurations:
@@ -368,17 +384,6 @@ Configurations:
     General:
       TargetName: _trinity_dx11_internal
 
-  ReleaseGLES2_26|Win32,x64:
-    BaseConfigurations:
-    - Windows    
-    - ReleaseBase
-    - ReleaseRuntime
-    - GLES2
-    Imports:
-    - ../blue/uses_blue_26.yaml
-    General:
-      TargetName: _trinity_gles2_internal
-
   ReleaseGLES2_27|Win32,x64:
     BaseConfigurations:
     - Windows    
@@ -468,6 +473,36 @@ Configurations:
       - IME_ENABLED=0
       - TBB_ENABLED=1
 
+  ReleaseGL4_27|Win32,x64:
+    BaseConfigurations:
+    - Windows    
+    - ReleaseBase
+    - ReleaseRuntime
+    - GL4
+    Imports:
+    - ../blue/uses_blue_27.yaml
+    General:
+      TargetName: _trinity_gl4_internal
+
+  ReleaseGL4|Mac64:
+    BaseConfigurations:
+    - ReleaseBase
+    - GL4
+    Imports:
+    - ../blue/uses_blue.yaml
+    - ../../../../../../sdk/tbb/tbb40_233oss/tbb40_233oss.yaml
+    - ../../../../../../sdk/Granny/2.9.24.0/granny_2.9.24.0.yaml
+    General:
+      TargetName: _trinity_gl4_internal
+    ClCompile:
+      PreprocessorDefinitions:
+      - PORTING_TO_LINUX
+      - PORTING_MP
+      - _MACOSX
+      - EVALUATION_SDKS_ENABLED=0
+      - IME_ENABLED=0
+      - TBB_ENABLED=1
+        
   DebugGLES2_Lua|Tegra-Android:
     BaseConfigurations:
     - DebugBase

@@ -88,6 +88,13 @@ namespace
 	unsigned int s_perObjectPSStartRegister = 4;
 	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
+#elif( TRINITY_PLATFORM==TRINITY_OPENGL4 )
+	unsigned int s_perFrameVSStartRegister  = 1;
+	unsigned int s_perFramePSStartRegister  = 2;
+	unsigned int s_perObjectVSStartRegister = 3;
+	unsigned int s_perObjectPSStartRegister = 4;
+	unsigned int s_perObjectVSFFEStartRegister = 5;
+	unsigned int s_perObjectVSGUIStartRegister = 6;
 #else
 #	error "Missing platform"
 #endif
