@@ -73,6 +73,7 @@ const Be::ClassInfo* Tr2PrimitiveScene::ExposeToBlue()
 		MAP_INTERFACE( ITr2Scene )
 
 		MAP_ATTRIBUTE( "primitives", m_primitives, "A list of primitive sets to render for this scene", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "textLabels", m_textLabels, "A list of text labels to render for this scene", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "manipulator", m_manipulator, "The active manipulator working for the scene", Be::READWRITE )
 		MAP_ATTRIBUTE( "excludedPickingPrimitives", m_excludedPickingPrimitives, "A list of primitive sets to ignore when picking", Be::READWRITE | Be::PERSIST )
 

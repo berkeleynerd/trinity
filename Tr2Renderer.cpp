@@ -900,6 +900,36 @@ void Tr2Renderer::Printf( TriDebugFont font, const Vector3& pos, uint32_t color,
 	}
 }
 
+void Tr2Renderer::Printf( TriDebugFont font, int fontStyle, const Vector3& pos, Vector4 color, const char* msg, ... )
+{
+	if( !s_debugTextRenderer )
+	{
+		return;
+	}
+
+	va_list args;
+    va_start( args, msg );
+
+    Rect rect;
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+	Tr2Viewport vp;
+	renderContext.GetViewport( vp );
+
+	Vector3 screenPos = ProjectWorldToScreen( pos, vp );
+
+	if( !( (screenPos.z > 0.0f) && (screenPos.z < 1.0f) ) )
+	{
+		return;
+	}
+
+	rect.top = (int32_t)screenPos.y - 128;
+	rect.left = (int32_t)screenPos.x - 128;
+	rect.bottom = rect.top + 256;
+	rect.right = rect.left + 256;
+
+	s_debugTextRenderer->Vprintf( font, rect, fontStyle, color, msg, args );
+}
+
 bool Tr2Renderer::DrawTexture( ITr2ShaderMaterial* effect, Tr2TextureAL& texture )
 {
 	if( s_blitter )

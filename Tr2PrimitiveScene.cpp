@@ -5,6 +5,7 @@
 #include "TriView.h"
 #include "Shader/Tr2Effect.h"
 #include "Tr2PrimitiveSet.h"
+#include "Tr2PrimitiveText.h"
 #include "TriFrustum.h"
 #include "Tr2ManipulationTool.h"
 #include "TriViewport.h"
@@ -21,6 +22,7 @@ struct PerFrameVSData
 
 Tr2PrimitiveScene::Tr2PrimitiveScene( IRoot* lockobj ) :
 	PARENTLOCK( m_primitives ),
+	PARENTLOCK( m_textLabels ),
 	PARENTLOCK( m_excludedPickingPrimitives ),
 	m_pickBuffer( NULL, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, 1 ),
 	m_pickEffect()
@@ -99,6 +101,12 @@ void Tr2PrimitiveScene::Render( Tr2RenderContext& renderContext )
 	m_allocator->Clear();
 
 	renderContext.m_esm.EndManagedRendering();
+
+	for( auto it = m_textLabels.begin(); it != m_textLabels.end(); it++ )
+	{
+		(*it)->Render();
+	}
+	Tr2Renderer::RenderDebugInfo( renderContext );
 }
 
 // --------------------------------------------------------------------------------------

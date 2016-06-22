@@ -215,6 +215,7 @@ public:
 	static void Printf( int x, int y, uint32_t color, const char* msg, ... );
 	static void Printf( TriDebugFont font, const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
     static void Printf( TriDebugFont font, const Vector3& pos, uint32_t color, const char* msg, ... );
+    static void Printf( TriDebugFont font, int fontStyle, const Vector3& pos, Vector4 color, const char* msg, ... );
 
 	// Text output for debugging purposes.
 	// Text is rendered immediately so these functions can only be called within

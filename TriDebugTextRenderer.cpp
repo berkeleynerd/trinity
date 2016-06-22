@@ -343,7 +343,7 @@ void TriDebugTextRenderer::DrawText( TriDebugFont font, const char* string, cons
 	}
 	else if( format & TRI_DFS_CENTER )
 	{
-		x = ( rect.right - rect.left - size.right ) / 2; 
+		x = ( rect.right + rect.left - size.right ) / 2; 
 	}
 	else
 	{
@@ -355,7 +355,7 @@ void TriDebugTextRenderer::DrawText( TriDebugFont font, const char* string, cons
 	}
 	else if( format & TRI_DFS_VCENTER )
 	{
-		y = ( rect.bottom - rect.top - size.bottom ) / 2; 
+		y = ( rect.bottom + rect.top - size.bottom ) / 2; 
 	}
 	else
 	{

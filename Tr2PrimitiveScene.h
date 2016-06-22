@@ -20,6 +20,8 @@ BLUE_DECLARE( Tr2Effect );
 BLUE_DECLARE( Tr2PrimitiveSet );
 BLUE_DECLARE_VECTOR( Tr2PrimitiveSet );
 BLUE_DECLARE( Tr2ManipulationTool );
+BLUE_DECLARE( Tr2PrimitiveText );
+BLUE_DECLARE_VECTOR( Tr2PrimitiveText );
 
 // -------------------------------------------------------------
 // Description:
@@ -94,6 +96,8 @@ private:
 	PTr2PrimitiveSetVector m_excludedPickingPrimitives;
 	std::vector<ITr2Renderable*> m_visibleRenderObjects;
 	std::vector<ITr2Renderable*> m_pickingObjects;
+
+	PTr2PrimitiveTextVector m_textLabels;
 
 	Tr2ManipulationToolPtr m_manipulator;
 	// Pick buffer
