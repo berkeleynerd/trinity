@@ -726,6 +726,32 @@ const Be::ClassInfo* EveSOFDataGenericDamage::ExposeToBlue()
 }
 
 
+BLUE_DEFINE( EveSOFDataGenericHullDamage );
+const Be::ClassInfo* EveSOFDataGenericHullDamage::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataGenericHullDamage, "" )
+		MAP_INTERFACE( EveSOFDataGenericHullDamage )
+
+		MAP_ATTRIBUTE( "hullParticleRate", m_hullParticleRate, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleAngle", m_hullParticleAngle, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleColorMidpoint", m_hullParticleColorMidpoint, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleInnerAngle", m_hullParticleInnerAngle, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleMinMaxSpeed", m_hullParticleMinMaxSpeed, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleMinMaxLifeTime", m_hullParticleMinMaxLifeTime, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleSizes", m_hullParticleSizes, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleColor0", m_hullParticleColor0, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleColor1", m_hullParticleColor1, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleColor2", m_hullParticleColor2, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleColor3", m_hullParticleColor3, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleTextureIndex", m_hullParticleTextureIndex, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleVelocityStretchRotation", m_hullParticleVelocityStretchRotation, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleDrag", m_hullParticleDrag, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleTurbulenceAmplitude", m_hullParticleTurbulenceAmplitude, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullParticleTurbulenceFrequency", m_hullParticleTurbulenceFrequency, "hull damage impact particlesystem data", Be::READWRITE | Be::PERSIST )
+		EXPOSURE_END()
+}
+
+
 BLUE_DEFINE( EveSOFDataGenericSwarm );
 const Be::ClassInfo* EveSOFDataGenericSwarm::ExposeToBlue()
 {
@@ -790,6 +816,7 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "areaShaders", m_areaShaders, "List of all the area shaders and their generic data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "decalShaders", m_decalShaders, "List of all the decal shaders and their generic data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "damage", m_damage, "Global visual damage data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hullDamage", m_hullDamage, "Global visual hull damage data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "swarm", m_swarm, "Global swarm behavior preset data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hullAreas", m_hullAreas, "Global hull area shader data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "variants", m_variants, "All the hull  variants", Be::READWRITE | Be::PERSIST )

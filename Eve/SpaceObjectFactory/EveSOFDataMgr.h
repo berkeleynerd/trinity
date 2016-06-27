@@ -372,6 +372,24 @@ public:
 		std::string shieldGeometryResFilePath;
 	};
 
+	struct GenericHullDamageData
+	{
+		// hull damage particlesystem data
+		float hullParticleRate;
+		float hullParticleAngle;
+		float hullParticleInnerAngle;
+		float hullParticleColorMidpoint;
+		Vector2 hullParticleMinMaxSpeed;
+		Vector2 hullParticleMinMaxLifeTime;
+		Vector4 hullParticleSizes;
+		Color hullParticleColors[4];
+		uint32_t hullParticleTextureIndex;
+		float hullParticleVelocityStretchRotation;
+		float hullParticleDrag;
+		float hullParticleTurbulenceAmplitude;
+		uint32_t hullParticleTurbulenceFrequency;
+	};
+
 	struct GenericShaderData
 	{
 		// complete list of parameters
@@ -395,6 +413,7 @@ public:
 		std::map<BlueSharedString, GenericShaderData> decalShaderData;
 		// damage
 		GenericDamageData damage;
+		GenericHullDamageData hullDamage;
 		// hull area parameter overloads
 		std::map<BlueSharedString, FactionAreaData> hullAreaParameters;
 		// variants

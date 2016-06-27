@@ -1191,6 +1191,27 @@ void EveSOFDataMgr::GenerateGenericData( GenericData& gd, EveSOFDataGenericPtr s
 		gd.damage.shieldGeometryResFilePath = srcData->m_damage->m_shieldGeometryResFilePath;
 	}
 
+	// damage
+	if( srcData->m_hullDamage )
+	{
+		gd.hullDamage.hullParticleRate = srcData->m_hullDamage->m_hullParticleRate;
+		gd.hullDamage.hullParticleAngle = srcData->m_hullDamage->m_hullParticleAngle;
+		gd.hullDamage.hullParticleInnerAngle = srcData->m_hullDamage->m_hullParticleInnerAngle;
+		gd.hullDamage.hullParticleMinMaxSpeed = srcData->m_hullDamage->m_hullParticleMinMaxSpeed;
+		gd.hullDamage.hullParticleMinMaxLifeTime = srcData->m_hullDamage->m_hullParticleMinMaxLifeTime;
+		gd.hullDamage.hullParticleSizes = srcData->m_hullDamage->m_hullParticleSizes;
+		gd.hullDamage.hullParticleColors[0] = srcData->m_hullDamage->m_hullParticleColor0;
+		gd.hullDamage.hullParticleColors[1] = srcData->m_hullDamage->m_hullParticleColor1;
+		gd.hullDamage.hullParticleColors[2] = srcData->m_hullDamage->m_hullParticleColor2;
+		gd.hullDamage.hullParticleColors[3] = srcData->m_hullDamage->m_hullParticleColor3;
+		gd.hullDamage.hullParticleTextureIndex = srcData->m_hullDamage->m_hullParticleTextureIndex;
+		gd.hullDamage.hullParticleVelocityStretchRotation = srcData->m_hullDamage->m_hullParticleVelocityStretchRotation;
+		gd.hullDamage.hullParticleDrag = srcData->m_hullDamage->m_hullParticleDrag;
+		gd.hullDamage.hullParticleTurbulenceAmplitude = srcData->m_hullDamage->m_hullParticleTurbulenceAmplitude;
+		gd.hullDamage.hullParticleTurbulenceFrequency = srcData->m_hullDamage->m_hullParticleTurbulenceFrequency;
+		gd.hullDamage.hullParticleColorMidpoint = srcData->m_hullDamage->m_hullParticleColorMidpoint ;
+	}
+
 	// swarm
 	if( srcData->m_swarm )
 	{

@@ -382,6 +382,16 @@ const EveSOFDataMgr::GenericDamageData* EveSOFDNA::GetGenericDamageData() const
 	return &m_genericData->damage;
 }
 
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Return the generic hull damage data, impacts are mostly the same for everything
+// --------------------------------------------------------------------------------
+const EveSOFDataMgr::GenericHullDamageData* EveSOFDNA::GetGenericHullDamageData() const
+{
+	return &m_genericData->hullDamage;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Return the generic damage data, impacts are mostly the same for everything

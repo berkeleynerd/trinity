@@ -92,7 +92,7 @@ public:
 	Tr2EffectPtr GetArmorDamageShader( TriBatchType batchType ) const;
 
 	// setup
-	void Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshLodPtr shieldImpactMesh, bool shieldIsEllipsoid );
+	void Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2GpuUniqueEmitterPtr hullImpactEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshLodPtr shieldImpactMesh, bool shieldIsEllipsoid );
 
 	// getters
 	int32_t GetDataTextureOffset() const;
@@ -164,6 +164,7 @@ private:
 	// hull damage
 	float m_hullDamageFactor;
 	TriPerlinCurvePtr m_hullDamageFlickerCurve;
+	Tr2GpuUniqueEmitterPtr m_hullImpactEmitter;
 
 	// extenders
 	Tr2ScalarFaderPtr m_shieldHardening;

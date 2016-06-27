@@ -856,6 +856,36 @@ public:
 TYPEDEF_BLUECLASS( EveSOFDataGenericDamage );
 BLUE_DECLARE_VECTOR( EveSOFDataGenericDamage );
 
+
+BLUE_CLASS( EveSOFDataGenericHullDamage ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataGenericHullDamage( IRoot* lockobj = NULL );
+	~EveSOFDataGenericHullDamage() {}
+	
+	// hull debris particles
+	float m_hullParticleRate;
+	float m_hullParticleInnerAngle;
+	float m_hullParticleAngle;
+	float m_hullParticleColorMidpoint;
+	Vector2 m_hullParticleMinMaxSpeed;
+	Vector2 m_hullParticleMinMaxLifeTime;
+	Vector4 m_hullParticleSizes;
+	Color m_hullParticleColor0;
+	Color m_hullParticleColor1;
+	Color m_hullParticleColor2;
+	Color m_hullParticleColor3;
+	uint32_t m_hullParticleTextureIndex;
+	float m_hullParticleVelocityStretchRotation;
+	float m_hullParticleDrag;
+	float m_hullParticleTurbulenceAmplitude;
+	uint32_t m_hullParticleTurbulenceFrequency;
+};
+TYPEDEF_BLUECLASS( EveSOFDataGenericHullDamage );
+BLUE_DECLARE_VECTOR( EveSOFDataGenericHullDamage );
+
 BLUE_CLASS( EveSOFDataGenericShader ) :
 	public IRoot
 {
@@ -912,6 +942,7 @@ public:
 
 	// damage data
 	EveSOFDataGenericDamagePtr m_damage;
+	EveSOFDataGenericHullDamagePtr m_hullDamage;
 	
 	// swarm data
 	EveSOFDataGenericSwarmPtr m_swarm;

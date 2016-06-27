@@ -55,6 +55,7 @@ public:
 	const EveSOFDataMgr::GenericShaderData* GetGenericAreaShaderData( const BlueSharedString& shaderName ) const;
 	const EveSOFDataMgr::GenericShaderData* GetGenericDecalShaderData( const BlueSharedString& shaderName ) const;
 	const EveSOFDataMgr::GenericDamageData* GetGenericDamageData() const;
+	const EveSOFDataMgr::GenericHullDamageData* GetGenericHullDamageData() const;
 	const EveSwarm::BehaviorProperties* GetGenericSwarmProperties() const;
 
 	// get racial data

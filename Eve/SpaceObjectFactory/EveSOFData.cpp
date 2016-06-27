@@ -85,6 +85,23 @@ EveSOFDataGenericDamage::EveSOFDataGenericDamage( IRoot* lockobj ) :
 	m_armorParticleColorMidPoint( 0.5f )
 {}
 
+EveSOFDataGenericHullDamage::EveSOFDataGenericHullDamage( IRoot* lockobj ) :
+	m_hullParticleRate( 0.f ),
+	m_hullParticleInnerAngle( 0.f ),
+	m_hullParticleAngle( 0.f ),
+	m_hullParticleMinMaxSpeed( 0.f, 0.f ),
+	m_hullParticleMinMaxLifeTime( 0.f, 0.f ),
+	m_hullParticleSizes( 0.f, 0.f, 0.f, 0.f ),
+	m_hullParticleColor0( 0.f, 0.f, 0.f, 0.f ),
+	m_hullParticleColor1( 0.f, 0.f, 0.f, 0.f ),
+	m_hullParticleColor2( 0.f, 0.f, 0.f, 0.f ),
+	m_hullParticleColor3( 0.f, 0.f, 0.f, 0.f ),
+	m_hullParticleTextureIndex( 0 ),
+	m_hullParticleVelocityStretchRotation( 0.f ),
+	m_hullParticleDrag( 0.f ),
+	m_hullParticleTurbulenceAmplitude( 0.f ),
+	m_hullParticleTurbulenceFrequency( 1 )
+{}
 
 EveSOFDataGeneric::EveSOFDataGeneric( IRoot* lockobj ) :
 	PARENTLOCK( m_materialPrefixes ),

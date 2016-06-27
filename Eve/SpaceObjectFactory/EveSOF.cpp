@@ -1115,6 +1115,7 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 	if( impactType != EveSOFDataHull::IMPACTEFFECT_NONE )
 	{
 		const EveSOFDataMgr::GenericDamageData* genericDamageData = dna->GetGenericDamageData();
+		const EveSOFDataMgr::GenericHullDamageData* genericHullDamageData = dna->GetGenericHullDamageData();
 		const EveSOFDataMgr::RaceDamageData* raceDamageData = dna->GetRaceDamageData();
 		if( genericDamageData && raceDamageData )
 		{
@@ -1213,6 +1214,34 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 			impactEmitter.CreateInstance();
 			impactEmitter->Setup( genericDamageData->armorParticleRate, &psEmitter, &psParams );
 
+			Tr2GpuUniqueEmitterPtr hullImpactEmitter = nullptr;
+			if( genericHullDamageData )
+			{
+				// hull damage impact via particlesystem
+				Tr2GpuParticleSystem::Emitter hullDamagePsEmitter;
+				memset( &hullDamagePsEmitter, 0, sizeof( Tr2GpuParticleSystem::Emitter ) );
+				hullDamagePsEmitter.angle = genericHullDamageData->hullParticleAngle;
+				hullDamagePsEmitter.innerAngle = genericHullDamageData->hullParticleInnerAngle;
+				hullDamagePsEmitter.minSpeed = genericHullDamageData->hullParticleMinMaxSpeed[0];
+				hullDamagePsEmitter.maxSpeed = genericHullDamageData->hullParticleMinMaxSpeed[1];
+				Tr2GpuParticleSystem::EmitterParams hullDamagePsParams;
+				memset( &hullDamagePsParams, 0, sizeof( Tr2GpuParticleSystem::EmitterParams ) );
+				hullDamagePsParams.minLifeTime = genericHullDamageData->hullParticleMinMaxLifeTime[0];
+				hullDamagePsParams.maxLifeTime = genericHullDamageData->hullParticleMinMaxLifeTime[1];
+				hullDamagePsParams.sizes = Vector3( genericHullDamageData->hullParticleSizes[0], genericHullDamageData->hullParticleSizes[1], genericHullDamageData->hullParticleSizes[2] );
+				hullDamagePsParams.sizeVariance = genericHullDamageData->hullParticleSizes[3];
+				memcpy( hullDamagePsParams.colors, genericHullDamageData->hullParticleColors, 4 * sizeof( Color ) );
+				hullDamagePsParams.textureIndex = genericHullDamageData->hullParticleTextureIndex;
+				hullDamagePsParams.velocityStretchRotation = genericHullDamageData->hullParticleVelocityStretchRotation;
+				hullDamagePsParams.drag = genericHullDamageData->hullParticleDrag;
+				hullDamagePsParams.turbulenceAmplitude = genericHullDamageData->hullParticleTurbulenceAmplitude;
+				hullDamagePsParams.turbulenceFrequency = genericHullDamageData->hullParticleTurbulenceFrequency;
+				hullDamagePsParams.colorMidpoint = genericHullDamageData->hullParticleColorMidpoint;
+				
+				hullImpactEmitter.CreateInstance();
+				hullImpactEmitter->Setup( genericHullDamageData->hullParticleRate, &hullDamagePsEmitter, &hullDamagePsParams );
+			}
+
 			// hull damage flicker via perlin curve
 			TriPerlinCurvePtr flickerCurve;
 			flickerCurve.CreateInstance();
@@ -1224,7 +1253,7 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 			flickerCurve->mSpeed = genericDamageData->flickerPerlinSpeed;
 
 			// setup the overlay effect and add it the object
-			impactOverlay->Set( flickerCurve, impactEmitter, armorDamageShader, shieldMesh, impactType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID );
+			impactOverlay->Set( flickerCurve, impactEmitter, hullImpactEmitter, armorDamageShader, shieldMesh, impactType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID );
 			obj->SetImpactOverlay( impactOverlay );
 		}
 	}

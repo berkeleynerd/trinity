@@ -69,11 +69,12 @@ EveImpactOverlay::~EveImpactOverlay()
 // Description:
 //   Setup this overlay with data
 // --------------------------------------------------------------------------------
-void EveImpactOverlay::Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshLodPtr shieldImpactMesh, bool shieldIsEllipsoid )
+void EveImpactOverlay::Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2GpuUniqueEmitterPtr hullImpactEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshLodPtr shieldImpactMesh, bool shieldIsEllipsoid )
 {
 	m_shieldIsEllipsoid = shieldIsEllipsoid;
 	m_hullDamageFlickerCurve = hullDamageFlickerCurve;
 	m_armorImpactEmitter = armorDamageEmitter;
+	m_hullImpactEmitter = hullImpactEmitter;
 	m_armorDamageShader = armorDamageShader;
 	m_mesh = shieldImpactMesh;
 }
@@ -122,7 +123,7 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 				for( auto aidit = m_armorImpactData.begin(); aidit != m_armorImpactData.end(); ++aidit )
 				{
 					if( aidit->second.requestSpawnDebris )
-					{
+					{						
 						// where?
 						Vector3 impactPosWS( 0.f, 0.f, 0.f );
 						parent->GetDamageLocatorPosition( &impactPosWS, aidit->second.damageLocatorIndex, true );
@@ -134,6 +135,7 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 						// velocity?
 						Vector3 parentVelocityWS;
 						parent->GetWorldVelocity( parentVelocityWS );
+
 						// scaling?
 						float scale = aidit->second.size * m_armorImpactParentSize / ( IMPACT_ARMOR_SIZE_MAX / IMPACT_ARMOR_SIZE_FACTOR );
 						// loding for emit rate?
@@ -143,6 +145,15 @@ void EveImpactOverlay::UpdateSyncronous( EveUpdateContext& updateContext, EveSpa
 						// do the spawn here once!
 						m_armorImpactEmitter->SpawnOnce( args, parentVelocityWS, scale, rateModifier );
 						aidit->second.requestSpawnDebris = false;
+
+						if( m_hullImpactEmitter && m_configuration == IMPACT_HULL )
+						{
+							m_hullImpactEmitter->SetPosition( &impactPosWS );
+							m_hullImpactEmitter->SetDirection( &impactDirWS );
+
+							// do the spawn here once!
+							m_hullImpactEmitter->SpawnOnce( args, parentVelocityWS, scale, rateModifier );
+						}
 					}
 				}
 			}
