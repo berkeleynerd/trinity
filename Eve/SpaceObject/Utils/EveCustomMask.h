@@ -28,7 +28,7 @@ public:
 	// access
 	void GetDebugDrawMatrix( Matrix* matrix, float objectRadius ) const;
 	void FillPerObjectDataPS( EveSpaceObjectPSData* psData ) const;
-
+	void Setup( const Vector3& position, const Vector3& scaling, const Quaternion& rotation );
 
 private:
 	/////////////////////////////////////////////////////////////////////////////////////

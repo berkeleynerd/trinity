@@ -1068,6 +1068,18 @@ void EveSOFDataMgr::GeneratePatternData( PatternData& pd, EveSOFDataPatternPtr s
 		pd.patternTextures[tex->m_name] = td;
 	}
 
+	// pattern projections
+	for( auto ppit = srcData->m_projections.begin(); ppit != srcData->m_projections.end(); ++ppit )
+	{
+		EveSOFDataPatternPerHullPtr pattern = ( *ppit );
+
+		PatternProjectionData ppd;
+		ppd.position = pattern->m_position;
+		ppd.scaling = pattern->m_scaling;
+		ppd.rotation = pattern->m_rotation;
+		pd.projectionData[pattern->m_name] = ppd;
+	}
+
 	// area parameters
 	pd.areaParameters.clear();
 	for( auto hait = srcData->m_areas.begin(); hait != srcData->m_areas.end(); ++hait )

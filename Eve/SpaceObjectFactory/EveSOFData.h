@@ -774,6 +774,28 @@ BLUE_DECLARE_VECTOR( EveSOFDataMaterial );
 // --------------------------------------------------------------------------------
 // All data storage classes for per pattern data
 // --------------------------------------------------------------------------------
+BLUE_CLASS( EveSOFDataPatternPerHull ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataPatternPerHull( IRoot* lockobj = NULL );
+	~EveSOFDataPatternPerHull() {}
+
+	// exact hull name
+	BlueSharedString m_name;
+
+	// per-hull positional data
+	Vector3 m_position;
+	Vector3 m_scaling;
+	Quaternion m_rotation;
+};
+TYPEDEF_BLUECLASS( EveSOFDataPatternPerHull );
+BLUE_DECLARE_VECTOR( EveSOFDataPatternPerHull );
+
+
+
+
 
 BLUE_CLASS( EveSOFDataPattern ) :
 	public IRoot
@@ -788,6 +810,9 @@ public:
 
 	// pattern textures res path
 	PEveSOFDataTextureVector m_patternTextures;
+
+	// pattern placement per hull
+	PEveSOFDataPatternPerHullVector m_projections;
 
 	// area parameters
 	PEveSOFDataFactionHullAreaVector m_areas;

@@ -195,7 +195,7 @@ EveSOFDataHull::EveSOFDataHull( IRoot* lockobj ) :
 	m_shapeEllipsoidRadius( -1.f, -1.f, -1.f ),
 	m_isSkinned( false ),
 	m_impactEffectType( IMPACTEFFECT_NONE ),
-	m_audioPosition( Vector3( 0.f, 0.f, 0.f ) )
+	m_audioPosition( 0.f, 0.f, 0.f )
 {}
 
 
@@ -209,7 +209,15 @@ EveSOFDataMaterial::EveSOFDataMaterial( IRoot* lockobj ) :
 {}
 
 
+EveSOFDataPatternPerHull::EveSOFDataPatternPerHull( IRoot* lockobj ) :
+	m_position( 0.f, 0.f, 0.f ),
+	m_scaling( 1.f, 1.f, 1.f ),
+	m_rotation( 0.f, 0.f, 0.f, 1.f )
+{}
+
+
 EveSOFDataPattern::EveSOFDataPattern( IRoot* lockobj ) :
+	PARENTLOCK( m_projections ),
 	PARENTLOCK( m_areas ),
 	PARENTLOCK( m_patternTextures )
 {}

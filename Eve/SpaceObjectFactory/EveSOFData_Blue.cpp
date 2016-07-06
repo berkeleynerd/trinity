@@ -674,6 +674,22 @@ const Be::ClassInfo* EveSOFDataPattern::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "The pattern name. This functions as an ID.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "patternTextures", m_patternTextures, "Main textures used for this pattern.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "areas", m_areas, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "projections", m_projections, "", Be::READWRITE | Be::PERSIST )
+		EXPOSURE_END()
+}
+
+
+
+BLUE_DEFINE( EveSOFDataPatternPerHull );
+const Be::ClassInfo* EveSOFDataPatternPerHull::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataPatternPerHull, "" )
+		MAP_INTERFACE( EveSOFDataPatternPerHull )
+
+		MAP_ATTRIBUTE( "name", m_name, "The exact hull name. This functions as an ID.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "position", m_position, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "scaling", m_scaling, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "rotation", m_rotation, "", Be::READWRITE | Be::PERSIST )
 		EXPOSURE_END()
 }
 

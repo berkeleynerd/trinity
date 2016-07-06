@@ -664,6 +664,15 @@ const char* EveSOFDNA::GetModelTranslationCurvePath() const
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Return the exact hull name from the object's dna
+// --------------------------------------------------------------------------------
+const char* EveSOFDNA::GetHullName() const
+{
+	return m_hullName.c_str();
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Return the build class for this hull
 // --------------------------------------------------------------------------------
 EveSOFDataHull::BuildClass EveSOFDNA::GetBuildClass() const
@@ -944,7 +953,27 @@ const EveSOFDataMgr::HullBoosterData* EveSOFDNA::GetHullBoosterData() const
 // Description:
 //   Return pattern data, but needs to exist for provided hull!
 // --------------------------------------------------------------------------------
-const EveSOFDataMgr::PatternData* EveSOFDNA::GetPatternData( const char* hullName ) const
+const EveSOFDataMgr::PatternProjectionData* EveSOFDNA::GetPatternProjectionData( const char* hullName ) const
+{
+	// find hull in the pattern data
+	BlueSharedString s( hullName );
+	if( m_patternName == "default" )
+	{
+		s = BlueSharedString( "default" );
+	}
+	auto finder = m_patternData->projectionData.find( s );
+	if( finder == m_patternData->projectionData.end() )
+	{
+		return nullptr;
+	}
+	return &finder->second;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Return pattern data
+// --------------------------------------------------------------------------------
+const EveSOFDataMgr::PatternData* EveSOFDNA::GetPatternData() const
 {
 	return m_patternData;
 }

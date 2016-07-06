@@ -14,6 +14,7 @@
 #include "Eve/SpaceObject/EveShip2.h"
 #include "Eve/SpaceObject/EveStation2.h"
 #include "Eve/SpaceObject/EveSwarm.h"
+#include "Eve/SpaceObject/Utils/EveCustomMask.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSet.h"
 #include "Eve/SpaceObject/Attachments/EveTrailsSet.h"
@@ -345,7 +346,8 @@ void EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodRe
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	const std::vector<EveSOFDataMgr::HullAreas>* hullAreas = dna->GetHullMeshAreas( areaType );
-	const EveSOFDataMgr::PatternData* patternData = dna->GetPatternData( "" );
+	const EveSOFDataMgr::PatternProjectionData* patternProjectionData = dna->GetPatternProjectionData( dna->GetHullName() );
+	const EveSOFDataMgr::PatternData* patternData = dna->GetPatternData();
 	for( auto area = hullAreas->begin(); area != hullAreas->end(); ++area )
 	{
 		// find data on this shader from generics, we need it!
@@ -1104,6 +1106,22 @@ void EveSOF::SetupInstancedMeshes( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr
 		newObj->AddToEffectChildrenList( (IEveSpaceObjectChild*)childMesh );
 	}
 }
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Add the ppt to the ship
+// --------------------------------------------------------------------------------
+void EveSOF::SetupCustomMask( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
+{
+	const EveSOFDataMgr::PatternProjectionData* patternProjectionData = dna->GetPatternProjectionData( dna->GetHullName() );
+	if( patternProjectionData )
+	{
+		EveCustomMaskPtr customMask;
+		customMask.CreateInstance();
+		customMask->Setup( patternProjectionData->position, patternProjectionData->scaling, patternProjectionData->rotation );
+	}
+}
+
 
 // --------------------------------------------------------------------------------
 // Description:

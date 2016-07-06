@@ -32,6 +32,17 @@ EveCustomMask::~EveCustomMask()
 
 // --------------------------------------------------------------------------------
 // Description:
+//   Set values
+// --------------------------------------------------------------------------------
+void EveCustomMask::Setup( const Vector3& position, const Vector3& scaling, const Quaternion& rotation )
+{
+	m_position = position;
+	m_scaling = scaling;
+	m_rotation = rotation;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
 //   Return the matrix used to render the debug boudning box if the projection
 // --------------------------------------------------------------------------------
 void EveCustomMask::GetDebugDrawMatrix( Matrix* matrix, float objectRadius ) const

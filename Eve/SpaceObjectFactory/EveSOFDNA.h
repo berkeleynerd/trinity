@@ -63,6 +63,7 @@ public:
 	const EveSOFDataMgr::RaceDamageData* GetRaceDamageData() const;
 
 	// get hull data
+	const char* GetHullName() const;
 	EveSOFDataHull::BuildClass GetBuildClass() const;
 	const Vector4* GetHullBoundingSphere() const;
 	const Vector3* GetHullShapeEllipsoidCenter() const;
@@ -95,7 +96,8 @@ public:
 	const EveSOFDataMgr::FactionSpriteSetColorData* GetFactionSpriteSetData( int groupIndex ) const;
 
 	// get pattern data
-	const EveSOFDataMgr::PatternData* GetPatternData( const char* hullName ) const;
+	const EveSOFDataMgr::PatternProjectionData* GetPatternProjectionData( const char* hullName ) const;
+	const EveSOFDataMgr::PatternData* GetPatternData() const;
 
 	// get mixed data
 	const char* GetDnaString() const;

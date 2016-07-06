@@ -332,10 +332,19 @@ public:
 	};
 
 	// pattern data structs
+	struct PatternProjectionData
+	{
+		Vector3 position;
+		Vector3 scaling;
+		Quaternion rotation;
+	};
+
 	struct PatternData
 	{
 		// shared data
 		std::map<BlueSharedString, TextureData> patternTextures;
+		// non-shared data (per hull)
+		std::map<BlueSharedString, PatternProjectionData> projectionData;
 		// hull area parameter
 		std::map<BlueSharedString, FactionAreaData> areaParameters;
 	};
