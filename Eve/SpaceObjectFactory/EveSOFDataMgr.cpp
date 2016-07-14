@@ -1120,6 +1120,12 @@ void EveSOFDataMgr::GeneratePatternData( PatternData& pd, EveSOFDataPatternPtr s
 		pd.projectionAddressModeV = Tr2RenderContextEnum::TA_WRAP;
 		break;
 	}
+
+	// material source id can be directly transltaed from enum
+	pd.materialSourceID = ( uint8_t )srcData->m_materialSource;
+
+	// material targets are bools, but need to be stored as floats (for shader)
+	pd.materialTargets = Vector4( srcData->m_isTargetMtl1 ? 1.f : 0.f, srcData->m_isTargetMtl2 ? 1.f : 0.f, srcData->m_isTargetMtl3 ? 1.f : 0.f, srcData->m_isTargetMtl4 ? 1.f : 0.f );
 }
 
 // --------------------------------------------------------------------------------

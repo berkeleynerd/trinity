@@ -16,6 +16,7 @@ const Be::ClassInfo* EveCustomMask::ExposeToBlue()
 		MAP_ATTRIBUTE( "scaling", m_scaling, "data\n", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "rotation", m_rotation, "data\n", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "materialIndex1", m_materialIndex1, "data\n", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "targetMaterials", m_targetMaterials, "Pattern goes onto material x,y,z,w\n", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "isMirrored", m_isMirrored, "data\n", Be::READWRITE | Be::PERSIST )
 
 	EXPOSURE_END()

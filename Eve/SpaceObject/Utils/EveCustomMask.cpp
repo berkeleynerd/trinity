@@ -18,6 +18,7 @@ EveCustomMask::EveCustomMask( IRoot* lockobj ) :
 	m_scaling( 1.f, 1.f, 1.f ),
 	m_rotation( 0.f, 0.f, 0.f, 1.f ),
 	m_materialIndex1( 0 ),
+	m_targetMaterials( 1.f, 1.f, 1.f, 1.f ),
 	m_isMirrored( false )
 {
 }
@@ -34,11 +35,14 @@ EveCustomMask::~EveCustomMask()
 // Description:
 //   Set values
 // --------------------------------------------------------------------------------
-void EveCustomMask::Setup( const Vector3& position, const Vector3& scaling, const Quaternion& rotation )
+void EveCustomMask::Setup( const Vector3& position, const Vector3& scaling, const Quaternion& rotation, bool isMirrored, uint8_t srcID, const Vector4& targets )
 {
 	m_position = position;
 	m_scaling = scaling;
 	m_rotation = rotation;
+	m_isMirrored = isMirrored;
+	m_materialIndex1 = srcID;
+	m_targetMaterials = targets;
 }
 
 // --------------------------------------------------------------------------------
@@ -65,9 +69,10 @@ void EveCustomMask::FillPerObjectDataPS( EveSpaceObjectPSData* psData ) const
 	D3DXMatrixTransformation( &customMaskTransform, nullptr, nullptr, &m_scaling, nullptr, &m_rotation, &m_position );
 	D3DXMatrixInverse( &invCustomMaskTransform, nullptr, &customMaskTransform );
 	D3DXMatrixTranspose( &psData->customMaskMatrix, &invCustomMaskTransform );
-
-	// material IDs
+	// material source IDs
 	psData->customMaskMaterialIDs = Vector4( (float)m_materialIndex1, 0.f, 0.f, 0.f );
+	// pattern targets
+	psData->customMaskTargets = m_targetMaterials;
 
 	// additional data
 	psData->customMaskData = Vector4( 1.f, m_isMirrored ? 1.f : 0.f, 0.f, 0.f );

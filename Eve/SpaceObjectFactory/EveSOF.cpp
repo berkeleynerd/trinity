@@ -1121,13 +1121,14 @@ void EveSOF::SetupInstancedMeshes( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr
 void EveSOF::SetupCustomMask( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 {
 	const EveSOFDataMgr::PatternProjectionData* patternProjectionData = dna->GetPatternProjectionData( dna->GetHullName() );
+	const EveSOFDataMgr::PatternData* patternData = dna->GetPatternData();
 
 	// if we don't have this specific hull in the patter data, we don't need to set it to the spaceobject!
-	if( patternProjectionData )
+	if( patternProjectionData && patternData )
 	{
 		EveCustomMaskPtr customMask;
 		customMask.CreateInstance();
-		customMask->Setup( patternProjectionData->position, patternProjectionData->scaling, patternProjectionData->rotation );
+		customMask->Setup( patternProjectionData->position, patternProjectionData->scaling, patternProjectionData->rotation, false, patternData->materialSourceID, patternData->materialTargets );
 
 		obj->SetCustomMask( customMask );
 	}

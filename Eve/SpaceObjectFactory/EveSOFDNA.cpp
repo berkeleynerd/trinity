@@ -32,6 +32,7 @@ static std::string s_dnaCommands[] = {
 	"pattern",				// CMD_PATTERN
 };
 
+// build classes
 static std::string s_dnaClasses[] = {
 	"ship",					// BUILDCLASS_SHIP
 	"mobile",				// BUILDCLASS_MOBILE

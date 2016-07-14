@@ -341,6 +341,10 @@ public:
 
 	struct PatternData
 	{
+		// material source
+		uint8_t materialSourceID;
+		// material targets
+		Vector4 materialTargets;
 		// projection type
 		Tr2RenderContextEnum::TextureAddressMode projectionAddressModeU, projectionAddressModeV;
 		// shared data

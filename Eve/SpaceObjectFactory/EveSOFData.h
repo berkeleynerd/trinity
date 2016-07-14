@@ -813,11 +813,27 @@ public:
 		PROJECTION_BORDER,
 	};
 
+	// material sources
+	enum MaterialSource
+	{
+		SOURCE_MATERIAL1 = 0,
+		SOURCE_MATERIAL2,
+		SOURCE_MATERIAL3,
+		SOURCE_MATERIAL4,
+		SOURCE_CUSTOM1,
+	};
+
 	// pattern name
 	std::string m_name;
 
 	// how is the texture projected?
 	ProjectionType m_projectionTypeU, m_projectionTypeV;
+
+	// what is the pattern's material source?
+	MaterialSource m_materialSource;
+
+	// what is the pattern's material target?
+	bool m_isTargetMtl1, m_isTargetMtl2, m_isTargetMtl3, m_isTargetMtl4;
 
 	// pattern textures res path
 	PEveSOFDataTextureVector m_patternTextures;

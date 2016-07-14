@@ -111,6 +111,7 @@ struct EveSpaceObjectPSData
 	Matrix customMaskMatrix;
 	Vector4 customMaskMaterialIDs;
 	Vector4 customMaskData;
+	Vector4 customMaskTargets;
 };
 
 // ---------------------------------------------------------------------------------------
