@@ -1342,6 +1342,13 @@ bool EveSpaceObject2::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery qu
 			BoundingSphereUpdate( childBounds, sphere );
 		}
 	}
+	for( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); it++ )
+	{
+		if( (*it)->GetBoundingSphere( childBounds, query ) )
+		{
+			BoundingSphereUpdate( childBounds, sphere );
+		}
+	}
 	return true;
 }
 
