@@ -8,6 +8,7 @@
 
 #include "Shader/Tr2Effect.h"
 
+#include "EveUpdateContext.h"
 #include "EveTransform.h"
 #include "include/TriMath.h"
 
@@ -160,8 +161,10 @@ void EveOccluder::RunQuery( Tr2RenderContext& renderContext, const TriFrustum& f
 	// collect renderables from sprite, so we can pass the parent transform and EveTransform handles
 	// all of the view update for us
 	std::vector<ITr2Renderable*> renderables;
+	EveUpdateContext dummyContext;
 	for( EveTransformVector::iterator it = m_sprites.begin(); it != m_sprites.end(); ++it )
 	{
+		(*it)->UpdateSyncronous( dummyContext );
 		(*it)->GetRenderables( frustum, renderables, transform );
 	}
 	// collect batches from renderables (only from decal area, nothing else is important for

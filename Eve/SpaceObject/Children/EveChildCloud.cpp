@@ -116,25 +116,29 @@ void GetProjectedCubeBounds(  AxisAlignedBoundingBox& box, const Matrix& worldVi
 	for( int side = 0; side < 6; ++side )
 	{
 		for( int edge = 0; edge < 4; ++edge )
-	{
+		{
 			const Vector3& vertex1 = sides[side][edge];
 			const Vector3& vertex2 = sides[side][( edge + 1 ) % 4];
 			float v0 = D3DXPlaneDotCoord( &plane, &vertex1 );
 			float v1 = D3DXPlaneDotCoord( &plane, &vertex2 );
 			if( v0 <= 0 )
-		{
+			{
 				points[count++] = Vector4( sides[side][edge], 0.f );
-		}
+			}
 			if( v0 * v1 < 0 )
-		{
+			{
 				Vector3 result;
 				D3DXPlaneIntersectLine( &result, &plane, &vertex1, &vertex2 );
 				points[count++] = Vector4( result, 0.f );
 			}
 		}
-		}
+	}
 
-	D3DXVec4TransformArray( points, sizeof( Vector4 ), points, sizeof( Vector4 ), &proj, count );
+	for( int i = 0; i < count; ++i )
+	{
+		D3DXVec4Transform( points + i, points + i, &proj );
+	}
+
 	for( int i = 0; i < count; ++i )
 	{
 		points[i] /= points[i].w;
