@@ -287,6 +287,12 @@ bool EveSOFDataMgr::UpdateGeneric( EveSOFDataGeneric* genericData )
 // --------------------------------------------------------------------------------
 bool EveSOFDataMgr::SetData( EveSOFData* dbData )
 {
+	if( !dbData )
+	{
+		CCP_LOGERR( "No data passed to EveSOFDataMgr::SetData" );
+		return false; 
+	}
+
 	// clear existing data
 	m_hullData.clear();
 	m_factionData.clear();
