@@ -378,7 +378,7 @@ void Tr2GrannyAnimation::RenderBones( const Matrix& modelTransform )
 	for( int boneIdx = 0; boneIdx < m_meshBoneCount; boneIdx++ )
 	{
 		const int* bi = GrannyGetMeshBindingFromBoneIndices( m_meshBinding );
-		Matrix mat = *(const Matrix*)GrannyGetWorldPose4x4( m_worldPose, bi[boneIdx] ) * modelTransform * initialTranslation;
+		Matrix mat = *reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_worldPose, bi[boneIdx] ) ) * modelTransform * initialTranslation;
 		Vector4 pos(0, 0, 0, 1);
 		D3DXVec4Transform( &pos, &pos, &mat );
 		pos.w = 2;
