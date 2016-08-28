@@ -234,8 +234,7 @@ EveSOFDataPatternTransform::EveSOFDataPatternTransform( IRoot* lockobj ) :
 
 
 EveSOFDataPattern::EveSOFDataPattern( IRoot* lockobj ) :
-	PARENTLOCK( m_projections ),
-	PARENTLOCK( m_patternTextures )
+	PARENTLOCK( m_projections )
 {}
 
 
