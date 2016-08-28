@@ -666,87 +666,100 @@ const Be::ClassInfo* EveSOFDataMaterial::ExposeToBlue()
 
 
 BLUE_DEFINE( EveSOFDataPattern );
-Be::VarChooser EveSOFDataPatternProjectionTypeChooser[] =
-{
-	{
-		"Repeat",
-		BeCast( EveSOFDataPattern::PROJECTION_REPEAT ),
-		"Repeat pattern texture projection"
-	},
-	{
-		"Clamp",
-		BeCast( EveSOFDataPattern::PROJECTION_CLAMP ),
-		"Clamp the projection"
-	},
-	{
-		"Border",
-		BeCast( EveSOFDataPattern::PROJECTION_BORDER ),
-		"Border the projection"
-	},
-	{ 0 }
-};
-
-BLUE_REGISTER_ENUM_EX(
-	"EveSOFDataPatternProjectionType",
-	EveSOFDataPattern::ProjectionType,
-	EveSOFDataPatternProjectionTypeChooser,
-	ENUM_REG_ENUM_OBJECT_ON_MODULE
-);
-
-
-Be::VarChooser EveSOFDataPatternMaterialSourceChooser[] =
-{
-	{
-		"Material 1",
-		BeCast( EveSOFDataPattern::SOURCE_MATERIAL1 ),
-		"Base material #1"
-	},
-	{
-		"Material 2",
-		BeCast( EveSOFDataPattern::SOURCE_MATERIAL2 ),
-		"Base material #2"
-	},
-	{
-		"Material 3",
-		BeCast( EveSOFDataPattern::SOURCE_MATERIAL3 ),
-		"Base material #3"
-	},
-	{
-		"Material 4",
-		BeCast( EveSOFDataPattern::SOURCE_MATERIAL4 ),
-		"Base material #4"
-	},
-	{
-		"Custom Material #1",
-		BeCast( EveSOFDataPattern::SOURCE_CUSTOM1 ),
-		"Custom material #1"
-	},
-	{ 0 }
-};
-
-BLUE_REGISTER_ENUM_EX(
-	"EveSOFDataPatternMaterialSource",
-	EveSOFDataPattern::MaterialSource,
-	EveSOFDataPatternMaterialSourceChooser,
-	ENUM_REG_ENUM_OBJECT_ON_MODULE
-);
-
-
 const Be::ClassInfo* EveSOFDataPattern::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( EveSOFDataPattern, "" )
 		MAP_INTERFACE( EveSOFDataPattern )
 
 		MAP_ATTRIBUTE( "name", m_name, "The pattern name. This functions as an ID.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE_WITH_CHOOSER( "projectionTypeU", m_projectionTypeU, "Choose the type of texture projection in u direction", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternProjectionTypeChooser )
-		MAP_ATTRIBUTE_WITH_CHOOSER( "projectionTypeV", m_projectionTypeV, "Choose the type of texture projection in v direction", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternProjectionTypeChooser )
-		MAP_ATTRIBUTE_WITH_CHOOSER( "materialSource", m_materialSource, "Choose the material source for the pattern", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternMaterialSourceChooser )
-		MAP_ATTRIBUTE( "isTargetMtl1", m_isTargetMtl1, "This pattern goes onto material 1.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "isTargetMtl2", m_isTargetMtl2, "This pattern goes onto material 2.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "isTargetMtl3", m_isTargetMtl3, "This pattern goes onto material 3.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "isTargetMtl4", m_isTargetMtl4, "This pattern goes onto material 4.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "patternTextures", m_patternTextures, "Main textures used for this pattern.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "layer1", m_layer1, "Pattern data for layer #1.", Be::READWRITE | Be::PERSIST)
+		MAP_ATTRIBUTE( "layer2", m_layer2, "Pattern data for layer #2.", Be::READWRITE | Be::PERSIST)
+		MAP_ATTRIBUTE( "patternTextures", m_patternTextures, "Main textures used for this pattern" ":jessica-group: Layer1", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "projections", m_projections, "", Be::READWRITE | Be::PERSIST )
+		EXPOSURE_END()
+}
+
+
+
+BLUE_DEFINE( EveSOFDataPatternLayer );
+Be::VarChooser EveSOFDataPatternLayerProjectionTypeChooser[] =
+{
+	{
+		"Repeat",
+		BeCast( EveSOFDataPatternLayer::PROJECTION_REPEAT ),
+		"Repeat pattern texture projection"
+	},
+	{
+		"Clamp",
+		BeCast( EveSOFDataPatternLayer::PROJECTION_CLAMP ),
+		"Clamp the projection"
+	},
+	{
+		"Border",
+		BeCast( EveSOFDataPatternLayer::PROJECTION_BORDER ),
+		"Border the projection"
+	},
+	{ 0 }
+};
+
+BLUE_REGISTER_ENUM_EX(
+	"EveSOFDataPatternLayerProjectionType",
+	EveSOFDataPatternLayer::ProjectionType,
+	EveSOFDataPatternLayerProjectionTypeChooser,
+	ENUM_REG_ENUM_OBJECT_ON_MODULE
+);
+
+
+Be::VarChooser EveSOFDataPatternLayerMaterialSourceChooser[] =
+{
+	{
+		"Material 1",
+		BeCast( EveSOFDataPatternLayer::SOURCE_MATERIAL1 ),
+		"Base material #1"
+	},
+	{
+		"Material 2",
+		BeCast( EveSOFDataPatternLayer::SOURCE_MATERIAL2 ),
+		"Base material #2"
+	},
+	{
+		"Material 3",
+		BeCast( EveSOFDataPatternLayer::SOURCE_MATERIAL3 ),
+		"Base material #3"
+	},
+	{
+		"Material 4",
+		BeCast( EveSOFDataPatternLayer::SOURCE_MATERIAL4 ),
+		"Base material #4"
+	},
+	{
+		"Pattern Material 1",
+		BeCast( EveSOFDataPatternLayer::SOURCE_CUSTOM1 ),
+		"Pattern material 1"
+	},
+	{ 0 }
+};
+
+BLUE_REGISTER_ENUM_EX(
+	"EveSOFDataPatternLayerMaterialSource",
+	EveSOFDataPatternLayer::MaterialSource,
+	EveSOFDataPatternLayerMaterialSourceChooser,
+	ENUM_REG_ENUM_OBJECT_ON_MODULE
+);
+
+
+const Be::ClassInfo* EveSOFDataPatternLayer::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataPatternLayer, "" )
+		MAP_INTERFACE( EveSOFDataPatternLayer )
+
+		MAP_ATTRIBUTE_WITH_CHOOSER( "projectionTypeU", m_projectionTypeU, "Choose the type of texture projection in u direction", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternLayerProjectionTypeChooser )
+		MAP_ATTRIBUTE_WITH_CHOOSER( "projectionTypeV", m_projectionTypeV, "Choose the type of texture projection in v direction", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternLayerProjectionTypeChooser )
+		MAP_ATTRIBUTE_WITH_CHOOSER( "materialSource", m_materialSource, "Choose the material source for the pattern", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataPatternLayerMaterialSourceChooser )
+		MAP_ATTRIBUTE( "isTargetMtl1", m_isTargetMtl1, "This pattern goes onto material 1", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "isTargetMtl2", m_isTargetMtl2, "This pattern goes onto material 2", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "isTargetMtl3", m_isTargetMtl3, "This pattern goes onto material 3", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "isTargetMtl4", m_isTargetMtl4, "This pattern goes onto material 4", Be::READWRITE | Be::PERSIST )
 		EXPOSURE_END()
 }
 

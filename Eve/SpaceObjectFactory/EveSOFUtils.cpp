@@ -67,3 +67,33 @@ std::string EveSOFUtilsParameterName::ChangeMaterialIdx( const EveSOFDataMgr::Ge
 	result.insert( 0, genericData->materialPrefixes[ idx ] );
 	return result;
 }
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Fill structs from other structs
+// --------------------------------------------------------------------------------
+void EveSOFUtils::GeneratePatternProjectionData( EveSOFDataMgr::PatternProjectionData& ppd, const EveSOFDataPatternTransform* patternTransform )
+{
+	ppd.enabled = true;
+	ppd.position = patternTransform->m_position;
+	ppd.scaling = patternTransform->m_scaling;
+	ppd.rotation = patternTransform->m_rotation;
+	ppd.isMirrored = patternTransform->m_isMirrored;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Translate  SOF pattern projection enum into AL redner context enum
+// --------------------------------------------------------------------------------
+Tr2RenderContextEnum::TextureAddressMode EveSOFUtils::GetTextureAddressMode( EveSOFDataPatternLayer::ProjectionType projectionType )
+{
+	switch( projectionType )
+	{
+	case EveSOFDataPatternLayer::PROJECTION_BORDER:
+		return Tr2RenderContextEnum::TA_BORDER;
+	case EveSOFDataPatternLayer::PROJECTION_CLAMP:
+		return Tr2RenderContextEnum::TA_CLAMP;
+	default:
+		return Tr2RenderContextEnum::TA_WRAP;
+	}
+}

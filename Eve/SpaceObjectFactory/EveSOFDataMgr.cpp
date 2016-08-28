@@ -5,6 +5,7 @@
 //
 #include "StdAfx.h"
 #include "EveSOFDataMgr.h"
+#include "EveSOFUtils.h"
 #include "Utilities/StringUtils.h"
 
 // --------------------------------------------------------------------------------
@@ -1083,56 +1084,27 @@ void EveSOFDataMgr::GeneratePatternData( PatternData& pd, EveSOFDataPatternPtr s
 		if( pattern->m_transformLayer1 )
 		{
 			PatternProjectionData ppd;
-			ppd.enabled = true;
-			ppd.position = pattern->m_transformLayer1->m_position;
-			ppd.scaling = pattern->m_transformLayer1->m_scaling;
-			ppd.rotation = pattern->m_transformLayer1->m_rotation;
-			ppd.isMirrored = pattern->m_transformLayer1->m_isMirrored;
+			EveSOFUtils::GeneratePatternProjectionData( ppd, pattern->m_transformLayer1 );
 			pd.projectionData[pattern->m_name].push_back( ppd );
 		}
 		if( pattern->m_transformLayer2 )
 		{
 			PatternProjectionData ppd;
-			ppd.enabled = true;
-			ppd.position = pattern->m_transformLayer2->m_position;
-			ppd.scaling = pattern->m_transformLayer2->m_scaling;
-			ppd.rotation = pattern->m_transformLayer2->m_rotation;
-			ppd.isMirrored = pattern->m_transformLayer2->m_isMirrored;
+			EveSOFUtils::GeneratePatternProjectionData( ppd, pattern->m_transformLayer2 );
 			pd.projectionData[pattern->m_name].push_back( ppd );
 		}
 	}
 
-	// projection types, translate to AL enums right here
-	switch( srcData->m_projectionTypeU )
+	if( srcData->m_layer1 )
 	{
-	case EveSOFDataPattern::PROJECTION_BORDER:
-		pd.projectionAddressModeU = Tr2RenderContextEnum::TA_BORDER;
-		break;
-	case EveSOFDataPattern::PROJECTION_CLAMP:
-		pd.projectionAddressModeU = Tr2RenderContextEnum::TA_CLAMP;
-		break;
-	default:
-		pd.projectionAddressModeU = Tr2RenderContextEnum::TA_WRAP;
-		break;
+		// projection types, translate to AL enums right here
+		pd.projectionAddressModeU = EveSOFUtils::GetTextureAddressMode( srcData->m_layer1->m_projectionTypeU );
+		pd.projectionAddressModeV = EveSOFUtils::GetTextureAddressMode( srcData->m_layer1->m_projectionTypeV );
+		// material source id can be directly transltaed from enum
+		pd.materialSourceID = ( uint8_t )srcData->m_layer1->m_materialSource;
+		// material targets are bools, but need to be stored as floats (for shader)
+		pd.materialTargets = Vector4( srcData->m_layer1->m_isTargetMtl1 ? 1.f : 0.f, srcData->m_layer1->m_isTargetMtl2 ? 1.f : 0.f, srcData->m_layer1->m_isTargetMtl3 ? 1.f : 0.f, srcData->m_layer1->m_isTargetMtl4 ? 1.f : 0.f );
 	}
-	switch( srcData->m_projectionTypeV )
-	{
-	case EveSOFDataPattern::PROJECTION_BORDER:
-		pd.projectionAddressModeV = Tr2RenderContextEnum::TA_BORDER;
-		break;
-	case EveSOFDataPattern::PROJECTION_CLAMP:
-		pd.projectionAddressModeV = Tr2RenderContextEnum::TA_CLAMP;
-		break;
-	default:
-		pd.projectionAddressModeV = Tr2RenderContextEnum::TA_WRAP;
-		break;
-	}
-
-	// material source id can be directly transltaed from enum
-	pd.materialSourceID = ( uint8_t )srcData->m_materialSource;
-
-	// material targets are bools, but need to be stored as floats (for shader)
-	pd.materialTargets = Vector4( srcData->m_isTargetMtl1 ? 1.f : 0.f, srcData->m_isTargetMtl2 ? 1.f : 0.f, srcData->m_isTargetMtl3 ? 1.f : 0.f, srcData->m_isTargetMtl4 ? 1.f : 0.f );
 }
 
 // --------------------------------------------------------------------------------

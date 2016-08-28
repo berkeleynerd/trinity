@@ -214,6 +214,17 @@ EveSOFDataPatternPerHull::EveSOFDataPatternPerHull( IRoot* lockobj )
 {}
 
 
+EveSOFDataPatternLayer::EveSOFDataPatternLayer(IRoot* lockobj) :
+	m_projectionTypeU( PROJECTION_REPEAT ),
+	m_projectionTypeV( PROJECTION_REPEAT ),
+	m_materialSource( SOURCE_MATERIAL1 ),
+	m_isTargetMtl1( true ),
+	m_isTargetMtl2( true ),
+	m_isTargetMtl3( true ),
+	m_isTargetMtl4( true )
+{}
+
+
 EveSOFDataPatternTransform::EveSOFDataPatternTransform( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
 	m_scaling( 1.f, 1.f, 1.f ),
@@ -223,13 +234,6 @@ EveSOFDataPatternTransform::EveSOFDataPatternTransform( IRoot* lockobj ) :
 
 
 EveSOFDataPattern::EveSOFDataPattern( IRoot* lockobj ) :
-	m_projectionTypeU( PROJECTION_REPEAT ),
-	m_projectionTypeV( PROJECTION_REPEAT ),
-	m_materialSource( SOURCE_MATERIAL1 ),
-	m_isTargetMtl1( true ),
-	m_isTargetMtl2( true ),
-	m_isTargetMtl3( true ),
-	m_isTargetMtl4( true ),
 	PARENTLOCK( m_projections ),
 	PARENTLOCK( m_patternTextures )
 {}

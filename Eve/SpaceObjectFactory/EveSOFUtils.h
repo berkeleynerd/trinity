@@ -38,6 +38,19 @@ private:
 	int32_t m_materialIdx;
 };
 
+// --------------------------------------------------------------------------------
+// Description:
+//   This class holds various static helper functions used in various places, but
+//   stored here to save some space
+// SeeAlso:
+//   EveSOF
+// --------------------------------------------------------------------------------
+class EveSOFUtils
+{
+public:
+	static void GeneratePatternProjectionData( EveSOFDataMgr::PatternProjectionData& ppd, const EveSOFDataPatternTransform* patternTransform );
+	static Tr2RenderContextEnum::TextureAddressMode GetTextureAddressMode( EveSOFDataPatternLayer::ProjectionType projectionType );
+};
 
 
 

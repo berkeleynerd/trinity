@@ -818,13 +818,13 @@ BLUE_DECLARE_VECTOR( EveSOFDataPatternPerHull );
 
 
 
-BLUE_CLASS( EveSOFDataPattern ) :
+BLUE_CLASS( EveSOFDataPatternLayer ) :
 	public IRoot
 {
 public:
 	EXPOSE_TO_BLUE();
-	EveSOFDataPattern( IRoot* lockobj = NULL );
-	~EveSOFDataPattern() {}
+	EveSOFDataPatternLayer( IRoot* lockobj = NULL );
+	~EveSOFDataPatternLayer() {}
 
 	// texture projection type
 	enum ProjectionType
@@ -844,9 +844,6 @@ public:
 		SOURCE_CUSTOM1,
 	};
 
-	// pattern name
-	std::string m_name;
-
 	// how is the texture projected?
 	ProjectionType m_projectionTypeU, m_projectionTypeV;
 
@@ -855,6 +852,26 @@ public:
 
 	// what is the pattern's material target?
 	bool m_isTargetMtl1, m_isTargetMtl2, m_isTargetMtl3, m_isTargetMtl4;
+};
+TYPEDEF_BLUECLASS( EveSOFDataPatternLayer );
+
+
+
+
+BLUE_CLASS( EveSOFDataPattern ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataPattern( IRoot* lockobj = NULL );
+	~EveSOFDataPattern() {}
+
+	// pattern name
+	std::string m_name;
+
+	// pattern layer data
+	EveSOFDataPatternLayerPtr m_layer1;
+	EveSOFDataPatternLayerPtr m_layer2;
 
 	// pattern textures res path
 	PEveSOFDataTextureVector m_patternTextures;
@@ -867,10 +884,10 @@ BLUE_DECLARE_VECTOR( EveSOFDataPattern );
 
 
 
+
 // --------------------------------------------------------------------------------
 // All data storage classes for generic data
 // --------------------------------------------------------------------------------
-
 BLUE_CLASS( EveSOFDataGenericString ) :
 	public IRoot
 {
