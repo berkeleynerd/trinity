@@ -159,8 +159,6 @@ void EveChildQuad::UpdateAsyncronous( EveUpdateContext& updateContext, IEveSpace
 
 	UpdateTransform( parentTransform );
 
-	float scale = D3DXVec3Length( &parentTransform.GetX() ) / 3.f + D3DXVec3Length( &parentTransform.GetY() ) / 3.f + D3DXVec3Length( &parentTransform.GetY() ) / 3.f;
-
 	m_quad.m_parentTransform0 = Vector4( parentTransform._11, parentTransform._21, parentTransform._31, parentTransform._41 );
 	m_quad.m_parentTransform1 = Vector4( parentTransform._12, parentTransform._22, parentTransform._32, parentTransform._42 );
 	m_quad.m_parentTransform2 = Vector4( parentTransform._13, parentTransform._23, parentTransform._33, parentTransform._43 );
