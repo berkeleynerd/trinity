@@ -17,6 +17,8 @@
 
 using namespace Tr2RenderContextEnum;
 
+extern float g_eveSpaceSceneLODFactor;
+
 namespace
 {
 
@@ -168,7 +170,8 @@ EveChildCloud::EveChildCloud( IRoot* lockobj )
 	m_preTesselationLevel( 32 ),
 	m_min( -0.5f, -0.5f, -0.5f ),
 	m_max( 0.5f, 0.5f, 0.5f ),
-	m_sortingModifier( 1.0f )
+	m_sortingModifier( 1.0f ),
+	m_minScreenSize( 0.0f )
 {
 	PrepareResources();
 }
@@ -196,7 +199,7 @@ bool EveChildCloud::OnModified( Be::Var* value )
 
 void EveChildCloud::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) )
+	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
 	{
 		return;
 	}

@@ -123,7 +123,7 @@ void Tr2DynamicEmitter::Update( const UpdateArguments& arguments )
 	float dt = std::min( TimeAsFloat( arguments.time - m_lastUpdate ), 0.3f );
 	m_lastUpdate = arguments.time;
 
-	UpdateSimulation( dt );
+	UpdateSimulation( dt * arguments.emitCountFactor );
 }
 
 // --------------------------------------------------------------------------------------

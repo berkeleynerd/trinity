@@ -112,6 +112,7 @@ private:
 	Vector3 m_max;
 
 	float m_sortingModifier;
+	float m_minScreenSize;
 };
 
 TYPEDEF_BLUECLASS( EveChildCloud );

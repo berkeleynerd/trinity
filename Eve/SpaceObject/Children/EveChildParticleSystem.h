@@ -77,6 +77,9 @@ private:
 	float m_lodFactorMedium;
 	float m_lodFactorLow;
 	unsigned m_lodClampLow;
+
+	float m_lodSphereRadius;
+	float m_minScreenSize;
 };
 
 TYPEDEF_BLUECLASS( EveChildParticleSystem );

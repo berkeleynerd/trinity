@@ -24,6 +24,11 @@ const Be::ClassInfo* EveChildBillboard::ExposeToBlue()
 		MAP_ATTRIBUTE( "localTransform", m_localTransform, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "worldTransform", m_worldTransform, "", Be::READ )
 		MAP_ATTRIBUTE( "staticTransform", m_staticTransform, "Does local transform need to be rebuilt every frame.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"minScreenSize", 
+			m_minScreenSize, 
+			"Minimal size of object on screen, objects smaller than this size are not rendered.\n:jessica-group: LOD", 
+			Be::READWRITE | Be::PERSIST )
 		MAP_METHOD_AND_WRAP( "RebuildLocalTransform", RebuildLocalTransform, "Rebuilds local transform." )
 
     EXPOSURE_END()

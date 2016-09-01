@@ -3,15 +3,20 @@
 
 #include "Tr2MeshArea.h"
 #include "Tr2MeshBase.h"
+#include "TriFrustum.h"
 
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveTransform.h"
 #include "Resources/TriGeometryRes.h"
 
 
+extern float g_eveSpaceSceneLODFactor;
+
+
 EveChildMesh::EveChildMesh( IRoot* lockobj ):
 	m_display( true ),
 	m_lowestLodVisible( TR2_LOD_LOW ),
+	m_minScreenSize( 0.f ),
 	m_useSpaceObjectData( true ),
 	EveChildTransform()
 {
@@ -42,6 +47,16 @@ void EveChildMesh::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 	if( !m_display )
 	{
 		return;
+	}
+	const Vector3 zero( 0.f, 0.f, 0.f );
+	if( m_worldTransform.GetX() == zero && m_worldTransform.GetY() == zero && m_worldTransform.GetZ() == zero )
+	{
+		return;
+	}
+	Vector4 boundingSphere;
+	if( GetBoundingSphere( boundingSphere ) && frustum.IsSphereVisible( &boundingSphere ) && frustum.GetPixelSizeAccross( &boundingSphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
+	{
+		renderables.push_back( this );
 	}
 	if( parentLod < m_lowestLodVisible )
 	{

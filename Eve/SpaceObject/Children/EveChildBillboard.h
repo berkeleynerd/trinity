@@ -60,6 +60,7 @@ private:
 	BlueSharedString m_name;
 	Tr2MeshBasePtr m_mesh;
 	Vector4 m_boundingSphere;
+	float m_minScreenSize;
 
 	bool m_display;
 };

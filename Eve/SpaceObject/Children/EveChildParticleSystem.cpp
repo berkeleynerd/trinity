@@ -18,6 +18,10 @@
 
 #include "Utilities/BoundingSphere.h"
 
+
+extern float g_eveSpaceSceneLODFactor;
+
+
 EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ):
 	EveChildTransform(),
 	PARENTLOCK( m_particleEmitters ),
@@ -27,7 +31,9 @@ EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ):
 	m_useDynamicLod( false ),
 	m_lodFactorMedium( 0.25 ),
 	m_lodFactorLow( 0.125 ),
-	m_lodClampLow( 5 )
+	m_lodClampLow( 5 ),
+	m_lodSphereRadius( 0.0f ),
+	m_minScreenSize( 0.0f )
 {
 }
 
@@ -56,7 +62,7 @@ void EveChildParticleSystem::Setup( const Vector3* scale, const Quaternion* rota
 
 void EveChildParticleSystem::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) )
+	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
 	{
 		return;
 	}
@@ -154,6 +160,15 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 	{
 		BoundingSphereFromBox( m_boundingSphere, minBounds, maxBounds, &m_worldTransform );
 	}
+	else if( m_lodSphereRadius > 0 )
+	{
+		m_boundingSphere.w = m_lodSphereRadius;
+		BoundingSphereTransform( m_worldTransform, m_boundingSphere );
+	}
+	else
+	{
+		m_boundingSphere.w = -1.0f;
+	}
 
 	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
 	{
@@ -161,11 +176,23 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 	}
 	if( !m_particleEmitters.empty() )
 	{
+		float emitCountFactor = 1.f;
+		if( m_minScreenSize > 0.f )
+		{
+			auto viewProj = Tr2Renderer::GetViewTransform() * Tr2Renderer::GetProjectionTransform();
+			TriFrustum frustum;
+			frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), Tr2Renderer::GetViewport() );
+			if( frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
+			{
+				emitCountFactor = 0.f;
+			}
+		}
 		ITr2GenericEmitter::UpdateArguments args( 
 			updateContext.GetTime(), 
 			updateContext.GetGpuParticleSystem(), 
 			m_worldTransform, 
-			updateContext.GetOriginShift() );
+			updateContext.GetOriginShift(),
+			emitCountFactor );
 		for( auto it = m_particleEmitters.begin(); it != m_particleEmitters.end(); ++it )
 		{
 			(*it)->Update( args );

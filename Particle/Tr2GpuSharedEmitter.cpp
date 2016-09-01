@@ -198,7 +198,7 @@ float Tr2GpuSharedEmitter::SpawnParticles(
 {
 	emitter.position = positionEnd;
 
-	float total = carryOverCount + deltaTime * m_rate;
+	float total = carryOverCount + deltaTime * m_rate * arguments.emitCountFactor;
 
 	Vector3 move = emitter.position - positionStart;
 	float moveLength = XMVectorGetX( XMVector3Length( move ) );

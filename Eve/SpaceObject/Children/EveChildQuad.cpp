@@ -13,6 +13,10 @@
 #include "Utilities/BoundingSphere.h"
 #include "TriFrustum.h"
 
+
+extern float g_eveSpaceSceneLODFactor;
+
+
 namespace
 {
 	Tr2VertexDefinition& GetQuadDefinition()
@@ -42,6 +46,7 @@ EveChildQuad::EveChildQuad( IRoot* lockobj ):
 	m_viewRotation( 0.f ),
 	m_color( 1.f, 1.f, 1.f, 1.f ),
 	m_brightness( 1.f ),
+	m_minScreenSize( 0.f ),
 	m_display( true ),
 	m_editMode( false )
 {
@@ -89,7 +94,7 @@ void EveChildQuad::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRen
 	{
 		Vector4 sphere = Vector4( 0.f, 0.f, 0.f, std::sqrt( 2.f ) );
 		BoundingSphereTransform( m_worldTransform, sphere );
-		if( frustum.IsSphereVisible( &sphere ) )
+		if( frustum.IsSphereVisible( &sphere ) && frustum.GetPixelSizeAccross( &sphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
 		{
 			quadRenderer.AddQuads( m_effectKey, &m_quad, 1 );
 		}
@@ -132,11 +137,18 @@ void EveChildQuad::UpdateSyncronous( EveUpdateContext& updateContext, IEveSpaceO
 {
 	if( m_editMode )
 	{
-		auto key = m_effect->GetHashValue();
-		if( key != m_effectKey )
+		if( m_effect )
 		{
-			m_effectKey = key;
-			RegisterWithQuadRenderer( *Tr2QuadRenderer::Instance() );
+			auto key = m_effect->GetHashValue();
+			if( key != m_effectKey )
+			{
+				m_effectKey = key;
+				RegisterWithQuadRenderer( *Tr2QuadRenderer::Instance() );
+			}
+		}
+		else
+		{
+			m_effectKey = 0;
 		}
 	}
 }

@@ -28,15 +28,17 @@ BLUE_INTERFACE( ITr2GenericEmitter ):
 			:time( 0 ),
 			system( nullptr ),
 			parentTransform( XMMatrixIdentity() ),
-			originShift( 0.f, 0.f, 0.f )
+			originShift( 0.f, 0.f, 0.f ),
+			emitCountFactor( 1.f )
 		{
 		}
 
-		UpdateArguments( Be::Time t, Tr2GpuParticleSystem* gpuSystem, const Matrix& transform, const Vector3& shift )
+		UpdateArguments( Be::Time t, Tr2GpuParticleSystem* gpuSystem, const Matrix& transform, const Vector3& shift, float emitFactor = 1.f )
 			:time( t ),
 			system( gpuSystem ),
 			parentTransform( transform ),
-			originShift( shift )
+			originShift( shift ),
+			emitCountFactor( emitFactor )
 		{
 		}
 
@@ -48,6 +50,8 @@ BLUE_INTERFACE( ITr2GenericEmitter ):
 		Matrix parentTransform;
 		// World origin shift since previous frame
 		Vector3 originShift;
+		// Factor for the number of particles to emit (for LODing)
+		float emitCountFactor;
 	};
 
 	// --------------------------------------------------------------------------------------

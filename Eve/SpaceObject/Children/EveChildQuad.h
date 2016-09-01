@@ -77,7 +77,7 @@ private:
 	float m_viewRotation;
 	Color m_color;
 	float m_brightness;
-
+	float m_minScreenSize;
 
 	bool m_display;
 	// Continiously re-register effect (for editing in Jessica)

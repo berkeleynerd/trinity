@@ -58,10 +58,12 @@ TRI_REGISTER_SETTING( "eveSpaceSceneVisibilityThreshold", g_eveSpaceSceneVisibil
 float g_eveSpaceSceneLowDetailThreshold = 100.0f;
 float g_eveSpaceSceneMediumDetailThreshold = 400.0f;
 float g_eveSpaceSceneHighDetailThreshold = 800.0f;
+float g_eveSpaceSceneLODFactor = 1.0f;
 
 TRI_REGISTER_SETTING( "eveSpaceSceneLowDetailThreshold", g_eveSpaceSceneLowDetailThreshold );
 TRI_REGISTER_SETTING( "eveSpaceSceneMediumDetailThreshold", g_eveSpaceSceneMediumDetailThreshold );
 TRI_REGISTER_SETTING( "eveSpaceSceneHighDetailThreshold", g_eveSpaceSceneHighDetailThreshold );
+TRI_REGISTER_SETTING( "eveSpaceSceneLODFactor", g_eveSpaceSceneLODFactor );
 
 
 // These variables determine how frequently curve sets are updated for objects with low and medium LODs.

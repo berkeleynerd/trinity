@@ -56,6 +56,16 @@ const Be::ClassInfo* EveChildParticleSystem::ExposeToBlue()
 				":jessica-group: LOD",
 				Be::READWRITE | Be::PERSIST
 		)
+		MAP_ATTRIBUTE( 
+				"lodSphereRadius", 
+				m_lodSphereRadius, 
+				"Bounding sphere radius for LOD calculations when mesh is not present.\n:jessica-group: LOD", 
+				Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+				"minScreenSize", 
+				m_minScreenSize, 
+				"Minimal size of object on screen, objects smaller than this size are not rendered.\n:jessica-group: LOD", 
+				Be::READWRITE | Be::PERSIST )
 		MAP_METHOD_AND_WRAP( "RebuildLocalTransform", RebuildLocalTransform, "Rebuilds local transform if useSRT is set." )
 
     EXPOSURE_END()

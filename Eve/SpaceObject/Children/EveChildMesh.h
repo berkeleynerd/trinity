@@ -74,6 +74,7 @@ protected:
 	// the mesh
 	Tr2MeshBasePtr m_mesh;
 	Tr2Lod m_lowestLodVisible;
+	float m_minScreenSize;
 
 	// per-object data
 	bool m_useSpaceObjectData;

@@ -15,9 +15,13 @@
 #include "Resources/TriGeometryRes.h"
 #include "Utilities/BoundingSphere.h"
 
+extern float g_eveSpaceSceneLODFactor;
+
+
 EveChildBillboard::EveChildBillboard( IRoot* lockobj ):
 	EveChildTransform(),
 	m_boundingSphere( 0.0, 0.0, 0.0, -1.0),
+	m_minScreenSize( 0.f ),
 	m_display( true )
 {
 }
@@ -53,7 +57,7 @@ void EveChildBillboard::GetRenderables( const TriFrustum& frustum, std::vector<I
 		return;
 	}
 
-	if( GetBoundingSphere( boundingSphere ) && frustum.IsSphereVisible( &boundingSphere ) )
+	if( GetBoundingSphere( boundingSphere ) && frustum.IsSphereVisible( &boundingSphere ) && frustum.GetPixelSizeAccross( &boundingSphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
 	{
 		renderables.push_back( this );
 	}

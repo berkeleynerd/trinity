@@ -34,5 +34,10 @@ const Be::ClassInfo* EveChildCloud::ExposeToBlue()
 		MAP_ATTRIBUTE( "boundingSphere", m_boundingSphere, "Used for culling", Be::READ )
 		MAP_ATTRIBUTE( "preTesselationLevel", m_preTesselationLevel, "Number of triangles per width/heigth", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "volume", m_volume, "Shape volume texture editor", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( 
+			"minScreenSize", 
+			m_minScreenSize, 
+			"Minimal size of object on screen, objects smaller than this size are not rendered.\n:jessica-group: LOD", 
+			Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }
