@@ -68,6 +68,7 @@ private:
 	bool m_display;
 
 	Vector4 m_boundingSphere;
+	Vector4 m_lodSphere;
 
 	Tr2InstancedMeshPtr m_mesh;
 	PTr2ParticleSystemVector m_particleSystems;

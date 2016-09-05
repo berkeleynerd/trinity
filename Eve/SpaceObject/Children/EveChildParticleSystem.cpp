@@ -27,6 +27,7 @@ EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ):
 	PARENTLOCK( m_particleEmitters ),
 	PARENTLOCK( m_particleSystems ),
 	m_boundingSphere( 0, 0, 0, -1 ),
+	m_lodSphere( 0, 0, 0, -1 ),
 	m_display( true ),
 	m_useDynamicLod( false ),
 	m_lodFactorMedium( 0.25 ),
@@ -62,7 +63,7 @@ void EveChildParticleSystem::Setup( const Vector3* scale, const Quaternion* rota
 
 void EveChildParticleSystem::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
+	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
 	{
 		return;
 	}
@@ -160,14 +161,15 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 	{
 		BoundingSphereFromBox( m_boundingSphere, minBounds, maxBounds, &m_worldTransform );
 	}
-	else if( m_lodSphereRadius > 0 )
+
+	if( m_lodSphereRadius > 0 )
 	{
-		m_boundingSphere.w = m_lodSphereRadius;
-		BoundingSphereTransform( m_worldTransform, m_boundingSphere );
+		m_lodSphere.w = m_lodSphereRadius;
+		BoundingSphereTransform( m_worldTransform, m_lodSphere );
 	}
 	else
 	{
-		m_boundingSphere.w = -1.0f;
+		m_lodSphere.w = -1.0f;
 	}
 
 	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
@@ -177,12 +179,12 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 	if( !m_particleEmitters.empty() )
 	{
 		float emitCountFactor = 1.f;
-		if( m_minScreenSize > 0.f )
+		if( m_minScreenSize > 0.f && m_lodSphereRadius > 0.f )
 		{
 			auto viewProj = Tr2Renderer::GetViewTransform() * Tr2Renderer::GetProjectionTransform();
 			TriFrustum frustum;
 			frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), Tr2Renderer::GetViewport() );
-			if( frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
+			if( frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
 			{
 				emitCountFactor = 0.f;
 			}
