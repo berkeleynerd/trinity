@@ -117,12 +117,8 @@ const Tr2EffectResource* Tr2Shader::GetResource( const char* name ) const
 // --------------------------------------------------------------------------------------
 const Tr2EffectParameterAnnotationMap* Tr2Shader::GetParameterAnnotations( const char* parameterName ) const
 {
-	auto annotations = m_effect.annotations.find( parameterName );
-	if( annotations == m_effect.annotations.end() )
-	{
-		return nullptr;
-	}
-	return &annotations->second;
+	auto it = std::find_if( m_effect.annotations.begin(), m_effect.annotations.end(), [&]( Tr2EffectAnnotationMap::const_reference key ) { return strcmp( key.first, parameterName ) == 0; } );
+	return it == m_effect.annotations.end() ? nullptr : &it->second;
 }
 
 
