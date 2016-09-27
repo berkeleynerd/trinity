@@ -15,6 +15,7 @@ using namespace Tr2RenderContextEnum;
 
 Tr2DynamicRingBuffer::Tr2DynamicRingBuffer()
 	:m_regions( "Tr2DynamicRingBuffer::m_regions" ),
+	m_sizeIncrement( 0 ),
 	m_lastPutSucceeded( false ),
 	m_bufferSize( 0 ),
 	m_availableFences( "Tr2DynamicRingBuffer::m_availableFences" )
@@ -74,10 +75,15 @@ ALResult Tr2DynamicRingBuffer::PutData(
 		bufferOffset = 0;
 		lockType = LOCK_WRITEONLY;
 		RemoveRegions( m_regions.begin(), m_regions.end() );
-		if( m_bufferSize < size )
+		if( m_bufferSize < size + m_sizeIncrement )
 		{
-			CR_RETURN_HR( CreateBuffer( size ) );
-			m_bufferSize = size;
+			CR_RETURN_HR( CreateBuffer( size + m_sizeIncrement ) );
+			m_bufferSize = size + m_sizeIncrement;
+		}
+		else if( m_sizeIncrement )
+		{
+			CR_RETURN_HR( CreateBuffer( m_bufferSize + m_sizeIncrement ) );
+			m_bufferSize += m_sizeIncrement;
 		}
 	}
 	else
@@ -298,6 +304,17 @@ bool Tr2DynamicRingBuffer::UseNoOverwriteRegions() const
 	}
 	return g_ringBufferUseNoOverwrite;
 #endif
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Changes the size of the buffer increments when rewriging the buffer.
+// Arguments:
+//   sizeIncrement - Buffer size increment in bytes
+// --------------------------------------------------------------------------------------
+void Tr2DynamicRingBuffer::SetSizeIncrement( uint32_t sizeIncrement )
+{
+	m_sizeIncrement = sizeIncrement;
 }
 
 // --------------------------------------------------------------------------------------

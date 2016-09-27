@@ -36,6 +36,8 @@ public:
 		Tr2RenderContext& renderContext );
 	void DoneUsingData( Tr2RenderContext& renderContext );
 
+	void SetSizeIncrement( uint32_t sizeIncrement );
+
 	uint32_t GetBufferSize() const;
 
 	virtual bool IsValid() const = 0;
@@ -74,6 +76,8 @@ private:
 
 	// Buffer regions used by GPU
 	RegionVector m_regions;
+	// How much to grow the buffer if there run out of space
+	uint32_t m_sizeIncrement;
 	// Did the last PutData succeeded
 	bool m_lastPutSucceeded;
 

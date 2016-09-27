@@ -4,7 +4,8 @@
 
 using namespace Tr2RenderContextEnum;
 
-CCP_STATS_DECLARE( instancePoolUsed, "Trinity/Tr2InstancePool/usedBufferMemory", true, CST_COUNTER_LOW, "Vertex buffer memory used by the pool" );
+CCP_STATS_DECLARE( instanceDataSize, "Trinity/Tr2QuadRenderer/instanceDataSize", true, CST_COUNTER_LOW, "Size of instance data per frame" );
+CCP_STATS_DECLARE( instanceBufferSize, "Trinity/Tr2QuadRenderer/instanceBufferSize", true, CST_COUNTER_LOW, "Size of the instance buffer used by the pool" );
 
 namespace
 {
@@ -37,6 +38,8 @@ Tr2QuadRenderer::Tr2QuadRenderer( IRoot* )
 	m_bufferSize( 0 ),
 	m_lastInstanceDataSize( 0 )
 {
+	// let the instance buffer grow to avoid buffer rewrites (helps AMD)
+	m_vertexBuffer.SetSizeIncrement( 512 * 1024 );
 }
 
 Tr2QuadRenderer* Tr2QuadRenderer::Instance()
@@ -184,7 +187,8 @@ void Tr2QuadRenderer::UpdateInstanceBuffer( Tr2RenderContext& renderContext )
 	}
 	else
 	{
-		CCP_STATS_ADD( instancePoolUsed, m_bufferSize );
+		CCP_STATS_ADD( instanceDataSize, m_bufferSize );
+		CCP_STATS_ADD( instanceBufferSize, m_vertexBuffer.GetBufferSize() );
 		m_lastInstanceDataSize = m_bufferSize;
 	}
 }
