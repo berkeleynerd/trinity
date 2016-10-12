@@ -2425,12 +2425,6 @@ void Tr2Sprite2dScene::CopyIndicesWithOffset( unsigned short* indices, unsigned 
 
 bool Tr2Sprite2dScene::EnsureBufferSpace( unsigned int vertexCount, unsigned short indexCount, int &vertexOffset )
 {
-	CCP_ASSERT( vertexCount <= m_maxSpriteCount * 4 );
-	if( vertexCount > m_maxSpriteCount * 4 )
-	{
-		return false;
-	}
-
 	if( m_captureDisplayList )
 	{
 		CCP_STATS_ZONE( __FUNCTION__ " capture" );
@@ -2482,6 +2476,10 @@ bool Tr2Sprite2dScene::EnsureBufferSpace( unsigned int vertexCount, unsigned sho
 		}
 
 		CCP_ASSERT( (m_vertexCount + vertexCount <= m_maxSpriteCount * 4) && (m_indexCount + indexCount <= m_maxSpriteCount * 6) );
+		if( ( m_vertexCount + vertexCount > m_maxSpriteCount * 4 ) || ( m_indexCount + indexCount > m_maxSpriteCount * 6 ) )
+		{
+			return false;
+		}
 
 		vertexOffset = m_vertexCount;
 	}
