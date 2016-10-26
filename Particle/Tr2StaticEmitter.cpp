@@ -154,10 +154,6 @@ void Tr2StaticEmitter::DoSpawn()
 					}
 					else if( ( elements.m_items[j].m_dataType & elements.DT_TYPE_MASK ) == elements.DT_FLOAT16 )
 					{
-						CCP_LOGWARN( 
-							"Particle elements \"%s\" has FLOAT16 type in Tr2StaticEmitter geometry %s, this degrades emitter performance", 
-							i->first.GetName().c_str(), 
-							m_geometryResourcePath.c_str() );
 						mapping.isFloat16 = true;
 					}
 					else

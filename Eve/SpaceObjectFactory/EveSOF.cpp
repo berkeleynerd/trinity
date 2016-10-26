@@ -1598,6 +1598,11 @@ void EveSOF::SetupLocators( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) con
 	{
 		obj->AddLocatorSet( "explosions", (const Locator*)&( *explosionsLocators )[0], explosionsLocators->size() );
 	}
+	const std::vector<EveSOFDataMgr::LocatorDirectionData>* globalExplosionOffsetLocators = dna->GetHullLocators( "globalExplosionOffset" );
+	if( globalExplosionOffsetLocators )
+	{
+		obj->AddLocatorSet( "globalExplosionOffset", (const Locator*)&( *globalExplosionOffsetLocators )[0], globalExplosionOffsetLocators->size() );
+	}
 
 	// create and setup the audio locator
 	EveLocator2Ptr loc;
