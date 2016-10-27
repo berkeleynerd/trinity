@@ -70,6 +70,7 @@ void EveChildExplosion::Stop()
 	m_isPlaying = false;
 	m_sharedObjects.clear();
 	m_globalExplosionInstance.Unlock();
+	m_globalExplosionContainer.Unlock();
 }
 
 // --------------------------------------------------------------------------------------
@@ -139,6 +140,7 @@ void EveChildExplosion::UpdateSyncronous(
 {
 	if( m_isPlaying )
 	{
+		bool shouldStop = false;
 		auto dt = updateContext.GetDeltaT();
 		m_playTime += dt;
 		if( m_localExplosion || !m_localExplosions.empty() )
@@ -173,7 +175,7 @@ void EveChildExplosion::UpdateSyncronous(
 				else if( -m_nextLocalExplosionTime > m_localDuration && 
 					( !m_globalExplosion || -m_countdownToGlobalExplosionStart > m_totalDuration ) )
 				{
-					Stop();
+					shouldStop = true;
 				}
 			}
 		}
@@ -199,9 +201,13 @@ void EveChildExplosion::UpdateSyncronous(
 				}
 				else if( !m_localExplosion && m_localExplosions.empty() && -m_countdownToGlobalExplosionStart > m_totalDuration )
 				{
-					Stop();
+					shouldStop = true;
 				}
 			}
+		}
+		if(shouldStop)
+		{
+			Stop();
 		}
 	}
 	EveChildContainer::UpdateSyncronous( updateContext, spaceObjectParent, childParent );

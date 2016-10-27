@@ -56,8 +56,6 @@ private:
 	float m_localExplosionIntervalFactor;
 	// Store the localExplosion times in seconds so we can safely calculate the global explosion time
 	std::vector<float> m_localExplosionTimes;
-	// The start time of the global explosion in seconds
-	float m_globalExplosionStartTime;
 	// Delay from explosion start to the "global" explosion in seconds
 	float m_globalExplosionDelay;
 	float m_countdownToGlobalExplosionStart;
