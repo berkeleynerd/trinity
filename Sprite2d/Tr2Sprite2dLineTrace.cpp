@@ -55,6 +55,11 @@ void Tr2Sprite2dLineTrace::GatherSprites( Tr2Sprite2dScene* renderer )
 	{
 		ClearVertices();
 
+		if( m_vertices.size() < 2 )
+		{
+			return;
+		}
+
 		if( !ValidateAndSetTextures( renderer ) )
 		{
 			return;
