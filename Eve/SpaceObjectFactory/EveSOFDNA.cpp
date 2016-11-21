@@ -289,6 +289,7 @@ void EveSOFDNA::SetupCustomData()
 	m_customHullData.shapeEllipsoidCenter = m_hullData->shapeEllipsoidCenter;
 	m_customHullData.shapeEllipsoidRadius = m_hullData->shapeEllipsoidRadius;
 	m_customHullData.isSkinned = m_hullData->isSkinned;
+	m_customHullData.enableDynamicBoundingSphere = m_hullData->enableDynamicBoundingSphere;
 	m_customHullData.audioPosition = m_hullData->audioPosition;
 
 	// do we have a dna variant command for this?
@@ -778,6 +779,15 @@ const Vector3* EveSOFDNA::GetHullAudioPosition() const
 bool EveSOFDNA::IsHullAnimated() const
 {
 	return m_hullData->isSkinned;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Does this hull use dynamic bounding spheres?
+// --------------------------------------------------------------------------------
+bool EveSOFDNA::DynamicBoundingSphereEnabled() const
+{
+	return m_hullData->enableDynamicBoundingSphere;
 }
 
 // --------------------------------------------------------------------------------

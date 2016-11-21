@@ -456,6 +456,7 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 	hd.shapeEllipsoidCenter = srcData->m_shapeEllipsoidCenter;
 	hd.shapeEllipsoidRadius = srcData->m_shapeEllipsoidRadius;
 	hd.isSkinned = srcData->m_isSkinned;
+	hd.enableDynamicBoundingSphere = srcData->m_enableDynamicBoundingSphere;
 	hd.audioPosition = srcData->m_audioPosition;
 	hd.impactEffectType = srcData->m_impactEffectType;
 

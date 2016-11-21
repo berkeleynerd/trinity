@@ -177,7 +177,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
 	m_spaceObjectShipData( 1.f, 1.f, EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT, 1.f ),
 	m_dirtLevel( EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT ),
-	m_isAnimated( false ),
+	m_dynamicBoundingSphereEnabled( false ),
 	m_lastDamageLocatorHit( -1 )
 {
 	m_worldTransform = XMMatrixIdentity();
@@ -406,7 +406,7 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 
 void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext ) 
 {
-	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
+	if( m_dynamicBoundingSphereEnabled && m_animationUpdater && m_animationUpdater->IsInitialized() )
 	{
 		m_animationUpdater->GetDynamicBounds( m_dynamicBoundingSphere, m_localAabbMin, m_localAabbMax );
 		D3DXVec3TransformCoord( (Vector3*)&m_boundingSphereWorld, (Vector3*)&m_dynamicBoundingSphere, &m_worldTransform );
@@ -474,7 +474,7 @@ void EveSpaceObject2::RenderDebugInfo( Tr2RenderContext& renderContext )
 			}
 		}
 	}
-	if( m_animationUpdater && m_debugShowDynamicBounds && m_isAnimated )
+	if( m_animationUpdater && m_debugShowDynamicBounds && m_dynamicBoundingSphereEnabled )
 	{
 		m_animationUpdater->RenderDynamicBounds( m_worldTransform );
 	}
@@ -922,7 +922,7 @@ void EveSpaceObject2::GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpac
 
 Vector4 EveSpaceObject2::CalculateSkinnedBoundingSphere()
 {
-	if( m_isAnimated )
+	if( m_dynamicBoundingSphereEnabled )
 	{
 		return m_animationUpdater->CalculateSkinnedBoundingSphere( m_mesh->GetGeometryResource()->GetGrannyInfo() );
 	}
@@ -933,7 +933,7 @@ std::pair<Vector3, Vector3> EveSpaceObject2::CalculateSkinnedBoundingBoxFromTran
 {
 	Vector3 bbMin, bbMax;
 	BoundingBoxInitialize( bbMin, bbMax );
-	if( m_isAnimated )
+	if( m_dynamicBoundingSphere )
 	{
 		m_animationUpdater->CalculateSkinnedBoundingBoxFromTransform( transform, bbMin, bbMax, m_geometryResFromMesh->GetGrannyInfo() );
 	}
@@ -1321,9 +1321,6 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 		m_geometryResFromMesh = nullptr;
 		return;
 	}
-	// Objects with only one animation just have a default animation and aren't treated as
-	// animated in terms of bounds calculations and such.
-	m_isAnimated = m_geometryResFromMesh && m_geometryResFromMesh->GetAnimationCount() > 1;
 
 	m_animationUpdater->SetUseMeshBinding( true );	
 	m_animationUpdater->SetSharedGeometryRes( m_geometryResFromMesh );
@@ -1679,7 +1676,7 @@ void EveSpaceObject2::UpdateModelCenterWorldPosition( Vector3 &position, Be::Tim
 	// We are being looked at by a camera, so we need to make sure we update early enough
 	UpdateWorldTransform( t );
 
-	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
+	if( m_dynamicBoundingSphereEnabled && m_animationUpdater && m_animationUpdater->IsInitialized() )
 	{
 		Vector4 boundingSphere;
 		m_animationUpdater->GetDynamicBounds( boundingSphere, m_localAabbMin, m_localAabbMax );
@@ -1845,7 +1842,7 @@ void EveSpaceObject2::GetModelCenterWorldPosition( Vector3 &position ) const
 
 bool EveSpaceObject2::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
 {
-	if( m_isAnimated && m_animationUpdater && m_animationUpdater->IsInitialized() )
+	if( m_dynamicBoundingSphereEnabled && m_animationUpdater && m_animationUpdater->IsInitialized() )
 	{
 		Vector4 bs;
 		m_animationUpdater->GetDynamicBounds( bs, min, max );
@@ -1956,6 +1953,15 @@ void EveSpaceObject2::SetBoundingSphereInformation( const Vector4* centerAndRadi
 {
 	m_boundingSphereCenter = *(Vector3*)centerAndRadius;
 	m_boundingSphereRadius = centerAndRadius->w;
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Toggle dynamic bounding sphere calculations
+// --------------------------------------------------------------------------------
+void EveSpaceObject2::EnableDynamicBoundingSphere( bool enable )
+{
+	m_dynamicBoundingSphereEnabled = enable;
 }
 
 // --------------------------------------------------------------------------------

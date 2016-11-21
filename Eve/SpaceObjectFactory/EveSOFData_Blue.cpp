@@ -489,6 +489,7 @@ const Be::ClassInfo* EveSOFDataHull::ExposeToBlue()
 		MAP_ATTRIBUTE( "shapeEllipsoidCenter", m_shapeEllipsoidCenter, "The geometry's shape ellipsoid: center", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shapeEllipsoidRadius", m_shapeEllipsoidRadius, "The geometry's shape ellipsoid: center", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "isSkinned", m_isSkinned, "Does this hull need skinned shaders?", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "enableDynamicBoundingSphere", m_enableDynamicBoundingSphere, "Used to toggle dynamic bounding sphere.", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "opaqueAreas", m_opaqueAreas, "The opaque areas on this mesh", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "decalAreas", m_decalAreas, "The decal aSOFDatareas on this mesh", Be::READWRITE | Be::PERSIST )

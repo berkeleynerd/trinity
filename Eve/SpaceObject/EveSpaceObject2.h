@@ -351,6 +351,9 @@ public:
 	void SetImpactAnimation( const std::string& name, bool enable, float duration );
 	void ClearImpactDamage();
 
+	// dynamic bounding sphere
+	void EnableDynamicBoundingSphere( bool enable );
+
 	uint32_t GetPerObjectDataSize( Tr2RenderContextEnum::ShaderType shaderType ) const;
 	void UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shaderType, uint32_t size, void* );
 
@@ -562,7 +565,7 @@ private:
 	static PyObject* PyTransformLocators( PyObject* self, PyObject* args );
 #endif
 
-	bool m_isAnimated;
+	bool m_dynamicBoundingSphereEnabled;
 	EveAnimationSequencerPtr m_animationSequencer;
 
 	PTr2ExternalParameterVector m_externalParameters;

@@ -305,6 +305,7 @@ void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 	// bounding sphere comes from data, is faster
 	obj->SetBoundingSphereInformation( dna->GetHullBoundingSphere() );
 	obj->SetShapeEllipsoid( dna->GetHullShapeEllipsoidCenter(), dna->GetHullShapeEllipsoidRadius() );
+	obj->EnableDynamicBoundingSphere( dna->DynamicBoundingSphereEnabled() );
 
 	// shadow
 	if( dna->IsHullAnimated() )
