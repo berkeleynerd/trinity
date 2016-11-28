@@ -18,8 +18,9 @@ Tr2InteriorSHLightingSolver::Tr2InteriorSHLightingSolver()
 	m_textureSize( 256 )
 {
 	PrepareResources();
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHLightingMap" );
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHSampleMap" );
+
+	GlobalStore().RegisterVariable( "SHSampleMap", static_cast<Tr2TextureAL*>( nullptr ) );
+	GlobalStore().RegisterVariable( "SHLightingMap", static_cast<Tr2TextureAL*>( nullptr ) );
 
 	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
 	m_shRenderBatches = CCP_NEW( "Tr2InteriorSHLightingSolver1Sample/m_shRenderBatches" ) TriRenderBatchAccumulator<EffectKeyGenerator>( allocator );
@@ -43,9 +44,8 @@ void Tr2InteriorSHLightingSolver::ReleaseResources( TriStorage s )
 	m_shTexture.Destroy();
 
 	// Make sure that these are cleared
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHLightingMap" );
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHSampleMap" );
-
+	GlobalStore().RegisterVariable( "SHSampleMap", static_cast<Tr2TextureAL*>( nullptr ) );
+	GlobalStore().RegisterVariable( "SHLightingMap", static_cast<Tr2TextureAL*>( nullptr ) );
 }
 
 // --------------------------------------------------------------------------------------
@@ -152,10 +152,8 @@ void Tr2InteriorSHLightingSolver::Clear()
 	m_samples.clear();
 
 	// Make sure that these are cleared
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHLightingMap" );
-	GlobalStore().RegisterPlaceholderTextureVariable( "SHSampleMap" );
-
-
+	GlobalStore().RegisterVariable( "SHSampleMap", static_cast<Tr2TextureAL*>( nullptr ) );
+	GlobalStore().RegisterVariable( "SHLightingMap", static_cast<Tr2TextureAL*>( nullptr ) );
 }
 
 // -------------------------------------------------------------
@@ -321,4 +319,3 @@ void Tr2InteriorSHLightingSolver::Solve( const ITr2InteriorLightVector& visibleL
 	
 	m_samples.clear();
 }
-
