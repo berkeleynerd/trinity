@@ -2,7 +2,7 @@
 #define TRISHADOWMAP_H
 
 #include "Tr2DeviceResource.h"
-
+#include "ITr2TextureProvider.h"
 #include "TriFrustum.h"
 #include "Utilities/Obb.h"
 
@@ -19,6 +19,7 @@ BLUE_DECLARE( Tr2Effect );
 // --------------------------------------------------------------------------------
 class TriShadowMap :
 	public INotify,
+	public ITr2TextureProvider,
 	public Tr2DeviceResource
 {
 public:
@@ -27,8 +28,8 @@ public:
 	TriShadowMap( IRoot* lockobj = 0 );
 	~TriShadowMap();
 
-    using IRoot::Lock;
-	using IRoot::Unlock;
+    using INotify::Lock;
+	using INotify::Unlock;
 
 	void ClearVariableStore();
 
@@ -68,7 +69,7 @@ public:
 	void GetDescription( std::string& desc );
 #endif
 
-	Tr2TextureAL& GetTexture();
+	virtual Tr2TextureAL* GetTexture();
 
 private:
 	bool m_useMips;			// True if we want shadow map to be mipped
@@ -77,6 +78,7 @@ private:
 
 	// of this is disabled this module is nearly empty
 	bool m_enabled;
+	bool m_useBlankTexture;
 
 	// Width and height of shadow map
 	unsigned int m_size;

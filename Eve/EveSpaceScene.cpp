@@ -539,7 +539,7 @@ void EveSpaceScene::PrepareShadowMap(
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	if( !m_shadowMap || !m_shadowMap->GetTexture().IsValid() )
+	if( !m_shadowMap || !m_shadowMap->GetTexture() || !m_shadowMap->GetTexture()->IsValid() )
 	{
 		return;
 	}
@@ -992,7 +992,7 @@ void EveSpaceScene::RenderObjectsReceivingShadows(	std::vector<ShadowReceiver>& 
 			}
 		}
 		
-		if( m_shadowMap && m_shadowMap->GetTexture().IsValid() )
+		if( m_shadowMap && m_shadowMap->GetTexture() && m_shadowMap->GetTexture()->IsValid() )
 		{
 			Tr2ParallelFor( 
 				Tr2BlockedRange<size_t>( 0, objectsReceivingShadows.size() ), 
@@ -1908,9 +1908,9 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 
 	if( m_displayShadowMap )
 	{
-		if( m_shadowMap )
+		if( m_shadowMap && m_shadowMap->GetTexture() )
 		{
-			Tr2Renderer::DrawTexture( m_shadowMap->GetTexture() );
+			Tr2Renderer::DrawTexture( *m_shadowMap->GetTexture() );
 		}
 	}
 

@@ -8,6 +8,7 @@ const Be::ClassInfo* TriShadowMap::ExposeToBlue()
 	EXPOSURE_BEGIN( TriShadowMap, "" )
 		MAP_INTERFACE( TriShadowMap )
 		MAP_INTERFACE( INotify )
+		MAP_INTERFACE( ITr2TextureProvider )
 
 		MAP_ATTRIBUTE( "enabled", m_enabled, "Disable shadows (this is just for debugging!)", Be::READWRITE | Be::NOTIFY )
 

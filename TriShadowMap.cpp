@@ -14,6 +14,7 @@ TriShadowMap::TriShadowMap( IRoot* lockobj ) :
 	m_depthBias( 0.002f ),
 	m_lightLeakStep( 0.5f ),
 	m_enabled( true ),
+	m_useBlankTexture( false ),
 	m_useMips( false ),
 	m_generateMips( false ),
 	m_filterVsm( true ),
@@ -31,7 +32,7 @@ TriShadowMap::TriShadowMap( IRoot* lockobj ) :
 	PrepareResources();
 
 	// register variable handle to texture
-	m_shadowMapHandle    = GlobalStore().RegisterVariable( "EveSpaceSceneShadowMap", (Tr2TextureAL*)nullptr );
+	m_shadowMapHandle    = GlobalStore().RegisterVariable( "EveSpaceSceneShadowMap", this );
 	m_shadowSizeHandle   = GlobalStore().RegisterVariable( "EveSpaceSceneShadowMapSettings", Vector4( 1.0f / m_size, 1.0f / m_size, m_depthBias, m_lightLeakStep ) );
 	m_invInputSizeHandle = GlobalStore().RegisterVariable( "invTexelSize", Vector2( 0, 0 ) );
 
@@ -249,23 +250,23 @@ bool TriShadowMap::OnPrepareResources()
 	return true;
 }
 
-Tr2TextureAL& TriShadowMap::GetTexture()
+Tr2TextureAL* TriShadowMap::GetTexture()
 {
-	return m_shadowMapRT.GetTexture();
+	if( m_useBlankTexture || !m_enabled )
+	{
+		return &m_noShadowTexture;
+	}
+	else
+	{
+		return &m_shadowMapRT.GetTexture();
+	}
 }
 
 void TriShadowMap::SetShadowTexture( bool useBlankTexture )
 {
 	if( m_shadowMapHandle )
 	{
-		if( useBlankTexture || !m_enabled )
-		{
-			m_shadowMapHandle->SetValue( &m_noShadowTexture );
-		}
-		else
-		{
-			m_shadowMapHandle->SetValue( &GetTexture() );
-		}
+		m_useBlankTexture = useBlankTexture;
 	}
 }
 

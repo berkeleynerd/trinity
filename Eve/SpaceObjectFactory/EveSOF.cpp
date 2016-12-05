@@ -56,8 +56,8 @@ EveSOF::EveSOF( IRoot* lockobj ) :
 	PARENTLOCK( m_dataMgr )
 {
 	// pre-register some really needed vars in the global variable store
-	Tr2Variable var1( "DepthMap", (Tr2TextureAL*)nullptr );
-	Tr2Variable var2( "DepthMapMsaa", (Tr2TextureAL*)nullptr );
+	Tr2Variable var1( "DepthMap", (ITr2TextureProvider*)nullptr );
+	Tr2Variable var2( "DepthMapMsaa", (ITr2TextureProvider*)nullptr );
 
 	BlueSharedString mainIntensity( "MainIntensity" );
 	BlueSharedString gradientMap( "GradientMap" );
