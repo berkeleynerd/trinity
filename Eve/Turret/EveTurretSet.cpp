@@ -606,7 +606,20 @@ void EveTurretSet::UpdateSyncronous( float deltaT, Be::Time time, const Matrix* 
 			GrannySetModelClock( it->grnModelInstance, Tr2Renderer::GetAnimationTime() );
 			GrannyFreeCompletedModelControls( it->grnModelInstance );
 		}
+
+		Matrix localMatrix;		
+		Vector3 localPos = Vector3(it->localPosition.x, it->localPosition.y, it->localPosition.z);
+		D3DXMatrixRotationQuaternion( &localMatrix, &it->localQuaternion );
+		TriMatrixTranslate(&localMatrix, &localMatrix, &localPos);
+		
+		// first parent matrix (ship or station), then local matrix (locator position)
+		D3DXMatrixMultiply( &it->worldMatrix, &localMatrix, &m_parentData.transform );
+		// we need the inverse matrix for the tracking later
+		D3DXMatrixInverse( &it->invWorldMatrix, NULL, &it->worldMatrix );
+		// this validates this turret
+		it->valid = true;
 	}
+	
 
 	// setup and update attached firing effect
 	if( m_firingEffect )
@@ -674,22 +687,6 @@ void EveTurretSet::UpdateAsyncronous( EveUpdateContext& updateContext, const Par
 
 	// keep parent's transform
 	m_parentData = *parentData;
-
-	// update single turret list
-	for( std::vector<SingleTurretData>::iterator it = m_singleTurrets.begin(); it != m_singleTurrets.end(); ++it )
-	{
-		Matrix localMatrix;		
-		Vector3 localPos = Vector3(it->localPosition.x, it->localPosition.y, it->localPosition.z);
-		D3DXMatrixRotationQuaternion( &localMatrix, &it->localQuaternion );
-		TriMatrixTranslate(&localMatrix, &localMatrix, &localPos);
-		
-		// first parent matrix (ship or station), then local matrix (locator position)
-		D3DXMatrixMultiply( &it->worldMatrix, &localMatrix, &m_parentData.transform );
-		// we need the inverse matrix for the tracking later
-		D3DXMatrixInverse( &it->invWorldMatrix, NULL, &it->worldMatrix );
-		// this validates this turret
-		it->valid = true;
-	}
 	
 	// handle fading of turret tracking
 	if( m_trackingInfluenceDelta != 0.f )

@@ -283,6 +283,13 @@ void EveEffectRoot2::UnregisterSecondaryLightSource( Tr2ShLightingManager& manag
 // --------------------------------------------------------------------------------
 void EveEffectRoot2::Start()
 {
+	// play curvesets owned by this effect root
+	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
+	{
+		( *it )->Play();
+	}
+
+	// play curvesets on containers owned by this effect root
 	for( auto cit = m_effectChildren.begin(); cit != m_effectChildren.end(); cit++ )
 	{
 		EveChildContainerPtr cont;
@@ -299,6 +306,13 @@ void EveEffectRoot2::Start()
 // --------------------------------------------------------------------------------
 void EveEffectRoot2::Stop()
 {
+	// stop curvesets owned by this effect root
+	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
+	{
+		( *it )->Stop();
+	}
+
+	// stop curvesets on containers owned by this effect root
 	for( auto cit = m_effectChildren.begin(); cit != m_effectChildren.end(); cit++ )
 	{
 		EveChildContainerPtr cont;
