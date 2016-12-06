@@ -9,6 +9,7 @@
 #define Tr2DataTextureManager_H
 
 BLUE_DECLARE( EveUpdateContext );
+BLUE_DECLARE( Tr2TextureReference );
 
 BLUE_CLASS( Tr2DataTextureManager ) :
 	public IInitialize,
@@ -64,7 +65,7 @@ private:
 	std::map<float, int32_t> m_blockPriority;
 
 	// the texture
-	Tr2TextureAL m_dataTexture;
+	Tr2TextureReferencePtr m_dataTexture;
 	std::map<int32_t, int32_t> m_dataTextureOffsets;
 
 	// debug

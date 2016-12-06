@@ -6,7 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2DataTextureManager.h"
-
+#include "Tr2TextureReference.h"
 #include "Tr2VariableStore.h"
 
 Tr2DataTextureManager::Tr2DataTextureManager( IRoot* lockobj ) :
@@ -16,14 +16,16 @@ Tr2DataTextureManager::Tr2DataTextureManager( IRoot* lockobj ) :
 	m_maxBlockCount( 0 ),
 	m_maxPixelCount( 0 )
 {
-	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_dataTexture );
+	m_dataTexture.CreateInstance();
+
+	GlobalStore().RegisterVariable( "ImpactShieldDataMap", m_dataTexture );
 
 	PrepareResources();
 }
 
 Tr2DataTextureManager::~Tr2DataTextureManager()
 {
-	GlobalStore().RegisterVariable( "ImpactShieldDataMap", (Tr2TextureAL*)nullptr );
+	GlobalStore().RegisterVariable( "ImpactShieldDataMap", static_cast<ITr2TextureProvider*>( nullptr ) );
 }
 
 // --------------------------------------------------------------------------------
@@ -42,7 +44,7 @@ bool Tr2DataTextureManager::Initialize()
 void Tr2DataTextureManager::ReleaseResources( TriStorage s )
 {
 	// get rid of data texture
-	m_dataTexture.Destroy();
+	m_dataTexture->GetTexture()->Destroy();
 }
 
 // --------------------------------------------------------------------------------
@@ -67,7 +69,7 @@ bool Tr2DataTextureManager::OnPrepareResources()
 	// create the data texture here, prefill it with zeros
 	std::vector<Vector4> t( m_textureWidth * m_textureHeight, Vector4( 0.f, 0.f, 0.f, 0.f ) );
 	Tr2SubresourceData init = { &t[0], m_textureWidth * uint32_t(sizeof(Vector4)), m_textureWidth * m_textureHeight * uint32_t(sizeof(Vector4)) };
-	if( FAILED( m_dataTexture.Create2D( m_textureWidth, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, &init, renderContext ) ) )
+	if( FAILED( m_dataTexture->GetTexture()->Create2D( m_textureWidth, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, &init, renderContext ) ) )
 	{
 		return false;
 	}
@@ -84,7 +86,7 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	// need to do this here, always!
-	GlobalStore().RegisterVariable( "ImpactShieldDataMap", &m_dataTexture );
+	GlobalStore().RegisterVariable( "ImpactShieldDataMap", m_dataTexture );
 
 	// 0
 	m_maxPixelCount = m_maxBlockCount = 0;
@@ -100,7 +102,7 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 	uint32_t pitch = 0;
 	int32_t pixelOffset = 0;
 	m_dataTextureOffsets.clear();
-	if( SUCCEEDED( m_dataTexture.Lock( 0, data, pitch, Tr2RenderContextEnum::LOCK_WRITEONLY, renderContext ) ) )
+	if( SUCCEEDED( m_dataTexture->GetTexture()->Lock( 0, data, pitch, Tr2RenderContextEnum::LOCK_WRITEONLY, renderContext ) ) )
 	{
 		uint8_t* mem = (uint8_t*)data;
 
@@ -143,7 +145,7 @@ void Tr2DataTextureManager::Update( EveUpdateContext& updateContext )
 				pixelOffset += block->blockLength + 1;
 			}
 		}
-		m_dataTexture.Unlock( renderContext );
+		m_dataTexture->GetTexture()->Unlock( renderContext );
 	}
 
 	// keep track of some numbers, just for debugging
