@@ -217,7 +217,7 @@ bool TriShadowMap::OnPrepareResources()
 			, false );
 	}
 
-	if( !m_noShadowTexture->GetTexture() )
+	if( !m_noShadowTexture->GetTexture()->IsValid() )
 	{
 		// not an RT, just a texture, so should be available as 2x32 bit float.
 		float pixels[2*2*2];
