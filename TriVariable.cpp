@@ -21,35 +21,15 @@ const Be::ClassInfo* TriVariable::ExposeToBlue()
 }
 
 
-void TriVariable::GetValueTextureAL( Tr2TextureAL*& value ) const
-{ 
-	CCP_ASSERT( m_type == TRIVARIABLE_TEXTURE_AL );
-	value = nullptr;
-	if( Tr2TextureAL* tex = *(Tr2TextureAL**)m_value )
-	{
-		value = *(Tr2TextureAL**)m_value;
-	}
-}
-
 void TriVariable::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType inputType, 
 										unsigned char* destHandle, 
 										size_t size,
 										Tr2RenderContext &renderContext ) const
 {
-	if( m_multithreaded )
-	{
-		TriVariable* lookup = renderContext.GetVariableStore().FindLocalVariable( m_name.c_str() );
-		if( lookup && lookup != this )
-		{
-			lookup->CopyValueToEffect( inputType, destHandle, size, renderContext );
-			return;
-		}
-	}
 	switch( m_type )
 	{
 	case TRIVARIABLE_INVALID:
 	case TRIVARIABLE_UNKNOWN_FLOAT:
-	case TRIVARIABLE_UNKNOWN_TEXTURE:
 	case TRIVARIABLE_IROOT:
 		// Do Nothing
 		break;
@@ -61,23 +41,6 @@ void TriVariable::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType inputType,
 				reinterpret_cast<Matrix*>( destHandle ), 
 				reinterpret_cast<const Matrix*>( m_value ), 
 				(unsigned int)(size < ts ? size : ts) );
-			break;
-		}
-	case TRIVARIABLE_TEXTURE_AL:
-		{
-			bool isSet = false;
-			uint32_t samplerIx = *destHandle;
-			if( Tr2TextureAL* tex = *(Tr2TextureAL**)m_value )
-			{
-				auto colorSpace = ( size & RESOURCE_FLAG_SRGB ) != 0 ? Tr2RenderContextEnum::COLOR_SPACE_SRGB : Tr2RenderContextEnum::COLOR_SPACE_LINEAR;
-				renderContext.m_esm.ApplyTexture( inputType, samplerIx, *tex, colorSpace );
-				isSet = true;
-			}
-
-			if( !isSet )
-			{
-				renderContext.m_esm.ApplyTexture( inputType, samplerIx, nullTX );
-			}
 			break;
 		}
 	case TRIVARIABLE_TEXTURE_RES:

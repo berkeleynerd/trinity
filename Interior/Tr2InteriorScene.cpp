@@ -235,7 +235,7 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 	m_shadowFilter->SetEffectPathName( "res:/Graphics/Effect/Managed/Interior/Shadows/ShadowFilter.fx" );
 
 	BeResMan->GetResource( "res:/Texture/Global/NdotLLibrary.png", "", m_nDotLTexture );
-	m_nDotLTextureHandle = GlobalStore().RegisterPlaceholderTextureVariable( "ColorNdotLLookupMap" );
+	m_nDotLTextureHandle = GlobalStore().RegisterVariable( "ColorNdotLLookupMap", static_cast<ITr2TextureProvider*>( nullptr ) );
 
 #if APEX_ENABLED
     // only create apex scene if apex is initialised which at this point is denoted by having the sdk loaded and available
@@ -932,7 +932,7 @@ void Tr2InteriorScene::RenderLightPass( Tr2RenderContext& renderContext )
 
 	renderContext.m_esm.BeginManagedRendering();
 
-	m_nDotLTextureHandle->SetValue( m_nDotLTexture->GetTexture() );
+	m_nDotLTextureHandle->SetValue( m_nDotLTexture );
 
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_LIGHT );
 	renderContext.SetReadOnlyDepth( true );

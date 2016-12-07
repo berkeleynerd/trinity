@@ -1,6 +1,7 @@
 #include "StdAfx.h"
 #include "Tr2Blitter.h"
 #include "Shader/Tr2Effect.h"
+#include "Tr2TextureReference.h"
 
 #include "TriDevice.h"	//TODO gTriDev/ScreenVertexDecl.
 
@@ -15,12 +16,7 @@ Tr2Blitter::Tr2Blitter()
 	, m_cubeFaceVar( "cubeFace", 0.f )
 	, m_mipLevelVar( "mipLevel", 0.f )
 {
-	// register so effect parameters pick it up -- but otherwise we only care about
-	// the per thread version
-	if( auto var = GlobalStore().RegisterPlaceholderTextureVariable( "BlitSource" ) )
-	{
-		var->SetMultithreaded( true );
-	}
+	GlobalStore().RegisterVariable( "BlitSource", static_cast<ITr2TextureProvider*>( nullptr ) );
 
 	// create all shaders needed in the blitter
 	m_blitEffect.CreateInstance();
@@ -170,8 +166,11 @@ bool Tr2Blitter::DrawHelper( ITr2ShaderState* shader, ITr2ShaderMaterial* materi
 
 	if( halTexture )
 	{
+		static CTr2TextureReference textureReference;
+		*textureReference.GetTexture() = *halTexture;
+
 		//m_blitSourceVar = halTexture;
-		renderContext.GetVariableStore().GetVariable( "BlitSource" )->SetValue( halTexture );
+		GlobalStore().GetVariable( "BlitSource" )->SetValue( &textureReference );
 	}
 
 	unsigned int passCount = shader->GetPassCount();
@@ -186,7 +185,7 @@ bool Tr2Blitter::DrawHelper( ITr2ShaderState* shader, ITr2ShaderMaterial* materi
 		}
 	}
 
-	renderContext.GetVariableStore().GetVariable( "BlitSource" )->Clear();	
+	GlobalStore().GetVariable( "BlitSource" )->Clear();	
 
 	return true;
 }

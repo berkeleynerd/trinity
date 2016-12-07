@@ -20,8 +20,8 @@ namespace {
 ResourceHelper::ResourceHelper()
 {
 	// register these variables once here in static's constructor, since they are needed throughout the whole game
-	GlobalStore().RegisterPlaceholderTextureVariable( "BlitOriginal" );
-	GlobalStore().RegisterPlaceholderTextureVariable( "BlitCurrent" );
+	GlobalStore().RegisterVariable( "BlitOriginal", static_cast<ITr2TextureProvider*>( nullptr ) );
+	GlobalStore().RegisterVariable( "BlitCurrent", static_cast<ITr2TextureProvider*>( nullptr ) );
 	GlobalStore().RegisterVariable( "g_texelSize", Vector4() );
 }
 

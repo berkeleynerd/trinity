@@ -1022,9 +1022,7 @@ void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2Effe
 			TriVariableParameter* vp = dynamic_cast<TriVariableParameter*>(p);
 			if( vp 
 				&& vp->m_variable
-				&& ( vp->m_variable->GetType() == TRIVARIABLE_UNKNOWN_TEXTURE || 
-					 vp->m_variable->GetType() == TRIVARIABLE_TEXTURE_RES || 
-					 vp->m_variable->GetType() == TRIVARIABLE_TEXTURE_AL || 
+				&& ( vp->m_variable->GetType() == TRIVARIABLE_TEXTURE_RES || 
 					 vp->m_variable->GetType() == TRIVARIABLE_GPUBUFFER ) )
 			{
 				param.m_sourceValue = p;
@@ -1034,9 +1032,7 @@ void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2Effe
 		// Fallback to variable store
 		else if( TriVariable* v = GetVariableStore().FindVariable( name ) )
 		{
-			if( v->GetType() == TRIVARIABLE_UNKNOWN_TEXTURE || 
-				v->GetType() == TRIVARIABLE_TEXTURE_RES || 
-				v->GetType() == TRIVARIABLE_TEXTURE_AL || 
+			if( v->GetType() == TRIVARIABLE_TEXTURE_RES || 
 				v->GetType() == TRIVARIABLE_GPUBUFFER )
 			{
 				param.m_sourceValue = v;

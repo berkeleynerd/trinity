@@ -24,8 +24,6 @@ TriStepResult TriStepSetVariableStore::Execute( Be::Time realTime, Be::Time simT
 {
 	switch( m_type )
 	{
-	case TRIVARIABLE_TEXTURE_AL:
-		break;
 	case TRIVARIABLE_TEXTURE_RES:
 		GlobalStore().RegisterVariable( m_variableName.c_str(), m_texture );
 		break;

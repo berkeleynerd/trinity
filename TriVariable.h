@@ -16,9 +16,7 @@ enum TriVariableContentType
 {
 	TRIVARIABLE_INVALID,
 	TRIVARIABLE_UNKNOWN_FLOAT,
-	TRIVARIABLE_UNKNOWN_TEXTURE,
     TRIVARIABLE_TEXTURE_RES,
-	TRIVARIABLE_TEXTURE_AL,
     TRIVARIABLE_INT,
 	TRIVARIABLE_FLOAT,
 	TRIVARIABLE_FLOAT2,
@@ -39,11 +37,6 @@ inline TriVariableContentType GetVariableType( const ITr2TextureProvider* const 
 inline TriVariableContentType GetVariableType( const ITr2GpuBuffer* const )
 {
 	return TRIVARIABLE_GPUBUFFER;
-}
-
-inline TriVariableContentType GetVariableType( const Tr2TextureAL* const )
-{
-    return TRIVARIABLE_TEXTURE_AL;
 }
 
 inline TriVariableContentType GetVariableType( const int& )
@@ -99,10 +92,7 @@ public:
 			"INVALID TYPE!",
 			// A float variable type of some sort. May be converted into any known float type
 			"TRIVARIABLE_UNKNOWN_FLOAT",
-			// A texture variable of some sort, may be converted into either texture type
-			"TRIVARIABLE_UNKNOWN_TEXTURE",
             "TRIVARIABLE_TEXTURE_RES",
-			"TRIVARIABLE_TEXTURE_AL",
 			"TRIVARIABLE_INT",
             "TRIVARIABLE_FLOAT",
 			"TRIVARIABLE_FLOAT2",
@@ -123,9 +113,7 @@ public:
         {
 			sizeof(float)*16, // INVALID may be converted to another type, must register as largest type
 			sizeof(float)*16, // UNKNOWN_FLOAT may be converted to another type, must register as largest type
-			sizeof(TriTextureRes*), // UNKNOWN_TEXTURE may be converted to another type, must register as largest type
             sizeof(TriTextureRes*),
-			sizeof(Tr2TextureAL*),		// TRIVARIABLE_TEXTURE_AL
 			sizeof(int),
             sizeof(float),
 			sizeof(float)*2,
@@ -149,8 +137,6 @@ private:
 		value = *(T*)m_value;
 	}
 
-	void GetValueTextureAL( Tr2TextureAL*& value ) const;
-
 	void GetValueTextureRes( ITr2TextureProvider*& value ) const
 	{
 		CCP_ASSERT( m_type == GetVariableType( value ) );
@@ -173,7 +159,7 @@ private:
 	// Storing a texture res pointer 
 	void SetValueTextureRes( ITr2TextureProvider*& value  )
 	{
-		CCP_ASSERT( m_type == GetVariableType( value ) || m_type == TRIVARIABLE_UNKNOWN_TEXTURE );
+		CCP_ASSERT( m_type == GetVariableType( value ) );
 		m_texture = value;
 		m_type = TRIVARIABLE_TEXTURE_RES;
 	}
@@ -185,20 +171,9 @@ private:
 		m_type = TRIVARIABLE_GPUBUFFER;
 	}
 
-	void SetValue_( const Tr2TextureAL*& value  )
-	{
-		CCP_ASSERT(		m_type == GetVariableType( value ) || 
-						m_type == TRIVARIABLE_UNKNOWN_TEXTURE || 
-						m_type == TRIVARIABLE_INVALID );
-		*(const Tr2TextureAL**)m_value = value;
-		m_type = TRIVARIABLE_TEXTURE_AL;
-	}
-
 	// Variables contain their payload starting at 'value'[0].  No size is
 	// stored since 'type' is enough.
 	TriVariableContentType	m_type;
-
-	bool	m_multithreaded;
 
 	ITr2TextureProviderPtr m_texture;
 	ITr2GpuBufferPtr m_gpuBuffer;
@@ -212,23 +187,12 @@ private:
 	// We intentionally disallow construction - only Tr2VariableStore can 
 	// create instances!
 	TriVariable()
-	: m_multithreaded( false )
 	{}
 
 public:
 	TriVariableContentType GetType() const
 	{
 		return m_type;
-	}
-
-	bool	IsMultithreaded() const
-	{
-		return m_multithreaded;
-	}
-
-	void	SetMultithreaded( bool multithreaded )
-	{
-		m_multithreaded = multithreaded;
 	}
 
 	const char* GetTypeName() const
@@ -249,7 +213,6 @@ public:
 	void GetValue( Color& value ) const					{ GetValue_( value ); }
 	void GetValue( Matrix& value ) const				{ GetValue_( value ); }
 	void GetValue( ITr2TextureProvider*& value ) const	{ GetValueTextureRes( value ); }
-	void GetValue( Tr2TextureAL*& value ) const			{ GetValueTextureAL( value ); }
 	void GetValue( IRoot*& value ) const				{ GetValue_( value ); }
 	void GetValue( ITr2GpuBuffer*& value ) const		{ GetValueGpuBuffer( value ); }
 
@@ -277,7 +240,6 @@ public:
 	void SetValue( const Matrix& value )				{ SetValue_( value ); }
 	void SetValue( ITr2TextureProvider* value )			{ SetValueTextureRes( value ); }
 	void SetValue( ITr2GpuBuffer* value )				{ SetValueGpuBuffer( value ); }
-	void SetValue( const Tr2TextureAL* value )			{ SetValue_( value ); }
 	void SetValue( const IRoot* value )					{ SetValue_( value ); }
 
 	// Invalidate the variable

@@ -24,7 +24,6 @@ static PyObject* PyWrapVariable( TriVariable* variable )
 	switch( variable->GetType() )
 	{
 	case TRIVARIABLE_INVALID:
-	case TRIVARIABLE_UNKNOWN_TEXTURE:
 	case TRIVARIABLE_UNKNOWN_FLOAT:
 		{
 			Py_RETURN_NONE;
@@ -42,23 +41,6 @@ static PyObject* PyWrapVariable( TriVariable* variable )
 			variable->GetValue( res );
 
 			return PyOS->WrapBlueObject( res );
-		}
-	case TRIVARIABLE_TEXTURE_AL:
-		{
-			Tr2TextureAL* value;
-			variable->GetValue( value );
-			if( value )
-			{
-				TriTextureResPtr resource;
-				resource.CreateInstance();
-				resource->SetTexture( *value );
-
-				return PyOS->WrapBlueObject( resource->GetRawRoot() );
-			}
-			else
-			{
-				Py_RETURN_NONE;
-			}
 		}
 	case TRIVARIABLE_INT:
 		{
@@ -150,19 +132,11 @@ static PyObject* PyRegisterVariable( PyObject* self, PyObject* args )
 	Matrix valMatrix;
 	Color valColor;
 
-	if( TriTextureRes* value = BluePythonCast<TriTextureRes*>( valueArg ) )
+	if( ITr2TextureProvider* value = BluePythonCast<ITr2TextureProvider*>( valueArg ) )
 	{
 		variable = pThis->RegisterVariable( name, value );
 	}
 	else if( ITriTextureRes* value = BluePythonCast<ITriTextureRes*>( valueArg ) )
-	{
-		variable = pThis->RegisterVariable( name, value );
-	}
-	else if( Tr2RenderTarget* value = BluePythonCast<Tr2RenderTarget*>( valueArg ) )
-	{
-		variable = pThis->RegisterVariable( name, value );
-	}
-	else if( Tr2DepthStencil* value = BluePythonCast<Tr2DepthStencil*>( valueArg ) )
 	{
 		variable = pThis->RegisterVariable( name, value );
 	}

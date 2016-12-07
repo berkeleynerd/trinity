@@ -107,8 +107,7 @@ void TriVariableParameter::RebuildEffectHandles( ITr2ShaderState* effectRes )
 
 	if( m_variable )
 	{
-		if( m_variable->GetType() == TRIVARIABLE_TEXTURE_RES ||
-			m_variable->GetType() == TRIVARIABLE_TEXTURE_AL  )
+		if( m_variable->GetType() == TRIVARIABLE_TEXTURE_RES  )
 		{
 			if( !effectRes->GetResource( m_name.c_str() ) )
 			{

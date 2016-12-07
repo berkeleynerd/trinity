@@ -31,8 +31,6 @@ struct Tr2RenderContextBase: public IRoot, public ITr2RenderContextEvents
 	void OnContextCreated( Tr2RenderContextAL& renderContext );
 	void OnTextureUnset( const Tr2TextureAL& texture, Tr2RenderContextAL& renderContext );
 
-	Tr2VariableStore &GetVariableStore();
-
 	Tr2RenderTargetPtr GetBackBuffer();
 
 	Tr2EffectStateManager m_esm;
@@ -78,7 +76,6 @@ protected:
 	Tr2ConstantBufferAL		m_perObjectConstantBuffers[ Tr2RenderContextEnum::CBUFFER_COUNT ];
 private:
 	Tr2RenderTargetPtr m_backBuffer;
-	Tr2VariableStorePtr m_varStore;
 
 	TriVariable		*m_objectIdVariable;
 	TriVariable		*m_areaIdVariable;

@@ -22,7 +22,7 @@ BLUE_DECLARE_INTERFACE( ITr2GpuBuffer );
 // SeeAlso:
 //   TriVariable
 // -------------------------------------------------------------
-BLUE_CLASS( Tr2VariableStore ) : public IRoot, public Tr2DeviceResource
+BLUE_CLASS( Tr2VariableStore ) : public IRoot
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -33,8 +33,6 @@ public:
 	Tr2VariableStore* GetParentVariableStore() const;
 	void SetParentVariableStore(Tr2VariableStore* variableStore);
 
-	TriVariable* RegisterPlaceholderTextureVariable( const char* name );
-	TriVariable* RegisterVariable( const char* name, Tr2TextureAL* value );
     TriVariable* RegisterVariable( const char* name, float value );
 	TriVariable* RegisterVariable( const char* name, int value );
 	TriVariable* RegisterVariable( const char* name, const Vector2& value );
@@ -55,11 +53,6 @@ public:
 	TriVariable* GetVariable( const char* name );
 	TriVariable* GetLocalVariable( const char* name );
 
-#if TRINITYDEV
-	// Debug helper reporting class name
-	virtual void GetDescription( std::string& desc ) { desc = "Tr2VariableStore"; }
-#endif
-	virtual void ReleaseResources( TriStorage s );
 protected:
 	Tr2VariableStore( IRoot* lockobj, int );
 private:
@@ -76,7 +69,6 @@ private:
 	
 	std::vector<std::string> GetLocalNames() const;
 
-	virtual bool OnPrepareResources();
 	TriVariable* RegisterVariableType( const char* name, TriVariableContentType type );
 
 	// -------------------------------------------------------------

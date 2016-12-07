@@ -25,7 +25,6 @@ Tr2VariableStore::Tr2VariableStore( IRoot* lockobj, int )
 
 Tr2VariableStore::~Tr2VariableStore()
 {
-	ReleaseResources( TRISTORAGE_ALL );
     VariableMap::iterator end = m_variableMap.end();
 	for( VariableMap::iterator it = m_variableMap.begin(); it != end; ++it )
 	{
@@ -71,27 +70,6 @@ void Tr2VariableStore::SetParentVariableStore(Tr2VariableStore* variableStore)
 	}
 #endif
 	m_parentVariableStore = variableStore;
-}
-
-// -------------------------------------------------------------
-// Description:
-//   Registers a new variable, but does not set a type for it.
-//	 
-// Arguments:
-//   name - Name of the new variable
-//   value - Value for the new variable
-// Return Value:
-//   New variable (or old with the same name or NULL if function
-//   fails).
-// -------------------------------------------------------------
-TriVariable* Tr2VariableStore::RegisterPlaceholderTextureVariable( const char* name )
-{
-	return RegisterVariableType( name, TRIVARIABLE_UNKNOWN_TEXTURE );
-}
-
-TriVariable* Tr2VariableStore::RegisterVariable( const char* name, Tr2TextureAL* value )
-{
-	return RegisterVariableInternal( name, value );
 }
 
 // -------------------------------------------------------------
@@ -438,39 +416,6 @@ TriVariable* Tr2VariableStore::GetLocalVariable( const char* name )
 
 // -------------------------------------------------------------
 // Description:
-//   Implements Tr2DeviceResource. Releases all texture variables
-//   in the store.
-// Arguments:
-//   s - Storage class of resources to release.
-// -------------------------------------------------------------
-void Tr2VariableStore::ReleaseResources( TriStorage s )
-{
-	// Clean out the texture handles (invalidate them)
-    VariableMap::iterator end = m_variableMap.end();
-	for( VariableMap::iterator it = m_variableMap.begin(); it != end; ++it )
-	{
-		TriVariable* var = *it;
-		if( var->GetType() == TRIVARIABLE_TEXTURE_AL )
-		{
-			var->Clear();
-		}
-	}
-}
-
-// -------------------------------------------------------------
-// Description:
-//   Implements Tr2DeviceResource. Variable store can't restore
-//   its textures, so this function does nothing.
-// Return Value:
-//   true Always.
-// -------------------------------------------------------------
-bool Tr2VariableStore::OnPrepareResources()
-{
-	return true;
-}
-
-// -------------------------------------------------------------
-// Description:
 //   Registers a new variable. If the variable with that name
 //   is already registered in this store then if its type is the
 //   same the variable is reused otherwise the error is logged
@@ -495,24 +440,6 @@ TriVariable* Tr2VariableStore::RegisterVariableType( const char* name, TriVariab
 			// Variable was just reserved, switch it to this type, 
 			// it has enough allocated space
 			var->m_type = type;
-		}
-		else if( (existingType == TRIVARIABLE_UNKNOWN_TEXTURE) && ( type == TRIVARIABLE_TEXTURE_RES || type == TRIVARIABLE_TEXTURE_AL ) )
-		{
-			// Allow resolution to one of the defined the texture variable types
-			var->m_type = type;
-		}
-		else if( (type == TRIVARIABLE_UNKNOWN_TEXTURE) && ( existingType == TRIVARIABLE_TEXTURE_RES || existingType == TRIVARIABLE_TEXTURE_AL ) )
-		{
-			// Trying to re-register a generic unknown texture type, which has already been narrowed down to RES or AL. Leave it alone.
-		}
-		else if( type == TRIVARIABLE_TEXTURE_RES && existingType == TRIVARIABLE_TEXTURE_AL )
-		{
-			var->m_type = type;
-		}
-		else if( ( type == TRIVARIABLE_TEXTURE_AL && existingType == TRIVARIABLE_TEXTURE_RES ) )
-		{
-			var->m_type = type;
-			var->m_texture = nullptr;
 		}
 		else if( type == TRIVARIABLE_INVALID )
 		{

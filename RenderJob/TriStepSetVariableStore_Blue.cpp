@@ -41,10 +41,6 @@ PyObject* TriStepSetVariableStore::GetValue()
 		}
 		return PyOS->WrapBlueObject( m_object );
 	}
-	else if( m_type == TRIVARIABLE_TEXTURE_AL )
-	{
-		Py_RETURN_NONE;
-	}
 	else
 	{
 		// TODO

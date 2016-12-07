@@ -21,10 +21,6 @@ Tr2RenderContextBase::Tr2RenderContextBase( Tr2RenderContext& renderContext )
 	m_backBuffer->m_name = "backbuffer";
 	m_objectIdVariable		= GlobalStore().RegisterVariable( "objectId",	0.0f );
 	m_areaIdVariable		= GlobalStore().RegisterVariable( "areaId",		0.0f );
-#if TRINITY_PLATFORM == TRINITY_DIRECTX11
-	m_varStore.CreateInstance();
-	m_varStore->SetParentVariableStore( nullptr );	// do _not_ want magic chaining
-#endif
 }
 
 using namespace Tr2RenderContextEnum;
@@ -68,31 +64,6 @@ Tr2RenderTargetPtr Tr2RenderContextBase::GetBackBuffer()
 {
 	return m_backBuffer;
 }
-
-#if TRINITY_PLATFORM != TRINITY_DIRECTX11
-// --------------------------------------------------------------------------------------
-// Description:
-//   Returns render context's local variable store. In case of DX9 and OpenGL this is the 
-//   global variable store.
-// Return Value:
-//   Render context's local variable store
-// --------------------------------------------------------------------------------------
-Tr2VariableStore& Tr2RenderContextBase::GetVariableStore() 
-{ 
-	return GlobalStore(); 
-}
-#else
-// --------------------------------------------------------------------------------------
-// Description:
-//   Returns render context's local variable store. 
-// Return Value:
-//   Render context's local variable store
-// --------------------------------------------------------------------------------------
-Tr2VariableStore& Tr2RenderContextBase::GetVariableStore() 
-{ 
-	return *m_varStore; 
-}
-#endif
 
 
 Tr2RenderContext::Tr2RenderContext()

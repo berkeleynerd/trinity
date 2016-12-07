@@ -687,8 +687,6 @@ void Tr2ShaderMaterial::MapPassResources( const Tr2EffectResourceMap& resources,
 				{
 				// All of the following cases are valid for mapping texture samplers
 				case TRIVARIABLE_TEXTURE_RES:
-				case TRIVARIABLE_UNKNOWN_TEXTURE:
-				case TRIVARIABLE_TEXTURE_AL:
 				case TRIVARIABLE_GPUBUFFER:
 					param.m_sourceValue = v;
 					break;
@@ -702,7 +700,7 @@ void Tr2ShaderMaterial::MapPassResources( const Tr2EffectResourceMap& resources,
 				if( it->second.isAutoregister )
 				{
 					// We don't choose the type here, just reserve a variable
-					param.m_sourceValue = GlobalStore().RegisterPlaceholderTextureVariable( name );
+					param.m_sourceValue = GlobalStore().RegisterVariable( name, static_cast<ITr2TextureProvider*>( nullptr ) );
 				}
 			}
 		}
