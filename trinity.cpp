@@ -101,7 +101,8 @@ const char* InitializeForPython()
 						  BlueRegistration::GetFuncRegs(),
 						  BlueRegistration::GetEnumRegs(),
 						  BlueRegistration::GetTestRegs(),
-						  BlueRegistration::GetThunkerRegs());
+						  BlueRegistration::GetThunkerRegs(),
+						  BlueRegistration::GetFuncSignatures() );
 
 	BlueRegisterObjectsToModule( module, BlueRegistration::GetObjectRegs() );
 	BlueRegisterExceptionsToModule( module, BlueRegistration::GetExceptionRegs() );
