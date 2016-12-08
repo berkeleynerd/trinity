@@ -122,6 +122,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	PARENTLOCK( m_backgroundObjects ),
 	PARENTLOCK( m_planets ),
 	PARENTLOCK( m_objects ),
+	PARENTLOCK( m_debugObjects ),
 	PARENTLOCK( m_curveSets ),
 	PARENTLOCK( m_lensflares ),
 	PARENTLOCK( m_distanceFields ),
@@ -1897,6 +1898,20 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 		{
 			m_shadowMap->DrawDebugInfo();
 		}
+	}
+	else if( m_debugObjects.size() > 0 )
+	{
+		auto bkProjection = Tr2Renderer::GetProjectionRawTransform();
+		Tr2Renderer::SetProjectionTransform( Tr2Renderer::GetReversedDepthProjectionTransform() );
+		ON_BLOCK_EXIT( [&] { Tr2Renderer::SetProjectionTransform( bkProjection ); } );
+
+		for( IEveSpaceObject2Vector::iterator it = m_debugObjects.begin(); it != m_debugObjects.end(); ++it )
+		{
+			IEveSpaceObject2* obj = *it;
+			obj->RenderDebugInfo( renderContext );
+		}
+
+		Tr2Renderer::RenderDebugInfo( renderContext );
 	}
 
 	renderContext.m_esm.EndManagedRendering();

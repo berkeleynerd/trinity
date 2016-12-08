@@ -348,6 +348,7 @@ protected:
 	PEveTransformVector		m_backgroundObjects;
 	PEvePlanetVector		m_planets;
 	PIEveSpaceObject2Vector m_objects;
+	PIEveSpaceObject2Vector m_debugObjects;
 	IEveSpaceObject2Ptr		m_warpTunnel;
 	PTriCurveSetVector		m_curveSets;
 	PEveLensflareVector		m_lensflares;

@@ -297,6 +297,14 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 
 		MAP_ATTRIBUTE
 		( 
+			"debugObjects", 
+			m_debugObjects, 
+			"Objects in space", 
+			Be::READWRITE
+		)
+
+		MAP_ATTRIBUTE
+		( 
 			"curveSets", 
 			m_curveSets, 
 			"Curvesets for animating things", 
