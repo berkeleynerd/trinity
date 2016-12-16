@@ -100,9 +100,6 @@ BLUE_DEFINE_INTERFACE( ITr2DebugRenderer );
 BLUE_DEFINE_INTERFACE( ITr2ShaderMaterial );
 BLUE_DEFINE_INTERFACE( ITr2ShaderState );
 
-//Blue interfaces
-BLUE_DEFINE_INTERFACE( IBluePlacementObserver );
-
 BLUE_DEFINE_INTERFACE( ITr2ClothMesh );
 BLUE_DEFINE_INTERFACE( IPhysXSdk );
 

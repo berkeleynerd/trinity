@@ -43,10 +43,6 @@
 using std::min;
 using std::max;
 
-#ifndef TRINITYBUILD
-#define TRINITYBUILD
-#endif
-
 // Disable identifier truncation warning
 // #pragma warning( disable : 4786 )
 #include "BlueExposure/include/BlueExposure.h"

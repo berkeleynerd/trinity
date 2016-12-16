@@ -1,10 +1,16 @@
 #include "StdAfx.h"
 
 #include "blue/include/Blue.h"
+#ifdef TRINITYBUILD
 #include "BlueExposure/include/InterfaceDefinitions.cxx"
 #include "blue/include/Blue.cxx"
-
 #include "include/TrinityId.cxx"
+
+//Blue interfaces
+BLUE_DEFINE_INTERFACE( IBluePlacementObserver );
+BLUE_DEFINE_INTERFACE( IBlueEventListener );
+BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
+#endif
 #include "include/ITr2DebugRenderer.h"
 
 #include "Tr2Renderer.h"
@@ -41,7 +47,9 @@
 
 const char* BLUEMODULENAME = CCP_STRINGIZE( TRINITYNAME );
 
+#ifdef TRINITYBUILD
 const char* g_moduleName = "trinity";
+#endif
 
 #ifdef _WIN32
 extern "C"
@@ -118,11 +126,8 @@ extern bool g_isR10G10B10FormatInverted;
 extern bool g_convertA8L8FormatToB8G8R8A8;
 extern bool g_requestDeviceDebugLayer;
 
-static void StartDLL()
+void InitializeTrinity()
 {
-	CCP_LOG( "Trinity (%s) module starting", BLUEMODULENAME );
-	BeClasses->RegisterClasses( BlueRegistration::GetClassRegs() );
-
 	GlobalStore().RegisterVariable( "BlitOriginal", static_cast<ITr2TextureProvider*>( nullptr ) );
 	GlobalStore().RegisterVariable( "BlitCurrent", static_cast<ITr2TextureProvider*>( nullptr ) );
 	GlobalStore().RegisterVariable( "g_texelSize", Vector4() );
@@ -151,10 +156,19 @@ static void StartDLL()
 	Tr2Renderer::Initialize();
 }
 
+static void StartDLL()
+{
+	CCP_LOG( "Trinity (%s) module starting", BLUEMODULENAME );
+	BeClasses->RegisterClasses( BlueRegistration::GetClassRegs() );
 
-#ifdef _WIN32
+	InitializeTrinity();
+}
+
+
+#ifdef _WIN32 
 HINSTANCE gInstance = NULL;
 
+#ifdef _WINDLL
 BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID)
 {
 	if (reason == DLL_PROCESS_ATTACH)
@@ -168,6 +182,7 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID)
 	}
 	return TRUE;
 }
+#endif
 #endif
 
 #if BLUE_WITH_PYTHON

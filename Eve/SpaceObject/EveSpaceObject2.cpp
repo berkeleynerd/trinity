@@ -34,7 +34,6 @@
 
 #include <limits>
 
-BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
 
 static const int MAX_JOINT_COUNT = 58;
 

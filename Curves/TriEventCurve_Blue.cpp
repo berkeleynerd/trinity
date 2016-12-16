@@ -3,7 +3,6 @@
 #include "TriConstants.h"
 
 BLUE_DEFINE( TriEventCurve );
-BLUE_DEFINE_INTERFACE( IBlueEventListener );
 
 const Be::ClassInfo* TriEventCurve::ExposeToBlue()
 {
