@@ -40,6 +40,13 @@ const Be::ClassInfo* EveSpriteSet::ExposeToBlue()
 		)
 		MAP_ATTRIBUTE
 		( 
+			"skinned", 
+			m_skinned, 
+			"Is the sprite set skinned (requires that the owner object is skinned)", 
+			Be::READWRITE | Be::PERSIST 
+		)
+		MAP_ATTRIBUTE
+		( 
 			"intensity", 
 			m_intensity, 
 			"Overall sprite intensity", 
