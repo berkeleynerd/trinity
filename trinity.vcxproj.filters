@@ -924,9 +924,6 @@
     <ClInclude Include="Include\ITriRect.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
-    <ClInclude Include="Include\ITriRenderObject.h">
-      <Filter>Source Files\Include</Filter>
-    </ClInclude>
     <ClInclude Include="Include\ITriRotationCurve.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
@@ -937,9 +934,6 @@
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITriTextureRes.h">
-      <Filter>Source Files\Include</Filter>
-    </ClInclude>
-    <ClInclude Include="Include\ITriTransform.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITriVector.h">

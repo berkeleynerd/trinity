@@ -3081,12 +3081,10 @@
     <ClInclude Include="Include\ITriObserverLocal.h"/>
     <ClInclude Include="Include\ITriQuaternion.h"/>
     <ClInclude Include="Include\ITriRect.h"/>
-    <ClInclude Include="Include\ITriRenderObject.h"/>
     <ClInclude Include="Include\ITriRotationCurve.h"/>
     <ClInclude Include="Include\ITriScalarCurve.h"/>
     <ClInclude Include="Include\ITriTargetable.h"/>
     <ClInclude Include="Include\ITriTextureRes.h"/>
-    <ClInclude Include="Include\ITriTransform.h"/>
     <ClInclude Include="Include\ITriVector.h"/>
     <ClInclude Include="Include\ITriVectorCurve.h"/>
     <ClInclude Include="Include\Point.h"/>
