@@ -44,7 +44,7 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// Tr2Transform
 	virtual void Update( EveUpdateContext& updateContext );
-	virtual void UpdateViewDependentData( const Matrix& parentTransform, bool children=false );
+	virtual void UpdateViewDependentData( const Matrix& parentTransform );
 
 protected:
 	ITriVectorFunctionPtr m_ballPosition;

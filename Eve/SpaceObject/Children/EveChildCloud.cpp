@@ -166,6 +166,7 @@ EveChildCloud::EveChildCloud( IRoot* lockobj )
 	m_translation( 0.f, 0.f, 0.f ),
 	m_rotation( 0.f, 0.f, 0.f, 1.0f ),
 	m_display( true ),
+	m_isVisible( false ),
 	m_declaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_indexBuffers( "EveChildCloud::m_indexBuffers" ),
 	m_preTesselationLevel( 32 ),
@@ -204,9 +205,14 @@ bool EveChildCloud::OnModified( Be::Var* value )
 	return true;
 }
 
-void EveChildCloud::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildCloud::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
+	m_isVisible = !( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_boundingSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor );
+}
+
+void EveChildCloud::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( !m_isVisible )
 	{
 		return;
 	}

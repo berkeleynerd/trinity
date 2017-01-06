@@ -194,14 +194,15 @@ public:
 	int GetBoneCount() const;
 
 	// Actually submit renderables to the list, called from GetRenderables
-	virtual void PushRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	virtual void PushRenderables( std::vector<ITr2Renderable*>& renderables );
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObject2
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
+	virtual void UpdateVisibility(  const TriFrustum& frustum, const Matrix& parentTransform );
 	virtual void PrepareShaderData( EveUpdateContext& updateContext );
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform );
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	virtual bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
 	virtual void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t );
 	virtual void GetModelCenterWorldPosition( Vector3 &position ) const;

@@ -1131,32 +1131,21 @@ void EveTurretSet::GetRenderablesCastingShadow( const TriFrustumOrtho& frustum, 
 	}
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Standard way of rendering in Trinity. Put this object on the list, since it
-//   is an ITr2Renderable.
-//   Also get the renderables from the fire effects, if we are firing.
-// Arguments:
-//   frustum - the current view frustum of the current frame
-//   renderables - a vector for all the renderable we want to render
-// SeeAlso:
-//   ITr2Renderable, EveStretch
-// --------------------------------------------------------------------------------
-void EveTurretSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Vector4* shLighting )
+void EveTurretSet::UpdateVisibility( const TriFrustum& frustum )
 {
 	m_parentShLighting = nullptr;
+	
+	// check visibility for each single turret and keep MAX on-screen pixel diameter.
+	// The pixel diameter is reset in UpdateLOD on next frame - this is to account for
+	// multiple views. We need to keep updating turrets as long as they're visible in any
+	// view, not just the last one rendered.
+	m_visibleCount = 0;
 
 	// display?
 	if( !m_display )
 	{
 		return;
 	}
-
-	// check visibility for each single turret and keep MAX on-screen pixel diameter.
-	// The pixel diameter is reset in UpdateLOD on next frame - this is to account for
-	// multiple views. We need to keep updating turrets as long as they're visible in any
-	// view, not just the last one rendered.
-	m_visibleCount = 0;
 
 	for( std::vector<SingleTurretData>::iterator it = m_singleTurrets.begin(); it != m_singleTurrets.end(); ++it )
 	{
@@ -1178,23 +1167,43 @@ void EveTurretSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 		}
 	}
 
-	// add this object (which is a renderable), if it is visible
-	if( m_visibleCount )
+	if( m_displayEffects && m_firingEffect )
 	{
-		if( m_turretEffect )
-		{
-			m_parentShLighting = shLighting;
-			renderables.push_back( this );
-		}
+		m_firingEffect->UpdateVisibility( frustum );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Standard way of rendering in Trinity. Put this object on the list, since it
+//   is an ITr2Renderable.
+//   Also get the renderables from the fire effects, if we are firing.
+// Arguments:
+//   frustum - the current view frustum of the current frame
+//   renderables - a vector for all the renderable we want to render
+// SeeAlso:
+//   ITr2Renderable, EveStretch
+// --------------------------------------------------------------------------------
+void EveTurretSet::GetRenderables( std::vector<ITr2Renderable*>& renderables, const Vector4* shLighting )
+{
+	m_parentShLighting = nullptr;
+
+	if( !m_display )
+	{
+		return;
+	}
+
+	// add this object (which is a renderable), if it is visible
+	if( m_visibleCount && m_turretEffect )
+	{
+		m_parentShLighting = shLighting;
+		renderables.push_back( this );
 	}
 
     // add firing effects, we should add some lodding for this
-	if( m_displayEffects )
+	if( m_displayEffects && m_firingEffect )
 	{
-		if( m_firingEffect )
-		{
-			m_firingEffect->GetRenderables( frustum, renderables );
-		}
+		m_firingEffect->GetRenderables( renderables );
 	}
 }
 

@@ -49,15 +49,25 @@ void EveChildBillboard::Setup( const Vector3* scale, const Quaternion* rotation,
 	EveChildTransform::Setup( scale, rotation, translation, lowestLodVisible );
 }
 
-void EveChildBillboard::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildBillboard::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
 	Vector4 boundingSphere;
+	m_isVisible = false;
+
 	if( !m_display )
 	{
 		return;
 	}
 
 	if( GetBoundingSphere( boundingSphere ) && frustum.IsSphereVisible( &boundingSphere ) && frustum.GetPixelSizeAccross( &boundingSphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
+	{
+		m_isVisible = true;
+	}
+}
+
+void EveChildBillboard::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( m_isVisible )
 	{
 		renderables.push_back( this );
 	}

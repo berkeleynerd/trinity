@@ -56,7 +56,8 @@ public:
 	// timing and worldspace positioning
 	bool Update( EveUpdateContext& updateContext );
 	// rendering
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	void UpdateVisibility( const TriFrustum& frustum );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
 	// bounds
 	bool GetBoundingSphere( Vector4& bounds ) const;
 

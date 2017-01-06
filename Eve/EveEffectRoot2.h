@@ -38,7 +38,8 @@ public:
 	// IEveSpaceObject2
 	void UpdateSyncronous( EveUpdateContext& updateContext );
 	void UpdateAsyncronous( EveUpdateContext& updateContext );
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform );
+	void UpdateVisibility(  const TriFrustum& frustum, const Matrix& parentTransform );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
 	void GetLights( Tr2LightManager& lightManager ) const;
 	void GetPerObjectStructs( EveSpaceObjectVSData& vsData, EveSpaceObjectPSData& psData ) const;
@@ -112,6 +113,7 @@ private:
 
 	// Lods
 	bool m_dynamicLODSelection;
+	bool m_changeLOD;
 	Tr2Lod m_lodLevel;
 	
 	PTr2PointLightVector m_lights;

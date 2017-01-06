@@ -121,7 +121,8 @@ void EveSceneStaticParticles::GetRenderables( const TriFrustum& frustum, std::ve
 	}
 
 	// eve transform does this
-	m_transform->GetRenderables( frustum, renderables, nullptr, m_worldMatrix );
+	m_transform->UpdateVisibility( frustum, m_worldMatrix );
+	m_transform->GetRenderables( renderables, nullptr );
 }
 
 void EveSceneStaticParticles::GetDebugOptions( Tr2DebugRendererOptions& options )

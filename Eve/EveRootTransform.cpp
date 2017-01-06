@@ -64,10 +64,10 @@ void EveRootTransform::Update( EveUpdateContext& updateContext )
 	UpdateAsyncronous( updateContext );
 }
 
-void EveRootTransform::UpdateViewDependentData( const Matrix& /*parentTransform*/, bool updateChildren )
+void EveRootTransform::UpdateViewDependentData( const Matrix& /*parentTransform*/ )
 {
 	// parentTransform is identity, since we're the root transform
-	EveTransform::UpdateViewDependentData( m_lastUpdateMatrix, updateChildren );	
+	EveTransform::UpdateViewDependentData( m_lastUpdateMatrix );	
 }
 
 // --------------------------------------------------------------------------------

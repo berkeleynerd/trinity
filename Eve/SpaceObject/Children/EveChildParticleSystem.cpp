@@ -29,6 +29,7 @@ EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ):
 	m_boundingSphere( 0, 0, 0, -1 ),
 	m_lodSphere( 0, 0, 0, -1 ),
 	m_display( true ),
+	m_isVisible( true ),
 	m_useDynamicLod( false ),
 	m_lodFactorMedium( 0.25 ),
 	m_lodFactorLow( 0.125 ),
@@ -61,16 +62,28 @@ void EveChildParticleSystem::Setup( const Vector3* scale, const Quaternion* rota
 	EveChildTransform::Setup( scale, rotation, translation, lowestLodVisible );
 }
 
-void EveChildParticleSystem::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildParticleSystem::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
+	m_isVisible = !( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor );
+	if( m_isVisible )
+	{
+		for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
+		{
+			(*it)->UpdateViewDependentData( m_worldTransform );
+		}
+	}
+}
+
+void EveChildParticleSystem::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( !m_isVisible )
 	{
 		return;
 	}
 
 	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
 	{
-		(*it)->UpdateViewDependentData( m_worldTransform );
+		(*it)->SortParticles();
 	}
 
 	renderables.push_back( this );

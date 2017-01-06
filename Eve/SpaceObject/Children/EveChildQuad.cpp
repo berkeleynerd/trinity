@@ -101,7 +101,7 @@ void EveChildQuad::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRen
 	}
 }
 
-void EveChildQuad::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildQuad::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 }
 

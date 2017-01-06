@@ -30,8 +30,7 @@ EveTransform::EveTransform( IRoot* lockobj ) :
 	m_lastDeltaTime(0.f),
 	m_lastCurveUpdateDelta( g_eveSpaceSceneLowUpdateRate ),
 	m_useLodLevel( true ),
-	m_lodLevel( TR2_LOD_LOW ),
-	m_viewUpdatedThisFrame( false )
+	m_lodLevel( TR2_LOD_LOW )
 {
 }
 
@@ -81,7 +80,6 @@ void EveTransform::Update( EveUpdateContext& updateContext )
 
 void EveTransform::UpdateSyncronous( EveUpdateContext& updateContext )
 {
-	m_viewUpdatedThisFrame = false;
 }
 
 void EveTransform::UpdateAsyncronous( EveUpdateContext& updateContext )
@@ -138,32 +136,19 @@ void EveTransform::UpdateAsyncronous( EveUpdateContext& updateContext )
 	m_isVisible = false;
 }
 
-void EveTransform::UpdateViewDependentData( const Matrix& parentTransform, bool updateChildren )
+void EveTransform::UpdateViewDependentData( const Matrix& parentTransform )
 {
-	if( !m_viewUpdatedThisFrame )
+	Tr2Transform::UpdateViewDependentData( parentTransform );
+
+	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
 	{
-		Tr2Transform::UpdateViewDependentData( parentTransform );
-
-		for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
-		{
-			(*it)->UpdateViewDependentData( m_worldTransform );
-		}
-
-		TriObserverLocalVector::iterator observersEnd = m_observers.end();
-		for( TriObserverLocalVector::iterator it = m_observers.begin(); it != observersEnd; ++it )
-		{
-			(*it)->Update( m_worldTransform );
-		}
-		m_viewUpdatedThisFrame = true;
+		(*it)->UpdateViewDependentData( m_worldTransform );
 	}
 
-	if( updateChildren )
+	TriObserverLocalVector::iterator observersEnd = m_observers.end();
+	for( TriObserverLocalVector::iterator it = m_observers.begin(); it != observersEnd; ++it )
 	{
-		for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
-		{
-			IEveTransform* p = *it;
-			p->UpdateViewDependentData( m_worldTransform, true );
-		}
+		(*it)->Update( m_worldTransform );
 	}
 }
 
@@ -238,10 +223,8 @@ Tr2Lod EveTransform::GetLODLevel() const
 	return m_lodLevel;
 }
 
-void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveTransform::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
 {
-	m_lodLevel = TR2_LOD_LOW;
-
 	// is this one here enabled?
 	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
 	{
@@ -252,12 +235,51 @@ void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 	{
 		return;
 	}
-	
+
+	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); it++ )
+	{
+		(*it)->SortParticles();
+	}
+
+	if( m_mesh )
+	{
+		if( m_meshLod )
+		{
+			m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
+		}
+
+		if( m_isVisible )
+		{
+			renderables.push_back( this );
+		}
+	}
+
+	for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
+	{
+		IEveTransform* p = *it;
+		p->GetRenderables( renderables );
+	}
+}
+
+void EveTransform::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
+{
+	m_lodLevel = TR2_LOD_LOW;
+	m_isVisible = false;
+
+	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
+	{
+		return;
+	}
+
+	if( !m_display )
+	{
+		return;
+	}
+
 	UpdateViewDependentData( parentTransform );
 	
 	if( m_mesh )
 	{
-		m_isVisible = false;
 		Vector4 boundingSphere;
 		if( GetBoundingSphere( boundingSphere ) )
 		{
@@ -274,18 +296,11 @@ void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 					m_lodLevel = TR2_LOD_MEDIUM;
 				}
 
-				if( m_meshLod )
-				{
-					m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
-				}
-
 				if( estimatedSize > m_visibilityThreshold )
 				{
-					renderables.push_back( this );
 					m_isVisible = true;
 				}
 			}
-			
 		}
 	}
 	else
@@ -304,16 +319,16 @@ void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 	for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
 	{
 		IEveTransform* p = *it;
-		p->GetRenderables( frustum, renderables, m_worldTransform );
+		p->UpdateVisibility( frustum, m_worldTransform );
 		
 		// Use the highest child LOD level.
 		m_lodLevel = EveLODHelper::MergeLOD( m_lodLevel, p->GetLODLevel() );
 	}
 }
 
-void EveTransform::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform )
+void EveTransform::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
-	GetRenderables( frustum, renderables, nullptr, parentTransform );
+	GetRenderables( renderables, nullptr );
 }
 
 bool EveTransform::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query ) const

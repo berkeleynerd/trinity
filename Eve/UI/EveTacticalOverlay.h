@@ -81,7 +81,8 @@ public:
 	// IEveSpaceObject2
 	void UpdateSyncronous( EveUpdateContext& updateContext );
 	void UpdateAsyncronous( EveUpdateContext& updateContext ) {}
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform );
+	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const { return false; }
 	void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t ) { position = Vector3( 0.f, 0.f, 0.f ); }
 	void GetModelCenterWorldPosition( Vector3 &position ) const { position = Vector3( 0.f, 0.f, 0.f ); }

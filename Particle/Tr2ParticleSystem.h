@@ -104,6 +104,7 @@ public:
 	void RebindConstraints();
 
 	void SetThreadSafeFlag();
+	void SortParticles();
 
 	void SetMaxParticleCount( unsigned maxParticleCount );
 	unsigned GetOriginalMaxParticles() { return m_originalMaxParticles; };
@@ -227,6 +228,8 @@ private:
 	bool m_requiresSorting;
 	// Have we temporarily disabled sorting based on frame time?
 	bool m_sortingAllowed;
+	// Should sort visible particles this frame
+	bool m_shouldSortVisible;
 	// Is this a global particle system?
 	bool m_isGlobal;
 

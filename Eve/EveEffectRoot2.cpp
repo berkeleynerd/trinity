@@ -29,6 +29,7 @@ EveEffectRoot2::EveEffectRoot2( IRoot* lockobj ) :
 	m_effectDuration( -1 ),
 	m_lodLevel( TR2_LOD_HIGH ),
 	m_dynamicLODSelection( false ),
+	m_changeLOD( false ),
 	m_secondaryLightingSphereRadiusLocal( 0.5f ),
 	m_secondaryLightingSphereRadiusWorld( 0.5f ),
 	m_secondaryLightingEmissiveColor( 0.f, 0.f, 0.f, 0.f )
@@ -75,47 +76,64 @@ void EveEffectRoot2::UpdateAsyncronous( EveUpdateContext& updateContext )
 	}
 }
 
-void EveEffectRoot2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform ) 
+void EveEffectRoot2::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform ) 
 {
 	if( !m_display )
 	{
 		return;
 	}
 
+	m_changeLOD = false;
 	if( m_dynamicLODSelection )
 	{
 		Vector4 boundingSphere;
 		GetBoundingSphere( boundingSphere );
 		BoundingSphereTransform( m_worldTransform, boundingSphere );
 		
-		Tr2Lod oldLod = m_lodLevel;
-		m_lodLevel = TR2_LOD_LOW;
 		if( frustum.IsSphereVisible( &boundingSphere ) )
 		{
 			m_estimatedSize = frustum.GetPixelSizeAccross( &boundingSphere );
-			if( m_estimatedSize >= g_eveSpaceSceneMediumDetailThreshold )
-			{
-				m_lodLevel = TR2_LOD_HIGH;
-			}
-			else if( m_estimatedSize >= g_eveSpaceSceneLowDetailThreshold )
-			{
-				m_lodLevel = TR2_LOD_MEDIUM;
-			}
 		}
 
-		if ( oldLod != m_lodLevel )
+		Tr2Lod oldLod = m_lodLevel;
+		m_lodLevel = TR2_LOD_LOW;
+
+		if( m_estimatedSize >= g_eveSpaceSceneMediumDetailThreshold )
 		{
-			for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt ) 
-			{
-				(*ecIt)->ChangeLOD( m_lodLevel );
-			}
+			m_lodLevel = TR2_LOD_HIGH;
+		}
+		else if( m_estimatedSize >= g_eveSpaceSceneLowDetailThreshold )
+		{
+			m_lodLevel = TR2_LOD_MEDIUM;
+		}
+
+		m_changeLOD = oldLod != m_lodLevel;
+	}
+	
+	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+	{
+		(*ecIt)->UpdateVisibility( frustum, parentTransform, m_lodLevel );
+	}
+}
+
+void EveEffectRoot2::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors ) 
+{
+	if( !m_display )
+	{
+		return;
+	}
+
+	if( m_changeLOD )
+	{
+		for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt ) 
+		{
+			(*ecIt)->ChangeLOD( m_lodLevel );
 		}
 	}
 
-
 	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
 	{
-		(*ecIt)->GetRenderables( frustum, renderables, m_worldTransform, m_lodLevel );
+		(*ecIt)->GetRenderables( renderables );
 	}
 }
 

@@ -1032,7 +1032,7 @@ void EveSpaceScene::RenderObjectsReceivingShadows(	std::vector<ShadowReceiver>& 
 		}
 
 		std::vector<ITr2Renderable*> objectRenderables;
-		obj->GetRenderables( m_frameData.frustum, objectRenderables, nullptr, Tr2Renderer::GetIdentityTransform() );
+		obj->GetRenderables( objectRenderables, nullptr );
 		GetOpaqueBatchesFromRenderables( objectRenderables, m_secondaryBatches );
 
 		FinalizeBatches( m_secondaryBatches );
@@ -1232,7 +1232,12 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 	std::vector<IEveSpaceObject2*> objectsNotReceivingShadow;
 	std::vector<ITr2Renderable*> renderables;
 	Tr2RenderableSortList transparentObjects;
+	const Matrix& identity = Tr2Renderer::GetIdentityTransform();
 
+	{
+		CCP_STATS_ZONE( "UpdateVisibility" );
+		Tr2ParallelDo( m_objects.begin(), m_objects.end(), [&]( IEveSpaceObject2* obj ) { obj->UpdateVisibility( frustum, identity ); } );
+	}
 	// Separate objects that will receive shadows from others. Shadowed objects will be rendered object by object,
 	// with a shadow map generated for each object. Remaining objects will be batched up.
 	for( IEveSpaceObject2Vector::iterator it = m_objects.begin(); it != m_objects.end(); ++it )
@@ -1305,7 +1310,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 	for( std::vector<IEveSpaceObject2*>::iterator it = objectsNotReceivingShadow.begin(); it != objectsNotReceivingShadow.end(); ++it )
 	{
 		IEveSpaceObject2* obj = *it;
-		obj->GetRenderables( frustum, renderables, m_impostorManager, Tr2Renderer::GetIdentityTransform() );
+		obj->GetRenderables( renderables, m_impostorManager );
 	}
 
 	if( m_impostorManager )
@@ -1324,7 +1329,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 	for( std::vector<ShadowReceiver>::iterator it = objectsReceivingShadow.begin(); it != objectsReceivingShadow.end(); ++it )
 	{
 		IEveSpaceObject2* obj = it->object;
-		obj->GetRenderables( frustum, shadowRenderables, nullptr, Tr2Renderer::GetIdentityTransform() );
+		obj->GetRenderables( shadowRenderables, nullptr );
 	}
 
 	UpdateQuadRenderer( frustum, objectsReceivingShadow, objectsNotReceivingShadow, renderContext );
@@ -1597,7 +1602,8 @@ bool EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 		for( EveTransformVector::iterator it = m_backgroundObjects.begin(); it != m_backgroundObjects.end(); ++it )
 		{
 			EveTransform* obj = *it;
-			obj->GetRenderables( frustum, visible, Tr2Renderer::GetIdentityTransform() );	
+			obj->UpdateVisibility( frustum, Tr2Renderer::GetIdentityTransform() );
+			obj->GetRenderables( visible );	
 		}
 		if( !visible.empty() )
 		{
@@ -1637,7 +1643,8 @@ bool EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 
 	if( m_warpTunnel )
 	{
-		m_warpTunnel->GetRenderables( frustum, visible, nullptr, Tr2Renderer::GetIdentityTransform() );	
+		m_warpTunnel->UpdateVisibility( frustum, Tr2Renderer::GetIdentityTransform() );	
+		m_warpTunnel->GetRenderables( visible, nullptr );	
 		
 		GetTransparentBatchesFromRenderables( visible, transparentObjects, m_secondaryBatches );
 		PrepareTransparentBatch( transparentObjects, m_secondaryBatches );
@@ -1687,13 +1694,13 @@ void EveSpaceScene::RenderDepthPass( Tr2RenderContext& renderContext )
 		for( auto it = m_planets.begin(); it != m_planets.end(); ++it )
 		{
 			EvePlanet* obj = *it;
-			obj->GetZOnlyRenderables( frustum, visible );
+			obj->GetZOnlyRenderables( visible );
 		}
 
 		for( auto it = m_frameData.objectsReceivingShadow.begin(); it != m_frameData.objectsReceivingShadow.end(); ++it )
 		{
 			IEveSpaceObject2* obj = it->object;
-			obj->GetRenderables( m_frameData.frustum, visible, nullptr, Tr2Renderer::GetIdentityTransform() );
+			obj->GetRenderables( visible, nullptr );
 		}
 
 		if( !visible.empty() )
@@ -1745,7 +1752,7 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 	for( EvePlanetVector::iterator it = m_planets.begin(); it != m_planets.end(); ++it )
 	{
 		EvePlanet* obj = *it;
-		obj->GetZOnlyRenderables( frustum, objectRenderables );
+		obj->GetZOnlyRenderables( objectRenderables );
 	}
 	if( !objectRenderables.empty() )
 	{
@@ -1836,12 +1843,14 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 	// dustfield
 	if( m_dustfield )
 	{
-		m_dustfield->GetRenderables( frustum, visible, Tr2Renderer::GetIdentityTransform() );
+		m_dustfield->UpdateVisibility( frustum, Tr2Renderer::GetIdentityTransform() );
+		m_dustfield->GetRenderables( visible );
 	}
 
 	if( m_cloudfield )
 	{
-		m_cloudfield->GetRenderables( frustum, visible, Tr2Renderer::GetIdentityTransform() );
+		m_cloudfield->UpdateVisibility( frustum, Tr2Renderer::GetIdentityTransform() );
+		m_cloudfield->GetRenderables( visible );
 	}
 
 	if( !visible.empty() )
@@ -2557,7 +2566,8 @@ void EveSpaceScene::GetPickingObjectsToRender( std::vector<ITr2Renderable*>& pic
 		// function to decide what objects are pickable in the given frustum.
 		// This is not necessarily what we want, as some objects might be
 		// renderable but not pickable (particle clouds?)
-		(*it)->GetRenderables( pickFrustum, pickableRenderObjects, nullptr, Tr2Renderer::GetIdentityTransform() );
+		(*it)->UpdateVisibility( pickFrustum, Tr2Renderer::GetIdentityTransform() );
+		(*it)->GetRenderables( pickableRenderObjects, nullptr );
 	}
 }
 
@@ -2587,17 +2597,21 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 	Matrix orgViewMatrix = SetupPlanetViewMatrix();
 	Matrix planetProjection = EveCamera::ModifyClipPlanes( Tr2Renderer::GetProjectionTransform(), 0.01f, 1e5f );
 	Tr2Renderer::SetProjectionTransform( planetProjection );
+	const Matrix& identity = Tr2Renderer::GetIdentityTransform();
 
 	// Planets are rendered with a custom frustum
 	TriFrustum frustum;
 	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), gTriDev->mViewport );
 
+	{
+		CCP_STATS_ZONE( "UpdateVisibility Planets" );
+		Tr2ParallelDo( m_planets.begin(), m_planets.end(), [&]( EvePlanet* obj ) { obj->SetRenderScale( m_planetScale ); obj->UpdateVisibility( frustum, identity ); } );
+	}
 	std::vector<ITr2Renderable*> planetRenderables;
 	for( EvePlanetVector::iterator it = m_planets.begin(); it != m_planets.end(); ++it )
 	{
 		EvePlanet* obj = *it;
-		obj->SetRenderScale( m_planetScale );
-		obj->GetRenderables( frustum, planetRenderables, Tr2Renderer::GetIdentityTransform() );
+		obj->GetRenderables( planetRenderables );
 	}
 
 	if( planetRenderables.empty() )

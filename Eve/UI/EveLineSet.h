@@ -48,14 +48,15 @@ public:
 	// IEveSpaceObject2
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& /*parentTransform*/ );
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& /*parentTransform*/ );
+	void UpdateVisibility(  const TriFrustum& frustum, const Matrix& parentTransform );
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables );
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	virtual bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveTransform
 	virtual void Update( EveUpdateContext& updateContext );
-	virtual void UpdateViewDependentData( const Matrix& parentTransform, bool children=false );
+	virtual void UpdateViewDependentData( const Matrix& parentTransform );
 
 	// No sensible implementation?
 	virtual void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t ) {}

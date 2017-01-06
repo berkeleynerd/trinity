@@ -145,6 +145,7 @@ Tr2PerObjectData* Tr2InteriorParticleObject::GetPerObjectDataWithPerInstanceLigh
 	for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
 	{
 		( *it )->UpdateViewDependentData( m_mirrorToWorldMatrix );
+		( *it )->SortParticles();
 	}
 	return data;
 }

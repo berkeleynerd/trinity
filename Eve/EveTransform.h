@@ -43,15 +43,16 @@ public:
 
     EveTransform( IRoot* lockobj = NULL );
 
-    virtual void UpdateViewDependentData( const Matrix& parentTransform, bool includeChildren=false );
+    virtual void UpdateViewDependentData( const Matrix& parentTransform );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObject2	
 	virtual void Update( EveUpdateContext& updateContext );
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform );
+	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables );
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	virtual bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
 	virtual void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t );
 	virtual void GetModelCenterWorldPosition( Vector3 &position ) const;
@@ -104,7 +105,6 @@ protected:
 	bool m_isVisible;
 	bool m_useLodLevel;
 	bool m_hideOnLowQuality;
-	bool m_viewUpdatedThisFrame;
 	Tr2Lod m_lodLevel;
 	
 	float m_visibilityThreshold;

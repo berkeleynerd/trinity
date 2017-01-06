@@ -189,7 +189,7 @@ public:
 	void UpdateSyncronous( EveUpdateContext& updateContext );
 	void UpdateAsyncronous( EveUpdateContext& updateContext );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
-	void PushRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	void PushRenderables( std::vector<ITr2Renderable*>& renderables );
 	void RebuildCachedData( BlueAsyncRes* p );
 	void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t );
 	void GetModelCenterWorldPosition( Vector3 &position ) const;

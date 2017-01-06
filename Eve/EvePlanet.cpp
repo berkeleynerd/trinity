@@ -27,6 +27,8 @@ EvePlanet::EvePlanet( IRoot* lockobj ) :
 	m_renderScale( SCALE ),
 	m_scaling( 1.0f ),
 	m_radius( 1.0f ),
+	m_estimatedPixelDiameter( 0.f ),
+	m_estimatedMaxPixelDiameter( 0.f ),
 	m_currentTextureSize( 0 ),
 	m_requiredTextureSize( 0 ),
 	m_warpMode( false ),
@@ -151,6 +153,31 @@ void EvePlanet::Update( EveUpdateContext& updateContext )
 	for( TriObserverLocalVector::iterator it = m_observers.begin(); it != observersEnd; ++it )
 	{
 		(*it)->Update( m_worldTransform );
+	}
+}
+
+
+void EvePlanet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
+{
+	
+	Matrix planetScaleTransform;
+	D3DXMatrixScaling( &planetScaleTransform, 1.f / m_renderScale, 1.f / m_renderScale, 1.f / m_renderScale );
+
+	Matrix scaledTransform;
+	D3DXMatrixMultiply( &scaledTransform, &m_worldTransform, &planetScaleTransform );
+	
+	// pixel diameters, also for the max possible
+	m_estimatedPixelDiameter = EstimatePixelDiameterPos( (const Vector3*)&scaledTransform._41, 1.f / Tr2Renderer::GetProjectionTransform()._11, m_renderScale );
+	m_estimatedMaxPixelDiameter = EstimatePixelDiameterPos( (const Vector3*)&scaledTransform._41, tanf( FOV_MIN / 2.f ), m_renderScale );
+
+	// update model visibility	
+	if( m_highDetail )
+	{
+		m_highDetail->UpdateVisibility( frustum, scaledTransform );
+	}
+	if( m_zOnlyModel )
+	{
+		m_zOnlyModel->UpdateVisibility( frustum, m_worldTransform );
 	}
 }
 
@@ -292,7 +319,7 @@ void EvePlanet::WarpStopped()
 	m_forceResourceLoading = false;
 }
 
-void EvePlanet::GetZOnlyRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EvePlanet::GetZOnlyRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	if( !m_display )
 	{
@@ -301,38 +328,28 @@ void EvePlanet::GetZOnlyRenderables( const TriFrustum& frustum, std::vector<ITr2
 
 	if( m_zOnlyModel )
 	{
-		m_zOnlyModel->GetRenderables( frustum, renderables, nullptr, m_worldTransform );
+		m_zOnlyModel->GetRenderables( renderables, nullptr );
 	}
 }
 
-void EvePlanet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& /*parentTransform*/ )
+void EvePlanet::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	if( !m_display )
 	{
 		return;
 	}
-
-	Matrix planetScaleTransform;
-	D3DXMatrixScaling( &planetScaleTransform, 1.f / m_renderScale, 1.f / m_renderScale, 1.f / m_renderScale );
-
-	Matrix scaledTransform;
-	D3DXMatrixMultiply( &scaledTransform, &m_worldTransform, &planetScaleTransform );
-
-	// pixel diameters, also for the max possible
-	float estimatedPixelDiameter = EstimatePixelDiameterPos( (const Vector3*)&scaledTransform._41, 1.f / Tr2Renderer::GetProjectionTransform()._11, m_renderScale );
-	float estimatedMaxPixelDiameter = EstimatePixelDiameterPos( (const Vector3*)&scaledTransform._41, tanf( FOV_MIN / 2.f ), m_renderScale );
 	
 	if(!m_warpMode)
 	{
-		m_requiredTextureSize = CalcRequiredTextureSize( estimatedMaxPixelDiameter );
-		if ( estimatedMaxPixelDiameter < GetVisibilityThreshold() )
+		m_requiredTextureSize = CalcRequiredTextureSize( m_estimatedMaxPixelDiameter );
+		if ( m_estimatedMaxPixelDiameter < GetVisibilityThreshold() )
 		{
 			m_needResources = false;
 		}
 	}
 
 	// visible at all?
-	if ( estimatedPixelDiameter > GetVisibilityThreshold() )
+	if ( m_estimatedPixelDiameter > GetVisibilityThreshold() )
 	{
 		// visible, so resources are needed after all
 		m_needResources = true;
@@ -343,7 +360,7 @@ void EvePlanet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rende
 			// now we can get the renderables, finally
 			if ( m_resourcesReady )
 			{
-				m_highDetail->GetRenderables( frustum, renderables, scaledTransform );
+				m_highDetail->GetRenderables( renderables );
 			}
 		}
 	}

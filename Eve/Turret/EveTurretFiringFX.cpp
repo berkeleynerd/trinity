@@ -481,26 +481,9 @@ bool EveTurretFiringFX::Update( EveUpdateContext& updateContext )
 	return retVal;
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Standard way of rendering in Trinity. Iterate through all EveStretch effect
-//   and put their renderables into list
-// Arguments:
-//   frustum - the current view frustum of the current frame
-//   renderables - a vector for all the renderable we want to render
-// SeeAlso:
-//   ITr2Renderable, EveStretch
-// --------------------------------------------------------------------------------
-void EveTurretFiringFX::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EveTurretFiringFX::UpdateVisibility( const TriFrustum& frustum )
 {
-	// display?
-	if( !m_display )
-	{
-		return;
-	}
-
-	// don't render if not firing
-	if( !m_isFiring )
+	if( !m_display || !m_isFiring )
 	{
 		return;
 	}
@@ -512,7 +495,36 @@ void EveTurretFiringFX::GetRenderables( const TriFrustum& frustum, std::vector<I
 		{
 			if ( m_firingDuration >= m_perMuzzleData[i].elapsedTime || m_isLoopFiring )
 			{
-				m_stretch[i]->GetRenderables( frustum, renderables, nullptr, m );
+				m_stretch[i]->UpdateVisibility( frustum, m );
+			}
+		}
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Standard way of rendering in Trinity. Iterate through all EveStretch effect
+//   and put their renderables into list
+// Arguments:
+//   frustum - the current view frustum of the current frame
+//   renderables - a vector for all the renderable we want to render
+// SeeAlso:
+//   ITr2Renderable, EveStretch
+// --------------------------------------------------------------------------------
+void EveTurretFiringFX::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( !m_display || !m_isFiring )
+	{
+		return;
+	}
+
+	for( unsigned int i = 0; i < m_stretch.size(); ++i )
+	{
+		if( m_perMuzzleData[i].started )
+		{
+			if ( m_firingDuration >= m_perMuzzleData[i].elapsedTime || m_isLoopFiring )
+			{
+				m_stretch[i]->GetRenderables( renderables, nullptr );
 			}
 		}
 	}

@@ -85,19 +85,35 @@ void EveShip2::UpdateBoosters( EveUpdateContext& updateContext )
 	}
 }
 
-void EveShip2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveShip2::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
+{
+	EveMobile::UpdateVisibility( frustum, parentTransform );
+
+	if( !m_display )
+	{
+		return;
+	}
+
+	// collect renderables of the boosters
+	if( DisplayBoosters() )
+	{
+		m_boosters->UpdateVisibility( frustum );
+	}
+}
+
+void EveShip2::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
 {
 	if( !m_display )
 	{
 		return;
 	}
 
-	EveMobile::GetRenderables( frustum, renderables, impostors, parentTransform );
+	EveMobile::GetRenderables( renderables, impostors );
 
 	// collect renderables of the boosters
 	if( DisplayBoosters() )
 	{
-		m_boosters->GetRenderables( frustum, renderables );
+		m_boosters->GetRenderables( renderables );
 	}
 }
 

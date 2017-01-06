@@ -15,6 +15,7 @@ extern float g_eveSpaceSceneLODFactor;
 
 EveChildMesh::EveChildMesh( IRoot* lockobj ):
 	m_display( true ),
+	m_isVisible( false ),
 	m_lowestLodVisible( TR2_LOD_LOW ),
 	m_minScreenSize( 0.f ),
 	m_useSpaceObjectData( true ),
@@ -42,18 +43,23 @@ bool EveChildMesh::Initialize()
 	return true;
 }
 
-void EveChildMesh::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildMesh::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	if( !m_display )
-	{
-		return;
-	}
+	m_isVisible = false;
 	if( parentLod < m_lowestLodVisible )
 	{
 		return;
 	}
 	Vector4 boundingSphere;
 	if( GetBoundingSphere( boundingSphere ) && frustum.GetPixelSizeAccross( &boundingSphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
+	{
+		m_isVisible = true;
+	}
+}
+
+void EveChildMesh::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( m_isVisible )
 	{
 		renderables.push_back( this );
 	}

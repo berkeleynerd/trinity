@@ -37,7 +37,7 @@ void EveLineContainer::Update( EveUpdateContext& context )
 	m_lineSet->SubmitChanges();
 }
 
-void EveLineContainer::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveLineContainer::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
 	if( !m_display )
 	{
@@ -46,7 +46,20 @@ void EveLineContainer::GetRenderables( const TriFrustum& frustum, std::vector<IT
 
 	if( m_lineSet )
 	{
-		m_lineSet->GetRenderables( frustum, renderables, impostors, parentTransform );
+		m_lineSet->UpdateVisibility( frustum, parentTransform );
+	}
+}
+
+void EveLineContainer::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	if( !m_display )
+	{
+		return;
+	}
+
+	if( m_lineSet )
+	{
+		m_lineSet->GetRenderables( renderables, impostors );
 	}
 }
 

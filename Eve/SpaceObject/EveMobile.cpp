@@ -198,24 +198,40 @@ void EveMobile::UpdateAsyncronous( EveUpdateContext& updateContext )
 	}
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Override base ::GetRenderables() function, so we can draw the turrets etc.
-// --------------------------------------------------------------------------------
-void EveMobile::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveMobile::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
+	// call base to get spaceobject's renderables
+	EveSpaceObject2::UpdateVisibility( frustum, parentTransform );
+
 	if( !m_display )
 	{
 		return;
 	}
 
+	// collect renderables of the turrets
+	for( EveTurretSetVector::iterator it = m_turretSets.begin(); it != m_turretSets.end(); ++it )
+	{
+		(*it)->UpdateVisibility( frustum );
+	}
+}
+// --------------------------------------------------------------------------------
+// Description:
+//   Override base ::GetRenderables() function, so we can draw the turrets etc.
+// --------------------------------------------------------------------------------
+void EveMobile::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	if( !m_isVisible )
+	{
+		return;
+	}
+
 	// call base to get spaceobject's renderables
-	EveSpaceObject2::GetRenderables( frustum, renderables, impostors, parentTransform );
+	EveSpaceObject2::GetRenderables( renderables, impostors );
 
 	// collect renderables of the turrets
 	for( EveTurretSetVector::iterator it = m_turretSets.begin(); it != m_turretSets.end(); ++it )
 	{
-		(*it)->GetRenderables( frustum, renderables, m_psData.shLightingCoefficients );
+		(*it)->GetRenderables( renderables, m_psData.shLightingCoefficients );
 	}
 }
 

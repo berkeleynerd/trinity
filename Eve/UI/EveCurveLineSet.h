@@ -28,14 +28,14 @@ public:
 	// IEveSpaceObject2
 	void UpdateSyncronous( EveUpdateContext& updateContext );
 	void UpdateAsyncronous( EveUpdateContext& updateContext );
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform );
+	void UpdateVisibility(  const TriFrustum& frustum, const Matrix& parentTransform  );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveTransform
 	void Update( EveUpdateContext& updateContext );
-	void UpdateViewDependentData( const Matrix& parentTransform, bool children=false );
 	Tr2Lod GetLODLevel() const { return TR2_LOD_HIGH; }
 
 	// No sensible implementation?
@@ -46,6 +46,9 @@ public:
 	void PlayCurveSet( const std::string& name ) {}
 	void StopCurveSet( const std::string& name ) {}
 	float GetCurveSetDuration( const std::string& name ) const { return 0.f; } 
+
+private:
+	bool m_isVisible;
 };
 
 TYPEDEF_BLUECLASS( EveCurveLineSet );

@@ -222,7 +222,7 @@ void EveTacticalOverlay::SetVariableStore( Tr2Effect* effect )
 	}
 }
 
-void EveTacticalOverlay::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveTacticalOverlay::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
 	m_connectorBuffer.clear();
 	m_anchorBuffer.clear();
@@ -325,6 +325,10 @@ void EveTacticalOverlay::GetRenderables( const TriFrustum& frustum, std::vector<
 
 	m_totalSegmentsLast = (float)m_connectorBuffer.size();
 	m_requestedSegmentsLast = requestedSegments;
+}
+
+void EveTacticalOverlay::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
 }
 
 void EveTacticalOverlay::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer )

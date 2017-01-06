@@ -178,6 +178,22 @@ const Be::ClassInfo* EvePlanet::ExposeToBlue()
 			"",
 			Be::READ
 		)
+
+		MAP_ATTRIBUTE
+		(
+			"estimatedPixelDiameter",
+			m_estimatedPixelDiameter,
+			"",
+			Be::READ
+		)
+
+		MAP_ATTRIBUTE
+		(
+			"estimatedMaxPixelDiameter",
+			m_estimatedMaxPixelDiameter,
+			"",
+			Be::READ
+		)
 		
 
     EXPOSURE_END()

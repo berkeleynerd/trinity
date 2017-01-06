@@ -1031,7 +1031,7 @@ std::pair<Vector3, Vector3> EveSpaceObject2::CalculateSkinnedBoundingBoxFromTran
 
 
 // Actually submit renderables to the list, called from GetRenderables
-void EveSpaceObject2::PushRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EveSpaceObject2::PushRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	if( m_mesh && !m_mesh->IsLoading() && m_isMeshVisible )
 	{
@@ -1052,13 +1052,13 @@ void EveSpaceObject2::PushRenderables( const TriFrustum& frustum, std::vector<IT
 		for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
 		{
 			IEveTransform* p = *it;
-			p->GetRenderables( frustum, renderables, m_worldTransform );
+			p->GetRenderables( renderables );
 		}
 	}
 	
 	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
 	{
-		(*ecIt)->GetRenderables( frustum, renderables, m_worldTransform, m_lodLevelWithChildren );
+		(*ecIt)->GetRenderables( renderables );
 	}
 	
 	// are decals visible?
@@ -1080,13 +1080,13 @@ void EveSpaceObject2::PushRenderables( const TriFrustum& frustum, std::vector<IT
 					(*it)->SetBoneMatrix( m_animationUpdater->GetMeshBoneMatrixList(), m_animationUpdater->GetMeshBoneCount() );
 				}
 				// now prep to get the renderables
-				(*it)->GetRenderables( geometryRes, frustum, renderables, &pd );
+				(*it)->GetRenderables( geometryRes, renderables, &pd );
 			}
 		}
 	}
 }
 
-void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -1116,7 +1116,7 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 		for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
 		{
 			IEveTransform* p = *it;
-			p->UpdateViewDependentData( m_worldTransform, true );
+			p->UpdateVisibility( frustum, m_worldTransform );
 		}
 	}
 	if( GetBoundingSphere( bounds, EVE_BOUNDS_WITH_CHILDREN ) )
@@ -1170,9 +1170,23 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 		else
 		{
 			m_lodLevelWithChildren = TR2_LOD_LOW;
-			m_impostorMode = m_allowLodSelection && impostors != nullptr;
+			m_impostorMode = m_allowLodSelection;
 		}
+	}
 
+	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+	{
+		(*ecIt)->UpdateVisibility( frustum, m_worldTransform, m_lodLevelWithChildren );
+	}
+}
+
+void EveSpaceObject2::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+
+	m_impostorMode = m_impostorMode && impostors != nullptr;
+	if( m_display && m_isVisible )
+	{
 		if( m_allowLodSelection && m_isMeshVisible )
 		{
 			SelectMeshLevelOfDetail();
@@ -1195,7 +1209,7 @@ void EveSpaceObject2::GetRenderables( const TriFrustum& frustum, std::vector<ITr
 
 		if( !m_impostorMode )
 		{
-			PushRenderables( frustum, renderables );
+			PushRenderables( renderables );
 		}
 	}
 }
@@ -1252,7 +1266,7 @@ void EveSpaceObject2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
 // --------------------------------------------------------------------------------
 void EveSpaceObject2::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer )
 {
-	if( !m_isInFrustum || !m_display || m_impostorMode )
+	if( !m_isVisible || !m_display || m_impostorMode )
 	{
 		return;
 	}
@@ -2734,7 +2748,7 @@ bool EveSpaceObject2::IsImpostor() const
 void EveSpaceObject2::GetImpostorBatches( const TriFrustum& frustum, std::map<TriBatchType, ITriRenderBatchAccumulator*>& batches )
 {
 	std::vector<ITr2Renderable*> renderables;
-	PushRenderables( frustum, renderables );
+	PushRenderables( renderables );
 
 	const TriBatchType allTypes[] = 
 	{

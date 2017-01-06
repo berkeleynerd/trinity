@@ -30,7 +30,7 @@ EveChildContainer::~EveChildContainer()
 {
 }
 
-void EveChildContainer::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform, Tr2Lod parentLod )
+void EveChildContainer::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
 	if( !m_display )
 	{
@@ -43,7 +43,24 @@ void EveChildContainer::GetRenderables( const TriFrustum& frustum, std::vector<I
 
 	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
 	{
-		(*it)->GetRenderables( frustum, renderables, parentTransform, parentLod );
+		(*it)->UpdateVisibility( frustum, parentTransform, parentLod );
+	}
+}
+
+void EveChildContainer::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( !m_display )
+	{
+		return;
+	}
+	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
+	{
+		return;
+	}
+
+	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
+	{
+		(*it)->GetRenderables( renderables );
 	}
 }
 

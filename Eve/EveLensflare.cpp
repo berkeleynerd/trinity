@@ -216,7 +216,8 @@ void EveLensflare::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 	// add all the single flares, which are renderbales
 	for( EveTransformVector::const_iterator it = m_flares.begin(); it != m_flares.end(); ++it )
 	{
-		(*it)->GetRenderables( frustum, renderables, nullptr, m_transform );
+		(*it)->UpdateVisibility( frustum, m_transform );
+		(*it)->GetRenderables( renderables, nullptr );
 	}
 
 	if( m_mesh )

@@ -92,7 +92,8 @@ public:
 	// get the transformed bounding sphere, ready for use
 	void GetBoundingSphere( Vector4& boundingSphere ) const;
 	// rendering
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	void UpdateVisibility( const TriFrustum& frustum );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
 	void UpdateTrails( float deltaT, Be::Time t );
 	float GetIntensity() const { return m_overallIntensity; }
 
@@ -150,6 +151,8 @@ public:
 	Vector3 m_trailsOffsetAccu;
 	float m_trailsTimeToNext;
 	float m_trailsTimeDelta;
+
+	bool m_isVisible;
 };
 TYPEDEF_BLUECLASS( EveBoosterSet2Renderable );
 BLUE_DECLARE_VECTOR( EveBoosterSet2Renderable );
@@ -239,7 +242,8 @@ public:
 	void SetGlow( EveSpriteSetPtr glow );
 	void SetTrail( EveTrailsSetPtr trail );
 	// rendering
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	void UpdateVisibility( const TriFrustum& frustum );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
 	// query booster intensity
 	float GetBoosterIntensity() const;
 	float GetBoosterIntensity( int index ) const;

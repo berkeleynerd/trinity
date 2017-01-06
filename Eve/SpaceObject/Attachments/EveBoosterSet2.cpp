@@ -49,6 +49,7 @@ bool g_lightNoiseInitialized = false;
 
 
 EveBoosterSet2Renderable::EveBoosterSet2Renderable( IRoot* lockobj ) : 
+	m_isVisible( false ),
 	m_boosterLOD( 0.f ),
 	m_trailsLOD( 0.f ),
 	m_parentRotation( 0.f, 0.f, 0.f, 1.f ),
@@ -315,17 +316,7 @@ void EveBoosterSet2Renderable::GetBoundingSphere( Vector4& boundingSphere ) cons
 }
 
 // --------------------------------------------------------------------------------
-// Description:
-//   Standard way of rendering in Trinity. Put this object on the list, since it
-//   is an ITr2Renderable.
-//   Also get the renderables from the fire effects, if we are firing.
-// Arguments:
-//   frustum - the current view frustum of the current frame
-//   renderables - a vector for all the renderable we want to render
-// SeeAlso:
-//   ITr2Renderable, EveStretch
-// --------------------------------------------------------------------------------
-void EveBoosterSet2Renderable::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EveBoosterSet2Renderable::UpdateVisibility( const TriFrustum& frustum )
 {
 
 	Vector4 transformedBoundingSphere;
@@ -350,7 +341,23 @@ void EveBoosterSet2Renderable::GetRenderables( const TriFrustum& frustum, std::v
 	Vector4 tmp( m_trailsControlPositions[ cntrPosIdx ], transformedBoundingSphere.w );
 	m_trailsLOD = 7.5f * frustum.GetPixelSizeAccross( &tmp );
 
-	if( frustum.IsSphereVisible( &transformedBoundingSphere ) || frustum.IsBoxVisible( m_trailsBoundsMin, m_trailsBoundsMax ) )
+	m_isVisible = frustum.IsSphereVisible( &transformedBoundingSphere ) || frustum.IsBoxVisible( m_trailsBoundsMin, m_trailsBoundsMax );
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Standard way of rendering in Trinity. Put this object on the list, since it
+//   is an ITr2Renderable.
+//   Also get the renderables from the fire effects, if we are firing.
+// Arguments:
+//   frustum - the current view frustum of the current frame
+//   renderables - a vector for all the renderable we want to render
+// SeeAlso:
+//   ITr2Renderable, EveStretch
+// --------------------------------------------------------------------------------
+void EveBoosterSet2Renderable::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( m_isVisible )
 	{
 		renderables.push_back( this );
 	}
@@ -1057,6 +1064,18 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 					renderContext ) );
 }
 
+
+void EveBoosterSet2::UpdateVisibility( const TriFrustum& frustum )
+{
+	if( m_display )
+	{
+		for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
+		{
+			(*it)->UpdateVisibility( frustum );
+		}
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Standard way of rendering in Trinity. Put this object on the list, since it
@@ -1068,7 +1087,7 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 // SeeAlso:
 //   ITr2Renderable, EveStretch
 // --------------------------------------------------------------------------------
-void EveBoosterSet2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EveBoosterSet2::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	// display?
 	if( !m_display )
@@ -1081,7 +1100,7 @@ void EveBoosterSet2::GetRenderables( const TriFrustum& frustum, std::vector<ITr2
 	{
 		for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
 		{
-			(*it)->GetRenderables( frustum, renderables );
+			(*it)->GetRenderables( renderables );
 		}
 	}
 }

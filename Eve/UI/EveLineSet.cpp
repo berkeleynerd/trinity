@@ -123,11 +123,15 @@ void EveLineSet::Update( EveUpdateContext& updateContext )
 // Arguments:
 //   parentTransform - we have transform hierarchy
 // --------------------------------------------------------------------------------
-void EveLineSet::UpdateViewDependentData( const Matrix& parentTransform, bool children )
+void EveLineSet::UpdateViewDependentData( const Matrix& parentTransform )
 {
 }
 
-void EveLineSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& /*parentTransform*/ )
+void EveLineSet::UpdateVisibility(  const TriFrustum& frustum, const Matrix& parentTransform  )
+{
+}
+
+void EveLineSet::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
 {
 	if( !m_display )
 	{
@@ -137,9 +141,9 @@ void EveLineSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rend
 	renderables.push_back( this );
 }
 
-void EveLineSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform )
+void EveLineSet::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
-	return GetRenderables( frustum, renderables, nullptr, parentTransform );
+	return GetRenderables( renderables, nullptr );
 }
 
 bool EveLineSet::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query ) const

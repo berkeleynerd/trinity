@@ -146,7 +146,8 @@ public:
 	void UpdateAsyncronous( EveUpdateContext& updateContext, const ParentData* parentData );
 
 	// rendering
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Vector4* shLighting );
+	void UpdateVisibility( const TriFrustum& frustum );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, const Vector4* shLighting );
 	void GetRenderablesCastingShadow( const TriFrustumOrtho& frustum, std::vector<ITr2Renderable*>& renderables );
 	// just debug info
 	void RenderDebugInfo( Tr2DebugRenderer& renderer );

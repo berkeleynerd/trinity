@@ -15,7 +15,8 @@ CCP_STATS_DECLARED_ELSEWHERE( primitiveCount );
 
 // ------------------------------------------------------------------------------------------------------
 EveCurveLineSet::EveCurveLineSet( IRoot* lockobj /*= NULL*/ ):
-	Tr2CurveLineSet( lockobj )
+	Tr2CurveLineSet( lockobj ),
+	m_isVisible( false )
 {
 	// create line draw effect
 	Tr2EffectPtr lineEffect;
@@ -54,40 +55,43 @@ void EveCurveLineSet::Update( EveUpdateContext& updateContext )
 {
 }
 
-// ------------------------------------------------------------------------------------------------------
-void EveCurveLineSet::UpdateViewDependentData( const Matrix& parentTransform, bool children )
+void EveCurveLineSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
+	m_isVisible = false;
+
+	if( !m_display )
+	{
+		return;
+	}
+
 	// local transform
 	Matrix localTransform;
 	D3DXMatrixTransformation( &localTransform, NULL, NULL, &m_scaling, NULL, &m_rotation, &m_translation );
 
 	// store final world transform
 	D3DXMatrixMultiply( &m_worldTransform, &localTransform, &parentTransform );
-}
-
-// ------------------------------------------------------------------------------------------------------
-void EveCurveLineSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
-{
-	if( !m_display )
-	{
-		return;
-	}
-
-	// position the lines with parent transform
-	UpdateViewDependentData( parentTransform );
 	Vector4 boundingSphere = m_boundingSphere;
 	BoundingSphereTransform( m_worldTransform, boundingSphere );
 
 	// cull!
 	if( frustum.IsSphereVisible( &boundingSphere ) )
 	{
+		m_isVisible = true;
+	}
+}
+
+// ------------------------------------------------------------------------------------------------------
+void EveCurveLineSet::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	if( m_isVisible )
+	{
 		renderables.push_back( this );
 	}
 }
 
-void EveCurveLineSet::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform )
+void EveCurveLineSet::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
-	GetRenderables( frustum, renderables, nullptr, parentTransform );
+	GetRenderables( renderables, nullptr );
 }
 
 // ------------------------------------------------------------------------------------------------------

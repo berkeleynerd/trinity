@@ -108,44 +108,24 @@ void EveMissileWarhead::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2Qu
 	}
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Trinity wanst renderables, we give them out here: collect the renderables
-//   from this warhead. Don't render anything if start data is not set from
-//   python yet or we are in the DEAD state (means: exploded)
-// Arguments:
-//   frustum - current view frustum, to do culling etc.
-//   renderables - list of renderables we want to add to
-//   parentTransform - we are under EveMissile and thats out position
-// --------------------------------------------------------------------------------
-void EveMissileWarhead::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveMissileWarhead::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
+	m_isVisible = false;
+
 	// don't give out renderables until this warhead has valid data
-	if( !m_startDataValid )
+	if( !m_startDataValid || m_state == STATE_DEAD )
 	{
 		return;
 	}
-
-	if( m_state == STATE_DEAD )
-	{
-		return;
-	}
-
 
 	m_lodLevel = TR2_LOD_LOW;
 
 	// is this one here enabled?
-	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
-	{
-		return;
-	}
-
-	if( !m_display )
+	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() || !m_display )
 	{
 		return;
 	}
 	
-	m_isVisible = true;
 	UpdateViewDependentData( parentTransform );
 	
 	if( m_mesh )
@@ -166,18 +146,11 @@ void EveMissileWarhead::GetRenderables( const TriFrustum& frustum, std::vector<I
 					m_lodLevel = TR2_LOD_MEDIUM;
 				}
 
-				if( m_meshLod )
-				{
-					m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
-				}
-
 				if( estimatedSize > m_visibilityThreshold )
 				{
-					renderables.push_back( this );
-					CCP_STATS_INC( eveVisibleWarheadObjects );
+					m_isVisible = true;
 				}
 			}
-			
 		}
 	}
 
@@ -185,6 +158,35 @@ void EveMissileWarhead::GetRenderables( const TriFrustum& frustum, std::vector<I
 	if( m_isVisible )
 	{
 		CCP_STATS_INC( eveVisibleWarheadObjects );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Trinity wanst renderables, we give them out here: collect the renderables
+//   from this warhead. Don't render anything if start data is not set from
+//   python yet or we are in the DEAD state (means: exploded)
+// Arguments:
+//   frustum - current view frustum, to do culling etc.
+//   renderables - list of renderables we want to add to
+//   parentTransform - we are under EveMissile and thats out position
+// --------------------------------------------------------------------------------
+void EveMissileWarhead::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	// don't give out renderables until this warhead has valid data
+	if( !m_isVisible )
+	{
+		return;
+	}
+	
+	if( m_mesh )
+	{
+		if( m_meshLod )
+		{
+			m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
+		}
+
+		renderables.push_back( this );
 	}
 }
 

@@ -19,7 +19,8 @@ BLUE_INTERFACE( IEveSpaceObject2 ) : public IRoot
 {
 	virtual void UpdateSyncronous( EveUpdateContext& updateContext ) = 0;
 	virtual void UpdateAsyncronous( EveUpdateContext& updateContext ) = 0;
-	virtual void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform ) = 0;
+	virtual void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform ) = 0;
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors ) = 0;
 	virtual bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const = 0;
 
 	// This version of the function should perform an update on the model / ball position

@@ -203,9 +203,6 @@ void EveMissile::UpdateSyncronous( EveUpdateContext& updateContext )
 
 			// standard update method, goes straight into EveTransform::Update()
 			wh->Update( updateContext );
-
-			// Propagate warhead LODs to the missile.
-			m_lodLevel = EveLODHelper::MergeLOD( m_lodLevel, wh->GetLODLevel() );
 		}
 
 		const EveMissileWarhead::StateChangeEvent evt2 = wh->CheckImpact( deltaT, m_estimatedTotalAliveTime, m_target ) ;
@@ -223,22 +220,10 @@ void EveMissile::UpdateSyncronous( EveUpdateContext& updateContext )
 	RebuildMissileBoundingSphere();
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Trinity wanst renderables, we give them out here: collect the renderables
-//   from each attached warhead, but override the transform. The warhead
-//   knows it transform!
-// Arguments:
-//   frustum - current view frustum, to do culling etc.
-//   renderables - list of renderables we want to add to
-//   parentTransform - can be under some EveTransform
-// --------------------------------------------------------------------------------
-void EveMissile::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveMissile::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
-	EveSpaceObject2::GetRenderables( frustum, renderables, impostors, parentTransform );
+	EveSpaceObject2::UpdateVisibility( frustum, parentTransform );
 
-	// keep stats up
-	CCP_STATS_INC( eveMissileObjects );
 	// collect the renderables from every warhead this MIRV has
 	for( EveMissileWarheadVector::const_iterator it = m_warheads.begin(); it != m_warheads.end(); ++it )
 	{
@@ -249,7 +234,33 @@ void EveMissile::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Rend
 		D3DXMatrixMultiply( &subMissileTransform, &warhead->GetCurrentOffsetTransform(), &m_worldTransform );
 
 		// final call
-		warhead->GetRenderables( frustum, renderables, impostors, subMissileTransform );
+		warhead->UpdateVisibility( frustum, subMissileTransform );
+
+		// Propagate warhead LODs to the missile.
+		m_lodLevel = EveLODHelper::MergeLOD( m_lodLevel, warhead->GetLODLevel() );
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Trinity wanst renderables, we give them out here: collect the renderables
+//   from each attached warhead, but override the transform. The warhead
+//   knows it transform!
+// Arguments:
+//   frustum - current view frustum, to do culling etc.
+//   renderables - list of renderables we want to add to
+//   parentTransform - can be under some EveTransform
+// --------------------------------------------------------------------------------
+void EveMissile::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	EveSpaceObject2::GetRenderables( renderables, impostors );
+
+	// keep stats up
+	CCP_STATS_INC( eveMissileObjects );
+	// collect the renderables from every warhead this MIRV has
+	for( EveMissileWarheadVector::const_iterator it = m_warheads.begin(); it != m_warheads.end(); ++it )
+	{
+		(*it)->GetRenderables( renderables, impostors );
 	}
 }
 

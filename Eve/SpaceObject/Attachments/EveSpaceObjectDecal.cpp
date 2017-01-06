@@ -103,7 +103,7 @@ bool EveSpaceObjectDecal::OnPrepareResources()
 }
 
 // ------------------------------------------------------------------------------------------------------
-void EveSpaceObjectDecal::GetRenderables( TriGeometryRes* geomRes, const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
+void EveSpaceObjectDecal::GetRenderables( TriGeometryRes* geomRes, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
 {
 	if( !geomRes || !m_decalEffect )
 	{

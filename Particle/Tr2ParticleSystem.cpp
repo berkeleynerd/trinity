@@ -63,6 +63,7 @@ Tr2ParticleSystem::Tr2ParticleSystem( IRoot* lockobj )
 	m_peakAliveCount( 0 ),
 	m_useSimTimeRebase( false ),
 	m_isUsingSimTimeRebase( false ),
+	m_shouldSortVisible( true ),
 	m_worldTransform( Tr2Renderer::GetIdentityTransform() )
 {
 	for( unsigned i = 0; i < Tr2ParticleElementData::COUNT; ++i )
@@ -1017,7 +1018,7 @@ void Tr2ParticleSystem::UpdateViewDependentData( const Matrix& worldTransform )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	USE_MAIN_THREAD_RENDER_CONTEXT();
+	m_shouldSortVisible = false;
 
 	if( !m_bufferDirty && !m_requiresSorting )
 	{
@@ -1043,7 +1044,7 @@ void Tr2ParticleSystem::UpdateViewDependentData( const Matrix& worldTransform )
 		return;
 	}
 	
-	bool shouldSortVisible = true;
+	m_shouldSortVisible = true;
 	const TriFrustum& frustum = gTriDev->GetFrustum();
 	Vector3 minB, maxB;
 	//If we were about to sort, first check that this system is visible and large enough to warrant sorting
@@ -1060,19 +1061,33 @@ void Tr2ParticleSystem::UpdateViewDependentData( const Matrix& worldTransform )
 		{
 			const float estimatedSize = frustum.GetPixelSizeAccross( &boundingSphere );
 			//for testing, just using a constant here
-			shouldSortVisible = estimatedSize > 128.f;
-			m_updatePeriod = shouldSortVisible ? 1 : 2;
+			m_shouldSortVisible = estimatedSize > 128.f;
+			m_updatePeriod = m_shouldSortVisible ? 1 : 2;
 		}
 		else
 		{
-			shouldSortVisible = false;
+			m_shouldSortVisible = false;
 			m_updatePeriod = 4;
 		}
+	}
+}
+
+void Tr2ParticleSystem::SortParticles()
+{
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+	if( !m_bufferDirty && !m_requiresSorting )
+	{
+		return;
+	}
+
+	if( !m_vertexBuffer.IsValid() )
+	{
+		return;
 	}
 
 	if( m_aliveCount > 0 )
 	{
-		if( shouldSortVisible && m_sortingAllowed && m_requiresSorting && HasElement( Tr2ParticleElementDeclarationName::POSITION ) )
+		if( m_shouldSortVisible && m_sortingAllowed && m_requiresSorting && HasElement( Tr2ParticleElementDeclarationName::POSITION ) )
 		{
 			for( unsigned i = 0; i < m_aliveCount; ++i )
 			{
@@ -1113,6 +1128,7 @@ void Tr2ParticleSystem::UpdateViewDependentData( const Matrix& worldTransform )
 		}
 	}
 	m_bufferDirty = false;
+	m_shouldSortVisible = false;
 }
 
 void Tr2ParticleSystem::UpdateTransform( const Matrix& worldTransform )

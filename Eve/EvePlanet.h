@@ -29,8 +29,9 @@ public:
 	~EvePlanet();
 
 	void Update( EveUpdateContext& updateContext );
-	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform );
-	void GetZOnlyRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
+	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
+	void GetZOnlyRenderables( std::vector<ITr2Renderable*>& renderables );
 	void SetRenderScale( float value );
 
 	static const float SCALE;
@@ -86,6 +87,9 @@ private:
 	int m_requiredTextureSize;		// Heightmap texture size the planet needs
 
 	BlueScriptCallback m_pythonResourceCallback;
+
+	float m_estimatedPixelDiameter;
+	float m_estimatedMaxPixelDiameter;
 
 	float m_renderScale;
 

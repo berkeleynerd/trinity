@@ -239,7 +239,7 @@ void EveSpherePin::Update( EveUpdateContext& updateContext )
 }
 
 // ------------------------------------------------------------------------------------------------------
-void EveSpherePin::UpdateViewDependentData( const Matrix& parentTransform, bool children )
+void EveSpherePin::UpdateViewDependentData( const Matrix& parentTransform )
 {
 	// local transform
 	Matrix localTransform;
@@ -249,13 +249,7 @@ void EveSpherePin::UpdateViewDependentData( const Matrix& parentTransform, bool 
 	D3DXMatrixMultiply( &m_worldTransform, &localTransform, &parentTransform );
 }
 
-void EveSpherePin::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, const Matrix& parentTransform )
-{
-	GetRenderables( frustum, renderables, nullptr, parentTransform );
-}
-
-// ------------------------------------------------------------------------------------------------------
-void EveSpherePin::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveSpherePin::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
 	if( !m_display )
 	{
@@ -266,7 +260,16 @@ void EveSpherePin::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Re
 	UpdateViewDependentData( parentTransform );
 	Vector4 boundingSphere = m_boundingSphere;
 	BoundingSphereTransform( m_worldTransform, boundingSphere );
+}
 
+void EveSpherePin::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	GetRenderables( renderables, nullptr );
+}
+
+// ------------------------------------------------------------------------------------------------------
+void EveSpherePin::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
 	// cull!
 //	if( frustum.IsSphereVisible( &boundingSphere ) )
 	{

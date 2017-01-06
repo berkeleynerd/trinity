@@ -574,7 +574,7 @@ void EveSwarm::RenderDebugInfo( Tr2DebugRenderer& renderer )
 // Description:
 //   Actually add renderables to the list of renderables after culling
 // --------------------------------------------------------------------------------
-void EveSwarm::PushRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables )
+void EveSwarm::PushRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	for( auto it = m_renderables.begin(); it != m_renderables.end(); it++ )
 	{

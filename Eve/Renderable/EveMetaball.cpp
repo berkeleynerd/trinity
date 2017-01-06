@@ -27,6 +27,7 @@ using namespace Tr2RenderContextEnum;
 EveMetaball::EveMetaball( IRoot* lockobj ) :
 	PARENTLOCK( m_sourceItems ),
 	m_display( true ),
+	m_isVisible( false ),
 	m_boxSize( 10.f ),
 	m_boundingSphere( 0.f, 0.f, 0.f, -1.f ),
 	m_minBounds( 0.f, 0.f, 0.f ),
@@ -76,18 +77,11 @@ void EveMetaball::UpdateAsyncronous( EveUpdateContext& updateContext )
 	m_perObjectDataPs.InvalidateBufferData();
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-// --------------------------------------------------------------------------------
-void EveMetaball::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors, const Matrix& parentTransform )
+void EveMetaball::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
-	// really?
-	if( !m_display )
-	{
-		return;
-	}
-
-	if( m_sourceItems.empty() )
+	m_isVisible = false;
+	
+	if( !m_display || m_sourceItems.empty() )
 	{
 		return;
 	}
@@ -100,6 +94,17 @@ void EveMetaball::GetRenderables( const TriFrustum& frustum, std::vector<ITr2Ren
 
 	// cull!
 	if( frustum.IsSphereVisible( &boundingSphere ) )
+	{
+		m_isVisible = true;
+	}
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+// --------------------------------------------------------------------------------
+void EveMetaball::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors )
+{
+	if( m_isVisible )
 	{
 		renderables.push_back( this );
 	}
