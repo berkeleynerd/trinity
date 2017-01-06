@@ -28,6 +28,7 @@
 // forwards
 BLUE_DECLARE_INTERFACE( ITriDevice );
 BLUE_DECLARE_INTERFACE( ITr2RenderTargetGrabber );
+struct Tr2PresentParametersAL;
 
 // --------------------------------------------------------------------------------------
 // Description:
