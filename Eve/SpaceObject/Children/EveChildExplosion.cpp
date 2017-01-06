@@ -80,7 +80,14 @@ void EveChildExplosion::Stop()
 void EveChildExplosion::CalculateExplosionTimes( uint32_t localExplosionCount )
 {
 	m_localExplosionTimes.clear();
-	float timeUntilLastLocalExplosion = m_localExplosionDelay;
+	float timeUntilLastLocalExplosion = 0.f;
+	
+	if( localExplosionCount != 0)
+	{
+		timeUntilLastLocalExplosion += m_localExplosionDelay;
+		m_globalExplosionTime += m_globalExplosionDelay;
+	}
+
 	for(uint32_t i = 0; i < localExplosionCount; i++)
 	{
 		auto explosionTime = std::pow( m_localExplosionIntervalFactor, float( i ) ) *  
@@ -89,9 +96,10 @@ void EveChildExplosion::CalculateExplosionTimes( uint32_t localExplosionCount )
 		m_localExplosionTimes.push_back(explosionTime);
 		timeUntilLastLocalExplosion += explosionTime;
 	}
+	
 	m_localDuration += timeUntilLastLocalExplosion;	
-	m_globalExplosionTime += timeUntilLastLocalExplosion + m_globalExplosionDelay;
-
+	m_globalExplosionTime += timeUntilLastLocalExplosion;
+	
 	// max this because we might have explosions that do not have a global explosion
 	m_totalDuration = max(m_localDuration, m_globalExplosionTime + m_globalDuration);
 
