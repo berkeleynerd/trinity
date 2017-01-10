@@ -26,17 +26,11 @@
 #ifndef _TRIRECT_H_
 #define _TRIRECT_H_
 
-#define TRIRECT_Description \
-"Simple mapping of Rect over to Blue\r\n\
-function"
-
-#include "include/ITriRect.h"
 #include "include/Rect.h"
 
 #if BLUE_WITH_PYTHON
 
 BLUE_CLASS( TriRect ) :
-	public ITriRect,
 	public IPythonMethods,
 	public Rect
 {
@@ -47,58 +41,21 @@ public:
 	~TriRect();
 
 	/////////////////////////////////////////////////////////////////////////////////////
-	// ITriRect
-	/////////////////////////////////////////////////////////////////////////////////////
-	void SetDimentions(
-		int32_t _left, 
-		int32_t _top, 
-		int32_t _right, 
-		int32_t _bottom
-		);
-
-	void SetRect(
-		const ::Rect* c
-		);
-
-	const ::Rect* GetRect(
-		) const;
-
-	::Rect* CopyRect(
-		::Rect* in
-		) const;
-
-	::Rect* Rect(
-		);
-	
-	/////////////////////////////////////////////////////////////////////////////////////
 	// IPythonMethods
-	/////////////////////////////////////////////////////////////////////////////////////
-	void Destroy(
-		);
+	void Destroy();
+	PyObject* GetAttr( const char* name, bool* handled );
+	bool SetAttr( const char* name, PyObject* v, bool* handled );
+	PyObject* Repr( bool* handled );
 
-	PyObject* GetAttr( 
-		const char* name, 
-		bool* handled
-		);
+	void SetDimentions( int32_t _left, int32_t _top, int32_t _right, int32_t _bottom );
+	void SetRect( const ::Rect* c );
+	const ::Rect* GetRect() const;
+	::Rect* CopyRect( ::Rect* in ) const;
+	::Rect* Rect();
 
-	bool SetAttr(
-		const char* name,
-		PyObject* v,
-		bool* handled
-		);
-
-	PyObject* Repr(
-		bool* handled
-		);
-
-public:
-	void PySetRect(
-		Be::Optional<int32_t> l,
-		Be::Optional<int32_t> t,
-		Be::Optional<int32_t> r,
-		Be::Optional<int32_t> b );
+	void PySetRect(Be::Optional<int32_t> l, Be::Optional<int32_t> t, Be::Optional<int32_t> r, Be::Optional<int32_t> b );
 };
-TYPEDEF_BLUECLASS(TriRect);
+TYPEDEF_BLUECLASS( TriRect );
 
 #endif
 

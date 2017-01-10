@@ -7,9 +7,8 @@ BLUE_DEFINE( TriRect );
 
 const Be::ClassInfo* TriRect::ExposeToBlue()
 {
-	EXPOSURE_BEGIN(TriRect, TRIRECT_Description)
-		MAP_INTERFACE(ITriRect)
-		MAP_INTERFACE(IPythonMethods)
+	EXPOSURE_BEGIN( TriRect, "" )
+		MAP_INTERFACE( IPythonMethods )
 
 		////////////////////////////////////////////////////////////////////////////
 		//               left
