@@ -300,32 +300,33 @@ void EveSwarm::UpdateAsyncronous( EveUpdateContext& context )
 			}
 			m_renderables[0]->SetShaderData( m_vsData, m_psData );
 		}
-		return;
 	}
-
-	// Update world transforms
-	auto rit = m_renderables.begin();
-	for( unsigned i = 0; i < m_vehicles.size() && rit != m_renderables.end(); i++, rit++ )
+	else
 	{
-		Matrix world;
-		D3DXMatrixAffineTransformation( &world, 1.f, nullptr, &(m_vehicles[i].rotation), &(m_vehicles[i].position) );
-		(*rit)->SetWorldTransform( world );
+		// Update world transforms
+		auto rit = m_renderables.begin();
+		for( unsigned i = 0; i < m_vehicles.size() && rit != m_renderables.end(); i++, rit++ )
+		{
+			Matrix world;
+			D3DXMatrixAffineTransformation( &world, 1.f, nullptr, &(m_vehicles[i].rotation), &(m_vehicles[i].position) );
+			(*rit)->SetWorldTransform( world );
 		
+			if( m_boosters )
+			{
+				Be::Time time = context.GetTime();
+				float deltaT = context.GetDeltaT();
+				float speed = D3DXVec3Length( &m_vehicles[i].velocity );
+				m_boosters->Update( deltaT, time, world, speed, m_vehicles[i].acceleration, m_vehicles[i].rotation, i );
+				(*rit)->SetBoosterIntensity( m_boosters->GetBoosterIntensity() );
+			}
+			(*rit)->SetShaderData( m_vsData, m_psData );
+		}
 		if( m_boosters )
 		{
 			Be::Time time = context.GetTime();
 			float deltaT = context.GetDeltaT();
-			float speed = D3DXVec3Length( &m_vehicles[i].velocity );
-			m_boosters->Update( deltaT, time, world, speed, m_vehicles[i].acceleration, m_vehicles[i].rotation, i );
-			(*rit)->SetBoosterIntensity( m_boosters->GetBoosterIntensity() );
+			m_boosters->UpdateTrails( deltaT, time );
 		}
-		(*rit)->SetShaderData( m_vsData, m_psData );
-	}
-	if( m_boosters )
-	{
-		Be::Time time = context.GetTime();
-		float deltaT = context.GetDeltaT();
-		m_boosters->UpdateTrails( deltaT, time );
 	}
 
 	EveShip2::UpdateAsyncronous( context );
