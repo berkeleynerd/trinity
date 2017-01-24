@@ -201,7 +201,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 
 	m_ambientColor = Color( 0.25f, 0.25f, 0.25f, 1.0f );
 	m_fogColor = Color( 0.25f, 0.25f, 0.25f, 1.0f );
-	m_fogEnd = m_fogStart = 0.0f;
+	m_fogEnd = m_fogStart = m_fogMax = 0.0f;
 
 	m_pickEffect.CreateInstance();
 	m_pickEffect->SetEffectPathName( s_evePickingEffectPath );
