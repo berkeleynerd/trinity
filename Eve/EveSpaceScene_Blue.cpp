@@ -659,7 +659,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"impostorManager", 
 			m_impostorManager, 
 			"Impostor manager",
-			Be::READWRITE | Be::PERSIST
+			Be::READWRITE
 		)
     EXPOSURE_END()
 }
