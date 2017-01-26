@@ -503,23 +503,23 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = (uint8_t*)pVertexData + *vertexIx * 12;
+						uint8_t* __restrict pBase = static_cast<uint8_t*>( pVertexData ) + *vertexIx * 12;
 
 						Vector3 delta;
-						D3DXFloat16To32Array( (float*)&delta, (const D3DXFLOAT16*)pDelta, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &delta ), reinterpret_cast<const D3DXFLOAT16*>( pDelta ), 3 );
 
-						*(Vector3*)pBase += weight * delta;
+						*reinterpret_cast<Vector3*>( pBase ) += weight * delta;
 					}
 				}
 				else
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = (uint8_t*)pVertexData + *vertexIx * 12;
+						uint8_t* __restrict pBase = static_cast<uint8_t*>( pVertexData ) + *vertexIx * 12;
 
-						((float*)pBase)[0] += ((float*)pDelta)[0] * weight;
-						((float*)pBase)[1] += ((float*)pDelta)[1] * weight;
-						((float*)pBase)[2] += ((float*)pDelta)[2] * weight;
+						( reinterpret_cast<float*>( pBase ) )[0] += ( reinterpret_cast<const float*>( pDelta ) )[0] * weight;
+						( reinterpret_cast<float*>( pBase ) )[1] += ( reinterpret_cast<const float*>( pDelta ) )[1] * weight;
+						( reinterpret_cast<float*>( pBase ) )[2] += ( reinterpret_cast<const float*>( pDelta ) )[2] * weight;
 					}
 				}
 
@@ -536,23 +536,23 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				const uint8_t* __restrict pDelta = pMorphVerts + blendTypeInfos[componentIx].offset;
 				const int * __restrict vertexIx = blendIndices;
 
-				const uint8_t* const __restrict pComponentBase = (uint8_t*)&localVertexData[0] + typeInfos[componentIx].offset;
+				uint8_t* const __restrict pComponentBase = reinterpret_cast<uint8_t*>( &localVertexData[0] ) + typeInfos[componentIx].offset;
 
 				if( typeInfos[ componentIx ].isHalfPrecision && blendTypeInfos[ componentIx ].isHalfPrecision )
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
+						uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
 
 						Vector3 base;
 						Vector3 delta;
 
-						D3DXFloat16To32Array( (float*)&base,  (const D3DXFLOAT16*)pBase, 3 );
-						D3DXFloat16To32Array( (float*)&delta, (const D3DXFLOAT16*)pDelta, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &base ), reinterpret_cast<const D3DXFLOAT16*>( pBase ), 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &delta ), reinterpret_cast<const D3DXFLOAT16*>( pDelta ), 3 );
 
 						base += weight * delta;
 
-						D3DXFloat32To16Array( (D3DXFLOAT16*)pBase, (float*)&base, 3 );
+						D3DXFloat32To16Array( reinterpret_cast<D3DXFLOAT16*>( pBase ), reinterpret_cast<float*>( &base ), 3 );
 					}
 				}
 				else
@@ -560,16 +560,16 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
+						uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
 
 						Vector3 base;
-						const Vector3 &delta = *(Vector3*)pDelta;
+						const Vector3 &delta = *reinterpret_cast<const Vector3*>( pDelta );
 
-						D3DXFloat16To32Array( (float*)&base, (const D3DXFLOAT16*)pBase, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &base ), reinterpret_cast<const D3DXFLOAT16*>( pBase ), 3 );
 						
 						base += weight * delta;
 
-						D3DXFloat32To16Array( (D3DXFLOAT16*)pBase, (float*)&base, 3 );
+						D3DXFloat32To16Array( reinterpret_cast<D3DXFLOAT16*>( pBase ), reinterpret_cast<float*>( &base ), 3 );
 					}
 				}
 				else
@@ -577,12 +577,12 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
+						uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;					
 
-						Vector3& base = *(Vector3*)pBase;
+						Vector3& base = *reinterpret_cast<Vector3*>( pBase );
 
 						Vector3 delta;
-						D3DXFloat16To32Array( (float*)&delta, (const D3DXFLOAT16*)pDelta, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &delta ), reinterpret_cast<const D3DXFLOAT16*>( pDelta ), 3 );
 
 						base += weight * delta;
 					}
@@ -591,11 +591,11 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				{
 					for( int i = 0; i < blendIndexCount; ++i, ++vertexIx, pDelta += blendBytesPerVertex )
 					{
-						const uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;
+						uint8_t* const __restrict pBase = pComponentBase + *vertexIx * bytesPerVertex;
 
-						((float*)pBase)[0] += ((float*)pDelta)[0] * weight;
-						((float*)pBase)[1] += ((float*)pDelta)[1] * weight;
-						((float*)pBase)[2] += ((float*)pDelta)[2] * weight;
+						( reinterpret_cast<float*>( pBase ) )[0] += ( reinterpret_cast<const float*>( pDelta ) )[0] * weight;
+						( reinterpret_cast<float*>( pBase ) )[1] += ( reinterpret_cast<const float*>( pDelta ) )[1] * weight;
+						( reinterpret_cast<float*>( pBase ) )[2] += ( reinterpret_cast<const float*>( pDelta ) )[2] * weight;
 					}
 				}
 			}
@@ -611,11 +611,11 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				return false;
 			}
 
-			uint8_t* pMV = (uint8_t*)pMorphVerts;
+			uint8_t* pMV = static_cast<uint8_t*>( pMorphVerts );
 
 			if( deltaOnly )
 			{
-				const uint8_t* __restrict pDst = (uint8_t*)pVertexData;
+				uint8_t* __restrict pDst = static_cast<uint8_t*>( pVertexData );
 
 				for( int i = 0; i < vertexCount; ++i )
 				{
@@ -624,13 +624,13 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 					if( blendTypeInfos[ DOI_POS ].isHalfPrecision )
 					{
 						Vector3 delta;
-						D3DXFloat16To32Array( (float*)&delta, (const D3DXFLOAT16*)pDelta, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &delta ), reinterpret_cast<const D3DXFLOAT16*>( pDelta ), 3 );
 
-						*(Vector3*)pDst += weights[j] * delta;
+						*reinterpret_cast<Vector3*>( pDst ) += weights[j] * delta;
 					}
 					else
 					{
-						*(Vector3*)pDst += weights[j] * *(Vector3*)pDelta;
+						*reinterpret_cast<Vector3*>( pDst ) += weights[j] * *reinterpret_cast<Vector3*>( pDelta );
 					}
 
 					pMV += blendBytesPerVertex;
@@ -640,7 +640,7 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 				continue;
 			}
 
-			uint8_t* pDst = (uint8_t*)&localVertexData[0];
+			uint8_t* pDst = reinterpret_cast<uint8_t*>( &localVertexData[0] );
 
 			for( int i = 0; i < vertexCount; ++i )
 			{
@@ -659,19 +659,19 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 						Vector3 base;
 						Vector3 delta;
 
-						D3DXFloat16To32Array( (float*)&base, (const D3DXFLOAT16*)pBase, 3 );
-						D3DXFloat16To32Array( (float*)&delta, (const D3DXFLOAT16*)pDelta, 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &base ), reinterpret_cast<const D3DXFLOAT16*>( pBase ), 3 );
+						D3DXFloat16To32Array( reinterpret_cast<float*>( &delta ), reinterpret_cast<const D3DXFLOAT16*>( pDelta ), 3 );
 
 						base += weights[j] * delta;
 
-						D3DXFloat32To16Array( (D3DXFLOAT16*)pBase, (float*)&base, 3 );
-						D3DXFloat32To16Array( (D3DXFLOAT16*)pDelta, (float*)&delta, 3 );
+						D3DXFloat32To16Array( reinterpret_cast<D3DXFLOAT16*>( pBase ), reinterpret_cast<float*>( &base ), 3 );
+						D3DXFloat32To16Array( reinterpret_cast<D3DXFLOAT16*>( pDelta ), reinterpret_cast<float*>( &delta ), 3 );
 					}
 					else
 					{
-						Vector3 delta = *(Vector3*)pDelta;
+						Vector3 delta = *reinterpret_cast<Vector3*>( pDelta );
 						delta *= weights[j];
-						*(Vector3*)pBase += delta;
+						*reinterpret_cast<Vector3*>( pBase ) += delta;
 					}
 				}
 
@@ -1206,194 +1206,6 @@ bool TriGrannyRes::SaveToGr2( const std::string& path )
 	bool result = GrannyEndFile( builder, CW2A( fullPath.c_str() ) );
 
 	return result;
-}
-
-bool TriGrannyRes::CreateShadowMesh( )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	// Verify that we have a granny file
-	if( !m_grannyFile )
-	{
-		CCP_LOGERR( "TriGrannyRes::CreateShadowMesh: Object has no Granny file" );
-		return false;
-	}
-
-	// Verify that the file has file-info
-	granny_file_info* info = GrannyGetFileInfo( m_grannyFile );
-	if( info == NULL )
-	{
-		CCP_LOGERR( "TriGrannyRes::CreateShadowMesh: Granny file has no file info" );
-		return false;
-	}
-
-	// Give the new mesh a nice name
-	const char* name = "shadow_area";
-	granny_uint8* vertices = NULL;
-	granny_int32* indices = NULL;
-	granny_uint16* indices16 = NULL;
-	granny_int32x numVertices = 0;
-	granny_int32x numIndices = 0;
-
-	// Start by counting all the verts and indices for the final shadow mesh
-	for( granny_int32x meshIx = 0; meshIx < info->MeshCount; ++meshIx )
-	{
-		granny_mesh* mesh = info->Meshes[meshIx];
-		// We dont want the target mesh
-		if( mesh == NULL || ( NULL != strstr( mesh->Name, "Target_" ) ) || ( NULL != strstr( mesh->Name, "target_" ) )  )
-		{
-			continue;
-		}
-		
-		if( NULL != strstr( mesh->Name, name ) )
-		{
-			CCP_LOGERR( "TriGrannyRes::CreateShadowMesh: Granny file already has a shadow mesh" );
-			return false;
-		}
-
-		granny_int32x const meshIndexCount  = GrannyGetMeshIndexCount( mesh );
-		granny_int32x const meshVertexCount = GrannyGetMeshVertexCount( mesh );
-	
-		numVertices += meshVertexCount;
-		numIndices += meshIndexCount;
-	}	
-
-	if( m_grannyArena == NULL )
-	{
-		m_grannyArena = GrannyNewMemoryArena();	
-	}
-
-	granny_mesh* shadowMesh = ( granny_mesh* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_mesh ) );
-	memset( shadowMesh, 0, sizeof( granny_mesh ) );
-
-	granny_tri_topology* topology = ( granny_tri_topology* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_tri_topology ) );
-	memset( topology, 0, sizeof( granny_tri_topology ) );
-
-	granny_vertex_data* vertexData = ( granny_vertex_data* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_vertex_data ) );
-	memset( vertexData, 0, sizeof( granny_vertex_data ) );	
-
-	shadowMesh->Name = ( char* )GrannyMemoryArenaPush( m_grannyArena, strlen( name )+1 );
-	memset( ( void* )shadowMesh->Name, 0, strlen( name )+1 );	
-	strcpy_s( ( char* )shadowMesh->Name, strlen( name )+1, name );
-
-	vertices = ( granny_uint8* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_pt32_vertex ) * numVertices );
-	indices = ( granny_int32* )malloc( numIndices*sizeof( granny_int32 ) );
-
-	// Create a single group for all the triangles
-	granny_tri_material_group* group = ( granny_tri_material_group* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_tri_material_group ) );
-	group->MaterialIndex = 0;
-	group->TriFirst = 0;
-	group->TriCount = numIndices/3;
-	topology->GroupCount = 1;
-	topology->Groups = group;
-		
-	// reset the counters
-	numVertices = 0;
-	numIndices = 0;
-	
-	// Change the vertex declarations and copy to our final buffer
-	for( granny_int32x meshIx = 0; meshIx < info->MeshCount; ++meshIx )
-	{
-		granny_mesh* mesh = info->Meshes[meshIx];
-		if( mesh == NULL || ( NULL != strstr( mesh->Name, "Target_" ) ) || ( NULL != strstr( mesh->Name, "target_" ) ) )
-		{
-			continue;
-		}
-
-		granny_int32x const meshIndexCount  = GrannyGetMeshIndexCount( mesh );
-		granny_int32x const meshVertexCount = GrannyGetMeshVertexCount( mesh );
-
-		// Convert the vertex layout
-		granny_uint8* tempVerts = ( granny_uint8* )malloc( sizeof( granny_pt32_vertex ) * meshVertexCount );
-
-        GrannyConvertVertexLayouts( meshVertexCount,
-                                   GrannyGetMeshVertexType( mesh ),
-                                   GrannyGetMeshVertices( mesh ),
-                                   GrannyPT32VertexType,
-                                   tempVerts );			
-
-		// move the new verts to our final vertex buffer
-		memcpy( vertices + (sizeof( granny_pt32_vertex )*numVertices), tempVerts, meshVertexCount*sizeof( granny_pt32_vertex ) );			
-		free( tempVerts );
-
-		// need to change all the indices since all the vertices go into the same buffer
-		for( int i = 0; i < meshIndexCount; i++ )
-		{
-			if( mesh->PrimaryTopology->Indices )
-			{
-				indices[i+numIndices] = mesh->PrimaryTopology->Indices[i] + numVertices;
-			}			
-			else
-			{
-				indices[i+numIndices] = mesh->PrimaryTopology->Indices16[i] + numVertices;
-			}
-		}
-
-		numVertices += meshVertexCount;
-		numIndices += meshIndexCount;
-	}
-	
-	// if the verts are below this number we only need 16 bits for each index
-	if( numVertices <= 65535 )
-	{	
-		indices16 = ( granny_uint16* )GrannyMemoryArenaPush( m_grannyArena, numIndices*sizeof( granny_uint16 ) );
-		for( int i = 0; i < numIndices; i++ )
-		{		
-			indices16[i] = ( granny_int16 )indices[i];
-		}
-		
-		topology->Indices16 = indices16;
-		topology->Index16Count = numIndices;
-	}
-	else
-	{
-		granny_int32* arenaIndices = ( granny_int32* )GrannyMemoryArenaPush( m_grannyArena, numIndices*sizeof( granny_int32 ) );
-		memcpy( arenaIndices, indices, numIndices*sizeof( granny_int32 ) );
-		topology->Indices = arenaIndices;
-		topology->IndexCount = numIndices;
-	}	
-	// free the temp index memory
-	free( indices );
-
-	vertexData->Vertices = vertices;
-	vertexData->VertexCount = numVertices;
-	vertexData->VertexType = GrannyPT32VertexType;
-
-	// Setup the mesh with all the trimmings
-	shadowMesh->PrimaryVertexData = vertexData;
-	shadowMesh->PrimaryTopology = topology;
-
-	// Material and bone data is just ripped from the first mesh
-	shadowMesh->MaterialBindingCount = info->Meshes[0]->MaterialBindingCount;
-	shadowMesh->MaterialBindings = info->Meshes[0]->MaterialBindings;
-
-    shadowMesh->BoneBindingCount = 1;
-    shadowMesh->BoneBindings = ( granny_bone_binding* )GrannyMemoryArenaPush( m_grannyArena, sizeof( granny_bone_binding ) );
-    memset( shadowMesh->BoneBindings, 0, sizeof( granny_bone_binding ) );
-    shadowMesh->BoneBindings[0].BoneName = info->Meshes[0]->BoneBindings[0].BoneName;
-
-	// Add the new shadow mesh to our info
-	granny_mesh** meshes = ( granny_mesh** )GrannyMemoryArenaPush( m_grannyArena, ( info->MeshCount+1 )*sizeof( granny_mesh* ) );
-	memcpy( meshes, info->Meshes, info->MeshCount*sizeof( granny_mesh* ) );
-	meshes[info->MeshCount] = shadowMesh;
-	info->MeshCount++;
-	info->Meshes = meshes;
-
-	// Add the vertex data to the info
-	granny_vertex_data** vertexDatas = ( granny_vertex_data** )GrannyMemoryArenaPush( m_grannyArena, ( info->VertexDataCount+1 )*sizeof( granny_vertex_data* ) );
-	memcpy( vertexDatas, info->VertexDatas, info->VertexDataCount*sizeof( granny_vertex_data* ) );
-	vertexDatas[info->VertexDataCount] = vertexData;
-	info->VertexDataCount++;
-	info->VertexDatas = vertexDatas;	
-
-	// add the indices and groups to the info
-	granny_tri_topology** topologies = ( granny_tri_topology** )GrannyMemoryArenaPush( m_grannyArena, ( info->TriTopologyCount+1 )*sizeof( granny_tri_topology* ) );
-	memcpy( topologies, info->TriTopologies, info->TriTopologyCount*sizeof( granny_tri_topology* ) );
-	topologies[info->TriTopologyCount] = topology;
-	info->TriTopologyCount++;
-	info->TriTopologies = topologies;	
-
-	return true;
 }
 
 void GetPosition( granny_uint8* pVerts, int vIx, bool isPositionHalfPrecision, int bytesPerVertex, granny_real32 * pos )

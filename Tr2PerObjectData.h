@@ -266,7 +266,7 @@ public:
 
 	void SetJointCount( unsigned int n );
 	void SetJointTransform( unsigned int ix, float* data );
-	void SetPerObjectData( Tr2PerObjectData& perObjectData ) { m_perObjectDataPtr = &perObjectData; };
+	void SetPerObjectData( const Tr2PerObjectData& perObjectData ) { m_perObjectDataPtr = &perObjectData; };
 	
 	const unsigned	GetJointCount() const { return m_jointCount; }
 	const float*	GetMatrices()	const { return (const float*)m_jointTransforms; }
@@ -274,7 +274,7 @@ public:
 private:
 	unsigned int m_jointCount;
 	float m_jointTransforms[TR2_MAX_BONES_PER_MESHAREA * ( 3 * 4 )];
-	Tr2PerObjectData* m_perObjectDataPtr;
+	const Tr2PerObjectData* m_perObjectDataPtr;
 };
 
 

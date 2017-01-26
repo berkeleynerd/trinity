@@ -24,7 +24,6 @@ public:
 	{
 		const int segments = 4;
 
-		float a0 = 0;
 		float a0cos = 1;
 		float a0sin = 0;
 		for( int i = 0; i < segments * 2; ++i )
@@ -33,7 +32,6 @@ public:
 			float a1cos = std::cos( a1 );
 			float a1sin = std::sin( a1 );
 
-			float b0 = 0;
 			float b0cos = 1;
 			float b0sin = 0;
 			for( int j = 0; j < segments; ++j )
@@ -54,12 +52,10 @@ public:
 				m_vertices.push_back( Vector4( v10, 0 ) );
 				m_vertices.push_back( Vector4( v11, 0 ) );
 
-				b0 = b1;
 				b0cos = b1cos;
 				b0sin = b1sin;
 			}
 
-			a0 = a1;
 			a0cos = a1cos;
 			a0sin = a1sin;
 		}

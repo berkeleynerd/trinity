@@ -24,11 +24,9 @@ Tr2InteriorStatic::Tr2InteriorStatic( IRoot* lockobj ):
 	m_parentCell( nullptr ),
 	m_shSolver( NULL ),
 	PARENTLOCK( m_curveSets ),
-	m_depthOffset( 0.f )
+	m_depthOffset( 0.f ),
+	m_transform( Tr2Renderer::GetIdentityTransform() )
 {
-	// 0
-	m_transform = Tr2Renderer::GetIdentityTransform();
-
 	m_uvLinearTransform.x = 1.0f;
 	m_uvLinearTransform.y = 0.0f;
 	m_uvLinearTransform.z = 0.0f;

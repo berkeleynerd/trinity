@@ -1159,8 +1159,6 @@ void Tr2Sprite2dScene::SubmitGeometry( Tr2RenderContext& renderContext )
 
 void Tr2Sprite2dScene::ReleaseResources( TriStorage s )
 {
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
 	m_uiTransformsCb.Destroy();
 
 	m_effect = nullptr;
@@ -1197,8 +1195,6 @@ bool Tr2Sprite2dScene::OnPrepareResources()
 
 		m_vertexDecl = Tr2EffectStateManager::GetVertexDeclarationHandle( s_vertexDesc );
 	}
-
-	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	Tr2RenderContextEnum::BufferUsage usageFlags = USAGE_CPU_WRITE;
 	if( m_setLockFrequentlyFlag )
@@ -1873,8 +1869,6 @@ bool Tr2Sprite2dScene::StartCapture( ITr2SpriteObject* owner )
 	CCP_ASSERT( !m_captureDisplayList );
 
 	IssueDrawCall();
-
-	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	if( !m_captureVertexData || !m_captureIndexData )
 	{

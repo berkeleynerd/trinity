@@ -21,13 +21,13 @@ Tr2InteriorCell::Tr2InteriorCell( IRoot* lockobj ) :
 	m_isDirty( true ),
 	m_drawBoundingBox( false ),
 	m_shScale( 1.0f ),
-	m_reflectionMapPath( "" )
+	m_reflectionMapPath( "" ),
+	m_minBounds( FLT_MAX, FLT_MAX, FLT_MAX ),
+	m_maxBounds( -FLT_MAX, -FLT_MAX, -FLT_MAX ),
+	m_boundingBoxReady( false ),
+	m_isUnbounded( false )
 {
 	// default size
-	m_minBounds = Vector3( FLT_MAX, FLT_MAX, FLT_MAX );
-	m_maxBounds = Vector3( -FLT_MAX, -FLT_MAX, -FLT_MAX );
-	m_boundingBoxReady = false;
-	m_isUnbounded = false;
 
 	m_statics.SetNotify( this );
 

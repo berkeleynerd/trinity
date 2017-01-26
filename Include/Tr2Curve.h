@@ -136,7 +136,6 @@ Tr2CurveBase<Key, KeyList, KeyValue>::Tr2CurveBase( IRoot* lockobj ):
 	m_startOfSegment = 0.0f;
 	m_endOfSegment = 0.0f;
 
-	m_name = "";
 	m_length = 0.0f;
 	m_cycle = false;
 	m_reversed = false;

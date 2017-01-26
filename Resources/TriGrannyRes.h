@@ -69,7 +69,6 @@ public:
 	bool GetBlendDeltas( unsigned meshIx, const std::vector<float>& weights, std::vector<float>& deltaXyz );
 	
 	bool SaveToGr2( const std::string& path );
-	bool CreateShadowMesh( );
 
 	float GetMeshSurfaceArea( int meshIx ) const;
 

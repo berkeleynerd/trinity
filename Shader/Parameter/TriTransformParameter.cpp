@@ -111,5 +111,5 @@ void TriTransformParameter::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType 
 	}
 
 	// column_major for shaders, copy it over, but pay attentiob to the size of the registers
-	TriMatrixTranspose( (Matrix*)dest, &texTransform, (unsigned int)( size < sizeof( texTransform ) ? size : sizeof( texTransform ) ) );
+	TriMatrixTranspose( reinterpret_cast<Matrix*>( dest ), &texTransform, (unsigned int)( size < sizeof( texTransform ) ? size : sizeof( texTransform ) ) );
 }

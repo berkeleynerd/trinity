@@ -546,8 +546,6 @@ void Tr2FontMeasurer::DrawToHostBitmap( Tr2HostBitmap* hostBitmap )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
 	if( !hostBitmap || !hostBitmap->IsValid() || GetBytesPerPixel( hostBitmap->GetFormat() ) != 4 )
 	{
 		return;

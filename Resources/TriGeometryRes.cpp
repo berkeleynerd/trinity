@@ -1366,11 +1366,11 @@ void TriGeometryRes::ProcessMeshVerticesWithUV( int meshIx, PerVertexUVCallback 
 		{
 			if( texcoord->m_dataType == decl.FLOAT16_2 )
 			{
-				D3DXFloat16To32Array( (float*)&uv1, (const D3DXFLOAT16*)(pVertices + texcoord->m_offset + j * vertSize ), 2 );
+				D3DXFloat16To32Array( reinterpret_cast<float*>( &uv1 ), reinterpret_cast<const D3DXFLOAT16*>( pVertices + texcoord->m_offset + j * vertSize ), 2 );
 			}
 			else
 			{
-				uv1 = *(Vector2*)(pVertices + texcoord->m_offset + j * vertSize);
+				uv1 = *reinterpret_cast<Vector2*>( pVertices + texcoord->m_offset + j * vertSize );
 			}
 		}
 

@@ -102,8 +102,6 @@ void Tr2StaticEmitter::DoSpawn()
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
 	if( m_particleSystem && m_particleSystem->IsValid() && 
 		m_geometryResource && m_geometryResource->IsGood() && Tr2Renderer::IsResourceCreationAllowed() )
 	{

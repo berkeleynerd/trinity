@@ -30,15 +30,14 @@ Tr2IntSkinnedObject::Tr2IntSkinnedObject( IRoot* lockobj ) :
 	m_cellReflectionTime( 0.0f ),
 	m_previousUpdateTime( 0 ),
 	m_probeOffset( 0.f, 0.f, 0.f ),
-	m_depthOffset( 0.f )
+	m_depthOffset( 0.f ),
+	m_currentPosition( 0.0f, 0.0f, 0.0f ),
+	m_currentScaling( 1.0f, 1.0f, 1.0f ),
+	m_currentRotation( 0.0f, 0.0f, 0.0f, 1.0f ),
+	m_positionSet( false ),
+	m_scalingSet( false ),
+	m_rotationSet( false )
 {
-	m_currentPosition = Vector3( 0.0f, 0.0f, 0.0f );
-	m_currentScaling = Vector3( 1.0f, 1.0f, 1.0f );
-	m_currentRotation = Quaternion( 0.0f, 0.0f, 0.0f, 1.0f );
-	m_positionSet = false;
-	m_scalingSet = false;
-	m_rotationSet = false;
-
 	m_variableStore.CreateInstance();
 	m_variableStore->SetParentVariableStore( &GlobalStore() );
 
@@ -332,7 +331,7 @@ void Tr2IntSkinnedObject::GetBatches( ITriRenderBatchAccumulator* batches,
 	}
 	*pm = GetSkinningTransform();
 
-	Tr2PerObjectDataSkinned* skinnedData = ( Tr2PerObjectDataSkinned* )perObjectData;
+	const Tr2PerObjectDataSkinned* skinnedData = static_cast<const Tr2PerObjectDataSkinned*>( perObjectData );
 
 	for( PTr2MeshVector::const_iterator meshIt = m_visualModel->GetMeshes().begin(); meshIt != m_visualModel->GetMeshes().end(); ++meshIt )
 	{

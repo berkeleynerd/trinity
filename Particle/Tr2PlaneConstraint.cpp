@@ -174,14 +174,14 @@ void Tr2PlaneConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgume
 				for( auto it = m_generators.begin(); it != m_generators.end(); ++it )
 				{
 					( *it )->Generate( position, 
-									   m_velocityElement.m_offset != -1 ? (Vector3*)velocity : nullptr, 
+									   m_velocityElement.m_offset != -1 ? static_cast<Vector3*>( velocity ) : nullptr, 
 									   particle );
 				}
 			}
 			for( auto it = m_onCollisionEmitters.begin(); it != m_onCollisionEmitters.end(); ++it )
 			{
 				( *it )->SpawnParticles( arguments, position, 
-										 m_velocityElement.m_offset != -1 ? (Vector3*)velocity : nullptr );
+										 m_velocityElement.m_offset != -1 ? static_cast<Vector3*>( velocity ) : nullptr );
 			}
 		}
 	}
