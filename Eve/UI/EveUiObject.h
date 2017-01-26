@@ -21,6 +21,10 @@ public:
 	virtual void UpdateWorldTransform( Be::Time time );
 	virtual void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
 
+	// access
+	std::string GetNameForPickingAreaID( uint32_t areaID ) const;
+	void SetVisibilityForArea( const char* areaName, bool enable );
+
 private:
 	// scale with distance?
 	bool m_usePerspectiveScale;
