@@ -541,6 +541,30 @@ void EveSpaceObject2::RenderDebugInfo( Tr2DebugRenderer& renderer )
 
 	if( renderer.HasOption( GetRawRoot(), "Damage Locators" ) )
 	{
+		float radius = m_boundingSphereRadius;
+		if( m_mesh )
+		{
+			unsigned area = 0;
+			Vector3 areaMin, areaMax;
+			Vector3 bbMin, bbMax;
+			while( m_mesh->GetAreaBoundingBox( area, areaMin, areaMax ) )
+			{
+				if( area == 0 )
+				{
+					bbMin = areaMin;
+					bbMax = areaMax;
+				}
+				else
+				{
+					BoundingBoxUpdate( bbMin, bbMax, areaMin, areaMax );
+				}
+				area++;
+			}
+			if( area )
+			{
+				radius = XMVectorGetX( XMVector3Length( bbMax - bbMin ) ) * 0.5f;
+			}
+		}
 		for( unsigned i = 0; i < m_persistedDamageLocators.size(); i++ )
 		{
 			Vector3 pos;
@@ -548,7 +572,7 @@ void EveSpaceObject2::RenderDebugInfo( Tr2DebugRenderer& renderer )
 			Vector3 dir;
 			GetDamageLocatorDirection( &dir, i, true );
 
-			renderer.DrawSphereArrow( Tr2DebugObjectReference( &m_persistedDamageLocators, i ), pos, dir, m_boundingSphereRadius / 50.f, 8, Tr2DebugRenderer::Lit, 0xffff0088 );
+			renderer.DrawSphereArrow( Tr2DebugObjectReference( &m_persistedDamageLocators, i ), pos, dir, radius / 50.f, 8, Tr2DebugRenderer::Lit, 0xffff0088 );
 		}
 	}
 
