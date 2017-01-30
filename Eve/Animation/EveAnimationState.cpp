@@ -65,7 +65,9 @@ void EveAnimationState::LoadOverlayEffect( EveSpaceObject2* owner )
 	}
 	
 	IRootPtr p; 
+	BeResMan->SetUrgentResourceLoads(true);
 	p.Attach( BeResMan->LoadObject( tmpShaderPath.c_str() ) );
+	BeResMan->SetUrgentResourceLoads(false);
 	if( p == NULL )
 	{
 		CCP_LOGERR( "EveAnimationState: Couldn't find effect overlay resource file: %s", tmpShaderPath.c_str() );
