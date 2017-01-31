@@ -33,7 +33,7 @@ EveSOFUtilsParameterName::EveSOFUtilsParameterName( const std::vector<std::strin
 // Description:
 //   Is this a valid parameter name?
 // --------------------------------------------------------------------------------
-bool EveSOFUtilsParameterName::IsValid() const
+bool EveSOFUtilsParameterName::IsMaterialIdxValid() const
 {
 	return m_materialIdx != -1;
 }
@@ -57,15 +57,23 @@ const char* EveSOFUtilsParameterName::GetShortName() const
 }
 
 // --------------------------------------------------------------------------------
-// Description:
-//   Return a changed parameter with a new material index
-// --------------------------------------------------------------------------------
-std::string EveSOFUtilsParameterName::ChangeMaterialIdx( const EveSOFDataMgr::GenericData* genericData, int32_t idx ) const
+const char* EveSOFUtilsParameterName::GetFullName() const
 {
-	// insert the prefix based on the index
-	std::string result = m_shortname;
-	result.insert( 0, genericData->materialPrefixes[ idx ] );
-	return result;
+	return m_fullname.c_str();
+}
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Change parameter with a new material index
+// --------------------------------------------------------------------------------
+void EveSOFUtilsParameterName::ChangeMaterialIdx( const EveSOFDataMgr::GenericData* genericData, int32_t idx )
+{
+	if( IsMaterialIdxValid() )
+	{
+		// insert the prefix based on the index
+		m_fullname = genericData->materialPrefixes[idx] + m_shortname;
+		m_materialIdx = idx;
+	}
 }
 
 // --------------------------------------------------------------------------------

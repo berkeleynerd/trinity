@@ -22,12 +22,13 @@ public:
 	EveSOFUtilsParameterName( const std::vector<std::string>& prefixes, const char* parameterName );
 
 	// queries
-	bool IsValid() const;
+	bool IsMaterialIdxValid() const;
 	int32_t GetMaterialIdx() const;
+	const char* GetFullName() const;
 	const char* GetShortName() const;
 
 	// substitute
-	std::string ChangeMaterialIdx( const EveSOFDataMgr::GenericData* genericData, int32_t idx ) const;
+	void ChangeMaterialIdx( const EveSOFDataMgr::GenericData* genericData, int32_t idx );
 	
 private:
 	// direct copy of the original name

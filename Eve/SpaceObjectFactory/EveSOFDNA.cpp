@@ -900,7 +900,7 @@ const Vector4* EveSOFDNA::GetMeshAreaParameter( EveSOFDataArea::AreaType areaTyp
 	{
 		// indentify material paramater and material index
 		EveSOFUtilsParameterName param( m_genericData->materialPrefixes, parameterName.c_str() );
-		if( param.IsValid() && ( param.GetMaterialIdx() < (int32_t)commandArgs.size() ) )
+		if( param.IsMaterialIdxValid() && ( param.GetMaterialIdx() < (int32_t)commandArgs.size() ) )
 		{
 			// some materials are not flagged as blocked for overrides
 			if( !( blockededMaterials & ( 1 << param.GetMaterialIdx() ) ) )
@@ -921,7 +921,7 @@ const Vector4* EveSOFDNA::GetMeshAreaParameter( EveSOFDataArea::AreaType areaTyp
 	{
 		// indentify material paramater and material index
 		EveSOFUtilsParameterName param( m_genericData->patternMaterialPrefixes, parameterName.c_str() );
-		if( param.IsValid() && ( 1 + param.GetMaterialIdx() < (int32_t)commandArgs.size() ) )
+		if( param.IsMaterialIdxValid() && ( 1 + param.GetMaterialIdx() < (int32_t)commandArgs.size() ) )
 		{
 			// get the material from the lib
 			const EveSOFDataMgr::MaterialData* materialData = m_dataMgr->GetMaterialData( commandArgs[1 + param.GetMaterialIdx()].c_str() );
@@ -935,7 +935,7 @@ const Vector4* EveSOFDNA::GetMeshAreaParameter( EveSOFDataArea::AreaType areaTyp
 
 	// is this a pattern parameter?
 	EveSOFUtilsParameterName param( m_genericData->patternMaterialPrefixes, parameterName.c_str() );
-	if( param.IsValid() )
+	if( param.IsMaterialIdxValid() )
 	{
 		// get the material from the lib using the racial name
 		const EveSOFDataMgr::MaterialData* materialData = m_dataMgr->GetMaterialData( m_factionData->defaultPatternLayer1MaterialName.c_str() );
@@ -990,22 +990,14 @@ const Vector4* EveSOFDNA::GetFactionTurretParameters( const BlueSharedString& pa
 {
 	// must change the material number in the parameter name, is for turrets
 	EveSOFUtilsParameterName paramName( m_genericData->materialPrefixes, parameterName.c_str() );
-	// valid?
-	if( !paramName.IsValid() )
+	// valid material index means we might have to change it?
+	if( paramName.IsMaterialIdxValid() )
 	{
-		return nullptr;
+		// change the material index into the usage index, which in this case is the turret material index
+		paramName.ChangeMaterialIdx( m_genericData, m_factionData->materialUsageList[paramName.GetMaterialIdx()] );
 	}
-	// change the material index into the usage index, which in this case is the turret material index
-	int turretMaterialIdx = m_factionData->materialUsageList[ paramName.GetMaterialIdx() ];
-	if( ( turretMaterialIdx < 0 ) || ( turretMaterialIdx >= int(m_genericData->materialPrefixes.size()) ) )
-	{
-		return nullptr;
-	}
-	// generate new material name with this index
-	std::string turretParamName = paramName.ChangeMaterialIdx( m_genericData, turretMaterialIdx );
-
 	// now use this parameter name to get the actual value
-	return GetMeshAreaParameter( EveSOFDataArea::TYPE_PRIMARY, BlueSharedString( turretParamName ) );
+	return GetMeshAreaParameter( EveSOFDataArea::TYPE_PRIMARY, BlueSharedString( paramName.GetFullName() ) );
 }
 
 // --------------------------------------------------------------------------------

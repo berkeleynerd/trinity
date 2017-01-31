@@ -1617,14 +1617,14 @@ void EveSOF::SetupTurretMaterialFromFaction( EveTurretSet* turretSet, const char
 			for( auto it = shader->m_constParameters.begin(); it != shader->m_constParameters.end(); ++it )
 			{
 				EveSOFUtilsParameterName param( genericData->materialPrefixes, it->name.c_str() );
-				if( param.IsValid() )
+				if( param.IsMaterialIdxValid() )
 				{
-					std::string newParamName = param.ChangeMaterialIdx( genericData, factionData->materialUsageList[ param.GetMaterialIdx() ] );
-					auto paramFinder = areaData->parameters.find( BlueSharedString( newParamName ) );
-					if( paramFinder != areaData->parameters.end() )
-					{
-						it->value = paramFinder->second;
-					}
+					param.ChangeMaterialIdx( genericData, factionData->materialUsageList[param.GetMaterialIdx()] );
+				}
+				auto paramFinder = areaData->parameters.find( BlueSharedString( param.GetFullName() ) );
+				if( paramFinder != areaData->parameters.end() )
+				{
+					it->value = paramFinder->second;
 				}
 			}
 			shader->EndUpdate();
@@ -1635,17 +1635,17 @@ void EveSOF::SetupTurretMaterialFromFaction( EveTurretSet* turretSet, const char
 			for( auto it = shader->m_parameters.begin(); it != shader->m_parameters.end(); ++it )
 			{
 				EveSOFUtilsParameterName param( genericData->materialPrefixes, (*it)->GetParameterName() );
-				if( param.IsValid() )
+				if( param.IsMaterialIdxValid() )
 				{
-					std::string newParamName = param.ChangeMaterialIdx( genericData, factionData->materialUsageList[ param.GetMaterialIdx() ] );
-					auto paramFinder = areaData->parameters.find( BlueSharedString( newParamName ) );
-					if( paramFinder != areaData->parameters.end() )
+					param.ChangeMaterialIdx( genericData, factionData->materialUsageList[ param.GetMaterialIdx() ] );
+				}
+				auto paramFinder = areaData->parameters.find( BlueSharedString( param.GetFullName() ) );
+				if( paramFinder != areaData->parameters.end() )
+				{
+					Tr2Vector4ParameterPtr p;
+					if( (*it)->QueryInterface( BlueInterfaceIID<Tr2Vector4Parameter>(), (void**)&p, BEQI_SILENT ) )
 					{
-						Tr2Vector4ParameterPtr p;
-						if( (*it)->QueryInterface( BlueInterfaceIID<Tr2Vector4Parameter>(), (void**)&p, BEQI_SILENT ) )
-						{
-							p->SetValue( paramFinder->second );
-						}
+						p->SetValue( paramFinder->second );
 					}
 				}
 			}
