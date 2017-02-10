@@ -294,7 +294,7 @@ void Tr2HighLevelShader::LoadFXFile()
 			CCP_LOGERR( "Unexpected end of file while reading effect file \"%s\"", m_shaderFilePath.c_str() );
 			return;
 		}
-		if( version < 2 || version > 5 )
+		if( version < 2 || version > 6 )
 		{
 			CCP_LOGERR( "Invalid version of effect file \"%s\" (version %i)", m_shaderFilePath.c_str(), version );
 			return;
@@ -375,6 +375,10 @@ void Tr2HighLevelShader::LoadFXFile()
 				uint8_t unused8;
 				READ( unused8 );
 				READ( unused32 );
+				if( version > 5 )
+				{
+					READ( unused8 );
+				}
 
 				uint8_t count;
 				READ( count );

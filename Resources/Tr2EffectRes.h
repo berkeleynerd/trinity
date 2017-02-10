@@ -108,6 +108,7 @@ struct Tr2ShaderPermutation
 	std::vector<BlueSharedString> options;
 	size_t defaultOption;
 	std::string description;
+	uint8_t type;
 };
 
 struct Tr2ShaderOption

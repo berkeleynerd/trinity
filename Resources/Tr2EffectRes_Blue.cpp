@@ -32,6 +32,9 @@ PyObject* Tr2EffectRes::GetPermutationDescription()
 		element = PyString_FromString( m_permutations[i].description.c_str() );
 		PyDict_SetItemString( desc, "description", element );
 		Py_DECREF( element );
+		element = PyInt_FromSize_t( m_permutations[i].type );
+		PyDict_SetItemString( desc, "type", element );
+		Py_DECREF( element );
 
 		PyTuple_SetItem( result, Py_ssize_t( i ), desc );
 	}

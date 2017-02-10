@@ -182,7 +182,7 @@ BlueAsyncRes::LoadingResult Tr2EffectRes::DoLoad()
 
 	READ( uint32_t, uint32_t, m_version );
 
-	if( m_version < 2 || m_version > 5 )
+	if( m_version < 2 || m_version > 6 )
 	{
 		CCP_LOGERR( "Invalid version of effect file \"%S\" (version %i)", GetPath(), m_version );
 		return LR_FAILED;
@@ -238,6 +238,15 @@ BlueAsyncRes::LoadingResult Tr2EffectRes::DoLoad()
 			permutation.name = BlueSharedString( name );
 			READ( uint8_t, size_t, permutation.defaultOption );
 			READ_STRING( permutation.description );
+
+			if( m_version > 5 )
+			{
+				READ( uint8_t, uint8_t, permutation.type );
+			}
+			else
+			{
+				permutation.type = 0;
+			}
 
 			uint32_t count;
 			READ( uint8_t, uint32_t, count );
