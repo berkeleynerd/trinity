@@ -20,6 +20,7 @@ EveChildExplosion::EveChildExplosion( IRoot* lockobj )
 	m_wreckSwitchOffsetFromGlobalStart( 0.f ),
 	m_localDuration( 0.f ),
 	m_globalDuration( 0.f ),
+	m_totalDuration( 0.f ),
 	m_localExplosionTransforms( "EveExplosion::m_localExplosionOrigins" ),
 	m_sharedObjects( "EveExplosion::m_sharedObjects" ),
 	m_playTime( 0.f ),
@@ -81,6 +82,8 @@ void EveChildExplosion::CalculateExplosionTimes( uint32_t localExplosionCount )
 {
 	m_localExplosionTimes.clear();
 	float timeUntilLastLocalExplosion = 0.f;
+	m_globalExplosionTime = 0.f;
+	m_totalDuration = 0.f;
 	
 	if( localExplosionCount != 0)
 	{
@@ -96,12 +99,11 @@ void EveChildExplosion::CalculateExplosionTimes( uint32_t localExplosionCount )
 		m_localExplosionTimes.push_back(explosionTime);
 		timeUntilLastLocalExplosion += explosionTime;
 	}
-	
-	m_localDuration += timeUntilLastLocalExplosion;	
+	float totalLocalDuration = m_localDuration + timeUntilLastLocalExplosion;
 	m_globalExplosionTime += timeUntilLastLocalExplosion;
 	
 	// max this because we might have explosions that do not have a global explosion
-	m_totalDuration = max(m_localDuration, m_globalExplosionTime + m_globalDuration);
+	m_totalDuration = max( totalLocalDuration, m_globalExplosionTime + m_globalDuration );
 
 	m_wreckSwitchTime = m_globalExplosionTime + m_wreckSwitchOffsetFromGlobalStart;
 }
