@@ -436,14 +436,10 @@ const EveSwarm::BehaviorProperties* EveSOFDNA::GetGenericSwarmProperties() const
 // --------------------------------------------------------------------------------
 const EveSOFDataMgr::FactionDecalData* EveSOFDNA::GetFactionDecalData( int groupIndex ) const
 {
-	// -1 is null
-	if( groupIndex != -1 )
+	auto finder = m_factionData->decalData.find( groupIndex );
+	if( finder != m_factionData->decalData.end() )
 	{
-		auto finder = m_factionData->decalData.find( groupIndex );
-		if( finder != m_factionData->decalData.end() )
-		{
-			return &finder->second;
-		}
+		return &finder->second;
 	}
 	return nullptr;
 }

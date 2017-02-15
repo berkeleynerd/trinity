@@ -1432,13 +1432,16 @@ void EveSOF::SetupDecals( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 	const std::vector<EveSOFDataMgr::HullDecalData>& hullDecals = dna->GetHullDecals();
 	for( auto hdit = hullDecals.begin(); hdit != hullDecals.end(); ++hdit )
 	{
-		// do we have faction data for this decal?
-		const EveSOFDataMgr::FactionDecalData* fdd = dna->GetFactionDecalData( hdit->groupIndex );
+		const EveSOFDataMgr::FactionDecalData* fdd = nullptr;
 
-		// decal can be invisibe for this faction
-		if( fdd && !fdd->isVisible )
+		// do we have faction data for this decal? comes from groupIndex
+		if( hdit->groupIndex != -1 )
 		{
-			continue;
+			fdd = dna->GetFactionDecalData( hdit->groupIndex );
+			if( !( fdd && fdd->isVisible ) )
+			{
+				continue;
+			}
 		}
 
 		// create
