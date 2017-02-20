@@ -652,7 +652,7 @@ void EveSOF::SetupPlaneSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) co
 			break;
 		case EveSOFDataHullPlaneSet::USAGE_ALLIANCE_LOGO:
 			effectResPath = planeSetData->skinned ? "res:/graphics/effect/managed/space/spaceobject/fx/skinned_planehologram.fx" : "res:/graphics/effect/managed/space/spaceobject/fx/planehologram.fx";
-			externalParamName = "LogoResPath";
+			externalParamName = "AllianceLogoResPath";
 			imageMapResPath = m_dataMgr.GetGenericData()->resPathDefaultAlliance;
 			break;
 		}
