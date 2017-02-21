@@ -41,6 +41,11 @@ Be::VarChooser EveLocalPositionChooser[] =
 		"Moves the vector from parentPositionCurve(or 0, 0, 0) to alignedPositionCurve OR positionOffset to the xz plane "
 		"containing parentPositionCurve, maintaining the vector's length."
 	},
+	{
+		"turretEffectPosition",
+		BeCast( EveLocalPositionCurve::POS_TURRET_EFFECT_BONE ),
+		"Calculate a position based on the effect bone in the turretSet"
+	},
 	{ 0 }
 };
 
@@ -93,6 +98,14 @@ const Be::ClassInfo* EveLocalPositionCurve::ExposeToBlue()
 			"parent",
 			m_parentObject,
 			"na",
+			Be::READWRITE
+		)
+
+		MAP_ATTRIBUTE
+		( 
+			"turretSet",
+			m_turretSet,
+			"",
 			Be::READWRITE
 		)
 

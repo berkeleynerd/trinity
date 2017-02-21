@@ -178,6 +178,7 @@ public:
 
 	// get worldmatrix of the currently firing bone
 	Matrix GetFiringBoneWorldTransform( unsigned int muzzle ) const;
+	Matrix GetEffectBoneWorldTransform() const;
 
 	// missed shots
 	void SetShotMissed( bool missed );
@@ -375,6 +376,9 @@ private:
 	float m_sysBonePitch02Factor;
 	float m_sysBonePitch03Offset;
 	float m_sysBonePitch03Factor;
+	unsigned int m_effectBoneID;
+	
+	Matrix GetTurretBoneTransform( uint32_t closestTurret, uint32_t boneID ) const;
 
 	// state of turret set
 	State m_state;

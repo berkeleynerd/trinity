@@ -41,6 +41,8 @@ static std::string s_systemBoneSkeletonNames[] = {
 	"Sys_Pitch_Arm06",		// SYSBONE_SCALED_PITCH06
 };
 
+const static std::string s_effectBoneName = "Pos_Effect";
+
 // invalids
 const unsigned int INVALID_BONE_INDEX = 0xffffffff;
 const unsigned int INVALID_TURRET_INDEX = 0xffffffff;
@@ -103,7 +105,8 @@ EveTurretSet::EveTurretSet( IRoot* lockobj ) :
 	m_slotNumber( -1 ),
 	m_swarmID( 0 ),
 	m_parentShLighting( nullptr ),
-	m_possibleTurretDisplayAmount( 0 )
+	m_possibleTurretDisplayAmount( 0 ),
+	m_effectBoneID( INVALID_BONE_INDEX )
 {
 	// 0
 	memset( &m_parentData, 0, sizeof( ParentData ) );
@@ -286,6 +289,7 @@ void EveTurretSet::InitializeFiringEffect()
 					// in case we don't find positional bone, ::FindJoint() returns 0xffffffff
 					m_firingEffect->SetMuzzleBoneID( i, skeletonData->FindJoint( boneNameBuffer ) );
 				}
+				m_effectBoneID = skeletonData->FindJoint( s_effectBoneName.c_str() );
 			}
 		}
 	}
@@ -409,6 +413,7 @@ void EveTurretSet::RebuildCachedData( BlueAsyncRes* p )
 
 				// try to link an existing firing effect to skeleton's bones
 				InitializeFiringEffect();
+				m_effectBoneID = skeletonData->FindJoint( s_effectBoneName.c_str() );
 			}
 		}
 
@@ -854,44 +859,74 @@ Matrix EveTurretSet::GetFiringBoneWorldTransform( unsigned int muzzle ) const
 		return m;
 	}
 	unsigned int boneID = m_firingEffect->GetPerMuzzleBoneID( muzzle );
-	// valid firing positionbone?
-	if( boneID != INVALID_BONE_INDEX )
+	return GetTurretBoneTransform( closestTurret, boneID );
+}
+
+// --------------------------------------------------------------------------------
+Matrix EveTurretSet::GetEffectBoneWorldTransform() const
+{
+	// there MUST be an avtive turret aka a "firing turret"!
+	unsigned int closestTurret = m_activeTurret;
+	// so if we don't have one, calc one temporarily
+	if( closestTurret == INVALID_TURRET_INDEX )
 	{
-		// valid granny pose? (bone positions are stored "in" that thing)
-		if( m_singleTurrets[closestTurret].grnWorldPose )
+		int closestLocator = -1;
+		GetClosestTurretAndLocator( closestTurret, closestLocator );
+	}
+
+	// this is a problem...
+	if( closestTurret == INVALID_TURRET_INDEX )
+	{ 
+		return Tr2Renderer::GetIdentityTransform();
+	}
+
+	return GetTurretBoneTransform( closestTurret, m_effectBoneID );
+}
+
+
+// --------------------------------------------------------------------------------
+Matrix EveTurretSet::GetTurretBoneTransform( uint32_t closestTurret, uint32_t boneID ) const
+{
+	// source comes from position bones or, if we don't have any, from center of turret
+	Matrix m = m_singleTurrets[closestTurret].worldMatrix;
+	if( boneID == INVALID_BONE_INDEX )
+	{ 
+		return m;
+	}
+
+	// valid granny pose? (bone positions are stored "in" that thing)
+	if( m_singleTurrets[closestTurret].grnWorldPose )
+	{
+		// granny tells us firing-bone position in turret-space
+		granny_real32* boneTransform = GrannyGetWorldPose4x4( m_singleTurrets[closestTurret].grnWorldPose, boneID );
+		// create this pos in worldspace
+		D3DXMatrixMultiply( &m, reinterpret_cast<const Matrix*>( boneTransform ), &m );
+	}
+	else
+	{
+		// if we don't have a valid granny pose, position is fine but orientation? depends on launcher settings...
+		if( m_sysBonePitchMin < 45.f )
 		{
-			// granny tells us firing-bone position in turret-space
-			granny_real32* boneTransform = GrannyGetWorldPose4x4( m_singleTurrets[closestTurret].grnWorldPose, boneID );
-			// create this pos in worldspace
-			D3DXMatrixMultiply( &m, reinterpret_cast<const Matrix*>( boneTransform ), &m );
+			// aiming directly at target, because target cone is large
+			Vector3 nrmToTarget = *m_target->GetTargetPosition() - m.GetTranslation();
+			// get direct rotation quaternion
+			Quaternion directRotationQuaternion;
+			static const Vector3 zAxis( 0.f, 0.f, 1.f );
+			TriQuaternionRotationArc( &directRotationQuaternion, &zAxis, &nrmToTarget );
+			// now combine the translation from the worldmatrix and the rotation from the direct targeting
+			Vector3 tr = m.GetTranslation();
+			D3DXMatrixAffineTransformation( &m, 1.f, NULL, &directRotationQuaternion, &tr );
 		}
 		else
 		{
-			// if we don't have a valid granny pose, position is fine but orientation? depends on launcher settings...
-			if( m_sysBonePitchMin < 45.f )
-			{
-				// aiming directly at target, because target cone is large
-				Vector3 nrmToTarget = *m_target->GetTargetPosition() - m.GetTranslation();
-				// get direct rotation quaternion
-				Quaternion directRotationQuaternion;
-				static const Vector3 zAxis( 0.f, 0.f, 1.f );
-				TriQuaternionRotationArc( &directRotationQuaternion, &zAxis, &nrmToTarget );
-				// now combine the translation from the worldmatrix and the rotation from the direct targeting
-				Vector3 tr = m.GetTranslation();
-				D3DXMatrixAffineTransformation( &m, 1.f, NULL, &directRotationQuaternion, &tr );
-			}
-			else
-			{
-				// eject straight out of ship, because target cone is very small
-				// attn: locator up is +Y, but missile eject is in +Z! so rotate around X
-				Matrix y2xMatrix;
-				D3DXMatrixRotationX( &y2xMatrix, -0.5f * XM_PI );
-				// apply this rotation to "before" world transform
-				D3DXMatrixMultiply( &m, &y2xMatrix, &m );
-			}
+			// eject straight out of ship, because target cone is very small
+			// attn: locator up is +Y, but missile eject is in +Z! so rotate around X
+			Matrix y2xMatrix;
+			D3DXMatrixRotationX( &y2xMatrix, -0.5f * XM_PI );
+			// apply this rotation to "before" world transform
+			D3DXMatrixMultiply( &m, &y2xMatrix, &m );
 		}
 	}
-
 	return m;
 }
 

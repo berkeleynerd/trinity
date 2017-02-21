@@ -11,6 +11,8 @@
 #include "Eve/IEveSpaceObject2.h"
 #include "include/ITriTargetable.h"
 
+BLUE_DECLARE( EveTurretSet );
+
 /* This is an ITriVectorFunction compatible object that calculates a\r\n 
 point local to a model. This class has a few behaviours determined by\r\n 
 the LocalPositionBehavior enum.\r\n */
@@ -34,6 +36,7 @@ public:
 		POS_TARGET_DMG_LOCATOR_IMPACT,
 		POS_OFFSET_POSITION,
 		POS_OFFSET_PLANE_ROTATION,
+		POS_TURRET_EFFECT_BONE,
 		POS_COUNT,
 	};
 	LocalPositionBehavior m_behavior;
@@ -64,6 +67,8 @@ private:
 	ITriVectorFunctionPtr m_parentPositionCurve;
 	ITriQuaternionFunctionPtr m_parentRotationCurve;
 	ITriVectorFunctionPtr m_alignPositionCurve;
+	EveTurretSetPtr m_turretSet;
+
 	float m_offset;
 	Vector3 m_value;
 	Vector3 m_boundingBoxSize;
@@ -82,6 +87,7 @@ private:
 	Vector3* GetCenterBoundingSphere( Vector3* in, Be::Time t );
 	Vector3* GetDamageLocator( Vector3* in, Be::Time t );
 	Vector3* GetDamageLocatorImpact( Vector3* in, Be::Time t );
+	Vector3* GetTurretEffectPosition( Vector3* in, Be::Time t);
 };
 
 TYPEDEF_BLUECLASS(EveLocalPositionCurve);
