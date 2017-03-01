@@ -177,10 +177,6 @@ ALResult Tr2LightManager::UpdateLightBuffer( Tr2RenderContext& renderContext )
 {
 	if( m_lightBuffer->GetGpuBuffer( 0 )->GetNumElements() < m_lightData.GetCount() )
 	{
-#if TRINITY_PLATFORM==TRINITY_DIRECTX11
-		m_stagingBuffers.clear();
-#endif
-
 		CR_RETURN_HR( m_lightBuffer->Create( 
 			std::max( m_lightBuffer->GetGpuBuffer( 0 )->GetNumElements() + 1024, m_lightData.GetCount() ), 
 			sizeof( PerLightData ), 
@@ -189,78 +185,11 @@ ALResult Tr2LightManager::UpdateLightBuffer( Tr2RenderContext& renderContext )
 
 	auto lightCount = std::min( m_lightBuffer->GetGpuBuffer( 0 )->GetNumElements(), uint32_t( m_lightData.GetCount() ) );
 
-#if TRINITY_PLATFORM==TRINITY_DIRECTX11
-	if( !renderContext.m_context )
-	{
-		return E_FAIL;
-	}
-
-	for( auto it = m_stagingBuffers.begin(); it != m_stagingBuffers.end(); ++it )
-	{
-		auto stagingBuffer = *it;
-
-		D3D11_MAPPED_SUBRESOURCE msr;
-		if( SUCCEEDED( renderContext.m_context->Map( stagingBuffer, 0, D3D11_MAP_WRITE, D3D11_MAP_FLAG_DO_NOT_WAIT, &msr ) ) )
-		{
-			memcpy( msr.pData, m_lightData.GetData(), lightCount * sizeof( PerLightData ) );
-			renderContext.m_context->Unmap( stagingBuffer, 0 );
-			D3D11_BOX box;
-			box.left = box.top = box.front = 0;
-			box.right = lightCount * sizeof( PerLightData );
-			box.bottom = 1;
-			box.back = 1;
-			renderContext.m_context->CopySubresourceRegion( m_lightBuffer->GetGpuBuffer( 0 )->m_buffer, 0, 0, 0, 0, stagingBuffer, 0, &box );
-			CCP_STATS_ADD( lightsGathered, m_lightData.GetCount() );
-			return S_OK;
-		}
-	}
-
-	{
-		USE_MAIN_THREAD_RENDER_CONTEXT();
-
-		if( !renderContext.m_d3dDevice11 )
-		{
-			return E_FAIL;
-		}
-
-		CCP_LOGWARN( "Tr2LightManager::UpdateLightBuffer growing staging buffers to %u", unsigned( m_stagingBuffers.size() ) + 1 );
-
-		CComPtr<ID3D11Buffer> stagingBuffer;
-
-		D3D11_BUFFER_DESC desc;
-		desc.BindFlags = 0;
-		desc.MiscFlags = 0;
-		desc.ByteWidth = std::max( m_lightBuffer->GetGpuBuffer( 0 )->GetNumElements() + 1024, m_lightData.GetCount() ) * sizeof( PerLightData );
-		desc.StructureByteStride = sizeof( PerLightData );
-		desc.Usage = D3D11_USAGE_STAGING;
-		desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
-
-		CR_RETURN_HR( renderContext.m_d3dDevice11->CreateBuffer( &desc, nullptr, &stagingBuffer ) );
-		m_stagingBuffers.push_back( stagingBuffer );
-
-		D3D11_MAPPED_SUBRESOURCE msr;
-		if( SUCCEEDED( renderContext.m_context->Map( stagingBuffer, 0, D3D11_MAP_WRITE, 0, &msr ) ) )
-		{
-			memcpy( msr.pData, m_lightData.GetData(), lightCount * sizeof( PerLightData ) );
-			renderContext.m_context->Unmap( stagingBuffer, 0 );
-			D3D11_BOX box;
-			box.left = box.top = box.front = 0;
-			box.right = lightCount * sizeof( PerLightData );
-			box.bottom = 1;
-			box.back = 1;
-			renderContext.m_context->CopySubresourceRegion( m_lightBuffer->GetGpuBuffer( 0 )->m_buffer, 0, 0, 0, 0, stagingBuffer, 0, &box );
-			CCP_STATS_ADD( lightsGathered, m_lightData.GetCount() );
-			return S_OK;
-		}
-	}
-	return E_FAIL;
-#else
 	Vector4* data;
 	CR_RETURN_HR( m_lightBuffer->GetGpuBuffer( 0 )->Lock( 0, 0, (void**)&data, Tr2RenderContextEnum::LOCK_WRITEONLY, renderContext ) );
 	memcpy( data, m_lightData.GetData(), lightCount * sizeof( PerLightData ) );
 	CCP_STATS_ADD( lightsGathered, m_lightData.GetCount() );
 	return m_lightBuffer->GetGpuBuffer( 0 )->Unlock( renderContext );
-#endif
 }
 
 ALResult Tr2LightManager::DoUpdateLists( Tr2RenderContext& renderContext )
@@ -318,9 +247,6 @@ ALResult Tr2LightManager::UpdateLists( Tr2RenderContext& renderContext )
 
 void Tr2LightManager::ReleaseResources( TriStorage )
 {
-#if TRINITY_PLATFORM==TRINITY_DIRECTX11
-	m_stagingBuffers.clear();
-#endif
 }
 
 bool Tr2LightManager::OnPrepareResources()

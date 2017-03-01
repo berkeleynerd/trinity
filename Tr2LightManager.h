@@ -76,9 +76,6 @@ private:
 	Tr2Variable m_lightBufferVariable;
 	Tr2Variable m_indexBufferVariable;
 	TriFrustum m_frustum;
-#if TRINITY_PLATFORM==TRINITY_DIRECTX11
-	std::vector<CComPtr<ID3D11Buffer>> m_stagingBuffers;
-#endif
 };
 
 #endif
