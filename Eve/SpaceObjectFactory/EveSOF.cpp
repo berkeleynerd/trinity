@@ -56,14 +56,12 @@ EveSOF::EveSOF( IRoot* lockobj ) :
 	Tr2Variable var1( "DepthMap", (ITr2TextureProvider*)nullptr );
 	Tr2Variable var2( "DepthMapMsaa", (ITr2TextureProvider*)nullptr );
 
-	BlueSharedString mainIntensity( "MainIntensity" );
 	BlueSharedString gradientMap( "GradientMap" );
 
 	// some shared shaders here
 	m_spriteSetEffect.CreateInstance();
 	m_spriteSetEffect->StartUpdate();
 	m_spriteSetEffect->SetEffectPathName( "res:/graphics/effect/managed/space/spaceobject/fx/blinkinglightspool.fx" );
-	m_spriteSetEffect->AddParameterFloat( mainIntensity, 1.f );
 	m_spriteSetEffect->AddResourceTexture2D( gradientMap, "res:/texture/particle/whitesharp_gradient.dds" );
 	m_spriteSetEffect->EndUpdate();
 
@@ -566,11 +564,7 @@ void EveSOF::SetupSpotlightSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna 
 		coneEffect->AddResourceTexture2D( textureMap, spotlightSetData->coneTextureResPath.c_str() );
 
 		// parameters
-		Tr2FloatParameterPtr zOffsetParam;
-		zOffsetParam.CreateInstance();
-		zOffsetParam->m_name = BlueSharedString( "zOffset" );
-		zOffsetParam->m_value = spotlightSetData->zOffset;
-		coneEffect->m_parameters.Append( zOffsetParam->GetRawRoot() );
+		coneEffect->AddParameterFloat( BlueSharedString( "zOffset" ), spotlightSetData->zOffset );
 
 		// that's it for setting up these shaders, must rebuild cache on it!
 		coneEffect->EndUpdate();
@@ -1347,30 +1341,24 @@ void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 	effect->StartUpdate();
 
 	effect->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/Booster/BoosterVolumetric.fx" );
-	effect->AddParameterFloat( BlueSharedString("NoiseFunction0"), rdata->shape0.noiseFunction );
 	effect->AddParameterFloat( BlueSharedString("NoiseSpeed0"), rdata->shape0.noiseSpeed );
 	effect->AddParameterVector4( BlueSharedString("NoiseAmplitudeStart0"), &rdata->shape0.noiseAmplitureStart );
 	effect->AddParameterVector4( BlueSharedString("NoiseAmplitudeEnd0"), &rdata->shape0.noiseAmplitureEnd );
 	effect->AddParameterVector4( BlueSharedString("NoiseFrequency0"), &rdata->shape0.noiseFrequency );
 	effect->AddParameterColor( BlueSharedString("Color0"), &rdata->shape0.color );
-	effect->AddParameterFloat( BlueSharedString("NoiseFunction1"), rdata->shape1.noiseFunction );
 	effect->AddParameterFloat( BlueSharedString("NoiseSpeed1"), rdata->shape1.noiseSpeed );
 	effect->AddParameterVector4( BlueSharedString("NoiseAmplitudeStart1"), &rdata->shape1.noiseAmplitureStart );
 	effect->AddParameterVector4( BlueSharedString("NoiseAmplitudeEnd1"), &rdata->shape1.noiseAmplitureEnd );
-	effect->AddParameterVector4( BlueSharedString("NoiseFrequency1"), &rdata->shape1.noiseFrequency );
 	effect->AddParameterColor( BlueSharedString("Color1"), &rdata->shape1.color );
 
-	effect->AddParameterFloat( BlueSharedString("WarpNoiseFunction0"), rdata->warpShape0.noiseFunction );
 	effect->AddParameterFloat( BlueSharedString("WarpNoiseSpeed0"), rdata->warpShape0.noiseSpeed );
 	effect->AddParameterVector4( BlueSharedString("WarpNoiseAmplitudeStart0"), &rdata->warpShape0.noiseAmplitureStart );
 	effect->AddParameterVector4( BlueSharedString("WarpNoiseAmplitudeEnd0"), &rdata->warpShape0.noiseAmplitureEnd );
 	effect->AddParameterVector4( BlueSharedString("WarpNoiseFrequency0"), &rdata->warpShape0.noiseFrequency );
 	effect->AddParameterColor( BlueSharedString("WarpColor0"), &rdata->warpShape0.color );
-	effect->AddParameterFloat( BlueSharedString("WarpNoiseFunction1"), rdata->warpShape1.noiseFunction );
 	effect->AddParameterFloat( BlueSharedString("WarpNoiseSpeed1"), rdata->warpShape1.noiseSpeed );
 	effect->AddParameterVector4( BlueSharedString("WarpNoiseAmplitudeStart1"), &rdata->warpShape1.noiseAmplitureStart );
 	effect->AddParameterVector4( BlueSharedString("WarpNoiseAmplitudeEnd1"), &rdata->warpShape1.noiseAmplitureEnd );
-	effect->AddParameterVector4( BlueSharedString("WarpNoiseFrequency1"), &rdata->warpShape1.noiseFrequency );
 	effect->AddParameterColor( BlueSharedString("WarpColor1"), &rdata->warpShape1.color );
 
 	Vector4 shapeAtlasSize( float( rdata->shapeAtlasHeight ), float( rdata->shapeAtlasCount ), 0, 0 );
