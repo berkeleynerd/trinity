@@ -815,7 +815,6 @@ public:
 	std::string m_resPathInsert;
 
 	// data
-	PEveSOFDataFactionHullAreaVector m_areas;
 	PEveSOFDataFactionSpriteSetVector m_spriteSets;
 	PEveSOFDataFactionSpotlightSetVector m_spotlightSets;
 	PEveSOFDataFactionPlaneSetVector m_planeSets;
@@ -829,7 +828,6 @@ public:
 	int m_materialUsageMtl4;
 
 	// material lib names
-	bool m_useNewAreaTypes;
 	EveSOFDataAreaPtr m_areaTypes;
 
 	// default pattern
