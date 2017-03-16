@@ -568,9 +568,18 @@ void EveSpaceObject2::RenderDebugInfo( Tr2DebugRenderer& renderer )
 
 		for( auto it = m_locators.begin(); it != m_locators.end(); ++it )
 		{
+			auto transform = ( *it )->GetTransform();
+			if( m_animationUpdater && m_animationUpdater->m_worldPose && m_animationUpdater->m_skeleton )
+			{
+				granny_int32x bone;
+				if( GrannyFindBoneByName( m_animationUpdater->m_skeleton, ( *it )->GetName(), &bone ) )
+				{
+					transform = *reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_animationUpdater->m_worldPose, bone ) );
+				}
+			}
 			XMVECTOR scale, rotation, translation;
-			XMMatrixDecompose( &scale, &rotation, &translation, ( *it )->GetTransform() );
-			Matrix transform( XMMatrixAffineTransformation( XMVectorReplicate( m_boundingSphereRadius / 50.f ), Vector3( 0, 0, 0 ), rotation, translation ) );
+			XMMatrixDecompose( &scale, &rotation, &translation, transform );
+			transform = Matrix( XMMatrixAffineTransformation( XMVectorReplicate( m_boundingSphereRadius / 50.f ), Vector3( 0, 0, 0 ), rotation, translation ) );
 			renderer.DrawAxis( *it, transform * m_worldTransform, Tr2DebugRenderer::Lit );
 			auto name = ( *it )->GetName();
 			if( strncmp( name, prefix, prefixLength ) == 0 )
