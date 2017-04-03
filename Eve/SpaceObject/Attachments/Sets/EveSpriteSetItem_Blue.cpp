@@ -69,7 +69,7 @@ const Be::ClassInfo* EveSpriteSetItem::ExposeToBlue()
 		( 
 			"boneIndex", 
 			m_boneIndex, 
-			"the bone index this blinky is tight to",
+			"the bone index this blinky is tight to\n:jessica-widget: boneindex",
 			Be::READWRITE | Be::PERSIST 
 		)
 

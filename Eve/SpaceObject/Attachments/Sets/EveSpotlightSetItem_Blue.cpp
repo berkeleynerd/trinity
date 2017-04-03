@@ -21,7 +21,7 @@ const Be::ClassInfo* EveSpotlightSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "spriteColor", m_spriteColor, "The color of the glow at the base of the spotlight", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "flareColor", m_flareColor, "The color of the flare", Be::READWRITE | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "the bone index this spotlight is tight to", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "the bone index this spotlight is tight to\n:jessica-widget: boneindex", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "boosterGainInfluence", m_boosterGainInfluence, "Toggles if this spotlight can be used to show ship movement speed", Be::READWRITE | Be::PERSIST )
 

@@ -26,6 +26,6 @@ const Be::ClassInfo* EveSpriteLineSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "maxScale", m_maxScale, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "falloff", m_falloff, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "color", m_color, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, ":jessica-widget: boneindex", Be::READWRITE | Be::PERSIST )
     EXPOSURE_END()
 }

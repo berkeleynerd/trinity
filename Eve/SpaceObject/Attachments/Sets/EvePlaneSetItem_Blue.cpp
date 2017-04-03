@@ -23,7 +23,7 @@ const Be::ClassInfo* EvePlaneSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "layer2Transform", m_layer2Transform, "Color", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "layer1Scroll", m_layer1Scroll, "Color", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "layer2Scroll", m_layer2Scroll, "Color", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "the bone index this plane is tight to", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "boneIndex", m_boneIndex, "the bone index this plane is tight to\n:jessica-widget: boneindex", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "maskAtlasID", m_maskAtlasID, "the atlas ID for the mask map", Be::READWRITE | Be::PERSIST )
 
 		EXPOSURE_END()
