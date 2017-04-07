@@ -235,6 +235,11 @@ float TriFrustum::GetPixelSizeAccross( const Vector4* sphere ) const
 	return GetPixelSizeAccross( *reinterpret_cast<const Vector3*>( sphere ), sphere->w );
 }
 
+float TriFrustum::GetPixelSizeAccrossEst( const Vector4* sphere ) const
+{
+	return GetPixelSizeAccrossEst( *reinterpret_cast<const Vector3*>( sphere ), sphere->w );
+}
+
 // ---------------------------------------------------------------------------
 float TriFrustum::GetPixelSizeAccross( const Vector3& center, float radius ) const
 {
@@ -258,6 +263,16 @@ float TriFrustum::GetPixelSizeAccross( const Vector3& center, float radius ) con
 	}
 
 	float ratio = radius / depth;
+
+	return ( ratio * m_halfWidthProjection ) * 2.f;
+}
+
+float TriFrustum::GetPixelSizeAccrossEst( const Vector3& center, float radius ) const
+{
+	Vector3 d( center - m_viewPos );
+	const float epsilon = 1e-5f;
+	float distance = std::max( epsilon, D3DXVec3Length( &d ) );
+	float ratio = radius / distance;
 
 	return ( ratio * m_halfWidthProjection ) * 2.f;
 }

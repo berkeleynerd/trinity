@@ -8,6 +8,7 @@
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveTransform.h"
 #include "Resources/TriGeometryRes.h"
+#include "Utilities/BoundingSphere.h"
 
 
 extern float g_eveSpaceSceneLODFactor;
@@ -80,6 +81,7 @@ bool EveChildMesh::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query
 			// Take scaling into account
 			float maxScale = std::max( this->m_scaling.x, std::max( this->m_scaling.y, this->m_scaling.z ) );
 			sphere.w *= maxScale;
+			BoundingSphereTransform( m_worldTransform, sphere );
 			return true;
 		}
 	}

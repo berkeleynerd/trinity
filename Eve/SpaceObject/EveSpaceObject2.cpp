@@ -1137,8 +1137,8 @@ void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 	if( GetBoundingSphere( bounds, EVE_BOUNDS_WITH_CHILDREN ) )
 	{
 		m_isInFrustum = frustum.IsSphereVisible( &bounds );
-		m_estimatedPixelDiameterWithChildren = frustum.GetPixelSizeAccross( &bounds );
-		if( m_estimatedPixelDiameterWithChildren >= g_eveSpaceSceneVisibilityThreshold )
+		m_estimatedPixelDiameterWithChildren = frustum.GetPixelSizeAccrossEst( &bounds );
+		if( m_isInFrustum && m_estimatedPixelDiameterWithChildren >= g_eveSpaceSceneVisibilityThreshold )
 		{
 			m_isVisible = true;
 		}

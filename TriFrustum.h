@@ -52,7 +52,9 @@ public:
 
 	// Get the pixel coverage of a bounding sphere on screen
 	float GetPixelSizeAccross( const Vector4* sphere ) const;
+	float GetPixelSizeAccrossEst( const Vector4* sphere ) const;
 	float GetPixelSizeAccross( const Vector3& center, float radius ) const;
+	float GetPixelSizeAccrossEst( const Vector3& center, float radius ) const;
 
 	void ExtractFrustum( const Matrix* proj );
 
