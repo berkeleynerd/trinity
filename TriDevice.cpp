@@ -91,7 +91,9 @@ CCP_STATS_DECLARE( deviceOnTick, "Trinity/device/OnTick", true, CST_TIME, "Time 
 CCP_STATS_DECLARE( fpsRaw, "FPSRaw", false, CST_COUNTER_LOW, "Frames per second (raw values)");
 CCP_STATS_DECLARE( fps, "FPS", false, CST_COUNTER_LOW, "Frames per second");
 CCP_STATS_DECLARE( smoothedFrameTime, "Trinity/SmoothedFrameTime", false, CST_TIME, "Frame time smoothed over a number of frames");
-CCP_STATS_DECLARE( frameTime, "Trinity/FrameTime", false, CST_TIME, "Frame time");
+CCP_STATS_DECLARE( frameTime, "Trinity/FrameTime", false, CST_TIME, "Frame time" );
+CCP_STATS_DECLARE( frameTimeMin, "Trinity/FrameTime/Min", false, CST_TIME, "Frame time (min)" );
+CCP_STATS_DECLARE( frameTimeMax, "Trinity/FrameTime/Max", false, CST_TIME, "Frame time (max)" );
 CCP_STATS_DECLARE( frameTimeAbove100ms, "Trinity/FrameTimeAbove100ms", false, CST_COUNTER_LOW, "Number of frames where the frame time was above 100ms (but below 200)");
 CCP_STATS_DECLARE( frameTimeAbove200ms, "Trinity/FrameTimeAbove200ms", false, CST_COUNTER_LOW, "Number of frames where the frame time was above 200ms (but below 300)");
 CCP_STATS_DECLARE( frameTimeAbove300ms, "Trinity/FrameTimeAbove300ms", false, CST_COUNTER_LOW, "Number of frames where the frame time was above 300ms (but below 400)");
@@ -662,6 +664,15 @@ void TriDevice::OnTick( Be::Time realTime, Be::Time simTime, void* cookie )
 	double frameTime = s_frameTimer.GetSeconds();
 #if CCP_STATS_ENABLED
 	g_ccpStatistics_frameTime.Set( frameTime );
+	if( g_ccpStatistics_frameTimeMin.GetValue() > 0 )
+	{
+		g_ccpStatistics_frameTimeMin.Set( std::min( frameTime, g_ccpStatistics_frameTimeMin.GetValue() ) );
+	}
+	else
+	{
+		g_ccpStatistics_frameTimeMin.Set( frameTime );
+	}
+	g_ccpStatistics_frameTimeMax.Set( std::max( frameTime, g_ccpStatistics_frameTimeMax.GetValue() ) );
 #endif
 
 	if( frameTime > 0.5f )
