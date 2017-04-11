@@ -77,6 +77,11 @@ public:
 	bool AddParameterFloat( const BlueSharedString& name, float value );
 	bool AddParameterColor( const BlueSharedString& name, const Color* value );
 
+	void SetOption( const BlueSharedString& name, const BlueSharedString& value );
+	void ResetOption( const BlueSharedString& name );
+	BlueSharedString GetOption( const BlueSharedString& name ) const;
+
+
 	// access parameters and resources
 	const char* GetEffectPathName() const;
 	ITriEffectParameter* GetResourceByName( const char* name ) const;

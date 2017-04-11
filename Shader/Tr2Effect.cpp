@@ -424,6 +424,53 @@ bool Tr2Effect::AddParameterColor( const BlueSharedString& name, const Color* va
 	return true;
 }
 
+void Tr2Effect::SetOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	for( auto it = m_options.begin(); it != m_options.end(); ++it )
+	{
+		if( it->name == name )
+		{
+			if( !(it->value == value ) )
+			{
+				it->value = value;
+				RebuildCachedDataInternal();
+			}
+			return;
+		}
+	}
+	Tr2ShaderOption option;
+	option.name = name;
+	option.value = value;
+
+	m_options.Append( &option );
+	RebuildCachedDataInternal();
+}
+
+void Tr2Effect::ResetOption( const BlueSharedString& name )
+{
+	for( size_t i = 0; i < m_options.size(); ++i )
+	{
+		if( m_options[i].name == name )
+		{
+			m_options.Remove( i );
+			RebuildCachedDataInternal();
+			return;
+		}
+	}
+}
+
+BlueSharedString Tr2Effect::GetOption( const BlueSharedString& name ) const
+{
+	for( auto it = m_options.begin(); it != m_options.end(); ++it )
+	{
+		if( it->name == name )
+		{
+			return it->value;
+		}
+	}
+	return BlueSharedString();
+}
+
 static Tr2SamplerDescription&& CreateSamplerDescription( const Tr2SamplerOverride& samplerOverride )
 {
 	return std::move( Tr2SamplerDescription(
