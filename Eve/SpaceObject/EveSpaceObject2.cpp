@@ -603,7 +603,7 @@ void EveSpaceObject2::RenderDebugInfo( Tr2DebugRenderer& renderer )
 				auto position = locator.position;
 				auto rotation = locator.direction;
 
-				if( locator.boneIndex && m_animationUpdater && m_animationUpdater->IsInitialized() )
+				if( locator.boneIndex >= 0 && m_animationUpdater && m_animationUpdater->IsInitialized() )
 				{
 					size_t boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
 					if( boneCount )
