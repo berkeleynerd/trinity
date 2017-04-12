@@ -11,7 +11,7 @@ const Be::ClassInfo* Tr2PointLight::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "Name so artists dont get confused", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "position", m_position, "Light position", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "radius", m_radius, "Light radius", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "color", m_color, "Light color (in linear space)", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "color", m_color, "Light color (in linear space)\n:jessica-tuple-type: linearcolor", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "brightness", m_brightness, "Light brightness (modulates color) for easier animation", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "noiseAmplitude", m_noiseAmplitude, "Brightness noise amplitude\n:jessica-group: Noise", Be::READWRITE | Be::PERSIST )
