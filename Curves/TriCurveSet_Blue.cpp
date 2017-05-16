@@ -127,6 +127,12 @@ const Be::ClassInfo* TriCurveSet::ExposeToBlue()
 			":param time: time in seconds\n"
 			":param cb: callback function"
 			)
+		MAP_METHOD_AND_WRAP
+		(
+			"Apply",
+			Apply,
+			"Re-evaluates curves and applies bindings once using curve set current time" 
+		)
 
     EXPOSURE_END()
 }

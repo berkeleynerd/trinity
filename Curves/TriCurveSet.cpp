@@ -89,15 +89,7 @@ void TriCurveSet::Update( double time )
 			m_stopOnNextFrame = true;
 		}
 
-		for( ITriFunctionVector::const_iterator it = m_curves.begin(); it != m_curves.end(); ++it )
-		{
-			(*it)->UpdateValue( m_scaledTime );
-		}
-
-		for( ITr2ValueBindingVector::const_iterator it = m_bindings.begin(); it != m_bindings.end(); ++it )
-		{
-			(*it)->CopyValue();
-		}
+		Apply();
 	}
 
 	if( m_stopOnNextFrame )
@@ -109,6 +101,19 @@ void TriCurveSet::Update( double time )
 		}
 		m_isPlaying = false;
 		m_stopOnNextFrame = false;
+	}
+}
+
+void TriCurveSet::Apply()
+{
+	for( ITriFunctionVector::const_iterator it = m_curves.begin(); it != m_curves.end(); ++it )
+	{
+		( *it )->UpdateValue( m_scaledTime );
+	}
+
+	for( ITr2ValueBindingVector::const_iterator it = m_bindings.begin(); it != m_bindings.end(); ++it )
+	{
+		( *it )->CopyValue();
 	}
 }
 

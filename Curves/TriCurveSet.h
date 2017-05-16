@@ -36,6 +36,8 @@ public:
 
 	bool IsPlaying() const;
 
+	void Apply();
+
 	// access the name
 	const std::string& GetName() const					{	return m_name;				}
 	void SetName( const std::string& name );
