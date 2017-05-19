@@ -75,6 +75,11 @@ Be::VarChooser Tr2CurveExtrapolationChooser[] =
 		BeCast( Tr2CurveExtrapolation::MIRROR ),
 		"Mirror the curve"
 	},
+	{
+		"LINEAR",
+		BeCast( Tr2CurveExtrapolation::LINEAR ),
+		"Linear exprapolation based on first/last key tangent"
+	},
 	{ 0 }
 };
 

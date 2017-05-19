@@ -124,6 +124,20 @@ float Tr2CurveScalar::GetValue( double time ) const
 	}
 
 	auto count = m_keys.size();
+
+	if( m_extrapolation == Tr2CurveExtrapolation::LINEAR )
+	{
+		float t = float( time );
+		if( t < m_keys[0].m_time )
+		{
+			return m_keys[0].m_value - ( m_keys[0].m_time - t ) * m_keys[0].m_leftTangent;
+		}
+		else if( t > m_keys[count - 1].m_time )
+		{
+			return m_keys[count - 1].m_value + ( t - m_keys[count - 1].m_time ) * m_keys[count - 1].m_rightTangent;
+		}
+	}
+
 	if( count == 1 )
 	{
 		return m_keys[0].m_value;
@@ -334,10 +348,10 @@ float Tr2CurveScalar::GetSegmentValue( float time, const Tr2CurveScalarKey& k0, 
 		float outTangent = k1.m_leftTangent * length;
 
 		float s = ( time - k0.m_time ) / length;
-		float s2 = s*s;
-		float s3 = s2*s;
+		float s2 = s * s;
+		float s3 = s2 * s;
 
-		float c2 = -2.0f*s3 + 3.0f*s2;
+		float c2 = -2.0f * s3 + 3.0f * s2;
 		float c1 = 1.0f - c2;
 		float c4 = s3 - s2;
 		float c3 = s + c4 - s2;

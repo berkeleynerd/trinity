@@ -49,6 +49,8 @@ namespace Tr2CurveExtrapolation
 		CYCLE = 1,
 		// Cycle the curve with mirroring
 		MIRROR = 2,
+		// Linear exprapolation based on first/last key tangent
+		LINEAR = 3,
 	};
 }
 
