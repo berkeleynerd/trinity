@@ -365,3 +365,26 @@ float Tr2CurveScalar::GetSegmentValue( float time, const Tr2CurveScalarKey& k0, 
 	}
 }
 
+// --------------------------------------------------------------------------------
+float Tr2CurveScalar::GetTimeOffset() const
+{
+	return m_timeOffset;
+}
+
+// --------------------------------------------------------------------------------
+void Tr2CurveScalar::SetTimeOffset( float timeOffset )
+{
+	m_timeOffset = timeOffset;
+}
+
+// --------------------------------------------------------------------------------
+float Tr2CurveScalar::GetTimeScale() const
+{
+	return m_timeScale;
+}
+
+// --------------------------------------------------------------------------------
+void Tr2CurveScalar::SetTimeScale( float timeScale )
+{
+	m_timeScale = timeScale;
+}

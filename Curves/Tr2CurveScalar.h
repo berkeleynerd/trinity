@@ -94,6 +94,11 @@ public:
 
 	float GetValue( double time ) const;
 
+	float GetTimeOffset() const;
+	void SetTimeOffset( float timeOffset );
+	float GetTimeScale() const;
+	void SetTimeScale( float timeScale );
+
 	void OnKeysChanged();
 private:
 	float GetLocalTime( double time ) const;

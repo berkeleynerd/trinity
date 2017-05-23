@@ -152,5 +152,31 @@ const Be::ClassInfo* Tr2CurveScalar::ExposeToBlue()
 			"Method to call whenever keys change"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"GetTimeOffset",
+			GetTimeOffset,
+			"Returns internal time offset in seconds"
+		)
+
+		MAP_METHOD_AND_WRAP(
+			"SetTimeOffset",
+			SetTimeOffset,
+			"Set new time offset in seconds\n"
+			":param timeOffset: new time offset"
+		)
+
+		MAP_METHOD_AND_WRAP(
+			"GetTimeScale",
+			GetTimeScale,
+			"Returns internal time scaling factor"
+		)
+
+		MAP_METHOD_AND_WRAP(
+			"SetTimeScale",
+			SetTimeScale,
+			"Set new time scaling factor\n"
+			":param timeScaling: new time scaling factor"
+		)
+
 	EXPOSURE_END()
 }
