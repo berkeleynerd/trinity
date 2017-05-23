@@ -7,8 +7,7 @@ Tr2FloatParameter::Tr2FloatParameter(IRoot* lockobj):
 	m_value( 1.0f ),
 	m_name(),
 	m_isUsedByEffect( false ),
-	m_allowRerouting( true ),
-	m_binding( NULL ),
+	m_bindings( "Tr2FloatParameter::m_bindings" ),
 	m_reroutedValue( NULL )
 {
 }
@@ -85,7 +84,7 @@ void Tr2FloatParameter::SetValue( float val )
 
 bool Tr2FloatParameter::IsRerouted() const
 {
-	return ( m_reroutedValue != NULL ) || !m_allowRerouting;
+	return m_reroutedValue != NULL;
 }
 
 void Tr2FloatParameter::SetDestination( void* dest, size_t size )
@@ -95,18 +94,18 @@ void Tr2FloatParameter::SetDestination( void* dest, size_t size )
 		m_reroutedValue = (float*)dest;
 		*m_reroutedValue = m_value;
 
-		if( m_binding )
+		for( auto it = m_bindings.begin(); it != m_bindings.end(); ++it )
 		{
-			m_binding->RerouteDestination( m_reroutedValue );
+			( *it )->RerouteDestination( m_reroutedValue );
 		}
 	}
 	else
 	{
 		m_reroutedValue = NULL;
 
-		if( m_binding )
+		for( auto it = m_bindings.begin(); it != m_bindings.end(); ++it )
 		{
-			m_binding->RerouteDestination( &m_value );
+			( *it )->RerouteDestination( &m_value );
 		}
 	}
 }
@@ -126,26 +125,13 @@ void Tr2FloatParameter::GetDestination( void*& dest, size_t& size )
 
 void Tr2FloatParameter::RegisterBinding( TriValueBinding* vb )
 {
-	if( !m_allowRerouting )
-	{
-		return;
-	}
-	if( m_binding )
-	{
-		CCP_LOGWARN( "Tr2FloatParameter: detected a second value binding to the parameter; disabling routing" );
-		m_allowRerouting = false;
-		return;
-	}
-
-	// Note that this is a weak reference - adding a reference here would 
-	// create a circular reference.
-	m_binding = vb;
+	CCP_ASSERT( std::find( m_bindings.begin(), m_bindings.end(), vb ) == m_bindings.end() );
+	m_bindings.push_back( vb );
 }
 
 void Tr2FloatParameter::UnregisterBinding( TriValueBinding* vb )
 {
-	CCP_ASSERT( !m_binding || ( m_binding == vb ) || !m_allowRerouting );
-	m_binding = NULL;
+	std::remove( m_bindings.begin(), m_bindings.end(), vb );
 }
 
 void Tr2FloatParameter::RebuildEffectHandles( ITr2ShaderState* effectRes )

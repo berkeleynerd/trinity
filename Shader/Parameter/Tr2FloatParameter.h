@@ -48,19 +48,17 @@ public:
 	// IInitialize
 	bool Initialize();
 
-	float m_value;
 	BlueSharedString m_name;
-
+	float m_value;
 protected:
-	bool m_isUsedByEffect;
-	bool m_allowRerouting;
-
 	// If this parameter is bound to a curve we have to inform the binding of the
 	// destination value the effect sets when the parameters are mapped to shader
 	// constants.
-	TriValueBinding* m_binding;
+	typedef TrackableStdVector<TriValueBinding*> BindingVector_t;
+	BindingVector_t m_bindings;
 	float* m_reroutedValue;
 
+	bool m_isUsedByEffect;
 public:
 	float GetValue();
 	void SetValue( float val );
