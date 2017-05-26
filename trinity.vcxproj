@@ -2818,6 +2818,7 @@
     <ClInclude Include="Apex\Tr2ClothingRes.h"/>
     <ClInclude Include="Curves\Tr2BoneMatrixCurve.h"/>
     <ClInclude Include="Curves\Tr2ColorCurve.h"/>
+    <ClInclude Include="Curves\Tr2CurveColor.h"/>
     <ClInclude Include="Curves\Tr2CurveEulerRotation.h"/>
     <ClInclude Include="Curves\Tr2CurveScalar.h"/>
     <ClInclude Include="Curves\Tr2CurveScalarExpression.h"/>
@@ -3376,6 +3377,8 @@
     <ClCompile Include="Curves\Tr2BoneMatrixCurve_Blue.cpp"/>
     <ClCompile Include="Curves\Tr2ColorCurve.cpp"/>
     <ClCompile Include="Curves\Tr2ColorCurve_Blue.cpp"/>
+    <ClCompile Include="Curves\Tr2CurveColor.cpp"/>
+    <ClCompile Include="Curves\Tr2CurveColor_Blue.cpp"/>
     <ClCompile Include="Curves\Tr2CurveEulerRotation.cpp"/>
     <ClCompile Include="Curves\Tr2CurveEulerRotation_Blue.cpp"/>
     <ClCompile Include="Curves\Tr2CurveScalar.cpp"/>
