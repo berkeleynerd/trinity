@@ -248,6 +248,12 @@ void BoundingSphereFromPoints( Vector4& sphere, Vector3 const** points, size_t p
 			D3DXVec3Cross( &axbxa, &axb, &a );
 			D3DXVec3Cross( &bxaxb, &b, &axb );
 			float denom = 2.f * D3DXVec3Dot( &axb, &axb );
+			if( denom == 0.f )
+			{
+				// fail, must try with two points
+				CCP_LOGWARN("BoundingSphereFromPoints: failed because denominator is zero! Using fallback...");
+				return BoundingSphereFromPoints( sphere, points, 2 );
+			}
 			float a2 = D3DXVec3Dot( &a, &a );
 			float b2 = D3DXVec3Dot( &b, &b );
 			Vector3 o = ( b2 * axbxa + a2 * bxaxb ) / denom;
