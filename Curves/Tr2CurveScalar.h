@@ -93,6 +93,7 @@ public:
 	virtual float Length();
 
 	float GetValue( double time ) const;
+	float GetCurrentValue() const;
 
 	float GetTimeOffset() const;
 	void SetTimeOffset( float timeOffset );

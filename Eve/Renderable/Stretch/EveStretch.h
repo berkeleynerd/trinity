@@ -118,7 +118,7 @@ private:
 	EveTransformPtr m_stretchObject;
 	EveTransformPtr m_moveObject;
 
-	Tr2ScalarCurvePtr m_progressCurve;
+	ITriScalarFunctionPtr m_progressCurve;
 	PTriCurveSetVector m_curveSets;
 	TriCurveSetPtr m_moveCompletion;
 	bool m_moveCompleted;

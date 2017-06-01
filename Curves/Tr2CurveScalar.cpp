@@ -403,3 +403,9 @@ bool Tr2CurveScalar::IsEmpty() const
 {
 	return m_keys.empty();
 }
+
+// --------------------------------------------------------------------------------
+float Tr2CurveScalar::GetCurrentValue() const
+{
+	return m_currentValue;
+}

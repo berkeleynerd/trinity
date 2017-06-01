@@ -5,6 +5,7 @@
 #include "Include/TriMath.h"
 #include "Utilities/BoundingSphere.h"
 #include "Eve/Turret/EveTurretSet.h"
+#include "Curves/Tr2CurveScalar.h"
 
 static const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
 
@@ -245,7 +246,15 @@ void EveStretch::UpdateVisibility( const TriFrustum& frustum, const Matrix& pare
 		// Calculate the current position of the move object
 		if( m_progressCurve && m_moveObject )
 		{ 
-			float progress = m_progressCurve->m_currentValue;
+			float progress = 0;
+			if( auto curve = dynamic_cast<Tr2ScalarCurve*>( m_progressCurve.p ) )
+			{
+				progress = curve->m_currentValue;
+			}
+			else if( auto curve = dynamic_cast<Tr2CurveScalar*>( m_progressCurve.p ) )
+			{
+				progress = curve->GetCurrentValue();
+			}
 			if( progress >= 1.0 && !m_moveCompleted )
 			{
 				if( m_moveCompletion )
