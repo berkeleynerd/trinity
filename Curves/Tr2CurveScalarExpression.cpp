@@ -192,7 +192,7 @@ void Tr2CurveScalarExpression::SetExpression( const std::string& expression )
 	catch( const mu::Parser::exception_type& e )
 	{
 		s_currentCurve.pop_back();
-		CCP_LOGERR( "Tr2CurveScalarExpression::SetExpression invalid expression \"%s\": %s", m_expression.c_str(), e.GetMsg().c_str() );
+		CCP_LOGERR( "Tr2CurveScalarExpression::SetExpression invalid expression \"%s\": %s", expression.c_str(), e.GetMsg().c_str() );
 		m_expressionParser.SetExpr( m_expression );
 		return;
 	}

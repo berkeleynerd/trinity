@@ -11,7 +11,7 @@ BLUE_DEFINE( Tr2CurveScalarExpression );
 
 const Be::ClassInfo* Tr2CurveScalarExpression::ExposeToBlue()
 {
-	EXPOSURE_BEGIN( Tr2CurveScalarExpression, "" )
+	EXPOSURE_BEGIN( Tr2CurveScalarExpression, ":jessica-icon: tree/triscalarcurve.png" )
 		MAP_INTERFACE( Tr2CurveScalarExpression )
 		MAP_INTERFACE( ITriFunction )
 		MAP_INTERFACE( ITriScalarFunction )
