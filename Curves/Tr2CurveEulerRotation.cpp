@@ -37,3 +37,55 @@ Quaternion Tr2CurveEulerRotation::GetValue( double time ) const
 	float roll = m_roll.GetValue( time );
 	return Quaternion( XMQuaternionRotationRollPitchYaw( pitch, yaw, roll ) );
 }
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::Update( Quaternion* in, Be::Time time )
+{
+	*in = m_currentValue = GetValue( TimeAsDouble( time ) );
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::Update( Quaternion* in, double time )
+{
+	*in = m_currentValue = GetValue( time );
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueAt( Quaternion* in, Be::Time time )
+{
+	*in = GetValue( TimeAsDouble( time ) );
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueAt( Quaternion* in, double time )
+{
+	*in = GetValue( time );
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueDotAt( Quaternion* in, Be::Time time )
+{
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueDotAt( Quaternion* in, double time )
+{
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueDoubleDotAt( Quaternion* in, Be::Time time )
+{
+	return in;
+}
+
+// --------------------------------------------------------------------------------
+Quaternion* Tr2CurveEulerRotation::GetValueDoubleDotAt( Quaternion* in, double time )
+{
+	return in;
+}

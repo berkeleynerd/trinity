@@ -13,6 +13,7 @@ const Be::ClassInfo* Tr2CurveEulerRotation::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( Tr2CurveEulerRotation, ":jessica-icon: tree/trirotationcurve.png" )
 		MAP_INTERFACE( Tr2CurveEulerRotation )
+		MAP_INTERFACE( ITriQuaternionFunction )
 		MAP_INTERFACE( ITriFunction )
 		MAP_INTERFACE( ITriCurveLength )
 
