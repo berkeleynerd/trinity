@@ -82,3 +82,20 @@ Color* Tr2CurveColor::GetValueAt( Color* in, double time )
 	*in = GetValue( time );
 	return in;
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveColor::AddKey(
+	float time,
+	Color value,
+	Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+	Be::Optional<Color> leftTangent,
+	Be::Optional<Color> rightTangent,
+	Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType )
+{
+	Color lt = leftTangent.IsAssigned() ? Color( leftTangent ) : Color( 0, 0, 0, 0 );
+	Color rt = leftTangent.IsAssigned() ? Color( rightTangent ) : Color( 0, 0, 0, 0 );
+	m_r.AddKey( time, value.r, interpolation, lt.r, rt.r, tangentType );
+	m_g.AddKey( time, value.g, interpolation, lt.g, rt.g, tangentType );
+	m_b.AddKey( time, value.b, interpolation, lt.b, rt.b, tangentType );
+	m_a.AddKey( time, value.a, interpolation, lt.a, rt.a, tangentType );
+}

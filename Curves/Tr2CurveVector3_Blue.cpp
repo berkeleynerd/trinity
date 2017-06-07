@@ -49,5 +49,18 @@ const Be::ClassInfo* Tr2CurveVector3::ExposeToBlue()
 			":param time: input time"
 		)
 
+		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS(
+			"AddKey",
+			AddKey,
+			4,
+			"Adds a new key to the curve\n"
+			":param time: key time\n"
+			":param value: key value\n"
+			":param interpolation: optional interpolation type for the segment following this key, defaults to trinity.Tr2CurveInterpolation.HERMITE\n"
+			":param leftTangent: optional key left (incoming) tangent, defaults to (0, 0, 0)\n"
+			":param rightTangent: optional key right (outgoing) tangent, defaults to (0, 0, 0)\n"
+			":param tangentType: optional key tangent type, defaults to trinity.Tr2CurveTangentType.AUTO_CLAMP"
+		)
+
 	EXPOSURE_END()
 }

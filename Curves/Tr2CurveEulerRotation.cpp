@@ -89,3 +89,19 @@ Quaternion* Tr2CurveEulerRotation::GetValueDoubleDotAt( Quaternion* in, double t
 {
 	return in;
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveEulerRotation::AddKey(
+	float time,
+	Vector3 value,
+	Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+	Be::Optional<Vector3> leftTangent,
+	Be::Optional<Vector3> rightTangent,
+	Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType )
+{
+	auto lt = leftTangent.IsAssigned() ? Vector3( leftTangent ) : Vector3( 0, 0, 0 );
+	auto rt = leftTangent.IsAssigned() ? Vector3( rightTangent ) : Vector3( 0, 0, 0 );
+	m_yaw.AddKey( time, value.x, interpolation, lt.x, rt.x, tangentType );
+	m_pitch.AddKey( time, value.y, interpolation, lt.y, rt.y, tangentType );
+	m_roll.AddKey( time, value.z, interpolation, lt.z, rt.z, tangentType );
+}

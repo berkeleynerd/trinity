@@ -25,6 +25,14 @@ public:
 	virtual float Length();
 
 	Vector2 GetValue( double time ) const;
+
+	void AddKey(
+		float time,
+		Vector2 value,
+		Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+		Be::Optional<Vector2> leftTangent,
+		Be::Optional<Vector2> rightTangent,
+		Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType );
 private:
 	std::string m_name;
 

@@ -103,6 +103,14 @@ public:
 	bool IsEmpty() const;
 
 	void OnKeysChanged();
+
+	void AddKey(
+		float time,
+		float value,
+		Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+		float leftTangent,
+		float rightTangent,
+		Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType );
 private:
 	float GetLocalTime( double time ) const;
 	float GetSegmentValue( float time, const Tr2CurveScalarKey& k0, const Tr2CurveScalarKey& k1 ) const;

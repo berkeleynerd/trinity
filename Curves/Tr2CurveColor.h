@@ -30,6 +30,14 @@ public:
 	virtual float Length();
 
 	Color GetValue( double time ) const;
+
+	void AddKey(
+		float time,
+		Color value,
+		Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+		Be::Optional<Color> leftTangent,
+		Be::Optional<Color> rightTangent,
+		Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType );
 private:
 	std::string m_name;
 

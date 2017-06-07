@@ -33,3 +33,19 @@ Vector3 Tr2CurveVector3::GetValue( double time ) const
 {
 	return Vector3( m_x.GetValue( time ), m_y.GetValue( time ), m_z.GetValue( time ) );
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveVector3::AddKey(
+	float time,
+	Vector3 value,
+	Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+	Be::Optional<Vector3> leftTangent,
+	Be::Optional<Vector3> rightTangent,
+	Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType )
+{
+	auto lt = leftTangent.IsAssigned() ? Vector3( leftTangent ) : Vector3( 0, 0, 0 );
+	auto rt = leftTangent.IsAssigned() ? Vector3( rightTangent ) : Vector3( 0, 0, 0 );
+	m_x.AddKey( time, value.x, interpolation, lt.x, rt.x, tangentType );
+	m_y.AddKey( time, value.y, interpolation, lt.y, rt.y, tangentType );
+	m_z.AddKey( time, value.z, interpolation, lt.z, rt.z, tangentType );
+}

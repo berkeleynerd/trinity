@@ -409,3 +409,26 @@ float Tr2CurveScalar::GetCurrentValue() const
 {
 	return m_currentValue;
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveScalar::AddKey(
+	float time,
+	float value,
+	Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::HERMITE> interpolation,
+	float leftTangent,
+	float rightTangent,
+	Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType )
+{
+	Tr2CurveScalarKey key;
+	key.m_time = time;
+	key.m_value = value;
+	key.m_leftTangent = leftTangent;
+	key.m_rightTangent = rightTangent;
+	key.m_interpolation = interpolation;
+	key.m_tangentType = tangentType;
+	key.m_id = 0;
+
+	m_keys.Append( &key );
+
+	OnKeysChanged();
+}
