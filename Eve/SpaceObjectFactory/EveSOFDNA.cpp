@@ -52,8 +52,7 @@ EveSOFDNA::EveSOFDNA( IRoot* lockobj ) :
 	m_factionData( nullptr ),
 	m_raceData( nullptr ),
 	m_patternData( nullptr ),
-	m_genericData( nullptr ),
-	m_customHullData()
+	m_genericData( nullptr )
 {
 }
 
@@ -313,14 +312,18 @@ void EveSOFDNA::Setup( const char* dnaString, EveSOFDataMgrPtr dataMgr )
 void EveSOFDNA::SetupCustomData()
 {
 	// ok we need custom hull data, but set up basic stuff here
-	m_customHullData.buildClass = m_hullDatas[0]->buildClass;
-	m_customHullData.geometryResFilePath = m_hullDatas[0]->geometryResFilePath;
-	m_customHullData.boundingSphere = m_hullDatas[0]->boundingSphere;
-	m_customHullData.shapeEllipsoidCenter = m_hullDatas[0]->shapeEllipsoidCenter;
-	m_customHullData.shapeEllipsoidRadius = m_hullDatas[0]->shapeEllipsoidRadius;
-	m_customHullData.isSkinned = m_hullDatas[0]->isSkinned;
-	m_customHullData.enableDynamicBoundingSphere = m_hullDatas[0]->enableDynamicBoundingSphere;
-	m_customHullData.audioPosition = m_hullDatas[0]->audioPosition;
+	m_customHullData.resize( m_hullDatas.size() );
+	for( size_t i = 0; i < m_hullDatas.size(); ++i )
+	{
+		m_customHullData[i].buildClass = m_hullDatas[i]->buildClass;
+		m_customHullData[i].geometryResFilePath = m_hullDatas[i]->geometryResFilePath;
+		m_customHullData[i].boundingSphere = m_hullDatas[i]->boundingSphere;
+		m_customHullData[i].shapeEllipsoidCenter = m_hullDatas[i]->shapeEllipsoidCenter;
+		m_customHullData[i].shapeEllipsoidRadius = m_hullDatas[i]->shapeEllipsoidRadius;
+		m_customHullData[i].isSkinned = m_hullDatas[i]->isSkinned;
+		m_customHullData[i].enableDynamicBoundingSphere = m_hullDatas[i]->enableDynamicBoundingSphere;
+		m_customHullData[i].audioPosition = m_hullDatas[i]->audioPosition;
+	}
 
 	// do we have a dna variant command for this?
 	std::vector<std::string> variantCommandArgs;
@@ -330,24 +333,31 @@ void EveSOFDNA::SetupCustomData()
 		auto finder = m_genericData->variants.find( BlueSharedString( variantCommandArgs[0] ) );
 		if( finder != m_genericData->variants.end() )
 		{
-			// what area?
-			std::vector<EveSOFDataMgr::HullAreas>* targetArea = &m_customHullData.opaqueAreas;
-			if( finder->second.isTransparent )
+			// apply to all multi hulls
+			for( size_t hullIdx = 0; hullIdx < m_customHullData.size(); ++hullIdx )
 			{
-				targetArea = &m_customHullData.transparentAreas;
-			}
-			// for now only use a single additive area
-			for( auto it = m_hullDatas[0]->opaqueAreas.begin(); it != m_hullDatas[0]->opaqueAreas.end(); ++it )
-			{
-				targetArea->push_back( finder->second.hullAreaData );
-				targetArea->back().index = it->index;
-				targetArea->back().count = it->count;
+				// what area?
+				std::vector<EveSOFDataMgr::HullAreas>* targetArea = &m_customHullData[hullIdx].opaqueAreas;
+				if( finder->second.isTransparent )
+				{
+					targetArea = &m_customHullData[hullIdx].transparentAreas;
+				}
+				// for now only use a single additive area
+				for( auto it = m_hullDatas[hullIdx]->opaqueAreas.begin(); it != m_hullDatas[hullIdx]->opaqueAreas.end(); ++it )
+				{
+					targetArea->push_back( finder->second.hullAreaData );
+					targetArea->back().index = it->index;
+					targetArea->back().count = it->count;
+				}
 			}
 		}
 	}
 
-	// adjust pointer
-	m_hullDatas[0] = &m_customHullData;
+	// adjust pointers
+	for( size_t i = 0; i < m_hullDatas.size(); ++i )
+	{
+		m_hullDatas[i] = &m_customHullData[i];
+	}
 }
 
 // --------------------------------------------------------------------------------
@@ -873,7 +883,7 @@ const Vector3* EveSOFDNA::GetHullShapeEllipsoidRadius() const
 // --------------------------------------------------------------------------------
 const Vector3* EveSOFDNA::GetHullAudioPosition( size_t n ) const
 {
-	// to simplify things only take the audiolocation from the last hull, which should be hold the engine
+	// to simplify things only take the audiolocation from the last hull, which should hold the engine
 	if( n + 1 == GetMultiHullCount() )
 	{
 		return &m_hullDatas[n]->audioPosition;

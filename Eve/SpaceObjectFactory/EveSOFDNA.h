@@ -135,7 +135,7 @@ private:
 	const EveSOFDataMgr::PatternData* m_patternData;
 
 	// custom data blocks
-	EveSOFDataMgr::HullData m_customHullData;
+	std::vector<EveSOFDataMgr::HullData> m_customHullData;
 
 	// decoded data
 	std::vector<std::string> m_hullNames;
