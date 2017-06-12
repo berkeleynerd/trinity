@@ -277,3 +277,9 @@ void Tr2CurveQuaternion::AddKey(
 	m_keys.Append( &key );
 	OnKeysChanged();
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveQuaternion::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_extrapolationAfter = m_extrapolationBefore = extrapolation;
+}

@@ -99,3 +99,12 @@ void Tr2CurveColor::AddKey(
 	m_b.AddKey( time, value.b, interpolation, lt.b, rt.b, tangentType );
 	m_a.AddKey( time, value.a, interpolation, lt.a, rt.a, tangentType );
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveColor::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_r.SetExtrapolation( extrapolation );
+	m_g.SetExtrapolation( extrapolation );
+	m_b.SetExtrapolation( extrapolation );
+	m_a.SetExtrapolation( extrapolation );
+}

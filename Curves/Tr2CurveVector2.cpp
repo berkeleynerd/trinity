@@ -50,3 +50,10 @@ void Tr2CurveVector2::AddKey(
 	m_x.AddKey( time, value.x, interpolation, lt.x, rt.x, tangentType );
 	m_y.AddKey( time, value.y, interpolation, lt.y, rt.y, tangentType );
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveVector2::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_x.SetExtrapolation( extrapolation );
+	m_y.SetExtrapolation( extrapolation );
+}

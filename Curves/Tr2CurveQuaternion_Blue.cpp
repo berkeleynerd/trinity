@@ -73,5 +73,12 @@ const Be::ClassInfo* Tr2CurveQuaternion::ExposeToBlue()
 			":param interpolation: optional interpolation type for the segment following this key, defaults to trinity.Tr2CurveInterpolation.LINEAR\n"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"SetExtrapolation",
+			SetExtrapolation,
+			"Assigns both extrapolationBefore and extrapolationAfter\n"
+			":param extrapolation: new extrapolation (trinity.Tr2CurveExtrapolation enum)"
+		)
+
 		EXPOSURE_END()
 }

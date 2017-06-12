@@ -33,6 +33,8 @@ public:
 		Be::Optional<Vector2> leftTangent,
 		Be::Optional<Vector2> rightTangent,
 		Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType );
+
+	void SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation );
 private:
 	std::string m_name;
 

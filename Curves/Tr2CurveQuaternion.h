@@ -54,6 +54,8 @@ public:
 		float time,
 		Quaternion value,
 		Be::OptionalWithDefaultValue<Tr2CurveInterpolation::Type, Tr2CurveInterpolation::LINEAR> interpolation );
+
+	void SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation );
 private:
 	float GetLocalTime( double time ) const;
 	Quaternion GetSegmentValue( float time, const Tr2CurveQuaternionKey& k0, const Tr2CurveQuaternionKey& k1 ) const;

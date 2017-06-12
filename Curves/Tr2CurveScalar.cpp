@@ -432,3 +432,9 @@ void Tr2CurveScalar::AddKey(
 
 	OnKeysChanged();
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveScalar::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_extrapolationAfter = m_extrapolationBefore = extrapolation;
+}

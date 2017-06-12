@@ -51,6 +51,14 @@ void Tr2CurveVector3::AddKey(
 }
 
 // --------------------------------------------------------------------------------
+void Tr2CurveVector3::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_x.SetExtrapolation( extrapolation );
+	m_y.SetExtrapolation( extrapolation );
+	m_z.SetExtrapolation( extrapolation );
+}
+
+// --------------------------------------------------------------------------------
 Vector3* Tr2CurveVector3::Update( Vector3* in, Be::Time time )
 {
 	m_currentValue = GetValue( TimeAsDouble( time ) );

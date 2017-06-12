@@ -63,5 +63,12 @@ const Be::ClassInfo* Tr2CurveVector3::ExposeToBlue()
 			":param tangentType: optional key tangent type, defaults to trinity.Tr2CurveTangentType.AUTO_CLAMP"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"SetExtrapolation",
+			SetExtrapolation,
+			"Assigns both extrapolationBefore and extrapolationAfter\n"
+			":param extrapolation: new extrapolation (trinity.Tr2CurveExtrapolation enum)"
+		)
+
 	EXPOSURE_END()
 }

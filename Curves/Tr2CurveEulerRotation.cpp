@@ -105,3 +105,11 @@ void Tr2CurveEulerRotation::AddKey(
 	m_pitch.AddKey( time, value.y, interpolation, lt.y, rt.y, tangentType );
 	m_roll.AddKey( time, value.z, interpolation, lt.z, rt.z, tangentType );
 }
+
+// --------------------------------------------------------------------------------
+void Tr2CurveEulerRotation::SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation )
+{
+	m_yaw.SetExtrapolation( extrapolation );
+	m_pitch.SetExtrapolation( extrapolation );
+	m_roll.SetExtrapolation( extrapolation );
+}
