@@ -45,6 +45,7 @@ public:
 	virtual void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
 	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
 	virtual bool GetLocalBoundingBox( Vector3 &min, Vector3 &max );
+	virtual void GetLights(Tr2LightManager& lightManager) const;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveShadowCaster - overriding EveSpaceObject2 implementations
