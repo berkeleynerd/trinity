@@ -1482,18 +1482,18 @@
 			children = (
 				000009E0000044b827000cae,
 				000009CA000044b827000cae,
-				000009EC000044b827000cae,
-				000009CC000044b827000cae,
-				000009E2000044b827000cae,
 				000009EE000044b827000cae,
+				000009E2000044b827000cae,
+				000009CC000044b827000cae,
 				000009E4000044b827000cae,
 				000009F0000044b827000cae,
 				000009E6000044b827000cae,
-				000009E8000044b827000cae,
-				000009F4000044b827000cae,
-				000009F6000044b827000cae,
 				000009F2000044b827000cae,
+				000009E8000044b827000cae,
 				000009EA000044b827000cae,
+				000009F6000044b827000cae,
+				000009F4000044b827000cae,
+				000009EC000044b827000cae,
 				000009F8000044b827000cae,
 				000009DA000044b827000cae,
 				000009D0000044b827000cae,
@@ -1502,20 +1502,20 @@
 				000009DE000044b827000cae,
 				000009CA000044b827000cae,
 				000009D6000044b827000cae,
-				000009E4000044b827000cae,
-				000009D4000044b827000cae,
-				000009E2000044b827000cae,
 				000009EE000044b827000cae,
-				000009E6000044b827000cae,
+				000009E2000044b827000cae,
+				000009D4000044b827000cae,
+				000009E4000044b827000cae,
 				000009F0000044b827000cae,
-				000009CE000044b827000cae,
-				000009D8000044b827000cae,
-				000009F4000044b827000cae,
-				000009F6000044b827000cae,
 				000009E8000044b827000cae,
+				000009F2000044b827000cae,
+				000009CE000044b827000cae,
+				000009E6000044b827000cae,
+				000009D8000044b827000cae,
+				000009F6000044b827000cae,
 				000009EA000044b827000cae,
-				000009F8000044b827000cae,
 				000009EC000044b827000cae,
+				000009F8000044b827000cae,
 				000009DA000044b827000cae,
 				000009DC000044b827000cae,
 				000009D2000044b827000cae,
@@ -1523,18 +1523,18 @@
 				000009CC000044b827000cae,
 				000009E0000044b827000cae,
 				000009CA000044b827000cae,
-				000009EC000044b827000cae,
+				000009EE000044b827000cae,
+				000009E2000044b827000cae,
 				000009D4000044b827000cae,
 				000009D6000044b827000cae,
-				000009EE000044b827000cae,
-				000009E4000044b827000cae,
 				000009F0000044b827000cae,
-				000009E2000044b827000cae,
 				000009E6000044b827000cae,
-				000009F4000044b827000cae,
-				000009F6000044b827000cae,
+				000009F2000044b827000cae,
+				000009E4000044b827000cae,
 				000009E8000044b827000cae,
+				000009F6000044b827000cae,
 				000009EA000044b827000cae,
+				000009EC000044b827000cae,
 				000009F8000044b827000cae,
 				000009DA000044b827000cae,
 				000009DC000044b827000cae,
@@ -2833,10 +2833,10 @@
 			fileRef = 000003EC000044b827000cae;
 			};
 		000009F2000044b827000cae = {
-			name = libpython2.7.dylib;
+			name = libz.dylib;
 			fileEncoding = 4;
 			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../shared_tools/python/27_mac/lib/libpython2.7.dylib";
+			path = "../../../../../../../../../../usr/lib/libz.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -3763,10 +3763,10 @@
 			fileRef = 000001D0000044b827000cae;
 			};
 		000009F4000044b827000cae = {
-			name = libtbb.dylib;
+			name = libpython2.7.dylib;
 			fileEncoding = 4;
 			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../sdk/tbb/tbb40_233oss/lib/MacOsXx86_64/libtbb.dylib";
+			path = "../../../../../../shared_tools/python/27_mac/lib/libpython2.7.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -4283,10 +4283,10 @@
 			fileRef = 000006A8000044b827000cae;
 			};
 		000009EA000044b827000cae = {
-			name = libImageIO.a;
+			name = libsquish.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../autobuild/ImageIO/MacOsXx86_64/clang4.2/libImageIO.a";
+			path = "../../../../../../sdk/squish/1.10/lib/MacOsXx86_64/libsquish.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -6088,10 +6088,10 @@
 			fileRef = 00000092000044b827000cae;
 			};
 		000009E6000044b827000cae = {
-			name = libgranny2_osx64.a;
+			name = Cocoa.framework;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/Cocoa.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -6140,10 +6140,10 @@
 			fileRef = 0000040E000044b827000cae;
 			};
 		000009E8000044b827000cae = {
-			name = libsquish.a;
+			name = libgranny2_osx64.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/squish/1.10/lib/MacOsXx86_64/libsquish.a";
+			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -6268,10 +6268,10 @@
 			fileRef = 000006DE000044b827000cae;
 			};
 		000009E2000044b827000cae = {
-			name = libpng14.a;
+			name = libtbb.dylib;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/libpng/1.4.0/lib/MacOsXx86_64/libpng14.a";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsXx86_64/clang4.2/libtbb.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -6749,7 +6749,7 @@
 					"../../../carbon/src/stackless/stackless",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					"../../../carbon/src/stackless/Mac",
-					"../../../../../../sdk/tbb/tbb40_233oss/include",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/include",
 					"../../../../../../sdk/Granny/2.9.24.0/include",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					.,
@@ -6803,7 +6803,7 @@
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../carbon/autobuild/blue/exefile/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/bin/stackless/MacOsX$(ARCHS)",
-					"../../../../../../sdk/tbb/tbb40_233oss/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/granny/2.9.24.0/lib/macosx64",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
@@ -7071,10 +7071,10 @@
 			sourceTree = "<group>";
 			};
 		000009F0000044b827000cae = {
-			name = libz.dylib;
+			name = libCcpCore.a;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../../../../../usr/lib/libz.dylib";
+			lastKnownFileType = archive.ar;
+			path = "../../autobuild/CcpCore/MacOsXx86_64/clang4.2/libCcpCore.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -7501,7 +7501,7 @@
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					"../../../../../../shared_tools/python/27_mac/include/python2.7",
 					"../../../../../../shared_tools/python/27_mac/include/python2.7",
-					"../../../../../../sdk/tbb/tbb40_233oss/include",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/include",
 					"../../../../../../sdk/Granny/2.9.24.0/include",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					.,
@@ -7555,7 +7555,7 @@
 					"../../../carbon/autobuild/blue/python_27/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../shared_tools/python/27_mac/lib",
 					"../../../../../../shared_tools/python/27_mac/lib",
-					"../../../../../../sdk/tbb/tbb40_233oss/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/granny/2.9.24.0/lib/macosx64",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
@@ -8741,18 +8741,18 @@
 			files = (
 				000009DF000044b827000cae,
 				000009C9000044b827000cae,
-				000009EB000044b827000cae,
+				000009ED000044b827000cae,
+				000009E1000044b827000cae,
 				000009D3000044b827000cae,
 				000009D5000044b827000cae,
-				000009ED000044b827000cae,
-				000009E3000044b827000cae,
 				000009EF000044b827000cae,
-				000009E1000044b827000cae,
 				000009E5000044b827000cae,
-				000009F3000044b827000cae,
-				000009F5000044b827000cae,
+				000009F1000044b827000cae,
+				000009E3000044b827000cae,
 				000009E7000044b827000cae,
+				000009F5000044b827000cae,
 				000009E9000044b827000cae,
+				000009EB000044b827000cae,
 				000009F7000044b827000cae,
 				000009D9000044b827000cae,
 				000009DB000044b827000cae,
@@ -9856,20 +9856,20 @@
 			files = (
 				000009C9000044b827000cae,
 				000009D5000044b827000cae,
-				000009E3000044b827000cae,
-				000009D3000044b827000cae,
-				000009E1000044b827000cae,
 				000009ED000044b827000cae,
-				000009E5000044b827000cae,
+				000009E1000044b827000cae,
+				000009D3000044b827000cae,
+				000009E3000044b827000cae,
 				000009EF000044b827000cae,
-				000009CD000044b827000cae,
-				000009D7000044b827000cae,
-				000009F3000044b827000cae,
-				000009F5000044b827000cae,
 				000009E7000044b827000cae,
+				000009F1000044b827000cae,
+				000009CD000044b827000cae,
+				000009E5000044b827000cae,
+				000009D7000044b827000cae,
+				000009F5000044b827000cae,
 				000009E9000044b827000cae,
-				000009F7000044b827000cae,
 				000009EB000044b827000cae,
+				000009F7000044b827000cae,
 				000009D9000044b827000cae,
 				000009DB000044b827000cae,
 				000009D1000044b827000cae,
@@ -12489,18 +12489,18 @@
 			files = (
 				000009DF000044b827000cae,
 				000009C9000044b827000cae,
-				000009EB000044b827000cae,
-				000009CB000044b827000cae,
-				000009E1000044b827000cae,
 				000009ED000044b827000cae,
+				000009E1000044b827000cae,
+				000009CB000044b827000cae,
 				000009E3000044b827000cae,
 				000009EF000044b827000cae,
 				000009E5000044b827000cae,
-				000009E7000044b827000cae,
-				000009F3000044b827000cae,
-				000009F5000044b827000cae,
 				000009F1000044b827000cae,
+				000009E7000044b827000cae,
 				000009E9000044b827000cae,
+				000009F5000044b827000cae,
+				000009F3000044b827000cae,
+				000009EB000044b827000cae,
 				000009F7000044b827000cae,
 				000009D9000044b827000cae,
 				000009CF000044b827000cae,
@@ -12843,10 +12843,10 @@
 			fileRef = 0000049C000044b827000cae;
 			};
 		000009E4000044b827000cae = {
-			name = Cocoa.framework;
+			name = libpng14.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/Cocoa.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/libpng/1.4.0/lib/MacOsXx86_64/libpng14.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -13019,10 +13019,10 @@
 			sourceTree = "<group>";
 			};
 		000009EC000044b827000cae = {
-			name = OpenGL.framework;
+			name = libImageIO.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/OpenGL.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../autobuild/ImageIO/MacOsXx86_64/clang4.2/libImageIO.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -13115,10 +13115,10 @@
 			fileRef = 0000003E000044b827000cae;
 			};
 		000009EE000044b827000cae = {
-			name = libCcpCore.a;
+			name = OpenGL.framework;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../autobuild/CcpCore/MacOsXx86_64/clang4.2/libCcpCore.a";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/OpenGL.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -17482,7 +17482,7 @@
 					"../../../carbon/src/stackless/stackless",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					"../../../carbon/src/stackless/Mac",
-					"../../../../../../sdk/tbb/tbb40_233oss/include",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/include",
 					"../../../../../../sdk/Granny/2.9.24.0/include",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
 					.,
@@ -17539,7 +17539,7 @@
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../carbon/autobuild/blue/exefile/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/bin/stackless/MacOsX$(ARCHS)",
-					"../../../../../../sdk/tbb/tbb40_233oss/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/granny/2.9.24.0/lib/macosx64",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
