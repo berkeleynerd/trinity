@@ -14,9 +14,6 @@
 #include "Shader/Tr2Effect.h"
 #include "TriViewport.h"
 
-CCP_STATS_DECLARE( wodIntLightsAlive, "Trinity/Tr2IntLightsAlive", false, CST_COUNTER_LOW, 
-				  "Count of Tr2InteriorLightSources alive" );
-
 BLUE_DEFINE_INTERFACE( ITr2InteriorLight );
 
 using namespace Tr2RenderContextEnum;
@@ -38,18 +35,13 @@ Tr2InteriorLightSource::Tr2InteriorLightSource( IRoot* lockobj ) :
 	m_primaryLighting( true ),
 	m_importanceScale( 1.0f ),
 	m_importanceBias( 0.0f ),
-	PARENTLOCK( m_curveSets )
+	PARENTLOCK( m_curveSets ),
+	m_worldBoundingBox( Vector3( -1.f, -1.f, -1.f ), Vector3( 1.f, 1.f, 1.f ) ),
+	m_useKelvinColor( false )
 {
-	CCP_STATS_INC( wodIntLightsAlive );
-	RebuildVolume();
-
 	D3DXMatrixIdentity( &m_unitToWorldTransform );
-	m_worldBoundingBox = AxisAlignedBoundingBox( Vector3( -1.f, -1.f, -1.f ), Vector3( 1.f, 1.f, 1.f ) );
 
 	m_kelvinColor.CreateInstance();
-	m_useKelvinColor = false;
-
-	PrepareResources();
 }
 
 // --------------------------------------------------------------------------------------
@@ -58,7 +50,6 @@ Tr2InteriorLightSource::Tr2InteriorLightSource( IRoot* lockobj ) :
 // --------------------------------------------------------------------------------------
 Tr2InteriorLightSource::~Tr2InteriorLightSource()
 {
-	CCP_STATS_DEC( wodIntLightsAlive );
 }
 
 // --------------------------------------------------------------------------------------
@@ -69,11 +60,8 @@ Tr2InteriorLightSource::~Tr2InteriorLightSource()
 // --------------------------------------------------------------------------------------
 bool Tr2InteriorLightSource::Initialize()
 {
-	RebuildVolume();
-	
-	PrepareResources();
-
-    return true;
+	m_worldBoundingBox = AxisAlignedBoundingBox( m_position - Vector3( m_radius, m_radius, m_radius ), m_position + Vector3( m_radius, m_radius, m_radius ) );
+	return true;
 }
 
 // --------------------------------------------------------------------------------------
@@ -100,47 +88,8 @@ bool Tr2InteriorLightSource::OnModified( Be::Var* value )
 			 IsMatch( value, m_coneDirection ) )
 	{
 		m_worldBoundingBox = AxisAlignedBoundingBox( m_position - Vector3( m_radius, m_radius, m_radius ), m_position + Vector3( m_radius, m_radius, m_radius ) );
-
-		// Rebuild the bounding volume
-		RebuildVolume();
-
-		PrepareResources();
-	}
-	else if( IsMatch( value, m_primaryLighting ) )
-	{
-		PrepareResources();
 	}
 
-	return true;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements IBlueAsyncResNotifyTarget interface. Re-binds shaders whenever projected
-//   texture changes.
-// Arguments:
-//   p - Resource that changed (projected texture)
-// --------------------------------------------------------------------------------------
-void Tr2InteriorLightSource::RebuildCachedData( BlueAsyncRes* p )
-{
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Inherited from ITriDeviceResource interface. Invalidates light's geometry vertex 
-//   declaration.
-// --------------------------------------------------------------------------------------
-void Tr2InteriorLightSource::ReleaseResources( TriStorage s )
-{
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Inherited from ITriDeviceResource interface. Re-creates light's geometry vertex 
-//   declaration.
-// --------------------------------------------------------------------------------------
-bool Tr2InteriorLightSource::OnPrepareResources()
-{
 	return true;
 }
 
@@ -150,17 +99,10 @@ bool Tr2InteriorLightSource::OnPrepareResources()
 // Arguments:
 //   lightData - The per-object light data to populate
 // --------------------------------------------------------------------------------------
-void Tr2InteriorLightSource::PopulateLightData( Tr2InteriorPerObjectLightData* lightData, 
-											   const Matrix& mirrorToWorldMatrix ) const
+void Tr2InteriorLightSource::PopulateLightData( Tr2InteriorPerObjectLightData* lightData ) const
 {
-	Vector3 direction( XMVector3TransformNormal( m_coneDirection, mirrorToWorldMatrix ) );
-
-	XMVECTOR det;
-	XMMATRIX invTransMirrorMat = XMMatrixInverse( &det, XMMatrixTranspose( mirrorToWorldMatrix ) );
-	Vector3 position( XMVector3TransformCoord( m_position, invTransMirrorMat ) );
-
 	// just put this in struct
-	lightData->position = position;
+	lightData->position = m_position;
 	lightData->radius = std::max( m_radius, 0.0f ); // when radius<0 the light is treated as box light in forward rendering
 	if( m_useKelvinColor )
 	{
@@ -194,7 +136,7 @@ void Tr2InteriorLightSource::PopulateLightData( Tr2InteriorPerObjectLightData* l
 
 	lightData->coneCosAlphaOuter = cosf( XMConvertToRadians( outerAngle ) );
 	lightData->coneCosAlphaInner = cosf( XMConvertToRadians( innerAngle ) );
-	lightData->spotDirection = XMVector3Normalize( direction );
+	lightData->spotDirection = XMVector3Normalize( m_coneDirection );
 }
 
 // --------------------------------------------------------------------------------------
@@ -221,47 +163,6 @@ float Tr2InteriorLightSource::GetCurrentViewImportance( const Vector3& viewerPos
 
 // -------------------------------------------------------------
 // Description:
-//   Calculates the fraction of camera field of view occupied by
-//   a set of points.
-// Arguments:
-//   vertices - Array of points
-//   world - Local to world space transformation
-// Return Value:
-//   Fraction of camera field of view occupied by points
-// -------------------------------------------------------------
-template<unsigned int count>
-float GetScreenSize( const Vector4* vertices, const Matrix& world )
-{
-	if( Tr2Renderer::GetFieldOfView() <= 0.0f )
-	{
-		return 0.0f;
-	}
-
-	Vector3 directions[count];
-	D3DXVec3TransformCoordArray( directions, sizeof( Vector3 ), reinterpret_cast<const Vector3*>( vertices ), sizeof( Vector4 ), &world, count );
-	for( unsigned int i = 0; i < count; ++i )
-	{
-		directions[i] -= Tr2Renderer::GetViewPosition();
-		D3DXVec3Normalize( directions + i, directions + i );
-	}
-	float cosMaxAngle = 1.f;
-	for( unsigned int i = 0; i < count; ++i )
-	{
-		for( unsigned int j = i + 1; j < count; ++j )
-		{
-			float cosAngle = D3DXVec3Dot( directions + i, directions + j );
-			if( cosAngle < cosMaxAngle )
-			{
-				cosMaxAngle = cosAngle;
-			}
-		}
-	}
-	cosMaxAngle = min( max( cosMaxAngle, -1.f ), 1.f );
-	return acos( cosMaxAngle ) / Tr2Renderer::GetFieldOfView();
-}
-
-// -------------------------------------------------------------
-// Description:
 //   Per-frame update method. Updates curve sets.
 // Arguments:
 //   time - Current system time.
@@ -271,31 +172,6 @@ void Tr2InteriorLightSource::Update( Be::Time time )
 	for( auto it = m_curveSets.cbegin(); it != m_curveSets.cend(); ++it )
 	{
 		( *it )->Update( TimeAsDouble( time ) );
-	}
-}
-
-void Tr2InteriorLightSource::RebuildVolume( void )
-{
-	if( IsSpotLight() )
-	{
-		// direct:
-		float size = sinf( m_coneAlphaOuter / 180.f * XM_PI ) * m_radius;
-
-		Matrix obbRotMatrix, obbScaleMatrix, obbTransMatrix;
-		TriMatrixArcFromForward( &obbRotMatrix, &m_coneDirection );
-		D3DXMatrixTranslation( &obbTransMatrix, 0.f, 0.f, -0.5f * m_radius );
-		D3DXMatrixScaling( &obbScaleMatrix, size, size, 0.5f * m_radius );
-
-		// Now build some vectors & quats for our own collision detection routines
-		// Since the center is in world coordinates, we must pre-multiply the direction of the light
-		Vector3 centerOffset;
-		D3DXVec3Normalize( &centerOffset, &m_coneDirection );
-		centerOffset *= 0.5f * m_radius;
-		m_collisionCenter = centerOffset;
-		m_collisionExtents = Vector3( size, size, 0.5f * m_radius );
-
-		D3DXQuaternionRotationMatrix( &m_collisionOrientation, &obbRotMatrix );
-		D3DXQuaternionNormalize( &m_collisionOrientation, &m_collisionOrientation );
 	}
 }
 

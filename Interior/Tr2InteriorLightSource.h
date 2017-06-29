@@ -3,16 +3,13 @@
 #define Tr2InteriorLightSource_H
 
 #include "include/ITr2Interior.h"
-#include "Tr2DeviceResource.h"
 #include "TriFrustum.h"
 #include "Utilities/BoundingBox.h"
 
 // --------------------------------------------------------------------------------------
 // Blue forwards
 BLUE_DECLARE( Tr2InteriorLightSource );
-BLUE_DECLARE( TriTextureRes );
 BLUE_DECLARE( Tr2KelvinColor );
-BLUE_DECLARE_INTERFACE( ITr2InteriorDynamic );
 BLUE_DECLARE( TriCurveSet );
 BLUE_DECLARE_VECTOR( TriCurveSet );
 class ITriRenderBatchAccumulator;
@@ -28,9 +25,7 @@ class ITriRenderBatchAccumulator;
 class Tr2InteriorLightSource :
 	public INotify,
 	public IInitialize,
-	public Tr2DeviceResource,
-	public ITr2InteriorLight,
-	public IBlueAsyncResNotifyTarget
+	public ITr2InteriorLight
 {
 public:
 	// Constructor
@@ -49,18 +44,6 @@ public:
 	// Value-modified callback
 	bool OnModified( Be::Var* val );
 
-	/////////////////////////////////////////////////////////////
-	// ITriDeviceResource
-	virtual void ReleaseResources( TriStorage s );
-private:
-	bool OnPrepareResources();
-public:	
-
-	/////////////////////////////////////////////////////////////
-	// IBlueAsyncResNotifyTarget
-	void ReleaseCachedData( BlueAsyncRes* p ) {}
-	void RebuildCachedData( BlueAsyncRes* p );
-
     //////////////////////////////////////////////////////////////////////////
     // ITr2InteriorCullable
 	virtual bool IsInFrustum( const TriFrustum& frustum, Matrix& objectToWorld ) const;
@@ -69,13 +52,7 @@ public:
 	// ITr2InteriorLight
 
 	// Copy the light parameters into the per-object data
-	void PopulateLightData( Tr2InteriorPerObjectLightData* lightData, 
-		const Matrix &mirrorToWorldMatrix ) const;
-
-	// Get importance scale as applied to the View importance of this light.
-	float GetImportanceScale()		const { return m_importanceScale; }
-	// Get importance bias as applied to the View importance of this light.
-	float GetImportanceBias()		const { return m_importanceBias; }
+	void PopulateLightData( Tr2InteriorPerObjectLightData* lightData ) const;
 
 	// Determine overall scene influence
 	float GetCurrentViewImportance( const Vector3& viewerPos ) const;
@@ -83,9 +60,6 @@ public:
 	void Update( Be::Time time );
 
 protected:
-	// Rebuild bounding volume
-	void RebuildVolume( void );
-
 	// Is this a spotlight?
 	bool IsSpotLight()					const { return ( m_coneAlphaOuter < 89.f ); }
 protected:
@@ -124,13 +98,6 @@ protected:
 	float m_importanceScale;
 	// A bias. Final view importance is [computed] * scale + bias
 	float m_importanceBias;
-
-	// Box center for xnamath OBB representation
-	Vector3 m_collisionCenter;
-	// Box extents for xnamath OBB representation 
-	Vector3 m_collisionExtents;
-	// Orientation quat for xnamath OBB representation
-	Quaternion m_collisionOrientation;
 
 	// Cached unit to world light geometry transform for light accumulation pass
 	Matrix m_unitToWorldTransform;

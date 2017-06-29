@@ -24,27 +24,16 @@
 #include "Tr2TextureAtlas.h"
 #include "Shader/Tr2Effect.h"
 #include "TriFrustum.h"
+#include "Resources/TriTextureRes.h"
 
 using namespace Tr2RenderContextEnum;
-
-CCP_STATS_DECLARE( wodInteriorSceneShadowsNeedUpdating, "Trinity/Tr2InteriorScene/ShadowsNeedUpdating", true, CST_COUNTER_LOW, "Number of spotlight shadows that need updating" );
-CCP_STATS_DECLARE( wodInteriorSceneShadowsUpdated, "Trinity/Tr2InteriorScene/ShadowsUpdated", true, CST_COUNTER_LOW, "Number of spotlight shadows updated" );
-CCP_STATS_DECLARE( wodInteriorSceneIntersectingCellPortals, "Trinity/Tr2InteriorScene/IntersectingCellPortals", true, CST_COUNTER_LOW, "Number of temporary portals to fix intersecting cells" );
 
 BLUE_DEFINE_INTERFACE( ITr2InteriorCullable );
 BLUE_DEFINE_INTERFACE( ITr2Interior );
 
-const unsigned int INTERIOR_SHADOW_MAP_FOM_SAMPLER = 9;
-const unsigned int INTERIOR_SHADOW_MAP_MINMAX_SAMPLER = 9;	// recycle FOM
 
-const unsigned int INTERIOR_SHADOW_MAP0_SAMPLER = 10;
-const unsigned int INTERIOR_SHADOW_MAP1_SAMPLER = 11;
-
-const unsigned int INTERIOR_SHADOW_MAP_MAX_RESOLUTION = 1024;
-const unsigned int INTERIOR_SHADOW_ATLAS_RESOLUTION = 2048;
-
-// Name of the High-level shader used for picking
 static const char* s_pickingEffectName   = "res:/graphics/effect/managed/interior/system/picking.fx";
+
 
 namespace
 {
@@ -144,8 +133,7 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 	m_minFogDistance( 0.0f ),
 	m_fogColor( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_renderBackgroundCubeMap( true ),
-	m_enableROIs( true )
-	, m_sunDiffuseColorVar( "Sun.WodDiffuseColor", m_sunDiffuseColor )
+	m_sunDiffuseColorVar( "Sun.WodDiffuseColor", m_sunDiffuseColor )
 	, m_sunSpecularColorVar( "Sun.SpecularColor", m_sunSpecularColor )	
 	, m_ambientColorVar( "Scene.AmbientColor", m_ambientColor )
 	, m_cameraPosVar( "Camera.eyePosWorld", Vector3( 0.0f, 0.0f, 0.0f ) )
@@ -160,15 +148,8 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 	// Create render batch accumulators
 	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
 	m_primaryRenderBatches = CCP_NEW( "Tr2InteriorScene/m_primaryRenderBatches" ) TriRenderBatchAccumulator<Tr2IntKeyGenerator>( allocator );
-	m_transparentBatchStore = CCP_NEW( "Tr2InteriorScene/m_transparentBatchStore" ) TriRenderBatchStore( allocator );
 	m_opaquePickingBatches = CCP_NEW( "Tr2InteriorScene/m_opaquePickingBatches" ) TriRenderBatchAccumulator<>( allocator );
 	m_pickingBatches = CCP_NEW( "Tr2InteriorScene/m_pickingBatches" ) TriRenderBatchAccumulator<>( allocator );
-
-	m_prepassBatches = CCP_NEW( "Tr2InteriorScene/m_prepassBatches" ) TriRenderBatchAccumulator<Tr2IntKeyGenerator>( allocator );
-
-	// Initialize accumulator handles to NULL - these can point to the above accumulators, depending on the scene query type
-	m_activePrimaryRenderBatches = NULL;
-	m_activeTransparentBatchStore = NULL;
 
 	// picking
 	m_pickBuffer.PrepareResources();
@@ -187,8 +168,6 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 	// create debug renderer
 	m_debugLines.CreateInstance();
 
-	// List notify
-	m_lights.SetNotify( this );
 	m_dynamics.SetNotify( this );
 
 	PrepareResources();
@@ -215,10 +194,8 @@ Tr2InteriorScene::~Tr2InteriorScene()
 	}
 #endif
 	CCP_DELETE( m_primaryRenderBatches );
-	CCP_DELETE( m_transparentBatchStore );
 	CCP_DELETE( m_pickingBatches );
 	CCP_DELETE( m_opaquePickingBatches );
-	CCP_DELETE( m_prepassBatches );
 
 	// release debug renderer
 	if( m_debugLines )
@@ -248,12 +225,51 @@ bool Tr2InteriorScene::OnModified( Be::Var* value )
 // ---------------------------------------------------------------
 void Tr2InteriorScene::OnListModified( long event, ssize_t key, ssize_t key2, IRoot* currvalue, const IList* theList )
 {
-	if( theList == &m_lights )
+	if( ( event & BELIST_LOADING ) == 0 )
 	{
-	}
-	else if( theList == &m_dynamics )
-	{
-		OnDynamicsListModified( event, key, key2, currvalue );
+		// Respond to an item removal event
+		if( ( event & BELIST_EVENTMASK ) == BELIST_REMOVED )
+		{
+			if( currvalue )
+			{
+				// See if the removed item is a dynamic
+				ITr2InteriorDynamic* dynamic = NULL;
+				if( currvalue->QueryInterface( BlueInterfaceIID<ITr2InteriorDynamic>(), (void**)&dynamic ) )
+				{
+					// Remove from the scene
+					dynamic->RemoveFromScene();
+
+					// See if the dynamic is in the pending-load list
+					ssize_t pos = m_dynamicsPendingLoad.FindKey( dynamic );
+					if( pos != -1 )
+					{
+						m_dynamicsPendingLoad.Remove( pos );
+					}
+
+					// Need to unlock, since QueryInterface Locks
+					dynamic->Unlock();
+				}
+			}
+		}
+		// Respond to an item insertion event
+		else if( ( event & BELIST_EVENTMASK ) == BELIST_INSERTED )
+		{
+			if( currvalue )
+			{
+				// See if the inserted item is a dynamic
+				ITr2InteriorDynamic* dynamic = NULL;
+				if( currvalue->QueryInterface( BlueInterfaceIID<ITr2InteriorDynamic>(), (void**)&dynamic ) )
+				{
+					if( !dynamic->AddToScene( m_apexScene ) && ( m_dynamicsPendingLoad.FindKey( dynamic ) == -1 ) )
+					{
+						m_dynamicsPendingLoad.Insert( -1, dynamic );
+					}
+
+					// Need to unlock, since QueryInterface Locks
+					dynamic->Unlock();
+				}
+			}
+		}
 	}
 }
 
@@ -493,21 +509,21 @@ void Tr2InteriorScene::SetVisibilityResults( Tr2VisibilityResults* visibilityRes
 	m_visibilityResults = visibilityResults;
 }
 
-void Tr2InteriorScene::DoVisibilityQuery( const TriFrustum& frustum, const Matrix& view, size_t depth, size_t maxDepth, const Matrix& mirrorMatrix )
+void Tr2InteriorScene::ResolveVisibility( const Matrix& view, const Matrix& projection, size_t maxDepth )
 {
-	if( depth == 0 )
-	{
-		OnQueryBegin();
-	}
+	CTriViewport viewport;
+	TriFrustum frustum;
+	XMVECTOR det;
+	Matrix viewInv( XMMatrixInverse( &det, view ) );
+	frustum.DeriveFrustum( &view, (Vector3*)(&viewInv._41), &projection, viewport );
+
+	OnQueryBegin();
+
 	for( auto it = m_dynamics.begin(); it != m_dynamics.end(); ++it )
 	{
 		Matrix objectToWorld;
 		if( ( *it )->IsInFrustum( frustum, objectToWorld ) )
 		{
-			if( depth )
-			{
-				objectToWorld = objectToWorld * mirrorMatrix;
-			}
 			OnInstanceVisible( *it, objectToWorld );
 		}
 	}
@@ -516,255 +532,9 @@ void Tr2InteriorScene::DoVisibilityQuery( const TriFrustum& frustum, const Matri
 		Matrix objectToWorld;
 		if( ( *it )->IsInFrustum( frustum, objectToWorld ) )
 		{
-			if( depth )
-			{
-				objectToWorld = objectToWorld * mirrorMatrix;
-			}
 			OnInstanceVisible( *it, objectToWorld );
 		}
 	}
-	if( depth == 0 )
-	{
-		OnQueryEnd();
-	}
-}
-
-void Tr2InteriorScene::ResolveVisibility( const Matrix& view, const Matrix& projection, size_t maxDepth )
-{
-	CTriViewport viewport;
-	TriFrustum frustum;
-	XMVECTOR det;
-	Matrix viewInv( XMMatrixInverse( &det, view ) );
-	frustum.DeriveFrustum( &view, (Vector3*)(&viewInv._41), &projection, viewport );
-	DoVisibilityQuery( frustum, view, 0, maxDepth, Tr2Renderer::GetIdentityTransform() );
-}
-
-ITr2MultiPassScene::RenderPassResult Tr2InteriorScene::RenderPass( PassType pass, Tr2RenderContext& renderContext )
-{
-	switch( pass )
-	{
-	case RP_BEGIN_RENDER:
-		BeginRender( renderContext );
-		break;
-	case RP_PRE_PASS:
-		RenderPrePass( renderContext );
-		break;
-	case RP_LIGHT_PASS:
-		RenderLightPass( renderContext );
-		break;
-	case RP_GATHER_PASS:
-		RenderGatherPass( renderContext );
-		break;
-	case RP_FLARE_PASS:
-		RenderFlarePass( renderContext );
-		break;
-	case RP_END_RENDER:
-		EndRender( renderContext );
-		break;
-    default:
-        break;
-	}
-
-	return PASS_RESULT_OK;
-}
-
-void Tr2InteriorScene::BeginRender( Tr2RenderContext& renderContext )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	D3DPERF_EVENT( L"BeginRender" );
-#if APEX_ENABLED
-	if( m_apexScene )
-	{
-		m_apexScene->PreRender( m_lastUpdateTime, m_apexLODResourceBudget, m_apexLODResourceBudgetConsumed );
-	}
-#endif
-}
-
-void Tr2InteriorScene::RenderPrePass( Tr2RenderContext& renderContext )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	D3DPERF_EVENT( L"Tr2InteriorScene::RenderPrePass" );
-
-	// set per-frame data
-	PopulatePerFramePSData( m_perFramePSData );
-	PopulatePerFrameVSData( m_perFrameVSData );
-
-	{
-		D3DPERF_EVENT( L"Set per-frame shader constants" );
-		FillAndSetConstants( m_perFrameVSBuffer, m_perFrameVSData, VERTEX_SHADER, Tr2Renderer::GetPerFrameVSStartRegister(), renderContext );
-		FillAndSetConstants( m_perFramePSBuffer, m_perFramePSData, PIXEL_SHADER , Tr2Renderer::GetPerFramePSStartRegister(), renderContext );
-	}
-
-	// Gather batches for the pre-pass
-	m_activePrimaryRenderBatches = m_prepassBatches;
-	m_activeTransparentBatchStore = NULL;
-	GatherPrePassBatches( m_visibilityResults );
-
-	// Render the geometry
-	RenderGeometry( NULL, renderContext );
-
-	// Clear the pre-pass batches
-	m_prepassBatches->Clear();
-}
-
-void Tr2InteriorScene::RenderLightPass( Tr2RenderContext& renderContext )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	D3DPERF_EVENT( L"Tr2InteriorScene::RenderLightPass" );
-
-	// set per-frame data
-	PopulatePerFramePSData( m_perFramePSData );
-	PopulatePerFrameVSData( m_perFrameVSData );
-
-	{
-		D3DPERF_EVENT( L"Set per-frame shader constants" );
-		FillAndSetConstants( m_perFrameVSBuffer, m_perFrameVSData, VERTEX_SHADER, Tr2Renderer::GetPerFrameVSStartRegister(), renderContext );
-		FillAndSetConstants( m_perFramePSBuffer, m_perFramePSData, PIXEL_SHADER , Tr2Renderer::GetPerFramePSStartRegister(), renderContext );
-	}
-
-	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
-	TriRenderBatchAccumulator<Tr2IntKeyGenerator> lightBatches( allocator );
-
-	// Gather light batches
-	m_activePrimaryRenderBatches = &lightBatches;
-	m_activeTransparentBatchStore = m_transparentBatchStore;
-	GatherLightBatches( m_visibilityResults );
-	lightBatches.Finalize();
-
-	renderContext.m_esm.BeginManagedRendering();
-
-	m_nDotLTextureHandle->SetValue( m_nDotLTexture );
-
-	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_LIGHT );
-	renderContext.SetReadOnlyDepth( true );
-	renderContext.RenderLightBatches( &lightBatches );
-	renderContext.m_esm.UnsetAllTextures();
-	renderContext.SetReadOnlyDepth(	false );
-
-	lightBatches.Clear();
-	m_transparentBatchStore->Clear();
-
-	// Restore original viewport and per-frame data
-	{
-		D3DPERF_EVENT( L"Cleanup State" );
-
-		unsigned int width, height;
-		Tr2Renderer::GetBackBufferDimensions( width, height );
-
-		renderContext.SetScissorRect( 0, 0, width, height );
-		renderContext.SetRenderState( RS_SCISSORTESTENABLE, FALSE );
-		renderContext.m_esm.SetInvertedCullMode( false );
-		renderContext.SetRenderState( RS_CLIPPLANEENABLE, 0x0 );
-		renderContext.SetRenderState( RS_STENCILENABLE, FALSE );
-	}
-
-	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA );
-	renderContext.m_esm.EndManagedRendering();
-}
-
-void Tr2InteriorScene::RenderGatherPass( Tr2RenderContext& renderContext )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	D3DPERF_EVENT( L"Tr2InteriorScene::RenderGatherPass" );
-
-	// set per-frame data
-	PopulatePerFramePSData( m_perFramePSData );
-	PopulatePerFrameVSData( m_perFrameVSData );
-
-	{
-		D3DPERF_EVENT( L"Set per-frame shader constants" );
-		FillAndSetConstants( m_perFrameVSBuffer, m_perFrameVSData, VERTEX_SHADER, Tr2Renderer::GetPerFrameVSStartRegister(), renderContext );
-		FillAndSetConstants( m_perFramePSBuffer, m_perFramePSData, PIXEL_SHADER , Tr2Renderer::GetPerFramePSStartRegister(), renderContext );
-	}
-
-	// Update variable store
-	m_backgroundCubeMapVar = m_backgroundCubeMapRes;
-	
-	// Gather geometry batches
-	m_activePrimaryRenderBatches = m_primaryRenderBatches;
-	m_activeTransparentBatchStore = m_transparentBatchStore;
-
-	GatherPrepassForwardBatches( m_visibilityResults );
-
-	// Render geometry
-	renderContext.SetReadOnlyDepth( true );
-	RenderGeometry( nullptr, renderContext );
-	renderContext.m_esm.UnsetAllTextures();
-	renderContext.SetReadOnlyDepth( false );
-
-	// Clear batches
-	m_primaryRenderBatches->Clear();
-	m_transparentBatchStore->Clear();
-
-	// debug info
-	RenderDebugInfo( renderContext );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Performs render flare pass. Gathers flare batches from light sources and renders them.
-//   Ignores mirrors and skips itself when any visualization is active.
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::RenderFlarePass( Tr2RenderContext& renderContext )
-{
-	// Disable flare pass when any visualization is active
-	if( m_visualizeMethod != VM_NONE )
-	{
-		return;
-	}
-
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	D3DPERF_EVENT( L"Tr2InteriorScene::RenderFlarePass" );
-
-	// set per-frame data
-	PopulatePerFramePSData( m_perFramePSData );
-	PopulatePerFrameVSData( m_perFrameVSData );
-
-	{
-		D3DPERF_EVENT( L"Set per-frame shader constants" );
-		FillAndSetConstants( m_perFrameVSBuffer, m_perFrameVSData, VERTEX_SHADER, Tr2Renderer::GetPerFrameVSStartRegister(), renderContext );
-		FillAndSetConstants( m_perFramePSBuffer, m_perFramePSData, PIXEL_SHADER , Tr2Renderer::GetPerFramePSStartRegister(), renderContext );
-	}
-
-	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
-	TriRenderBatchAccumulator<Tr2IntKeyGenerator> lightBatches( allocator );
-
-	// Gather light batches
-	m_activePrimaryRenderBatches = &lightBatches;
-	m_activeTransparentBatchStore = m_transparentBatchStore;
-	GatherFlareBatches( m_visibilityResults );
-	lightBatches.Finalize();
-
-	renderContext.m_esm.BeginManagedRendering();
-
-	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
-
-	renderContext.SetReadOnlyDepth( true );
-	renderContext.RenderBatches( &lightBatches );
-	renderContext.m_esm.UnsetAllTextures();
-	renderContext.SetReadOnlyDepth( false );
-	lightBatches.Clear();
-	m_transparentBatchStore->Clear();
-
-	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA );
-	renderContext.m_esm.EndManagedRendering();
-}
-
-void Tr2InteriorScene::EndRender( Tr2RenderContext& renderContext )
-{
-	// Clear lights
-	m_activeLightSet.Clear();
-#if APEX_ENABLED
-	if( m_apexScene )
-	{
-		m_apexScene->PostRender( m_lastUpdateTime, m_apexLODResourceBudget, m_apexLODResourceBudgetConsumed );
-	}
-#endif
 }
 
 void Tr2InteriorScene::RenderFullForward( Tr2RenderContext& renderContext )
@@ -787,8 +557,6 @@ void Tr2InteriorScene::RenderFullForward( Tr2RenderContext& renderContext )
 	}
 
 	// Gather geometry batches
-	m_activePrimaryRenderBatches = m_primaryRenderBatches;
-	m_activeTransparentBatchStore = m_transparentBatchStore;
 	GatherFullForwardBatches( m_visibilityResults );
 
 	// Render geometry
@@ -796,7 +564,6 @@ void Tr2InteriorScene::RenderFullForward( Tr2RenderContext& renderContext )
 
 	// Clear batches
 	m_primaryRenderBatches->Clear();
-	m_transparentBatchStore->Clear();
 }
 
 // --------------------------------------------------------------------------------------
@@ -836,7 +603,7 @@ void Tr2InteriorScene::PrepareBackgroundCubemapBatch( ITriRenderBatchAccumulator
 			batch->SetPerObjectData( perObjectData );
 			batch->SetRenderingMode( Tr2EffectStateManager::RM_ANY );
 			batches->SetUserData(
-				ConstructKey( m_currentObjectGroup, WODINTBATCHGROUP_BEGIN )
+				ConstructKey( 0, WODINTBATCHGROUP_BEGIN )
 				);
 
 			batches->Commit( batch );
@@ -854,33 +621,14 @@ void Tr2InteriorScene::RenderGeometry( ITr2ShaderMaterial* overrideEffect, Tr2Re
 	// Render primary batches - includes opaques, decals, transparents & special batches
 	{
 		D3DPERF_EVENT( L"Primary render batches" );
-		m_activePrimaryRenderBatches->Finalize();
+		m_primaryRenderBatches->Finalize();
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
 		renderContext.RenderBatchesWithOverride(
-			m_activePrimaryRenderBatches,
+			m_primaryRenderBatches,
 			overrideEffect,
 			Tr2RenderContext::OM_DO_NOTHING );
 	}
 
-	// Restore original viewport and per-frame data
-	{
-		D3DPERF_EVENT( L"Cleanup State" );
-
-		unsigned int width, height;
-		Tr2Renderer::GetBackBufferDimensions( width, height );
-
-		renderContext.SetScissorRect( 0, 0, width, height );
-		renderContext.SetRenderState( RS_SCISSORTESTENABLE, FALSE );
-		renderContext.m_esm.SetInvertedCullMode( false );
-		renderContext.SetRenderState( RS_CLIPPLANEENABLE, 0x0 );
-		renderContext.SetRenderState( RS_STENCILENABLE, FALSE );
-	}
-
-	// Note: certain post-scene-render events (such as post-render callbacks) expect
-	// to be in Alpha state.  This isn't guaranteed now, since Alpha state only gets set
-	// during normal scene rendering if alpha batches are actually rendered.
-	// This forces Alpha state, so that subsequent draw calls are in the correct
-	// state environment.
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA );
 	renderContext.m_esm.EndManagedRendering();
 }
@@ -893,6 +641,20 @@ void Tr2InteriorScene::RenderDebugInfo( Tr2RenderContext& renderContext )
 		m_apexScene->RenderDebugInfo( renderContext );
 	}
 #endif
+}
+
+ITr2MultiPassScene::RenderPassResult Tr2InteriorScene::RenderPass( PassType pass, Tr2RenderContext & renderContext )
+{
+	switch( pass )
+	{
+	case RP_MAIN_RENDER:
+		Render( renderContext );
+		break;
+	default:
+		break;
+	}
+
+	return PASS_RESULT_OK;
 }
 
 //---------------------------------------------------------------------------------------
@@ -1029,24 +791,6 @@ void Tr2InteriorScene::OnQueryBegin( void )
 
 	if( m_visibilityQueryType == PRIMARY_QUERY )
 	{
-		m_visibleLights.clear();
-		m_visibilityResults->AddVisibilityEvent( event );
-	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function is called at the end of visibility query.  
-// See Also:
-//   OnQueryBegin, DoQueryEnd
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::OnQueryEnd( void )
-{
-	Tr2VisibilityEvent event;
-	event.m_eventType = Tr2VisibilityEvent::QUERY_END;
-
-	if( m_visibilityQueryType == PRIMARY_QUERY )
-	{
 		m_visibilityResults->AddVisibilityEvent( event );
 	}
 }
@@ -1060,11 +804,6 @@ void Tr2InteriorScene::OnInstanceVisible( ITr2InteriorCullable* cullable, const 
 
 	if( m_visibilityQueryType == PRIMARY_QUERY )
 	{
-		ITr2InteriorLight* light = dynamic_cast<ITr2InteriorLight*>( cullable );
-		if( light )
-		{
-			m_visibleLights.insert( light );
-		}
 		m_visibilityResults->AddVisibilityEvent( event );
 	}
 	else if( m_visibilityQueryType == PICKING_QUERY )
@@ -1087,175 +826,21 @@ void Tr2InteriorScene::OnInstanceVisible( ITr2InteriorCullable* cullable, const 
 //   forward pass.
 // Arguments:
 //   event		- The query begin event to execute.
-//   gatherType - The type of batches we are gathering
 // See Also:
 //   OnQueryBegin
 // --------------------------------------------------------------------------------------
-void Tr2InteriorScene::DoQueryBegin( const Tr2VisibilityEvent& event,
-									 BatchGatherType gatherType )
+void Tr2InteriorScene::DoQueryBegin( const Tr2VisibilityEvent& event )
 {
 	CCP_ASSERT( event.m_eventType == Tr2VisibilityEvent::QUERY_BEGIN );
 
 	// Clear lights
 	m_activeLightSet.Clear();
 
-	// Clear the portal entry flag and object group counter
-	m_currentObjectGroup = 0;
-
-	// Clear stencil stack
-	m_stencilStack.clear();
-
-	// Clear the transparency stack
-	m_transparencyStack.clear();
-	m_transparencyStack.push_back( std::make_pair( 0, 0 ) );
-
 	// If we're gathering forward batches, then we need a background cubemap batch here
-	if( gatherType == PREPASS_FORWARD_GATHER || gatherType == FULL_FORWARD_GATHER )
+	PrepareBackgroundCubemapBatch( m_primaryRenderBatches );
+	for( auto it = m_lights.begin(); it != m_lights.end(); ++it )
 	{
-		PrepareBackgroundCubemapBatch( m_activePrimaryRenderBatches );
-		if( m_enableROIs )
-		{
-			for( auto it = m_lights.begin(); it != m_lights.end(); ++it )
-			{
-				m_activeLightSet.AddLight( *it, Vector3( 0.f, 0.f, 0.f ) );
-			}
-		}
-	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function executes a query end event in a normal batch gathering operation.  If
-//   there are outstanding transparent batches for the camera cell, it first queues up
-//   a batch to disable the stencil test.  Then it adds the remaining transparent batches
-//   to the primary accumulator in back-to-front order.
-// Arguments:
-//   event		- The query end event to execute.
-//   gatherType - The type of batches we are gathering
-// See Also:
-//   OnQueryEnd
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::DoQueryEnd( const Tr2VisibilityEvent& event,
-								   BatchGatherType gatherType )
-{
-	CCP_ASSERT( event.m_eventType == Tr2VisibilityEvent::QUERY_END );
-
-	if( m_activePrimaryRenderBatches && m_activeTransparentBatchStore && !m_transparencyStack.empty() )
-	{
-		// Verify that we have transparent batches to render.  This will be true
-		// if batchRange.first < batchRange.second, meaning there is a non-empty
-		// set of transparent batches to render.
-		std::pair<int, int> batchRange = m_transparencyStack.back();
-		if( batchRange.first < batchRange.second )
-		{
-			// If we are gathering batches for the forward pass, we need to disable the
-			// stencil test before drawing the final set of transparent batches
-			if( gatherType == PREPASS_FORWARD_GATHER || gatherType == FULL_FORWARD_GATHER )
-			{
-				Tr2InteriorStencilMaskBatch* stencilBatch =
-					m_activePrimaryRenderBatches->Allocate<Tr2InteriorStencilMaskBatch>();
-
-				if( stencilBatch )
-				{
-					stencilBatch->SetShaderMaterial( NULL );
-					stencilBatch->SetPerObjectData( NULL );
-					stencilBatch->SetGeometryResource( NULL );
-					stencilBatch->SetMeshParameters( 0, 0, 0 );
-
-					// This flag disables the stencil test
-					stencilBatch->SetDisableStencil( true );
-
-					stencilBatch->SetRenderingMode( Tr2EffectStateManager::RM_ANY );
-					m_activePrimaryRenderBatches->SetUserData(
-						ConstructKey( m_currentObjectGroup, WODINTBATCHGROUP_BEGIN ) );
-
-					m_activePrimaryRenderBatches->Commit( stencilBatch );
-				}
-			}
-
-			// Skip transparency gather during prepass
-			if( gatherType != PREPASS_GATHER )
-			{
-				// Collect the transparent batches from the specified batch range
-				for( int i = batchRange.second - 1; i >= batchRange.first; --i )
-				{
-					// Get the correct rendering mode
-					Tr2EffectStateManager::RenderingMode mode = gatherType == LIGHT_GATHER ?
-						Tr2EffectStateManager::RM_LIGHT : Tr2EffectStateManager::RM_ALPHA;
-
-					// Set the rendering mode
-					m_activePrimaryRenderBatches->SetRenderingMode( mode );
-
-					m_activePrimaryRenderBatches->SetUserData(
-						ConstructKey( m_currentObjectGroup, gatherType == LIGHT_GATHER ? WODINTBATCHGROUP_OPAQUE : WODINTBATCHGROUP_BLEND ) );
-					// Transfer the transparent batch to the primary batch accumulator
-					m_activeTransparentBatchStore->TransferBatchToOtherAccumulator(
-						m_activePrimaryRenderBatches, i );
-				}
-			}
-		}
-	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function executes a view parameters changed event in a normal batch gathering
-//   operation.  It queues up a clipping batch to set the cull mode, scissor rectangle,
-//   and user clip plane.  This batch will appear at the beginning or end of the current
-//   object group, depending on whether the query is entering or exiting a cell, as
-//   determined by the preceding portal events.
-// Arguments:
-//   event - The view parameters changed event to execute.
-//   gatherType - The type of batches to gather.
-// See Also:
-//   OnPortalViewParametersChanged
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::DoViewParametersChanged( const Tr2VisibilityEvent& event,
-											    BatchGatherType gatherType, Tr2InteriorBatchGroup batchGroup )
-{
-	// Bail out if there is no active opaque batch accumulator
-	if( !m_activePrimaryRenderBatches )
-	{
-		return;
-	}
-
-	if( gatherType == FLARE_GATHER )
-	{
-		return;
-	}
-
-	// Get the mirrored state
-	bool isMirrored = !event.m_isMirroredInLeftHandedSpace;
-
-	// Insert the new clipping batch into the opaques list
-	Tr2InteriorClippingBatch* batch =
-		m_activePrimaryRenderBatches->Allocate<Tr2InteriorClippingBatch>();
-	if( batch )
-	{
-		// Need to offset scissor rect by the actual viewport origin
-		int x = Tr2Renderer::GetViewport().x;
-		int y = Tr2Renderer::GetViewport().y;
-		Rect scissorRect;
-		scissorRect.left = event.m_scissorRect.left;
-		scissorRect.top = event.m_scissorRect.top;
-		scissorRect.right = event.m_scissorRect.right;
-		scissorRect.bottom = event.m_scissorRect.bottom;
-
-		scissorRect.left += x;
-		scissorRect.top += y;
-		scissorRect.right += x;
-		scissorRect.bottom += y;
-
-		batch->SetPerFramePSData( m_perFramePSData );
-		batch->SetScissorRect( scissorRect );
-		batch->SetInvertedCullMode( isMirrored );
-		batch->SetClipPlane( event.m_clipPlane );
-		batch->UseClipPlane( event.m_useClipPlane );
-		batch->SetRenderingMode( Tr2EffectStateManager::RM_ANY );
-		m_activePrimaryRenderBatches->SetUserData(
-			ConstructKey( m_currentObjectGroup, batchGroup ) );
-
-		m_activePrimaryRenderBatches->Commit( batch );
+		m_activeLightSet.AddLight( *it, Vector3( 0.f, 0.f, 0.f ) );
 	}
 }
 
@@ -1267,43 +852,13 @@ void Tr2InteriorScene::DoViewParametersChanged( const Tr2VisibilityEvent& event,
 //   the current transparent batch store.
 // Arguments:
 //   event		- The instance visible event to execute.
-//   gatherType - The type of batches to gather.
 // See Also:
 //   OnInstanceVisible, OnInstanceVisiblePrePass
 // --------------------------------------------------------------------------------------
-void Tr2InteriorScene::DoInstanceVisible( const Tr2VisibilityEvent& event,
-										  BatchGatherType gatherType )
+void Tr2InteriorScene::DoInstanceVisible( const Tr2VisibilityEvent& event )
 {
 	CCP_STATS_ZONE( "DoInstanceVisible" );
 
-	bool opaqueOnly = false;
-	if( m_visualizeMethod == VM_EN_ONLY ||
-		( m_visualizeMethod >= VM_ALL_LIGHTING && m_visualizeMethod <= VM_LIGHT_PRE_PASS_SPECULAR_LIGHTING ) )
-	{
-		opaqueOnly = true;
-	}
-	if( gatherType == FLARE_GATHER && opaqueOnly )
-	{
-		return;
-	}
-
-	// Handle light-pass differently, since ITr2InteriorLights aren't ITr2Interiors
-	if( gatherType == LIGHT_GATHER )
-	{
-		ITr2InteriorLight* light = dynamic_cast<ITr2InteriorLight*>( event.m_userData.p );
-		if( !light )
-		{
-			return;
-		}
-
-		m_activeTransparentBatchStore->SetRenderingMode( Tr2EffectStateManager::RM_LIGHT );
-
-		// Update batch count to indicate the range of transparent batches gathered
-		// for this cell
-		m_transparencyStack.back().second =
-			(unsigned int)m_activeTransparentBatchStore->GetBatchCount();
-	}
-	else
 	{
 		ITr2Interior* interior = dynamic_cast<ITr2Interior*>( event.m_userData.p );
 		ITr2Renderable* renderable = dynamic_cast<ITr2Renderable*>( event.m_userData.p );
@@ -1313,163 +868,24 @@ void Tr2InteriorScene::DoInstanceVisible( const Tr2VisibilityEvent& event,
 			// Get the per-object data for opaque batches
 			Tr2PerObjectData* perObjectOpaque =
 				interior->GetPerObjectDataWithPerInstanceLighting(
-					m_activePrimaryRenderBatches ?
-						m_activePrimaryRenderBatches : m_activeTransparentBatchStore,
-					gatherType == FULL_FORWARD_GATHER ? &m_activeLightSet : nullptr,
+					m_primaryRenderBatches,
+					&m_activeLightSet,
 					event.m_objectToWorldMatrix );
 
-			if( m_activePrimaryRenderBatches )
+			if( m_primaryRenderBatches )
 			{
 #define DO_GET_BATCHES( batches, mode, key, batchType )						\
 	batches->SetRenderingMode( Tr2EffectStateManager::mode );				\
-	batches->SetUserData( ConstructKey( m_currentObjectGroup, key ) );		\
+	batches->SetUserData( ConstructKey( 0, key ) );							\
 	renderable->GetBatches( batches, batchType, perObjectOpaque );
 
-				if( gatherType == PREPASS_GATHER )
-				{
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_OPAQUE, WODINTBATCHGROUP_OPAQUE, TRIBATCHTYPE_DEPTHNORMAL );
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_DECAL_NO_DEPTH, WODINTBATCHGROUP_DECAL, TRIBATCHTYPE_DECALNORMAL );
-				}
-				else if( gatherType == PREPASS_FORWARD_GATHER )
-				{
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_OPAQUE, WODINTBATCHGROUP_OPAQUE, TRIBATCHTYPE_OPAQUE_PREPASS );
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_DECAL, WODINTBATCHGROUP_DECAL, TRIBATCHTYPE_DECAL_PREPASS );
-				}
-				else if( gatherType == FLARE_GATHER )
-				{
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_OPAQUE, WODINTBATCHGROUP_OPAQUE, TRIBATCHTYPE_FLARE );
-				}
-				else
-				{
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_OPAQUE, WODINTBATCHGROUP_OPAQUE, TRIBATCHTYPE_OPAQUE );
-					DO_GET_BATCHES( m_activePrimaryRenderBatches, RM_DECAL, WODINTBATCHGROUP_DECAL, TRIBATCHTYPE_DECAL );
-				}
-			}
-
-			// Gather transparent batches
-			if( !opaqueOnly && m_activeTransparentBatchStore && gatherType != FLARE_GATHER )
-			{
-				DO_GET_BATCHES( m_activeTransparentBatchStore, RM_ALPHA, WODINTBATCHGROUP_BLEND, TRIBATCHTYPE_TRANSPARENT );
-
-				// Update batch count to indicate the range of transparent batches gathered
-				// for this cell
-				m_transparencyStack.back().second =
-					(unsigned int)m_activeTransparentBatchStore->GetBatchCount();
+				DO_GET_BATCHES( m_primaryRenderBatches, RM_OPAQUE, WODINTBATCHGROUP_OPAQUE, TRIBATCHTYPE_OPAQUE );
+				DO_GET_BATCHES( m_primaryRenderBatches, RM_DECAL, WODINTBATCHGROUP_DECAL, TRIBATCHTYPE_DECAL );
+				DO_GET_BATCHES( m_primaryRenderBatches, RM_ALPHA, WODINTBATCHGROUP_BLEND, TRIBATCHTYPE_TRANSPARENT );
 			}
 		}
 	}
 #undef DO_GET_BATCHES
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function gathers pre-pass batches.  It ignores lights, and in some cases calls
-//   special pre-pass event handlers to process events while ignoring transparency.
-// Arguments:
-//   results - The results set object that supplies visibility events
-// See Also:
-//   GatherLightBatches, GatherForwardBatches
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::GatherPrePassBatches( Tr2VisibilityResults* results )
-{
-	if( results )
-	{
-		const std::vector<Tr2VisibilityEvent>& events = results->GetEvents();
-
-		for( std::vector<Tr2VisibilityEvent>::const_iterator it = events.begin();
-			it != events.end(); ++it )
-		{
-			const Tr2VisibilityEvent& event = *it;
-
-			switch( event.m_eventType )
-			{
-			case Tr2VisibilityEvent::QUERY_BEGIN:
-				DoQueryBegin( event, PREPASS_GATHER );
-				break;
-			case Tr2VisibilityEvent::INSTANCE_VISIBLE:
-				DoInstanceVisible( event, PREPASS_GATHER );
-				break;
-            default:
-                break;
-			}
-		}
-	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function gathers light batches.  It ignores everything except lights.
-// Arguments:
-//   results - The results set object that supplies visibility events
-//   batches - The accumulator for light batches.
-// See Also:
-//   GatherPrepassBatches, GatherForwardBatches
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::GatherLightBatches( Tr2VisibilityResults* results )
-{
-	if( results )
-	{
-		const std::vector<Tr2VisibilityEvent>& events = results->GetEvents();
-
-		for( std::vector<Tr2VisibilityEvent>::const_iterator it = events.begin();
-			it != events.end(); ++it )
-		{
-			const Tr2VisibilityEvent& event = *it;
-
-			switch( event.m_eventType )
-			{
-			case Tr2VisibilityEvent::QUERY_BEGIN:
-				DoQueryBegin( event, LIGHT_GATHER );
-				break;
-			case Tr2VisibilityEvent::QUERY_END:
-				DoQueryEnd( event, LIGHT_GATHER );
-				break;
-			case Tr2VisibilityEvent::INSTANCE_VISIBLE:
-				DoInstanceVisible( event, LIGHT_GATHER );
-				break;
-            default:
-                break;
-			}
-		}
-	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function gathers forward batches for prepass lighting.  It processes the full
-//   set of visibility events, since they are all relevant to the forward pass.
-// Arguments:
-//   results - The results set object that supplies visibility events
-// See Also:
-//   GatherPrepassBatches, GatherLightBatches, GatherFullForwardBatches
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::GatherPrepassForwardBatches( Tr2VisibilityResults* results )
-{
-	if( results )
-	{
-		const std::vector<Tr2VisibilityEvent>& events = results->GetEvents();
-
-		for( std::vector<Tr2VisibilityEvent>::const_iterator it = events.begin();
-			it != events.end(); ++it )
-		{
-			const Tr2VisibilityEvent& event = *it;
-
-			switch( event.m_eventType )
-			{
-			case Tr2VisibilityEvent::QUERY_BEGIN:
-				DoQueryBegin( event, PREPASS_FORWARD_GATHER );
-				break;
-			case Tr2VisibilityEvent::QUERY_END:
-				DoQueryEnd( event, PREPASS_FORWARD_GATHER );
-				break;
-			case Tr2VisibilityEvent::INSTANCE_VISIBLE:
-				DoInstanceVisible( event, PREPASS_FORWARD_GATHER );
-				break;
-            default:
-                break;
-			}
-		}
-	}
 }
 
 // --------------------------------------------------------------------------------------
@@ -1496,111 +912,16 @@ void Tr2InteriorScene::GatherFullForwardBatches( Tr2VisibilityResults* results )
 			switch( event.m_eventType )
 			{
 			case Tr2VisibilityEvent::QUERY_BEGIN:
-				DoQueryBegin( event, FULL_FORWARD_GATHER );
-				break;
-			case Tr2VisibilityEvent::QUERY_END:
-				DoQueryEnd( event, FULL_FORWARD_GATHER );
+				DoQueryBegin( event );
 				break;
 			case Tr2VisibilityEvent::INSTANCE_VISIBLE:
-				DoInstanceVisible( event, FULL_FORWARD_GATHER );
+				DoInstanceVisible( event );
 				break;
             default:
                 break;
 			}
 		}
 	}
-}
-
-// --------------------------------------------------------------------------------------
-// Description
-//   This function gathers light batches for flare pass.  It ignores everything except
-//   lights.
-// Arguments:
-//   results - The results set object that supplies visibility events
-//   batches - The accumulator for light batches.
-// See Also:
-//   GatherLightBatches, GatherPrepassBatches, GatherForwardBatches
-// --------------------------------------------------------------------------------------
-void Tr2InteriorScene::GatherFlareBatches( Tr2VisibilityResults* results )
-{
-	if( results )
-	{
-		const std::vector<Tr2VisibilityEvent>& events = results->GetEvents();
-
-		for( std::vector<Tr2VisibilityEvent>::const_iterator it = events.begin();
-			it != events.end(); ++it )
-		{
-			const Tr2VisibilityEvent& event = *it;
-
-			switch( event.m_eventType )
-			{
-			case Tr2VisibilityEvent::QUERY_BEGIN:
-				DoQueryBegin( event, FLARE_GATHER );
-				break;
-			case Tr2VisibilityEvent::QUERY_END:
-				DoQueryEnd( event, FLARE_GATHER );
-				break;
-			case Tr2VisibilityEvent::INSTANCE_VISIBLE:
-				DoInstanceVisible( event, FLARE_GATHER );
-				break;
-            default:
-                break;
-			}
-		}
-	}
-}
-
-// ------------------------------------------------------------------------------------------------------
-bool Tr2InteriorScene::OnDynamicsListModified( long event, ssize_t key, ssize_t key2, IRoot* currvalue )
-{
-	if( ( event & BELIST_LOADING ) == 0  )
-	{
-		// Respond to an item removal event
-		if( ( event & BELIST_EVENTMASK ) == BELIST_REMOVED )
-		{
-			if( currvalue )
-			{
-				// See if the removed item is a dynamic
-				ITr2InteriorDynamic* dynamic = NULL;
-				if( currvalue->QueryInterface( BlueInterfaceIID<ITr2InteriorDynamic>(), ( void** )&dynamic ) )
-				{
-					// Remove from the scene
-					dynamic->RemoveFromScene();
-
-					// See if the dynamic is in the pending-load list
-					ssize_t pos = m_dynamicsPendingLoad.FindKey( dynamic );
-					if( pos != -1 )
-					{
-						m_dynamicsPendingLoad.Remove( pos );
-					}
-
-					// Need to unlock, since QueryInterface Locks
-					dynamic->Unlock();
-				}
-			}
-		}
-		// Respond to an item insertion event
-		else if( ( event & BELIST_EVENTMASK ) == BELIST_INSERTED )
-		{
-			if( currvalue )
-			{
-				// See if the inserted item is a dynamic
-				ITr2InteriorDynamic* dynamic = NULL;
-				if( currvalue->QueryInterface( BlueInterfaceIID<ITr2InteriorDynamic>(), ( void** )&dynamic ) )
-				{
-					if( !dynamic->AddToScene( m_apexScene ) && ( m_dynamicsPendingLoad.FindKey( dynamic ) == -1 ) )
-					{
-						m_dynamicsPendingLoad.Insert( -1, dynamic );
-					}
-
-					// Need to unlock, since QueryInterface Locks
-					dynamic->Unlock();
-				}
-			}
-		}
-	}
-
-	return true;
 }
 
 // ------------------------------------------------------------------------------------------------------

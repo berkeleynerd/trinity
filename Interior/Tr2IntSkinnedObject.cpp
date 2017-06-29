@@ -10,6 +10,7 @@
 #include "Apex/Apex.h"
 #endif
 #include "Resources/TriGeometryRes.h"
+#include "Resources/TriTextureRes.h"
 #include "Shader/Tr2ShaderMaterial.h"
 #include "Shader/Tr2Effect.h"
 #include "Tr2Mesh.h"

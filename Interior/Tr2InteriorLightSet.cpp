@@ -33,10 +33,6 @@ void Tr2InteriorLightSet::AddLight( ITr2InteriorLight* lightSource,
 	// Setup the light instance
 	InternalLightInstance instance =
 	{
-		Matrix( 1.0f, 0.0f, 0.0f, 0.0f, 
-				0.0f, 1.0f, 0.0f, 0.0f, 
-				0.0f, 0.0f, 1.0f, 0.0f, 
-				0.0f, 0.0f, 0.0f, 1.0f ),
 		lightSource,
 		false
 	};
@@ -70,7 +66,7 @@ void Tr2InteriorLightSet::PopulateLightData( Tr2InteriorPerObjectPSData* perObje
 		// Put standard lightsource data in target
 		if( !it->lightDataValid )
 		{
-			it->lightSource->PopulateLightData( &it->lightData, it->mirrorToWorldMatrix );
+			it->lightSource->PopulateLightData( &it->lightData );
 			it->lightDataValid = true;
 		}
 		memcpy( &perObjectPSData->pointLights[i], &it->lightData, sizeof( it->lightData ) );

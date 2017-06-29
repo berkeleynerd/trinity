@@ -5,15 +5,11 @@
 #include "include/ITr2BoundingBox.h"
 #include "ITr2Renderable.h"
 #include "Tr2PerObjectData.h"
-#include "Resources/TriTextureRes.h"
-#include "Tr2AtlasTexture.h"
 
-struct WodStencilBatchParams;
 class TriFrustum;
 class Tr2InteriorLightSet;
 struct Tr2InteriorPerObjectLightData;
 struct Tr2PerFrameVSData;
-struct Tr2PerFrameShadowPSData;
 struct ITr2InteriorLight;
 class Tr2RenderContext;
 struct AxisAlignedBoundingBox;
@@ -61,9 +57,6 @@ BLUE_INTERFACE( ITr2InteriorDynamic ) : public ITr2Interior
 };
 BLUE_DECLARE_IVECTOR( ITr2InteriorDynamic );
 
-class TriTextureRes;
-
-BLUE_DECLARE( Tr2AtlasTexture );
 
 // -------------------------------------------------------------
 // Description:
@@ -107,10 +100,8 @@ BLUE_INTERFACE( ITr2InteriorLight ) : public ITr2InteriorCullable
 	//   Copy the light parameters into the per-object data.
 	// Arguments:
 	//   lightData - Per-object light data
-	//   mirrorToWorldMatrix - Mirror to world space transform.
 	// -------------------------------------------------------------
-	virtual void PopulateLightData( Tr2InteriorPerObjectLightData* lightData, 
-									const Matrix &mirrorToWorldMatrix ) const = 0;
+	virtual void PopulateLightData( Tr2InteriorPerObjectLightData* lightData ) const = 0;
 
 	// -------------------------------------------------------------
 	// Description:

@@ -37,8 +37,6 @@ private:
 	// Internal helper structure for managing light instances
 	struct InternalLightInstance
 	{
-		// Mirror to world matrix
-		Matrix mirrorToWorldMatrix;
 		// Pointer to the underlying light source
 		ITr2InteriorLight* lightSource;
 		// Is lightData valid

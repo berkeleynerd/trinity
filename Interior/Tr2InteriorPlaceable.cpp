@@ -12,6 +12,7 @@
 #include "Tr2Mesh.h"
 #include "Curves/TriCurveSet.h"
 #include "TriFrustum.h"
+#include "Resources/TriTextureRes.h"
 
 CCP_STATS_DECLARE( wodInteriorPlaceablesAlive, "Trinity/Tr2InteriorPlaceables", false, CST_COUNTER_LOW, "Count of Tr2InteriorPlaceables alive" );
 
@@ -22,15 +23,13 @@ Tr2InteriorPlaceable::Tr2InteriorPlaceable( IRoot* lockobj ) :
 	m_placeableResPath(),
 	m_placeableRes(),
 	m_lightSet(),
-	m_visibilityMode( VISIBILITYMODE_NORMAL ),
 	m_boundingSphere( 0.f, 0.f, 0.f, 0.f ),
 	m_isBoundingBoxModified( false ),
 	m_cellReflectionTime( 0.0f ),
 	m_previousUpdateTime( 0 ),
 	m_transitionFinished( false ),
 	m_probeOffset( 0.f, 0.f, 0.f ),
-	m_depthOffset( 0.f ),
-	m_stencilParams()
+	m_depthOffset( 0.f )
 {
     D3DXMatrixIdentity( &m_transform );
 
@@ -317,78 +316,75 @@ void Tr2InteriorPlaceable::GetBatches( ITriRenderBatchAccumulator* batches,
 		return;
 	}
 
-	if( m_visibilityMode != VISIBILITYMODE_HIDDEN )
+	float maxDepth = Tr2Renderer::GetFrustumRadius();
+	Matrix instanceToWorld = m_transform;
+
+	if( m_placeableRes )
 	{
-		float maxDepth = Tr2Renderer::GetFrustumRadius();
-		Matrix instanceToWorld = m_transform;
-
-		if( m_placeableRes )
+		// Get the model from the res
+		Tr2Model* model = m_placeableRes->GetVisualModel();
+		if( model )
 		{
-			// Get the model from the res
-			Tr2Model* model = m_placeableRes->GetVisualModel();
-			if( model )
+			unsigned int numMeshes = model->GetNumOfMeshes();
+
+			for( unsigned int i = 0; i < numMeshes; ++i )
 			{
-				unsigned int numMeshes = model->GetNumOfMeshes();
+				Tr2Mesh* mesh = model->GetMesh( i );
 
-				for( unsigned int i = 0; i < numMeshes; ++i )
+				// Only gather transparent batches if the mesh isn't hidden
+				if( mesh->GetDisplay() )
 				{
-					Tr2Mesh* mesh = model->GetMesh( i );
+					// Get the transparent areas
+					Tr2MeshAreaVector* areas = mesh->GetAreas( batchType );
 
-					// Only gather transparent batches if the mesh isn't hidden
-					if( mesh->GetDisplay() )
+					if( areas )
 					{
-						// Get the transparent areas
-						Tr2MeshAreaVector* areas = mesh->GetAreas( batchType );
-
-						if( areas )
+						// Loop over the transparent areas
+						for( Tr2MeshAreaVector::const_iterator it = areas->begin(); it != areas->end(); ++it )
 						{
-							// Loop over the transparent areas
-							for( Tr2MeshAreaVector::const_iterator it = areas->begin(); it != areas->end(); ++it )
+							Tr2MeshArea* area = *it;
+							ITr2ShaderMaterial* shader = area->GetMaterialInterface();
+
+							// If the area isn't hidden & has an effect
+							if( !area->GetDisplay() || !shader )
 							{
-								Tr2MeshArea* area = *it;
-								ITr2ShaderMaterial* shader = area->GetMaterialInterface();
+								continue;
+							}
 
-								// If the area isn't hidden & has an effect
-								if( !area->GetDisplay() || !shader )
+							unsigned int depth = 0;
+							if( batchType == TRIBATCHTYPE_TRANSPARENT )
+							{
+								// Compute the depth
+								Vector3 center;
+								if( m_isBoundingBoxModified )
 								{
-									continue;
+									center = 0.5f * ( m_minBounds + m_maxBounds );
 								}
-
-								unsigned int depth = 0;
-								if( batchType == TRIBATCHTYPE_TRANSPARENT )
+								else
 								{
-									// Compute the depth
-									Vector3 center;
-									if( m_isBoundingBoxModified )
-									{
-										center = 0.5f * ( m_minBounds + m_maxBounds );
-									}
-									else
-									{
-										Vector3 bbMin, bbMax;
-										mesh->GetAreaBoundingBox( area->GetIndex(), bbMin, bbMax );
-										center = 0.5f * ( bbMin + bbMax );
-									}
-									D3DXVec3TransformCoord( &center, &center, &instanceToWorld );
-									center -= Tr2Renderer::GetViewPosition();
-									float z = std::min( std::max( ( D3DXVec3Length( &center ) + m_depthOffset ) / maxDepth, 0.f ), 1.f );
-
-									depth = ( unsigned int )( ( float )0xFFFFFFF * ( 1.0f - z ) );
+									Vector3 bbMin, bbMax;
+									mesh->GetAreaBoundingBox( area->GetIndex(), bbMin, bbMax );
+									center = 0.5f * ( bbMin + bbMax );
 								}
+								D3DXVec3TransformCoord( &center, &center, &instanceToWorld );
+								center -= Tr2Renderer::GetViewPosition();
+								float z = std::min( std::max( ( D3DXVec3Length( &center ) + m_depthOffset ) / maxDepth, 0.f ), 1.f );
 
-								TriGeometryBatch* batch = batches->Allocate<TriGeometryBatch>();
-								// Note that this can fail if the accumulator can't add more batches!
-								if( batch )
-								{
-									batch->SetShaderMaterial( shader );
-									batch->SetPerObjectData( data );
-									batch->SetGeometryResource( mesh->GetGeometryResource() );
+								depth = ( unsigned int )( ( float )0xFFFFFFF * ( 1.0f - z ) );
+							}
 
-									batch->SetMeshParameters( mesh->GetMeshIndex(), area->GetIndex(), area->GetCount(), area->GetReversed() );
-									batch->SetDepth( depth );
+							TriGeometryBatch* batch = batches->Allocate<TriGeometryBatch>();
+							// Note that this can fail if the accumulator can't add more batches!
+							if( batch )
+							{
+								batch->SetShaderMaterial( shader );
+								batch->SetPerObjectData( data );
+								batch->SetGeometryResource( mesh->GetGeometryResource() );
 
-									batches->Commit( batch );
-								}
+								batch->SetMeshParameters( mesh->GetMeshIndex(), area->GetIndex(), area->GetCount(), area->GetReversed() );
+								batch->SetDepth( depth );
+
+								batches->Commit( batch );
 							}
 						}
 					}

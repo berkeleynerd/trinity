@@ -302,51 +302,6 @@ private:
 
 // --------------------------------------------------------------------------------------
 // Description
-//   Render batch specialization that sets a scissor rectangle, optional user clip plane,
-//   and can invert the culling direction.  This is used for rendering portals and
-//   mirrors.  The SubmitGeometry call does not draw any geometry - it simply calls the
-//   appropriate state-setting functions on the device.
-// See Also
-//   TriRenderBatch, Tr2InteriorClippingBatch
-// --------------------------------------------------------------------------------------
-class TriClippingBatch : public TriRenderBatch
-{
-public:
-	// Constructor
-	TriClippingBatch() 
-		:m_isCullModeInverted( false ),
-		m_useClipPlane( false ),
-		m_scissorRect()
-	{
-		m_objectData = NULL;
-	}
-	// Destructor
-	virtual ~TriClippingBatch() {}
-
-
-	virtual void SubmitGeometry( Tr2RenderContext& renderContext );
-
-	// Gets the batch type name for PIX debugging
-	virtual const std::string& GetBatchTypeName( void ) const 
-	{ 
-		static const std::string name = "TriClippingBatch";
-		return name; 
-	}
-
-	virtual void SetInvertedCullMode( bool invert ) { m_isCullModeInverted = invert; }
-	void UseClipPlane( bool usePlane ) { m_useClipPlane = usePlane; }
-	void SetClipPlane( const Vector4& plane ) { m_clipPlane = plane; }
-	void SetScissorRect( const Rect& rect ) { m_scissorRect = rect;	}
-
-protected:
-	Vector4 m_clipPlane;
-	Rect m_scissorRect;
-	bool m_isCullModeInverted;
-	bool m_useClipPlane;
-};
-
-// --------------------------------------------------------------------------------------
-// Description
 //   Enumeration of batch sorting algorithms.
 // --------------------------------------------------------------------------------------
 enum RenderBatchSortType

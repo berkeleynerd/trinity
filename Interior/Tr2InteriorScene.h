@@ -109,57 +109,22 @@ public:
 protected:
 
 	void OnQueryBegin( void );
-	void OnQueryEnd( void );
 	void OnInstanceVisible( ITr2InteriorCullable* cullable, const Matrix& );
 
 	//////////////////////////////////////////////////////////////////////////
 	// Visibility event handlers
 
-	enum BatchGatherType
-	{
-		IMMEDIATE_GATHER,
-		PREPASS_GATHER,
-		LIGHT_GATHER,
-		PREPASS_FORWARD_GATHER,
-		FULL_FORWARD_GATHER,
-		FLARE_GATHER,
-	};
-
 	// Handle Tr2VisibilityEvent::QUERY_BEGIN
-	void DoQueryBegin( const Tr2VisibilityEvent& event, BatchGatherType gatherType );
-	// Handle Tr2VisibilityEvent::QUERY_END
-	void DoQueryEnd( const Tr2VisibilityEvent& event, BatchGatherType gatherType );
-	// Handle Tr2VisibilityEvent::VIEW_PARAMETERS_CHANGED
-	void DoViewParametersChanged( const Tr2VisibilityEvent& event, 
-		BatchGatherType gatherType, Tr2InteriorBatchGroup batchGroup );
+	void DoQueryBegin( const Tr2VisibilityEvent& event );
 	// Handle Tr2VisibilityEvent::INSTANCE_VISIBLE
-	void DoInstanceVisible( const Tr2VisibilityEvent& event, 
-		BatchGatherType gatherType );
+	void DoInstanceVisible( const Tr2VisibilityEvent& event );
 
-	// Gather batches for pre-pass (ignoring transparency)
-	void GatherPrePassBatches( Tr2VisibilityResults* results );
-	// Gather batches from lights for the light pass
-	void GatherLightBatches( Tr2VisibilityResults* results );
-	// Gather batches for forward pass (prepass)
-	void GatherPrepassForwardBatches( Tr2VisibilityResults* results );
 	// Gather batches for full-forward pass (not prepass)
 	void GatherFullForwardBatches( Tr2VisibilityResults* results );
-	// Gather batches from lights for the flare pass
-	void GatherFlareBatches( Tr2VisibilityResults* results );
 
 private:
 	void ResolveVisibility( const Matrix& view, const Matrix& projection, size_t maxDepth );
-	void DoVisibilityQuery( const TriFrustum&, const Matrix& view, size_t depth, size_t maxDepth, const Matrix& mirrorMatrix );
 
-	// Handle light-changed events for the dynamics list
-	bool OnDynamicsListModified( long event, ssize_t key, ssize_t key2, IRoot* currvalue );
-
-	void BeginRender( Tr2RenderContext& renderContext );
-	void RenderPrePass( Tr2RenderContext& renderContext );
-	void RenderLightPass( Tr2RenderContext& renderContext );
-	void RenderGatherPass( Tr2RenderContext& renderContext );
-	void RenderFlarePass( Tr2RenderContext& renderContext );
-	void EndRender( Tr2RenderContext& renderContext );
 	void RenderFullForward( Tr2RenderContext& renderContext );
 
 	//////////////////////////////////////////////////////////////////////////
@@ -172,21 +137,10 @@ private:
 
 	// Holds the main render batch list for opaques, decals, and transparent batches
 	ITriRenderBatchAccumulator* m_primaryRenderBatches;
-	// Stores transparent batches during scene traversal for later insertion into primary batch list
-	ITriRenderBatchAccumulator* m_transparentBatchStore;
 	// Holds the opaque batches for pickable objects during a picking operation
 	ITriRenderBatchAccumulator* m_opaquePickingBatches;
 	// Holds the opaque batches for pickable objects during a picking operation
 	ITriRenderBatchAccumulator* m_pickingBatches;
-	// Holds the batches for pre-pass
-	ITriRenderBatchAccumulator* m_prepassBatches;
-
-	// This is a handle to another batch accumulator, so the scene traversal can accumulate
-	// renderable batches into different lists, depending on the scene query type
-	ITriRenderBatchAccumulator* m_activePrimaryRenderBatches;
-	// This is a handle to a temporary transparent batch store, so the scene traversal can
-	// accumulate transparent batches into different lists
-	ITriRenderBatchAccumulator* m_activeTransparentBatchStore;
 
 	// Direction and color of sun light
 	Vector3 m_sunDirection;
@@ -213,21 +167,12 @@ private:
 	// Visibility result set
 	Tr2VisibilityResultsPtr m_visibilityResults;
 
-	// Set of visible lights
-	std::set<ITr2InteriorLight*> m_visibleLights;
-
 	enum VisibilityQueryType
 	{
 		PRIMARY_QUERY,
 		PICKING_QUERY
 	};
 	VisibilityQueryType m_visibilityQueryType;
-
-	// Miscellaneous Umbra bullshit
-	std::vector<std::pair<int, int> > m_transparencyStack;
-	std::vector<std::pair<int, int> > m_stencilStack;
-	int m_currentObjectGroup;
-
 
 	// Active light set
 	Tr2InteriorLightSet m_activeLightSet;
@@ -268,8 +213,6 @@ private:
 	// These should be moved over to a smaller per-frame data at some point without the cruft
 	void PopulatePerFramePSData( Tr2PerFramePSData &data );
 	void PopulatePerFrameVSData( Tr2PerFrameVSData &data );
-
-	void LogNextVisibilityQuery( void );
 
 	// This is a python only wrapper function for just picking an object
 	IRoot* PickObjectOnly( int x, int y, TriProjection* proj, TriView* view, TriViewport* vp, Be::Optional<Tr2PickTypes> )
@@ -328,9 +271,6 @@ private:
 	float m_minFogDistance;
 	// Fog color
 	Color m_fogColor;
-
-	// Enable/disable Umbra regions of influence for light sources
-	bool m_enableROIs;
 
 	Tr2ConstantBufferAL	m_perFramePSBuffer;
 	Tr2ConstantBufferAL	m_perFrameVSBuffer;

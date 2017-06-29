@@ -186,27 +186,3 @@ void TriDynamicGeometryBatch::SetGeometryResource( TriGeometryRes* val )
 	m_geometryResource = val;
 }
 
-void TriClippingBatch::SubmitGeometry( Tr2RenderContext& renderContext )
-{
-	using namespace Tr2RenderContextEnum;
-
-	// Set the scissor rectangle state
-	renderContext.SetScissorRect( m_scissorRect.left, m_scissorRect.top, m_scissorRect.right, m_scissorRect.bottom );
-	renderContext.SetRenderState( RS_SCISSORTESTENABLE, TRUE );
-
-	// Handle cull mode inversion
-	renderContext.m_esm.SetInvertedCullMode( m_isCullModeInverted );
-	renderContext.m_esm.ApplyStandardStates(Tr2EffectStateManager::RM_CULL );
-
-	// Set the user clip plane
-	if( m_useClipPlane )
-	{
-		renderContext.SetClipPlane( 0, &m_clipPlane.x );
-		renderContext.SetRenderState( RS_CLIPPLANEENABLE, 1 );
-	}
-	else if( !m_isCullModeInverted )
-	{
-		renderContext.SetRenderState( RS_CLIPPLANEENABLE, 0x0 );
-	}
-}
-

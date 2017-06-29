@@ -101,12 +101,6 @@ public:
 		const Matrix& objectToWorldMatrix
 	);
 
-	// Set stencil parameters
-	void SetStencilParameters( const WodStencilBatchParams& params )
-	{
-		m_stencilParams = params;
-	}
-
 	//////////////////////////////////////////////////////////////////////////
 	// ITr2Pickable
 	virtual IRoot* GetID( uint16_t ) { return this->GetRawRoot(); }
@@ -174,17 +168,7 @@ private:
 	std::string m_placeableResPath;
 	WodPlaceableResPtr m_placeableRes;
 
-	// Parameters for stencil batches
-	WodStencilBatchParams m_stencilParams;
-
 	Tr2InteriorLightSet m_lightSet;
-
-	enum
-	{
-		VISIBILITYMODE_NORMAL,
-		VISIBILITYMODE_FADING,
-		VISIBILITYMODE_HIDDEN,
-	} m_visibilityMode;
 
 	// Bounding sphere
 	Vector4 m_boundingSphere;
