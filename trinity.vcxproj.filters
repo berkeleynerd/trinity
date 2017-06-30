@@ -186,9 +186,6 @@
     <ClInclude Include="Tr2GRNMemoryPersist.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="Tr2HighLevelShader.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="Tr2HostBitmap.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -214,9 +211,6 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Tr2LitPerObjectData.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Tr2LowLevelShader.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Tr2ManipulationTool.h">
@@ -1320,18 +1314,6 @@
     <ClInclude Include="Shader\Tr2ShaderBuffer.h">
       <Filter>Source Files\Shader</Filter>
     </ClInclude>
-    <ClInclude Include="Shader\Tr2ShaderManager.h">
-      <Filter>Source Files\Shader</Filter>
-    </ClInclude>
-    <ClInclude Include="Shader\Tr2ShaderMaterial.h">
-      <Filter>Source Files\Shader</Filter>
-    </ClInclude>
-    <ClInclude Include="Shader\Tr2ShaderParameterDescription.h">
-      <Filter>Source Files\Shader</Filter>
-    </ClInclude>
-    <ClInclude Include="Shader\Tr2ShaderPermuteTag.h">
-      <Filter>Source Files\Shader</Filter>
-    </ClInclude>
     <ClInclude Include="Shader\Parameter\Tr2FloatParameter.h">
       <Filter>Source Files\Shader\Parameter</Filter>
     </ClInclude>
@@ -1635,12 +1617,6 @@
     <ClCompile Include="Tr2GRNMemoryPersist.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Tr2HighLevelShader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Tr2HighLevelShader_blue.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Tr2HostBitmap.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -1684,12 +1660,6 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Tr2LineSet_Blue.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Tr2LowLevelShader.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="Tr2LowLevelShader_Blue.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Tr2ManipulationTool.cpp">
@@ -3442,30 +3412,6 @@
       <Filter>Source Files\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Shader\Tr2ShaderBuffer_Blue.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderManager.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderManager_blue.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderMaterial.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderMaterial_Blue.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderParameterDescription.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderParameterDescription_Blue.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderPermuteTag.cpp">
-      <Filter>Source Files\Shader</Filter>
-    </ClCompile>
-    <ClCompile Include="Shader\Tr2ShaderPermuteTag_Blue.cpp">
       <Filter>Source Files\Shader</Filter>
     </ClCompile>
     <ClCompile Include="Shader\Tr2Shader_Blue.cpp">

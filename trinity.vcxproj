@@ -2715,7 +2715,6 @@
     <ClInclude Include="Tr2GrannyAnimationLayer.h"/>
     <ClInclude Include="Tr2GrannyPrimitiveSet.h"/>
     <ClInclude Include="Tr2GRNMemoryPersist.h"/>
-    <ClInclude Include="Tr2HighLevelShader.h"/>
     <ClInclude Include="Tr2HostBitmap.h"/>
     <ClInclude Include="Tr2ImageIOHelpers.h"/>
     <ClInclude Include="Tr2ImpostorManager.h"/>
@@ -2725,7 +2724,6 @@
     <ClInclude Include="Tr2LineGraph.h"/>
     <ClInclude Include="Tr2LineSet.h"/>
     <ClInclude Include="Tr2LitPerObjectData.h"/>
-    <ClInclude Include="Tr2LowLevelShader.h"/>
     <ClInclude Include="Tr2ManipulationTool.h"/>
     <ClInclude Include="Tr2MaterialParameterStore.h"/>
     <ClInclude Include="Tr2Mesh.h"/>
@@ -3093,10 +3091,6 @@
     <ClInclude Include="Shader\Tr2EffectStateManager.h"/>
     <ClInclude Include="Shader\Tr2Shader.h"/>
     <ClInclude Include="Shader\Tr2ShaderBuffer.h"/>
-    <ClInclude Include="Shader\Tr2ShaderManager.h"/>
-    <ClInclude Include="Shader\Tr2ShaderMaterial.h"/>
-    <ClInclude Include="Shader\Tr2ShaderParameterDescription.h"/>
-    <ClInclude Include="Shader\Tr2ShaderPermuteTag.h"/>
     <ClInclude Include="Shader\Parameter\Tr2FloatParameter.h"/>
     <ClInclude Include="Shader\Parameter\Tr2GeometryBufferParameter.h"/>
     <ClInclude Include="Shader\Parameter\Tr2Matrix4Parameter.h"/>
@@ -3202,8 +3196,6 @@
     <ClCompile Include="Tr2GrannyPrimitiveSet.cpp"/>
     <ClCompile Include="Tr2GrannyPrimitiveSet_Blue.cpp"/>
     <ClCompile Include="Tr2GRNMemoryPersist.cpp"/>
-    <ClCompile Include="Tr2HighLevelShader.cpp"/>
-    <ClCompile Include="Tr2HighLevelShader_blue.cpp"/>
     <ClCompile Include="Tr2HostBitmap.cpp"/>
     <ClCompile Include="Tr2HostBitmap_Blue.cpp"/>
     <ClCompile Include="Tr2ImageIOHelpers.cpp"/>
@@ -3219,8 +3211,6 @@
     <ClCompile Include="Tr2LineGraph_Blue.cpp"/>
     <ClCompile Include="Tr2LineSet.cpp"/>
     <ClCompile Include="Tr2LineSet_Blue.cpp"/>
-    <ClCompile Include="Tr2LowLevelShader.cpp"/>
-    <ClCompile Include="Tr2LowLevelShader_Blue.cpp"/>
     <ClCompile Include="Tr2ManipulationTool.cpp"/>
     <ClCompile Include="Tr2ManipulationTool_Blue.cpp"/>
     <ClCompile Include="Tr2MaterialParameterStore.cpp"/>
@@ -3805,14 +3795,6 @@
     <ClCompile Include="Shader\Tr2Shader.cpp"/>
     <ClCompile Include="Shader\Tr2ShaderBuffer.cpp"/>
     <ClCompile Include="Shader\Tr2ShaderBuffer_Blue.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderManager.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderManager_blue.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderMaterial.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderMaterial_Blue.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderParameterDescription.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderParameterDescription_Blue.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderPermuteTag.cpp"/>
-    <ClCompile Include="Shader\Tr2ShaderPermuteTag_Blue.cpp"/>
     <ClCompile Include="Shader\Tr2Shader_Blue.cpp"/>
     <ClCompile Include="Shader\Parameter\Tr2FloatParameter.cpp"/>
     <ClCompile Include="Shader\Parameter\Tr2FloatParameter_Blue.cpp"/>
