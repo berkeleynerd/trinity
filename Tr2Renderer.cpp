@@ -1036,8 +1036,8 @@ bool Tr2Renderer::RunComputeShaderIndirect( Tr2Material* effect, Tr2GpuBufferAL&
 		auto& stage = technique.passes[i].stageInputs[COMPUTE_SHADER];
 		if( stage.m_exists )
 		{
-			shader->ApplyAllStateForPass( i, renderContext );
-			effect->ApplyShaderInputs( i, COMPUTE_SHADER, renderContext );
+			shader->ApplyAllStateForPass( uint32_t( i ), renderContext );
+			effect->ApplyShaderInputs( uint32_t( i ), COMPUTE_SHADER, renderContext );
 			CR_RETURN_VAL( renderContext.RunComputeShaderIndirect( indirectParams, offset ), false );
 			// Unset UAVs
 			const Tr2EffectResourceMap& uavs = stage.uavs;

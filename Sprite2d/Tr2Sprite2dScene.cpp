@@ -1646,7 +1646,7 @@ bool Tr2Sprite2dScene::SelectEffect()
 			m_effect = newEffect;
 			return true;
 #else
-			const Tr2EffectConstantVector& constants = newEffect->GetShaderStateInterface()->GetEffectDescription().passes[0].stageInputs[VERTEX_SHADER].constants;
+			const Tr2EffectConstantVector& constants = newEffect->GetShaderStateInterface()->GetEffectDescription().techniques[0].passes[0].stageInputs[VERTEX_SHADER].constants;
 			bool foundHandle = false;
 			for( auto it = constants.begin(); it != constants.end(); ++it )
 			{
