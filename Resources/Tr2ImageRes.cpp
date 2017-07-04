@@ -74,7 +74,7 @@ bool Tr2ImageRes::IsPixelOpaque( int x, int y ) const
 		return false;
 	}
 
-	if( ( x >= int( m_bitmap.GetWidth() ) ) || ( y >= int( m_bitmap.GetHeight() ) ) )
+	if( ( x < 0 ) || ( y < 0 ) || ( x >= int( m_bitmap.GetWidth() ) ) || ( y >= int( m_bitmap.GetHeight() ) ) )
 	{
 		return false;
 	}
@@ -115,7 +115,7 @@ Color Tr2ImageRes::GetPixelColor( int x, int y ) const
 		}
 	}
 
-	if( ( x >= int( m_bitmap.GetWidth() ) ) || ( y >= int( m_bitmap.GetHeight() ) ) )
+	if( ( x < 0 ) || ( y < 0 ) || ( x >= int( m_bitmap.GetWidth() ) ) || ( y >= int( m_bitmap.GetHeight() ) ) )
 	{
 		return Color( 0.0f, 0.0f, 0.0f, 0.0f );
 	}
