@@ -5,7 +5,7 @@ Imports:
 - ../../../../../../sdk/squish/1.10/squish_1.10.yaml
 - ../CcpMath/uses_CcpMath.yaml
 - ../../../../../../sdk/muparser/v2.2.5/muparser.yaml
-- ../../../../../../sdk/freetype/2.4.6/freetype_2.4.6.yaml
+- ../../../../../../sdk/freetype/2.8.0/freetype_2.8.0.yaml
 
 # Settings from the General section, for all configurations
 General:
