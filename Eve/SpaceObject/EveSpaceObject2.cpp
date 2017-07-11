@@ -869,7 +869,7 @@ const Matrix* EveSpaceObject2::GetLocatorTransform( LocatorType lt, unsigned int
 		{
 			if( !m_animationUpdater || !m_animationUpdater->m_worldPose )
 			{
-				return NULL;
+				return nullptr;
 			}
 
 			return reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_animationUpdater->m_worldPose, lix ) );

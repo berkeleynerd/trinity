@@ -492,6 +492,10 @@ void EveMobile::RebuildTurretPositions()
 
 		// check how many turrets this locator will have (=versions on the ship)
 		unsigned int locatorCount = CountLocatorsByPrefix( locatorBase.c_str() );
+		if( locatorCount == 0 )
+		{
+			CCP_LOGERR( "Unable to find turret locator %s on ship %s,%s", locatorBase.c_str(), m_name.c_str(), m_dna.c_str() );
+		}
 
 		for( unsigned int i = 0; i < locatorCount; ++i )
 		{
@@ -517,6 +521,7 @@ void EveMobile::RebuildTurretPositions()
 				locatorInfo.locatorIndices.push_back( locatorIndex );
 			}
 		}
+
 		// add the locatorInfo to this ship's list
 		m_turretSetsLocatorInfo.push_back( locatorInfo );
 

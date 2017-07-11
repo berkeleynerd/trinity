@@ -895,16 +895,15 @@ void EveTurretSet::UpdateSyncronous( float deltaT, Be::Time time, const Matrix* 
 // --------------------------------------------------------------------------------
 void EveTurretSet::UpdateAsyncronous( EveUpdateContext& updateContext, const ParentData* parentData )
 {
+	// keep parent's transform
+	m_parentData = *parentData;
+
 	if( !m_singleTurrets.size() )
 	{
 		return;
 	}
 
 	float deltaT = updateContext.GetDeltaT();
-
-	// keep parent's transform
-	m_parentData = *parentData;
-
 	UpdateTurretTransforms( &parentData->transform );
 
 	// handle fading of turret tracking
@@ -1078,10 +1077,10 @@ Matrix EveTurretSet::GetFiringBoneWorldTransform( unsigned int muzzle ) const
 		GetClosestTurretAndLocator( closestTurret, closestLocator );
 	}
 
-	// this is a problem...
+	// this is a problem, only thing to do is to return the parent's worldtransform
 	if( closestTurret == INVALID_TURRET_INDEX )
 	{ 
-		return Tr2Renderer::GetIdentityTransform();
+		return m_parentData.transform;
 	}
 
 	// source comes from position bones or, if we don't have any, from center of turret
