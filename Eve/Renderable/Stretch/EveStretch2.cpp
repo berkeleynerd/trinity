@@ -367,12 +367,18 @@ void EveStretch2::GetLights( Tr2LightManager& lightManager ) const
 	{
 		return;
 	}
+	if( !m_sourceLight && !m_destinationLight )
+	{
+		return;
+	}
+	Matrix source, destination;
+	GetEndPointTransforms( source, destination );
 	if( m_sourceLight )
 	{
-		m_sourceLight->AddLight( lightManager, XMMatrixTranslation( m_source.x, m_source.y, m_source.z ), 1.0f );
+		m_sourceLight->AddLight( lightManager, source, 1.0f );
 	}
 	if( m_destinationLight )
 	{
-		m_destinationLight->AddLight( lightManager, XMMatrixTranslation( m_destination.x, m_destination.y, m_destination.z ), m_currentDestinationScale );
+		m_destinationLight->AddLight( lightManager, destination, m_currentDestinationScale );
 	}
 }
