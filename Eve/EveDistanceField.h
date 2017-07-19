@@ -12,7 +12,7 @@ BLUE_DECLARE_INTERFACE( ITriVectorFunction );
 BLUE_DECLARE_VECTOR( ITriVectorFunction );
 BLUE_DECLARE( TriCurveSet );
 BLUE_DECLARE( TriView );
-BLUE_DECLARE( Tr2ScalarCurve );
+BLUE_DECLARE( Tr2CurveScalar );
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -43,7 +43,7 @@ private:
 	PITriVectorFunctionVector m_objects;
 
 	TriCurveSetPtr m_curveSet;
-	Tr2ScalarCurvePtr m_distanceCurve;
+	Tr2CurveScalarPtr m_distanceCurve;
 
 	TriViewPtr m_cameraView;
 

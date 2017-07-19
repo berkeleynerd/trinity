@@ -7,7 +7,6 @@
 #include "TriRenderBatch.h"
 #include "TriFrustum.h"
 #include "TriSettingsRegistrar.h"
-#include "Curves/TriVectorCurve.h"
 #include "Include/TriMath.h"
 
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"

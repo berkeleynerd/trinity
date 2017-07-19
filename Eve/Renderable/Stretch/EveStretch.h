@@ -6,7 +6,6 @@
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveTransform.h"
 #include "Curves/TriCurveSet.h"
-#include "Curves/Tr2ScalarCurve.h"
 #include "Eve/IEveFiringEffectElement.h"
 
 BLUE_DECLARE( EveStretch );

@@ -33,14 +33,13 @@ exposes m_pos m_intr m_viewVec which are updated every Render. This is done \r\n
 to make camera specific effect easy."
 
 
-#include "Curves/TriScalarCurve.h"
-#include "Curves/TriVectorCurve.h"
-#include "Curves/TriRotationCurve.h"
 #include "TriObserverLocal.h"
 
 BLUE_DECLARE( EveCamera );
 BLUE_DECLARE( TriProjection );
 BLUE_DECLARE( TriView );
+BLUE_DECLARE_INTERFACE( ITriVectorFunction );
+BLUE_DECLARE_INTERFACE( ITriScalarFunction );
 
 class EveCamera:
 	public INotify

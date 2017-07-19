@@ -247,11 +247,7 @@ void EveStretch::UpdateVisibility( const TriFrustum& frustum, const Matrix& pare
 		if( m_progressCurve && m_moveObject )
 		{ 
 			float progress = 0;
-			if( auto curve = dynamic_cast<Tr2ScalarCurve*>( m_progressCurve.p ) )
-			{
-				progress = curve->m_currentValue;
-			}
-			else if( auto curve = dynamic_cast<Tr2CurveScalar*>( m_progressCurve.p ) )
+			if( auto curve = dynamic_cast<Tr2CurveScalar*>( m_progressCurve.p ) )
 			{
 				progress = curve->GetCurrentValue();
 			}

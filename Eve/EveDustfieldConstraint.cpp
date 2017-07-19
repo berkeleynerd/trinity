@@ -9,7 +9,7 @@
 #include "EveDustfieldConstraint.h"
 #include "EveUpdateContext.h"
 #include "Particle/Tr2ParticleSystem.h"
-#include "Curves/Tr2ScalarCurve.h"
+#include "Include/ITriFunction.h"
 #include <limits>
 #include "TriView.h"
 

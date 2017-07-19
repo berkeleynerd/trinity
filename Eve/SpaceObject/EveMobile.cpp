@@ -9,7 +9,6 @@
 #include "Tr2GrannyAnimation.h"
 
 #include "EveMobile.h"
-#include "Curves/TriScalarCurve.h"
 #include "Eve/Turret/EveTurretSet.h"
 #include "Eve/SpaceObject/Utils/EveLocator2.h"
 #include "Eve/EveUpdateContext.h"

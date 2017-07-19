@@ -7,8 +7,6 @@
 #include "Include/TriMath.h"
 #include "Curves/Tr2CurveScalar.h"
 
-BLUE_DECLARE( TriScalarCurve );
-
 static const float defFOV = TRI_PIBY2;
 
 static inline float CutoffYawPitch( float value, float speed )
@@ -194,10 +192,6 @@ void EveCamera::Zoom( Be::OptionalWithDefaultValue<int, -1> key )
 	{
 		size = ssize_t( curve->GetKeys().size() );
 	}
-	else if( TriScalarCurvePtr curve = BlueCastPtr( m_zoomCurve ) )
-	{
-		size = curve->mKeys.GetSize();
-	}
 	if (size < 1)
 	{
 		TriError::ReportError( BEDEF, Clsid(), 
@@ -216,10 +210,6 @@ void EveCamera::Zoom( Be::OptionalWithDefaultValue<int, -1> key )
 	if( Tr2CurveScalarPtr curve = BlueCastPtr( m_zoomCurve ) )
 	{
 		m_zoomTime = curve->GetKeys()[m_zoomKey].m_time;
-	}
-	else if( TriScalarCurvePtr curve = BlueCastPtr( m_zoomCurve ) )
-	{
-		m_zoomTime = curve->mKeys[m_zoomKey]->mTime;
 	}
 }
 
@@ -285,19 +275,6 @@ void EveCamera::Update( Be::Time t )
 				m_zoomTime += (float)dT;
 				if( m_zoomTime > curve->GetKeys()[m_zoomKey + 1].m_time )
 					m_zoomTime = curve->GetKeys()[m_zoomKey + 1].m_time;
-				m_fieldOfView = curve->Update( m_zoomTime );
-			}
-		}
-	}
-	else if( TriScalarCurvePtr curve = BlueCastPtr( m_zoomCurve ) )
-	{
-		if( curve->mLength > 0.0f )
-		{
-			if( ( curve->mKeys.GetSize() > ( m_zoomKey + 1 ) ) && ( m_zoomTime < curve->mKeys[m_zoomKey + 1]->mTime ) )
-			{
-				m_zoomTime += (float)dT;
-				if( m_zoomTime > curve->mKeys[m_zoomKey + 1]->mTime )
-					m_zoomTime = curve->mKeys[m_zoomKey + 1]->mTime;
 				m_fieldOfView = curve->Update( m_zoomTime );
 			}
 		}

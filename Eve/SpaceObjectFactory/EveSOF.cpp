@@ -36,10 +36,10 @@
 #include "Shader/Parameter/Tr2Vector4Parameter.h"
 #include "Shader/Parameter/Tr2FloatParameter.h"
 #include "include/ITriFunction.h"
-#include "Curves/Tr2QuaternionCurve.h"
-#include "Curves/Tr2ScalarCurve.h"
+#include "Curves/Tr2CurveQuaternion.h"
+#include "Curves/Tr2CurveScalar.h"
 #include "Curves/TriCurveSet.h"
-#include "Curves/TriRotationCurve.h"
+#include "Curves/Tr2RotationAdapter.h"
 #include "TriValueBinding.h"
 #include "Particle/Tr2DynamicEmitter.h"
 #include "Particle/Tr2GpuUniqueEmitter.h"
@@ -938,7 +938,7 @@ void EveSOF::SetupModelCurves( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) 
 	}
 }
 
-void RecursiveBindParticleEmitters( EveTransformPtr transform, TriCurveSetPtr curveSet, Tr2ScalarCurvePtr curve )
+void RecursiveBindParticleEmitters( EveTransform* transform, TriCurveSet* curveSet, Tr2CurveScalar* curve )
 {
 	for( auto emitterIt = transform->m_particleEmitters.begin(); emitterIt != transform->m_particleEmitters.end(); ++emitterIt )
 	{
@@ -967,7 +967,7 @@ void RecursiveBindParticleEmitters( EveTransformPtr transform, TriCurveSetPtr cu
 	}
 }
 
-void RecursiveBindParticleEmitters( IEveSpaceObjectChild* child, TriCurveSetPtr curveSet, Tr2ScalarCurvePtr curve )
+void RecursiveBindParticleEmitters( IEveSpaceObjectChild* child, TriCurveSet* curveSet, Tr2CurveScalar* curve )
 {
 	if( EveChildContainerPtr container = BlueCastPtr( child ) )
 	{
@@ -1067,11 +1067,11 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 		// Do we control particle systems?
 		if( animIt->id != -1 && animIt->startRate != -1.0 )
 		{
-			Tr2ScalarCurvePtr scalarCurve;
+			Tr2CurveScalarPtr scalarCurve;
 			scalarCurve.CreateInstance();
 
-			scalarCurve->AddKey( 0.0f, animIt->startRate );
-			scalarCurve->AddKey( 1.0f, animIt->endRate );
+			scalarCurve->AddKey( 0.0f, animIt->startRate, Tr2CurveInterpolation::LINEAR, 0, 0, Tr2CurveTangentType::AUTO );
+			scalarCurve->AddKey( 1.0f, animIt->endRate, Tr2CurveInterpolation::LINEAR, 0, 0, Tr2CurveTangentType::AUTO );
 
 			std::vector<EveTransformPtr> transformVector = childrenToBindTo[animIt->id];
 			for( auto transformIt = transformVector.begin(); transformIt != transformVector.end(); ++transformIt )
@@ -1090,16 +1090,11 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 		if( animIt->startRotationTime != -1.0 )
 		{
 			// Create the rotations curve
-			Tr2QuaternionCurvePtr curve;
+			Tr2CurveQuaternionPtr curve;
 			curve.CreateInstance();
-			curve->SetLength( animIt->endRotationTime );
-			curve->SetEndValue( animIt->endRotationValue );
-			curve->SetStartValue( animIt->startRotationValue );
-			if( animIt->startRotationTime != 0.0 )
-			{
-				curve->SetStartValue( animIt->startRotationValue );
-				curve->AddKey( animIt->startRotationTime, animIt->startRotationValue );
-			}
+			curve->AddKey( animIt->startRotationTime, animIt->startRotationValue, Tr2CurveInterpolation::LINEAR );
+			curve->AddKey( animIt->endRotationTime, animIt->endRotationValue, Tr2CurveInterpolation::LINEAR );
+
 			curveSet->AddCurve( (ITriFunctionPtr)curve );
 			
 			// Create the binding to the model rotation curve
@@ -1108,9 +1103,9 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 			binding->SetSource( "currentValue", curve->GetRawRoot() );
 			if( !obj->GetModelRotationCurve() )
 			{
-				TriRotationCurvePtr modelRotationcurve;
+				Tr2RotationAdapterPtr modelRotationcurve;
 				modelRotationcurve.CreateInstance();
-				obj->SetModelRotationCurve( (ITriQuaternionFunctionPtr)modelRotationcurve );
+				obj->SetModelRotationCurve( modelRotationcurve.p );
 			}
 			binding->SetDestination( "value", obj->GetModelRotationCurve()->GetRootObject() );
 			binding->Initialize();

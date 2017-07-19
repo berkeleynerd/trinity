@@ -5,7 +5,9 @@
 #include "TriView.h"
 #include "EveUpdateContext.h"
 #include "Curves/TriCurveSet.h"
-#include "Curves/Tr2ScalarCurve.h"
+#include "Curves/Tr2CurveScalar.h"
+#include "Include/ITriFunction.h"
+
 
 
 EveDistanceField::EveDistanceField( IRoot* lockobj ) :
@@ -176,8 +178,13 @@ void EveDistanceField::UpdateDistanceCurveSize()
 {
 	if( m_distanceCurve )
 	{
-		m_distanceCurve->m_length = m_maxDistance ;
-		m_distanceCurve->m_timeOffset = 0;
+		auto& keys = m_distanceCurve->GetKeys();
+		if( keys.size() > 1 )
+		{
+			keys[keys.size() - 1].m_time = m_maxDistance;
+			m_distanceCurve->OnKeysChanged();
+		}
+		m_distanceCurve->SetTimeOffset( 0 );
 		m_updateDistanceCurve = false;
 	}
 }
@@ -186,10 +193,10 @@ void EveDistanceField::CreateCurveSet()
 {
 	m_curveSet.CreateInstance();
 	m_distanceCurve.CreateInstance();
-	m_distanceCurve->m_name = "DistanceCurve";
-	m_distanceCurve->m_length = 50000.0f;
-	m_distanceCurve->m_timeOffset = 0.0f;
-	m_distanceCurve->m_startValue = 1.0f;
+	m_distanceCurve->SetName( "DistanceCurve" );
+	m_distanceCurve->AddKey( 0, 1, Tr2CurveInterpolation::LINEAR, 0, 0, Tr2CurveTangentType::AUTO );
+	m_distanceCurve->AddKey( 50000.0f, 0, Tr2CurveInterpolation::LINEAR, 0, 0, Tr2CurveTangentType::AUTO );
+	m_distanceCurve->SetTimeOffset( 0 );
 
 	m_curveSet->AddCurve( ( ITriFunctionPtr ) m_distanceCurve );
 }
