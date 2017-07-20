@@ -228,18 +228,6 @@ Vector3* EveLocalPositionCurve::GetDamageLocatorImpact( Vector3* in, Be::Time t 
 	return in;
 }
 
-// --------------------------------------------------------------------------------
-Vector3* EveLocalPositionCurve::GetTurretEffectPosition( Vector3* in, Be::Time t )
-{
-	if( !m_turretSet )
-	{
-		return in;
-	}
-	Matrix muzzleTransform = m_turretSet->GetEffectBoneWorldTransform();
-	*in = muzzleTransform.GetTranslation();
-	return in;
-}
-
 /////////////////////////////////////////////////////////////////////////////////////
 // ITriFunction
 /////////////////////////////////////////////////////////////////////////////////////
@@ -263,8 +251,6 @@ Vector3* EveLocalPositionCurve::Update(
 		return CalculateOffsetPosition( in, t );
 	case POS_OFFSET_PLANE_ROTATION:
 		return CalculateOffsetPlaneRotation( in, t );
-	case POS_TURRET_EFFECT_BONE:
-		return GetTurretEffectPosition( in, t );
 	default:
 		break;
 	}

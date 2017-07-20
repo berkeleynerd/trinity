@@ -57,12 +57,6 @@ void EveStretch::UpdateSyncronous( EveUpdateContext& updateContext )
 	{
 		m_dest->Update( &m_destinationPosition, time );
 	}
-	
-	if( m_sourceTurretSet )
-	{
-		Matrix effectTransform = m_sourceTurretSet->GetEffectBoneWorldTransform();
-		SetFiringTransform( effectTransform, m_destinationPosition );
-	}
 }
 
 void EveStretch::UpdateAsyncronous( EveUpdateContext& updateContext )

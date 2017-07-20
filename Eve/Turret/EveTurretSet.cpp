@@ -40,7 +40,6 @@ static std::string s_systemBoneSkeletonNames[] = {
 	"Sys_Pitch_Arm04",		// SYSBONE_SCALED_PITCH04
 	"Sys_Pitch_Arm05",		// SYSBONE_SCALED_PITCH05
 	"Sys_Pitch_Arm06",		// SYSBONE_SCALED_PITCH06
-	"Pos_Effect",           // POS_EFFECT
 };
 
 // invalids
@@ -1094,28 +1093,6 @@ Matrix EveTurretSet::GetFiringBoneWorldTransform( unsigned int muzzle ) const
 	unsigned int boneID = m_firingEffect->GetPerMuzzleBoneID( muzzle );
 	return GetTurretBoneTransform( closestTurret, boneID );
 }
-
-// --------------------------------------------------------------------------------
-Matrix EveTurretSet::GetEffectBoneWorldTransform() const
-{
-	// there MUST be an avtive turret aka a "firing turret"!
-	unsigned int closestTurret = m_activeTurret;
-	// so if we don't have one, calc one temporarily
-	if( closestTurret == INVALID_TURRET_INDEX )
-	{
-		int closestLocator = -1;
-		GetClosestTurretAndLocator( closestTurret, closestLocator );
-	}
-
-	// this is a problem...
-	if( closestTurret == INVALID_TURRET_INDEX )
-	{ 
-		return Tr2Renderer::GetIdentityTransform();
-	}
-
-	return GetTurretBoneTransform( closestTurret, m_systemBoneID[POS_EFFECT] );
-}
-
 
 // --------------------------------------------------------------------------------
 Matrix EveTurretSet::GetTurretBoneTransform( uint32_t closestTurret, uint32_t boneID ) const

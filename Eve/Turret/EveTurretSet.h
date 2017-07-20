@@ -181,7 +181,6 @@ public:
 
 	// get worldmatrix of the currently firing bone
 	Matrix GetFiringBoneWorldTransform( unsigned int muzzle ) const;
-	Matrix GetEffectBoneWorldTransform() const;
 
 	// missed shots
 	void SetShotMissed( bool missed );
@@ -230,7 +229,6 @@ private:
 		SYSBONE_SCALED_PITCH04,
 		SYSBONE_SCALED_PITCH05,
 		SYSBONE_SCALED_PITCH06,
-		POS_EFFECT,
 		SYSBONE_MAX,
 	};
 

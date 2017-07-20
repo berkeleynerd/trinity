@@ -10,7 +10,6 @@
 
 BLUE_DECLARE( EveStretch );
 BLUE_DECLARE( TriFloat );
-BLUE_DECLARE( EveTurretSet );
 
 class EveStretch:
 	public IEveFiringEffectElement,
@@ -110,8 +109,6 @@ private:
 	ITriVectorFunctionPtr m_source;
 	ITriVectorFunctionPtr m_dest;
 	
-	EveTurretSetPtr m_sourceTurretSet;
-
 	EveTransformPtr m_sourceObject;
 	EveTransformPtr m_destObject;
 	EveTransformPtr m_stretchObject;
