@@ -256,14 +256,6 @@ bool Tr2PrimitiveScene::RenderPicking(
         return false;
     }
 
-    TriRenderBatch* p = pOpaquePickingBatches->GetFirstBatch();
-
-    if( p != NULL )
-    {
-        renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_PICKING );
-        renderContext.RenderBatchesForPicking( GetPickingEffect( pass ), p, DEFAULT_TECHNIQUE, objectNum );
-    }
-
     if( pPickingBatches && RenderPickingAreasForComponents( pass ) )
     {
         pPickingBatches->Finalize();
