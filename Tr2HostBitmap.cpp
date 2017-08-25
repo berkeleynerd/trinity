@@ -771,12 +771,12 @@ PyObject *Tr2HostBitmap::PySetPixels( PyObject *args )
 //   true if successful
 //   false Otherwise
 // --------------------------------------------------------------------------------------
-bool Tr2HostBitmap::CreateFromHeightData( const std::vector<float>& data, size_t width, size_t height )
+bool Tr2HostBitmap::CreateFromHeightData( const std::vector<float>& data, int32_t width, int32_t height )
 {
 	float scaleX = float( width - 1) / float( m_width );
 	float scaleY = float( height - 1) / float( m_height );
 
-	int yIndex[4];
+	int32_t yIndex[4];
 	float yValues[4];
 
 	int components = GetBytesPerPixel( m_format );
@@ -785,29 +785,29 @@ bool Tr2HostBitmap::CreateFromHeightData( const std::vector<float>& data, size_t
 		return false;
 	}
 
-	for( size_t y = 0; y < m_height; y++ )
+	for( uint32_t y = 0; y < m_height; y++ )
 	{
 		float sy = y * scaleY;
-		size_t dataY = size_t( sy );
+		int32_t dataY = int32_t( sy );
 		sy = sy - dataY;
 
-		for( size_t yi = 0; yi < 4; yi++ )
+		for( int32_t yi = 0; yi < 4; yi++ )
 		{
 			// Clamp the y axis
-			yIndex[yi] = ClampInt(dataY + yi - 1, 0, width - 1) * width;
+			yIndex[yi] = ClampInt( dataY + yi - 1, 0, width - 1 ) * width;
 		}
 
-		for( size_t x = 0; x < m_width; x++ )
+		for( uint32_t x = 0; x < m_width; x++ )
 		{
 			float sx = x * scaleX;
-			size_t dataX = size_t( sx );
+			int32_t dataX = int32_t( sx );
 			sx = sx - dataX;
 
-			for( size_t i = 0; i < 4; i++ )
+			for( int32_t i = 0; i < 4; i++ )
 			{
-				uint32_t index = dataX + i - 1;
+				int32_t index = dataX + i - 1;
 				// Wrap the x axis
-				size_t xIdx = index < 0 ? width - index: index % width;
+				int32_t xIdx = index < 0 ? width - index: index % width;
 				yValues[i] = CubicInterpolate( data[yIndex[0] + xIdx], data[yIndex[1] + xIdx], data[yIndex[2] + xIdx], data[yIndex[3] + xIdx], sy );
 			}
 			uint8_t value = uint8_t( CubicInterpolate( yValues[0], yValues[1], yValues[2], yValues[3], sx ) * 255 );
