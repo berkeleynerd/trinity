@@ -375,10 +375,10 @@
 			fileRef = 000001A8000044b827000cae;
 			};
 		00000918000044b827000cae = {
-			name = OpenGL.framework;
+			name = libjpeg.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/OpenGL.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/libjpg/jpeg-9b/lib/MacOsXx86_64/libjpeg.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -1069,10 +1069,10 @@
 			fileRef = 000007BA000044b827000cae;
 			};
 		0000091C000044b827000cae = {
-			name = libCcpCore.a;
+			name = libz.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../autobuild/CcpCore/MacOsXx86_64/clang4.2/libCcpCore.a";
+			path = "../../../../../../sdk/zlib/1.2.11/lib/MacOsXx86_64/libz.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -1157,10 +1157,10 @@
 			sourceTree = "<group>";
 			};
 		00000908000044b827000cae = {
-			name = libCcpMath.a;
+			name = libTrinityAL_gles2.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../autobuild/CcpMath/MacOsXx86_64/clang4.2/libCcpMath.a";
+			path = "../../autobuild/TrinityAL/MacOsXx86_64/clang4.2/libTrinityAL_gles2.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -1693,10 +1693,10 @@
 			fileRef = 0000017A000044b827000cae;
 			};
 		00000912000044b827000cae = {
-			name = Cocoa.framework;
+			name = libsquish.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/Cocoa.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/squish/1.10/lib/MacOsXx86_64/libsquish.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -1918,7 +1918,7 @@
 					"../../../../../../sdk/zlib/1.2.11/include",
 					"../../../../../../sdk/squish/1.10/include",
 					"../../../../../../sdk/muparser/v2.2.5/include",
-					"../../../../../../sdk/freetype/2.8.0/include",
+					"../../../../../../sdk/freetype/2.4.6/include",
 					.,
 					..,
 					);
@@ -1964,6 +1964,7 @@
 					"../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64",
 					"../../../../../../sdk/zlib/1.2.11/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/squish/1.10/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../carbon/autobuild/CcpCore/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/libpng/1.6.29/lib/MacOsX$(ARCHS)/clang4.2",
@@ -1971,7 +1972,7 @@
 					"../../autobuild/ImageIO/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/autobuild/CcpMath/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/muparser/v2.2.5/lib/MacOsX$(ARCHS)/clang4.2",
-					"../../../../../../sdk/freetype/2.8.0/lib/MacOsX$(ARCHS)/clang4.2",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)/vc2010",
 					);
 				SYMROOT = "../../autobuild/trinity/python_27/MacOsX$(ARCHS)/clang4.2";
 				OBJROOT = "../../autobuild/temp/trinity/MacOsX$(ARCHS)/$(CONFIGURATION)";
@@ -2815,10 +2816,10 @@
 			fileRef = 00000338000044b827000cae;
 			};
 		0000090E000044b827000cae = {
-			name = libgranny2_osx64.a;
+			name = libpng.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
+			path = "../../../../../../sdk/libpng/1.6.29/lib/MacOsXx86_64/clang4.2/libpng.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -2988,10 +2989,10 @@
 			name = Renderable;
 			};
 		00000914000044b827000cae = {
-			name = libsquish.a;
+			name = libImageIO.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/squish/1.10/lib/MacOsXx86_64/libsquish.a";
+			path = "../../autobuild/ImageIO/MacOsXx86_64/clang4.2/libImageIO.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -4318,25 +4319,25 @@
 			files = (
 				000008F3000044b827000cae,
 				000008FF000044b827000cae,
-				0000090B000044b827000cae,
+				00000909000044b827000cae,
 				000008FD000044b827000cae,
-				00000919000044b827000cae,
-				0000091B000044b827000cae,
-				0000090D000044b827000cae,
-				00000911000044b827000cae,
-				0000090F000044b827000cae,
-				000008F7000044b827000cae,
-				00000903000044b827000cae,
-				00000913000044b827000cae,
-				00000915000044b827000cae,
-				00000921000044b827000cae,
-				0000091D000044b827000cae,
-				000008F5000044b827000cae,
-				00000905000044b827000cae,
 				00000917000044b827000cae,
-				000008FB000044b827000cae,
-				00000907000044b827000cae,
+				00000919000044b827000cae,
+				0000090B000044b827000cae,
+				0000090F000044b827000cae,
+				0000090D000044b827000cae,
+				000008F7000044b827000cae,
 				00000901000044b827000cae,
+				0000091F000044b827000cae,
+				00000911000044b827000cae,
+				00000913000044b827000cae,
+				00000921000044b827000cae,
+				0000091B000044b827000cae,
+				00000903000044b827000cae,
+				00000915000044b827000cae,
+				000008FB000044b827000cae,
+				00000905000044b827000cae,
+				000008F5000044b827000cae,
 				);
 			buildActionMask = 2147483647;
 			isa = PBXFrameworksBuildPhase;
@@ -4433,10 +4434,10 @@
 			sourceTree = "<group>";
 			};
 		00000902000044b827000cae = {
-			name = libfreetype.a;
+			name = OpenCL.framework;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/freetype/2.8.0/lib/MacOsXx86_64/clang4.2/libfreetype.a";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/OpenCL.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -4989,10 +4990,10 @@
 			sourceTree = "<group>";
 			};
 		0000090C000044b827000cae = {
-			name = libtbb.dylib;
+			name = libgranny2_osx64.a;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsXx86_64/clang4.2/libtbb.dylib";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -5817,10 +5818,10 @@
 			fileRef = 000004CC000044b827000cae;
 			};
 		00000920000044b827000cae = {
-			name = libpython2.7.dylib;
+			name = libfreetype.a;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../shared_tools/python/27_mac/lib/libpython2.7.dylib";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/freetype/2.4.6/lib/MacOsXx86_64/libfreetype.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -7067,67 +7068,67 @@
 			isa = PBXGroup;
 			sourceTree = "<group>";
 			children = (
-				0000090A000044b827000cae,
+				00000908000044b827000cae,
 				000008F4000044b827000cae,
-				0000090C000044b827000cae,
+				0000090A000044b827000cae,
 				000008F6000044b827000cae,
+				00000918000044b827000cae,
 				0000091A000044b827000cae,
 				0000091C000044b827000cae,
-				0000091E000044b827000cae,
-				00000910000044b827000cae,
 				0000090E000044b827000cae,
-				00000914000044b827000cae,
+				0000090C000044b827000cae,
 				00000912000044b827000cae,
+				00000910000044b827000cae,
 				00000920000044b827000cae,
-				00000916000044b827000cae,
+				0000091E000044b827000cae,
+				00000914000044b827000cae,
 				00000922000044b827000cae,
-				00000906000044b827000cae,
-				000008FA000044b827000cae,
-				00000918000044b827000cae,
-				000008FC000044b827000cae,
-				00000908000044b827000cae,
-				00000902000044b827000cae,
-				000008F4000044b827000cae,
-				00000900000044b827000cae,
-				0000090C000044b827000cae,
-				000008FE000044b827000cae,
-				0000091A000044b827000cae,
-				0000091C000044b827000cae,
-				0000090E000044b827000cae,
-				00000912000044b827000cae,
-				00000910000044b827000cae,
-				000008F8000044b827000cae,
 				00000904000044b827000cae,
-				00000914000044b827000cae,
+				000008FA000044b827000cae,
 				00000916000044b827000cae,
-				00000922000044b827000cae,
-				0000091E000044b827000cae,
-				000008F6000044b827000cae,
-				00000906000044b827000cae,
-				00000918000044b827000cae,
 				000008FC000044b827000cae,
-				00000908000044b827000cae,
-				00000902000044b827000cae,
-				0000090A000044b827000cae,
+				00000906000044b827000cae,
 				000008F4000044b827000cae,
-				0000090C000044b827000cae,
-				000008FE000044b827000cae,
 				00000900000044b827000cae,
-				0000091C000044b827000cae,
-				0000091E000044b827000cae,
+				0000090A000044b827000cae,
+				000008FE000044b827000cae,
+				00000918000044b827000cae,
+				0000091A000044b827000cae,
+				0000090C000044b827000cae,
 				00000910000044b827000cae,
 				0000090E000044b827000cae,
-				00000912000044b827000cae,
-				0000091A000044b827000cae,
-				00000914000044b827000cae,
-				00000916000044b827000cae,
-				00000922000044b827000cae,
-				000008F6000044b827000cae,
-				00000906000044b827000cae,
-				00000918000044b827000cae,
-				000008FC000044b827000cae,
-				00000908000044b827000cae,
+				000008F8000044b827000cae,
 				00000902000044b827000cae,
+				00000920000044b827000cae,
+				00000912000044b827000cae,
+				00000914000044b827000cae,
+				00000922000044b827000cae,
+				0000091C000044b827000cae,
+				00000904000044b827000cae,
+				00000916000044b827000cae,
+				000008FC000044b827000cae,
+				00000906000044b827000cae,
+				000008F6000044b827000cae,
+				00000908000044b827000cae,
+				000008F4000044b827000cae,
+				0000090A000044b827000cae,
+				000008FE000044b827000cae,
+				00000900000044b827000cae,
+				0000091A000044b827000cae,
+				0000091C000044b827000cae,
+				0000090E000044b827000cae,
+				0000090C000044b827000cae,
+				00000910000044b827000cae,
+				00000918000044b827000cae,
+				00000920000044b827000cae,
+				00000912000044b827000cae,
+				00000914000044b827000cae,
+				00000922000044b827000cae,
+				00000904000044b827000cae,
+				00000916000044b827000cae,
+				000008FC000044b827000cae,
+				00000906000044b827000cae,
+				000008F6000044b827000cae,
 				);
 			name = Dependencies;
 			};
@@ -7406,7 +7407,7 @@
 					"../../../../../../sdk/zlib/1.2.11/include",
 					"../../../../../../sdk/squish/1.10/include",
 					"../../../../../../sdk/muparser/v2.2.5/include",
-					"../../../../../../sdk/freetype/2.8.0/include",
+					"../../../../../../sdk/freetype/2.4.6/include",
 					.,
 					..,
 					);
@@ -7452,6 +7453,7 @@
 					"../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64",
 					"../../../../../../sdk/zlib/1.2.11/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/squish/1.10/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../carbon/autobuild/CcpCore/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/libpng/1.6.29/lib/MacOsX$(ARCHS)/clang4.2",
@@ -7459,7 +7461,7 @@
 					"../../autobuild/ImageIO/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/autobuild/CcpMath/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/muparser/v2.2.5/lib/MacOsX$(ARCHS)/clang4.2",
-					"../../../../../../sdk/freetype/2.8.0/lib/MacOsX$(ARCHS)/clang4.2",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)/vc2010",
 					);
 				SYMROOT = "../../autobuild/trinity/exefile/MacOsX$(ARCHS)/clang4.2";
 				OBJROOT = "../../autobuild/temp/trinity/MacOsX$(ARCHS)/$(CONFIGURATION)";
@@ -8171,10 +8173,10 @@
 			fileRef = 0000062A000044b827000cae;
 			};
 		00000904000044b827000cae = {
-			name = OpenCL.framework;
+			name = libGLEW.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/OpenCL.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64/libGLEW.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -8464,26 +8466,26 @@
 			};
 		0000094E000044b827000cae = {
 			files = (
-				00000909000044b827000cae,
+				00000907000044b827000cae,
 				000008F3000044b827000cae,
-				0000090B000044b827000cae,
+				00000909000044b827000cae,
 				000008FD000044b827000cae,
 				000008FF000044b827000cae,
-				0000091B000044b827000cae,
-				0000091D000044b827000cae,
-				0000090F000044b827000cae,
-				0000090D000044b827000cae,
-				00000911000044b827000cae,
 				00000919000044b827000cae,
-				00000913000044b827000cae,
-				00000915000044b827000cae,
-				00000921000044b827000cae,
-				000008F5000044b827000cae,
-				00000905000044b827000cae,
+				0000091B000044b827000cae,
+				0000090D000044b827000cae,
+				0000090B000044b827000cae,
+				0000090F000044b827000cae,
 				00000917000044b827000cae,
+				0000091F000044b827000cae,
+				00000911000044b827000cae,
+				00000913000044b827000cae,
+				00000921000044b827000cae,
+				00000903000044b827000cae,
+				00000915000044b827000cae,
 				000008FB000044b827000cae,
-				00000907000044b827000cae,
-				00000901000044b827000cae,
+				00000905000044b827000cae,
+				000008F5000044b827000cae,
 				);
 			buildActionMask = 2147483647;
 			isa = PBXFrameworksBuildPhase;
@@ -9677,10 +9679,10 @@
 			fileRef = 00000104000044b827000cae;
 			};
 		0000091A000044b827000cae = {
-			name = libjpeg.a;
+			name = libCcpCore.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/libjpg/jpeg-9b/lib/MacOsXx86_64/libjpeg.a";
+			path = "../../autobuild/CcpCore/MacOsXx86_64/clang4.2/libCcpCore.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -9899,10 +9901,10 @@
 			sourceTree = "<group>";
 			};
 		00000906000044b827000cae = {
-			name = libGLEW.a;
+			name = libCcpMath.a;
 			fileEncoding = 4;
 			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64/libGLEW.a";
+			path = "../../autobuild/CcpMath/MacOsXx86_64/clang4.2/libCcpMath.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -10868,26 +10870,26 @@
 			};
 		00000948000044b827000cae = {
 			files = (
-				00000909000044b827000cae,
+				00000907000044b827000cae,
 				000008F3000044b827000cae,
-				0000090B000044b827000cae,
+				00000909000044b827000cae,
 				000008F5000044b827000cae,
+				00000917000044b827000cae,
 				00000919000044b827000cae,
 				0000091B000044b827000cae,
-				0000091D000044b827000cae,
-				0000090F000044b827000cae,
 				0000090D000044b827000cae,
-				00000913000044b827000cae,
+				0000090B000044b827000cae,
 				00000911000044b827000cae,
+				0000090F000044b827000cae,
 				0000091F000044b827000cae,
-				00000915000044b827000cae,
+				0000091D000044b827000cae,
+				00000913000044b827000cae,
 				00000921000044b827000cae,
-				00000905000044b827000cae,
+				00000903000044b827000cae,
 				000008F9000044b827000cae,
-				00000917000044b827000cae,
+				00000915000044b827000cae,
 				000008FB000044b827000cae,
-				00000907000044b827000cae,
-				00000901000044b827000cae,
+				00000905000044b827000cae,
 				);
 			buildActionMask = 2147483647;
 			isa = PBXFrameworksBuildPhase;
@@ -12276,10 +12278,10 @@
 			sourceTree = "<group>";
 			};
 		00000916000044b827000cae = {
-			name = libImageIO.a;
+			name = OpenGL.framework;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../autobuild/ImageIO/MacOsXx86_64/clang4.2/libImageIO.a";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/OpenGL.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -13676,10 +13678,10 @@
 			fileRef = 0000046C000044b827000cae;
 			};
 		00000910000044b827000cae = {
-			name = libpng.a;
+			name = Cocoa.framework;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/libpng/1.6.29/lib/MacOsXx86_64/clang4.2/libpng.a";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/Cocoa.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -14360,10 +14362,10 @@
 			fileRef = 00000842000044b827000cae;
 			};
 		0000090A000044b827000cae = {
-			name = libTrinityAL_gles2.a;
+			name = libtbb.dylib;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../autobuild/TrinityAL/MacOsXx86_64/clang4.2/libTrinityAL_gles2.a";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../../../../../sdk/tbb/tbb2017_20160916oss/lib/MacOsXx86_64/clang4.2/libtbb.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -15052,10 +15054,10 @@
 			fileRef = 00000192000044b827000cae;
 			};
 		0000091E000044b827000cae = {
-			name = libz.a;
+			name = libpython2.7.dylib;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/zlib/1.2.11/lib/MacOsXx86_64/libz.a";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../../../../../shared_tools/python/27_mac/lib/libpython2.7.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -15891,7 +15893,7 @@
 					"../../../../../../sdk/zlib/1.2.11/include",
 					"../../../../../../sdk/squish/1.10/include",
 					"../../../../../../sdk/muparser/v2.2.5/include",
-					"../../../../../../sdk/freetype/2.8.0/include",
+					"../../../../../../sdk/freetype/2.4.6/include",
 					.,
 					..,
 					);
@@ -15940,6 +15942,7 @@
 					"../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64",
 					"../../../../../../sdk/zlib/1.2.11/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/squish/1.10/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
 					"../../../carbon/autobuild/CcpCore/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/libpng/1.6.29/lib/MacOsX$(ARCHS)/clang4.2",
@@ -15947,7 +15950,7 @@
 					"../../autobuild/ImageIO/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/autobuild/CcpMath/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/muparser/v2.2.5/lib/MacOsX$(ARCHS)/clang4.2",
-					"../../../../../../sdk/freetype/2.8.0/lib/MacOsX$(ARCHS)/clang4.2",
+					"../../../../../../sdk/freetype/2.4.6/lib/MacOsX$(ARCHS)/vc2010",
 					);
 				SYMROOT = "../../autobuild/trinity/exefile/MacOsX$(ARCHS)/clang4.2";
 				OBJROOT = "../../autobuild/temp/trinity/MacOsX$(ARCHS)/$(CONFIGURATION)";
