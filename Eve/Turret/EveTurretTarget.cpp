@@ -225,7 +225,7 @@ int EveTurretTarget::FindClosestLocator( const Vector3* source, Vector3* positio
 }
 
 // --------------------------------------------------------------------------------
-int EveTurretTarget::FindRandomValidLocator( const Vector3& source ) const
+int EveTurretTarget::FindRandomValidLocator( const Vector3& source, Vector3& position ) const
 {
 	if( !m_object )
 	{
@@ -233,7 +233,6 @@ int EveTurretTarget::FindRandomValidLocator( const Vector3& source ) const
 	}
 
 	int loc = m_object->GetGoodDamageLocatorIndex( source );
-	Vector3 position;
 	if( m_object->GetDamageLocatorPosition( &position, loc, true ) )
 	{
 		return loc;

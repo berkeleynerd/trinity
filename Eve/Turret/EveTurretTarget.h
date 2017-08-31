@@ -30,7 +30,7 @@ public:
 	void StopFireAtLocator();
 	const Vector3* GetTargetPosition() const;
 	int FindClosestLocator( const Vector3* source, Vector3* position ) const;
-	int FindRandomValidLocator( const Vector3& source ) const;
+	int FindRandomValidLocator( const Vector3& source, Vector3& position ) const;
 
 	// updates
 	void Update( float deltaT, const Vector3* source );

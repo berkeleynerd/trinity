@@ -2408,7 +2408,35 @@ bool EveTurretSet::GetClosestTurretAndLocator( unsigned int& closestTurretIx, in
 
 	if( closestTurret != INVALID_TURRET_INDEX )
 	{
-		closestLocator = m_target->FindRandomValidLocator( m_singleTurrets[closestTurret].worldMatrix.GetTranslation() );
+		Vector3 locatorPosition;
+		int randomLocator = m_target->FindRandomValidLocator( m_singleTurrets[closestTurret].worldMatrix.GetTranslation(), locatorPosition );
+		if( randomLocator != closestLocator && randomLocator != -1 )
+		{
+			closestLocator = randomLocator;
+			closestAngle = -1.f;
+
+			// we may need to adjust the turret index now
+			for( size_t i = 0; i < m_singleTurrets.size(); i++ )
+			{
+				if( m_singleTurrets[i].valid )
+				{
+					Vector3 source = m_singleTurrets[i].worldMatrix.GetTranslation();
+
+					// find normal from turret to target
+					Vector3 nrmToTarget = locatorPosition - source;
+					D3DXVec3Normalize( &nrmToTarget, &nrmToTarget );
+					// find "up" normal of turret
+					Vector3 nrmUp = Vector3( 0.f, 1.f, 0.f );
+					D3DXVec3TransformNormal( &nrmUp, &nrmUp, &m_singleTurrets[i].worldMatrix );
+					float angle = D3DXVec3Dot( &nrmToTarget, &nrmUp );
+					if( angle > closestAngle )
+					{
+						closestTurret = unsigned( i );
+						closestAngle = angle;
+					}
+				}
+			}
+		}
 	}
 
 	// "failure is NOT an option" !
