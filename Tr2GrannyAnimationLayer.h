@@ -39,13 +39,16 @@ public:
 	void Cleanup();
 	
 	void SampleAnimation( float animationTime, granny_local_pose* resultPose, IBlueEventListener* listener );
-	void SampleAnimation( float animationTime, granny_local_pose* compositePose, granny_local_pose* resultPose, IBlueEventListener* listener );
+	void SampleAnimation( float animationTime, granny_local_pose* compositePose, granny_local_pose* resultPose, IBlueEventListener* listener, bool additive=false );
 	void AddBone( const Tr2GrannyAnimation* grannyAnimation, const char* name );
+	void AddAllBones( const Tr2GrannyAnimation* grannyAnimation );
 	void RemoveBone( const Tr2GrannyAnimation* grannyAnimation, const char* name );
 	void ExtractTrackMask( const Tr2GrannyAnimation* grannyAnimation, const char* name );
 
 	float GetLayerWeight() const;
-	void SetLayerWeight(float layerWeight);
+	void SetLayerWeight( float layerWeight );
+	void SetControlParam( float fixedTime );
+	void SetControlParamSkewRate( float skewRate );
 	
 	std::string m_name;
 	
@@ -66,6 +69,7 @@ private:
 	void ClearTextTracks( granny_control* control );
 	void RegisterTextTracks( granny_control* control, const granny_animation* animation );
 	void SampleTextTracks( IBlueEventListener* listener);
+	void UpdateControlParam( float control_increment );
 
 	void FreeCompletedControls();
 	granny_track_mask* m_trackMask;
@@ -74,6 +78,12 @@ private:
 	int m_boneCount;
 	float m_defaultBoneWeight;
 	float m_layerWeight;
+	float m_controlParam;
+	float m_controlParamTarget;
+	bool m_controlParamEnabled;
+	float m_lastControlUpdateTime;
+	granny_local_pose *m_basePose;
+	float m_skewRate;
 
 	const char* m_trackMaskName;
 };

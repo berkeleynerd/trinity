@@ -11,7 +11,13 @@ Tr2GrannyAnimationLayer::Tr2GrannyAnimationLayer() :
 	m_trackMaskName( nullptr ),
 	m_defaultBoneWeight( 0.f ),
 	m_boneCount( 0 ),
-	m_layerWeight( 1.f )
+	m_layerWeight( 1.f ),
+	m_controlParam( 0.f ),
+	m_controlParamTarget( 0.f ),
+	m_lastControlUpdateTime( 0.f ),
+	m_controlParamEnabled( false ),
+	m_basePose( nullptr ),
+	m_skewRate( 0.f )
 {
 }
 
@@ -21,7 +27,13 @@ Tr2GrannyAnimationLayer::Tr2GrannyAnimationLayer( float defaultBoneWeight ) :
 	m_trackMaskName( nullptr ),
 	m_defaultBoneWeight( defaultBoneWeight ),
 	m_boneCount( 0 ),
-	m_layerWeight( 1.f )
+	m_layerWeight( 1.f ),
+	m_controlParam( 0.f ),
+	m_controlParamTarget( 0.f ),
+	m_lastControlUpdateTime( 0.f ),
+	m_controlParamEnabled( false ),
+	m_basePose( nullptr ),
+	m_skewRate( 0.f )
 {
 }
 
@@ -31,7 +43,13 @@ Tr2GrannyAnimationLayer::Tr2GrannyAnimationLayer( float defaultBoneWeight, float
 	m_trackMaskName( nullptr ),
 	m_defaultBoneWeight( defaultBoneWeight ),
 	m_boneCount( 0 ),
-	m_layerWeight( layerWeight )
+	m_layerWeight( layerWeight ),
+	m_controlParam( 0.f ),
+	m_controlParamTarget( 0.f ),
+	m_lastControlUpdateTime( 0.f ),
+	m_controlParamEnabled( false ),
+	m_basePose( nullptr ),
+	m_skewRate( 0.f )
 {
 }
 
@@ -148,6 +166,13 @@ bool Tr2GrannyAnimationLayer::PlayAnimation( const Tr2GrannyAnimation* grannyAni
 	GrannySetControlClock( control, Tr2Renderer::GetAnimationTime() );
 	RegisterTextTracks( control, animation );
 
+	
+	if (m_controlParamEnabled)
+	{
+		auto duration = GrannyGetControlLocalDuration( control );
+		GrannySetControlRawLocalClock( control, m_controlParam * duration );
+	}
+
 	return true;
 }
 
@@ -259,16 +284,39 @@ void Tr2GrannyAnimationLayer::SampleAnimation( float animationTime, granny_local
 	GrannySetModelClock( m_modelInstance, animationTime );
 	SampleTextTracks( listener );
 	FreeCompletedControls();
+	if ( m_controlParamEnabled )
+	{
+		UpdateControlParam( animationTime );
+	}
 	GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, resultPose );
 }
 
-void Tr2GrannyAnimationLayer::SampleAnimation( float animationTime, granny_local_pose* compositePose, granny_local_pose* resultPose, IBlueEventListener* listener )
+void Tr2GrannyAnimationLayer::SampleAnimation( float animationTime, granny_local_pose* compositePose, granny_local_pose* resultPose, IBlueEventListener* listener, bool additive )
 {
 	GrannySetModelClock( m_modelInstance, animationTime );
 	SampleTextTracks( listener );
 	FreeCompletedControls();
-	GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, compositePose );
-	GrannyModulationCompositeLocalPose( resultPose, 0, m_layerWeight, m_trackMask, compositePose );
+	if ( m_controlParamEnabled )
+	{
+		UpdateControlParam( animationTime );
+	}
+	if ( additive )
+	{
+		if ( !m_basePose )
+		{
+			m_basePose = GrannyNewLocalPose( m_boneCount );
+		}
+		granny_skeleton *skeleton = GrannyGetSourceSkeleton( m_modelInstance );
+
+		GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, compositePose );
+		GrannyBuildRestLocalPose( skeleton, 0, m_boneCount, m_basePose );
+		GrannyMaskedAdditiveBlend( resultPose, compositePose, m_basePose, 0, m_boneCount, m_trackMask, m_layerWeight );
+	}
+	else
+	{
+		GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, compositePose );
+		GrannyModulationCompositeLocalPose( resultPose, 0, m_layerWeight, m_trackMask, compositePose );
+	}
 }
 
 
@@ -336,6 +384,12 @@ void Tr2GrannyAnimationLayer::Cleanup()
 		GrannyFreeTrackMask( m_trackMask );
 		m_trackMask = nullptr;
 	}
+
+	if ( m_basePose )
+	{
+		GrannyFreeLocalPose( m_basePose );
+		m_basePose = nullptr;
+	}
 }
 
 void Tr2GrannyAnimationLayer::AddBone( const Tr2GrannyAnimation* grannyAnimation, const char* name )
@@ -355,6 +409,19 @@ void Tr2GrannyAnimationLayer::AddBone( const Tr2GrannyAnimation* grannyAnimation
 
 	GrannySetTrackMaskBoneWeight( m_trackMask, boneIndex, 1.0 );
 }
+
+
+void Tr2GrannyAnimationLayer::AddAllBones( const Tr2GrannyAnimation* grannyAnimation )
+{
+	unsigned int bone_count;
+	const std::string *boneList = grannyAnimation->GetAnimationBoneList( bone_count );
+	for (unsigned int i=0; i < bone_count; i++)
+	{
+		AddBone( grannyAnimation, boneList[i].c_str() );
+	}
+}
+
+
 
 void Tr2GrannyAnimationLayer::ExtractTrackMask( const Tr2GrannyAnimation* grannyAnimation, const char* name )
 {
@@ -402,7 +469,53 @@ float Tr2GrannyAnimationLayer::GetLayerWeight() const
 	return m_layerWeight;
 }
 
-void Tr2GrannyAnimationLayer::SetLayerWeight(float layerWeight)
+void Tr2GrannyAnimationLayer::SetLayerWeight( float layerWeight )
 {
 	m_layerWeight = layerWeight;
+}
+
+void Tr2GrannyAnimationLayer::SetControlParam( float controlParam )
+{
+	m_controlParamTarget = controlParam;
+	m_controlParamEnabled = true;
+}
+
+void Tr2GrannyAnimationLayer::SetControlParamSkewRate( float skewRate )
+{
+	m_skewRate = skewRate;
+}
+
+void Tr2GrannyAnimationLayer::UpdateControlParam( float animation_time )
+{
+	m_lastControlUpdateTime = animation_time;
+
+	if ( m_controlParam == m_controlParamTarget )
+	{
+		return;
+	}
+
+	float timeIncrement = animation_time - m_lastControlUpdateTime;
+	float controlIncrement = timeIncrement * m_skewRate;
+
+	if ( m_skewRate == 0.f || std::abs( m_controlParamTarget - m_controlParam ) <= controlIncrement )
+	{
+		m_controlParam = m_controlParamTarget;
+	}
+	else
+	{
+		if ( m_controlParamTarget - m_controlParam < 0 )
+		{
+			m_controlParam -= controlIncrement;
+		}
+		else
+		{
+			m_controlParam += controlIncrement;
+		}
+	}
+	for( granny_model_control_binding *binding = GrannyModelControlsBegin( m_modelInstance ); binding != GrannyModelControlsEnd( m_modelInstance ); binding = GrannyModelControlsNext( binding ) )
+	{
+		granny_control *control = GrannyGetControlFromBinding( binding );
+		auto duration = GrannyGetControlLocalDuration( control );
+		GrannySetControlRawLocalClock( control, m_controlParam * duration );
+	}
 }

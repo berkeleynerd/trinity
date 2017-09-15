@@ -29,6 +29,9 @@ public:
 
 	const std::string& GetResPath() const;
 	void SetResPath( const std::string& val );
+	
+	void AddSecondaryResPath( const std::string& val );
+	const std::string GetSecondaryAnimationName( const std::string& resPath, int index ) const;
 
 	bool IsAnimationEnabled() const;
 	void SetAnimationEnabled( bool enabled );
@@ -51,11 +54,19 @@ public:
 	void AddAnimationLayer( const char* layerName, float layerWeight=1.0f );
 	void ClearAnimationLayers();
 	void AddAnimationLayerBone( const char* layerName, const char* boneName );
+	void AddAnimationLayerAllBones( const char* layerName );
 	void RemoveAnimationLayerBone( const char* layerName, const char* boneName );
 	void AddAnimationLayerWithTrackMask( const char* layerName, const char* trackMask );
 	float GetAnimationChainCompleteTimeForLayer( const char* layerName );
 	float GetLayerWeight( const char* layerName );
-	void SetLayerWeight (const char* layerName, float layerWeight );
+	void SetLayerWeight ( const char* layerName, float layerWeight );
+	void SetLayerControlParam ( const char* layerName, float controlParam );
+	void SetLayerControlParamSkewRate ( const char* layerName, float skewRate );
+	void AimBone( const char* boneName, float target_x, float target_y, float target_z, float axis_x, float axis_y, float axis_z );
+	void DisableAimBone();
+
+	void SetAdditiveBlendMode( bool additive );
+	bool GetAdditiveBlendMode();
 
 	void PlayAnimationOnce( const char* animName );
 	void PlayAnimationEx( const char* animName, int loopCount, float delay, float speed );
@@ -104,6 +115,7 @@ private:
 	std::string			m_resPath;
 	std::string			m_model;
 	TriGrannyResPtr		m_grannyRes;
+	std::map<std::string, TriGrannyResPtr>	m_secondaryGrannyRes;
 	TriGeometryResPtr	m_geometryRes;
 
 	bool m_boneBoundsInitialized;
@@ -128,12 +140,20 @@ private:
 
 	bool m_debugRenderSkeleton;
 	bool m_debugRenderJointNames;
+	bool m_aimingBone;
+	std::string m_aimBone;
+	Vector3 m_aimBoneOrientation;
+	Vector3 m_aimAxis;
 
 	bool	m_useMeshBinding;
 	bool m_animationEnabled;
 
+	bool m_additiveMode;
+
 	granny_file_info* GetFileInfo() const;
 	Tr2GrannyAnimationLayer* GetAnimationLayer( const char* name );
+	void LoadSecondaryResPath( const std::string& val );
+	void	ApplyBoneOffsets ( unsigned i );
 	
 	IBlueEventListenerPtr m_eventListener;
 };

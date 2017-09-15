@@ -128,6 +128,14 @@ const Be::ClassInfo* Tr2GrannyAnimation::ExposeToBlue()
 		)
 		MAP_METHOD_AND_WRAP
 		(
+			"AddAnimationLayerAllBones",
+			AddAnimationLayerAllBones,
+			"AddAnimationLayerAllBones( layerName )\n\n"
+			"Add all bones to this animation layer.\n"
+			":param layerName: layer name\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
 			"GetLayerWeight",
 			GetLayerWeight,
 			"GetLayerWeight( layerName )\n\n"
@@ -142,6 +150,66 @@ const Be::ClassInfo* Tr2GrannyAnimation::ExposeToBlue()
 			"Sets layer blend weight for an existing layer.\n"
 			":param layerName: layer name\n"
 			":param layerWeight: layer weight\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"SetLayerControlParam",
+			SetLayerControlParam,
+			"SetLayerControlParam( layerName, controlParam )\n\n"
+			"Sets control parameter for driving an animation with a parameter other than time.\n"
+			"Once this is called, the layer will be driven by its control parameter and not animation time.\n"
+			"The animation layer's frame will be selected by multiplying the controlParam by the duration of\n"
+			"the animation, so a value of 0.0 will be the first frame and 1.0 will be the last.\n"
+			":param layerName: layer name\n"
+			":param controlParam: layer control parameter\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"SetLayerControlParamSkewRate",
+			SetLayerControlParamSkewRate,
+			"SetLayerControlParam( layerName, skewRate )\n\n"
+			"Sets control parameter for driving an animation with a parameter other than time.\n"
+			"Once this is called, the layer will be driven by its control parameter and not animation time.\n"
+			"The animation layer's frame will be selected by multiplying the controlParam by the duration of\n"
+			"the animation, so a value of 0.0 will be the first frame and 1.0 will be the last.\n"
+			":param layerName: layer name\n"
+			":param skewRate: layer control parameter maximum rate of change (for smoothing)\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"AimBone",
+			AimBone,
+			"AimBone( bone_name, target_x, target_y, target_z, axis_x, axis_y, axis_z )\n\n"
+			"Configures IK to aim one bone's specified axis at a world-space target.\n"
+			":param bone_name: name of bone to aim constrain\n"
+			":param target_x: world-space target x coord\n"
+			":param target_y: world-space target y coord\n"
+			":param target_z: world-space target z coord\n"
+			":param axis_x: align axis x coord\n"
+			":param axis_y: align axis y coord\n"
+			":param axis_z: align axis z coord\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"DisableAimBone",
+			DisableAimBone,
+			"DisableAimBone()\n\n"
+			"Disables bone aim constraint.\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"SetAdditiveBlendMode",
+			SetAdditiveBlendMode,
+			"SetAdditiveBlendMode( additive )\n\n"
+			"When the additive blend mode is set, blending will use addition rather than averaging to combine layer poses."
+			":param additive: additive on or off\n"
+		)
+		MAP_METHOD_AND_WRAP
+		(
+			"GetAdditiveBlendMode",
+			GetAdditiveBlendMode,
+			"GetAdditiveBlendMode( )\n\n"
+			"Returns current state of additive blending. When the additive blend mode is set, blending will use addition rather than averaging to combine layer poses."
 		)
 		MAP_METHOD_AND_WRAP
 		(
@@ -178,6 +246,25 @@ const Be::ClassInfo* Tr2GrannyAnimation::ExposeToBlue()
 			"is a dict (TriGeometryRes, meshIndex) -> areaStartIndex that maps input geometry res objects and their\n"
 			"mesh indices to the area index in the resulting static mesh.\n"
 			":param geometries: list of TriGeometryRes objects to merge"
+		)
+	
+		MAP_METHOD_AND_WRAP
+		(
+			"AddSecondaryResPath",
+			AddSecondaryResPath,
+			"AddSecondaryResPath adds another file to the list of files that are searched for animations played by name.  Joint\n"
+			"names must match those in the normal res file.\n"
+			":param val: Path to secondary res file."
+		)
+	
+		MAP_METHOD_AND_WRAP
+		(
+			"GetSecondaryAnimationName",
+			GetSecondaryAnimationName,
+			"GetSecondaryAnimationName( resPath, index )\n\n"
+			"Returns the name of the animation of the given index in the given res file.\n"
+			":param resPath: Path to secondary res file.\n"
+			":param index: Index of selected animation in res file."
 		)
 	EXPOSURE_END()
 }

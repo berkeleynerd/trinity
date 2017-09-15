@@ -7,6 +7,7 @@
 #include "Utilities/BoundingBox.h"
 #include "Utilities/BoundingSphere.h"
 #include "Tr2VertexDefinitionUtilities.h"
+#include <algorithm>
 
 static const int MAX_JOINT_COUNT = 58;
 
@@ -27,7 +28,10 @@ Tr2GrannyAnimation::Tr2GrannyAnimation( IRoot* lockobj ) :
 	m_modelIndex( 0 ),
 	m_meshBindingIndex( -1 ),
 	m_animationEnabled( true ),
-	m_boneBoundsInitialized( false )
+	m_boneBoundsInitialized( false ),
+	m_additiveMode( false ),
+	m_aimingBone( false ),
+	m_aimBone( "" )
 {
 }
 
@@ -38,7 +42,44 @@ Tr2GrannyAnimation::~Tr2GrannyAnimation()
 	if( m_grannyRes )
 	{
 		m_grannyRes->RemoveNotifyTarget( this );
-	}	
+	}
+	
+	for ( auto it = m_secondaryGrannyRes.begin(); it != m_secondaryGrannyRes.end(); it++ )
+	{
+		if ( it->second )
+		{
+			it->second->RemoveNotifyTarget( this );
+		}
+	}
+}
+
+
+int AnimNameToIndex( const granny_file_info* fi, const char *name )
+{
+	int index = fi->AnimationCount;
+
+	for( int i = 0; i < fi->AnimationCount ; ++i )
+	{
+		if( strcmp( fi->Animations[i]->Name, name ) == 0 )
+		{
+			index = i;
+			break;
+		}
+
+	}
+
+	return index;
+}
+
+
+granny_file_info* GetSecondaryFileInfo( const std::string& grannyResPath, const TriGrannyResPtr grannyPtr )
+{
+	granny_file_info* const fi = GrannyGetFileInfo( grannyPtr->GetGrannyFile() );
+	if( !fi )
+	{
+		CCP_LOGERR( "'%s' is not a valid Granny file", grannyResPath.c_str() );
+	}
+	return fi;
 }
 
 granny_animation* Tr2GrannyAnimation::FindAnimationByName( const char* name ) const
@@ -49,23 +90,34 @@ granny_animation* Tr2GrannyAnimation::FindAnimationByName( const char* name ) co
 		return nullptr;
 	}
 
-	int animIx = fi->AnimationCount;
+	int animIx = AnimNameToIndex( fi, name );
 
-	for( int i = 0; i < fi->AnimationCount ; ++i )
+	if( animIx != fi->AnimationCount )
 	{
-		if( strcmp( fi->Animations[i]->Name, name ) == 0 )
+		return fi->Animations[animIx];
+	}
+
+	for ( auto it=m_secondaryGrannyRes.begin(); it != m_secondaryGrannyRes.end(); ++it )
+	{
+		if ( !it->second )
 		{
-			animIx = i;
-			break;
+			continue;
 		}
+		fi = GetSecondaryFileInfo( it->first, it->second );
+		if (!fi)
+		{
+			continue;
+		}
+		
+		animIx = AnimNameToIndex( fi, name );
 
-	}
-	if( animIx == fi->AnimationCount )
-	{
-		return nullptr;
+		if( animIx != fi->AnimationCount )
+		{
+			return fi->Animations[animIx];
+		}
 	}
 
-	return fi->Animations[animIx];
+	return nullptr;
 }
 
 void Tr2GrannyAnimation::SetSharedGeometryRes( TriGeometryResPtr res )
@@ -115,6 +167,22 @@ bool Tr2GrannyAnimation::Initialize()
 	return true;
 }
 
+void Tr2GrannyAnimation::LoadSecondaryResPath( const std::string& val )
+{
+	if ( m_secondaryGrannyRes[val] )
+	{
+		m_secondaryGrannyRes[val]->RemoveNotifyTarget( this );
+		m_secondaryGrannyRes[val].Unlock();
+	}
+
+	BeResMan->GetResource( val.c_str(), "raw",  BlueInterfaceIID<TriGrannyRes>(), (void**)&m_secondaryGrannyRes[val]);
+
+	if ( m_secondaryGrannyRes[val] )
+	{
+		m_secondaryGrannyRes[val]->AddNotifyTarget( this );
+	}
+}
+
 void Tr2GrannyAnimation::ReleaseCachedData( BlueAsyncRes* p )
 {
 	Cleanup();
@@ -144,8 +212,24 @@ granny_file_info* Tr2GrannyAnimation::GetFileInfo() const
 	return nullptr;
 }
 
+
 void Tr2GrannyAnimation::RebuildCachedData( BlueAsyncRes* p )
 {
+	if ( p != m_grannyRes && p != m_geometryRes )
+	{
+		for ( auto it = m_secondaryGrannyRes.begin(); it != m_secondaryGrannyRes.end(); it++ )
+		{
+			if ( p == it->second )
+			{
+				if ( it->second && !it->second->GetGrannyFile() )
+				{
+					CCP_LOGERR( "'%s' not found or not a valid Granny file", it->first.c_str() );
+				}
+				return;
+			}
+		}
+	}
+
 	if( !m_grannyRes && !m_geometryRes )
 	{
 		return;
@@ -157,12 +241,15 @@ void Tr2GrannyAnimation::RebuildCachedData( BlueAsyncRes* p )
 		return;
 	}
 
+
+
 	const granny_file_info* const fi = GetFileInfo();
 	if( !fi )
 	{
 		return;
 	}
-	
+
+
 	if( fi->ModelCount > 0 && fi->AnimationCount > 0 )
 	{
 		// By default we take the first model in the file
@@ -478,6 +565,27 @@ void Tr2GrannyAnimation::SetResPath( const std::string& val )
 	Initialize();
 }
 
+void Tr2GrannyAnimation::AddSecondaryResPath( const std::string& val )
+{
+	auto fi=m_secondaryGrannyRes.find( val );
+	if ( fi == m_secondaryGrannyRes.end() )
+	{
+		m_secondaryGrannyRes[val] = nullptr;
+		LoadSecondaryResPath( val );
+	}
+}
+
+const std::string Tr2GrannyAnimation::GetSecondaryAnimationName( const std::string& resPath, int index ) const
+{
+	auto fi=m_secondaryGrannyRes.find( resPath );
+	if ( fi != m_secondaryGrannyRes.end() )
+	{
+		auto animName = fi->second->GetAnimationName(index);
+		return animName;
+	}
+	return nullptr;
+}
+
 bool Tr2GrannyAnimation::IsAnimationEnabled() const
 {
 	return m_animationEnabled;
@@ -625,6 +733,7 @@ granny_model* Tr2GrannyAnimation::GetGrannyModel() const
 	return fi->Models[m_modelIndex];
 }
 
+
 void Tr2GrannyAnimation::SetModel( const std::string& val )
 {
 	m_model = val;
@@ -644,16 +753,30 @@ bool Tr2GrannyAnimation::PlayLayerAnimationByName( const char* layerName, const 
 		return false;
 	}
 
+	bool secondaryGrannyResPrepared = true;
+	for ( auto it = m_secondaryGrannyRes.begin(); it != m_secondaryGrannyRes.end(); it++ )
+	{
+		secondaryGrannyResPrepared = secondaryGrannyResPrepared && it->second->IsPrepared();
+	}
+
 	if( ( !m_grannyRes  && !m_geometryRes )  ||		
 		( m_grannyRes	&& !m_grannyRes->IsPrepared() ) ||
-		( m_geometryRes	&& !m_geometryRes->IsPrepared() ) )
+		( m_geometryRes	&& !m_geometryRes->IsPrepared() ||
+		!secondaryGrannyResPrepared ) )
 	{
 		layer->QueueAnimation( animName, replace, loopCount, delay, speed, clearWhenDone );
 		return true;
 	}
 
+	bool secondaryGrannyResGood = true;
+	for ( auto it = m_secondaryGrannyRes.begin(); it != m_secondaryGrannyRes.end(); it++ )
+	{
+		secondaryGrannyResGood = secondaryGrannyResGood && it->second->IsGood();
+	}
+
 	if( ( ( m_grannyRes && !m_grannyRes->IsGood() ) ||
-		( m_geometryRes && !m_geometryRes->IsGood() ) ) )
+		( m_geometryRes && !m_geometryRes->IsGood() ) ||
+		!secondaryGrannyResGood ) )
 	{
 		CCP_LOGERR( "Animation resource failed to load!" );
 		return false;
@@ -673,6 +796,29 @@ void Tr2GrannyAnimation::ClearAnimations()
 	m_baseLayer.ClearAnimations();
 }
 
+void Tr2GrannyAnimation::ApplyBoneOffsets(unsigned i)
+{
+	granny_real32 localMatrix[16];
+	GrannyBuildCompositeTransform4x4( GrannyGetLocalPoseTransform( m_localPose, i ), localMatrix );
+	granny_real32    *worldMatrix    = GrannyGetWorldPose4x4( m_worldPose, i );
+
+	const granny_int32 parentIndex = m_skeleton->Bones[i].ParentIndex;
+	if( parentIndex != -1 )
+	{
+		const granny_real32    *parentWorldMatrix = GrannyGetWorldPose4x4( m_worldPose, parentIndex );
+
+		if( !m_boneOffset.HaveTransforms() ||
+			!m_boneOffset.Apply( worldMatrix, i, localMatrix, parentWorldMatrix ) )
+		{
+			GrannyColumnMatrixMultiply4x4( worldMatrix, localMatrix, parentWorldMatrix );
+		}					
+	}
+	else
+	{
+		memcpy( worldMatrix, localMatrix, sizeof( granny_real32 ) * 16 );
+	}
+}
+
 void Tr2GrannyAnimation::PrePhysicsAnimation( Be::Time time, const Matrix &modelTransform )
 {
 	if( IsInitialized() && m_animationEnabled )
@@ -684,7 +830,24 @@ void Tr2GrannyAnimation::PrePhysicsAnimation( Be::Time time, const Matrix &model
 		m_baseLayer.SampleAnimation( animationTime, m_localPose, m_eventListener );
 		for( auto it = m_animationLayers.begin(); it != m_animationLayers.end(); it++ )
 		{
-			it->second.SampleAnimation( animationTime, m_compositePose, m_localPose, m_eventListener );
+			it->second.SampleAnimation( animationTime, m_compositePose, m_localPose, m_eventListener, m_additiveMode );
+		}
+
+		if ( m_aimingBone )
+		{			
+			granny_int32x boneIndex;
+			granny_real32 orientAxis[3] = { m_aimAxis[0], m_aimAxis[1], m_aimAxis[2] };
+			granny_real32 target[3] = { m_aimBoneOrientation[0], m_aimBoneOrientation[1], m_aimBoneOrientation[2] };
+			granny_real32 offset_matrix[16] = { 1.0, 0.0, 0.0, 0.0,
+			                                      0.0, 1.0, 0.0, 0.0,
+			                                      0.0, 0.0, 1.0, 0.0,
+			                                      0.0, 0.0, 0.0, 1.0 };
+
+			if ( GrannyFindBoneByNameLowercase( m_skeleton, m_aimBone.c_str(), &boneIndex ) )
+			{
+				GrannyBuildWorldPose( m_skeleton, 0, m_skeleton->BoneCount, m_localPose, &Tr2Renderer::GetIdentityTransform().m[0][0], m_worldPose );
+				GrannyIKOrientTowards( boneIndex, orientAxis, target, m_skeleton, m_localPose, offset_matrix, m_worldPose);
+			}
 		}
 
 		if( m_boneOffset.NeedRebind( m_skeleton->BoneCount ) && m_skeleton->BoneCount )
@@ -713,28 +876,10 @@ void Tr2GrannyAnimation::PrePhysicsAnimation( Be::Time time, const Matrix &model
 		{
 			for( unsigned i = 0; i != m_skeleton->BoneCount; ++i )
 			{
-				granny_real32 localMatrix[16];
-				GrannyBuildCompositeTransform4x4( GrannyGetLocalPoseTransform( m_localPose, i ), localMatrix );
-				granny_real32    *worldMatrix    = GrannyGetWorldPose4x4( m_worldPose, i );
-
-				const granny_int32 parentIndex = m_skeleton->Bones[i].ParentIndex;
-				if( parentIndex != -1 )
-				{
-					const granny_real32    *parentWorldMatrix = GrannyGetWorldPose4x4( m_worldPose, parentIndex );
-
-					if( !m_boneOffset.HaveTransforms() ||
-						!m_boneOffset.Apply( worldMatrix, i, localMatrix, parentWorldMatrix ) )
-					{
-						GrannyColumnMatrixMultiply4x4( worldMatrix, localMatrix, parentWorldMatrix );
-					}					
-				}
-				else
-				{
-					memcpy( worldMatrix, localMatrix, sizeof( granny_real32 ) * 16 );
-				}
+				ApplyBoneOffsets(i);
 			}
 		}
-	
+
 		extern ITr2DebugRendererPtr g_debugRenderer;
 		if( g_debugRenderer )
 		{
@@ -955,6 +1100,63 @@ void Tr2GrannyAnimation::SetLayerWeight( const char* layerName, float layerWeigh
 	}
 }
 
+void Tr2GrannyAnimation::SetLayerControlParam( const char* layerName, float controlParam )
+{
+	const char* base_name_string = "";
+
+	if ( !strcmp(layerName, base_name_string) )
+	{
+		GetAnimationLayer( nullptr )->SetControlParam( controlParam );
+	}
+	else
+	{
+		GetAnimationLayer( layerName )->SetControlParam( controlParam );
+	}
+}
+
+void Tr2GrannyAnimation::SetLayerControlParamSkewRate( const char* layerName, float skewRate )
+{
+	const char* base_name_string = "";
+
+	if ( !strcmp(layerName, base_name_string) )
+	{
+		GetAnimationLayer( nullptr )->SetControlParamSkewRate( skewRate );
+	}
+	else
+	{
+		GetAnimationLayer( layerName )->SetControlParamSkewRate( skewRate );
+	}
+}
+
+void Tr2GrannyAnimation::AimBone( const char* boneName, float target_x, float target_y, float target_z, float axis_x, float axis_y, float axis_z )
+{
+	m_aimingBone = true;
+	m_aimBone = boneName;
+
+	m_aimBoneOrientation[0] = target_x;
+	m_aimBoneOrientation[1] = target_y;
+	m_aimBoneOrientation[2] = target_z;
+	
+	m_aimAxis[0] = axis_x;
+	m_aimAxis[1] = axis_y;
+	m_aimAxis[2] = axis_z;
+}
+
+void Tr2GrannyAnimation::DisableAimBone()
+{
+	m_aimingBone = false;
+}
+
+void Tr2GrannyAnimation::SetAdditiveBlendMode( bool additive )
+{
+	m_additiveMode = additive;
+}
+
+bool Tr2GrannyAnimation::GetAdditiveBlendMode()
+{
+	return m_additiveMode;
+}
+
 void Tr2GrannyAnimation::AddAnimationLayerWithTrackMask( const char* layerName, const char* trackMask )
 {
 	if( GetAnimationLayer( layerName ) )
@@ -992,6 +1194,19 @@ void Tr2GrannyAnimation::AddAnimationLayerBone( const char* layerName, const cha
 
 	layer->AddBone( this, boneName );
 }
+
+
+void Tr2GrannyAnimation::AddAnimationLayerAllBones( const char* layerName )
+{
+	Tr2GrannyAnimationLayer* layer = GetAnimationLayer( layerName );
+	if( !layer )
+	{
+		return;
+	}
+
+	layer->AddAllBones( this );
+}
+
 
 void Tr2GrannyAnimation::RemoveAnimationLayerBone( const char* layerName, const char* boneName )
 {
