@@ -761,8 +761,8 @@ bool Tr2GrannyAnimation::PlayLayerAnimationByName( const char* layerName, const 
 
 	if( ( !m_grannyRes  && !m_geometryRes )  ||		
 		( m_grannyRes	&& !m_grannyRes->IsPrepared() ) ||
-		( m_geometryRes	&& !m_geometryRes->IsPrepared() ||
-		!secondaryGrannyResPrepared ) )
+		( m_geometryRes	&& !m_geometryRes->IsPrepared() ) ||
+		!secondaryGrannyResPrepared ) 
 	{
 		layer->QueueAnimation( animName, replace, loopCount, delay, speed, clearWhenDone );
 		return true;
