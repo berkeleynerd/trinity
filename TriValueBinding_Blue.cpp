@@ -29,6 +29,14 @@ const Be::ClassInfo* TriValueBinding::ExposeToBlue()
 			Be::READ
 		)
 		MAP_ATTRIBUTE
+		(
+			"isEnabled",
+			m_isEnabled,
+			"If false the binding is disabled and will not update the destination\n"
+			"attribute with the source attribute.\n",
+			Be::READWRITE
+		)
+		MAP_ATTRIBUTE
 		( 
 			"sourceObject", 
 			m_sourceObject, 

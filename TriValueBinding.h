@@ -43,6 +43,7 @@ public:
 private:
 	std::string m_name;
 	bool m_isValid;
+	bool m_isEnabled;
 	IRootPtr m_sourceObject;
 	IRootPtr m_destinationObject;
 

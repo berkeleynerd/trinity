@@ -8,6 +8,7 @@
 
 TriValueBinding::TriValueBinding( IRoot* lockobj ) :
 	m_isValid( false ),
+	m_isEnabled( true ),
 	m_source( nullptr ),
 	m_destination( nullptr ),
 	m_copyFunc( NULL ),
@@ -29,6 +30,11 @@ TriValueBinding::~TriValueBinding()
 
 void TriValueBinding::CopyValue()
 {
+	if( !m_isEnabled )
+	{
+		return;
+	}
+
 	if( m_copyFunc )
 	{
 		m_copyFunc( (Be::Var*)m_source, (Be::Var*)m_destination, m_scale, m_offset );
