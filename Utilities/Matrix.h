@@ -677,4 +677,15 @@ inline Matrix OrthoNormalBasisZ( const Vector3& z )
 	return out;
 }
 
+// --------------------------------------------------------------------------------------
+inline Matrix OrthographicProjection( float width, float height, float zNear, float zFar )
+{
+	Matrix out = IdentityMatrix();
+	out.m[0][0] = 2.0f / width;
+	out.m[1][1] = 2.0f / height;
+	out.m[2][2] = 1.0f / ( zNear - zFar );
+	out.m[3][2] = zNear / ( zNear - zFar );
+	return out;
+}
+
 #endif // MATRIX_H
