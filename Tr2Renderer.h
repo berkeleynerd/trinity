@@ -232,6 +232,7 @@ public:
 	static bool DrawFullScreenWithShader( Tr2Material * material );
 
 	static bool RunComputeShader( Tr2Material* effect, unsigned groupDimX, unsigned groupDimY, unsigned groupDimZ, Tr2RenderContext& renderContext );
+	static bool RunComputeShader( Tr2Material* effect, const BlueSharedString& technique, unsigned groupDimX, unsigned groupDimY, unsigned groupDimZ, Tr2RenderContext& renderContext );
 	static bool RunComputeShaderIndirect( Tr2Material* effect, Tr2GpuBufferAL& indirectParams, unsigned offset, Tr2RenderContext& renderContext );
 
 	// ***** Note: consider Tr2PushPopRT instead *****

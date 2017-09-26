@@ -191,6 +191,8 @@ namespace
 	// Handles to variable store items, used to pass engine parameters to effects	
 	Tr2Variable s_projectionMatrixVar;
 	Tr2Variable s_viewMatrixVar;
+	Tr2Variable s_projectionMatrixInvVar;
+	Tr2Variable s_viewMatrixInvVar;
 	Tr2Variable s_viewProjectionMatrixVar;
 	Tr2Variable s_worldMatrixVar;
 	Tr2Variable s_viewportSizeVar;
@@ -308,6 +310,7 @@ namespace
 
 		// Ensure TriVariable store is aware of the projection transform. Used by some debugging shaders.
 		s_projectionMatrixVar = s_projectionTransform;
+		s_projectionMatrixInvVar = s_inverseProjectionTransform;
 		UpdateViewProjectionTransform();
 
 #if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
@@ -365,8 +368,10 @@ bool Tr2Renderer::Initialize()
 
 	s_renderTimeVar			 .Register(  "Time",				Vector4(0.0f, 0.0f, 0.0f, 0.0f) );
 	s_worldMatrixVar		 .Register(  "WorldMat",			s_worldTransform );
-	s_viewMatrixVar			 .Register(  "ViewMat",			s_viewTransform );
-	s_projectionMatrixVar	 .Register(  "ProjectionMat",		s_projectionTransform );
+	s_viewMatrixVar.Register( "ViewMat", s_viewTransform );
+	s_viewMatrixInvVar.Register( "ViewInvMat", s_viewTransform );
+	s_projectionMatrixVar.Register( "ProjectionMat", s_projectionTransform );
+	s_projectionMatrixInvVar.Register( "ProjectionInvMat", s_projectionTransform );
 	s_viewProjectionMatrixVar.Register(  "ViewProjectionMat", s_viewProjectionTransform );
 	s_viewportSizeVar		 .Register(  "ViewportSize",		Vector4(0.0f, 0.0f, 1.0f, 0.0f) );
 
@@ -656,6 +661,7 @@ void Tr2Renderer::SetViewTransform( const Matrix& m )
 
 	// Ensure variable store is aware of the change
 	s_viewMatrixVar = s_viewTransform;
+	s_viewMatrixInvVar = s_inverseViewTransform;
 
 }
 const Matrix& Tr2Renderer::GetWorldTransform()
@@ -986,6 +992,56 @@ bool Tr2Renderer::RunComputeShader( Tr2Material* effect,
 		{
 			shader->ApplyAllStateForPass( 0, i, renderContext );
 			effect->ApplyShaderInputs( 0, i, COMPUTE_SHADER, renderContext );
+			CR_RETURN_VAL( renderContext.RunComputeShader( groupDimX, groupDimY, groupDimZ ), false );
+			// Unset UAVs
+			const Tr2EffectResourceMap& uavs = stage.uavs;
+			for( auto it = uavs.begin(); it != uavs.end(); ++it )
+			{
+				CR_RETURN_VAL( renderContext.SetUav( COMPUTE_SHADER, it->first, nullGB ), false );
+			}
+			result = true;
+		}
+	}
+	return result;
+}
+
+// --------------------------------------------------------------------------------------
+bool Tr2Renderer::RunComputeShader( 
+	Tr2Material* effect,
+	const BlueSharedString& techniqueName,
+	unsigned groupDimX,
+	unsigned groupDimY,
+	unsigned groupDimZ,
+	Tr2RenderContext& renderContext )
+{
+	if( !effect )
+	{
+		return false;
+	}
+	auto shader = effect->GetShaderStateInterface();
+	if( !shader )
+	{
+		return false;
+	}
+	uint32_t techniqueIndex;
+	if( !shader->GetTechniqueIndex( techniqueName, techniqueIndex ) )
+	{
+		return false;
+	}
+	bool result = false;
+	auto& desc = shader->GetEffectDescription();
+	if( desc.techniques.empty() )
+	{
+		return false;
+	}
+	auto& technique = desc.techniques[techniqueIndex];
+	for( unsigned i = 0; i < technique.passes.size(); ++i )
+	{
+		auto& stage = technique.passes[i].stageInputs[COMPUTE_SHADER];
+		if( stage.m_exists )
+		{
+			shader->ApplyAllStateForPass( techniqueIndex, i, renderContext );
+			effect->ApplyShaderInputs( techniqueIndex, i, COMPUTE_SHADER, renderContext );
 			CR_RETURN_VAL( renderContext.RunComputeShader( groupDimX, groupDimY, groupDimZ ), false );
 			// Unset UAVs
 			const Tr2EffectResourceMap& uavs = stage.uavs;
