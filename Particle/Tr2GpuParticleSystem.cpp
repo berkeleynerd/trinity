@@ -669,7 +669,8 @@ void Tr2GpuParticleSystem::UpdateEmitterParams( Tr2RenderContext& renderContext 
 	bool emitterBufferDirty = false;
 	for( auto it = begin( m_emitRequests ); it != end( m_emitRequests ); ++it )
 	{
-		maxLiveTime = std::max( maxLiveTime, it->params.maxLifeTime );
+		auto lifeTime = std::max( it->params.minLifeTime, it->params.maxLifeTime ) + 1;
+		maxLiveTime = std::max( maxLiveTime, lifeTime );
 		auto found = m_emitterParamsIndex.find( it->id );
 		uint32_t index;
 		if( found == m_emitterParamsIndex.end() )
@@ -687,7 +688,7 @@ void Tr2GpuParticleSystem::UpdateEmitterParams( Tr2RenderContext& renderContext 
 				m_emitterParams[paramsIndex.index] = it->params;
 			}
 			paramsIndex.hash = it->hash;
-			paramsIndex.lifetime = it->params.maxLifeTime;
+			paramsIndex.lifetime = lifeTime;
 
 			m_emitterParamsIndex[it->id] = paramsIndex;
 			index = uint32_t( paramsIndex.index );
@@ -697,7 +698,7 @@ void Tr2GpuParticleSystem::UpdateEmitterParams( Tr2RenderContext& renderContext 
 		{
 			emitterBufferDirty |= found->second.hash != it->hash;
 			found->second.hash = it->hash;
-			found->second.lifetime = it->params.maxLifeTime;
+			found->second.lifetime = std::max( found->second.lifetime, lifeTime );
 			index = uint32_t( found->second.index );
 			m_emitterParams[found->second.index] = it->params;
 		}

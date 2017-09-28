@@ -12,7 +12,7 @@ Tr2GpuUniqueEmitter::Tr2GpuUniqueEmitter( IRoot* lockObj )
 	m_attractorPosition( 0.f, 0.f, 0.f ),
 	m_scaledByParent( false )
 {
-	m_id = uintptr_t( this ) | ( 1 << ( sizeof( uintptr_t ) - 1 ) );
+	m_id = uintptr_t( this ) | uintptr_t( CcpGetTimestamp() ) | ( 1 << ( sizeof( uintptr_t ) - 1 ) );
 }
 
 void Tr2GpuUniqueEmitter::GenerateID()
