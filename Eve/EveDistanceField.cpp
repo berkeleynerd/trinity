@@ -24,6 +24,7 @@ EveDistanceField::EveDistanceField( IRoot* lockobj ) :
 	m_minYRatio( 0.2f ),
 	m_isDynamic( false )
 {
+	SetNeutralValues();
 	m_objects.SetNotify( this );
 }
 
