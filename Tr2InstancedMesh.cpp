@@ -107,6 +107,7 @@ Tr2InstancedMesh::Tr2InstancedMesh( IRoot* lockobj )
 	:Tr2Mesh( lockobj ),
 	m_instanceMeshIndex( 0 ),
 	m_vertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
+	m_instanceDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_minBounds( 0.0f, 0.0f, 0.0f ),
 	m_maxBounds( 0.0f, 0.0f, 0.0f )
 {
@@ -154,6 +155,7 @@ bool Tr2InstancedMesh::Initialize()
 void Tr2InstancedMesh::ReleaseResources( TriStorage s )
 {
 	m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
+	m_instanceDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 }
 
 // --------------------------------------------------------------------------------------
@@ -429,7 +431,16 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 	{
 		return;
 	}
-	if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
+	bool rebuild = m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
+	if( !rebuild )
+	{
+		if( !m_instanceCount && GetInstanceGeometryResource() && GetInstanceGeometryResource()->IsInstanceDataReady() )
+		{
+			rebuild = m_instanceDeclaration != GetInstanceGeometryResource()->GetInstanceBufferVertexDeclaration( m_instanceMeshIndex );
+		}
+	}
+
+	if( rebuild )
 	{
 		CreateVertexDeclaration();
 		if( m_vertexDeclaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
@@ -789,6 +800,7 @@ static unsigned int MergeVertexDeclarations( const Tr2VertexDefinition& meshVD,
 void Tr2InstancedMesh::CreateVertexDeclaration() const
 {
 	m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
+	m_instanceDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 
 	if( !Tr2Renderer::IsResourceCreationAllowed() )
 	{
@@ -810,6 +822,8 @@ void Tr2InstancedMesh::CreateVertexDeclaration() const
 		}
 
 		const unsigned declaration = GetInstanceGeometryResource()->GetInstanceBufferVertexDeclaration( m_instanceMeshIndex );
+		m_instanceDeclaration = declaration;
+
 		if( declaration == Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
 		{
 			return;

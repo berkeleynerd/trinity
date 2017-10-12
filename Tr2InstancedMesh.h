@@ -120,6 +120,8 @@ private:
 	int m_instanceMeshIndex;
 	// Combined vertex declaration
 	mutable unsigned int m_vertexDeclaration;
+	// Cached instance geometry vertex declaration
+	mutable unsigned int m_instanceDeclaration;
 
 	// Map from area properties to indirect parameter buffers
 	std::map<AreaKey, Tr2GpuBufferAL*> m_indirectParams;
