@@ -496,11 +496,9 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 // --------------------------------------------------------------------------------------
 float Tr2InstancedMesh::CalcMeshSortValue( const Matrix& worldTransform )
 {
-    Vector3 center = ( m_minBounds + m_maxBounds ) * 0.5f;
-    D3DXVec3TransformCoord( &center, (Vector3*)&m_boundingSphere, &worldTransform );
-
+	Vector3 center = TransformCoord( m_boundingSphere.GetXYZ(), worldTransform );
 	Vector3	d = center - Tr2Renderer::GetViewPosition();
-    float distSq = D3DXVec3LengthSq( &d );
+    float distSq = LengthSq( d );
 
     return distSq;
 }
@@ -563,7 +561,7 @@ bool Tr2InstancedMesh::GetBoundingSphere( Vector4& sphere )
 {
 	Vector3 center = ( m_minBounds + m_maxBounds ) * 0.5f;
 	Vector3 extent( m_minBounds - m_maxBounds );
-	sphere = Vector4( center.x, center.y, center.z, D3DXVec3Length( &extent ) * 0.5f );
+	sphere = Vector4( center.x, center.y, center.z, Length( extent ) * 0.5f );
 	return true;
 }
 

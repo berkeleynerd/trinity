@@ -42,8 +42,7 @@ Tr2PlaneConstraint::Tr2PlaneConstraint( IRoot* lockobj )
 // --------------------------------------------------------------------------------------
 bool Tr2PlaneConstraint::Initialize()
 {
-	D3DXPlaneNormalize( reinterpret_cast<D3DXPLANE*>( &m_normalizedPlane ),
-		reinterpret_cast<D3DXPLANE*>( &m_plane ) );
+	m_normalizedPlane = Normalize( reinterpret_cast<Plane&>( m_plane ) );
 	for( auto it = m_onCollisionEmitters.begin(); it != m_onCollisionEmitters.end(); ++it )
 	{
 		( *it )->SetThreadSafeFlag();
@@ -62,8 +61,7 @@ bool Tr2PlaneConstraint::OnModified( Be::Var* value )
 {
 	if( IsMatch( value, m_plane ) )
 	{
-		D3DXPlaneNormalize( reinterpret_cast<D3DXPLANE*>( &m_normalizedPlane ),
-			reinterpret_cast<D3DXPLANE*>( &m_plane ) );
+		m_normalizedPlane = Normalize( reinterpret_cast<Plane&>( m_plane ) );
 	}
 	return true;
 }
@@ -125,28 +123,26 @@ void Tr2PlaneConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgume
 		float radius = 0;
 		if( m_radiusElement.m_offset != -1 )
 		{
-			radius = D3DXVec4Dot( 
-				radiusStream, 
-				&m_particleRadiusCoefficient );
+			radius = Dot( *radiusStream, m_particleRadiusCoefficient );
 		}
 
-		float dot = D3DXPlaneDotCoord( reinterpret_cast<D3DXPLANE*>( &m_normalizedPlane ), position ) - radius;
-		Vector3* planeNormal = reinterpret_cast<Vector3*>( &m_normalizedPlane );
+		float dot = DotCoord( m_normalizedPlane, *position ) - radius;
+		const Vector3& planeNormal = reinterpret_cast<const Vector3&>( m_normalizedPlane );
 		float velocityDot = -1.f;
 		if( m_velocityElement.m_offset != -1 )
 		{
-			velocityDot = D3DXVec3Dot( velocity, planeNormal );
+			velocityDot = Dot( *velocity, planeNormal );
 		}
 		if( dot <= 0 && velocityDot < 0 )
 		{
 			if( m_affectPosition )
 			{
-				Vector3 shift = *planeNormal * dot;
+				Vector3 shift = planeNormal * dot;
 				*position -= shift;
 			}
 			if( m_affectVelocity && m_velocityElement.m_offset != -1 )
 			{
-				Vector3 bounce = *planeNormal * velocityDot;
+				Vector3 bounce = planeNormal * velocityDot;
 				Vector3 slide = *velocity - bounce;
 				bounce *= -m_elasticity;
 				slide *= m_friction;
@@ -158,8 +154,8 @@ void Tr2PlaneConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgume
 						Tr2ParticleSystem::RandFloat() * 2 - 1, 
 						Tr2ParticleSystem::RandFloat() * 2 - 1 );
 					reflectionNoise *= m_reflectionNoise;
-					reflectionNoise -= *planeNormal * D3DXVec3Dot( &reflectionNoise, planeNormal );
-					float speed = D3DXVec3Length( velocity );
+					reflectionNoise -= planeNormal * Dot( reflectionNoise, planeNormal );
+					float speed = Length( *velocity );
 					reflectionNoise *= speed;
 					*velocity += reflectionNoise;
 				}

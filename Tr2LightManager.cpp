@@ -204,8 +204,7 @@ ALResult Tr2LightManager::DoUpdateLists( uint32_t msaaType, Tr2RenderContext& re
 
 	PerFrameData perFrameData;
 	Matrix viewProj = Tr2Renderer::GetViewTransform() * Tr2Renderer::GetProjectionTransform();
-	D3DXMatrixInverse( &viewProj, nullptr, &viewProj );
-	D3DXMatrixTranspose( &perFrameData.viewProjInverse, &viewProj );
+	perFrameData.viewProjInverse = Transpose( Inverse( viewProj ) );
 	perFrameData.cameraPos = Tr2Renderer::GetViewPosition();
 	perFrameData.width = uint32_t( Tr2Renderer::GetDeviceViewport().m_width );
 	perFrameData.height = uint32_t( Tr2Renderer::GetDeviceViewport().m_height );

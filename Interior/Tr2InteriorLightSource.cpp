@@ -36,10 +36,9 @@ Tr2InteriorLightSource::Tr2InteriorLightSource( IRoot* lockobj ) :
 	m_importanceBias( 0.0f ),
 	PARENTLOCK( m_curveSets ),
 	m_worldBoundingBox( Vector3( -1.f, -1.f, -1.f ), Vector3( 1.f, 1.f, 1.f ) ),
-	m_useKelvinColor( false )
+	m_useKelvinColor( false ),
+	m_unitToWorldTransform( IdentityMatrix() )
 {
-	D3DXMatrixIdentity( &m_unitToWorldTransform );
-
 	m_kelvinColor.CreateInstance();
 }
 
@@ -152,7 +151,7 @@ float Tr2InteriorLightSource::GetCurrentViewImportance( const Vector3& viewerPos
 	// importance is based on:
 	// 1. dist from camera
 	Vector3 dist = viewerPos - m_position;
-	float distToViewer = D3DXVec3LengthSq( &dist );
+	float distToViewer = LengthSq( dist );
 
 	// put together the result
 	float res = m_radius * m_radius / distToViewer;
@@ -180,7 +179,7 @@ bool Tr2InteriorLightSource::IsInFrustum( const TriFrustum& frustum, Matrix& obj
 	{
 		return false;
 	}
-	D3DXMatrixTranslation( &objectToWorld, m_position.x, m_position.y, m_position.z );
+	objectToWorld = TranslationMatrix( m_position );
 	return frustum.IsBoxVisible( m_worldBoundingBox.m_min, m_worldBoundingBox.m_max );
 }
 

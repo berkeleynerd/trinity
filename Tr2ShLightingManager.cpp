@@ -292,7 +292,7 @@ void Tr2ShLightingManager::UpdateWithDirectionalLight( const Vector3& direction,
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	m_sunColor = color;
-	D3DXVec3Normalize( &m_sunDirection, &direction );
+	m_sunDirection = Normalize( direction );
 	UpdateSourceData();
 }
 

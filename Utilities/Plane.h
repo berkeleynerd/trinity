@@ -13,12 +13,6 @@ typedef D3DXPLANE Plane;
 #endif
 
 // --------------------------------------------------------------------------------------
-inline float DotCoord( const Plane& plane, const Vector3& point )
-{
-	return plane.a * point.x + plane.b * point.y + plane.c * point.z + plane.d;
-}
-
-// --------------------------------------------------------------------------------------
 inline std::pair<bool, Vector3> IntersectLine(
 	const Plane& p,
 	const Vector3& v1,
@@ -41,3 +35,27 @@ inline std::pair<bool, Vector3> IntersectLine(
 		v1.y - temp * direction.y,
 		v1.z - temp * direction.z ) );
 }
+
+// --------------------------------------------------------------------------------------
+inline Plane Normalize( const Plane& plane )
+{
+	float l = 1.0f / Length( reinterpret_cast<const Vector3&>( plane ) );
+	return Plane(
+		plane.a * l,
+		plane.b * l,
+		plane.c * l,
+		plane.d * l );
+}
+
+// --------------------------------------------------------------------------------------
+inline float DotCoord( const Plane& p, const Vector3& v )
+{
+	return p.a * v.x + p.b * v.y + p.c * v.z + p.d;
+}
+
+// --------------------------------------------------------------------------------------
+inline float DotNormal( const Plane& p, const Vector3& v )
+{
+	return p.a * v.x + p.b * v.y + p.c * v.z;
+}
+

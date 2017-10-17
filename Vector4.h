@@ -368,6 +368,12 @@ inline bool IsMatch( Be::Var* value, const Vector4& t )
 }
 
 // --------------------------------------------------------------------------------------
+inline float Dot( const Vector4& v1, const Vector4& v2 )
+{
+	return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z + v1.w * v2.w;
+}
+
+// --------------------------------------------------------------------------------------
 inline Vector4 Cross( const Vector4& v1, const Vector4& v2, const Vector4& v3 )
 {
 	return Vector4(

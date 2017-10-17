@@ -65,7 +65,7 @@ private:
 	// Collision plane (exposed to Python)
 	Vector4 m_plane;
 	// Normalized collision plane (derived from m_plane)
-	Vector4 m_normalizedPlane;
+	Plane m_normalizedPlane;
 	// Inverse friction coefficient
 	float m_friction;
 	// Inverse elasticity coefficient
