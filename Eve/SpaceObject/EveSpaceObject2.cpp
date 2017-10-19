@@ -1463,6 +1463,20 @@ void EveSpaceObject2::ReleaseCachedData( BlueAsyncRes* p )
 
 void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 {
+	// build list of block areas we need to render for overlay effects
+	if( m_mesh )
+	{
+		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_OPAQUE );
+		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_TRANSPARENT );
+		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_DECAL );
+		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_OPAQUEONLY], TRIBATCHTYPE_OPAQUE );
+		// this list is too long will hold one element for each mesharea at least... Optimize!
+		for( int i = 0; i < EveMeshOverlayEffect::TYPE_COUNT; ++i )
+		{
+			TriRenderBatchAreaBlock::Optimize( m_overlayMeshAreaBlocks[i] );
+		}
+	}
+
 	// If we already have a model we don't want to go through here
 	// as it would nuke all current animations.
 	if( !m_animationUpdater || m_animationUpdater->IsInitialized() )
@@ -1500,20 +1514,6 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 		m_geometryResFromMesh->GetBoundingSphere( m_mesh->GetMeshIndex(), sphere );
 		m_boundingSphereCenter = Vector3( sphere.x, sphere.y, sphere.z );
 		m_boundingSphereRadius = sphere.w;
-	}
-
-	// build list of block areas we need to render for overlay effects
-	if( m_mesh )
-	{
-		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_OPAQUE );
-		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_TRANSPARENT );
-		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_ALL], TRIBATCHTYPE_DECAL );
-		m_mesh->CollectAreaBlocks( m_overlayMeshAreaBlocks[EveMeshOverlayEffect::TYPE_OPAQUEONLY], TRIBATCHTYPE_OPAQUE );
-		// this list is too long will hold one element for each mesharea at least... Optimize!
-		for( int i = 0; i < EveMeshOverlayEffect::TYPE_COUNT; ++i )
-		{
-			TriRenderBatchAreaBlock::Optimize( m_overlayMeshAreaBlocks[i] );
-		}
 	}
 }
 
