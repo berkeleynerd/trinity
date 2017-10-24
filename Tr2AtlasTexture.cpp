@@ -156,7 +156,17 @@ bool Tr2AtlasTexture::OnPrepareResources()
 
 void Tr2AtlasTexture::ReleaseResources( TriStorage s )
 {
-	if( m_texture.GetMemoryClass() & s )
+	Tr2TextureAL* texture = nullptr;
+	if( m_textureAtlas && m_atlasArea )
+	{
+		texture = m_textureAtlas->GetTexture();
+	}
+	else if( m_texture.IsValid() )
+	{
+		texture = &m_texture;
+	}
+
+	if( texture && texture->GetMemoryClass() & s )
 	{
 		// When managed memory is freed, both standalone textures and the
 		// ones resident in an atlas are purged.		
@@ -205,6 +215,8 @@ bool Tr2AtlasTexture::DoPrepare()
 		// In case we're reloading
 		m_textureAtlas->RemoveFromAtlas( this );
 	}
+
+	m_texture.Destroy();
 
 	if( !Tr2Renderer::IsResourceCreationAllowed() )
 	{
@@ -296,7 +308,17 @@ bool Tr2AtlasTexture::LockBuffer( void*& pData, unsigned int& pitch )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
-	if( !m_texture.IsValid() )
+	Tr2TextureAL* texture = nullptr;
+	if( m_textureAtlas && m_atlasArea )
+	{
+		texture = m_textureAtlas->GetTexture();
+	}
+	else if( m_texture.IsValid() )
+	{
+		texture = &m_texture;
+	}
+
+	if( !texture || !texture->IsValid() )
 	{
 		return false;
 	}
@@ -308,7 +330,7 @@ bool Tr2AtlasTexture::LockBuffer( void*& pData, unsigned int& pitch )
 	}
 
 	unsigned ltrb[4] = { m_x, m_y, m_x + m_width, m_y + m_height };
-	long hr = m_texture.Lock( 0, ltrb, pData, pitch, LOCK_WRITEONLY, renderContext ).GetResult();
+	long hr = texture->Lock( 0, ltrb, pData, pitch, LOCK_WRITEONLY, renderContext ).GetResult();
 
 	if( FAILED( hr ) )
 	{
@@ -325,7 +347,17 @@ bool Tr2AtlasTexture::LockBufferAndMargin( void *&data, unsigned &pitch, unsigne
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
-	if( !m_textureAtlas || !m_atlasArea || m_isLocked || !m_texture.IsValid() ) 
+	Tr2TextureAL* texture = nullptr;
+	if( m_textureAtlas && m_atlasArea )
+	{
+		texture = m_textureAtlas->GetTexture();
+	}
+	else if( m_texture.IsValid() )
+	{
+		texture = &m_texture;
+	}
+
+	if( !m_textureAtlas || !m_atlasArea || m_isLocked || !texture || !texture->IsValid() )
 	{
 		margin = 0;
 		return LockBuffer( data, pitch );
@@ -333,7 +365,7 @@ bool Tr2AtlasTexture::LockBufferAndMargin( void *&data, unsigned &pitch, unsigne
 
 	margin = m_textureAtlas->GetMargin();
 	unsigned ltrb[4] = { m_x - margin, m_y - margin, m_x + m_width + margin, m_y + m_height + margin };
-	long hr = m_texture.Lock( 0, ltrb, data, pitch, LOCK_WRITEONLY, renderContext ).GetResult();
+	long hr = texture->Lock( 0, ltrb, data, pitch, LOCK_WRITEONLY, renderContext ).GetResult();
 
 	if( FAILED( hr ) )
 	{
@@ -355,57 +387,28 @@ void Tr2AtlasTexture::UnlockBuffer()
 	}
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	CR( m_texture.Unlock( renderContext ) );
+
+	Tr2TextureAL* texture = nullptr;
+	if( m_textureAtlas && m_atlasArea )
+	{
+		texture = m_textureAtlas->GetTexture();
+	}
+	else if( m_texture.IsValid() )
+	{
+		texture = &m_texture;
+	}
+
+	if( !texture )
+	{
+		return;
+	}
+
+	CR( texture->Unlock( renderContext ) );
 
 	m_isLocked = false;
 	SetGood( true );
 
 	NotifyListenersOfChange();
-}
-
-bool Tr2AtlasTexture::CopyFromHostBitmap( Tr2HostBitmap* bitmap )
-{
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
-	if( !m_texture.IsValid() )
-	{
-		CCP_LOGERR( "Tr2AtlasTexture::CopyFromHostBitmap: Atlas texture has not been initialized");
-		return false;
-	}
-
-	if( !bitmap || !bitmap->IsValid() )
-	{
-		CCP_LOGERR( "Tr2AtlasTexture::CopyFromHostBitmap: input bitmap not valid");
-		return false;
-	}
-
-	if( bitmap->GetFormat() != m_texture.GetFormat() )
-	{
-		CCP_LOGERR( "Tr2AtlasTexture::CopyFromHostBitmap: bitmap format doesn't match the atlas");
-		return false;
-	}
-
-	if( bitmap->GetWidth()  == m_width  &&
-		bitmap->GetHeight() == m_height )
-	{		
-		CR_RETURN_VAL( m_texture.UpdateSubresource( m_x, m_y, m_x + m_width, m_y + m_height, bitmap->GetRawData(), bitmap->GetPitch(), renderContext ), false );
-		SetGood( true );
-		return true;
-	}
-
-	const unsigned margin = m_textureAtlas->GetMargin();
-
-	if( bitmap->GetWidth()  == m_width  + 2 * margin &&
-		bitmap->GetHeight() == m_height + 2 * margin && 
-		m_x >= margin && m_y >= margin )
-	{		
-		CR_RETURN_VAL( m_texture.UpdateSubresource( m_x - margin, m_y - margin, m_x + m_width + margin, m_y + m_height + margin, bitmap->GetRawData(), bitmap->GetPitch(), renderContext ), false );
-		SetGood( true );
-		return true;
-	}
-
-	CCP_LOGERR( "Tr2AtlasTexture::CopyFromHostBitmap: bitmap dimension doesn't match the atlas");
-	return false;
 }
 
 bool Tr2AtlasTexture::IsMemoryUsageKnown()

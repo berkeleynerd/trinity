@@ -161,7 +161,6 @@ bool Tr2TextureAtlas::DoPrepare( Tr2AtlasTexture* tex )
 	area->tex = tex;
 	tex->m_atlasArea = area;
 
-	tex->m_texture = m_texture;
 	tex->m_x = area->rect.left + m_margin;
 	tex->m_y = area->rect.top + m_margin;
 	tex->m_width = width;
@@ -1018,7 +1017,7 @@ void Tr2TextureAtlas::PullInOutsiders( bool optimiseInsertion )
 			if( CopyTextureIntoAtlas( tex ) )
 			{
 				// Set up the texture window into the atlas
-				tex->m_texture = m_texture;
+				tex->m_texture.Destroy();
 				tex->m_renderTarget = nullptr;
 				tex->m_x = area->rect.left + m_margin;
 				tex->m_y = area->rect.top + m_margin;
@@ -1109,7 +1108,6 @@ ALResult Tr2TextureAtlas::CreateTexture( unsigned int width, unsigned int height
 		tex->m_atlasArea = area;
 
 		// Set up the texture window into the atlas
-		tex->m_texture = m_texture;
 		tex->m_renderTarget = nullptr;
 		tex->m_x = area->rect.left + m_margin;
 		tex->m_y = area->rect.top + m_margin;
@@ -1130,13 +1128,14 @@ ALResult Tr2TextureAtlas::CreateTexture( unsigned int width, unsigned int height
 		}
 
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		HRESULT hr = tex->m_texture.Create2D(	width, 
-											height, 
-											1, 
-											m_format, 
-											type == ATT_VIDEO ? USAGE_CPU_WRITE | USAGE_CPU_READ : USAGE_CPU_READ,
-											nullptr, 
-											renderContext ).GetResult();
+		HRESULT hr = tex->m_texture.Create2D(
+			width, 
+			height, 
+			1, 
+			m_format, 
+			type == ATT_VIDEO ? USAGE_CPU_WRITE | USAGE_CPU_READ : USAGE_CPU_READ,
+			nullptr, 
+			renderContext ).GetResult();
 		if( FAILED( hr ) )
 		{
 			*result = nullptr;

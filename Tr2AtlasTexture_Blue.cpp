@@ -77,21 +77,6 @@ static PyObject* PyLockBufferAndMargin( PyObject* self, PyObject* args )
 
 	Py_RETURN_FALSE;
 }
-
-static PyObject* PyGetTextureAtlas( PyObject* self, PyObject* args )
-{
-	Tr2AtlasTexture* pThis = BluePythonCast<Tr2AtlasTexture*>( self );
-
-	TriTextureResPtr tmpRes;
-	tmpRes.CreateInstance();
-	if( pThis->GetTexture() )
-	{
-		tmpRes->SetTexture( *pThis->GetTexture() );
-	}
-	
-	BluePythonObject* obj = PyOS->WrapBlueObject( tmpRes->GetRawRoot() );
-	return obj;
-}
 #endif
 
 const Be::ClassInfo* Tr2AtlasTexture::ExposeToBlue()
@@ -126,25 +111,6 @@ const Be::ClassInfo* Tr2AtlasTexture::ExposeToBlue()
 			"UnlockBuffer",
 			UnlockBuffer,
 			"Unlocks the surface previously locked with LockBuffer"
-		)
-
-		MAP_METHOD
-		(
-			"GetTextureAtlas",
-			PyGetTextureAtlas,
-			"Returns a handle to the texture atlas that this atlas texture is a part of.\n"
-			":rtype: TriTextureRes"
-		)
-
-		MAP_METHOD_AND_WRAP
-		(
-			"CopyFromHostBitmap",
-			CopyFromHostBitmap,
-			"Copies the contents of the host bitmap into the atlas texture.\n"
-			":param hostBitmap: Tr2HostBitmap of exactly the same pixelformat as the atlas texture.\n"
-			"             The size needs to be either an exact match, in which case the texture is updated;\n"
-			"             _or_ it can be 2xmargin pixels wider and taller, in which case the margin in the\n"
-			"			 parent texture atlas is also overwritten."
 		)
 
 		MAP_ATTRIBUTE

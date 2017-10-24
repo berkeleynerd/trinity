@@ -65,8 +65,6 @@ public:
 	// Unlock a rectangle previously locked with LockBuffer.
 	void UnlockBuffer();
 
-	bool CopyFromHostBitmap( Tr2HostBitmap* bitmap );
-
 	void RegisterForChangeNotification( ITr2AtlasTextureNotifyTarget* p );
 	void UnregisterForChangeNotification( ITr2AtlasTextureNotifyTarget* p );
 
@@ -133,7 +131,7 @@ private:
 
 	// AL texture, used if texture is stand-alone (didn't fit in atlas
 	// or was requested stand-alone)
-	Tr2TextureAL	m_texture;
+	Tr2TextureAL m_texture;
 
 	// It is ok to have raw pointer to Tr2AtlasTexture::m_renderTarget since
 	// since T2AtlasTexture lifetime is bound to it.
