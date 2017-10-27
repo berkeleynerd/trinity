@@ -40,11 +40,9 @@ static PyObject* PyInit( PyObject* self, PyObject* args )
 		if( BluePythonCast<Tr2TextureAtlas*>( pyBlueObject ) && BlueExtractArgument( pyBlueObject, textureAtlas, 1 ) && 
 			textureAtlas && textureAtlas->GetTexture() && textureAtlas->GetTexture()->IsValid() )
 		{
-			TriTextureResPtr textureRes;
-			textureRes.CreateInstance();
-			textureRes->SetTexture( *textureAtlas->GetTexture() );
-			pThis->Create( textureRes->GetWidth(), textureRes->GetHeight(), textureRes->GetTrueMipCount(), textureRes->GetFormat() );
-			pThis->CopyFromTextureRes( *textureRes, renderContext );
+			auto& texture = *textureAtlas->GetTexture();
+			pThis->Create( texture.GetWidth(), texture.GetHeight(), texture.GetTrueMipCount(), texture.GetFormat() );
+			pThis->CopyFromTexture( texture, renderContext );
 			Py_RETURN_NONE;
 		}
 

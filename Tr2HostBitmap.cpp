@@ -184,6 +184,85 @@ bool Tr2HostBitmap::CopyFromRenderTargetRegionPython( Tr2RenderTarget* rt, int l
 	return CopyFromRenderTarget( *rt, rect, offsetX, offsetY, renderContext );
 }
 
+bool Tr2HostBitmap::CopyFromTexture( Tr2TextureAL& texture, Tr2RenderContext& renderContext )
+{
+	if( !texture.IsValid() )
+	{
+		return false;
+	}
+
+	if( texture.GetType() != TEX_TYPE_2D && texture.GetType() != TEX_TYPE_CUBE )
+	{
+		CCP_LOGERR( "Tr2HostBitmap::CopyFromTextureRes, only 2D and CUBE textures supported" );
+		return false;
+	}
+
+	bool alphaConvert = false;
+
+	if( GetType() != texture.GetType() || !CheckForMatch( texture, true, alphaConvert, "CopyFromTextureRes" ) )
+	{
+		return false;
+	}
+
+	const uint32_t mipCount = std::min( GetTrueMipCount(), texture.GetTrueMipCount() );
+	const uint32_t faceCount = GetArraySize();
+
+
+	for( uint32_t face = 0; face != faceCount; ++face )
+	{
+		for( uint32_t mipLevel = 0; mipLevel != mipCount; ++mipLevel )
+		{
+			void* srcData = nullptr;
+			uint32_t srcPitch = 0;
+
+			HRESULT hr = texture.Lock( face, mipLevel, nullptr, srcData, srcPitch, LOCK_READONLY, renderContext );
+			if( FAILED( hr ) || srcData == nullptr )
+			{
+				CCP_LOGERR( "Tr2HostBitmap::CopyFromTextureRes, error locking surface" );
+				return false;
+			}
+
+
+			uint8_t* dst = (uint8_t*)GetMipRawData( mipLevel, face );
+			const uint8_t* src = (uint8_t*)srcData;
+
+			const uint32_t dstPitch = GetMipPitch( mipLevel );
+
+			if( alphaConvert )
+			{
+				const uint32_t width = GetMipWidth( mipLevel );
+				const uint32_t height = GetMipHeight( mipLevel );
+				for( uint32_t j = 0; j != height; ++j, src += srcPitch, dst += dstPitch )
+				{
+					const uint8_t* in = src;
+					uint8_t* out = dst;
+					for( uint32_t i = 0; i != width; ++i )
+					{
+						*out++ = *in++;
+						*out++ = *in++;
+						*out++ = *in++;
+						*out++ = 0xFF;
+						++in;
+					}
+				}
+			}
+			else
+			{
+				const uint32_t height = IsCompressed() ? GetMipHeight( mipLevel ) / 4 : GetMipHeight( mipLevel );
+				for( uint32_t j = 0; j != height; ++j, src += srcPitch, dst += dstPitch )
+				{
+					memcpy( dst, src, dstPitch );
+				}
+			}
+
+
+			texture.Unlock( renderContext );
+		}
+	}
+
+	return true;
+}
+
 bool Tr2HostBitmap::CopyFromTextureRes ( TriTextureRes& res, Tr2RenderContext& renderContext )
 {
 	if( !res.GetTexture() )
