@@ -518,8 +518,6 @@ bool Tr2HostBitmap::Compress( unsigned compressionFormat, unsigned qualityLevel,
 		return false;
 	}
 
-	Tr2TextureAL texture;
-
 	static const PixelFormat format[ TR2DXT_COMPRESS_COUNT ] = 
 	{
 		PIXEL_FORMAT_BC1_UNORM,		// TR2DXT_COMPRESS_RT_DXT1			= 0,
@@ -551,25 +549,12 @@ bool Tr2HostBitmap::Compress( unsigned compressionFormat, unsigned qualityLevel,
 			return false;
 		}
 
-		Tr2SubresourceData initialData;
-		initialData.m_sysMem = destination.get();
-		initialData.m_sysMemPitch = pitch;
-		initialData.m_sysMemSlicePitch = uint32_t( destination.size() );
-
-		{
-			USE_MAIN_THREAD_RENDER_CONTEXT();
-			CR_RETURN_VAL( texture.Create2D(	m_width, 
-												m_height, 
-												1, 
-												format[ compressionFormat ], 
-												USAGE_IMMUTABLE, 
-												&initialData, 
-												renderContext )
-						, false );
-		}
+		Tr2HostBitmapPtr bitmap;
+		bitmap.CreateInstance();
+		bitmap->Create( m_width, m_height, 1, format[compressionFormat] );
+		memcpy( bitmap->GetRawData(), destination.get(), bitmap->GetRawDataSize() );
+		output->CreateFromHostBitmap( bitmap );
 	}
-
-	output->SetTexture( texture );
 	return true;
 #endif
 }

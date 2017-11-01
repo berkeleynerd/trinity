@@ -134,6 +134,7 @@ void TriTextureRes::ReleaseResources( TriStorage s )
 		CleanupAsyncSave(false);
 
 		m_ownTexture.Destroy();
+		m_texture = nullptr;
 		m_wrappedRenderTarget = nullptr;
 		m_wrappedDepthStencil = nullptr;
 		SetPrepared( false );
@@ -649,6 +650,7 @@ bool TriTextureRes::SetTexture( Tr2TextureAL& texture )
 
 	if( !texture.IsValid()  )
 	{
+		m_texture = nullptr;
 		SetPrepared( false );
 		SetGood( false );
 
