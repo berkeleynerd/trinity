@@ -177,11 +177,6 @@ public:
 	virtual bool GetWidth( uint32_t& width ) const;
 	virtual bool GetHeight( uint32_t& height ) const;
 
-	virtual void RegisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData );
-	virtual void UnregisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData );
-
-	virtual void GetBackBufferGrabber( ITr2RenderTargetGrabber** grabber );
-
 	virtual void SetTickInterval( int value );
 
 	/////////////////////////////////////////////////////////////////////////////////////
@@ -350,16 +345,6 @@ private:
 	private:
 		bool m_originalSetting;
 	};
-
-	struct CallbackData
-	{
-		Tr2DeviceCallback m_callback;
-		void* m_userData;
-	};
-	TrackableStdVector<CallbackData> m_beginFrameCallbacks;
-	TrackableStdVector<CallbackData> m_presentCallbacks;
-
-	void CallCallbacks( const TrackableStdVector<CallbackData>& cbs );
 
 	IBlueCallbackManPtr m_postUpdateCallbacks;
 

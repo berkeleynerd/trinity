@@ -7,7 +7,6 @@
 #include "TriPythonContext.h"
 #include "RenderJob/Tr2RenderJobs.h"
 #include "Curves/TriCurveSet.h"
-#include "Tr2RenderTargetGrabber.h"
 #include "Include/TriMath.h"
 
 #include "Blue/Include/IBlueCallbackMan.h"
@@ -114,9 +113,7 @@ TriDevice::TriDevice(IRoot* lockobj) :
 	m_animationTimeScale( 1.0f ),
 	m_mipLevelMaxChainLength( 0x7fffffff ),
 	m_mipLevelSkipCount( 0U ),
-	PARENTLOCK( m_curveSets ),
-	m_beginFrameCallbacks( "TriDevice::m_beginFrameCallbacks" ),
-	m_presentCallbacks( "TriDevice::m_presentCallbacks" )
+	PARENTLOCK( m_curveSets )
 {	
 	Tr2DisplayModeInfo empty = {0};
 	mDisplayMode = empty;
@@ -1217,20 +1214,9 @@ void TriDevice::ScreenToProjection(		int x,		int y,
 	*fy = -*fy;
 }
 
-void TriDevice::CallCallbacks( const TrackableStdVector<CallbackData>& cbs )
-{
-	auto cbCopy = cbs;
-	for( auto it = std::begin( cbCopy ); it != std::end( cbCopy ); ++it )
-	{
-		( *it->m_callback )( this, it->m_userData );
-	}
-}
-
 bool TriDevice::Render()
 {
 	D3DPERF_EVENT(L"TriDevice::Render");
-
-	CallCallbacks( m_beginFrameCallbacks );
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	Tr2Viewport vp;
@@ -1258,8 +1244,6 @@ bool TriDevice::Render()
 		m_renderJobs->Run( m_realTime, m_simTime );
 	}
 
-	CallCallbacks( m_presentCallbacks );
-
 	Tr2Renderer::EndRenderContext();
 	Tr2Renderer::EndFrame();
 
@@ -1280,42 +1264,6 @@ bool TriDevice::GetHeight( uint32_t& height ) const
 	Tr2Renderer::GetBackBufferDimensions( w, h );
 	height = h;
 	return true;
-}
-
-void TriDevice::RegisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData )
-{
-	auto& cbs = time == DEVICE_CALLBACK_FRAME_BEGIN ? m_beginFrameCallbacks : m_presentCallbacks;
-	CallbackData cb = { callback, userData };
-	cbs.push_back( cb );
-}
-
-void TriDevice::UnregisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData )
-{
-	auto& cbs = time == DEVICE_CALLBACK_FRAME_BEGIN ? m_beginFrameCallbacks : m_presentCallbacks;
-	for( auto it = std::begin( cbs ); it != std::end( cbs ); ++it )
-	{
-		if( it->m_callback == callback && it->m_userData == userData )
-		{
-			cbs.erase( it );
-			break;
-		}
-	}
-}
-
-void TriDevice::GetBackBufferGrabber( ITr2RenderTargetGrabber** grabber )
-{
-	Tr2RenderTargetGrabberPtr backBufferGrabber;
-	backBufferGrabber.CreateInstance();
-	if( backBufferGrabber )
-	{
-		USE_MAIN_THREAD_RENDER_CONTEXT();
-		if( !backBufferGrabber->Create( renderContext.GetDefaultBackBuffer(), this ) )
-		{
-			backBufferGrabber = nullptr;
-		}
-	}
-
-	( *grabber ) = backBufferGrabber.Detach();
 }
 
 void TriDevice::AddPostUpdateCallback( IBlueCallbackMan::CallbackFunc cb, void* context )

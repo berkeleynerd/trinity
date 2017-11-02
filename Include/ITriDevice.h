@@ -27,7 +27,6 @@
 
 // forwards
 BLUE_DECLARE_INTERFACE( ITriDevice );
-BLUE_DECLARE_INTERFACE( ITr2RenderTargetGrabber );
 struct Tr2PresentParametersAL;
 
 // --------------------------------------------------------------------------------------
@@ -93,10 +92,6 @@ BLUE_INTERFACE(ITriDevice) : public IRoot
 
 	virtual bool GetWidth( uint32_t& width ) const = 0;
 	virtual bool GetHeight( uint32_t& height ) const = 0;
-
-	virtual void RegisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData ) = 0;
-	virtual void UnregisterDeviceCallback( Tr2DeviceCallbackTime time, Tr2DeviceCallback callback, void* userData ) = 0;
-	virtual void GetBackBufferGrabber( ITr2RenderTargetGrabber** grabber ) = 0;
 
 	virtual void SetTickInterval( int value ) = 0;
 };
