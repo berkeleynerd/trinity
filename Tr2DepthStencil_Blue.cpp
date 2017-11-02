@@ -5,29 +5,24 @@ BLUE_DEFINE( Tr2DepthStencil );
 
 const Be::ClassInfo* Tr2DepthStencil::ExposeToBlue()
 {
-	/////////////////////////////////////////
-	// Blue class info
     EXPOSURE_BEGIN( Tr2DepthStencil, "" )
 
 		MAP_INTERFACE( IRoot )
 		MAP_INTERFACE( Tr2DepthStencil )
 		MAP_INTERFACE( ITr2TextureProvider )
 
-		MAP_METHOD_AND_WRAP
-		(
-			"IsValid",
-			IsValid,
-			":jessica-deprecated:\n"
-		)
-
-		MAP_METHOD_AND_WRAP
-		(
-			"IsReadable",
-			IsReadable,
-			":jessica-deprecated:\n"
-			"Returns true if the depthStencil is readable, so setting it in the\n"
-			"variable store will make it act like a source texture."
-		)
+		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS(
+			"__init__",
+			py__init__,
+			6,
+			"Provide no arguments, and call Create later, or provide\n"
+			":param width: buffer width\n"
+			":param height: buffer height\n"
+			":param format: buffer format (trinity.DEPTH_STENCIL_FORMAT)\n"
+			":param msaaType: sample count\n"
+			":param msaaQuality: MSAA quality\n"
+			":param flags: combination of trinity.EX_FLAG"
+		);
 
 		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS
 		(
@@ -43,20 +38,7 @@ const Be::ClassInfo* Tr2DepthStencil::ExposeToBlue()
 			":param flags: trinity.EX_FLAG"
 		)
 
-		MAP_METHOD_AND_WRAP
-		(
-			"CreateEx",
-			Create,
-			":jessica-deprecated:\n"
-			":param width: buffer width\n"
-			":param height: buffer height\n"
-			":param format: buffer format (trinity.DEPTH_STENCIL_FORMAT)\n"
-			":param msaaType: sample count\n"
-			":param msaaQuality: MSAA quality"
-			":param flags: trinity.EX_FLAG"
-		)
-
-		MAP_ATTRIBUTE( "name",					m_name,							"", Be::READWRITE | Be::PERSIST );
+		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST );
 
 		MAP_PROPERTY_READONLY( "width", GetWidth, "" );
 		MAP_PROPERTY_READONLY( "height", GetHeight, "" );
@@ -66,19 +48,6 @@ const Be::ClassInfo* Tr2DepthStencil::ExposeToBlue()
 
 		MAP_PROPERTY_READONLY( "isValid", IsValid, "is the graphics object successfully creaed" );
 		MAP_PROPERTY_READONLY( "isReadable", IsReadable, "can the DS be used as a texture" );
-
-		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS( 
-			"__init__", 
-			py__init__, 
-			6,
-			"Provide no arguments, and call Create later, or provide\n" 
-			":param width: buffer width\n"
-			":param height: buffer height\n"
-			":param format: buffer format (trinity.DEPTH_STENCIL_FORMAT)\n"
-			":param msaaType: sample count\n"
-			":param msaaQuality: MSAA quality\n"
-			":param flags: combination of trinity.EX_FLAG"
-		);
 
 		MAP_METHOD_AND_WRAP( 
 			"sharedHandle",	
