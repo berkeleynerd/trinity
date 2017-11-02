@@ -20,11 +20,12 @@ void Tr2DepthStencil::py__init__(
 		Be::OptionalWithDefaultValue<unsigned, 0> height,
 		Be::OptionalWithDefaultValue<Tr2RenderContextEnum::DepthStencilFormat, Tr2RenderContextEnum::DSFMT_UNKNOWN> format,
 		Be::OptionalWithDefaultValue<unsigned, 1> msaaType,
-		Be::OptionalWithDefaultValue<unsigned, 0> msaaQuality )
+		Be::OptionalWithDefaultValue<unsigned, 0> msaaQuality,
+		Be::OptionalWithDefaultValue<Tr2RenderContextEnum::ExFlag, Tr2RenderContextEnum::EX_NONE> flags )
 {
 	if( width && height && format )
 	{
-		Create( width, height, format, msaaType, msaaQuality );		
+		Create( width, height, format, msaaType, msaaQuality, flags );		
 	}		
 }
 
