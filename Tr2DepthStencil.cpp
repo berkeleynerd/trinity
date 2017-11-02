@@ -43,7 +43,12 @@ Tr2TextureAL* Tr2DepthStencil::GetTexture()
 	}
 	return nullptr;
 }
-	
+
+bool Tr2DepthStencil::IsReadable() const
+{
+	return m_depthStencil.GetTexture().IsValid() && m_depthStencil.GetMsaaDesc().samples < 2;
+}
+
 bool Tr2DepthStencil::IsValid() const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );

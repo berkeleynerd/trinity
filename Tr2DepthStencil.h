@@ -40,6 +40,7 @@ public:
 
 	bool IsValid() const;
 	void Destroy();
+	bool IsReadable() const;
 
 	uintptr_t GetSharedHandle() const;
 

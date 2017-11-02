@@ -20,6 +20,15 @@ const Be::ClassInfo* Tr2DepthStencil::ExposeToBlue()
 			"No arguments"
 		)
 
+		MAP_METHOD_AND_WRAP
+		(
+			"IsReadable",
+			IsReadable,
+			"No arguments\n"
+			"Returns true if the depthStencil is readable, so setting it in the\n"
+			"variable store will make it act like a source texture."
+		)
+
 		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS
 		(
 			"Create",
@@ -54,6 +63,7 @@ const Be::ClassInfo* Tr2DepthStencil::ExposeToBlue()
 		MAP_PROPERTY_READONLY( "format", GetFormat, "" );
 
 		MAP_PROPERTY_READONLY( "isValid", IsValid, "is the graphics object successfully creaed" );
+		MAP_PROPERTY_READONLY( "isReadable", IsReadable, "IsReadable()" );
 
 		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS( 
 			"__init__", 
