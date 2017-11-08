@@ -29,11 +29,6 @@ public:
 
 	TriRenderJobStatus Run( Be::Time realTime, Be::Time simTime, Tr2RenderContext *renderContext = nullptr );
 
-	//Tr2RenderContext&	GetRenderContext();
-
-	bool		SetThreadAffinity( uint32_t threadAffinity );
-	uint32_t	GetThreadAffinity() const;
-
 	TriRenderStepVector& Steps() { return m_renderSteps; }
 
 	// ITriDeviceResource is needed, for cases when people decorate the renderjob class
@@ -43,25 +38,22 @@ private:
 	virtual bool OnPrepareResources();
 
 private:
-	//Tr2RenderContextPtr	m_renderContext;
-	uint32_t			m_threadAffinity;
-
-	// The render job is only run when enabled - this is primarily for debugging
-	// and performance analysis purposes
-	bool m_enabled;
-
-	TriRenderJobStatus m_status;
 	std::string m_name;
 	PTriRenderStepVector m_renderSteps;
-
-	// Check for RT/DS stack depth before and after RJ is run and
-	// assert/repair stack when needed.
-	bool m_stackGuard;
+	TriRenderJobStatus m_status;
 
 	// keep an index instead of an iterator, in case we yield during execution and
 	// modify the list at the same time.  What that is supposed to do is debatable,
 	// but at least we don't want to crash pointing at bad memory.
 	size_t	m_currentStep;
+
+	// Check for RT/DS stack depth before and after RJ is run and
+	// assert/repair stack when needed.
+	bool m_stackGuard;
+
+	// The render job is only run when enabled - this is primarily for debugging
+	// and performance analysis purposes
+	bool m_enabled;
 };
 
 TYPEDEF_BLUECLASS( TriRenderJob )

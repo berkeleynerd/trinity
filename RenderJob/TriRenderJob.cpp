@@ -5,7 +5,6 @@
 
 TriRenderJob::TriRenderJob( IRoot* lockobj )
 	: PARENTLOCK( m_renderSteps )
-	, m_threadAffinity( 0 )	
 	, m_enabled( true )
 	, m_status( RJ_INIT )
 	, m_stackGuard( true )
@@ -15,44 +14,6 @@ TriRenderJob::TriRenderJob( IRoot* lockobj )
 
 TriRenderJob::~TriRenderJob(void)
 {
-}
-
-/*Tr2RenderContext& TriRenderJob::GetRenderContext()
-{
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	return m_renderContext ? *m_renderContext : renderContext;
-}*/
-
-bool TriRenderJob::SetThreadAffinity( uint32_t affinity )
-{
-	if( affinity == m_threadAffinity )
-	{
-		return true;
-	}
-#if 0
-	if( !affinity )
-	{
-		m_renderContext.Unlock();
-		m_threadAffinity = 0;
-		return true;
-	}
-
-	m_renderContext.CreateInstance();
-	if( FAILED( m_renderContext->CreateSecondaryContext() ) )
-	{
-		m_renderContext.Unlock();
-		m_threadAffinity = 0;
-		return false;
-	}
-#endif
-
-	m_threadAffinity = affinity;
-	return true;
-}
-
-uint32_t TriRenderJob::GetThreadAffinity() const
-{
-	return m_threadAffinity;
 }
 
 TriRenderJobStatus TriRenderJob::Run( Be::Time realTime, Be::Time simTime, Tr2RenderContext *renderContextPtr )
