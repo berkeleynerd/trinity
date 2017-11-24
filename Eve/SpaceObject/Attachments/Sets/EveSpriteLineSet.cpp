@@ -257,6 +257,11 @@ void EveSpriteLineSet::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const M
 		}
 	}
 
+	for( size_t i = 0; i < n; ++i )
+	{
+		m_buffer[i].activation = D3DXFLOAT16( activation );
+	}
+
 	quadRenderer.AddQuads( m_effectHash, &m_buffer[0], m_buffer.size() );
 }
 
