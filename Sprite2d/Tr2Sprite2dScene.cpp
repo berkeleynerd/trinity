@@ -735,12 +735,6 @@ void Tr2Sprite2dScene::SetTexture( unsigned ix, Tr2AtlasTexturePtr tex, Tr2Sprit
 		IssueDrawCall();
 		m_texture[ix] = tex;
 
-		if( m_effect )
-		{
-			auto desc = m_effect->GetPassDescription( 0, 0 );
-			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.Set( PIXEL_SHADER, ix, texAL ? *texAL : nullTX );
-		}
-
 		if( ix == 0 )
 		{
 			Vector4 texelSize;
@@ -1121,6 +1115,26 @@ void Tr2Sprite2dScene::IssueDrawCall()
 			}
 			else
 			{
+				if( auto desc = m_effect->GetPassDescription( 0, 0 ) )
+				{
+					for( uint32_t i = 0; i < 2; ++i )
+					{
+						Tr2TextureAL* texAL = nullptr;
+						if( m_texture[i] )
+						{
+							texAL = m_texture[i]->GetTexture();
+							if( !texAL )
+							{
+								if( m_texture[i]->GetRenderTarget() )
+								{
+									texAL = &m_texture[i]->GetRenderTarget()->GetTexture();
+								}
+							}
+						}
+						desc->m_resourceSetDirty |= desc->m_resourceSetDesc.Set( PIXEL_SHADER, i, texAL ? *texAL : nullTX );
+					}
+				}
+
 				m_drawCallStartIndex /= sizeof( uint32_t );
 				renderContext.m_esm.ApplyStreamSource( 0, m_vertexBuffer.GetBuffer(), vertexBufferOffset, sizeof( Tr2Sprite2dD3DVertex ) );
 				m_effect->Render( this, renderContext );
