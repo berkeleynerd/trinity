@@ -62,21 +62,21 @@ Configurations:
     Imports:
     - trinity_debug.yaml
     - trinity_d3d9.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)_d
   Dev9|Win32,x64:
     Imports:
     - trinity_dev.yaml
     - trinity_d3d9.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)_dev9
   Dev11|Win32,x64:
     Imports:
     - trinity_dev.yaml
     - trinity_d3d11.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)_dev11
   DevGLES2|Win32:
@@ -84,35 +84,35 @@ Configurations:
     Imports:
     - trinity_dev.yaml
     - trinity_gles2.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)_devgles2
   Dev9_26|Win32,x64:
     Imports:
     - trinity_dev.yaml
     - trinity_d3d9.yaml
-    - ../blue/uses_blue_26.yaml
+    - ../blue/Include/uses_blue_26.yaml
     General:
       TargetName: _$(ProjectName)_dev9
   Release|Win32,x64:
     Imports:
     - trinity_release.yaml
     - trinity_d3d9.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)
   Release11|Win32,x64:
     Imports:
     - trinity_release.yaml
     - trinity_d3d11.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)11
   Deploy|Win32,x64:
     Imports:
     - trinity_deploy.yaml
     - trinity_d3d9.yaml
-    - ../blue/uses_blue.yaml
+    - ../blue/Include/uses_blue.yaml
     General:
       TargetName: _$(ProjectName)_deploy
 
