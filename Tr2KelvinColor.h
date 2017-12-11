@@ -4,7 +4,7 @@
 #define Tr2KelvinColor_h
 
 #include "Utilities/Color.h"
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 
 // Standard Illuminants
 enum Tr2StandardIlluminant

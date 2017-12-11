@@ -5,7 +5,7 @@
 
 // Trinity headers
 #include "Utilities/Matrix.h"
-#include "Vector2.h"
+#include "Utilities/Vector2.h"
 
 class Tr2RenderContext;
 

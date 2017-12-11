@@ -2,7 +2,7 @@
 #ifndef ITr2PickableScene_H
 #define ITr2PickableScene_H
 
-#include "Vector3.h"
+#include "Utilities/Vector3.h"
 
 // Forward declarations
 struct ITr2Renderable;

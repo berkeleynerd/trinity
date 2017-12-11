@@ -1,6 +1,6 @@
 #include "StdAfx.h"
 #include "EveLocalPositionCurve.h"
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/Turret/EveTurretSet.h"
 #include "include/TriMath.h"

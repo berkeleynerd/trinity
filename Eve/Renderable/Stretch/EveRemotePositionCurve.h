@@ -7,7 +7,7 @@
 #ifndef _EVEREMOTEPOSITIONCURVE_H_
 #define _EVEREMOTEPOSITIONCURVE_H_
 
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 #include "include/ITriFunction.h"
 
 BLUE_CLASS( EveRemotePositionCurve ) :

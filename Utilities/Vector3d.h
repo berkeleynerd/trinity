@@ -29,11 +29,11 @@ public:
 	// Arguments:
 	//   d - An array of 3 doubles
 	// ----------------------------------------------------------------------------------
-	explicit Vector3d( const double* d ) 
-	{ 
-		x = d[0]; 
-		y = d[1]; 
-		z = d[2]; 
+	explicit Vector3d( const double* d )
+	{
+		x = d[0];
+		y = d[1];
+		z = d[2];
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -44,8 +44,8 @@ public:
 	// ----------------------------------------------------------------------------------
 	explicit Vector3d( const float* f )
 	{
-		x = f[0]; 
-		y = f[1]; 
+		x = f[0];
+		y = f[1];
 		z = f[2];
 	}
 
@@ -66,16 +66,24 @@ public:
 	//   other - The Vector3d to copy
 	// ----------------------------------------------------------------------------------
 	Vector3d( const Vector3d& other ) : x( other.x ), y( other.y ), z( other.z ) {}
-	
+
+	// ----------------------------------------------------------------------------------
+	// Description
+	//   constructor from float vector
+	// Arguments:
+	//   other - The Vector3 to copy
+	// ----------------------------------------------------------------------------------
+	Vector3d( const Vector3& other ) : x( other.x ), y( other.y ), z( other.z ) {}
+
 	// ----------------------------------------------------------------------------------
 	// Description
 	//   Double-array conversion operator
 	// Return Value:
 	//   Pointer to the x-component of the vector
 	// ----------------------------------------------------------------------------------
-	operator double*( void ) 
-	{ 
-		return &x; 
+	operator double*( void )
+	{
+		return &x;
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -84,9 +92,9 @@ public:
 	// Return Value:
 	//   Pointer to the x-component of the vector
 	// ----------------------------------------------------------------------------------
-	operator const double*( void ) const 
-	{ 
-		return &x; 
+	operator const double*( void ) const
+	{
+		return &x;
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -95,11 +103,11 @@ public:
 	// Return Value:
 	//   The Vector3 produced by the conversion
 	// ----------------------------------------------------------------------------------
-	const Vector3 AsVector3( void ) const 
-	{ 
+	const Vector3 AsVector3( void ) const
+	{
 		return Vector3( static_cast<float>( x ),
-					    static_cast<float>( y ),
-						static_cast<float>( z ) ); 
+			static_cast<float>( y ),
+			static_cast<float>( z ) );
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -221,9 +229,9 @@ public:
 	// Return Value:
 	//   A copy of this Vector3d
 	// ----------------------------------------------------------------------------------
-	Vector3d operator+( void ) const 
-	{ 
-		return Vector3d( *this ); 
+	Vector3d operator+( void ) const
+	{
+		return Vector3d( *this );
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -232,9 +240,9 @@ public:
 	// Return Value:
 	//   A copy of this Vector3d, with each component negated
 	// ----------------------------------------------------------------------------------
-	Vector3d operator-( void ) const 
-	{ 
-		return Vector3d( -x, -y, -z ); 
+	Vector3d operator-( void ) const
+	{
+		return Vector3d( -x, -y, -z );
 	}
 
 	// ----------------------------------------------------------------------------------
@@ -369,8 +377,8 @@ public:
 	// Return Value:
 	//   The length of the Vector3d, as a double
 	// ----------------------------------------------------------------------------------
-	double Length( void ) const 
-	{ 
+	double Length( void ) const
+	{
 		return sqrt( x*x + y*y + z*z );
 	}
 
@@ -380,8 +388,8 @@ public:
 	// Return Value:
 	//   The squared length of the Vector3d, as a double
 	// ----------------------------------------------------------------------------------
-	double LengthSq( void ) const 
-	{ 
+	double LengthSq( void ) const
+	{
 		return x*x + y*y + z*z;
 	}
 
@@ -427,7 +435,7 @@ public:
 		z = zt;
 		return *this;
 	};
-	
+
 	double Dot( const Vector3d& other )
 	{
 		return x*other.x + y*other.y + z*other.z;
@@ -482,5 +490,31 @@ inline const Vector3d operator-( const Vector3& a, const Vector3d& b )
 {
 	return Vector3d( b ) -= a;
 }
+
+// --------------------------------------------------------------------------------------
+inline double Dot( const Vector3d& v1, const Vector3d& v2 )
+{
+	return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z;
+}
+
+// --------------------------------------------------------------------------------------
+inline Vector3d Cross( const Vector3d& v1, const Vector3d& v2 )
+{
+	return Vector3d( v1.y * v2.z - v1.z * v2.y, v1.z * v2.x - v1.x * v2.z, v1.x * v2.y - v1.y * v2.x );
+}
+
+// --------------------------------------------------------------------------------------
+inline double LengthSq( const Vector3d& v )
+{
+	return Dot( v, v );
+}
+
+// --------------------------------------------------------------------------------------
+inline double Length( const Vector3d& v )
+{
+	return std::sqrt( LengthSq( v ) );
+}
+
+
 
 #endif

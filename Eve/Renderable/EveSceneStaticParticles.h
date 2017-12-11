@@ -8,7 +8,7 @@
 #ifndef EveSceneStaticParticles_H
 #define EveSceneStaticParticles_H
 
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 #include "ITr2Renderable.h"
 #include "ITr2GeometryProvider.h"
 #include "Eve/IEveSpaceObject2.h"

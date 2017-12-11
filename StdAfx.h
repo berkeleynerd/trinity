@@ -87,9 +87,9 @@ using std::max;
 #include "CcpMath/include/Float16.h"
 #endif
 
-#include "Vector2.h"
-#include "Vector3.h"
-#include "Vector4.h"
+#include "Utilities/Vector2.h"
+#include "Utilities/Vector3.h"
+#include "Utilities/Vector4.h"
 #include "Utilities/Plane.h"
 #include "Utilities/Matrix.h"
 #include "Utilities/Color.h"

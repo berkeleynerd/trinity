@@ -6,7 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2RotationAdapter.h"
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 
 
 // --------------------------------------------------------------------------------

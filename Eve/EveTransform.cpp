@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "EveTransform.h"
 #include "Tr2Model.h"
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 #include "Utilities/BoundingSphere.h"
 #include "Utilities/BoundingBox.h"
 #include "TriFrustum.h"

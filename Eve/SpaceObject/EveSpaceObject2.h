@@ -14,7 +14,7 @@
 #include "IWorldPosition.h"
 #include "include/ITriFunction.h"
 #include "Eve/IEveTransform.h"
-#include "Vector3d.h"
+#include "Utilities/Vector3d.h"
 #include "Tr2PersistentPerObjectData.h"
 #include "Eve/Animation/EveAnimationData.h"
 #include "Tr2ShLightingManager.h"
