@@ -3115,6 +3115,7 @@
     <ClInclude Include="Utilities\Vector3.h"/>
     <ClInclude Include="Utilities\Vector3d.h"/>
     <ClInclude Include="Utilities\Vector4.h"/>
+    <ClInclude Include="Utilities\Vector4d.h"/>
     <ClInclude Include="Wod\WodBakingScene.h"/>
     <ClInclude Include="Wod\WodPlaceableRes.h"/>
   </ItemGroup>

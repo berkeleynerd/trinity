@@ -1386,6 +1386,9 @@
     <ClInclude Include="Utilities\Vector4.h">
       <Filter>Source Files\Utilities</Filter>
     </ClInclude>
+    <ClInclude Include="Utilities\Vector4d.h">
+      <Filter>Source Files\Utilities</Filter>
+    </ClInclude>
     <ClInclude Include="Wod\WodBakingScene.h">
       <Filter>Source Files\Wod</Filter>
     </ClInclude>
