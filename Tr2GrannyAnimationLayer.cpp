@@ -342,10 +342,16 @@ void Tr2GrannyAnimationLayer::SampleAnimation( float animationTime, granny_local
 		{
 			m_basePose = GrannyNewLocalPose( m_boneCount );
 		}
-		granny_skeleton *skeleton = GrannyGetSourceSkeleton( m_modelInstance );
+
+		granny_model_control_binding *binding = GrannyModelControlsBegin( m_modelInstance );
+		// Construct the m_basePose from raw local clock 0 for the first control.
+		granny_control *control = GrannyGetControlFromBinding( binding );
+		const float raw_local_time = GrannyGetControlRawLocalClock( control );
+		GrannySetControlRawLocalClock( control, 0 );
+		GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, m_basePose );
+		GrannySetControlRawLocalClock( control, raw_local_time );
 
 		GrannySampleModelAnimations( m_modelInstance, 0, m_boneCount, compositePose );
-		GrannyBuildRestLocalPose( skeleton, 0, m_boneCount, m_basePose );
 		GrannyMaskedAdditiveBlend( resultPose, compositePose, m_basePose, 0, m_boneCount, m_trackMask, m_layerWeight );
 	}
 	else
