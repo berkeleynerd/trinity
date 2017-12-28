@@ -515,8 +515,8 @@ bool Tr2CurveLineSet::FillVertexBuffer()
 					Vector3 pos1 = m_lines[i].position1;
 					Vector3 pos2 = m_lines[i].position1;
 					Vector3 pos3 = m_lines[i].position1;
-					D3DXVec3Hermite( &pos0, &m_lines[i].position1, &tangent1, &m_lines[i].position2, &tangent2, -1.0f / m_lines[i].numOfSegments );
-					D3DXVec3Hermite( &pos2, &m_lines[i].position1, &tangent1, &m_lines[i].position2, &tangent2, 1.0f / m_lines[i].numOfSegments );
+					pos0 = Hermite( m_lines[i].position1, tangent1, m_lines[i].position2, tangent2, -1.0f / m_lines[i].numOfSegments );
+					pos2 = Hermite( m_lines[i].position1, tangent1, m_lines[i].position2, tangent2, 1.0f / m_lines[i].numOfSegments );
 					// also interpolate color across all the segments
 					Color col1 = m_lines[i].color1;
 					Color col2 = m_lines[i].color2;
@@ -525,7 +525,7 @@ bool Tr2CurveLineSet::FillVertexBuffer()
 						// use d3dx helper to calc spline
 						float segmentFactor = (float)( s + 1 ) / (float)m_lines[i].numOfSegments;
 						float segmentFactor2 = (float)( s + 2 ) / (float)m_lines[i].numOfSegments;
-						D3DXVec3Hermite( &pos3, &m_lines[i].position1, &tangent1, &m_lines[i].position2, &tangent2, segmentFactor2 );
+						pos3 = Hermite( m_lines[i].position1, tangent1, m_lines[i].position2, tangent2, segmentFactor2 );
 
 						// interpolate color
 						D3DXColorLerp( &col2, &m_lines[i].color1, &m_lines[i].color2, segmentFactor );

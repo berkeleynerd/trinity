@@ -381,7 +381,7 @@ void BoundingBoxTransform( Vector3& min, Vector3& max, const Matrix& tf )
     corners[7].y = max.y;
     corners[7].z = min.z;
 
-    D3DXVec3TransformCoordArray( corners, sizeof( Vector3 ), corners, sizeof( Vector3 ), &tf, 8 );
+    TransformCoords( corners, tf );
 
     min = corners[0];
     max = corners[0];
@@ -723,7 +723,7 @@ bool IntersectTriangleOrientedBox( const Vector3* triangleVertices, const Matrix
 {
 	// put triangle points in "inverse bounding box" space
 	Vector3 v[3];
-	D3DXVec3TransformCoordArray( v, sizeof( Vector3 ), triangleVertices, sizeof( Vector3 ), &invOrientedBox, 3 );
+	TransformCoords( v, triangleVertices, triangleVertices + 3, invOrientedBox );
 
 	if( ( v[0].x < -1.f ) && ( v[1].x < -1.f ) && ( v[2].x < -1.f ) )
 		return false;

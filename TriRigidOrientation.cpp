@@ -210,7 +210,6 @@ void TriRigidOrientation::Sort(
 			&cs_1->mOmega0, 
 			&cs_1->mTorque, 
 			mI, mDrag, time);
-		//D3DXVec3Scale(&mTauVector, &mTauVector, time);
 		mTauConverter.x = mTauVector.x;	
 		mTauConverter.y = mTauVector.y;
 		mTauConverter.z = mTauVector.z;

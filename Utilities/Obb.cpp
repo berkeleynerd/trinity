@@ -24,8 +24,7 @@ void Obb::CreateClippedWorldBoundingObb( const Vector3& min, const Vector3& max,
 	center = 0.5 * ( max + min );
 
 	// .. and move to world space.
-	Vector4 centerWorld;
-	D3DXVec3Transform( &centerWorld, &center, &localToWorld );
+	Vector4 centerWorld = Transform( center, localToWorld );
 	center = Vector3( centerWorld.x, centerWorld.y, centerWorld.z );
 
 

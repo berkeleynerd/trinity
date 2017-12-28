@@ -265,8 +265,8 @@ Vector3* Tr2ManipulationTool::GetTrianglesAroundLine( const Vector3 &start, cons
 	Vector3 startTri[3];
 	Vector3 endTri[3];
 
-	D3DXVec3TransformCoordArray( startTri, sizeof( Vector3 ), triangle1, sizeof( Vector3 ), &compA, 3 ); 
-	D3DXVec3TransformCoordArray( endTri, sizeof( Vector3 ), triangle1, sizeof( Vector3 ), &compB, 3 );
+	TransformCoords( startTri, triangle1, triangle1 + 3, compA );
+	TransformCoords( endTri, triangle1, triangle1 + 3, compB );
 
 	outTriangles[0] = startTri[1];
 	outTriangles[1] = endTri[0];

@@ -391,4 +391,36 @@ inline Vector3 ClampLength( const Vector3& v, float maxLength )
 	return Normalize( v ) * maxLength;
 }
 
+// --------------------------------------------------------------------------------------
+inline Vector3 Lerp( const Vector3& v1, const Vector3& v2, float s )
+{
+	return v1 + ( v2 - v1 ) * s;
+}
+
+// --------------------------------------------------------------------------------------
+inline Vector3 Maximize( const Vector3& v1, const Vector3& v2 )
+{
+	return Vector3( std::max( v1.x, v2.x ), std::max( v1.y, v2.y ), std::max( v1.z, v2.z ) );
+}
+
+// --------------------------------------------------------------------------------------
+inline Vector3 Minimize( const Vector3& v1, const Vector3& v2 )
+{
+	return Vector3( std::min( v1.x, v2.x ), std::min( v1.y, v2.y ), std::min( v1.z, v2.z ) );
+}
+
+// --------------------------------------------------------------------------------------
+inline Vector3 Hermite( const Vector3& v1, const Vector3& t1, const Vector3& v2, const Vector3& t2, float s )
+{
+	float k3 = 2.f * s * s * s - 3 * s * s + 1;
+	float k2 = -2.f * s * s * s + 3 * s * s;
+	float k1 = s * s * s - 2 * s * s + s;
+	float k0 = s * s * s - s * s;
+
+	return Vector3(
+		k3 * v1.x + k2 * v2.x + k1 * t1.x + k0 * t2.x,
+		k3 * v1.y + k2 * v2.y + k1 * t1.y + k0 * t2.y,
+		k3 * v1.z + k2 * v2.z + k1 * t1.z + k0 * t2.z );
+}
+
 #endif // VECTOR3_H

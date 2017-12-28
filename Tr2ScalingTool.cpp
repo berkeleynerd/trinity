@@ -347,7 +347,7 @@ void Tr2ScalingTool::GenLineSets()
 	//xBox
 	c_tris = Tr2ManipulationTool::GetBoxTriangles( Vector3( -0.075f, -0.075f, -0.075f ),Vector3( 0.075f, 0.075f, 0.075f ), &numVectors );
 	D3DXMatrixTranslation( &translationMat, 1.0f, 0.0f, 0.0f );
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &translationMat, numVectors );
+	TransformCoords( c_tris, numVectors, translationMat );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{
@@ -364,7 +364,7 @@ void Tr2ScalingTool::GenLineSets()
 	//yBox
 	c_tris = Tr2ManipulationTool::GetBoxTriangles( Vector3( -0.075f, -0.075f, -0.075f ),Vector3( 0.075f, 0.075f, 0.075f ), &numVectors );
 	D3DXMatrixTranslation( &translationMat, 0.0f, 1.0f, 0.0f );
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &translationMat, numVectors );
+	TransformCoords( c_tris, numVectors, translationMat );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{
@@ -381,7 +381,7 @@ void Tr2ScalingTool::GenLineSets()
 	//yBox
 	c_tris = Tr2ManipulationTool::GetBoxTriangles( Vector3( -0.075f, -0.075f, -0.075f ),Vector3( 0.075f, 0.075f, 0.075f ), &numVectors );
 	D3DXMatrixTranslation( &translationMat, 0.0f, 0.0f, 1.0f );
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &translationMat, numVectors );
+	TransformCoords( c_tris, numVectors, translationMat );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{

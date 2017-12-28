@@ -71,8 +71,8 @@ float EveDistanceField::CalculateFieldCoverageAndDistance( Be::Time t, const Vec
 			float distance = Length( d );
 			if( m_distanceThreshold == 0.f || distance < m_distanceThreshold * averageDistance )
 			{
-				D3DXVec3Minimize( &minBounds, &posObj, &minBounds );
-				D3DXVec3Maximize( &maxBounds, &posObj, &maxBounds );
+				minBounds = Minimize( posObj, minBounds );
+				maxBounds = Maximize( posObj, maxBounds );
 			}
 		}
 

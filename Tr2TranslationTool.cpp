@@ -212,7 +212,7 @@ void Tr2TranslationTool::GenLineSets()
 
 	//xCone
 	c_tris = Tr2ManipulationTool::GetConeTriangles(0.25f, 0.075f, subDivisions, &numVectors);
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &transform, numVectors );
+	TransformCoords( c_tris, numVectors, transform );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{
@@ -230,7 +230,7 @@ void Tr2TranslationTool::GenLineSets()
 
 	//yCone	
 	c_tris = Tr2ManipulationTool::GetConeTriangles(0.25f, 0.075f, subDivisions, &numVectors);
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &translation, numVectors );
+	TransformCoords( c_tris, numVectors, translation );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{
@@ -250,7 +250,7 @@ void Tr2TranslationTool::GenLineSets()
 	c_tris = Tr2ManipulationTool::GetConeTriangles(0.25f, 0.075f, subDivisions, &numVectors);
 	D3DXMatrixRotationX( &rotateMat, XM_PI/2.0f );	
 	D3DXMatrixMultiply( &transform, &translation, &rotateMat );
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &transform, numVectors );
+	TransformCoords( c_tris, numVectors, transform );
 
 	for( int i = 0; i < numVectors/3; i++ )
 	{

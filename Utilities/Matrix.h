@@ -793,6 +793,16 @@ inline Vector4 Transform( const Vector4& point, const Matrix& transform )
 }
 
 // --------------------------------------------------------------------------------------
+inline Vector4 Transform( const Vector3& point, const Matrix& transform )
+{
+	return Vector4(
+		point.x * transform._11 + point.y * transform._21 + point.z * transform._31 + transform._41,
+		point.x * transform._12 + point.y * transform._22 + point.z * transform._32 + transform._42,
+		point.x * transform._13 + point.y * transform._23 + point.z * transform._33 + transform._43,
+		transform._14 + transform._24 + transform._34 + transform._44 );
+}
+
+// --------------------------------------------------------------------------------------
 inline void TransformCoords( void* coords, size_t count, size_t stride, const Matrix& transform )
 {
 	auto stream = static_cast<uint8_t*>( coords );
@@ -814,7 +824,7 @@ inline void TransformCoords( Vector3* coords, size_t size, const Matrix& transfo
 
 // --------------------------------------------------------------------------------------
 template <size_t Size>
-inline void TransformCoords( Vector3 coords[Size], const Matrix& transform )
+inline void TransformCoords( Vector3 (&coords)[Size], const Matrix& transform )
 {
 	for( size_t i = 0; i < Size; ++i )
 	{

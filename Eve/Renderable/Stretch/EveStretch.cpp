@@ -255,7 +255,7 @@ void EveStretch::UpdateVisibility( const TriFrustum& frustum, const Matrix& pare
 				m_moveObject->SetDisplay( false );
 				m_moveCompleted = true;
 			}
-			D3DXVec3Lerp(&movedPostition, &m_sourcePosition, &m_destinationPosition, progress);
+			movedPostition = Lerp( m_sourcePosition, m_destinationPosition, progress );
 		}
 		D3DXMatrixTransformation( &m, NULL, NULL, NULL, NULL, &rotation, &movedPostition );
 		m_moveObject->UpdateVisibility( frustum, m );

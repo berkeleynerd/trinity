@@ -338,17 +338,17 @@ float TriVector::PyDot( ITriVector* other )
 
 void TriVector::PyLerp( ITriVector* other, float t )
 {
-	D3DXVec3Lerp( this, this, other->GetVector(), t );	
+	*static_cast<Vector3*>( this ) = Lerp( *this, *other->GetVector(), t );
 }
 
 void TriVector::PyMaximize( ITriVector* other )
 {
-	D3DXVec3Maximize( this, this, other->GetVector() );	
+	*static_cast<Vector3*>( this ) = Maximize( *this, *other->GetVector() );
 }
 
 void TriVector::PyMinimize( ITriVector* other )
 {
-	D3DXVec3Minimize( this, this, other->GetVector() );	
+	*static_cast<Vector3*>( this ) = Minimize( *this, *other->GetVector() );
 }
 
 void TriVector::PyProject(

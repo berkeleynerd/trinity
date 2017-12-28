@@ -606,9 +606,9 @@ void EveMetaball::Triangulate( const Cell* cell )
 		float fscale2 = ( m_isoValue - edge2StartValue ) / ( edge2EndValue - edge2StartValue );
 
 		Vector3 offset0, offset1, offset2;
-		D3DXVec3Lerp( &offset0, &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx0][0]], &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx0][1]], fscale0 );
-		D3DXVec3Lerp( &offset1, &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx1][0]], &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx1][1]], fscale1 );
-		D3DXVec3Lerp( &offset2, &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx2][0]], &s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx2][1]], fscale2 );
+		offset0 = Lerp( s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx0][0]], s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx0][1]], fscale0 );
+		offset1 = Lerp( s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx1][0]], s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx1][1]], fscale1 );
+		offset2 = Lerp( s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx2][0]], s_vertexOffsetTable[s_edgeToVertsTable[edgeIdx2][1]], fscale2 );
 
 		Triangle tri;
 		tri.position[0] = cell->position[3] + m_boxSize * offset0; // (0,0,0) has cellcorner index 3

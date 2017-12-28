@@ -538,15 +538,14 @@ void EveMissileWarhead::UpdateWarhead( float deltaT, float estimatedTotalAliveTi
 	// find current bias toward the target locator
 	float t = Clamp( ( m_flyingTime - m_finalDestinationTimer ) / ( estimatedTotalFlyingTime - m_finalDestinationTimer ), 0.f, 1.f );
 	Vector3 modifiedOldOffset = m_oldEndOffset * ( 1.f - Clamp( t * 2.f, 0.0f, 1.0f ) );
-	D3DXVec3Lerp( &m_currentEndOffset, &modifiedOldOffset, &m_endOffset, t );
+	m_currentEndOffset = Lerp( modifiedOldOffset, m_endOffset, t );
 
 	// reduce all our influences and move the warhead closer to zero
 	Quaternion id( 0.f, 0.f, 0.f, 1.f );
-	D3DXVec3Lerp( &m_currentOffset, &m_currentStartOffset, &m_currentEndOffset, powf( flight01, 1.f + m_acceleration ) );
+	m_currentOffset = Lerp( m_currentStartOffset, m_currentEndOffset, powf( flight01, 1.f + m_acceleration ) );
 
 	// apply the inverse ball movement which holds the warhead in position during short eject-phase
-	static const Vector3 zero( 0.f, 0.f, 0.f );
-	D3DXVec3Lerp( &globalBallVelocity, &globalBallVelocity, &zero, flight01 );
+	globalBallVelocity = Lerp( globalBallVelocity, Vector3( 0.f, 0.f, 0.f ), flight01 );
 	m_currentStartOffset -= globalBallVelocity * deltaT;
 
 	// reduce the eject velocity, also quickly

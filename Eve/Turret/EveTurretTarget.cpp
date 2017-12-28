@@ -185,7 +185,7 @@ void EveTurretTarget::Update( float deltaT, const Vector3* source )
 	if( m_positionOldInfluence > 0.f )
 	{
 		// lerp the old position "in"
-		D3DXVec3Lerp( &m_trackingPosition, &m_targetPosition, &m_positionOld, m_positionOldInfluence );
+		m_trackingPosition = Lerp( m_targetPosition, m_positionOld, m_positionOldInfluence );
 		// fadeout the influence
 		m_positionOldInfluence -= deltaT;
 	}

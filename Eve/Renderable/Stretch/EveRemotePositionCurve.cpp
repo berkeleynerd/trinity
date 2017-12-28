@@ -62,8 +62,7 @@ Vector3* EveRemotePositionCurve::Update( Vector3* in, Be::Time t )
 	}
 
 	// interpolate current offset
-	Vector3 currentOffsetDir;
-	D3DXVec3Lerp( &currentOffsetDir, &m_offsetDir1, &m_offsetDir2, s );
+	Vector3 currentOffsetDir = Lerp( m_offsetDir1, m_offsetDir2, s );
 
 	// add to start position
 	Vector3 startPos;

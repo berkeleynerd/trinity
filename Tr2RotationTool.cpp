@@ -298,7 +298,7 @@ void Tr2RotationTool::GenLineSets()
 	// xLine
 	c_tris = Tr2ManipulationTool::GetCirclePoints(1.0f, 60, &numVectors);
 	D3DXMatrixRotationY( &rotateMat, XM_PI/2.0f );		
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &rotateMat, numVectors );
+	TransformCoords( c_tris, numVectors, rotateMat );
 
 	for( int i = 0; i < numVectors/2; i++ )
 	{
@@ -323,7 +323,7 @@ void Tr2RotationTool::GenLineSets()
 	// yLine
 	c_tris = Tr2ManipulationTool::GetCirclePoints(1.0f, 60, &numVectors);
 	D3DXMatrixRotationX( &rotateMat, XM_PI/2.0f );		
-	D3DXVec3TransformCoordArray( c_tris, sizeof( Vector3 ), c_tris, sizeof( Vector3 ), &rotateMat, numVectors );
+	TransformCoords( c_tris, numVectors, rotateMat );
 	for( int i = 0; i < numVectors/2; i++ )
 	{
 		m_yLine->AddLine( c_tris[i*2], v4Green, c_tris[i*2+1], v4Green );
