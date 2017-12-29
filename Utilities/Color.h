@@ -152,8 +152,7 @@ inline Color Color::operator * ( float scale ) const
 // --------------------------------------------------------------------------------------
 inline Color Color::operator / ( float div ) const
 {
-	float scale = 1.0f / div;
-	return Color( r * scale, g * scale, b * scale, a * scale );
+	return Color( *this ) /= div;
 }
 
 // --------------------------------------------------------------------------------------

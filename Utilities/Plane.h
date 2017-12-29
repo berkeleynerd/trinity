@@ -82,8 +82,7 @@ inline Plane Plane::operator * ( float scale ) const
 // --------------------------------------------------------------------------------------
 inline Plane Plane::operator / ( float div ) const
 {
-	float scale = 1.0f / div;
-	return Plane( a * scale, b * scale, c * scale, d * scale );
+	return Plane( *this ) /= div;
 }
 
 // --------------------------------------------------------------------------------------
