@@ -14,13 +14,11 @@ void AddTriConstants(PyObject* d)
 	{	
 #if DEPRECATED_ENABLED
 		TriTextureAddress,
-		TriImageFileFormat,
 		TriMultiSampleType,
 		TriFormat,
 		TriFormatZStencil,
 		TriResourceTypeChooser,
 		TriD3DFormat,
-        TriFilterMode,
 #endif
 		
 		TriBlendOp,
@@ -916,45 +914,6 @@ const Be::VarChooser TriTextureAddress [] =
 		"necessary, but the data is symmetric around the one axis. "
 	},
 	{0}
-};
-
-const Be::VarChooser TriImageFileFormat  [] =
-{
-	{
-		"TRIIFF_BMP",            
-		VAL(D3DXIFF_BMP),            
-		"Microsoft® Windows® bitmap file format."
-	},
-	{
-		"TRIIFF_JPG",            
-		VAL(D3DXIFF_JPG),            
-		"Microsoft® Windows® bitmap file format."
-	},
-		{
-		"TRIIFF_TGA",            
-		VAL(D3DXIFF_TGA),            
-		"Microsoft® Windows® bitmap file format."
-	},
-		{
-		"TRIIFF_PNG",            
-		VAL(D3DXIFF_PNG),            
-		"Microsoft® Windows® bitmap file format."
-	},
-		{
-		"TRIIFF_DDS",            
-		VAL(D3DXIFF_DDS),            
-		"Microsoft® Windows® bitmap file format."
-	},
-		{
-		"TRIIFF_PPM",            
-		VAL(D3DXIFF_PPM),            
-		"Microsoft® Windows® bitmap file format."
-	},
-		{
-		"TRIIFF_DIB",            
-		VAL(D3DXIFF_DIB),            
-		"Microsoft® Windows® bitmap file format."
-	},
 };
 
 
@@ -1961,76 +1920,6 @@ const Be::VarChooser TriD3DFormat [] =
 		"128-bit float format using 32 bits for the each channel (alpha, blue, green, red).\r\n"
 	),
 	{ 0 }
-};
-
-const Be::VarChooser TriFilterMode[] =
-{
-    {
-        "TRIFILTER_NONE",
-        VAL(D3DX_FILTER_NONE),
-        "No scaling or filtering will take place. Pixels outside the bounds of the source image are assumed to be transparent black."
-    },
-    {
-        "TRIFILTER_POINT",
-        VAL(D3DX_FILTER_POINT),
-        "Each destination pixel is computed by sampling the nearest pixel from the source image."
-    },
-    {
-        "TRIFILTER_LINEAR",
-        VAL(D3DX_FILTER_LINEAR),
-        "Each destination pixel is computed by sampling the four nearest pixels from the source image. This filter works best when the scale on both axes is less than two."
-    },
-    {
-        "TRIFILTER_TRIANGLE",
-        VAL(D3DX_FILTER_TRIANGLE),
-        "Every pixel in the source image contributes equally to the destination image. This is the slowest of the filters."
-    },
-    {
-        "TRIFILTER_BOX",
-        VAL(D3DX_FILTER_BOX),
-        "Each pixel is computed by averaging a 2x2(x2) box of pixels from the source image. This filter works only when the dimensions of the destination are half those of the source, as is the case with mipmaps."
-    },
-    {
-        "TRIFILTER_MIRROR_U",
-        VAL(D3DX_FILTER_MIRROR_U),
-        "Pixels off the edge of the texture on the u-axis should be mirrored, not wrapped."
-    },
-    {
-        "TRIFILTER_MIRROR_V",
-        VAL(D3DX_FILTER_MIRROR_V),
-        "Pixels off the edge of the texture on the v-axis should be mirrored, not wrapped."
-    },
-    {
-        "TRIFILTER_MIRROR_W",
-        VAL(D3DX_FILTER_MIRROR_W),
-        "Pixels off the edge of the texture on the w-axis should be mirrored, not wrapped."
-    },
-    {
-        "TRIFILTER_MIRROR",
-        VAL(D3DX_FILTER_MIRROR),
-        "Specifying this flag is the same as specifying the D3DX_FILTER_MIRROR_U, D3DX_FILTER_MIRROR_V, and D3DX_FILTER_MIRROR_W flags."
-    },
-    {
-        "TRIFILTER_DITHER",
-        VAL(D3DX_FILTER_DITHER),
-        "The resulting image must be dithered using a 4x4 ordered dither algorithm."
-    },
-    {
-        "TRIFILTER_SRGB_IN",
-        VAL(D3DX_FILTER_SRGB_IN),
-        "Input data is in sRGB (gamma 2.2) color space."
-    },
-    {
-        "TRIFILTER_SRGB_OUT",
-        VAL(D3DX_FILTER_SRGB_OUT),
-        "The output data is in sRGB (gamma 2.2) color space."
-    },
-    {
-        "TRIFILTER_SRGB",
-        VAL(D3DX_FILTER_SRGB),
-        "Same as specifying D3DX_FILTER_SRGB_IN | D3DX_FILTER_SRGB_OUT."
-    },
-    {0}
 };
 
 #endif

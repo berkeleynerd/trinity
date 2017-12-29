@@ -487,7 +487,7 @@ void Tr2GrannyAnimation::RenderBones( const Matrix& modelTransform )
 		const int* bi = GrannyGetMeshBindingFromBoneIndices( m_meshBinding );
 		Matrix mat = *reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_worldPose, bi[boneIdx] ) ) * modelTransform * initialTranslation;
 		Vector4 pos(0, 0, 0, 1);
-		D3DXVec4Transform( &pos, &pos, &mat );
+		pos = Transform( pos, mat );
 		pos.w = 2;
 		Tr2Renderer::DrawSphere( pos, 1, 0xffffffff );
 		Tr2Renderer::Printf( TRI_DBG_FONT_SMALL, Vector3( pos.x, pos.y, pos.z ), 0xffffffff, "  %s : %d", m_skeleton->Bones[bi[boneIdx]].Name, boneIdx );
@@ -657,7 +657,7 @@ bool Tr2GrannyAnimation::CalculateSkinnedBoundingBoxFromTransform( const Matrix&
 			deformedVerts[v].Position[1] + fi->Models[ m_modelIndex ]->InitialPlacement.Position[1], 
 			deformedVerts[v].Position[2] + fi->Models[ m_modelIndex ]->InitialPlacement.Position[2], 1 );
 
-		D3DXVec4Transform( &pos, &pos, &transform );
+		pos = Transform( pos, transform );
 		pos /= pos.w;
 
         bbMin.x = min(bbMin.x, pos.x);

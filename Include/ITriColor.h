@@ -72,17 +72,6 @@ BLUE_INTERFACE( ITriColor ) : public IRoot
 		) = 0;
 
 	// Math functions
-	virtual void AdjustContrast(
-		float c
-		) = 0;
-
-	virtual void AdjustSaturation(
-		float s
-		) = 0;
-
-	virtual void Negative(
-		) = 0;
-
 	virtual void Scale(
 		float s
 		) = 0;

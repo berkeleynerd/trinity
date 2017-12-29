@@ -630,7 +630,7 @@ const Be::ClassInfo* Tr2HostBitmap::ExposeToBlue()
 			"CreateFromFile",
 			PyCreateFromFile,
 			"Create a hostbitmap with the contents of this image file.\n"
-			":param path: full path or res path of an image supported by Trinity (not D3DX)"
+			":param path: full path or res path of an image supported by Trinity"
 		)
 
 		MAP_METHOD_AND_WRAP

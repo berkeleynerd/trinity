@@ -45,7 +45,7 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Determinant",
 			Determinant, 
-			"See D3DX documentation" 
+			"" 
 		)
 		////////////////////////////////////////////////////////////////////////////
 		//               Identity
@@ -53,7 +53,7 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Identity",
 			Identity, 
-			"See D3DX documentation" 
+			"" 
 		)
 		////////////////////////////////////////////////////////////////////////////
 		//               Inverse
@@ -61,7 +61,7 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Inverse",
 			Inverse, 
-			"See D3DX documentation" 
+			"" 
 		)
 		////////////////////////////////////////////////////////////////////////////
 		//               LookAtRH
@@ -69,7 +69,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"LookAtRH",
 			PyLookAtRH, 
-			"See D3DX documentation\n" 
 			":param eye: \n"
 			":param at: \n"
 			":param up: \n"
@@ -80,7 +79,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Multiply",
 			PyMultiply, 
-			"See D3DX documentation\n" 
 			":param other: \n"
 		)
 		////////////////////////////////////////////////////////////////////////////
@@ -89,7 +87,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationAxis",
 			PyRotationAxis, 
-			"See D3DX documentation\n" 
 			":param axis: \n"
 			":param angle: \n"
 		)////////////////////////////////////////////////////////////////////////////
@@ -98,7 +95,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationQuaternion",
 			PyRotationQuaternion, 
-			"See D3DX documentation\n" 
 			":param quaternion: \n"
 		)
 		////////////////////////////////////////////////////////////////////////////
@@ -107,7 +103,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationX",
 			RotationX, 
-			"See D3DX documentation\n" 
 			":param angle: \n"
 		)
 		////////////////////////////////////////////////////////////////////////////
@@ -116,7 +111,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationY",
 			RotationY, 
-			"See D3DX documentation\n" 
 			":param angle: \n"
 		)
 		////////////////////////////////////////////////////////////////////////////
@@ -125,7 +119,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationYawPitchRoll",
 			RotationYawPitchRoll, 
-			"See D3DX documentation\n" 
 			":param yaw: \n"
 			":param pitch: \n"
 			":param roll: \n"
@@ -136,7 +129,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"RotationZ",
 			RotationZ, 
-			"See D3DX documentation\n" 
 			":param angle: \n"
 		)
 		////////////////////////////////////////////////////////////////////////////
@@ -145,7 +137,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Scaling",
 			Scaling, 
-			"See D3DX documentation\n" 
 			":param sx: \n"
 			":param sy: \n"
 			":param sz: \n"
@@ -156,7 +147,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Transformation",
 			PyTransformation, 
-			"See D3DX documentation\n" 
 			":param scalingCenter: \n"
 			":param scalingRotation: \n"
 			":param scaling: \n"
@@ -170,7 +160,6 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Translation",
 			Translation, 
-			"See D3DX documentation\n" 
 			":param x: \n"
 			":param y: \n"
 			":param z: \n"
@@ -181,7 +170,7 @@ const Be::ClassInfo* TriMatrix::ExposeToBlue()
 		( 
 			"Transpose",
 			Transpose, 
-			"See D3DX documentation" 
+			"" 
 		)			
 
 	EXPOSURE_END()

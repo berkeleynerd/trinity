@@ -19,7 +19,7 @@ public:
 		PLANE_COUNT
 	};
 	
-	D3DXPLANE m_planes[ PLANE_COUNT ];
+	Plane m_planes[ PLANE_COUNT ];
 	Matrix m_projectionMatrix;
 
 	Vector3	m_viewPos;

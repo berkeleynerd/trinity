@@ -9,7 +9,7 @@
 
 	Description:   
 
-		ITriEffectParameter is an interface allowing for a list of ID3DXEffect parameters like float4, float3, float and textures
+		ITriEffectParameter is an interface allowing for a list of parameters like float4, float3, float and textures
 
 	Dependencies:
 

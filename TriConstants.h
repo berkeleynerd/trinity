@@ -64,7 +64,6 @@ extern const Be::VarChooser TriCmpFunc[];
 extern const Be::VarChooser TriBlendOp[];
 extern const Be::VarChooser TriBlend[];
 extern const Be::VarChooser TriTextureAddress[];
-extern const Be::VarChooser TriImageFileFormat[];
 extern const Be::VarChooser TriMultiSampleType[];
 extern const Be::VarChooser TriClearFlags[];
 extern const Be::VarChooser TriFormat[];
@@ -77,7 +76,6 @@ extern const Be::VarChooser TriBipedMovementState[];
 extern const Be::VarChooser TriSkeletonType[];
 extern const Be::VarChooser TriD3DRenderState[];
 extern const Be::VarChooser TriD3DFormat[];
-extern const Be::VarChooser TriFilterMode[];
 
 #endif
 

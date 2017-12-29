@@ -290,7 +290,7 @@ void EveSceneStaticParticles::Rebuild()
 			currentParticleBufferItem->position = clusterPosRelativeToCenter + pos + clusterData->radius * nrm;
 
 			// color (the alpha of the color is the seed)
-			D3DXColorLerp( &currentParticleBufferItem->color, &clusterData->color1, &clusterData->color2, TriFloatRandom01() );
+			currentParticleBufferItem->color = Lerp( clusterData->color1, clusterData->color2, TriFloatRandom01() );
 			currentParticleBufferItem->color.a = float(i) / float(particlesPerCluster);
 				
 			// size

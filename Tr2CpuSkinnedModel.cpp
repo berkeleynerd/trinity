@@ -84,7 +84,7 @@ void Tr2CpuSkinnedModel::deform( const float* deformMatrices, unsigned int numOf
 								// now deform all verts
 								for( unsigned int v = 0; v < resMeshData->m_vertexCount; ++v )
 								{
-									// convert matrix, cause is provided in 3x4 form, we need 4x4 to use d3dxmath
+									// convert matrix, cause is provided in 3x4 form, we need 4x4
 									Matrix m0, m1, m2, m3;
 									TriMatCopy( &m0, &deformMatrices[3 * 4 * mesh->GetJointMapping( *boneIndex0 )] );
 									TriMatCopy( &m1, &deformMatrices[3 * 4 * mesh->GetJointMapping( *boneIndex1 )] );

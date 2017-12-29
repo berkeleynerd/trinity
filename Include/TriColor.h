@@ -27,12 +27,12 @@
 #define _TRICOLOR_H_
 
 #define TRICOLOR_Description \
-"Simple mapping of D3DXCOLOR over to Blue, with the addition of HSV \r\n\
+"Simple mapping of Color over to Blue, with the addition of HSV \r\n\
 function"
 
 #include "ITriColor.h"
 
-#pragma warning (disable: 4275) // non dll-interface struct 'D3DXQUATERNION'
+#pragma warning (disable: 4275)
 
 #if BLUE_WITH_PYTHON
 class TriColor :
@@ -92,17 +92,6 @@ public:
 		);
 
 
-	void AdjustContrast(
-		float c
-		);
-
-	void AdjustSaturation(
-		float s
-		);
-
-	void Negative(
-		);
-
 	void Scale(
 		float s
 		);
@@ -138,7 +127,6 @@ public:
 	uint32_t PyAsInt();
 	PyObject* PyAdd( PyObject* args );	
 	PyObject* PyLerp( PyObject* args );
-	PyObject* PyModulate( PyObject* args );	
 };
 TYPEDEF_BLUECLASS(TriColor);
 

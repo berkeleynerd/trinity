@@ -116,8 +116,8 @@ static void CopyVector3( void* srcVar, void* dstVar, float scale, const Vector4&
 
 static void CopyVector4( void* srcVar, void* dstVar, float scale, const Vector4& offset )
 {
-	D3DXVec4Scale( static_cast<Vector4*>( dstVar ), static_cast<Vector4*>( srcVar ), scale );
 	Vector4 &d = *static_cast<Vector4*>( dstVar );
+	d = *static_cast<Vector4*>( srcVar ) * scale;
 	d.x += offset.x;
 	d.y += offset.y;
 	d.z += offset.z;
@@ -214,8 +214,8 @@ static void CopyTriColorToFloatArray( void* srcVar, void* dstVar, float scale, c
 	if( static_cast<IRoot*>( srcVar )->QueryInterface( BlueInterfaceIID<ITriColor>(), (void**)&cp, BEQI_SILENT ) )
 	{
 		cp->CopyColor( static_cast<Color*>( dstVar ) );
-		D3DXVec4Scale( static_cast<Vector4*>( dstVar ), static_cast<Vector4*>( dstVar ), scale );
-		D3DXVec4Add  ( static_cast<Vector4*>( dstVar ), static_cast<Vector4*>( dstVar ), &offset );
+		Vector4 &d = *static_cast<Vector4*>( dstVar );
+		d = d * scale + offset;
 	}
 }
 
@@ -225,8 +225,8 @@ static void CopyTriQuaternionToFloatArray( void* srcVar, void* dstVar, float sca
 	if( static_cast<IRoot*>( srcVar )->QueryInterface( BlueInterfaceIID<ITriQuaternion>(), (void**)&cp, BEQI_SILENT ) )
 	{
 		cp->CopyQuaternion( static_cast<Quaternion*>( dstVar ) );
-		D3DXVec4Scale( static_cast<Vector4*>( dstVar ), static_cast<Vector4*>( dstVar ), scale );
-		D3DXVec4Add( static_cast<Vector4*>( dstVar ), static_cast<Vector4*>( dstVar ), &offset );
+		Vector4 &d = *static_cast<Vector4*>( dstVar );
+		d = d * scale + offset;
 	}
 }
 

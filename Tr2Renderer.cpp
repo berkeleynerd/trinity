@@ -289,7 +289,7 @@ namespace
 		s_inverseProjectionTransform = Inverse( s_projectionTransform );
 
 		Vector4 corner( 1.f, 1.f, 1.f, 1.f );
-		D3DXVec4Transform( &corner, &corner, &s_inverseProjectionTransform );
+		corner = Transform( corner, s_inverseProjectionTransform );
 		Vector3 viewCorner( corner.x / corner.w, corner.y / corner.w, corner.z / corner.w );
 		s_frustumRadius = Length( viewCorner );
 

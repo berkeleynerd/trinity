@@ -22,8 +22,6 @@ BLUE_REGISTER_ENUM_EX( "TRIFORMAT", D3DFORMAT, TriFormat, ENUM_REG_VALUES_ON_MOD
 float g_imageWarnLoadTime = 1.00f;
 TRI_REGISTER_SETTING( "imageWarnLoadTime", g_imageWarnLoadTime );
 
-// If set, then textures loaded via the D3DX functions (fallback for non-dds textures)
-// generate miplevels. Set to false to load with no mips for faster loading.
 static bool s_generateMipsOnTextureLoad = true;
 TRI_REGISTER_SETTING( "generateMipsOnTextureLoad", s_generateMipsOnTextureLoad );
 

@@ -423,4 +423,59 @@ inline Vector3 Hermite( const Vector3& v1, const Vector3& t1, const Vector3& v2,
 		k3 * v1.z + k2 * v2.z + k1 * t1.z + k0 * t2.z );
 }
 
+// --------------------------------------------------------------------------------------
+inline bool SphereBoundProbe(
+	const Vector3& center,
+	float radius,
+	const Vector3& rayPosition,
+	const Vector3& rayDirection )
+{
+	Vector3 difference = rayPosition - center;
+	float a = LengthSq( rayDirection );
+	float b = Dot( difference, rayDirection );
+	float c = LengthSq( difference ) - radius * radius;
+	float d = b * b - a * c;
+	return !( ( d <= 0.0f ) || ( 2.0f * sqrt( d ) <= b ) );
+}
+
+// --------------------------------------------------------------------------------------
+inline void ComputeBoundingSphere(
+	const Vector3* firstPosition,
+	uint32_t numVertices,
+	uint32_t stride,
+	Vector3& center,
+	float& radius )
+{
+	Vector3 temp( 0.0f, 0.0f, 0.0f );
+	radius = 0.0f;
+	if( numVertices == 0 )
+	{
+		center = temp;
+		return;
+	}
+
+	const uint8_t* data = reinterpret_cast<const uint8_t*>( firstPosition );
+
+	for( uint32_t i = 0; i < numVertices; i++ )
+	{
+		temp += *reinterpret_cast<const Vector3*>( data );
+		data += stride;
+	}
+
+	center = temp / float( numVertices );
+	data = reinterpret_cast<const uint8_t*>( firstPosition );
+
+	for( uint32_t i = 0; i < numVertices; i++ )
+	{
+		float d = LengthSq( center - *reinterpret_cast<const Vector3*>( data ) );
+		data += stride;
+		if( d > radius )
+		{
+			radius = d;
+		}
+	}
+	radius = sqrt( radius );
+}
+
+
 #endif // VECTOR3_H

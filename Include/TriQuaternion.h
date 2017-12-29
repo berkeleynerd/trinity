@@ -26,11 +26,11 @@
 #define _TRIQUATERNION_H_
 
 #define TRIQUATERNION_Description \
-"Simple mapping of D3DXQUATERNION over to Blue."
+"Simple mapping of Quaternion over to Blue."
 
 #include "ITriQuaternion.h"
 
-#pragma warning (disable: 4275) // non dll-interface struct 'D3DXCOLOR'
+#pragma warning (disable: 4275)
 
 BLUE_DECLARE( TriQuaternion );
 BLUE_DECLARE_INTERFACE( ITriVector );

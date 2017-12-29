@@ -54,8 +54,7 @@ public:
 	// - TRISTORAGE_DEVICEMEMORY | TRISTORAGE_VIDEOMEMORY is used when the device itself is about to be 
 	// released.  In this case all D3D resources should be released and their pointers set to NULL.
 	// - TRISTORAGE_VIDEOMEMORY is used when the device is being reset and all its resources in video 
-	// memory need to be evicted.  Resources created with D3DPOOL_DEFAULT need to be released and
-	// possibly some other ones (like D3DXEffect?).  Remember to set the corresponding pointers to NULL.
+	// memory need to be evicted.  
 	virtual void ReleaseResources( TriStorage s ) = 0;
 
 	// This method is called to prepare all D3D resources for usage.  

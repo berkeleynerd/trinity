@@ -947,7 +947,7 @@ bool Tr2Sprite2dScene::PrepareTriangleVerts( Tr2Sprite2dD3DVertex* destVerts, Tr
 				float x = curVertex->texCoord[ix].x;
 				float y = curVertex->texCoord[ix].y;
 				Vector4 uv( x, y, 0.0f, 1.0f );
-				D3DXVec4Transform( &uv, &uv, &texSettings.transform );
+				uv = Transform( uv, texSettings.transform );
 				dstUV.x = uv.x * texSettings.textureWindow.z + texSettings.textureWindow.x;
 				dstUV.y = uv.y * texSettings.textureWindow.w + texSettings.textureWindow.y;
 			}
@@ -2366,7 +2366,7 @@ void Tr2Sprite2dScene::SetSpriteVerticesUVs( Vector2 uv[2][4], float width, floa
 			for( int j=0; j<4; ++j )
 			{
 				Vector4 uvT( uv[i][j].x, uv[i][j].y, 0.f, 1.f );
-				D3DXVec4Transform( &uvT, &uvT, &texSetting.transform );
+				uvT = Transform( uvT, texSetting.transform );
 				uv[i][j].x = uvT.x;
 				uv[i][j].y = uvT.y;
 			}
@@ -2550,8 +2550,7 @@ bool Tr2Sprite2dScene::IsInsideClipRect( const Vector2& point )
 void Tr2Sprite2dScene::TransformPoint( Vector2& result, const Vector2& point, Matrix m )
 {
 	Vector4 point4( point.x, point.y, 0, 1 );
-	Vector4 transformed;
-	D3DXVec4Transform( &transformed, &point4, &m );
+	Vector4 transformed = Transform( point4, m );
 
 	result.x = transformed.x;
 	result.y = transformed.y;

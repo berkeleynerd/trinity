@@ -830,11 +830,11 @@ static PyObject* PyPickParticle( PyObject* self, PyObject* args )
 
 		if( particlePositionInViewSpace.z < 0.0f )
 		{
-			if( D3DXSphereBoundProbe(
-				&particlePositionInViewSpace, 
+			if( SphereBoundProbe(
+				particlePositionInViewSpace, 
 				constPickRadius,
-				&rayStart, 
-				&rayDirection ) )
+				rayStart, 
+				rayDirection ) )
 			{
 				float distanceSq = LengthSq( particlePositionInViewSpace );
 				if( distanceSq < closestParticleDistanceSq )

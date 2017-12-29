@@ -128,7 +128,7 @@ void TriFrustum::ExtractFrustum( const Matrix* proj )
 	
 	for (int i = 0; i < PLANE_COUNT; i++)
 	{
-		D3DXPlaneNormalize( &m_planes[i],&m_planes[i] ); 
+		m_planes[i] = Normalize( m_planes[i] );
 	}
 }
 
@@ -150,7 +150,7 @@ bool TriFrustum::IsSphereVisible( const Vector3& center, float radius, bool cull
 	// For some reason the old code ignored the back plane. I don't know why!!
 	for( int i = 0; i < (PLANE_COUNT - 1) + cullBackPlane; i++ )
 	{
-		if( D3DXPlaneDotCoord( &m_planes[i], &center )  < -radius )
+		if( DotCoord( m_planes[i], center )  < -radius )
 		{
 #ifdef TRINITYDEV
 			m_frustumRejectionCounter++;
@@ -210,7 +210,7 @@ bool TriFrustum::IsBoxVisible( const Vector3& boundsMin, const Vector3& boundsMa
 		{ 
 			vmax.z = boundsMin.z; 
 		} 
-		if( D3DXPlaneDotCoord( &m_planes[i], &vmax ) < 0 )
+		if( DotCoord( m_planes[i], vmax ) < 0 )
 		{
 			return false; 
 		}

@@ -38,7 +38,6 @@ struct Tr2Sprite2dDisplayList:
 		Tr2AtlasTexturePtr texture0;
 		Tr2AtlasTexturePtr texture1;
 		Tr2EffectPtr effect;
-		//CComPtr<ID3DXConstantTable> vsConstantTable;
 		//hardcoded due to need for CB slot//Tr2EffectConstant transformsHandle;
 		Matrix transformArray[ TR2_SS_MAX_TRANSFORM_COUNT ];
 		Tr2ConstantBufferAL* m_uiTransformsCb;

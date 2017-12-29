@@ -1164,7 +1164,7 @@ void CalcBoundingBox( void* context, const Vector3& p1, const Vector3& p2, const
 
 	for( int i=0; i<3; ++i )
 	{
-		D3DXVec4Transform( &v[i], &v[i], &ctx->transform );
+		v[i] = Transform( v[i], ctx->transform );
 		v[i] /= v[i].w;
 
 		ctx->max.x = std::max( ctx->max.x, v[i].x );
@@ -1435,6 +1435,56 @@ static bool GetBoneIndex( Tr2VertexDefinition::DataType elementType, const void*
 	return true;
 }
 
+static bool IntersectTri(
+	const Vector3* p0,
+	const Vector3* p1,
+	const Vector3* p2,
+	const Vector3* rayPos,
+	const Vector3* rayDir,
+	float *u,
+	float *v,
+	float *dist )
+{
+	Matrix m;
+	Vector4 vec;
+
+	m.m[0][0] = p1->x - p0->x;
+	m.m[1][0] = p2->x - p0->x;
+	m.m[2][0] = -rayDir->x;
+	m.m[3][0] = 0.0f;
+	m.m[0][1] = p1->y - p0->z;
+	m.m[1][1] = p2->y - p0->z;
+	m.m[2][1] = -rayDir->y;
+	m.m[3][1] = 0.0f;
+	m.m[0][2] = p1->z - p0->z;
+	m.m[1][2] = p2->z - p0->z;
+	m.m[2][2] = -rayDir->z;
+	m.m[3][2] = 0.0f;
+	m.m[0][3] = 0.0f;
+	m.m[1][3] = 0.0f;
+	m.m[2][3] = 0.0f;
+	m.m[3][3] = 1.0f;
+
+	vec.x = rayPos->x - p0->x;
+	vec.y = rayPos->y - p0->y;
+	vec.z = rayPos->z - p0->z;
+	vec.w = 0.0f;
+
+	if( Inverse( m, m ) )
+	{
+		vec = Transform( vec, m );
+		if( ( vec.x >= 0.0f ) && ( vec.y >= 0.0f ) && ( vec.x + vec.y <= 1.0f ) && ( vec.z >= 0.0f ) )
+		{
+			*u = vec.x;
+			*v = vec.y;
+			*dist = fabs( vec.z );
+			return true;
+		}
+	}
+
+	return false;
+}
+
 bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*dir, Vector3* hitpointNear, Vector3* hitpointNearNormal, Vector3* hitpointFar, Vector3* hitpointFarNormal, int* boneIndexNear, int* boneIndexFar, unsigned int areaIx )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
@@ -1520,7 +1570,7 @@ bool TriGeometryRes::GetIntersectionPoints( const Vector3* pos, const Vector3*di
 
 			ConvertTriangleData( position->m_dataType, vertSize, pVertices, index1, index2, index3, &p1, &p2, &p3 );
 
-			if ( D3DXIntersectTri(&p1, &p2, &p3, pos, dir, &pu, &pv, &dist ) )
+			if ( IntersectTri(&p1, &p2, &p3, pos, dir, &pu, &pv, &dist ) )
 			{
 				float v1 = 1.0f - (pu + pv);
 				Vector3 avec = p2 - p1;

@@ -99,7 +99,7 @@ bool Tr2LineSet::OnPrepareResources()
 		// Create a bounding sphere around the visible lines
 		Vector3 center( 0.0f, 0.0f, 0.0f );
 		float radius = 0.0f;
-		D3DXComputeBoundingSphere( static_cast<Vector3*>( vertexBuffer ), (unsigned int)m_lines.size()*2, sizeof(LineData)/2, &center, &radius );
+		ComputeBoundingSphere( static_cast<Vector3*>( vertexBuffer ), (unsigned int)m_lines.size()*2, sizeof(LineData)/2, center, radius );
 
 		m_boundingSphere.x = center.x;
 		m_boundingSphere.y = center.y;

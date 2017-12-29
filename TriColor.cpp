@@ -255,34 +255,11 @@ const ::Color* TriColor::GetColor(
 	return this;
 }
 
-
-void TriColor::AdjustContrast(
-	float c
-	)
-{
-	D3DXColorAdjustContrast(this, this, c);
-}
-
-
-void TriColor::AdjustSaturation(
-	float s
-	)
-{
-	D3DXColorAdjustSaturation(this, this, s);
-}
-
-
-void TriColor::Negative(
-	)
-{
-	D3DXColorNegative(this, this);
-}
-
 void TriColor::Scale(
 	float s
 	)
 {
-	D3DXColorScale(this,this,s);
+	*static_cast<::Color*>( this ) = *this * s;
 }
 
 
@@ -352,12 +329,4 @@ PyObject* TriColor::PyLerp(
 	return Py_None;
 }
 
-
-PyObject* TriColor::PyModulate(
-	PyObject* args
-	)
-{	
-	Py_INCREF(Py_None);
-	return Py_None;
-}
 #endif

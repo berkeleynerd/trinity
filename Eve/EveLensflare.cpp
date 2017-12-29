@@ -147,8 +147,8 @@ void EveLensflare::PrepareRender( const TriFrustum& frustum )
 	m_directionVar = Vector4( m_direction, m_sunSize );
 
 	Vector4 direction( m_direction.x, m_direction.y, m_direction.z, 0 );
-	D3DXVec4Transform( &direction, &direction, &Tr2Renderer::GetViewTransform() );
-	D3DXVec4Transform( &direction, &direction, &frustum.m_projectionMatrix );
+	direction = Transform( direction, Tr2Renderer::GetViewTransform() );
+	direction = Transform( direction, frustum.m_projectionMatrix );
 	direction.x /= direction.w;
 	direction.y /= direction.w;
     float distanceToEdge = 1 - std::min( 1 - std::abs( direction.x ), 1 - std::abs( direction.y ) );

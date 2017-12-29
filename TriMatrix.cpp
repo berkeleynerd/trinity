@@ -188,11 +188,7 @@ void TriMatrix::RotationYawPitchRoll(
 	float Roll
 	) 
 {
-	D3DXMatrixRotationYawPitchRoll(
-		this,
-		Yaw,
-		Pitch,
-		Roll);
+	*static_cast<Matrix*>( this ) = RotationMatrix( ::RotationQuaternion( Yaw, Pitch, Roll ) );
 }
 
 void TriMatrix::RotationZ(

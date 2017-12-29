@@ -93,7 +93,7 @@ void Obb::CreateClippedWorldBoundingObb( const Vector3& min, const Vector3& max,
 		
 		for( unsigned frside = 0; frside != 6; ++frside )
 		{
-			const D3DXPLANE *plane = &frustum->m_planes[ frside ];
+			const Plane& plane = frustum->m_planes[ frside ];
 
 			float planeMove = largeF;
 			bool pointInside = false;	// leave OBB side alone if any of the 4 points is already inside the frustum.
@@ -111,7 +111,7 @@ void Obb::CreateClippedWorldBoundingObb( const Vector3& min, const Vector3& max,
 				// By then taking the minimum of this movement over all possible planes, we
 				// move the points to the frustum without any visible clipping of the OBB.
 				
-				const float distance = D3DXPlaneDotCoord( plane, &p );
+				const float distance = DotCoord( plane, p );
 				if( distance >= 0 )
 				{
 					// if any part of the square is visible, don't move at all.
@@ -119,7 +119,7 @@ void Obb::CreateClippedWorldBoundingObb( const Vector3& min, const Vector3& max,
 					continue;
 				}
 
-				const float vn = D3DXPlaneDotNormal( plane, &rayDir );
+				const float vn = DotNormal( plane, rayDir );
 				if( vn < 0.0001f )	// parallel, or negative (= OBB side points towards frustum plane's outside)
 				{
 					continue;

@@ -88,7 +88,7 @@ bool Tr2GrannyPrimitiveSet::OnPrepareResources()
 
 		Vector3 center( 0.0f, 0.0f, 0.0f );
 		float radius = 0.0f;
-		D3DXComputeBoundingSphere( &vertexBuffer[0].m_position, (unsigned int)m_points.size(), sizeof(TriangleVertex), &center, &radius );
+		ComputeBoundingSphere( &vertexBuffer[0].m_position, (unsigned int)m_points.size(), sizeof(TriangleVertex), center, radius );
 
 		m_boundingSphere.x = center.x;
 		m_boundingSphere.y = center.y;

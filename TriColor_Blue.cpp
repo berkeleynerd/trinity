@@ -146,25 +146,6 @@ const Be::ClassInfo* TriColor::ExposeToBlue()
 			"BROKEN! Adds a color to this color.\n" 
 			":rtype: None"
 		)
-		////////////////////////////////////////////////////////////////////////////
-		//               AdjustContrast
-		MAP_METHOD_AND_WRAP
-		( 
-			"AdjustContrast",
-			AdjustContrast, 
-			"Adjusts the contrast value of a color.\n" 
-			":param contrast: \n"
-		)
-
-		////////////////////////////////////////////////////////////////////////////
-		//               AdjustSaturation
-		MAP_METHOD_AND_WRAP
-		( 
-			"AdjustSaturation",
-			AdjustSaturation, 
-			"Adjusts the saturation value of a color.\n" 
-			":param saturation: \n"
-		)
 
 		////////////////////////////////////////////////////////////////////////////
 		//               Lerp
@@ -174,25 +155,6 @@ const Be::ClassInfo* TriColor::ExposeToBlue()
 			PyLerp, 
 			"BROKEN! Uses linear interpolation to modify this color value\n" 
 			":rtype: None"
-		)
-
-		////////////////////////////////////////////////////////////////////////////
-		//               Modulate
-		MAP_METHOD_AS_METHOD
-		( 
-			"Modulate",
-			PyModulate, 
-			"BROKEN! Blends a color with this color.\n" 
-			":rtype: None"
-		)
-
-		////////////////////////////////////////////////////////////////////////////
-		//               Negative
-		MAP_METHOD_AND_WRAP
-		( 
-			"Negative",
-			Negative, 
-			"Creates the negative color value of a color value." 
 		)
 
 		////////////////////////////////////////////////////////////////////////////

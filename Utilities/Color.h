@@ -72,4 +72,10 @@ inline bool IsMatch( Be::Var* value, const Color& t )
 	return (Be::Var*)&t == value;
 }
 
+// --------------------------------------------------------------------------------------
+inline Color Lerp( const Color& v1, const Color& v2, float s )
+{
+	return v1 + ( v2 - v1 ) * s;
+}
+
 #endif

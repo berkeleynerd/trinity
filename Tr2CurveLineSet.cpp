@@ -468,7 +468,7 @@ bool Tr2CurveLineSet::FillVertexBuffer()
 						dir3 = TransformNormal( dir2, rotationMatrix );
 
 						// interpolate color
-						D3DXColorLerp( &col2, &m_lines[i].color1, &m_lines[i].color2, segmentFactor );
+						col2 = Lerp( m_lines[i].color1, m_lines[i].color2, segmentFactor );
 
 						// put some verts into buffer
 						WriteLineVerticesToBuffer(
@@ -520,13 +520,12 @@ bool Tr2CurveLineSet::FillVertexBuffer()
 					Color col2 = m_lines[i].color2;
 					for( unsigned int s = 0; s < m_lines[i].numOfSegments; ++s )
 					{
-						// use d3dx helper to calc spline
 						float segmentFactor = (float)( s + 1 ) / (float)m_lines[i].numOfSegments;
 						float segmentFactor2 = (float)( s + 2 ) / (float)m_lines[i].numOfSegments;
 						pos3 = Hermite( m_lines[i].position1, tangent1, m_lines[i].position2, tangent2, segmentFactor2 );
 
 						// interpolate color
-						D3DXColorLerp( &col2, &m_lines[i].color1, &m_lines[i].color2, segmentFactor );
+						col2 = Lerp( m_lines[i].color1, m_lines[i].color2, segmentFactor );
 
 						// put some verts into buffer
 						WriteLineVerticesToBuffer( 
