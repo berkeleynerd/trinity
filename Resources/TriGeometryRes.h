@@ -174,9 +174,6 @@ public:
 
 	// Render multiple consecutive areas, starting at 'areaIx'
     bool RenderAreas( unsigned int meshIx, unsigned int areaIx, unsigned int areaCount, Tr2RenderContext& renderContext, bool reversed = false );
-
-	// Render multiple consecutive areas, starting at 'areaIx' using the provided vertexbuffer
-    bool RenderAreasFromDynamicVertexBuffer( Tr2BufferAL& vertexBuffer, unsigned int meshIx, unsigned int areaIx, unsigned int areaCount, bool reversed = false );
 	
 	// Render all areas in one draw call
 	bool RenderAsOneArea( unsigned int meshIx );

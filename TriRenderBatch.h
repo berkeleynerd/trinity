@@ -210,60 +210,6 @@ protected:
 
 // --------------------------------------------------------------------------------------
 // Description
-//   Render batch specialization that submits geometry from a TriGeometryRes, but uses
-//   a dynamic vertex buffer.  This batch type is used by Tr2CpuSkinnedModel, which
-//   produces a vertex buffer containing the cpu-skinned mesh data.
-// See Also
-//   TriRenderBatch, Tr2CpuSkinnedModel
-// --------------------------------------------------------------------------------------
-class TriDynamicGeometryBatch : public TriRenderBatch
-{
-public:
-	TriDynamicGeometryBatch();
-
-    TriGeometryRes* GetGeometryResource() const { return m_geometryResource; }
-    void SetGeometryResource( TriGeometryRes* val );
-
-	Tr2BufferAL& GetDynamicVertexBuffer() { return *m_dynamicVertexBuffer; }
-	void SetDynamicVertexBuffer( Tr2BufferAL& val ) { m_dynamicVertexBuffer = &val; }
-
-	void SetMeshParameters( unsigned int meshIx, 
-							unsigned int areaIx, 
-							unsigned int areaCount,
-							bool reversed = false )
-	{
-		m_meshIndex = meshIx;
-		m_areaIndex = areaIx;
-		m_areaCount = areaCount;
-		m_reversed = reversed;
-	}
-
-	virtual unsigned int GetPickingData() const
-	{ 
-		return (m_meshIndex << 8) + m_areaIndex; 
-	}
-
-	// Submit dynamic geometry to the device
-    virtual void SubmitGeometry( Tr2RenderContext& renderContext );
-
-	// Gets the batch type name for PIX debugging
-	virtual const std::string& GetBatchTypeName( void ) const
-	{ 
-		static const std::string name = "TriDynamicGeometryBatch";
-		return name; 
-	}
-
-private:
-    TriGeometryResPtr m_geometryResource;
-	Tr2BufferAL* m_dynamicVertexBuffer;
-    unsigned int m_meshIndex;
-    unsigned int m_areaIndex;
-    unsigned int m_areaCount;
-	bool m_reversed;
-};
-
-// --------------------------------------------------------------------------------------
-// Description
 //   Render batch specialization that forwards the SubmitGeometry call to an object which
 //   implements ITr2GeometryProvider.  It is used by a number of EVE classes for drawing
 //   things like line sets.

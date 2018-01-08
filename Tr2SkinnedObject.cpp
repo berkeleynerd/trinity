@@ -1,7 +1,6 @@
 #include "StdAfx.h"
 
 #include "Tr2SkinnedObject.h"
-#include "Tr2CpuSkinnedModel.h"
 #include "Resources/TriGeometryRes.h"
 #include "TriFrustum.h"
 #include "TriSettingsRegistrar.h"
@@ -596,23 +595,6 @@ bool Tr2SkinnedObject::HasTransparentBatches()
 
 void Tr2SkinnedObject::UpdatePerObjectData()
 {
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	if( !m_visualModel )
-	{
-		// Nothing to render
-		return;
-	}
-
-	if( m_skinningMatrixCount )
-	{
-		// if the model is of type cpuskinned, then we can call ::deform
-		Tr2CpuSkinnedModel* cpuSkinnedModel = dynamic_cast<Tr2CpuSkinnedModel*>( m_visualModel.p );
-		if( cpuSkinnedModel )
-		{
-			cpuSkinnedModel->deform( GetSkinningMatrices(), m_skinningMatrixCount );
-		}
-	}
 }
 
 bool Tr2SkinnedObject::GetLocalBoundingBox( Vector3& min, Vector3& max ) const

@@ -163,26 +163,3 @@ void TriGeometryBatch::SetGeometryResource( TriGeometryRes* val )
 {
 	m_geometryResource = val;
 }
-
-
-TriDynamicGeometryBatch::TriDynamicGeometryBatch()
-	: m_dynamicVertexBuffer( nullptr ),
-	m_meshIndex( 0 ),
-	m_areaIndex( 0 ),
-	m_areaCount( 1 ),
-	m_reversed( false )
-{}
-
-void TriDynamicGeometryBatch::SubmitGeometry( Tr2RenderContext& renderContext )
-{
-	if( m_geometryResource && m_dynamicVertexBuffer )
-	{
-		m_geometryResource->RenderAreasFromDynamicVertexBuffer( *m_dynamicVertexBuffer, m_meshIndex, m_areaIndex, m_areaCount, m_reversed );
-	}
-}
-
-void TriDynamicGeometryBatch::SetGeometryResource( TriGeometryRes* val )
-{
-	m_geometryResource = val;
-}
-
