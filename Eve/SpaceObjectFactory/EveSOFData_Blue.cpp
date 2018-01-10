@@ -21,11 +21,11 @@ Be::VarChooser EveSOFDataFactionColorSetTypeChooser[] =
 	{ "Green", BeCast( EveSOFDataFactionColorSet::TYPE_GREEN ), "Green" },
 	{ "Cyan", BeCast( EveSOFDataFactionColorSet::TYPE_CYAN ), "Cyan" },
 	{ "TEMP_Haze", BeCast( EveSOFDataFactionColorSet::TYPE_TEMP_HAZE ), "TEMPORARY Haze" },
-	{ "MtlHullGlow", BeCast( EveSOFDataFactionColorSet::TYPE_MTL_HULL_GLOW ), "Material Hullarea Glow" },
-	{ "MtlGlassGlow", BeCast( EveSOFDataFactionColorSet::TYPE_MTL_GLASS_GLOW ), "Material Glassarea Glow" },
-	{ "MtlReactorGlow", BeCast( EveSOFDataFactionColorSet::TYPE_MTL_REACTOR_GLOW ), "Material Reactorarea Glow" },
-	{ "MtlDarkhullGlow", BeCast( EveSOFDataFactionColorSet::TYPE_MTL_DARKHULL_GLOW ), "Material Darkhull Glow" },
-	{ "MtlHullHeatGlow", BeCast( EveSOFDataFactionColorSet::TYPE_MTL_HULL_HEAT_GLOW ), "Material Hullarea Heat Shimmer Glow" },
+	{ "Hull", BeCast( EveSOFDataFactionColorSet::TYPE_HULL ), "Material Hullarea Glow" },
+	{ "Glass", BeCast( EveSOFDataFactionColorSet::TYPE_GLASS ), "Material Glassarea Glow" },
+	{ "Reactor2", BeCast( EveSOFDataFactionColorSet::TYPE_REACTOR2 ), "Material Reactorarea Glow" },
+	{ "Darkhull", BeCast( EveSOFDataFactionColorSet::TYPE_DARKHULL ), "Material Darkhull Glow" },
+	{ "Booster", BeCast( EveSOFDataFactionColorSet::TYPE_BOOSTER ), "Material Hullarea Heat Shimmer Glow" },
 	{ 0 }
 };
 BLUE_REGISTER_ENUM_EX( "EveSOFDataFactionColorSetType", EveSOFDataFactionColorSet::ColorType, EveSOFDataFactionColorSetTypeChooser, ENUM_REG_ENUM_OBJECT_ON_MODULE );
@@ -99,11 +99,11 @@ const Be::ClassInfo* EveSOFDataFactionColorSet::ExposeToBlue()
 		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_GREEN].mKey, m_colors[TYPE_GREEN], ":jessica-group:Glow Colors", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_CYAN].mKey, m_colors[TYPE_CYAN], ":jessica-group:Glow Colors", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_TEMP_HAZE].mKey, m_colors[TYPE_TEMP_HAZE], ":jessica-group:Glow Colors", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_MTL_HULL_GLOW].mKey, m_colors[TYPE_MTL_HULL_GLOW], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_MTL_GLASS_GLOW].mKey, m_colors[TYPE_MTL_GLASS_GLOW], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_MTL_REACTOR_GLOW].mKey, m_colors[TYPE_MTL_REACTOR_GLOW], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_MTL_DARKHULL_GLOW].mKey, m_colors[TYPE_MTL_DARKHULL_GLOW], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_MTL_HULL_HEAT_GLOW].mKey, m_colors[TYPE_MTL_HULL_HEAT_GLOW], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_HULL].mKey, m_colors[TYPE_HULL], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_GLASS].mKey, m_colors[TYPE_GLASS], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_REACTOR2].mKey, m_colors[TYPE_REACTOR2], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_DARKHULL].mKey, m_colors[TYPE_DARKHULL], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( EveSOFDataFactionColorSetTypeChooser[TYPE_BOOSTER].mKey, m_colors[TYPE_BOOSTER], ":jessica-group:Material Glow Colors", Be::READWRITE | Be::PERSIST )
 		EXPOSURE_END()
 }
 
