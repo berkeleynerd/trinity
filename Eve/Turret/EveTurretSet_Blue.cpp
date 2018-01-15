@@ -101,6 +101,8 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 		
 		MAP_ATTRIBUTE( "impactSize", m_impactSize, "Size of impacts. No impact if size is 0 or less", Be::READWRITE | Be::PERSIST )
 
+		MAP_ATTRIBUTE( "chooseRandomLocator", m_chooseRandomLocator, "Allow choosing a random locator instead of the closest one", Be::READWRITE | Be::PERSIST )
+
 		MAP_METHOD_AND_WRAP(
 			"RebuildBoundingSphere",
 			RebuildBoundingSphere,

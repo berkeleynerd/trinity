@@ -109,7 +109,8 @@ EveTurretSet::EveTurretSet( IRoot* lockobj ) :
 	m_slotNumber( -1 ),
 	m_swarmID( 0 ),
 	m_parentShLighting( nullptr ),
-	m_possibleTurretDisplayAmount( 0 )
+	m_possibleTurretDisplayAmount( 0 ),
+	m_chooseRandomLocator( true )
 {
 	// 0
 	memset( &m_parentData, 0, sizeof( ParentData ) );
@@ -2386,7 +2387,7 @@ bool EveTurretSet::GetClosestTurretAndLocator( unsigned int& closestTurretIx, in
 		}
 	}
 
-	if( closestTurret != INVALID_TURRET_INDEX )
+	if( closestTurret != INVALID_TURRET_INDEX && m_chooseRandomLocator )
 	{
 		Vector3 locatorPosition;
 		int randomLocator = m_target->FindRandomValidLocator( m_singleTurrets[closestTurret].worldMatrix.GetTranslation(), locatorPosition );

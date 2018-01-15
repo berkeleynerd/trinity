@@ -405,6 +405,8 @@ private:
 	// firing effect
 	EveTurretFiringFXPtr m_firingEffect;
 	bool m_firingEffectMuzzlePosSet;
+
+	bool m_chooseRandomLocator;
 };
 
 TYPEDEF_BLUECLASS( EveTurretSet );
