@@ -442,7 +442,8 @@ EveSOFDataHullSpriteLineSetItem::EveSOFDataHullSpriteLineSetItem( IRoot* lockobj
 
 EveSOFDataHullHazeSet::EveSOFDataHullHazeSet( IRoot* lockobj ) :
 	PARENTLOCK( m_items ),
-	m_visibilityGroup( "primary" )
+	m_visibilityGroup( "primary" ),
+	m_hazeType( EveSOFDataHullHazeSet::TYPE_SPHERICAL )
 {}
 
 EveSOFDataHullHazeSetItem::EveSOFDataHullHazeSetItem( IRoot* lockobj ) :
