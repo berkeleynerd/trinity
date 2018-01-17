@@ -979,7 +979,7 @@ void EveSOFDataMgr::GenerateFactionData( FactionData& fd, EveSOFDataFactionPtr s
 				}
 
 				// general parameters
-				fd.areaMaterials.generalParameters[std::make_pair( i, "GeneralGlowColor" )] = Vector4( areaMaterial->m_generalGlowColor );
+//				fd.areaMaterials.generalParameters[std::make_pair( i, "GeneralGlowColor" )] = Vector4( areaMaterial->m_generalGlowColor );
 				fd.areaMaterials.glowColor[std::make_pair( i, "GeneralGlowColor" )] = areaMaterial->m_glowColorType;
 			}
 		}
@@ -1074,7 +1074,9 @@ void EveSOFDataMgr::GenerateRaceData( RaceData& rd, EveSOFDataRacePtr srcData ) 
 	rd.areaMaterials.generalParameters.clear();
 	rd.areaMaterials.materialNames.clear();
 	rd.areaMaterials.generalParameters[std::make_pair( EveSOFDataArea::TYPE_PRIMARY, "GeneralHeatGlowColor" )] = Vector4( srcData->m_hullPrimaryHeatColor );
+	rd.areaMaterials.glowColor[std::make_pair( EveSOFDataArea::TYPE_PRIMARY, "GeneralHeatGlowColor" )] = srcData->m_hullPrimaryHeatColorType;
 	rd.areaMaterials.generalParameters[std::make_pair( EveSOFDataArea::TYPE_REACTOR, "GeneralHeatGlowColor" )] = Vector4( srcData->m_hullReactorHeatColor );
+	rd.areaMaterials.glowColor[std::make_pair( EveSOFDataArea::TYPE_REACTOR, "GeneralHeatGlowColor" )] = srcData->m_hullReactorHeatColorType;
 
 	// damage data
 	rd.damage.armorDamageParameters.clear();

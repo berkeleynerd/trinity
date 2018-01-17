@@ -251,7 +251,9 @@ EveSOFDataHull::EveSOFDataHull( IRoot* lockobj ) :
 
 EveSOFDataRace::EveSOFDataRace( IRoot* lockobj ) :
 	m_hullPrimaryHeatColor( 1.f, 1.f, 1.f, 1.f ),
-	m_hullReactorHeatColor( 1.f, 1.f, 1.f, 1.f )
+	m_hullPrimaryHeatColorType( EveSOFDataFactionColorSet::TYPE_BOOSTER ),
+	m_hullReactorHeatColor( 1.f, 1.f, 1.f, 1.f ),
+	m_hullReactorHeatColorType( EveSOFDataFactionColorSet::TYPE_REACTOR )
 {}
 
 
