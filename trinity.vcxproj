@@ -2887,6 +2887,7 @@
     <ClInclude Include="Eve\SpaceObject\Children\EveChildTransform.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveCloudEditableVolume.h" />
     <ClInclude Include="Eve\SpaceObject\Children\IEveSpaceObjectChild.h" />
+    <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierCameraOrientedRotationConstrained.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierLookAtCamera.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\IEveChildTransformModifier.h" />
@@ -3470,6 +3471,8 @@
     <ClCompile Include="Eve\SpaceObject\Children\EveChildTransform.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveCloudEditableVolume.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveCloudEditableVolume_Blue.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierCameraOrientedRotationConstrained.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierCameraOrientedRotationConstrained_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierLookAtCamera.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierLookAtCamera_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT.cpp" />
