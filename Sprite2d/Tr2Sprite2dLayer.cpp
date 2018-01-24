@@ -90,14 +90,10 @@ bool Tr2Sprite2dLayer::OnPrepareResources()
 	}
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	HRESULT hr = m_renderTarget.CreateRenderTarget(		
-		(uint32_t)m_displayWidth, 
-		(uint32_t)m_displayHeight,
-		1, 
-		Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 
-		Tr2MsaaDesc(),
-		0,
-		EX_NONE,
+	HRESULT hr = m_renderTarget.Create(	
+		Tr2BitmapDimensions( (uint32_t)m_displayWidth, (uint32_t)m_displayHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ), 
+		Tr2GpuUsage::SHADER_RESOURCE | Tr2GpuUsage::RENDER_TARGET,
+		Tr2CpuUsage::READ,
 		renderContext );
 	
 	if( FAILED( hr ) )

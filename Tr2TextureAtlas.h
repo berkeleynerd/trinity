@@ -38,7 +38,7 @@ public:
     Tr2TextureAtlas( IRoot* lockobj = NULL );
 	~Tr2TextureAtlas();
 
-	void Initialize( Tr2RenderContextEnum::PixelFormat fmt, unsigned int width, unsigned int height, Tr2RenderContextEnum::BufferUsage usage = Tr2RenderContextEnum::USAGE_CPU_READ, bool hasMipMaps = false );
+	void Initialize( Tr2RenderContextEnum::PixelFormat fmt, unsigned int width, unsigned int height );
 	void CollapseFreeAreas();
 	void ConsolidateFreeAreas();
 	void PullInOutsiders( bool optimiseInsertion = false );
@@ -133,7 +133,6 @@ private:
 	Tr2RenderContextEnum::PixelFormat m_format;
 	unsigned int m_width;
 	unsigned int m_height;
-	Tr2RenderContextEnum::BufferUsage m_usage;
 	
 
 	typedef TrackableStdSet<Tr2AtlasTexture*> Tr2AtlasTextureSet_t;

@@ -36,7 +36,20 @@ void Tr2DepthStencil::py__init__(
 long Tr2DepthStencil::Create( unsigned width, unsigned height, DepthStencilFormat dsFormat, unsigned msaaType, unsigned msaaQuality, Tr2RenderContextEnum::ExFlag flags )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	auto hr = m_depthStencil.CreateDepthStencil( width, height, dsFormat, Tr2MsaaDesc( msaaType, msaaQuality ), flags, renderContext ).GetResult();
+	auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL;
+	if( dsFormat == Tr2RenderContextEnum::DSFMT_READABLE )
+	{
+		gpuUsage |= Tr2GpuUsage::SHADER_RESOURCE;
+	}
+#if TRINITY_PLATFORM==TRINITY_DIRECTX11
+	gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
+#endif
+	if( ( flags & Tr2RenderContextEnum::EX_CREATE_SHARED ) != 0 )
+	{
+		gpuUsage |= Tr2GpuUsage::SHARED;
+	}
+
+	auto hr = m_depthStencil.Create( Tr2BitmapDimensions( width, height, 1, Tr2RenderContextEnum::ConvertDepthStencilFormat( dsFormat ) ), Tr2MsaaDesc( msaaType, msaaQuality ), gpuUsage, renderContext ).GetResult();
 	if( SUCCEEDED( hr ) )
 	{
 		m_width = width;
@@ -155,7 +168,20 @@ bool Tr2DepthStencil::OnPrepareResources()
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
-		m_depthStencil.CreateDepthStencil( m_width, m_height, m_format, m_msaa, m_flags, renderContext );
+		auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL;
+		if( m_format == Tr2RenderContextEnum::DSFMT_READABLE )
+		{
+			gpuUsage |= Tr2GpuUsage::SHADER_RESOURCE;
+		}
+#if TRINITY_PLATFORM==TRINITY_DIRECTX11
+		gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
+#endif
+		if( ( m_flags & Tr2RenderContextEnum::EX_CREATE_SHARED ) != 0 )
+		{
+			gpuUsage |= Tr2GpuUsage::SHARED;
+		}
+
+		m_depthStencil.Create( Tr2BitmapDimensions( m_width, m_height, 1, Tr2RenderContextEnum::ConvertDepthStencilFormat( m_format ) ), m_msaa, gpuUsage, renderContext );
 	}
 	return true;
 }

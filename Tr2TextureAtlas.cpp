@@ -15,7 +15,6 @@ Tr2TextureAtlas::Tr2TextureAtlas( IRoot* lockobj ) :
 	m_format( PIXEL_FORMAT_B8G8R8A8_UNORM ),
 	m_width( 2048 ),
 	m_height( 2048 ),
-	m_usage( Tr2RenderContextEnum::USAGE_CPU_READ ),
 	m_freeAreas( "Tr2TextureAtlas/m_freeAreas" ),
 	m_texturesInAtlas( "Tr2TextureAtlas/m_texturesInAtlas" ),
 	m_texturesOutsideAtlas( "Tr2TextureAtlas/m_texturesOutsideAtlas" ),
@@ -38,15 +37,13 @@ Tr2TextureAtlas::~Tr2TextureAtlas()
 {
 }
 
-void Tr2TextureAtlas::Initialize( PixelFormat fmt, unsigned int width, unsigned int height, Tr2RenderContextEnum::BufferUsage usage, bool hasMipMaps )
+void Tr2TextureAtlas::Initialize( PixelFormat fmt, unsigned int width, unsigned int height )
 {
 	ReleaseResources( TRISTORAGE_ALL );
 
 	m_format = fmt;
 	m_width = width;
 	m_height = height;
-	m_usage = usage;
-	m_hasMipMaps = hasMipMaps;
 
 	PrepareResources();
 }
@@ -85,13 +82,11 @@ bool Tr2TextureAtlas::OnPrepareResources()
 		
 		m_mipLevels = m_hasMipMaps ? unsigned( 0.5 + log(double(std::max(m_height, m_width))) / log(2.0) ) : 1;
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		hr = m_texture.Create2D(	m_width, 
-									m_height, 
-									m_mipLevels, 
-									m_format, 
-									m_usage, 
-									nullptr, 
-									renderContext );
+		hr = m_texture.Create(
+			Tr2BitmapDimensions( m_width, m_height, m_mipLevels, m_format ), 
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::READ | Tr2CpuUsage::WRITE,
+			renderContext );
 
 		if( FAILED(hr) )
 		{
@@ -1128,13 +1123,10 @@ ALResult Tr2TextureAtlas::CreateTexture( unsigned int width, unsigned int height
 		}
 
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		HRESULT hr = tex->m_texture.Create2D(
-			width, 
-			height, 
-			1, 
-			m_format, 
-			type == ATT_VIDEO ? USAGE_CPU_WRITE | USAGE_CPU_READ : USAGE_CPU_READ,
-			nullptr, 
+		HRESULT hr = tex->m_texture.Create(
+			Tr2BitmapDimensions( width, height, 1, m_format ), 
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::READ | Tr2CpuUsage::WRITE,
 			renderContext ).GetResult();
 		if( FAILED( hr ) )
 		{
@@ -1316,7 +1308,7 @@ bool Tr2TextureAtlas::EjectTextureHelper( Tr2AtlasTexture *tex )
 		return false;
 	}
 
-	HRESULT hr = tex->m_texture.Create2D( width, height, 1, m_format, USAGE_CPU_READ, nullptr, renderContext );
+	HRESULT hr = tex->m_texture.Create( Tr2BitmapDimensions( width, height, 1, m_format ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ | Tr2CpuUsage::WRITE, renderContext );
 
 	if( FAILED( hr ) )
 	{

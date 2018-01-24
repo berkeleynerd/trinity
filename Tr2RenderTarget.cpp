@@ -3,6 +3,36 @@
 
 using namespace Tr2RenderContextEnum;
 
+
+namespace
+{
+	void GetUsage( uint32_t msaaType, Tr2RenderContextEnum::ExFlag flags, Tr2GpuUsage::Type& gpuUsage, Tr2CpuUsage::Type& cpuUsage )
+	{
+		gpuUsage = Tr2GpuUsage::RENDER_TARGET;
+#if TRINITY_PLATFORM==TRINITY_DIRECTX11
+		gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
+#else
+		if( msaaType < 2 )
+		{
+			gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
+		}
+#endif
+		cpuUsage = Tr2CpuUsage::READ;
+		if( msaaType > 1 )
+		{
+			cpuUsage = Tr2CpuUsage::NONE;
+		}
+		else if( ( flags & Tr2RenderContextEnum::EX_BIND_UNORDERED_ACCESS ) != 0 )
+		{
+			gpuUsage = gpuUsage | Tr2GpuUsage::UNORDERED_ACCESS;
+		}
+		if( ( flags & Tr2RenderContextEnum::EX_CREATE_SHARED ) != 0 )
+		{
+			gpuUsage = gpuUsage | Tr2GpuUsage::SHARED;
+		}
+	}
+}
+
 Tr2RenderTarget::Tr2RenderTarget( IRoot* )
 	:m_attachedRenderTarget( nullptr ),
 	m_width( 0 ),
@@ -52,14 +82,17 @@ long Tr2RenderTarget::Create(
 	{
 		return E_INVALIDARG;
 	}
-	auto hr = m_renderTarget.CreateRenderTarget(
-		width,
-		height,
-		mipLevelCount,
-		format,
+
+	auto gpuUsage = Tr2GpuUsage::NONE;
+	auto cpuUsage = Tr2CpuUsage::NONE;
+	GetUsage( uint32_t( msaaType ), flags, gpuUsage, cpuUsage );
+
+	auto hr = m_renderTarget.Create(
+		Tr2BitmapDimensions( width, height, mipLevelCount, format ),
 		Tr2MsaaDesc( msaaType, msaaQuality ),
-		( flags & Tr2RenderContextEnum::EX_BIND_UNORDERED_ACCESS ) ? Tr2RenderContextEnum::USAGE_UNORDERED_ACCESS : 0,
-		ExFlag( flags ),
+		gpuUsage,
+		cpuUsage,
+		nullptr,
 		renderContext ).GetResult();
 	if( SUCCEEDED( hr ) )
 	{
@@ -297,15 +330,11 @@ bool Tr2RenderTarget::OnPrepareResources()
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
-		m_renderTarget.CreateRenderTarget(
-			m_width,
-			m_height,
-			m_mipCount,
-			m_format,
-			m_msaa,
-			( m_flags & EX_BIND_UNORDERED_ACCESS ) ? USAGE_UNORDERED_ACCESS : 0,
-			m_flags,
-			renderContext );
+		auto gpuUsage = Tr2GpuUsage::NONE;
+		auto cpuUsage = Tr2CpuUsage::NONE;
+		GetUsage( m_msaa.samples, m_flags, gpuUsage, cpuUsage );
+
+		m_renderTarget.Create( Tr2BitmapDimensions( m_width, m_height, m_mipCount, m_format ),m_msaa, gpuUsage, cpuUsage, nullptr, renderContext );
 	}
 	return true;
 }

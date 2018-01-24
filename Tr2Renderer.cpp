@@ -311,9 +311,9 @@ namespace
 			initialData[i].m_sysMemSlicePitch = 4;
 			initialData[i].m_sysMem = &color;
 		}
-		outputTextures[0].Create2D( 1, 1, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_IMMUTABLE, initialData, renderContext );
-		outputTextures[1].CreateVolume( 1, 1, 1, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_IMMUTABLE, initialData, renderContext );
-		outputTextures[2].CreateCube( 1, 1, 1, PIXEL_FORMAT_B8G8R8A8_UNORM, USAGE_IMMUTABLE, initialData, renderContext );
+		outputTextures[0].Create( Tr2BitmapDimensions( 1, 1, 1, PIXEL_FORMAT_B8G8R8A8_UNORM ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, initialData, renderContext );
+		outputTextures[1].Create( Tr2BitmapDimensions( TEX_TYPE_3D, PIXEL_FORMAT_B8G8R8A8_UNORM, 1, 1, 1, 1 ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, initialData, renderContext );
+		outputTextures[2].Create( Tr2BitmapDimensions( TEX_TYPE_CUBE, PIXEL_FORMAT_B8G8R8A8_UNORM, 1, 1, 1, 1 ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, initialData, renderContext );
 	}
 
 	void DestroyFallbackTextures( Tr2TextureAL* fallbackTextures )

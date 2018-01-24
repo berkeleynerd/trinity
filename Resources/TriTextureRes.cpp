@@ -465,15 +465,11 @@ bool TriTextureRes::CreateFromRT( Tr2RenderTarget* renderTarget, unsigned width,
 
 		{
 			USE_MAIN_THREAD_RENDER_CONTEXT();
-			CR_RETURN_VAL( 
-				m_ownTexture.Create2D( width, 
-										height, 
-										bd.GetTrueMipCount(), 
-										rt.GetFormat(), 
-										USAGE_CPU_READ, 
-										nullptr, 
-										renderContext )
-				, false );
+			CR_RETURN_VAL( m_ownTexture.Create( 
+				Tr2BitmapDimensions( width, height, bd.GetTrueMipCount(), rt.GetFormat() ), 
+				Tr2GpuUsage::SHADER_RESOURCE,
+				Tr2CpuUsage::READ | Tr2CpuUsage::WRITE,
+				renderContext ), false );
 		}
 
 		Tr2TextureSubresource dst;
@@ -496,15 +492,12 @@ bool TriTextureRes::CreateFromRT( Tr2RenderTarget* renderTarget, unsigned width,
 	
 		srd.m_sysMemSlicePitch = rt.GetHeight() * srd.m_sysMemPitch;
 
-		CR_RETURN_VAL( 
-				m_ownTexture.Create2D( width, 
-										height, 
-										1, 
-										rt.GetFormat(), 
-										USAGE_CPU_READ,
-										&srd, 
-										renderContext )
-				, false );	
+		CR_RETURN_VAL( m_ownTexture.Create( 
+			Tr2BitmapDimensions( width, height, 1, rt.GetFormat() ), 
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::READ, 
+			&srd, 
+			renderContext ), false );	
 	}
 
 	m_isTextureResizable = false;
@@ -560,8 +553,11 @@ BlueStdResult TriTextureRes::CreateFromTexture( TriTextureRes* texture )
 	
 	Tr2BitmapDimensions bd( other.GetDesc() );
 
-	CR_RETURN_VAL( 
-		m_ownTexture.Create2D( width, height, other.GetTrueMipCount(), other.GetFormat(), USAGE_CPU_READ, nullptr, renderContext ),
+	CR_RETURN_VAL( m_ownTexture.Create( 
+		Tr2BitmapDimensions( width, height, other.GetTrueMipCount(), other.GetFormat() ), 
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::READ, 
+			renderContext ),
 		BlueStdResult( BLUE_STD_RESULT_RUNTIME_ERROR, "could not create a texture" ) );
 
 	Tr2TextureSubresource dst;
@@ -599,15 +595,40 @@ bool TriTextureRes::Create(	uint32_t width,
 	m_ownTexture.Destroy();
 	SetTexture( m_ownTexture );
 
-	CR_RETURN_VAL( 
-		m_ownTexture.Create2D(		width,
-									height, 
-									mipCount, 
-									format, 
-									usage, 
-									nullptr, 
-									renderContext )
-			, false );
+
+	auto gpuUsage = Tr2GpuUsage::SHADER_RESOURCE;
+	auto cpuUsage = Tr2CpuUsage::NONE;
+
+	if( ( usage & Tr2RenderContextEnum::USAGE_IMMUTABLE ) != 0 )
+	{
+		cpuUsage = cpuUsage | Tr2CpuUsage::READ;
+	}
+	else if( ( usage & Tr2RenderContextEnum::USAGE_LOCK_FREQUENTLY ) != 0 )
+	{
+		cpuUsage = cpuUsage | Tr2CpuUsage::WRITE_OFTEN;
+	}
+	else
+	{
+		cpuUsage = cpuUsage | Tr2CpuUsage::WRITE;
+	}
+	if( ( usage & Tr2RenderContextEnum::USAGE_CPU_READ ) != 0 )
+	{
+		cpuUsage = cpuUsage | Tr2CpuUsage::READ;
+	}
+	if( ( usage & Tr2RenderContextEnum::USAGE_UNORDERED_ACCESS ) != 0 )
+	{
+		gpuUsage = gpuUsage | Tr2GpuUsage::UNORDERED_ACCESS;
+	}
+	if( ( usage & Tr2RenderContextEnum::USAGE_SHADER_RESOURCE ) != 0 )
+	{
+		gpuUsage = gpuUsage | Tr2GpuUsage::SHARED;
+	}
+
+	CR_RETURN_VAL( m_ownTexture.Create(		
+		Tr2BitmapDimensions( width, height, mipCount, format ), 
+		gpuUsage,
+		cpuUsage,
+		renderContext ), false );
 
 	*static_cast<Tr2BitmapDimensions*>( this ) = m_ownTexture.GetDesc();
 

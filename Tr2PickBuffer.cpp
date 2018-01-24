@@ -40,8 +40,8 @@ bool Tr2PickBuffer::OnPrepareResources()
 
 	// create the pixel buffer as a rendertarget
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	CR( m_pickTarget.CreateRenderTarget( bufferWidth, bufferHeight, 1, m_format, Tr2MsaaDesc(), 0, EX_NONE, renderContext ) );
-	CR( m_depthBuffer.CreateDepthStencil( bufferWidth, bufferHeight, Tr2RenderContextEnum::DSFMT_D24S8, Tr2MsaaDesc(), EX_NONE, renderContext ) );
+	CR( m_pickTarget.Create( Tr2BitmapDimensions( bufferWidth, bufferHeight, 1, m_format ), Tr2GpuUsage::RENDER_TARGET, Tr2CpuUsage::READ_OFTEN, renderContext ) );
+	CR( m_depthBuffer.Create( Tr2BitmapDimensions( bufferWidth, bufferHeight, 1, PIXEL_FORMAT_D24_UNORM_S8_UINT ), Tr2GpuUsage::DEPTH_STENCIL, renderContext ) );
 
 	return true;
 }

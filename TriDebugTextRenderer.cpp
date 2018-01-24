@@ -226,12 +226,10 @@ void TriDebugTextRenderer::DrawText( TriDebugFont font, const char* string, cons
 		m_texture.GetHeight() < m_bitmapHeight )
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		CR_RETURN(	m_texture.Create2D(		m_bitmapWidth, 
-			m_bitmapHeight, 
-			1, 
-			Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 
-			Tr2RenderContextEnum::USAGE_CPU_WRITE | Tr2RenderContextEnum::USAGE_LOCK_FREQUENTLY, 
-			nullptr, 
+		CR_RETURN( m_texture.Create(		
+			Tr2BitmapDimensions( m_bitmapWidth, m_bitmapHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ), 
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::WRITE_OFTEN,
 			renderContext ) );
 	}
 
@@ -287,12 +285,10 @@ void TriDebugTextRenderer::DrawText( TriDebugFont font, const char* string, cons
 		m_texture.GetHeight() < unsigned( size.bottom ) )
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		CR_RETURN(	m_texture.Create2D(		size.right, 
-			size.bottom, 
-			1, 
-			Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 
-			Tr2RenderContextEnum::USAGE_CPU_WRITE | Tr2RenderContextEnum::USAGE_LOCK_FREQUENTLY, 
-			nullptr, 
+		CR_RETURN( m_texture.Create(
+			Tr2BitmapDimensions( size.right, size.bottom, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ),
+			Tr2GpuUsage::SHADER_RESOURCE,
+			Tr2CpuUsage::WRITE_OFTEN,
 			renderContext ) );
 	}
 

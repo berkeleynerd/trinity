@@ -69,7 +69,7 @@ bool Tr2DataTextureManager::OnPrepareResources()
 	// create the data texture here, prefill it with zeros
 	std::vector<Vector4> t( m_textureWidth * m_textureHeight, Vector4( 0.f, 0.f, 0.f, 0.f ) );
 	Tr2SubresourceData init = { &t[0], m_textureWidth * uint32_t(sizeof(Vector4)), m_textureWidth * m_textureHeight * uint32_t(sizeof(Vector4)) };
-	if( FAILED( m_dataTexture->GetTexture()->Create2D( m_textureWidth, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE, &init, renderContext ) ) )
+	if( FAILED( m_dataTexture->GetTexture()->Create( Tr2BitmapDimensions( m_textureWidth, m_textureHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ | Tr2CpuUsage::WRITE, &init, renderContext ) ) )
 	{
 		return false;
 	}

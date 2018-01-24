@@ -41,7 +41,7 @@ bool CreateCubeTexture(	ImageIO::HostBitmap& bitmap, Tr2TextureAL &out,
 		}
 	}
 
-	if( FAILED( out.CreateCube( bitmap.GetWidth(), bitmap.GetHeight(), bitmap.GetTrueMipCount(), bitmap.GetFormat(), USAGE_IMMUTABLE, &initData[0], renderContext ) ) )
+	if( FAILED( out.Create( bitmap, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, &initData[0], renderContext ) ) )
 	{
 		return false;
 	}
@@ -90,7 +90,7 @@ bool CreateVolumeTexture( ImageIO::HostBitmap& bitmap, Tr2TextureAL &out,
 		memoryUse += bitmap.GetMipSize( i );
 	}
 
-	if( FAILED( out.CreateVolume( bitmap.GetWidth(), bitmap.GetHeight(), bitmap.GetDepth(), bitmap.GetTrueMipCount(), bitmap.GetFormat(), USAGE_IMMUTABLE, &initData[0], renderContext ) ) )
+	if( FAILED( out.Create( bitmap, Tr2GpuUsage::SHADER_RESOURCE, &initData[0], renderContext ) ) )
 	{
 		return false;
 	}
@@ -141,35 +141,10 @@ bool Create2DTexture(	ImageIO::HostBitmap& bitmap, Tr2TextureAL &out,
 		}
 	}
 
-	if( bitmap.GetArraySize() > 1 )
+	if( FAILED( out.Create( bitmap, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, &initData[0], renderContext ) ) )
 	{
-		if( FAILED( out.Create2DArray( 
-			bitmap.GetWidth(), 
-			bitmap.GetHeight(), 
-			bitmap.GetTrueMipCount(), 
-			bitmap.GetArraySize(), 
-			bitmap.GetFormat(), 
-			usage, 
-			&initData[0], 
-			renderContext ) ) )
-		{
-			return false;
-		}
+		return false;
 	}
-	else
-	{
-		if( FAILED( out.Create2D(	bitmap.GetWidth(), 
-									bitmap.GetHeight(), 
-									bitmap.GetTrueMipCount(), 
-									bitmap.GetFormat(), 
-									usage, 
-									&initData[0], 
-									renderContext ) ) )
-		{
-			return false;
-		}
-	}
-
 	return true;
 }
 

@@ -208,14 +208,9 @@ bool TriShadowMap::OnPrepareResources()
 
 	if( m_filterVsm && !m_filterBlurRT.IsValid() )
 	{
-		CR_RETURN_VAL( m_filterBlurRT.CreateRenderTarget(	
-			m_size, 
-			m_size, 
-			1, 
-			pixelFormat,
-			Tr2MsaaDesc(), 
-			0, 
-			EX_NONE,
+		CR_RETURN_VAL( m_filterBlurRT.Create(	
+			Tr2BitmapDimensions( m_size, m_size, 1, pixelFormat ),
+			Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE,
 			renderContext ), false );
 	}
 
@@ -229,11 +224,11 @@ bool TriShadowMap::OnPrepareResources()
 		} 
 		
 		Tr2SubresourceData init = { pixels, 16, 32 };
-		CR_RETURN_VAL( m_noShadowTexture->GetTexture()->Create2D( 2, 2, 1, PIXEL_FORMAT_R32G32_FLOAT, USAGE_IMMUTABLE, &init, renderContext ), false );
+		CR_RETURN_VAL( m_noShadowTexture->GetTexture()->Create( Tr2BitmapDimensions( 2, 2, 1, PIXEL_FORMAT_R32G32_FLOAT ), Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::READ, &init, renderContext ), false );
 	}
 	if( !m_shadowMapDS.IsValid() )
 	{
-		CR_RETURN_VAL( m_shadowMapDS.CreateDepthStencil( m_size, m_size, DSFMT_AUTO, Tr2MsaaDesc(), EX_NONE, renderContext ), false );
+		CR_RETURN_VAL( m_shadowMapDS.Create( Tr2BitmapDimensions( m_size, m_size, 1, PIXEL_FORMAT_D24_UNORM_S8_UINT ), Tr2GpuUsage::DEPTH_STENCIL, renderContext ), false );
 	}
 
 	if( m_shadowSizeHandle )
