@@ -1087,8 +1087,8 @@ static bool IntersectTri(
 	m.m[1][0] = p2->x - p0->x;
 	m.m[2][0] = -rayDir->x;
 	m.m[3][0] = 0.0f;
-	m.m[0][1] = p1->y - p0->z;
-	m.m[1][1] = p2->y - p0->z;
+	m.m[0][1] = p1->y - p0->y;
+	m.m[1][1] = p2->y - p0->y;
 	m.m[2][1] = -rayDir->y;
 	m.m[3][1] = 0.0f;
 	m.m[0][2] = p1->z - p0->z;
