@@ -320,6 +320,13 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			Be::READWRITE | Be::PERSIST
 		)
 
+		MAP_PROPERTY_READONLY
+		( 
+			"cameraAttachments", 
+			GetCameraAttachments, 
+			"List of effect children attached to the camera" 
+		)
+
 		MAP_PROPERTY
 		( 
 			"shLightingManager", 

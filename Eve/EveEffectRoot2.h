@@ -17,7 +17,7 @@ BLUE_DECLARE_VECTOR( Tr2PointLight );
 
 BLUE_DECLARE( EveEffectRoot2 );
 
-class EveEffectRoot2:
+BLUE_CLASS( EveEffectRoot2 ):
 	public IEveSpaceObject2,
 	public IInitialize,
 	public ITr2SecondaryLightSource,
@@ -73,6 +73,9 @@ public:
 	void Start();
 	void Stop();
 
+	PIEveSpaceObjectChildVector& GetChildren();
+
+	void SetTransform( const Matrix& transform );
 private:
 	// general
 	std::string m_name;

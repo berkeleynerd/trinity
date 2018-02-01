@@ -33,6 +33,7 @@
 #include "Resources/TriTextureRes.h"
 #include "Tr2ImpostorManager.h"
 #include "Tr2DebugRenderer.h"
+#include "EveEffectRoot2.h"
 
 using namespace Tr2RenderContextEnum;
 
@@ -226,6 +227,13 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_visualizerEffects[VW_LIGHT_COUNT].type = VisualizerEffect::FULL_SCREEN_QUAD_OVERLAY;
 
 	Tr2LightManager::ResetVariableStore();
+
+	m_cameraAttachmentParent.CreateInstance();
+}
+
+IRoot* EveSpaceScene::GetCameraAttachments() const
+{
+	return m_cameraAttachmentParent->GetChildren().GetRawRoot();
 }
 
 EveSpaceScene::~EveSpaceScene()
@@ -353,10 +361,16 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 	{
 		CCP_STATS_ZONE( "UpdateSyncronous" );
 
+		m_cameraAttachmentParent->SetTransform( Tr2Renderer::GetInverseViewTransform() );
+		m_cameraAttachmentParent->UpdateSyncronous( m_updateContext );
+
 		for( IEveSpaceObject2Vector::const_iterator it = m_objects.begin(); it != m_objects.end(); ++it )
 		{
 			(*it)->UpdateSyncronous( m_updateContext );
 		}
+
+		m_cameraAttachmentParent->UpdateAsyncronous( m_updateContext );
+
 		for( IEveSpaceObject2Vector::const_iterator it = m_uiObjects.begin(); it != m_uiObjects.end(); ++it )
 		{
 			(*it)->UpdateSyncronous( m_updateContext );
@@ -1227,6 +1241,7 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 				m_objects[i]->GetLights( *lightManager );
 			}
 		} );
+		m_cameraAttachmentParent->GetLights( *lightManager );
 	}
 	else
 	{
@@ -1270,6 +1285,8 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 	{
 		CCP_STATS_ZONE( "UpdateVisibility" );
 		Tr2ParallelDo( m_objects.begin(), m_objects.end(), [&]( IEveSpaceObject2* obj ) { obj->UpdateVisibility( frustum, identity ); } );
+		m_cameraAttachmentParent->UpdateVisibility( frustum, identity );
+
 		Tr2ParallelDo( m_planets.begin(), m_planets.end(), [&]( EvePlanet* obj ) { obj->UpdateZOnlyVisibility( frustum ); } );
 	}
 	// Separate objects that will receive shadows from others. Shadowed objects will be rendered object by object,
@@ -1308,6 +1325,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 			objectsNotReceivingShadow.push_back( obj );
 		}
 	}
+	objectsNotReceivingShadow.push_back( m_cameraAttachmentParent );
 
 	if( objectsReceivingShadow.size() > m_shadowReceiverMaxCount )
 	{
@@ -2303,6 +2321,8 @@ bool EveSpaceScene::Initialize()
 	{
 		( *it )->RegisterWithQuadRenderer( *Tr2QuadRenderer::Instance() );
 	}
+	m_cameraAttachmentParent->RegisterWithQuadRenderer( *Tr2QuadRenderer::Instance() );
+
 
 	for( auto it = begin( m_uiObjects ); it != end( m_uiObjects ); ++it )
 	{
@@ -2675,6 +2695,9 @@ void EveSpaceScene::GetPickingObjectsToRender( std::vector<ITr2Renderable*>& pic
 		(*it)->UpdateVisibility( pickFrustum, IdentityMatrix() );
 		(*it)->GetRenderables( pickableRenderObjects, nullptr );
 	}
+	m_cameraAttachmentParent->UpdateVisibility( pickFrustum, IdentityMatrix() );
+	m_cameraAttachmentParent->GetRenderables( pickableRenderObjects, nullptr );
+
 }
 
 void EveSpaceScene::UpdatePlanets( EveUpdateContext& updateContext )
@@ -2829,6 +2852,11 @@ void EveSpaceScene::RenderDebugInfo( Tr2RenderContext& renderContext )
 			{
 				renderable->RenderDebugInfo( *m_debugRenderer );
 			}
+		}
+
+		if( auto renderable = dynamic_cast<ITr2DebugRenderable*>( m_cameraAttachmentParent.p ) )
+		{
+			renderable->RenderDebugInfo( *m_debugRenderer );
 		}
 		
 		for( auto it = m_staticParticles.begin(); it != m_staticParticles.end(); ++it )

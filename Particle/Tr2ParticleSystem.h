@@ -112,6 +112,13 @@ public:
 
 	static void UpdateAllSystems( const ITr2GenericEmitter::UpdateArguments& arguments );
 
+	template <typename Constraint>
+	void ApplyConstraint( const Constraint& constraint )
+	{
+		constraint( m_buffers, m_vertexSizes, m_aliveCount );
+		m_bufferDirty = true;
+	}
+
 
 	// ----------------------------------------------------------------------------------
 	// Description:

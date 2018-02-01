@@ -63,9 +63,15 @@ public:
 		m_gpuParticleSystem = ps;
 	}
 
+	IEveBallpark* GetBallpark() const
+	{
+		return m_ballpark;
+	}
+
 	// World origin change
 	void UpdateOrigin( IEveBallpark* ballpark )
 	{
+		m_ballpark = ballpark;
 		Vector3d originNow;
 		IEveReferencePointPtr refObject( ballpark );
 		if( refObject )
@@ -99,6 +105,7 @@ private:
 	// extra stuff
 	Tr2DataTextureManagerPtr m_dataTextureManager;
 	Tr2GpuParticleSystemPtr m_gpuParticleSystem;
+	IEveBallparkPtr m_ballpark;
 
 	// For tracking world origin
 	Vector3d m_origin;

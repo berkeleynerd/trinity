@@ -1,0 +1,386 @@
+////////////////////////////////////////////////////////////
+//
+//    Created:   February 2018
+//    Copyright: CCP 2018
+//
+
+#include "StdAfx.h"
+#include "EveChildParticleSphere.h"
+#include "Tr2InstancedMesh.h"
+#include "Tr2PerObjectData.h"
+#include "Tr2Renderer.h"
+#include "TriFrustum.h"
+#include "ITr2AttributeGenerator.h"
+#include "Eve/EveUpdateContext.h"
+#include "Particle/Tr2ParticleSystem.h"
+#include "Utilities/BoundingSphere.h"
+
+
+namespace
+{
+
+	class EveChildParticleSpherePerObjectData : public Tr2PerObjectData
+	{
+	public:
+		virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
+		{
+			static const unsigned mask = ( 1 << Tr2RenderContextEnum::VERTEX_SHADER );
+			FillAndSetConstants( *buffers[m_register], &m_data, sizeof( m_data ), mask, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
+		}
+
+		struct Data
+		{
+			Matrix m_world;
+			Matrix m_worldInverseTranspose;
+		} m_data;
+
+		int32_t m_register;
+	};
+}
+
+
+// -----------------------------------------------------------------------------
+EveChildParticleSphere::EveChildParticleSphere( IRoot* lockobj )
+	:PARENTLOCK( m_generators ),
+	m_worldTransform( IdentityMatrix() ),
+	m_boundingSphere( 0, 0, 0, 500 ),
+	m_bindStatus( BIND_PENDING ),
+	m_previousOrigin( 500, 0, 0 ),
+	m_radius( 500.f ),
+	m_movementScale( 1.f ),
+	m_maxSpeed( 0.f ),
+	m_egoSpeed( 0 ),
+	m_positionElement(),
+	m_velocityElement(),
+	m_lifetimeElement(),
+	m_useSpaceObjectData( true ),
+	m_display( true )
+{
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	if( m_mesh && m_particleSystem && m_display )
+	{
+		m_particleSystem->SortParticles();
+		renderables.push_back( this );
+	}
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::UpdateVisibility( const TriFrustum& frustum, const Matrix&, Tr2Lod )
+{
+	auto isVisible = !( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) );
+	if( isVisible && m_particleSystem )
+	{
+		m_particleSystem->UpdateViewDependentData( &frustum, m_worldTransform );
+	}
+}
+
+// -----------------------------------------------------------------------------
+bool EveChildParticleSphere::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery ) const
+{
+	sphere = m_boundingSphere;
+	return true;
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::UpdateSyncronous( EveUpdateContext& updateContext, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+{
+	Matrix parent;
+	if( childParent )
+	{
+		childParent->GetLocalToWorldTransform( parent );
+	}
+	else
+	{
+		spaceObjectParent->GetLocalToWorldTransform( parent );
+	}
+
+	m_worldTransform = TranslationMatrix( parent.GetTranslation() );
+
+	m_boundingSphere = Vector4( 0, 0, 0, m_radius );
+	BoundingSphereTransform( m_worldTransform, m_boundingSphere );
+
+	Update( updateContext );
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::UpdateAsyncronous( EveUpdateContext&, IEveSpaceObject2*, IEveSpaceObjectChild* )
+{
+
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::GetLocalToWorldTransform( Matrix& transform ) const
+{
+	transform = m_worldTransform;
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::Setup( const Vector3*, const Quaternion*, const Vector3*, Tr2Lod )
+{
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData )
+{
+	if( !m_display || !m_mesh || !m_mesh->GetDisplay() )
+	{
+		return;
+	}
+
+	if( Tr2MeshAreaVector* areas = m_mesh->GetAreas( batchType ) )
+	{
+		m_mesh->GetBatches( batches, areas, perObjectData );
+	}
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::GetShadowBatches( ITriRenderBatchAccumulator*, const Tr2PerObjectData* )
+{
+}
+
+// -----------------------------------------------------------------------------
+bool EveChildParticleSphere::HasTransparentBatches()
+{
+	if( !m_mesh || !m_particleSystem )
+	{
+		return false;
+	}
+
+	return !m_mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT )->empty();
+}
+
+// -----------------------------------------------------------------------------
+float EveChildParticleSphere::GetSortValue()
+{
+	return 0;
+}
+
+// -----------------------------------------------------------------------------
+Tr2PerObjectData* EveChildParticleSphere::GetPerObjectData( ITriRenderBatchAccumulator* accumulator )
+{
+	EveChildParticleSpherePerObjectData* data = accumulator->Allocate<EveChildParticleSpherePerObjectData>();
+
+	if( !data )
+	{
+		return NULL;
+	}
+
+	data->m_register = m_useSpaceObjectData ? Tr2RenderContextEnum::VERTEX_SHADER : Tr2RenderContextEnum::CBUFFER_FFE;
+	data->m_data.m_world = Transpose( m_worldTransform );
+	data->m_data.m_worldInverseTranspose = Inverse( m_worldTransform );
+	return data;
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::Update( const EveUpdateContext& updateContext )
+{
+	auto delta = updateContext.GetDeltaT();
+
+	auto originShift = updateContext.GetOriginShift();
+	if( m_maxSpeed > 0.f && Length( originShift ) > m_maxSpeed * delta )
+	{
+		originShift = Normalize( originShift ) * ( m_maxSpeed * delta );
+	}
+	originShift *= m_movementScale;
+
+	Vector3 velocity( 0, 0, 0 );
+	if( auto ballpark = updateContext.GetBallpark() )
+	{
+		ballpark->DeltaVel( &velocity, updateContext.GetTime() );
+	}
+	m_egoSpeed = Length( velocity );
+
+	switch( m_bindStatus )
+	{
+	case BIND_PENDING:
+		Refresh();
+		if( m_bindStatus != BIND_VALID )
+		{
+			return;
+		}
+		break;
+	case BIND_INVALID:
+		return;
+	default:
+		break;
+	}
+
+	auto previousReferencePosition = TransformCoord( m_previousOrigin - originShift, Inverse( m_worldTransform ) );
+
+	ApplyConstraint( previousReferencePosition, Normalize( velocity ) );
+	AddParticles( previousReferencePosition, Normalize( velocity ) );
+
+	m_previousOrigin = m_worldTransform.GetTranslation();
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::Refresh()
+{
+	if( !m_particleSystem )
+	{
+		return;
+	}
+
+	m_particleSystem->UpdateElementDeclaration();
+
+	const Tr2ParticleElementDataMap &declaration = m_particleSystem->GetElementDeclaration();
+	std::set<Tr2ParticleElementDeclarationName> elements;
+
+	auto Bind = [&]( Tr2ParticleElementDeclarationName::Type type ) -> Tr2ParticleElementData
+	{
+		Tr2ParticleElementDeclarationName element( type );
+		if( elements.find( element ) == elements.end() )
+		{
+			auto i = declaration.find( element );
+			if( i == declaration.end() )
+			{
+				return Tr2ParticleElementData::Invalid();
+			}
+			else
+			{
+				elements.insert( element );
+				return i->second;
+			}
+		}
+		else
+		{
+			return Tr2ParticleElementData::Invalid();
+		}
+	};
+
+	for( auto it = begin( m_generators ); it != end( m_generators ); ++it )
+	{
+		if( !( *it )->Bind( declaration, elements ) )
+		{
+			m_bindStatus = BIND_INVALID;
+			return;
+		}
+	}
+
+	m_positionElement = Bind( Tr2ParticleElementDeclarationName::POSITION );
+	m_velocityElement = Bind( Tr2ParticleElementDeclarationName::VELOCITY );
+	m_lifetimeElement = Bind( Tr2ParticleElementDeclarationName::LIFETIME );
+
+	for( auto it = declaration.begin(); it != declaration.end(); ++it )
+	{
+		if( elements.find( it->first ) == elements.end() )
+		{
+			CCP_LOGERR( "Unbound particle element %s in a near field", it->first.GetName().c_str() );
+			m_bindStatus = BIND_INVALID;
+			return;
+		}
+	}
+
+	m_bindStatus = BIND_VALID;
+
+	m_previousOrigin = Vector3( m_radius, 0, 0 );
+	return;
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::ApplyConstraint( const Vector3& previousReferencePosition, const Vector3& velocityDirection )
+{
+	if( !m_particleSystem )
+	{
+		return;
+	}
+
+	auto constraint = [&]( float** particles, unsigned* strides, unsigned count )
+	{
+		Tr2ParticleStreamIterator<XMFLOAT3> position( particles, strides, m_positionElement );
+		Tr2ParticleStreamIterator<XMFLOAT3> velocity( particles, strides, m_velocityElement );
+		Tr2ParticleStreamIterator<float> lifetime( particles, strides, m_lifetimeElement );
+
+		XMVECTOR originShift = previousReferencePosition;
+		XMVECTOR referencePosition = Vector3( 0, 0, 0 );
+		XMVECTOR constVelocity = velocityDirection;
+		XMVECTOR oneOverRadius2 = XMVectorReplicate( 1.f / ( m_radius * m_radius ) );
+
+		for( unsigned i = 0; i < count; ++i, ++position, ++velocity, ++lifetime )
+		{
+			XMVECTOR localPosition = XMVectorAdd( XMLoadFloat3A( position ), originShift );
+			XMStoreFloat3A( position, localPosition );
+
+			localPosition = XMVectorSubtract( localPosition, referencePosition );
+			XMStoreFloat(
+				lifetime,
+				XMVectorMin( XMVectorMultiply( XMVector3LengthSq( localPosition ), oneOverRadius2 ), XMVectorSplatOne() ) );
+
+			XMStoreFloat3A( velocity, constVelocity );
+		}
+	};
+
+	m_particleSystem->ApplyConstraint( constraint );
+}
+
+// -----------------------------------------------------------------------------
+void EveChildParticleSphere::AddParticles( const Vector3& previousReferencePosition, const Vector3& velocityDirection )
+{
+	if( !m_particleSystem )
+	{
+		return;
+	}
+
+	auto randf = []()
+	{
+		return float( rand() ) / RAND_MAX;
+	};
+
+	float* particle[Tr2ParticleElementData::COUNT];
+	while( m_particleSystem->InsertParticle( particle ) )
+	{
+		if( m_positionElement.m_bufferType != Tr2ParticleElementData::COUNT )
+		{
+			float distance;
+			Vector3 localPosition;
+			for( int32_t i = 0; i < 10; ++i )
+			{
+				localPosition = Normalize( Vector3( randf() - 0.5f, randf() - 0.5f, randf() - 0.5f ) );
+				if( i == 9 || previousReferencePosition == Vector3( 0, 0, 0 ) )
+				{
+					distance = m_radius;
+					localPosition *= distance;
+				}
+				else
+				{
+					float minDistance = std::max( 0.f, m_radius - Length( previousReferencePosition ) );
+					distance = minDistance + randf() * ( m_radius - minDistance );
+					localPosition *= distance;
+					if( Length( localPosition - previousReferencePosition ) < m_radius )
+					{
+						continue;
+					}
+				}
+				break;
+			}
+			auto position = reinterpret_cast<Vector3*>( particle[m_positionElement.m_bufferType] + m_positionElement.m_offset );
+			*position = localPosition;
+			if( m_lifetimeElement.m_bufferType != Tr2ParticleElementData::COUNT )
+			{
+				auto lifetime = particle[m_lifetimeElement.m_bufferType] + m_lifetimeElement.m_offset;
+				lifetime[0] = std::min( 1.f, distance * distance / m_radius / m_radius );
+				lifetime[1] = std::numeric_limits<float>::max() / 10;
+			}
+		}
+		else if( m_lifetimeElement.m_bufferType != Tr2ParticleElementData::COUNT )
+		{
+			auto lifetime = particle[m_lifetimeElement.m_bufferType] + m_lifetimeElement.m_offset;
+			*lifetime = 1;
+		}
+		if( m_velocityElement.m_bufferType != Tr2ParticleElementData::COUNT )
+		{
+			auto velocity = reinterpret_cast<Vector3*>( particle[m_velocityElement.m_bufferType] + m_velocityElement.m_offset );
+			*velocity = velocityDirection;
+		}
+
+		for( auto it = begin( m_generators ); it != end( m_generators ); ++it )
+		{
+			( *it )->Generate( nullptr, nullptr, particle );
+		}
+		m_particleSystem->DoneInsertingParticle();
+	}
+}

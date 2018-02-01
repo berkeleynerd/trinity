@@ -421,3 +421,14 @@ void EveEffectRoot2::GetMissPosition( const Vector3* hit, const Vector3* source,
 	}
 }
 
+// -----------------------------------------------------------------------------
+PIEveSpaceObjectChildVector& EveEffectRoot2::GetChildren()
+{ 
+	return m_effectChildren; 
+}
+
+// -----------------------------------------------------------------------------
+void EveEffectRoot2::SetTransform( const Matrix& transform )
+{
+	Decompose( m_scaling, m_rotation, m_translation, transform );
+}

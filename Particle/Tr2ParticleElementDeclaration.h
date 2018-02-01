@@ -82,6 +82,16 @@ struct Tr2ParticleElementData
 	BufferType m_bufferType;
 	// Offset in the buffer
 	unsigned m_offset;
+
+	static Tr2ParticleElementData Invalid()
+	{
+		Tr2ParticleElementData none;
+		none.m_dimension = 0;
+		none.m_usageIndex = 0;
+		none.m_bufferType = Tr2ParticleElementData::COUNT;
+		none.m_offset = 0;
+		return none;
+	}
 };
 
 // --------------------------------------------------------------------------------------

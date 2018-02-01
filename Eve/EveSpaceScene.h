@@ -63,6 +63,7 @@ BLUE_DECLARE( Tr2ExternalParameter );
 BLUE_DECLARE_VECTOR( Tr2ExternalParameter );
 BLUE_DECLARE( Tr2ImpostorManager );
 BLUE_DECLARE( Tr2DebugRenderer );
+BLUE_DECLARE( EveEffectRoot2 );
 
 enum TAASampling { TAA_NONE=0, TAA_RANDOM=1, TAA_2X=2, TAA_3X=3, TAA_4X=4 };
 
@@ -538,6 +539,10 @@ private:
 	void TAAOffset();
 
 	Tr2ImpostorManagerPtr m_impostorManager;
+
+	EveEffectRoot2Ptr m_cameraAttachmentParent;
+
+	IRoot* GetCameraAttachments() const;
 };
 
 TYPEDEF_BLUECLASS( EveSpaceScene );
