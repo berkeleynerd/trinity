@@ -2881,6 +2881,7 @@
     <ClInclude Include="Eve\SpaceObject\Children\EveChildExplosion.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildLink.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildMesh.h" />
+    <ClInclude Include="Eve\SpaceObject\Children\EveChildParticleSphere.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildParticleSystem.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildQuad.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildTransform.h" />
@@ -3468,6 +3469,8 @@
     <ClCompile Include="Eve\SpaceObject\Children\EveChildLink_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildMesh.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildMesh_Blue.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSphere.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSphere_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSystem.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSystem_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildQuad.cpp" />
