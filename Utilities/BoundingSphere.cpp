@@ -200,9 +200,7 @@ Vector4d recurBoundingSphereCreate( Vector3 const** p, size_t len, size_t b )
 			{
 				for( size_t j = i; j > 0; --j )
 				{
-					const Vector3* t = p[j];
-					p[j] = p[j - 1];
-					p[j - 1] = t;
+					std::swap( p[j], p[j - 1] );
 				}
 
 				mb = recurBoundingSphereCreate( p + 1, i, b + 1 );
@@ -260,14 +258,14 @@ void BoundingSphereFromPoints( Vector4d& sphere, Vector3 const** points, size_t 
 	case 2:
 		{
 			// simple sphere srounf 2 points
-			Vector3d a = 0.5 * Vector3d( *points[1] - *points[0] );
+			Vector3d a = 0.5 * ( Vector3d( *points[1] ) - Vector3d( *points[0] ) );
 			sphere = Vector4d( a + Vector3d( *points[0] ), Length( a ) + radiusEpsilon );
 		}
 		break;
 	case 3:
 		{
-			Vector3d a = *points[1] - *points[0];
-			Vector3d b = *points[2] - *points[0];
+			Vector3d a = Vector3d( *points[1] ) - Vector3d( *points[0] );
+			Vector3d b = Vector3d( *points[2] ) - Vector3d( *points[0] );
 			Vector3d axb, axbxa, bxaxb;
 			axb = Cross( a, b );
 			axbxa = Cross( axb, a );
@@ -287,9 +285,9 @@ void BoundingSphereFromPoints( Vector4d& sphere, Vector3 const** points, size_t 
 		break;
 	case 4:
 		{
-			Vector3d a = *points[1] - *points[0];
-			Vector3d b = *points[2] - *points[0];
-			Vector3d c = *points[3] - *points[0];
+			Vector3d a = Vector3d( *points[1] ) - Vector3d( *points[0] );
+			Vector3d b = Vector3d( *points[2] ) - Vector3d( *points[0] );
+			Vector3d c = Vector3d( *points[3] ) - Vector3d( *points[0] );
 			double denom = 2.0 * ( a.x * (b.y * c.z - c.y * b.z) - b.x * (a.y * c.z - c.y * a.z) + c.x * (a.y * b.z - b.y * a.z) );
 			if( denom == 0.0 )
 			{
