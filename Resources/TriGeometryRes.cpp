@@ -38,6 +38,11 @@ struct AreaBoundsInfo
 	granny_int32 vertexCount;
 };
 
+
+#ifdef _WIN32
+#pragma pack(push, 4)
+#endif
+
 struct MeshBoundsInfo
 {
 	const char* typeName;
@@ -50,6 +55,11 @@ struct MeshBoundsInfo
 __attribute__((packed))
 #endif
 ;
+
+#ifdef _WIN32
+#pragma pack(pop)
+#endif
+
 
 granny_data_type_definition BoundingBoxType[] =
 {
