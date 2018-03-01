@@ -96,6 +96,11 @@ private:
 	// ego speed
 	float m_egoSpeed;
 
+	float m_positionShift;
+	float m_positionShiftMax;
+	float m_positionShiftMin;
+	float m_positionShiftNormalized;
+
 	bool m_useSpaceObjectData;
 	bool m_display;
 };

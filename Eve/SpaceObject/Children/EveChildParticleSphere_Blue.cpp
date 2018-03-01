@@ -30,6 +30,10 @@ const Be::ClassInfo* EveChildParticleSphere::ExposeToBlue()
 		MAP_ATTRIBUTE( "movementScale", m_movementScale, "Scale how much particles move (applied after max speed)", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "maxSpeed", m_maxSpeed, "Clamp movement of particles to this value", Be::READWRITE | Be::PERSIST )
 
+		MAP_ATTRIBUTE( "positionShift", m_positionShiftNormalized, "Sphere position shift length since the previous frame, normalized", Be::READ )
+		MAP_ATTRIBUTE( "positionShiftMax", m_positionShiftMax, "Value of sphere shift length for positionShift to be 1", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "positionShiftMin", m_positionShiftMin, "Value of sphere shift length for positionShift to be 0", Be::READWRITE | Be::PERSIST )
+
 		MAP_ATTRIBUTE( "useSpaceObjectData", m_useSpaceObjectData, "", Be::READWRITE | Be::PERSIST )
 
 		MAP_METHOD_AND_WRAP( "Refresh", Refresh, "Re-binds particle system and re-adds particles" )
