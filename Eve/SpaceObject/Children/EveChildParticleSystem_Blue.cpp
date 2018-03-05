@@ -68,6 +68,7 @@ const Be::ClassInfo* EveChildParticleSystem::ExposeToBlue()
 				m_minScreenSize, 
 				"Minimal size of object on screen, objects smaller than this size are not rendered.\n:jessica-group: LOD", 
 				Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "currentScreenSize", m_currentScreenSize, "Screen size for last frame\n:jessica-group: LOD", Be::READ )
 		MAP_METHOD_AND_WRAP( "RebuildLocalTransform", RebuildLocalTransform, "Rebuilds local transform if useSRT is set." )
 
     EXPOSURE_END()

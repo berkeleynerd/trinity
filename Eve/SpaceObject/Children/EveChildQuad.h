@@ -79,6 +79,7 @@ private:
 	Color m_color;
 	float m_brightness;
 	float m_minScreenSize;
+	mutable float m_currentScreenSize;
 
 	bool m_display;
 	// Continiously re-register effect (for editing in Jessica)

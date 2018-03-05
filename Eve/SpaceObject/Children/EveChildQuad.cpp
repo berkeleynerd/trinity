@@ -47,6 +47,7 @@ EveChildQuad::EveChildQuad( IRoot* lockobj ):
 	m_color( 1.f, 1.f, 1.f, 1.f ),
 	m_brightness( 1.f ),
 	m_minScreenSize( 0.f ),
+	m_currentScreenSize( -1 ),
 	m_display( true ),
 	m_editMode( false )
 {
@@ -95,9 +96,17 @@ void EveChildQuad::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRen
 	{
 		Vector4 sphere = Vector4( 0.f, 0.f, 0.f, std::sqrt( 2.f ) );
 		BoundingSphereTransform( m_worldTransform, sphere );
-		if( frustum.IsSphereVisible( &sphere ) && frustum.GetPixelSizeAccross( &sphere ) >= m_minScreenSize * g_eveSpaceSceneLODFactor )
+		if( frustum.IsSphereVisible( &sphere ) )
 		{
-			quadRenderer.AddQuads( m_effectKey, &m_quad, 1 );
+			m_currentScreenSize = frustum.GetPixelSizeAccross( &sphere );
+			if( m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor )
+			{
+				quadRenderer.AddQuads( m_effectKey, &m_quad, 1 );
+			}
+		}
+		else
+		{
+			m_currentScreenSize = -1;
 		}
 	}
 }

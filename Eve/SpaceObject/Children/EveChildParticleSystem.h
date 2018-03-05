@@ -67,8 +67,6 @@ public:
 	PITr2GenericEmitterVector m_particleEmitters;
 private:
 	BlueSharedString m_name;
-	bool m_display;
-	bool m_isVisible;
 
 	Vector4 m_boundingSphere;
 	Vector4 m_lodSphere;
@@ -85,6 +83,10 @@ private:
 
 	float m_lodSphereRadius;
 	float m_minScreenSize;
+	float m_currentScreenSize;
+
+	bool m_display;
+	bool m_isVisible;
 };
 
 TYPEDEF_BLUECLASS( EveChildParticleSystem );

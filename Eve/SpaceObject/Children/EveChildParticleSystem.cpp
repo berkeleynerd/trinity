@@ -36,7 +36,8 @@ EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ):
 	m_lodFactorLow( 0.125 ),
 	m_lodClampLow( 5 ),
 	m_lodSphereRadius( 0.0f ),
-	m_minScreenSize( 0.0f )
+	m_minScreenSize( 0.0f ),
+	m_currentScreenSize( -1 )
 {
 }
 
@@ -65,7 +66,17 @@ void EveChildParticleSystem::Setup( const Vector3* scale, const Quaternion* rota
 
 void EveChildParticleSystem::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
-	m_isVisible = !( !m_display || !frustum.IsSphereVisible( &m_boundingSphere ) || frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor );
+	m_isVisible = m_display && frustum.IsSphereVisible( &m_boundingSphere );
+	if( m_isVisible )
+	{
+		m_currentScreenSize = frustum.GetPixelSizeAccross( &m_lodSphere );
+		m_isVisible &= m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor;
+	}
+	else
+	{
+		m_currentScreenSize = -1;
+	}
+
 	if( m_isVisible )
 	{
 		for( auto it = m_particleSystems.begin(); it != m_particleSystems.end(); ++it )
