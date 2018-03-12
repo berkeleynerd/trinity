@@ -38,6 +38,9 @@ BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
 #include "TriError.h"
 #include "TriSettingsRegistrar.h"
 
+#include "Eve/IEveSpaceObject2.h"
+#include "Eve/SpaceObject/Children/IEveSpaceObjectChild.h"
+
 #ifndef TRINITYNAME
 #error Please add TRINITYNAME=<PythonModuleName> to compiler preprocessor definitions (/D)
 #endif
@@ -312,3 +315,29 @@ static const char* GetGrannyProductVersion()
 }
 
 MAP_FUNCTION_AND_WRAP( "GetGrannyProductVersion", GetGrannyProductVersion, "Returns the 'GrannyProductVersion' string as defined by Granny" );
+
+
+static BlueStdResult GetObjectWorldTransform( IRoot* object, Matrix& result )
+{
+	if( IEveSpaceObjectChildPtr child = BlueCastPtr( object ) )
+	{
+		child->GetLocalToWorldTransform( result );
+		return BlueStdResult( BLUE_STD_RESULT_OK );
+	}
+	else if( IEveSpaceObject2Ptr spaceObject = BlueCastPtr( object ) )
+	{
+		spaceObject->GetLocalToWorldTransform( result );
+		return BlueStdResult( BLUE_STD_RESULT_OK );
+	}
+	
+	return BlueStdResult( BLUE_STD_RESULT_TYPE_ERROR );
+}
+
+MAP_FUNCTION_AND_WRAP( 
+	"GetObjectWorldTransform", 
+	GetObjectWorldTransform,
+	"Returns world transform for some supported object interfaces. Currently only\n" 
+	"IEveSpaceObject2 and IEveSpaceObjectChild interfaces are supported.\n"
+	":param obj: blue object to get world transform from\n"
+	":raies TypeError: if the function does not support the object type"
+);
