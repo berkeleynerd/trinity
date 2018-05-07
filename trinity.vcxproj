@@ -2487,6 +2487,7 @@
     <ClInclude Include="GrannyBoneOffset.h" />
     <ClInclude Include="IRenderCallback.h" />
     <ClInclude Include="ITr2AttributeGenerator.h" />
+    <ClInclude Include="ITr2CurveSetOwner.h" />
     <ClInclude Include="ITr2EffectValue.h" />
     <ClInclude Include="ITr2GeometryProvider.h" />
     <ClInclude Include="ITr2PhysicsUpdater.h" />

@@ -58,6 +58,9 @@
     <ClInclude Include="ITr2AttributeGenerator.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="ITr2CurveSetOwner.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="ITr2EffectValue.h">
       <Filter>Source Files</Filter>
     </ClInclude>
