@@ -12,6 +12,7 @@
 #include <muParser.h>
 
 BLUE_DECLARE_IVECTOR( ITriScalarFunction );
+BLUE_DECLARE( Tr2ExpressionTermInfo );
 
 BLUE_CLASS( Tr2CurveEulerRotationExpression ) : public ITriQuaternionFunction, public IInitialize
 {
@@ -53,6 +54,7 @@ public:
 	virtual Quaternion* GetValueDoubleDotAt( Quaternion* in, double time );
 
 	void ResetRandomConstant();
+	std::vector<Tr2ExpressionTermInfoPtr> GetExpressionTermInfo() const;
 private:
 	std::string m_name;
 	std::string m_expressions[3];

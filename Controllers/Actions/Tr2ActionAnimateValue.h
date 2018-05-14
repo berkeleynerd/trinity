@@ -13,6 +13,9 @@
 #include "Controllers/Tr2ControllerExpression.h"
 
 
+BLUE_DECLARE( Tr2ExpressionTermInfo );
+
+
 BLUE_CLASS( Tr2ActionAnimateValue ) :
 	public ITr2ControllerAction,
 	public ITr2Updateable,
@@ -38,7 +41,10 @@ public:
 	float GetCurveValue( float time ) const;
 
 	IRootPtr GetDestination() const;
+	std::vector<Tr2ExpressionTermInfoPtr> GetExpressionTermInfo() const;
 private:
+	bool IsAttrExpressionValid( const char* attributeName ) const;
+
 	Tr2BindingPoint m_destination;
 	std::string m_value;
 	ITriScalarFunctionPtr m_curve;

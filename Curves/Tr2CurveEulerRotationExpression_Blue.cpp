@@ -6,6 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2CurveEulerRotationExpression.h"
+#include "Tr2ExpressionTermInfo.h"
 
 BLUE_DEFINE( Tr2CurveEulerRotationExpression );
 
@@ -26,17 +27,17 @@ const Be::ClassInfo* Tr2CurveEulerRotationExpression::ExposeToBlue()
 		MAP_ATTRIBUTE(
 			"expressionYaw",
 			m_expressions[0],
-			"Curve expression for x component",
+			"Curve expression for x component\n:jessica-widget: expression",
 			Be::PERSISTONLY )
 		MAP_PROPERTY(
 			"expressionYaw",
 			GetExpressionYaw,
 			SetExpressionYaw,
-			"Curve expression for x component" )
+			"Curve expression for x component\n:jessica-widget: expression" )
 		MAP_ATTRIBUTE(
 			"expressionPitch",
 			m_expressions[1],
-			"Curve expression for y component",
+			"Curve expression for y component\n:jessica-widget: expression",
 			Be::PERSISTONLY )
 		MAP_PROPERTY(
 			"expressionPitch",
@@ -101,5 +102,11 @@ const Be::ClassInfo* Tr2CurveEulerRotationExpression::ExposeToBlue()
 			":jessica-icon: timeline/refreshrandom.png"
 		)
 
-		EXPOSURE_END()
+		MAP_METHOD_AND_WRAP(
+			"GetExpressionTermInfo",
+			GetExpressionTermInfo,
+			"Returns information on addional functions and variables available to the expression"
+		)
+
+	EXPOSURE_END()
 }

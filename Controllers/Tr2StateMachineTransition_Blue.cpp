@@ -7,9 +7,11 @@
 #include "StdAfx.h"
 #include "Tr2StateMachineTransition.h"
 #include "Tr2StateMachineState.h"
+#include "Tr2ExpressionTermInfo.h"
 
 
 BLUE_DEFINE( Tr2StateMachineTransition );
+
 
 const Be::ClassInfo* Tr2StateMachineTransition::ExposeToBlue()
 {
@@ -18,9 +20,18 @@ const Be::ClassInfo* Tr2StateMachineTransition::ExposeToBlue()
 		MAP_INTERFACE( INotify )
 
 		MAP_ATTRIBUTE( "name", m_destinationName, "Destination state name", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
-		MAP_ATTRIBUTE( "condition", m_condition, "Condition expression", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "condition", m_condition, "Condition expression\n:jessica-widget: expression", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_PROPERTY_READONLY( "isConditionValid", IsConditionValid, "" )
 
 		MAP_METHOD_AND_WRAP( "GetState", GetSource, "" )
+
+		MAP_METHOD_AND_WRAP( 
+			"GetExpressionTermInfo", 
+			GetExpressionTermInfo, 
+			"Returns information on addional functions and variables available to the expression" )
+		MAP_METHOD_AND_WRAP( 
+			"IsExpressionValid", 
+			IsExpressionValid,
+			"Checks if the expression is valid" )
 	EXPOSURE_END()
 }

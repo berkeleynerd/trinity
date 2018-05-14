@@ -6,6 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2ActionAnimateValue.h"
+#include "Tr2ExpressionTermInfo.h"
 
 
 BLUE_DEFINE( Tr2ActionAnimateValue );
@@ -27,5 +28,13 @@ const Be::ClassInfo* Tr2ActionAnimateValue::ExposeToBlue()
 		MAP_PROPERTY_READONLY( "isExpressionValid", IsExpressionValid, "Is value expression valid" )
 
 		MAP_METHOD_AND_WRAP( "GetDestination", GetDestination, "Returns destination object" )
+		MAP_METHOD_AND_WRAP(
+			"GetExpressionTermInfo",
+			GetExpressionTermInfo,
+			"Returns information on addional functions and variables available to the expression" )
+		MAP_METHOD_AND_WRAP(
+			"IsExpressionValid",
+			IsAttrExpressionValid,
+			"Checks if the expression is valid" )
 	EXPOSURE_END()
 }

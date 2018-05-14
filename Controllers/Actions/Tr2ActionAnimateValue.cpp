@@ -7,6 +7,8 @@
 #include "StdAfx.h"
 #include "Tr2ActionAnimateValue.h"
 #include "Controllers/Tr2Controller.h"
+#include "Tr2ExpressionTermInfo.h"
+#include "Controllers/Tr2ControllerFloatVariable.h"
 
 
 namespace
@@ -136,4 +138,25 @@ float Tr2ActionAnimateValue::GetCurveValue( float time ) const
 IRootPtr Tr2ActionAnimateValue::GetDestination() const
 {
 	return m_destination.GetBoundObject();
+}
+
+bool Tr2ActionAnimateValue::IsAttrExpressionValid( const char* ) const
+{
+	return IsExpressionValid();
+}
+
+std::vector<Tr2ExpressionTermInfoPtr> Tr2ActionAnimateValue::GetExpressionTermInfo() const
+{
+	std::vector<Tr2ExpressionTermInfoPtr> result;
+	m_evaluator.GetExpressionTermInfo( result );
+
+	if( m_controller )
+	{
+		auto& variables = m_controller->GetVariables();
+		for( auto it = begin( variables ); it != end( variables ); ++it )
+		{
+			result.push_back( Tr2ExpressionTermInfo::Variable( "Variables", ( *it )->GetName().c_str(), "controller variable" ) );
+		}
+	}
+	return result;
 }

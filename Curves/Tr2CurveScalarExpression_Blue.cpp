@@ -6,6 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2CurveScalarExpression.h"
+#include "Tr2ExpressionTermInfo.h"
 
 BLUE_DEFINE( Tr2CurveScalarExpression );
 
@@ -25,13 +26,13 @@ const Be::ClassInfo* Tr2CurveScalarExpression::ExposeToBlue()
 		MAP_ATTRIBUTE(
 			"expression",
 			m_expression,
-			"Curve expression",
+			"Curve expression\n:jessica-widget: expression",
 			Be::PERSISTONLY )
 		MAP_PROPERTY( 
 			"expression", 
 			GetExpression, 
 			SetExpression, 
-			"Curve expression" )
+			"Curve expression\n:jessica-widget: expression" )
 		MAP_ATTRIBUTE(
 			"currentValue",
 			m_currentValue,
@@ -77,6 +78,12 @@ const Be::ClassInfo* Tr2CurveScalarExpression::ExposeToBlue()
 			"Resets curve random constant to a new random value\n"
 			":jessica-favorite:\n"
 			":jessica-icon: timeline/refreshrandom.png"
+		)
+
+		MAP_METHOD_AND_WRAP(
+			"GetExpressionTermInfo",
+			GetExpressionTermInfo,
+			"Returns information on addional functions and variables available to the expression" 
 		)
 
 	EXPOSURE_END()

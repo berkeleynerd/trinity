@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "Tr2CurveVector3Expression.h"
+#include "Tr2ExpressionTermInfo.h"
 #include "include/TriMath.h"
 
 extern bool g_expressionCurveFakeRandom;
@@ -354,4 +355,26 @@ Vector3d* Tr2CurveVector3Expression::InterpolatedPosition( Vector3d* out, Be::Ti
 void Tr2CurveVector3Expression::ResetRandomConstant()
 {
 	m_randomConstant = float( rand() ) / RAND_MAX;
+}
+
+// --------------------------------------------------------------------------------
+std::vector<Tr2ExpressionTermInfoPtr> Tr2CurveVector3Expression::GetExpressionTermInfo() const
+{
+	std::vector<Tr2ExpressionTermInfoPtr> result;
+	result.push_back( Tr2ExpressionTermInfo::Function( "Random", "fractal", "x", "alpha", "beta", "n", "fractal noise" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Random", "noise", "x", "simple one-octave noise" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Random", "randomConstant", "a", "b", "random per-curve constant in range [a, b)" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Random", "randconst", "a", "b", "random per-curve constant in range [a, b)" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Random", "random", "a", "b", "random value in range [a, b)" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Inputs", "input", "n", "n-th input curve value at current time" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Inputs", "inputAt", "n", "t", "input curve value at time t" ) );
+	result.push_back( Tr2ExpressionTermInfo::Function( "Math", "clamp", "x", "min", "max", "value x clamped to [min, max] range" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Inputs", "input1", "input1 attribute" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Inputs", "input2", "input2 attribute" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Inputs", "input3", "input3 attribute" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Inputs", "input4", "input4 attribute" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Inputs", "time", "current time" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Math", "pi", "Pi value" ) );
+	result.push_back( Tr2ExpressionTermInfo::Variable( "Math", "pi2", "Pi x 2 value" ) );
+	return result;
 }

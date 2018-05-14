@@ -10,6 +10,7 @@
 
 
 BLUE_DECLARE( Tr2StateMachineState );
+BLUE_DECLARE( Tr2ExpressionTermInfo );
 
 
 BLUE_CLASS( Tr2StateMachineTransition ) : public INotify
@@ -30,8 +31,11 @@ public:
 	IRoot* GetSource() const;
 
 	bool IsConditionValid() const;
+
+	std::vector<Tr2ExpressionTermInfoPtr> GetExpressionTermInfo() const;
 private:
 	void UpdateDestination();
+	bool IsExpressionValid( const char* attributeName ) const;
 
 	std::string m_destinationName;
 	std::string m_condition;

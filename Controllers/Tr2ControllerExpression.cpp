@@ -11,6 +11,7 @@
 #include "Tr2ControllerFloatVariable.h"
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Tr2GrannyAnimation.h"
+#include "Tr2ExpressionTermInfo.h"
 #include <regex>
 
 
@@ -184,4 +185,12 @@ bool Tr2ControllerExpression::IsExpressionValid() const
 		return false;
 	}
 	return true;
+}
+
+void Tr2ControllerExpression::GetExpressionTermInfo( std::vector<Tr2ExpressionTermInfoPtr>& info ) const
+{
+	info.push_back( Tr2ExpressionTermInfo::Function( "Controller", "StateTime", "time in seconds the current state is running" ) );
+	info.push_back( Tr2ExpressionTermInfo::StringFunction( "Controller", "AnimationTime", "name", "geometry animation duration (in seconds) for the given name" ) );
+	info.push_back( Tr2ExpressionTermInfo::StringFunction( "Controller", "CurveSetTime", "name", "duration (in seconds) of the curve set with the given name" ) );
+	info.push_back( Tr2ExpressionTermInfo::StringFunction( "Controller", "IsAnimationPlaying", "name", "return 1 if the geometry animation in the given layer is playing; 0 otheriwise" ) );
 }

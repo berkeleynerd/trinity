@@ -7,6 +7,7 @@
 #include <muParser.h>
 
 BLUE_DECLARE_IVECTOR( ITriScalarFunction );
+BLUE_DECLARE( Tr2ExpressionTermInfo );
 
 BLUE_CLASS( Tr2CurveVector3Expression ) : public ITriColorFunction, public ITriVectorFunction, public IInitialize
 {
@@ -53,6 +54,7 @@ public:
 	virtual Vector3d* InterpolatedPosition( Vector3d* out, Be::Time time );
 
 	void ResetRandomConstant();
+	std::vector<Tr2ExpressionTermInfoPtr> GetExpressionTermInfo() const;
 private:
 	std::string m_name;
 	std::string m_expressions[3];

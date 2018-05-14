@@ -10,6 +10,7 @@
 
 BLUE_DECLARE( Tr2StateMachine );
 BLUE_DECLARE( Tr2Controller );
+BLUE_DECLARE( Tr2ExpressionTermInfo );
 
 
 class Tr2ControllerExpression
@@ -24,6 +25,8 @@ public:
 	std::pair<bool, float> Eval() const;
 	void Clear();
 	bool IsExpressionValid() const;
+
+	void GetExpressionTermInfo( std::vector<Tr2ExpressionTermInfoPtr>& info ) const;
 private:
 	std::string CreateParser( const char* expression, ModifyParser modifyParser );
 

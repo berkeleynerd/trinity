@@ -8,6 +8,9 @@
 #include "Tr2StateMachineTransition.h"
 #include "Tr2StateMachineState.h"
 #include "Tr2StateMachine.h"
+#include "Tr2ExpressionTermInfo.h"
+#include "Tr2Controller.h"
+#include "Tr2ControllerFloatVariable.h"
 
 
 Tr2StateMachineTransition::Tr2StateMachineTransition( IRoot* lockobj )
@@ -88,4 +91,26 @@ IRoot* Tr2StateMachineTransition::GetSource() const
 bool Tr2StateMachineTransition::IsConditionValid() const
 {
 	return m_evaluator.IsExpressionValid();
+}
+
+bool Tr2StateMachineTransition::IsExpressionValid( const char* ) const
+{
+	return IsConditionValid();
+}
+
+std::vector<Tr2ExpressionTermInfoPtr> Tr2StateMachineTransition::GetExpressionTermInfo() const
+{
+	std::vector<Tr2ExpressionTermInfoPtr> result;
+	m_evaluator.GetExpressionTermInfo( result );
+
+	if( m_source )
+	{
+		auto controller = m_source->GetStateMachine()->GetController();
+		auto& variables = controller->GetVariables();
+		for( auto it = begin( variables ); it != end( variables ); ++it )
+		{
+			result.push_back( Tr2ExpressionTermInfo::Variable( "Variables", ( *it )->GetName().c_str(), "controller variable" ) );
+		}
+	}
+	return result;
 }

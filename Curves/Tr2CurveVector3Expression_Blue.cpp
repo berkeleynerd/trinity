@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 #include "Tr2CurveVector3Expression.h"
+#include "Tr2ExpressionTermInfo.h"
 
 BLUE_DEFINE( Tr2CurveVector3Expression );
 
@@ -24,17 +25,17 @@ const Be::ClassInfo* Tr2CurveVector3Expression::ExposeToBlue()
 		MAP_ATTRIBUTE(
 			"expressionX",
 			m_expressions[0],
-			"Curve expression for x component",
+			"Curve expression for x component\n:jessica-widget: expression",
 			Be::PERSISTONLY )
 		MAP_PROPERTY(
 			"expressionX",
 			GetExpressionX,
 			SetExpressionX,
-			"Curve expression for x component" )
+			"Curve expression for x component\n:jessica-widget: expression" )
 		MAP_ATTRIBUTE(
 			"expressionY",
 			m_expressions[1],
-			"Curve expression for y component",
+			"Curve expression for y component\n:jessica-widget: expression",
 			Be::PERSISTONLY )
 		MAP_PROPERTY(
 			"expressionY",
@@ -99,5 +100,11 @@ const Be::ClassInfo* Tr2CurveVector3Expression::ExposeToBlue()
 			":jessica-icon: timeline/refreshrandom.png"
 		)
 
-		EXPOSURE_END()
+		MAP_METHOD_AND_WRAP(
+			"GetExpressionTermInfo",
+			GetExpressionTermInfo,
+			"Returns information on addional functions and variables available to the expression"
+		)
+
+	EXPOSURE_END()
 }

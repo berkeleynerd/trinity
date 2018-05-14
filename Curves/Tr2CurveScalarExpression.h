@@ -11,6 +11,7 @@
 #include <muParser.h>
 
 BLUE_DECLARE_IVECTOR( ITriScalarFunction );
+BLUE_DECLARE( Tr2ExpressionTermInfo );
 
 BLUE_CLASS( Tr2CurveScalarExpression ) : public ITriScalarFunction, public IInitialize
 {
@@ -38,6 +39,7 @@ public:
 	float GetInputValue( int index, float time ) const;
 
 	void ResetRandomConstant();
+	std::vector<Tr2ExpressionTermInfoPtr> GetExpressionTermInfo() const;
 private:
 	std::string m_name;
 	std::string m_expression;
