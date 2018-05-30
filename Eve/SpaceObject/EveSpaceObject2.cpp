@@ -2413,6 +2413,12 @@ void EveSpaceObject2::AddToChildrenList( EveTransformPtr transform )
 }
 
 // --------------------------------------------------------------------------------
+void EveSpaceObject2::AddController( ITr2Controller* controller )
+{
+	m_controllers.Append( controller );
+}
+
+// --------------------------------------------------------------------------------
 IEveSpaceObjectChildPtr EveSpaceObject2::GetEffectChildByName( const char* name ) const
 {
 	for( auto it = begin( m_effectChildren ); it != end( m_effectChildren ); ++it )

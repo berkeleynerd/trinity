@@ -355,6 +355,8 @@ public:
 	// access to children
 	void AddToChildrenList( EveTransformPtr transform );
 
+	void AddController( ITr2Controller* controller );
+
 	// access to curves
 	void SetModelRotationCurve( ITriQuaternionFunctionPtr rotationCurve );
 	void SetModelTranslationCurve( ITriVectorFunctionPtr translationCurve );

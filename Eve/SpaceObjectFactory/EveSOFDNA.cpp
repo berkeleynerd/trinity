@@ -691,6 +691,12 @@ const std::vector<EveSOFDataMgr::HullAnimation>& EveSOFDNA::GetHullAnimations() 
 }
 
 // --------------------------------------------------------------------------------
+const std::vector<BlueSharedString>& EveSOFDNA::GetHullControllers() const
+{
+	return m_hullDatas[0]->controllers;
+}
+
+// --------------------------------------------------------------------------------
 // Description:
 //   Return an array of all the decals of this hull
 // --------------------------------------------------------------------------------

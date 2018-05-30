@@ -1222,6 +1222,19 @@ void EveSOF::SetupChildrenAndAnimations( EveSpaceObject2Ptr obj, const EveSOFDNA
 			// TODO
 		}
 	}
+
+	auto& hullControllers = dna->GetHullControllers();
+	for( auto cit = begin( hullControllers ); cit != end( hullControllers ); ++cit )
+	{
+		if( auto controller = BeResMan->LoadObject<ITr2Controller>( cit->c_str() ) )
+		{
+			obj->AddController( controller );
+		}
+		else
+		{
+			CCP_LOGERR( "controller resource file %s is invalid!", cit->c_str() );
+		}
+	}
 }
 
 // --------------------------------------------------------------------------------

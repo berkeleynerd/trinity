@@ -596,6 +596,24 @@ const Be::ClassInfo* EveSOFDataHullAnimation::ExposeToBlue()
 
 
 
+BLUE_DEFINE( EveSOFDataHullController );
+const Be::ClassInfo* EveSOFDataHullController::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataHullController, "" )
+		MAP_INTERFACE( EveSOFDataHullController )
+
+		MAP_PROPERTY_READONLY( "name", GetName, "" )
+		MAP_ATTRIBUTE( 
+			"path", 
+			m_path, 
+			"Path to the red file for the controller\n"
+			":jessica-widget: filepath\n"
+			":jessica-file-filter : redfile",
+			Be::READWRITE | Be::PERSIST )
+	EXPOSURE_END()
+}
+
+
 BLUE_DEFINE( EveSOFDataHull );
 
 Be::VarChooser EveSOFBuildClassChooser[] =
@@ -658,8 +676,9 @@ const Be::ClassInfo* EveSOFDataHull::ExposeToBlue()
 		MAP_ATTRIBUTE( "audioPosition", m_audioPosition, "The audio position", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "children", m_children, "List of children", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "controllers", m_controllers, "List of controller references", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "animations", m_animations, "List of animations", Be::READWRITE | Be::PERSIST )
-		
+
 		MAP_ATTRIBUTE( "instancedMeshes", m_instancedMeshes, "List of instanced meshes", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "locatorTurrets", m_locatorTurrets, "Turret locators", Be::READWRITE | Be::PERSIST )

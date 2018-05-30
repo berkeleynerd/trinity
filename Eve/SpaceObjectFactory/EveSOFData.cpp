@@ -219,6 +219,23 @@ EveSOFDataRaceDamage::EveSOFDataRaceDamage( IRoot* lockobj ) :
 }
 
 
+std::string EveSOFDataHullController::GetName() const
+{
+	auto slash = m_path.rfind( '/' );
+	if( slash == std::string::npos )
+	{
+		return "";
+	}
+	std::string result = m_path.substr( slash + 1 );
+	auto dot = result.rfind( '.' );
+	if( dot != std::string::npos )
+	{
+		result = result.substr( 0, dot );
+	}
+	return result;
+}
+
+
 EveSOFDataHull::EveSOFDataHull( IRoot* lockobj ) :
 	PARENTLOCK( m_spriteSets ),
 	PARENTLOCK( m_spotlightSets ),
@@ -236,6 +253,7 @@ EveSOFDataHull::EveSOFDataHull( IRoot* lockobj ) :
 	PARENTLOCK( m_children ),
 	PARENTLOCK( m_instancedMeshes ),
 	PARENTLOCK( m_animations ),
+	PARENTLOCK( m_controllers ),
 	m_buildClass( BUILDCLASS_SHIP ),
 	m_boundingSphere( 0.f, 0.f, 0.f, 0.f ),
 	m_shapeEllipsoidCenter( 0.f, 0.f, 0.f ),

@@ -710,6 +710,20 @@ TYPEDEF_BLUECLASS( EveSOFDataHullDecal );
 BLUE_DECLARE_VECTOR( EveSOFDataHullDecal );
 
 
+BLUE_CLASS( EveSOFDataHullController ) :
+	public IRoot
+{
+public:
+	EXPOSE_TO_BLUE();
+
+	std::string GetName() const;
+
+	std::string m_path;
+};
+TYPEDEF_BLUECLASS( EveSOFDataHullController );
+BLUE_DECLARE_VECTOR( EveSOFDataHullController );
+
+
 BLUE_CLASS( EveSOFDataHull ) :
 	public IRoot
 {
@@ -795,6 +809,8 @@ public:
 
 	// animations
 	PEveSOFDataHullAnimationVector m_animations;
+
+	PEveSOFDataHullControllerVector m_controllers;
 
 	// model curves
 	std::string m_modelRotationCurvePath;

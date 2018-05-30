@@ -829,6 +829,12 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 		hd.animations.push_back( ha );
 	}
 
+	hd.controllers.clear();
+	for( auto cit = begin( srcData->m_controllers ); cit != end( srcData->m_controllers ); ++cit )
+	{
+		hd.controllers.push_back( BlueSharedString( ( *cit )->m_path ) );
+	}
+
 	// model curves
 	hd.modelRotationCurvePath = srcData->m_modelRotationCurvePath;
 	hd.modelTranslationCurvePath = srcData->m_modelTranslationCurvePath;

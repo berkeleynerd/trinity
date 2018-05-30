@@ -288,6 +288,7 @@ public:
 		std::vector<HullChild> children;
 		std::vector<HullInstancedMesh> instancedMeshes;
 		std::vector<HullAnimation> animations;
+		std::vector<BlueSharedString> controllers;
 		std::string modelRotationCurvePath;
 		std::string modelTranslationCurvePath;
 		std::map<int32_t, size_t> meshIndexToOpaqueAreaLookup;
