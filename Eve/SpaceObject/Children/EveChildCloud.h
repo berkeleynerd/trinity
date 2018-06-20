@@ -51,8 +51,8 @@ public:
 	// IEveSpaceObjectChild
 	virtual const char* GetName() const;
 	virtual void SetName( const char* name );
-	virtual void UpdateSyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent );
-	virtual void UpdateAsyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent );
+	virtual void UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params );
+	virtual void UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params );
 	virtual void GetLocalToWorldTransform( Matrix &transform ) const;
 	virtual void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod );
 	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables );

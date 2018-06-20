@@ -420,7 +420,7 @@ void EveChildCloud::SubmitGeometry( Tr2RenderContext& renderContext )
 		m_indexBuffers[std::min( m_currentIB, m_indexBuffers.size() - 1 )].GetDesc().count / 3 );
 }
 
-void EveChildCloud::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildCloud::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	if( m_volume )
 	{
@@ -430,19 +430,19 @@ void EveChildCloud::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEv
 	m_localTransform = TransformationMatrix( m_scaling, m_rotation, m_translation );
 
 	Matrix parent;
-	if( childParent )
+	if( params.childParent )
 	{
-		childParent->GetLocalToWorldTransform( parent );
+		params.childParent->GetLocalToWorldTransform( parent );
 	}
 	else
 	{
-		spaceObjectParent->GetLocalToWorldTransform( parent );
+		params.spaceObjectParent->GetLocalToWorldTransform( parent );
 	}
 	m_worldTransform = m_localTransform * parent;
 	BoundingSphereFromBox( m_boundingSphere, m_min, m_max, &m_worldTransform );
 }
 
-void EveChildCloud::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildCloud::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& )
 {
 	BoundingSphereFromBox( m_boundingSphere, m_min, m_max, &m_worldTransform );
 }

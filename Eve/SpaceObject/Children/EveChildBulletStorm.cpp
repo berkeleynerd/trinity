@@ -248,7 +248,7 @@ bool EveChildBulletStorm::GetBoundingSphere( Vector4& sphere, BoundingSphereQuer
 // Description:
 //   Syncronous updates happen here
 // --------------------------------------------------------------------------------
-void EveChildBulletStorm::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildBulletStorm::UpdateSyncronous( EveUpdateContext&, const EveChildUpdateParams& )
 {
 }
 
@@ -286,12 +286,12 @@ bool EveChildBulletStorm::CanChangeState()
 // Description:
 //   Assyncronous updates happen here
 // --------------------------------------------------------------------------------
-void EveChildBulletStorm::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildBulletStorm::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	// we need to move with our parent
-	if( spaceObjectParent )
+	if( params.spaceObjectParent )
 	{
-		spaceObjectParent->GetLocalToWorldTransform( m_worldTransform );
+		params.spaceObjectParent->GetLocalToWorldTransform( m_worldTransform );
 	}
 
 	// combining target blobs from the actuall spaceship targets

@@ -353,11 +353,30 @@ void EveSpaceObject2::UpdateSyncronous( EveUpdateContext& updateContext )
 	}
 
 	// trigger syncronous update of attachements here
-	bool displayChildren = m_display && DisplayChildren();
-	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt ) 
+	if( !m_effectChildren.empty() )
 	{
-		(*ecIt)->UpdateSyncronous( updateContext, displayChildren, this, nullptr );
+		EveChildUpdateParams params;
+		params.spaceObjectParent = this;
+		params.childParent = nullptr;
+		params.boneCount = 0;
+		params.bones = nullptr;
+		params.isVisible = m_display && DisplayChildren();
+
+		if( m_animationUpdater && m_animationUpdater->IsInitialized() )
+		{
+			params.boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
+			if( params.boneCount )
+			{
+				params.bones = m_animationUpdater->GetMeshBoneMatrixList();
+			}
+		}
+
+		for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+		{
+			( *ecIt )->UpdateSyncronous( updateContext, params );
+		}
 	}
+
 	if( m_impactOverlay )
 	{
 		m_impactOverlay->UpdateSyncronous( updateContext, this );
@@ -451,10 +470,28 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 		(*it)->Update( updateContext );
 	}
 	
-	bool displayChildren = m_display && DisplayChildren();
-	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+	if( !m_effectChildren.empty() )
 	{
-		(*ecIt)->UpdateAsyncronous( updateContext, displayChildren, this, nullptr );
+		EveChildUpdateParams params;
+		params.spaceObjectParent = this;
+		params.childParent = nullptr;
+		params.boneCount = 0;
+		params.bones = nullptr;
+		params.isVisible = m_display && DisplayChildren();
+
+		if( m_animationUpdater && m_animationUpdater->IsInitialized() )
+		{
+			params.boneCount = size_t( m_animationUpdater->GetMeshBoneCount() );
+			if( params.boneCount )
+			{
+				params.bones = m_animationUpdater->GetMeshBoneMatrixList();
+			}
+		}
+
+		for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+		{
+			(*ecIt)->UpdateAsyncronous( updateContext, params );
+		}
 	}
 
 	if( m_impactOverlay )

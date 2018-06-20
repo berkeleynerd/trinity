@@ -4,23 +4,20 @@
 //    Copyright: CCP 2018
 //
 #pragma once
-#ifndef EveChildModifierBooster_H
-#define EveChildModifierBooster_H
 
 #include "IEveChildTransformModifier.h"
 
-BLUE_CLASS( EveChildModifierBooster ) :
+BLUE_CLASS( EveChildModifierAttachToBone ) :
 	public IEveChildTransformModifier
 {
 public:
 	EXPOSE_TO_BLUE();
 
-	EveChildModifierBooster( IRoot* lockobj = NULL );
-	~EveChildModifierBooster();
+	EveChildModifierAttachToBone( IRoot* lockobj = nullptr );
 
 	Matrix ApplyTransform( const Matrix& transform, size_t boneCount, const granny_matrix_3x4* bones ) const;
+private:
+	int32_t m_boneIndex;
 };
 
-TYPEDEF_BLUECLASS( EveChildModifierBooster );
-
-#endif
+TYPEDEF_BLUECLASS( EveChildModifierAttachToBone );

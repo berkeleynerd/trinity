@@ -17,7 +17,7 @@ EveChildModifierHaloInverted::~EveChildModifierHaloInverted()
 {
 }
 
-Matrix EveChildModifierHaloInverted::ApplyTransform( const Matrix& transform ) const
+Matrix EveChildModifierHaloInverted::ApplyTransform( const Matrix& transform, size_t, const granny_matrix_3x4* ) const
 {
 	Matrix alignMat;
 	float distCenter;

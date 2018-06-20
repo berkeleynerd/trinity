@@ -153,7 +153,7 @@ float EveChildQuad::GetSortValue()
 }
 
 
-void EveChildQuad::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildQuad::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& )
 {
 	if( m_editMode )
 	{
@@ -173,18 +173,18 @@ void EveChildQuad::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEve
 	}
 }
 
-void EveChildQuad::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildQuad::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	Matrix parentTransform;
-	if ( spaceObjectParent )
+	if( params.childParent )
 	{
-		spaceObjectParent->GetLocalToWorldTransform( parentTransform );
+		params.childParent->GetLocalToWorldTransform( parentTransform );
 	}
-	else if ( childParent )
+	else if ( params.spaceObjectParent )
 	{
-		childParent->GetLocalToWorldTransform( parentTransform );
+		params.spaceObjectParent->GetLocalToWorldTransform( parentTransform );
 	}
-	else
+	else 
 	{
 		return;
 	}

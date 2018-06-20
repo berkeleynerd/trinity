@@ -110,9 +110,19 @@ void EveEffectRoot2::UpdateSyncronous( EveUpdateContext& updateContext )
 		(*it)->Update( m_lastUpdateMatrix );
 	}
 
-	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt ) 
+	if( !m_effectChildren.empty() )
 	{
-		(*ecIt)->UpdateSyncronous( updateContext, m_display, this, nullptr );
+		EveChildUpdateParams params;
+		params.spaceObjectParent = this;
+		params.childParent = nullptr;
+		params.boneCount = 0;
+		params.bones = nullptr;
+		params.isVisible = m_display;
+
+		for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+		{
+			( *ecIt )->UpdateSyncronous( updateContext, params );
+		}
 	}
 
 	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
@@ -129,9 +139,19 @@ void EveEffectRoot2::UpdateAsyncronous( EveUpdateContext& updateContext )
 		(*it)->Update( time, time );
 	}
 
-	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt ) 
+	if( !m_effectChildren.empty() )
 	{
-		(*ecIt)->UpdateAsyncronous( updateContext, m_display, this, nullptr );
+		EveChildUpdateParams params;
+		params.spaceObjectParent = this;
+		params.childParent = nullptr;
+		params.boneCount = 0;
+		params.bones = nullptr;
+		params.isVisible = m_display;
+
+		for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
+		{
+			( *ecIt )->UpdateAsyncronous( updateContext, params );
+		}
 	}
 }
 

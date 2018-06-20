@@ -9,6 +9,17 @@ class EveSpaceObject2;
 class EveUpdateContext;
 class Tr2LightManager;
 
+BLUE_DECLARE_INTERFACE( IEveSpaceObjectChild );
+
+struct EveChildUpdateParams
+{
+	IEveSpaceObject2* spaceObjectParent;
+	IEveSpaceObjectChild* childParent;
+	size_t boneCount;
+	const granny_matrix_3x4* bones;
+	bool isVisible;
+};
+
 BLUE_INTERFACE( IEveSpaceObjectChild ) : public IRoot
 {
 	virtual const char* GetName() const = 0;
@@ -20,8 +31,8 @@ BLUE_INTERFACE( IEveSpaceObjectChild ) : public IRoot
 	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer ) {}
 	virtual void AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer ) const {}
 	
-	virtual void UpdateSyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent ) = 0;
-	virtual void UpdateAsyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent ) = 0;
+	virtual void UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params ) = 0;
+	virtual void UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params ) = 0;
 
 	virtual void GetLocalToWorldTransform( Matrix& transform ) const = 0;
 	

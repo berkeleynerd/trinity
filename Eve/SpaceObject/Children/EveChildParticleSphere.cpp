@@ -112,7 +112,7 @@ bool EveChildParticleSphere::GetBoundingSphere( Vector4& sphere, BoundingSphereQ
 }
 
 // -----------------------------------------------------------------------------
-void EveChildParticleSphere::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2*, IEveSpaceObjectChild* )
+void EveChildParticleSphere::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& )
 {
 	CheckBinding();
 
@@ -126,16 +126,16 @@ void EveChildParticleSphere::UpdateSyncronous( EveUpdateContext& updateContext, 
 }
 
 // -----------------------------------------------------------------------------
-void EveChildParticleSphere::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildParticleSphere::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	Matrix parent;
-	if( childParent )
+	if( params.childParent )
 	{
-		childParent->GetLocalToWorldTransform( parent );
+		params.childParent->GetLocalToWorldTransform( parent );
 	}
 	else
 	{
-		spaceObjectParent->GetLocalToWorldTransform( parent );
+		params.spaceObjectParent->GetLocalToWorldTransform( parent );
 	}
 
 	m_worldTransform = TranslationMatrix( parent.GetTranslation() );

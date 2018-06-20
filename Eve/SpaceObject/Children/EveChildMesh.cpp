@@ -192,24 +192,24 @@ void EveChildMesh::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType shade
 	}
 }
 
-void EveChildMesh::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildMesh::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	m_perObjectDataVs.InvalidateBufferData();
 	m_perObjectDataPs.InvalidateBufferData();
 
 	Matrix localToWorldTransform;
-	if ( spaceObjectParent )
+	if( params.childParent )
 	{
-		spaceObjectParent->GetLocalToWorldTransform( localToWorldTransform );
-		spaceObjectParent->GetPerObjectStructs( m_vsData, m_psData );
+		params.childParent->GetLocalToWorldTransform( localToWorldTransform );
 		m_vsData.worldTransformLast = Transpose( m_worldTransform );
 	}
-	else if ( childParent )
+	else if ( params.spaceObjectParent )
 	{
-		childParent->GetLocalToWorldTransform( localToWorldTransform );
+		params.spaceObjectParent->GetLocalToWorldTransform( localToWorldTransform );
+		params.spaceObjectParent->GetPerObjectStructs( m_vsData, m_psData );
 		m_vsData.worldTransformLast = Transpose( m_worldTransform );
 	}
-	else
+	else 
 	{
 		return;
 	}
@@ -217,14 +217,14 @@ void EveChildMesh::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEv
 	UpdateTransform( localToWorldTransform );
 	for( auto it = m_transformModifiers.begin(); it != m_transformModifiers.end(); it++ )
 	{
-		m_worldTransform = (*it)->ApplyTransform( m_worldTransform );
+		m_worldTransform = (*it)->ApplyTransform( m_worldTransform, params.boneCount, params.bones );
 	}
 
 	m_vsData.worldTransform = Transpose( m_worldTransform );
 	m_vsData.invWorldTransform = Inverse( m_worldTransform );
 }
 
-void EveChildMesh::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildMesh::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& )
 {
 }
 

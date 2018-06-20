@@ -39,9 +39,9 @@ EveChildLink::~EveChildLink()
 // Description:
 //   Synchronous updates happen here
 // --------------------------------------------------------------------------------
-void EveChildLink::UpdateSyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildLink::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
-	EveChildMesh::UpdateSyncronous( updateContext, isVisible, spaceObjectParent, childParent );
+	EveChildMesh::UpdateSyncronous( updateContext, params );
 
 	// if we have a target, we can calc the direction
 	if( m_target )
@@ -52,9 +52,9 @@ void EveChildLink::UpdateSyncronous( EveUpdateContext& updateContext, bool isVis
 		// source is from parent
 		Vector3 srcPos;
 
-		if ( spaceObjectParent )
+		if ( params.spaceObjectParent )
 		{
-			spaceObjectParent->GetModelCenterWorldPosition( srcPos );
+			params.spaceObjectParent->GetModelCenterWorldPosition( srcPos );
 		}
 		else
 		{
@@ -73,7 +73,7 @@ void EveChildLink::UpdateSyncronous( EveUpdateContext& updateContext, bool isVis
 // Description:
 //   Asynchronous updates happen here
 // --------------------------------------------------------------------------------
-void EveChildLink::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildLink::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	// update the special link curves
 	for( ITriFunctionVector::const_iterator it = m_linkStrengthCurves.begin(); it != m_linkStrengthCurves.end(); ++it )
@@ -88,21 +88,21 @@ void EveChildLink::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEv
 
 	// get parent worldmatrix and parent's shield ellipsoid offset
 	Vector3 shieldEllipsoidCenter( 0.f, 0.f, 0.f );
-	if( spaceObjectParent )
+	if( params.childParent )
 	{
-		spaceObjectParent->GetLocalToWorldTransform( m_worldTransform );
+		params.childParent->GetLocalToWorldTransform( m_worldTransform );
+	}
+	else if( params.spaceObjectParent )
+	{
+		params.spaceObjectParent->GetLocalToWorldTransform( m_worldTransform );
 		EveSpaceObject2Ptr p;
-		if( spaceObjectParent->QueryInterface( BlueInterfaceIID<EveSpaceObject2>(), (void**)&p, BEQI_SILENT ) )
+		if( params.spaceObjectParent->QueryInterface( BlueInterfaceIID<EveSpaceObject2>(), (void**)&p, BEQI_SILENT ) )
 		{
 			Vector3 t;
 			p->GetShapeEllipsoid( shieldEllipsoidCenter, t );
 		}
 	}
-	else if ( childParent )
-	{
-		childParent->GetLocalToWorldTransform( m_worldTransform );
-	}
-	else
+	else 
 	{
 		return;
 	}
@@ -136,9 +136,9 @@ void EveChildLink::UpdateAsyncronous( EveUpdateContext& updateContext, bool, IEv
 	m_perObjectDataVs.InvalidateBufferData();
 	m_perObjectDataPs.InvalidateBufferData();
 	
-	if( spaceObjectParent )
+	if( params.spaceObjectParent )
 	{
-		spaceObjectParent->GetPerObjectStructs( m_vsData, m_psData );
+		params.spaceObjectParent->GetPerObjectStructs( m_vsData, m_psData );
 	}
 	m_vsData.worldTransform = Transpose( finalWorldMat );
 	m_vsData.worldTransformLast = Transpose( linkRotationMat );

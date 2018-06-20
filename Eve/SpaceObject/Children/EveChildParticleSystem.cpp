@@ -170,29 +170,29 @@ Tr2PerObjectData* EveChildParticleSystem::GetPerObjectData( ITriRenderBatchAccum
 	return data;
 }
 
-void EveChildParticleSystem::UpdateSyncronous( EveUpdateContext& updateContext, bool, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildParticleSystem::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& )
 {
 }
 
-void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	Matrix localToWorldTransform;
-	if ( spaceObjectParent )
+	if( params.childParent )
 	{
-		spaceObjectParent ->GetLocalToWorldTransform( localToWorldTransform );
+		params.childParent->GetLocalToWorldTransform( localToWorldTransform );
 	}
-	else if ( childParent )
+	else if ( params.spaceObjectParent )
 	{
-		childParent->GetLocalToWorldTransform( localToWorldTransform );
+		params.spaceObjectParent ->GetLocalToWorldTransform( localToWorldTransform );
 	}
-	else
+	else 
 	{
 		return;
 	}
 	UpdateTransform( localToWorldTransform );
 	for( auto it = m_transformModifiers.begin(); it != m_transformModifiers.end(); ++it )
 	{
-		m_worldTransform = (*it)->ApplyTransform( m_worldTransform );
+		m_worldTransform = (*it)->ApplyTransform( m_worldTransform, params.boneCount, params.bones );
 	}
 	
 	Vector3 minBounds, maxBounds;
@@ -222,7 +222,7 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 	if( !m_particleEmitters.empty() )
 	{
 		float emitCountFactor = 1.f;
-		if( !isVisible || !m_display )
+		if( !params.isVisible || !m_display )
 		{
 			emitCountFactor = 0;
 		}

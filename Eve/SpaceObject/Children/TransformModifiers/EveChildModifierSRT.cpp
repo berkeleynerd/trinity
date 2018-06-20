@@ -17,7 +17,7 @@ EveChildModifierSRT::~EveChildModifierSRT()
 {
 }
 
-Matrix EveChildModifierSRT::ApplyTransform( const Matrix& transform ) const
+Matrix EveChildModifierSRT::ApplyTransform( const Matrix& transform, size_t, const granny_matrix_3x4* ) const
 {
 	return TransformationMatrix( m_scaling, m_rotation, m_translation ) * transform;
 }

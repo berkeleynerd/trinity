@@ -161,16 +161,20 @@ void EveChildContainer::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2Qu
 	}
 }
 
-void EveChildContainer::UpdateSyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildContainer::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
 	{
 		return;
 	}
 
+	EveChildUpdateParams newParams = params;
+	newParams.isVisible &= m_display;
+	newParams.childParent = this;
+
 	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
 	{
-		(*it)->UpdateSyncronous( updateContext, isVisible && m_display, nullptr, this );
+		(*it)->UpdateSyncronous( updateContext, newParams );
 	}
 	for( auto it = m_observers.begin(); it != m_observers.end(); it++ )
 	{
@@ -182,7 +186,7 @@ void EveChildContainer::UpdateSyncronous( EveUpdateContext& updateContext, bool 
 	}
 }
 
-void EveChildContainer::UpdateAsyncronous( EveUpdateContext& updateContext, bool isVisible, IEveSpaceObject2* spaceObjectParent, IEveSpaceObjectChild* childParent )
+void EveChildContainer::UpdateAsyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	if( m_hideOnLowQuality && Tr2Renderer::IsLowQuality() )
 	{
@@ -190,15 +194,15 @@ void EveChildContainer::UpdateAsyncronous( EveUpdateContext& updateContext, bool
 	}
 
 	Matrix localToWorldTransform;
-	if( spaceObjectParent )
+	if( params.childParent )
 	{
-		spaceObjectParent->GetLocalToWorldTransform( localToWorldTransform );
+		params.childParent->GetLocalToWorldTransform( localToWorldTransform );
 	}
-	else if ( childParent )
+	else if( params.spaceObjectParent )
 	{
-		childParent->GetLocalToWorldTransform( localToWorldTransform );
+		params.spaceObjectParent->GetLocalToWorldTransform( localToWorldTransform );
 	}
-	else
+	else 
 	{
 		return;
 	}
@@ -206,12 +210,16 @@ void EveChildContainer::UpdateAsyncronous( EveUpdateContext& updateContext, bool
 	UpdateTransform( localToWorldTransform );
 	for( auto it = m_transformModifiers.begin(); it != m_transformModifiers.end(); it++ )
 	{
-		m_worldTransform = (*it)->ApplyTransform( m_worldTransform );
+		m_worldTransform = (*it)->ApplyTransform( m_worldTransform, params.boneCount, params.bones );
 	}
+
+	EveChildUpdateParams newParams = params;
+	newParams.isVisible &= m_display;
+	newParams.childParent = this;
 
 	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
 	{
-		(*it)->UpdateAsyncronous( updateContext, isVisible && m_display, nullptr, this );
+		(*it)->UpdateAsyncronous( updateContext, newParams );
 	}
 	
 	Be::Time time = updateContext.GetTime();
@@ -220,9 +228,9 @@ void EveChildContainer::UpdateAsyncronous( EveUpdateContext& updateContext, bool
 		(*it)->Update( time, time );
 	}
 
-	if( spaceObjectParent )
+	if( params.spaceObjectParent && !params.childParent )
 	{
-		spaceObjectParent->GetWorldVelocity( m_worldVelocity );
+		params.spaceObjectParent->GetWorldVelocity( m_worldVelocity );
 	}
 }
 

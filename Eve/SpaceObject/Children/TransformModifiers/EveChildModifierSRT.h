@@ -18,7 +18,7 @@ public:
 	EveChildModifierSRT( IRoot* lockobj = NULL );
 	~EveChildModifierSRT();
 	
-	Matrix ApplyTransform( const Matrix& transform ) const;
+	Matrix ApplyTransform( const Matrix& transform, size_t boneCount, const granny_matrix_3x4* bones ) const;
 
 private:
 	Vector3 m_scaling;

@@ -16,7 +16,7 @@ EveChildModifierBillboard3D::~EveChildModifierBillboard3D()
 {
 }
 
-Matrix EveChildModifierBillboard3D::ApplyTransform( const Matrix& transform ) const
+Matrix EveChildModifierBillboard3D::ApplyTransform( const Matrix& transform, size_t, const granny_matrix_3x4* ) const
 {
 	Matrix billboard = Billboard2D(transform);
 

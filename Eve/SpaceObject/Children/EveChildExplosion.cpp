@@ -147,11 +147,7 @@ void EveChildExplosion::SetGlobalExplosionOffset( const Vector3& offset )
 //   Implements IEveSpaceObjectChild interface. If the effect is playing this function
 //   spawns explosions.
 // --------------------------------------------------------------------------------------
-void EveChildExplosion::UpdateSyncronous( 
-	EveUpdateContext& updateContext, 
-	bool isVisible,
-	IEveSpaceObject2* spaceObjectParent, 
-	IEveSpaceObjectChild* childParent )
+void EveChildExplosion::UpdateSyncronous( EveUpdateContext& updateContext, const EveChildUpdateParams& params )
 {
 	if( m_isPlaying )
 	{
@@ -219,7 +215,7 @@ void EveChildExplosion::UpdateSyncronous(
 			Stop();
 		}
 	}
-	EveChildContainer::UpdateSyncronous( updateContext, isVisible, spaceObjectParent, childParent );
+	EveChildContainer::UpdateSyncronous( updateContext, params );
 }
 
 void EveChildExplosion::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
