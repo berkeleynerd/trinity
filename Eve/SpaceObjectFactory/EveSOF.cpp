@@ -1844,9 +1844,9 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) co
 				// construct shader path and set it on the Tr2Effect
 				std::string shaderPath = dna->GetDecalShaderLocationResPath() + std::string( "/" ) + dna->GetShaderPrefix( false ) + m_decalsEffectName[hdsiit->usage].c_str();
 				shader->SetEffectPathName( shaderPath.c_str() );
-
-				// Set the glow color based on the colors in the colorset
-				if( hdsiit->usage == EveSOFDataHullDecal::USAGE_GLOWSTANDARD || hdsiit->usage == EveSOFDataHullDecal::USAGE_GLOWCYLINDRICAL )
+				
+				// Set the glow color based on the colors in the colorsetuS
+				if( hdsiit->usage != EveSOFDataHullDecal::USAGE_LOGO && hdsiit->usage != EveSOFDataHullDecal::USAGE_STANDARD )
 				{
 					Color decalGlowColor = dna->GetColorSet()[hdsiit->glowColorType];
 					shader->AddParameterColor( BlueSharedString( "DecalGlowColor" ), &decalGlowColor );
