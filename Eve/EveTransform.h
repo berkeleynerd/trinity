@@ -129,10 +129,10 @@ class EveBasicPerObjectData : public Tr2PerObjectData
 public:
 	virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
 	{
-		FillAndSetConstants(	*buffers[Tr2RenderContextEnum::VERTEX_SHADER],
+		FillAndSetConstants(	*buffers[Tr2RenderContextEnum::CBUFFER_FFE],
 											&m_world, sizeof( m_world ) + sizeof( m_worldInverseTranspose ),
 											Tr2RenderContextEnum::VERTEX_SHADER,
-											Tr2Renderer::GetPerObjectVSStartRegister(),
+											Tr2Renderer::GetPerObjectVSFFEStartRegister(),
 											renderContext );
 	}
 
