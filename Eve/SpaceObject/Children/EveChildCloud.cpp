@@ -36,7 +36,7 @@ public:
 			SHADER_TYPE_EXISTS( HULL_SHADER )		|
 			SHADER_TYPE_EXISTS( DOMAIN_SHADER)		;
 		FillAndSetConstants(	
-			*buffers[Tr2RenderContextEnum::CBUFFER_FFE],
+			*buffers[Tr2RenderContextEnum::VERTEX_SHADER],
 			&m_data, sizeof( m_data ),
 			mask,
 			Tr2Renderer::GetPerObjectVSStartRegister(),

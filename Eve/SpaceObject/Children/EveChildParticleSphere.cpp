@@ -203,8 +203,8 @@ Tr2PerObjectData* EveChildParticleSphere::GetPerObjectData( ITriRenderBatchAccum
 		return NULL;
 	}
 
-	data->m_bufferType = m_useSpaceObjectData ? Tr2RenderContextEnum::VERTEX_SHADER : Tr2RenderContextEnum::CBUFFER_FFE;
-	data->m_register = m_useSpaceObjectData ? Tr2Renderer::GetPerObjectVSStartRegister() : Tr2Renderer::GetPerObjectVSFFEStartRegister();
+	data->m_bufferType = Tr2RenderContextEnum::VERTEX_SHADER;
+	data->m_register = Tr2Renderer::GetPerObjectVSStartRegister();
 	data->m_data.m_world = Transpose( m_worldTransform );
 	data->m_data.m_worldInverseTranspose = Inverse( m_worldTransform );
 	return data;

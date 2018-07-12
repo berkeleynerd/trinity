@@ -48,7 +48,6 @@ namespace
 	unsigned int s_perFramePSStartRegister = 200;
 	unsigned int s_perObjectVSStartRegister = 16;
 	unsigned int s_perObjectPSStartRegister = 40;
-	unsigned int s_perObjectVSFFEStartRegister = 180;
 	unsigned int s_perObjectVSGUIStartRegister = 5;
 #elif( TRINITY_PLATFORM == TRINITY_DIRECTX11 )
 	// these are actually constant buffer indices
@@ -56,14 +55,12 @@ namespace
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #elif( TRINITY_PLATFORM==TRINITY_OPENGLES2 )
 	unsigned int s_perFrameVSStartRegister  = 1;
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #elif( TRINITY_PLATFORM==TRINITY_ORBIS)
 	// these are actually constant buffer indices
@@ -71,7 +68,6 @@ namespace
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #elif( TRINITY_PLATFORM==TRINITY_STUB)
 	// these are actually constant buffer indices
@@ -79,14 +75,12 @@ namespace
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #elif( TRINITY_PLATFORM==TRINITY_OPENGL4 )
 	unsigned int s_perFrameVSStartRegister  = 1;
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSFFEStartRegister = 5;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #else
 #	error "Missing platform"
@@ -1411,11 +1405,6 @@ unsigned int Tr2Renderer::GetPerFramePSStartRegister()
 unsigned int Tr2Renderer::GetPerObjectVSStartRegister()
 {
 	return s_perObjectVSStartRegister;
-}
-
-unsigned int Tr2Renderer::GetPerObjectVSFFEStartRegister()
-{
-	return s_perObjectVSFFEStartRegister;
 }
 
 unsigned int Tr2Renderer::GetPerObjectVSGUIStartRegister()
