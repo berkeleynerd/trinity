@@ -93,9 +93,13 @@ struct EveBannerSet::Vertex
 
 EveBannerSet::EveBannerSet( IRoot* lockobj )
 	:PARENTLOCK( m_banners ),
+	PARENTLOCK( m_associatedResources ),
 	m_key( 0 ),
 	m_vertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
+	m_lod( TR2_LOD_UNSPECIFIED ),
+	m_maxBannerRadius( 0 ),
 	m_display( true ),
+	m_isPickable( false ),
 	m_isVisible( true )
 {
 	m_banners.SetStructureDefinition( s_bannerStructureDef );
@@ -113,16 +117,56 @@ bool EveBannerSet::Initialize()
 void EveBannerSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
 	auto aabb = GetAabb( bones, boneCount );
+	aabb.Transform( parentTransform );
 	m_isVisible = frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
+
+	m_lod = TR2_LOD_LOW;
+
+	Vector4 sphere;
+	BoundingSphereFromBox( sphere, aabb.m_min, aabb.m_max );
+	if( BoundingSphereIsInside( sphere, frustum.m_viewPos ) )
+	{
+		m_lod = TR2_LOD_HIGH;
+	}
+	else
+	{
+		extern float g_eveSpaceSceneVisibilityThreshold;
+
+		auto closest = sphere.GetXYZ() + Normalize( frustum.m_viewPos - sphere.GetXYZ() ) * sphere.w;
+		Vector4 elementSphere( closest, m_maxBannerRadius );
+
+		auto size = frustum.GetPixelSizeAccrossEst( &elementSphere );
+		if( size > g_eveSpaceSceneVisibilityThreshold )
+		{
+			m_lod = TR2_LOD_HIGH;
+		}
+	}
+
+	if( m_lod == TR2_LOD_LOW )
+	{
+		m_isVisible = false;
+	}
 }
 
 void EveBannerSet::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData )
 {
-	if( !m_display || !m_isVisible || !m_vertexBuffer.IsValid() || !m_effect )
+	if( !m_display || !m_vertexBuffer.IsValid() || !m_effect )
+	{
+		return;
+	}
+	for( auto it = m_associatedResources.begin(); it != m_associatedResources.end(); ++it )
+	{
+		( *it )->SelectLod( m_lod );
+	}
+	if( !m_isVisible )
 	{
 		return;
 	}
 	if( batchType != TRIBATCHTYPE_ADDITIVE && batchType != TRIBATCHTYPE_PICKING )
+	{
+		return;
+	}
+	if( batchType == TRIBATCHTYPE_PICKING && !m_isPickable )
 	{
 		return;
 	}
@@ -208,6 +252,11 @@ void EveBannerSet::SetEffect( Tr2Effect* effect )
 	m_effect = effect;
 }
 
+void EveBannerSet::AddLodResource( Tr2LodResource* resource )
+{
+	m_associatedResources.Append( resource );
+}
+
 void EveBannerSet::Render( Tr2RenderContext& renderContext ) const
 {
 	renderContext.m_esm.ApplyStreamSource( 0, m_vertexBuffer, 0, sizeof( Vertex ) );
@@ -279,6 +328,7 @@ void EveBannerSet::Rebuild()
 	m_aabb = AxisAlignedBoundingBox();
 	m_vertexBuffer = Tr2BufferAL();
 	m_indexBuffer = Tr2BufferAL();
+	m_maxBannerRadius = 0;
 
 	if( !m_effect )
 	{
@@ -293,6 +343,8 @@ void EveBannerSet::Rebuild()
 		CreateBannerGeometry( vertices, indices, *jt );
 		AxisAlignedBoundingBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.0f ) );
 		aabb.Transform( TransformationMatrix( jt->scaling, jt->rotation, jt->position ) );
+
+		m_maxBannerRadius = std::max( m_maxBannerRadius, Length( aabb.m_max - aabb.m_min ) / 2 );
 
 		if( jt->bone >= 0 )
 		{

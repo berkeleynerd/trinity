@@ -8,9 +8,11 @@
 
 #include "IEveSpaceObjectChildSet.h"
 #include "Utilities/BoundingBox.h"
+#include "Resources/Tr2LodResource.h"
 
 
 BLUE_DECLARE( Tr2Effect );
+BLUE_DECLARE_VECTOR( Tr2LodResource );
 
 
 struct EveBannerItem
@@ -49,6 +51,7 @@ public:
 
 	void AddBanner( const EveBannerItem& banner );
 	void SetEffect( Tr2Effect* effect );
+	void AddLodResource( Tr2LodResource* resource );
 	void Rebuild();
 
 	void Render( Tr2RenderContext& renderContext ) const;
@@ -68,6 +71,7 @@ private:
 	int32_t m_key;
 	Tr2EffectPtr m_effect;
 	PEveBannerItemStructureList m_banners;
+	PTr2LodResourceVector m_associatedResources;
 
 	Tr2BufferAL m_vertexBuffer;
 	Tr2BufferAL m_indexBuffer;
@@ -76,7 +80,11 @@ private:
 	AxisAlignedBoundingBox m_aabb;
 	std::vector<std::pair<int32_t, AxisAlignedBoundingBox>> m_skinnedBoxes;
 
+	Tr2Lod m_lod;
+	float m_maxBannerRadius;
+
 	bool m_display;
+	bool m_isPickable;
 	bool m_isVisible;
 };
 
