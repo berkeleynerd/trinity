@@ -4435,10 +4435,10 @@
 			fileRef = 0000098E000044b827000cae;
 			};
 		00000780000044b827000cae = {
-			name = IEveSpaceObjectChildSet.h;
+			name = IEveSpaceObjectAttachment.h;
 			fileEncoding = 4;
 			lastKnownFileType = sourcecode.cpp.h;
-			path = "Eve/SpaceObject/Attachments/Sets/IEveSpaceObjectChildSet.h";
+			path = "Eve/SpaceObject/Attachments/Sets/IEveSpaceObjectAttachment.h";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
