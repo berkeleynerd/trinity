@@ -6,7 +6,7 @@ Imports:
 - ../CcpMath/uses_CcpMath.yaml
 - ../../../../../../sdk/muparser/v2.2.5/muparser.yaml
 - ../../../../../../sdk/freetype/2.6.0/freetype_2.6.0.yaml
-- ../../../../../../sdk/cairo/1.14.0/cairo.yaml
+- ../../../../../../sdk/cairo/1.15.12/cairo.yaml
 
 # Settings from the General section, for all configurations
 General:
