@@ -540,6 +540,12 @@ const Be::ClassInfo* Tr2InteriorScene::ExposeToBlue()
 			"Remove an interior dynamic (avatar, placeable, etc.) from the scene"
 			"\n:param object: The ITr2InteriorDynamic (Tr2InteriorPlaceable or Tr2InteriorAvatar) to remove")
 
+		MAP_METHOD_AND_WRAP(
+			"UpdateScene", 
+			UpdateSceneFromScript, 
+			"Run the scene's update loop\n"
+			":param time: current time" )
+
 		MAP_ATTRIBUTE( "visibilityResults", m_visibilityResults, "Results of the visibility query", Be::READ )
 
 	EXPOSURE_END()

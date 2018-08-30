@@ -1091,3 +1091,9 @@ void Tr2InteriorScene::RebuildSceneData( void )
 		}
 	}
 }
+
+void Tr2InteriorScene::UpdateSceneFromScript( Be::Time time )
+{
+	Update( time, time );
+}
+

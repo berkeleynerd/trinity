@@ -104,6 +104,7 @@ public:
 	void AddDynamic( ITr2InteriorDynamic* dynamic );
 	// Remove a dynamic from the scene
 	void RemoveDynamic( ITr2InteriorDynamic* dynamic );
+	void UpdateSceneFromScript( Be::Time time );
 
 protected:
 
