@@ -302,9 +302,9 @@ bool IsSVG( const std::wstring& filePath )
 	{
 		return false;
 	}
-	return filePath[length - 1] == 'g' || filePath[length - 1] == 'g'
-		&& filePath[length - 2] == 'v' || filePath[length - 2] == 'v'
-		&& filePath[length - 3] == 's' || filePath[length - 3] == 's'
+	return ( filePath[length - 1] == 'g' || filePath[length - 1] == 'G' )
+		&& ( filePath[length - 2] == 'v' || filePath[length - 2] == 'V' )
+		&& ( filePath[length - 3] == 's' || filePath[length - 3] == 'S' )
 		&& filePath[length - 4] == '.';
 }
 
