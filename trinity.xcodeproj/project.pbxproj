@@ -2295,10 +2295,10 @@
 			sourceTree = "<group>";
 			};
 		00000980000044b827000cae = {
-			name = CoreFoundation.framework;
+			name = "libcairo-script.dylib";
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/CoreFoundation.framework";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../../../../../sdk/cairo/1.15.12/lib/MacOsXx86_64/clang4.2/libcairo-script.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -3870,10 +3870,10 @@
 			sourceTree = "<group>";
 			};
 		00000994000044b827000cae = {
-			name = Cocoa.framework;
+			name = libgranny2_osx64.a;
 			fileEncoding = 4;
-			lastKnownFileType = wrapper.framework;
-			path = "/System/Library/Frameworks/Cocoa.framework";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -4486,7 +4486,7 @@
 					"../../../../../../sdk/muparser/v2.2.5/include",
 					"../../../../../../sdk/freetype/2.6.0/include",
 					"../../../../../../sdk/glew/1.7.0/include",
-					"../../../../../../sdk/cairo/1.14.0/include",
+					"../../../../../../sdk/cairo/1.15.12/include",
 					"../../../../../../sdk/libpng/1.6.29/include",
 					"../../../../../../sdk/squish/1.10/include",
 					"../../../../../../sdk/telemetry/3.0.1.1008/include",
@@ -4520,7 +4520,6 @@
 					"../../../../../../sdk/granny/2.9.24.0/lib/macosx64",
 					"../../../../../../shared_tools/python/27_mac/lib",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
-					"../../../../../../sdk/cairo/1.14.0/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/squish/1.10/lib/MacOsX$(ARCHS)",
 					"../../autobuild/TrinityAL/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/freetype/2.6.0/lib/MacOsX$(ARCHS)/clang4.2",
@@ -4529,6 +4528,7 @@
 					"../../../carbon/autobuild/CcpMath/MacOsX$(ARCHS)/clang4.2/",
 					"../../../carbon/autobuild/blue/python_27/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/glew/1.7.0/lib/MacOsXx86_64",
+					"../../../../../../sdk/cairo/1.15.12/lib/MacOsX$(ARCHS)/clang4.2",
 					);
 				SYMROOT = "../../autobuild/trinity/python_27/MacOsX$(ARCHS)/clang4.2";
 				OBJROOT = "../../autobuild/temp/trinity/MacOsX$(ARCHS)/$(CONFIGURATION)";
@@ -8489,10 +8489,10 @@
 			fileRef = 00000066000044b827000cae;
 			};
 		00000990000044b827000cae = {
-			name = libcairo.dylib;
+			name = Cocoa.framework;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../sdk/cairo/1.14.0/lib/MacOsXx86_64/clang4.2/libcairo.dylib";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/Cocoa.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -9375,7 +9375,7 @@
 				00000989000044b827000cae,
 				00000981000044b827000cae,
 				00000979000044b827000cae,
-				0000097B000044b827000cae,
+				0000097D000044b827000cae,
 				0000097F000044b827000cae,
 				00000977000044b827000cae,
 				00000983000044b827000cae,
@@ -9383,10 +9383,10 @@
 				000009A3000044b827000cae,
 				00000975000044b827000cae,
 				0000098B000044b827000cae,
-				00000993000044b827000cae,
-				0000098F000044b827000cae,
-				00000991000044b827000cae,
 				0000098D000044b827000cae,
+				00000993000044b827000cae,
+				00000991000044b827000cae,
+				0000098F000044b827000cae,
 				000009A1000044b827000cae,
 				00000997000044b827000cae,
 				00000999000044b827000cae,
@@ -10571,10 +10571,10 @@
 			sourceTree = "<group>";
 			};
 		0000097C000044b827000cae = {
-			name = libfreetype.a;
+			name = blue.so;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/freetype/2.6.0/lib/MacOsXx86_64/clang4.2/libfreetype.a";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../autobuild/blue/python_27/MacOsXx86_64/clang4.2/blue.so";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -10956,10 +10956,10 @@
 			sourceTree = "<group>";
 			};
 		0000098E000044b827000cae = {
-			name = libgranny2_osx64.a;
+			name = libcairo.dylib;
 			fileEncoding = 4;
-			lastKnownFileType = archive.ar;
-			path = "../../../../../../sdk/granny/2.9.24.0/lib/macosx64/libgranny2_osx64.a";
+			lastKnownFileType = "compiled.mach-o.dylib";
+			path = "../../../../../../sdk/cairo/1.15.12/lib/MacOsXx86_64/clang4.2/libcairo.dylib";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -11661,10 +11661,10 @@
 			sourceTree = "<group>";
 			};
 		0000097E000044b827000cae = {
-			name = blue.so;
+			name = CoreFoundation.framework;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../autobuild/blue/python_27/MacOsXx86_64/clang4.2/blue.so";
+			lastKnownFileType = wrapper.framework;
+			path = "/System/Library/Frameworks/CoreFoundation.framework";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -11722,7 +11722,6 @@
 				HEADER_SEARCH_PATHS = (
 					"../../../../../../sdk/zlib/1.2.11/include",
 					"../../../../../../sdk/muparser/v2.2.5/include",
-					"../../../../../../sdk/cairo/1.14.0/include",
 					"../../../../../../sdk/Granny/2.9.24.0/include",
 					"../../../../../../sdk/libjpg/jpeg-9b",
 					..,
@@ -11734,6 +11733,7 @@
 					"../../../carbon/src",
 					"../../../../../../sdk/freetype/2.6.0/include",
 					"../../../../../../sdk/glew/1.7.0/include",
+					"../../../../../../sdk/cairo/1.15.12/include",
 					.,
 					"../../../../../../sdk/libpng/1.6.29/include",
 					"../../../carbon/src/stackless/Mac",
@@ -11768,8 +11768,8 @@
 					"../../../../../../sdk/libjpg/jpeg-9b/lib/MacOsX$(ARCHS)",
 					"../../../../../../sdk/granny/2.9.24.0/lib/macosx64",
 					"../../../../../../sdk/telemetry/3.0.1.1008/lib",
-					"../../../../../../sdk/cairo/1.14.0/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/squish/1.10/lib/MacOsX$(ARCHS)",
+					"../../../../../../sdk/cairo/1.15.12/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../../../../../sdk/freetype/2.6.0/lib/MacOsX$(ARCHS)/clang4.2",
 					"../../autobuild/TrinityAL/MacOsX$(ARCHS)/clang4.2/",
 					"../../../../../../sdk/libpng/1.6.29/lib/MacOsX$(ARCHS)/clang4.2",
@@ -11905,10 +11905,10 @@
 			fileRef = 00000102000044b827000cae;
 			};
 		0000097A000044b827000cae = {
-			name = "libcairo-script.dylib";
+			name = libfreetype.a;
 			fileEncoding = 4;
-			lastKnownFileType = "compiled.mach-o.dylib";
-			path = "../../../../../../sdk/cairo/1.14.0/lib/MacOsXx86_64/clang4.2/libcairo-script.dylib";
+			lastKnownFileType = archive.ar;
+			path = "../../../../../../sdk/freetype/2.6.0/lib/MacOsXx86_64/clang4.2/libfreetype.a";
 			isa = PBXFileReference;
 			sourceTree = "<group>";
 			};
@@ -12644,10 +12644,10 @@
 				000009A3000044b827000cae,
 				00000975000044b827000cae,
 				0000098B000044b827000cae,
-				00000993000044b827000cae,
+				0000098D000044b827000cae,
 				0000098F000044b827000cae,
 				00000991000044b827000cae,
-				0000098D000044b827000cae,
+				00000993000044b827000cae,
 				00000995000044b827000cae,
 				00000997000044b827000cae,
 				00000999000044b827000cae,
