@@ -1046,8 +1046,6 @@ void EveSOF::SetupBannerSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) c
 
 			Tr2LodResourcePtr imageMap;
 			imageMap.CreateInstance();
-			imageMap->SetResourcePath( TR2_LOD_MEDIUM, "res:/texture/global/black.dds" );
-			imageMap->SetResourcePath( TR2_LOD_LOW, "res:/texture/global/black.dds" );
 			effect->AddResourceTexture2DLod( BlueSharedString( "ImageMap" ), imageMap );
 			bannerSet->AddLodResource( imageMap );
 

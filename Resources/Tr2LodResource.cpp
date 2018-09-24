@@ -22,7 +22,15 @@ bool Tr2LodResource::OnModified( Be::Var* value )
 	{
 		m_requested = nullptr;
 		auto& respath = m_resPath[m_currentLod];
-		BeResMan->GetResource( respath, "", m_requested );
+		if( respath.empty() )
+		{
+			m_requested = nullptr;
+			m_active = nullptr;
+		}
+		else
+		{
+			BeResMan->GetResource( respath, "", m_requested );
+		}
 	}
 	return true;
 }
@@ -79,8 +87,15 @@ void Tr2LodResource::SelectLod( Tr2Lod lod )
 	
 	m_currentLod = lod;
 	auto& respath = m_resPath[ lod ];
-	
-	BeResMan->GetResource( respath, "", m_requested );
+	if( respath.empty() )
+	{
+		m_requested = nullptr;
+		m_active = nullptr;
+	}
+	else
+	{
+		BeResMan->GetResource( respath, "", m_requested );
+	}
 }
 
 const char* Tr2LodResource::GetName() const

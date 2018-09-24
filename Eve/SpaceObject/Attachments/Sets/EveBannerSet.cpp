@@ -159,6 +159,10 @@ void EveBannerSet::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType
 	for( auto it = m_associatedResources.begin(); it != m_associatedResources.end(); ++it )
 	{
 		( *it )->SelectLod( m_lod );
+		if( !( *it )->GetResource() )
+		{
+			return;
+		}
 	}
 	if( !m_isVisible )
 	{
