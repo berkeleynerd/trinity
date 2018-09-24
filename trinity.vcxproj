@@ -2628,6 +2628,7 @@
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayCurveSet.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayMeshAnimation.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.h" />
+    <ClInclude Include="Controllers\Actions\Tr2ActionSetShaderOption.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionSetValue.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionSpawnParticles.h" />
     <ClInclude Include="Controllers\Finalizers\ITr2StateMachineStateFinalizer.h" />
@@ -2903,6 +2904,7 @@
     <ClInclude Include="Resources\TexturePipeline\Tr2TexturePipelineStepLimitSize.h" />
     <ClInclude Include="Resources\TexturePipeline\Tr2TexturePipelineStepLoad.h" />
     <ClInclude Include="Resources\TexturePipeline\Tr2TexturePipelineStepPack.h" />
+    <ClInclude Include="Shader\IShaderConfigurer.h" />
     <ClInclude Include="Shader\Tr2Effect.h" />
     <ClInclude Include="Shader\Tr2EffectDescription.h" />
     <ClInclude Include="Shader\Tr2EffectStateManager.h" />
@@ -3184,6 +3186,8 @@
     <ClCompile Include="Controllers\Actions\Tr2ActionPlayMeshAnimation_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionResetClipSphereCenter_Blue.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionSetShaderOption.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionSetShaderOption_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionSetValue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionSetValue_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionSpawnParticles.cpp" />
