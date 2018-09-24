@@ -356,3 +356,11 @@ void EvePlaneSet::RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& par
 		}
 	}
 }
+
+void EvePlaneSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if( nullptr != m_effect )
+	{
+		m_effect->SetOption( name, value );
+	}
+}

@@ -26,6 +26,7 @@
 #include "Tr2ImpostorManager.h"
 #include "Tr2DebugRenderer.h"
 #include "ITr2CurveSetOwner.h"
+#include "Shader/IShaderConfigurer.h"
 
 // consts
 #define EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT (0.f)
@@ -148,7 +149,8 @@ BLUE_CLASS( EveSpaceObject2 ):
 	public ITr2DebugRenderable,
 	public IListNotify,
 	public ITr2CurveSetOwner,
-	public IEveEffectChildrenOwner
+	public IEveEffectChildrenOwner,
+	public IShaderConfigurer
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -369,6 +371,8 @@ public:
 	void SetControllerVariable( const char* name, float value );
 	void StartControllers();
 	std::map<std::string, float> GetControllerVariables() const;
+
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 protected:
 	// LODing

@@ -707,3 +707,12 @@ void EveEffectRoot2::RemoveFromEffectChildrenList( IEveSpaceObjectChild* child )
 		m_effectChildren.Remove( index );
 	}
 }
+
+void EveEffectRoot2::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	for ( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
+	{
+		IEveSpaceObjectChild *child = *it;
+		child->SetShaderOption( name, value );
+	}
+}

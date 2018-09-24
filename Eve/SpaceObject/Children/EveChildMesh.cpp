@@ -257,3 +257,11 @@ bool EveChildMesh::IsAlwaysOn() const
 	return true;
 }
 
+void EveChildMesh::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if ( nullptr != m_mesh )
+	{
+		m_mesh->SetShaderOption( name, value );
+	}
+}
+

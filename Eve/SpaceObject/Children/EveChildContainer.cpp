@@ -73,6 +73,15 @@ void EveChildContainer::OnListModified( long event, ssize_t key, ssize_t key2, I
 	}
 }
 
+void EveChildContainer::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	for ( auto it = m_objects.begin(); it != m_objects.end(); ++it )
+	{
+		IEveSpaceObjectChild *child = *it;
+		child->SetShaderOption( name, value );
+	}
+}
+
 const char* EveChildContainer::GetName() const
 {
 	return m_name.c_str();

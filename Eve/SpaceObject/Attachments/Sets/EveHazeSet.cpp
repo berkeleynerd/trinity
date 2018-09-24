@@ -292,3 +292,11 @@ void EveHazeSet::RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& pare
 		}
 	}
 }
+
+void EveHazeSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if ( nullptr != m_effect )
+	{
+		m_effect->SetOption( name, value );
+	}
+}

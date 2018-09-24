@@ -66,6 +66,25 @@ bool EveMeshOverlayEffect::HasTransparentArea() const
 	return !m_transparentEffects.empty();
 }
 
+inline void SetIndividualShaderOption( const PTr2EffectVector& effectVector, const BlueSharedString& name, const BlueSharedString& value )
+{
+	for (auto it = effectVector.begin(); it != effectVector.end(); ++it)
+	{
+		Tr2Effect *effect = *it;
+		effect->SetOption( name, value );
+	}
+}
+
+void EveMeshOverlayEffect::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	SetIndividualShaderOption( m_opaqueEffects, name, value );
+	SetIndividualShaderOption( m_decalEffects, name, value );
+	SetIndividualShaderOption( m_transparentEffects, name, value );
+	SetIndividualShaderOption( m_additiveEffects, name, value );
+	SetIndividualShaderOption( m_distortionEffects, name, value );
+}
+
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   GetEffect. 

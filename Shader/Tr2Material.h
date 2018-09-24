@@ -91,6 +91,8 @@ public:
 	uint32_t GetSortValue() const;
 	Tr2Shader* GetShaderStateInterface() const;
 
+	virtual void SetOption( const BlueSharedString& name, const BlueSharedString& value ) {}
+
 	Tr2EffectPassParameters* GetPassDescription( uint32_t techniqueIndex, uint32_t passIndex );
 protected:
 	bool ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const;

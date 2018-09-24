@@ -60,6 +60,8 @@ public:
 	const Tr2MeshAreaVector* GetAreas( TriBatchType areaType ) const;
 	void CollectAreaBlocks( std::vector<TriRenderBatchAreaBlock>& areaBlockVector, TriBatchType areaType ) const;
 
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value );
+
 	int GetMeshIndex() const { return m_meshIndex; };
 
 	virtual float CalcMeshSortValue( const Matrix& worldTransform );

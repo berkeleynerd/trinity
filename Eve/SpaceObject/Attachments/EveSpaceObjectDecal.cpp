@@ -350,6 +350,14 @@ void EveSpaceObjectDecal::SetEffect( Tr2EffectPtr newEffect )
 	m_decalEffect = newEffect;
 }
 
+void EveSpaceObjectDecal::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if( nullptr != m_decalEffect )
+	{
+		m_decalEffect->SetOption( name, value );
+	}
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Returns the center position of this decal

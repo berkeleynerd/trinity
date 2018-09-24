@@ -47,6 +47,8 @@ public:
 	// do we have transparent areas?
 	bool HasTransparentArea() const;
 
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value );
+
 private:
 	// general data
 	bool m_display;

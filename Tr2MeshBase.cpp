@@ -339,3 +339,18 @@ void Tr2MeshBase::CollectAreaBlocks( std::vector<TriRenderBatchAreaBlock>& colle
 	}
 }
 
+void Tr2MeshBase::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	const auto length = TRIBATCHTYPE_COUNT_OF_BATCH_TYPES;
+	for ( auto i = 0; i < length; ++i )
+	{
+		const auto tribatchType = static_cast<TriBatchType>( i );
+		const auto area = GetAreas( tribatchType );
+		for ( auto itInner = area->begin(); itInner != area->end(); ++itInner )
+		{
+			const Tr2MeshArea *area = *itInner;
+			const auto material = area->GetMaterialInterface();
+			material->SetOption( name, value );
+		}
+	}
+}

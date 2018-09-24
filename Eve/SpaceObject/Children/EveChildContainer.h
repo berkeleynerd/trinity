@@ -32,7 +32,8 @@ BLUE_CLASS( EveChildContainer ) :
 	public IInitialize,
 	public IListNotify,
 	public IEveEffectChildrenOwner,
-	public ITr2DebugRenderable
+	public ITr2DebugRenderable,
+	public IShaderConfigurer
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -47,6 +48,10 @@ public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IListNotify
 	virtual void OnListModified( long event, ssize_t key, ssize_t key2, IRoot* value, const IList* list );
+
+	//////////////////////////////////////////////////////////////////////////////////////
+	// IEveSpaceObjectChild
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveEffectChildrenOwner

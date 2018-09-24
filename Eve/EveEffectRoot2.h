@@ -14,6 +14,7 @@
 #include "Include/ITriTargetable.h"
 #include "Tr2DebugRenderer.h"
 #include "ITr2CurveSetOwner.h"
+#include "Shader/IShaderConfigurer.h"
 
 BLUE_DECLARE( Tr2PointLight );
 BLUE_DECLARE_VECTOR( Tr2PointLight );
@@ -31,7 +32,9 @@ BLUE_CLASS( EveEffectRoot2 ):
 	public ITr2DebugRenderable,
 	public ITr2CurveSetOwner,
 	public IListNotify,
-	public IEveEffectChildrenOwner
+	public IEveEffectChildrenOwner,
+	public IShaderConfigurer
+
 {
 public:
     EXPOSE_TO_BLUE();
@@ -96,6 +99,7 @@ public:
 	IEveSpaceObjectChildPtr GetEffectChildByName( const char* name ) const;
 	void AddToEffectChildrenList( IEveSpaceObjectChild* child );
 	void RemoveFromEffectChildrenList( IEveSpaceObjectChild* child );
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2DebugRenderable

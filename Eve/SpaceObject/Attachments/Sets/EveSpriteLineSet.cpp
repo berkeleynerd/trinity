@@ -252,4 +252,12 @@ void EveSpriteLineSet::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const M
 	quadRenderer.AddQuads( m_effectHash, &m_buffer[0], m_buffer.size() );
 }
 
+void EveSpriteLineSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if( nullptr != m_effect )
+	{
+		m_effect->SetOption( name, value );
+	}
+}
+
 

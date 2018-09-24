@@ -244,6 +244,14 @@ void EveBannerSet::RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& pa
 	}
 }
 
+void EveBannerSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if( nullptr != m_effect )
+	{
+		m_effect->SetOption( name, value );
+	}
+}
+
 void EveBannerSet::AddBanner( const EveBannerItem& banner )
 {
 	m_banners.Append( &banner );

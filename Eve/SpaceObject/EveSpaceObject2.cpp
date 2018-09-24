@@ -2973,6 +2973,42 @@ std::map<std::string, float> EveSpaceObject2::GetControllerVariables() const
 	return result;
 }
 
+void EveSpaceObject2::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if ( nullptr != m_mesh )
+	{
+		m_mesh->SetShaderOption( name, value );
+	} 
+	else if ( nullptr != m_meshLod )
+	{
+		m_meshLod->SetShaderOption( name, value );
+	}
+
+	for ( auto it = m_overlayEffects.begin(); it != m_overlayEffects.end(); ++it )
+	{
+		EveMeshOverlayEffect *overlay = *it;
+		overlay->SetShaderOption( name, value );
+	}
+
+	for ( auto it = m_decals.begin(); it != m_decals.end(); ++it )
+	{
+		EveSpaceObjectDecal *decal = *it;
+		decal->SetShaderOption( name, value );
+	}
+
+	for ( auto it = m_attachments.begin(); it != m_attachments.end(); ++it )
+	{
+		IEveSpaceObjectAttachment *attachment = *it;
+		attachment->SetShaderOption( name, value );
+	}
+
+	for ( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
+	{
+		IEveSpaceObjectChild *child = *it;
+		child->SetShaderOption( name, value );
+	}
+}
+
 bool EveSpaceObject2::GetBoneList( const granny_matrix_3x4*& bones, size_t& boneCount ) const
 {
 	if( m_animationUpdater && m_animationUpdater->IsInitialized() )

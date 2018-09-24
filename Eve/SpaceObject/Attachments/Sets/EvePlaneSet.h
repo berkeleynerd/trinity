@@ -71,6 +71,8 @@ public:
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
 	virtual void RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
+
 	// access effect
 	void SetEffect( Tr2EffectPtr effect );
 
