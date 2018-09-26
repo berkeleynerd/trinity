@@ -214,10 +214,18 @@ void EveSwarmRenderable::GetPickingBatches( ITriRenderBatchAccumulator* batches,
 	}
 }
 
+void EveSwarmRenderable::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
+{
+	if( nullptr != m_shadowEffect )
+	{
+		m_shadowEffect->SetOption( name, value );
+	}
 
-
-
-
+	if( nullptr != m_mesh )
+	{
+		m_mesh->SetShaderOption( name, value );
+	}
+}
 
 
 EveSwarm::EveSwarm( IRoot* lockobj ) :
@@ -355,7 +363,7 @@ void EveSwarm::UpdateAsyncronous( EveUpdateContext& context )
 	{
 		m_squadBoundsMax = Vector3( 0, 0, 0 );
 		m_squadBoundsMin = Vector3( 0, 0, 0 );
-		if( m_renderables.size() > 0 )
+		if( !m_renderables.empty() )
 		{
 			m_renderables[0]->SetWorldTransform( m_worldTransform );
 			EveShip2::UpdateBoosters( context );
@@ -841,9 +849,9 @@ void EveSwarm::AddSwarmer()
 // --------------------------------------------------------------------------------
 Vector3 EveSwarm::RemoveSwarmer()
 {
-	if( m_vehicles.size() < 1 )
+	if( m_vehicles.empty() )
 	{
-		return Vector3( 0, 0, 0 );
+		return Vector3(0, 0, 0);
 	}
 
 	SwarmVehicle v = m_vehicles[m_targetIndex];
@@ -997,16 +1005,16 @@ bool EveSwarm::GetDamageLocatorPosition( Vector3* out, int index, bool inWorldSp
 // --------------------------------------------------------------------------------
 Vector3 EveSwarm::CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, const Vector3& followPosition, const Vector3& centerOfMass, const Vector3& alignment, const Vector3& formationDirection, const Vector3& formationSide, float timeSeconds )
 {
-	Vector3 force( 0, 0, 0 ), wander, separation( 0, 0, 0 ), align, cohesion, anchor, decelerate, formation;
+	Vector3 force( 0, 0, 0 ), separation( 0, 0, 0 );
 
-	wander = m_behavior.m_weightWander * Calculate_Wander( swarmers[i0], m_behavior.m_wanderDistance, m_behavior.m_wanderRadius, m_behavior.m_wanderFluctuation, timeSeconds );
-	cohesion = m_behavior.m_weightCohesion * Calculate_Cohesion( swarmers[i0].position, centerOfMass );
-	anchor = Calculate_Cohesion( swarmers[i0].position, followPosition );
-	float anchorDistance = Length( anchor ); 
+	auto wander = m_behavior.m_weightWander * Calculate_Wander( swarmers[i0], m_behavior.m_wanderDistance, m_behavior.m_wanderRadius, m_behavior.m_wanderFluctuation, timeSeconds );
+	auto cohesion = m_behavior.m_weightCohesion * Calculate_Cohesion( swarmers[i0].position, centerOfMass );
+	auto anchor = Calculate_Cohesion( swarmers[i0].position, followPosition );
+	auto anchorDistance = Length( anchor ); 
 	anchorDistance = TriLinearize( m_behavior.m_anchorRadius0, m_behavior.m_anchorRadius1, anchorDistance );
 	anchor = anchorDistance * m_behavior.m_weightAnchor * anchor;
-	align = m_behavior.m_weightAlign * alignment;
-	decelerate = swarmers[i0].velocity * -m_behavior.m_weightDecelerate;
+	auto align = m_behavior.m_weightAlign * alignment;
+	auto decelerate = swarmers[i0].velocity * -m_behavior.m_weightDecelerate;
 	decelerate = ClampLength( decelerate, m_behavior.m_maxDeceleration );
 
 	for( unsigned i = 0; i < swarmers.size(); i++ )
@@ -1021,18 +1029,18 @@ Vector3 EveSwarm::CalculateForces( int i0, std::vector<SwarmVehicle>& swarmers, 
 	Vector3 formationPosition = m_vehicles[0].position + formationDirection * m_behavior.m_formationDistance * (float)m_vehicles.size() * 0.25f;
 	if( i0 && i0 & 1 )
 	{
-		float rankMultiplier = floor( 0.5f * (float)i0 + 0.5f );
+		float rankMultiplier = floor( 0.5f * static_cast<float>( i0 ) + 0.5f );
 		formationPosition = formationPosition - formationDirection * m_behavior.m_formationDistance * rankMultiplier + formationSide * m_behavior.m_formationDistance * rankMultiplier * 0.5f;
 	}
 	else if( i0 )
 	{
-		float rankMultiplier = floor( 0.5f * (float)i0 + 0.5f );
+		float rankMultiplier = floor( 0.5f * static_cast<float>( i0 ) + 0.5f );
 		formationPosition = formationPosition - formationDirection * m_behavior.m_formationDistance * rankMultiplier - formationSide * m_behavior.m_formationDistance * rankMultiplier * 0.5f;
 	}
-	formation = m_behavior.m_weightFormation * Calculate_Cohesion( swarmers[i0].position, formationPosition );
+	auto formation = m_behavior.m_weightFormation * Calculate_Cohesion( swarmers[i0].position, formationPosition );
 	
 	// Debug info
-	if( m_debugShowForces && m_debugInfo.size() > (unsigned)i0 )
+	if( m_debugShowForces && m_debugInfo.size() > static_cast<unsigned>( i0 ) )
 	{
 		m_debugInfo[i0].alignment = align;
 		m_debugInfo[i0].anchor = anchor;
@@ -1064,7 +1072,7 @@ inline Vector3 EveSwarm::Calculate_Separation( Vector3 p0, Vector3 p1 )
 	float length = Length( d );
 	if( length == 0.f )
 	{
-		return Vector3( TriRand() - 0.5f, TriRand() - 0.5f, TriRand() - 0.5f );
+		return Vector3(TriRand() - 0.5f, TriRand() - 0.5f, TriRand() - 0.5f);
 	}
 	return Normalize( d ) * m_behavior.m_separationDistance / length;
 }

@@ -19,23 +19,24 @@ BLUE_DECLARE( EveSwarm );
 
 BLUE_CLASS( EveSwarmRenderable ) :
 	public ITr2Renderable,
-	public ITr2Pickable
+	public ITr2Pickable,
+	public IShaderConfigurer
 {
 public:
 	EXPOSE_TO_BLUE();
 
-	EveSwarmRenderable( IRoot* lockobj = NULL );
+	explicit EveSwarmRenderable( IRoot* lockobj = nullptr );
 	~EveSwarmRenderable();
 	
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2Renderable
-	void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
-	void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData );
+	void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData ) override;
+	void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData ) override;
 
-    bool HasTransparentBatches();
-    float GetSortValue(); 
+    bool HasTransparentBatches() override;
+    float GetSortValue() override; 
 
-	Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator );
+	Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator ) override;
 	
 	/////////////////////////////////////////////////////////////////////////////////////
 	// PerObjectData
@@ -53,8 +54,10 @@ public:
 	
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2Pickable
-	IRoot* GetID( uint16_t );
-	void GetPickingBatches( ITriRenderBatchAccumulator* batches, Tr2PickTypes pickTypes, const Tr2PerObjectData* perObjectData );
+	IRoot* GetID( uint16_t ) override;
+	void GetPickingBatches( ITriRenderBatchAccumulator* batches, Tr2PickTypes pickTypes, const Tr2PerObjectData* perObjectData ) override;
+
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 private:
 	Tr2MeshBasePtr m_mesh;
@@ -72,7 +75,6 @@ BLUE_DECLARE_VECTOR( EveSwarmRenderable );
 
 struct SwarmVehicle
 {
-public:
 	SwarmVehicle() :
 		rotation( 0, 0, 0, 1 ),
 		acceleration( 0, 0, 0 ),
@@ -103,7 +105,7 @@ BLUE_CLASS( EveSwarm ) :
 public:
 	EXPOSE_TO_BLUE();
 
-	EveSwarm( IRoot* lockobj = NULL );
+	explicit EveSwarm( IRoot* lockobj = nullptr );
 	~EveSwarm();
 	
 	/////////////////////////////////////////////////////////////////////////////////////

@@ -15,6 +15,7 @@
 
 // needed for override
 #include "Tr2PerObjectData.h"
+#include "Shader/IShaderConfigurer.h"
 
 // forwards
 class TriFrustum;
@@ -48,7 +49,7 @@ const float EVE_TURRET_RANDOM_DELAY_MAX = 0.6f;
 class EveTurretSetPerObjectData : public Tr2PerObjectData
 {
 public:
-	virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const;
+	void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const override;
 
 	// vs per object data
 	Vector4 m_baseCutoffData;
@@ -86,7 +87,8 @@ BLUE_CLASS( EveTurretSet ):
 	public ITr2GeometryProvider,
 	public IBlueAsyncResNotifyTarget,
 	public Tr2DeviceResource,
-	public ITr2Renderable
+	public ITr2Renderable,
+	public IShaderConfigurer
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -94,7 +96,7 @@ public:
 	using IInitialize::Unlock;
 	using IInitialize::Lock;
 
-	EveTurretSet(IRoot* lockobj = NULL);
+	explicit EveTurretSet(IRoot* lockobj = nullptr);
 	~EveTurretSet();
 
 	//////////////////////////////////////////////////////////////////////////////////////
@@ -109,34 +111,34 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
-	bool Initialize();
+	bool Initialize() override;
 	
 	//////////////////////////////////////////////////////////////////////////
 	// INotify
-	bool OnModified( Be::Var* val );
+	bool OnModified( Be::Var* value ) override;
 	
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITr2GeometryProvider
-	virtual void SubmitGeometry( Tr2RenderContext& renderContext );
+	void SubmitGeometry( Tr2RenderContext& renderContext ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2Renderable
-	virtual bool HasTransparentBatches();
-	virtual void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
-	virtual void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData );
-	virtual float GetSortValue();
-	virtual Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator );
+	bool HasTransparentBatches() override;
+	void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData ) override;
+	void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData ) override;
+	float GetSortValue() override;
+	Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* accumulator ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IBlueAsyncResNotifyTarget
-	virtual void ReleaseCachedData( BlueAsyncRes* p );
-	virtual void RebuildCachedData( BlueAsyncRes* p );
+	void ReleaseCachedData( BlueAsyncRes* p ) override;
+	void RebuildCachedData( BlueAsyncRes* p ) override;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITriDeviceResource
-	virtual void ReleaseResources( TriStorage s );
+	void ReleaseResources( TriStorage s ) override;
 private:
-	bool OnPrepareResources();
+	bool OnPrepareResources() override;
 
 public:
 	// set local position
@@ -176,8 +178,8 @@ public:
 
 	// get locator names
 	const char* GetLocatorName() const;
-	const int GetSlotNumber() const;
-	const unsigned int GetSwarmID() const { return m_swarmID; }
+	int GetSlotNumber() const;
+	unsigned int GetSwarmID() const { return m_swarmID; }
 
 	bool GetLocalBoundingBox( Vector3& aabbMin, Vector3& aabbMax );
 
@@ -191,6 +193,7 @@ public:
 	size_t MissQueueSize() const;
 
 	void GetLights( Tr2LightManager& lightManager ) const;
+	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 	// turret LOD
 	enum LOD

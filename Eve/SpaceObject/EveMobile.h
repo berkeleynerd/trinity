@@ -26,7 +26,7 @@ BLUE_CLASS( EveMobile ) :
 public:
 	EXPOSE_TO_BLUE();
 
-	EveMobile( IRoot* lockobj = NULL );
+	explicit EveMobile( IRoot* lockobj = nullptr );
 	~EveMobile();
 
 	using IInitialize::Lock;
@@ -34,33 +34,33 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
-	bool Initialize();
+	bool Initialize() override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// INotify
-	virtual bool OnModified( Be::Var* value );
+	bool OnModified( Be::Var* value ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// Overrides of EveSpaceObject2 implementations
-	virtual void UpdateSyncronous( EveUpdateContext& updateContext );
-	virtual void UpdateAsyncronous( EveUpdateContext& updateContext );
-	virtual void PrepareShaderData( EveUpdateContext& updateContext );
-	virtual void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
-	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors );
-	virtual bool GetLocalBoundingBox( Vector3 &min, Vector3 &max );
-	virtual void GetLights(Tr2LightManager& lightManager) const;
+	void UpdateSyncronous( EveUpdateContext& updateContext ) override;
+	void UpdateAsyncronous( EveUpdateContext& updateContext ) override;
+	void PrepareShaderData( EveUpdateContext& updateContext ) override;
+	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform ) override;
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* impostors ) override;
+	bool GetLocalBoundingBox( Vector3 &min, Vector3 &max ) override;
+	void GetLights(Tr2LightManager& lightManager) const override;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveShadowCaster - overriding EveSpaceObject2 implementations
-	virtual bool GetRenderablesCastingShadow( bool isSelf, const TriFrustumOrtho& frustum, std::vector<ITr2Renderable*>& renderables );
+	bool GetRenderablesCastingShadow( bool isSelf, const TriFrustumOrtho& frustum, std::vector<ITr2Renderable*>& renderables ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IListNotify
-	void OnListModified( long event, ssize_t key, ssize_t key2, IRoot* value, const IList* theList );
+	void OnListModified( long event, ssize_t key, ssize_t key2, IRoot* value, const IList* theList ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2DebugRenderable
-    virtual void RenderDebugInfo( Tr2DebugRenderer& renderer );
+	void RenderDebugInfo( Tr2DebugRenderer& renderer ) override;
 
 	// re-positions all attached turrets to the corresponding locators
 	void RebuildTurretPositions();
@@ -69,6 +69,8 @@ public:
 	// Asynch update for turret sets
 	virtual void UpdateTurretsAsyncronous( EveUpdateContext& updateContext );
 
+	void SetShaderOption(const BlueSharedString& name, const BlueSharedString& value) override;
+
     /////////////////////////////////////////////////////////////////////////////////////
 	// clip sphere modification
 	void ResetClipSphereCenter();
@@ -76,7 +78,7 @@ public:
 protected:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// children
-	virtual bool DisplayChildren() const;
+	bool DisplayChildren() const override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// activation
