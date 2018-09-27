@@ -31,6 +31,7 @@ public:
 private:
 	ITr2ControllerPtr m_controller;
 	std::string m_path;
+	IRoot* m_owner;
 };
 
 TYPEDEF_BLUECLASS( Tr2ControllerReference );

@@ -3,6 +3,7 @@
 
 
 Tr2ControllerReference::Tr2ControllerReference( IRoot* )
+	:m_owner( nullptr )
 {
 }
 
@@ -23,6 +24,10 @@ bool Tr2ControllerReference::OnModified( Be::Var* value )
 		if( !m_path.empty() )
 		{
 			m_controller = BeResMan->LoadObject<ITr2Controller>( m_path.c_str() );
+			if( m_controller && m_owner )
+			{
+				m_controller->Link( *m_owner );
+			}
 		}
 	}
 	return true;
@@ -30,6 +35,7 @@ bool Tr2ControllerReference::OnModified( Be::Var* value )
 
 void Tr2ControllerReference::Link( IRoot& owner )
 {
+	m_owner = &owner;
 	if( m_controller )
 	{
 		m_controller->Link( owner );
@@ -38,6 +44,7 @@ void Tr2ControllerReference::Link( IRoot& owner )
 
 void Tr2ControllerReference::Unlink()
 {
+	m_owner = nullptr;
 	if( m_controller )
 	{
 		m_controller->Unlink();
