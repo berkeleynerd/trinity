@@ -78,6 +78,9 @@
     <ClInclude Include="ITr2SkinnedObject.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="ITr2SoundEmitterOwner.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
     <ClInclude Include="ITr2TextureProvider.h">
       <Filter>Source Files</Filter>
     </ClInclude>
@@ -475,6 +478,9 @@
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClInclude>
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayMeshAnimation.h">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClInclude>
+    <ClInclude Include="Controllers\Actions\Tr2ActionPlaySound.h">
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClInclude>
     <ClInclude Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.h">
@@ -901,6 +907,9 @@
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITr2Scene.h">
+      <Filter>Source Files\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\ITr2SoundEmitter.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITr2Updateable.h">
@@ -2134,6 +2143,12 @@
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClCompile>
     <ClCompile Include="Controllers\Actions\Tr2ActionPlayMeshAnimation_Blue.cpp">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Actions\Tr2ActionPlaySound.cpp">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Actions\Tr2ActionPlaySound_Blue.cpp">
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClCompile>
     <ClCompile Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.cpp">

@@ -2494,6 +2494,7 @@
     <ClInclude Include="ITr2PickableScene.h" />
     <ClInclude Include="ITr2Renderable.h" />
     <ClInclude Include="ITr2SkinnedObject.h" />
+    <ClInclude Include="ITr2SoundEmitterOwner.h" />
     <ClInclude Include="ITr2TextureProvider.h" />
     <ClInclude Include="ITr2VisibilityQueryable.h" />
     <ClInclude Include="ITr2VisualizationModeRenderer.h" />
@@ -2627,6 +2628,7 @@
     <ClInclude Include="Controllers\Actions\Tr2ActionOverlay.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayCurveSet.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayMeshAnimation.h" />
+    <ClInclude Include="Controllers\Actions\Tr2ActionPlaySound.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionSetShaderOption.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionSetValue.h" />
@@ -2769,6 +2771,7 @@
     <ClInclude Include="Include\ITr2Interior.h" />
     <ClInclude Include="Include\ITr2MultiPassScene.h" />
     <ClInclude Include="Include\ITr2Scene.h" />
+    <ClInclude Include="Include\ITr2SoundEmitter.h" />
     <ClInclude Include="Include\ITr2Updateable.h" />
     <ClInclude Include="Include\ITr2ValueBinding.h" />
     <ClInclude Include="Include\ITriColor.h" />
@@ -3184,6 +3187,8 @@
     <ClCompile Include="Controllers\Actions\Tr2ActionPlayCurveSet_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionPlayMeshAnimation.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionPlayMeshAnimation_Blue.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionPlaySound.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionPlaySound_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionResetClipSphereCenter.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionResetClipSphereCenter_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionSetShaderOption.cpp" />
