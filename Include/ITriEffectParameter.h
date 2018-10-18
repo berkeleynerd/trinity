@@ -41,6 +41,8 @@ TYPEDEF_BLUECLASS( ITriEffectParameterDict );
 
 BLUE_INTERFACE(ITriEffectResourceParameter) : public ITriEffectParameter
 {
+	virtual void OnAddedToMaterial( Tr2Material* material ) {}
+	virtual void OnRemovedFromMaterial( Tr2Material* material ) {}
 };
 BLUE_DECLARE_IVECTOR( ITriEffectResourceParameter );
 

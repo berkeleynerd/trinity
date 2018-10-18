@@ -290,6 +290,11 @@ Tr2Effect::~Tr2Effect()
 {
 	Tr2Renderer::UnregisterEffect( this );
 
+	for( auto it = begin( m_resources ); it != end( m_resources ); ++it )
+	{
+		( *it )->OnRemovedFromMaterial( this );
+	}
+
 	if( m_effectResource )
 	{
 		ReleaseCachedData( m_effectResource );
@@ -388,6 +393,11 @@ static bool ConvertEffectPath( const std::string& path, std::string& actualPath 
 bool Tr2Effect::Initialize()
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+
+	for( auto it = begin( m_resources ); it != end( m_resources ); ++it )
+	{
+		( *it )->OnAddedToMaterial( this );
+	}
 
 	if( m_effectResource )
 	{
@@ -858,27 +868,27 @@ void Tr2Effect::OnListModified( long event, ssize_t key, ssize_t key2, IRoot* cu
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
-	if( m_insideStartUpdate )
-	{
-		return;
-	}
-
 	if( (event & BELIST_LOADING) == 0  )
 	{
 		switch( event & BELIST_EVENTMASK )
 		{
 			case BELIST_REMOVED:
+				if( ITriReroutablePtr rp = BlueCastPtr( currvalue ) )
 				{
-					ITriReroutablePtr rp( BlueCastPtr( currvalue ) );
-					if( rp )
-					{
-						rp->SetDestination( NULL, 0 );
-					}
+					rp->SetDestination( NULL, 0 );
+				}
+				if( ITriEffectResourceParameterPtr res = BlueCastPtr( currvalue ) )
+				{
+					res->OnRemovedFromMaterial( this );
 				}
 				RebuildCachedDataInternal();
 				break;
 
 			case BELIST_INSERTED:
+				if( ITriEffectResourceParameterPtr res = BlueCastPtr( currvalue ) )
+				{
+					res->OnAddedToMaterial( this );
+				}
 			case BELIST_SWAPPED:
 			case BELIST_MOVED:
 				RebuildCachedDataInternal();

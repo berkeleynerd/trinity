@@ -21,13 +21,24 @@ enum Tr2Lod {
 
 extern bool g_lodLevelUltraEnabled;
 
+
+BLUE_DECLARE( Tr2LodResource );
+
+struct ITr2LodResourceListener
+{
+	virtual void OnLodResourceChanged( Tr2LodResource* resource ) = 0;
+};
+
+
 BLUE_CLASS( Tr2LodResource ) : 
-	public INotify
+	public INotify,
+	public IBlueAsyncResNotifyTarget
 {
 public:
 	EXPOSE_TO_BLUE();
 
 	Tr2LodResource( IRoot* lockobj = nullptr );
+	~Tr2LodResource();
 
 	virtual bool OnModified( Be::Var* value );
 
@@ -40,13 +51,24 @@ public:
 
 	void SelectLod( Tr2Lod lod );
 
+	void AddNotifyTarget( ITr2LodResourceListener* p );
+	void RemoveNotifyTarget( ITr2LodResourceListener* p );
 protected:
+	void ReleaseCachedData( BlueAsyncRes* p ) override;
+	void RebuildCachedData( BlueAsyncRes* p ) override;
+
+	void SetRequested( IBlueResource* requested );
+	void SetActive( BlueAsyncRes* active );
+	void NotifyListeners();
+
 	BlueSharedString m_name;
 	std::string m_resPath[TR2_LOD_COUNT];
 	Tr2Lod m_currentLod;
 
-	IBlueResourcePtr m_active;
-	IBlueResourcePtr m_requested;
+	std::vector<ITr2LodResourceListener*> m_notifies;
+
+	BlueAsyncResPtr m_active;
+	BlueAsyncResPtr m_requested;
 };
 
 TYPEDEF_BLUECLASS( Tr2LodResource );

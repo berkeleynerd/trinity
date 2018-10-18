@@ -94,6 +94,8 @@ public:
 	virtual void SetOption( const BlueSharedString& name, const BlueSharedString& value ) {}
 
 	Tr2EffectPassParameters* GetPassDescription( uint32_t techniqueIndex, uint32_t passIndex );
+
+	void InvalidateResourceSets();
 protected:
 	bool ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const;
 

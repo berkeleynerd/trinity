@@ -158,3 +158,17 @@ Tr2EffectPassParameters* Tr2Material::GetPassDescription( uint32_t techniqueInde
 {
 	return m_parametersForPasses[techniqueIndex][passIndex].get();
 }
+
+void Tr2Material::InvalidateResourceSets()
+{
+	for( auto tit = begin( m_parametersForPasses ); tit != end( m_parametersForPasses ); ++tit )
+	{
+		for( auto pit = begin( *tit ); pit != end( *tit ); ++pit )
+		{
+			auto params = pit->get();
+			params->m_resourceSet = Tr2ResourceSetAL();
+			params->m_resourceSetDesc = Tr2ResourceSetDescriptionAL();
+			params->m_resourceSetDirty = true;
+		}
+	}
+}
