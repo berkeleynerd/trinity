@@ -230,9 +230,8 @@ void EveChildParticleSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 		{
 			if( m_minScreenSize > 0.f && m_lodSphereRadius > 0.f )
 			{
-				auto viewProj = Tr2Renderer::GetViewTransform() * Tr2Renderer::GetProjectionTransform();
 				TriFrustum frustum;
-				frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), Tr2Renderer::GetViewport() );
+				frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionRawTransform(), Tr2Renderer::GetViewport() );
 				if( frustum.GetPixelSizeAccross( &m_lodSphere ) < m_minScreenSize * g_eveSpaceSceneLODFactor )
 				{
 					emitCountFactor = 0.f;
