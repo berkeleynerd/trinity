@@ -201,11 +201,6 @@ BlueAsyncRes::LoadingResult Tr2AtlasTexture::DoLoad()
 	if( result )
 	{
 		m_loadedBitmap->ConvertFormat( PIXEL_FORMAT_B8G8R8A8_UNORM );
-		// Allow loading to a specific atlas by setting this before DoLoad
-		if( !m_textureAtlas )
-		{
-			m_textureAtlas = g_textureAtlasMan->FindAtlas( m_loadedBitmap->GetFormat() );
-		}
 	}
 	else
 	{
@@ -222,6 +217,11 @@ bool Tr2AtlasTexture::DoPrepare()
 	{
 		// In case we're reloading
 		m_textureAtlas->RemoveFromAtlas( this );
+	}
+	// Allow loading to a specific atlas by setting this before DoLoad
+	if( !m_textureAtlas )
+	{
+		m_textureAtlas = g_textureAtlasMan->FindAtlas( m_loadedBitmap->GetFormat() );
 	}
 
 	m_texture = Tr2TextureAL();
