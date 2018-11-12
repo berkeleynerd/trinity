@@ -47,5 +47,10 @@ const Be::ClassInfo* Tr2Controller::ExposeToBlue()
 			"Handle the specified event\n"
 			":param name: event name"
 		)
+		MAP_METHOD_AND_WRAP(
+			"GetOwner",
+			GetOwner,
+			"Returns controller owner"
+		)
 	EXPOSURE_END()
 }

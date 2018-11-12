@@ -34,5 +34,16 @@ const Be::ClassInfo* Tr2ControllerReference::ExposeToBlue()
 			":jessica-favorite:\n"
 			":jessica-icon: timeline/stop.png"
 		)
+		MAP_METHOD_AND_WRAP(
+			"HandleEvent",
+			HandleEvent,
+			"Handle the specified event\n"
+			":param name: event name"
+		)
+		MAP_METHOD_AND_WRAP(
+			"GetOwner",
+			GetOwner,
+			"Returns controller owner"
+		)
 	EXPOSURE_END()
 }

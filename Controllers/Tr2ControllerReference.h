@@ -28,6 +28,9 @@ public:
 	virtual void Stop();
 	virtual void Update();
 	virtual void SetVariable( const char* name, float value );
+	void HandleEvent( const char* eventName ) override;
+
+	IRoot* GetOwner() const;
 private:
 	ITr2ControllerPtr m_controller;
 	std::string m_path;

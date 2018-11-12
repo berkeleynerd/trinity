@@ -82,3 +82,16 @@ void Tr2ControllerReference::SetVariable( const char* name, float value )
 		m_controller->SetVariable( name, value );
 	}
 }
+
+void Tr2ControllerReference::HandleEvent( const char* eventName )
+{
+	if( m_controller )
+	{
+		m_controller->HandleEvent( eventName );
+	}
+}
+
+IRoot* Tr2ControllerReference::GetOwner() const
+{
+	return m_owner;
+}
