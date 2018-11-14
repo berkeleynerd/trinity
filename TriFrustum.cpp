@@ -255,6 +255,10 @@ float TriFrustum::GetPixelSizeAccross( const Vector3& center, float radius ) con
 
 float TriFrustum::GetPixelSizeAccrossEst( const Vector3& center, float radius ) const
 {
+	if( radius <= 0 )
+	{
+		return 0;
+	}
 	Vector3 d( center - m_viewPos );
 	const float epsilon = 1e-5f;
 	float distance = std::max( epsilon, Length( d ) );
