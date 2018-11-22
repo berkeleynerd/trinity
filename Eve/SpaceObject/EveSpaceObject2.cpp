@@ -767,8 +767,17 @@ void EveSpaceObject2::RenderDebugInfo( Tr2DebugRenderer& renderer )
 	}
 }
 
-Matrix EveSpaceObject2::GetEveLocatorTransform( EveLocator2* locator ) const
+Matrix EveSpaceObject2::GetEveLocatorTransform( const char* name ) const
 {
+	EveLocator2* locator = nullptr;
+	for( auto it = begin( m_locators ); it != end( m_locators ); ++it )
+	{
+		if( strcmp( ( *it )->GetName(), name ) == 0 )
+		{
+			locator = *it;
+			break;
+		}
+	}
 	if( !locator )
 	{
 		return IdentityMatrix();

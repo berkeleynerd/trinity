@@ -390,7 +390,7 @@ public:
 	void ResetClipSphereCenter();
 	void ResetClipSphereCenterToPos( Vector3 center );
 
-	Matrix GetEveLocatorTransform( EveLocator2* locator ) const;
+	Matrix GetEveLocatorTransform( const char* name ) const;
 protected:
 	// LODing
 	void UnloadLodIfNeeded( Be::Time time );

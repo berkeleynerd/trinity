@@ -582,7 +582,7 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"GetLocatorTransform",
 			GetEveLocatorTransform,
 			"Returns locator to object transform (taking bone bindings in account)\n"
-			":param locator: locator belonging to this object"
+			":param locator: locator name belonging to this object"
 		)
 
 #if BLUE_WITH_PYTHON
