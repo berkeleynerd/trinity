@@ -87,6 +87,8 @@ public:
 	int GetMeshBoneCount() const;
 	const granny_matrix_3x4* GetMeshBoneMatrixList() const;
 
+	std::vector<std::string> GetAnimationNames() const;
+
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
 	bool Initialize();

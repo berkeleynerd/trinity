@@ -1303,34 +1303,34 @@ void Tr2GrannyAnimation::RemoveAnimationLayerBone( const char* layerName, const 
 	layer->RemoveBone( this, boneName );
 }
 
-namespace
+std::vector<std::string> Tr2GrannyAnimation::GetAnimationNames() const
 {
+	std::vector<std::string> names;
 
-template <typename T>
-bool CopyIndices( Tr2BufferAL& from, CcpMallocBuffer& to, uint32_t offset )
-{
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
-	auto ibOffset = to.size();
-	to.resize( "ib", to.size() + from.GetDesc().count * 4 );
-	if( !to.get() )
+	auto CopyNames = [&]( granny_file_info* f )
 	{
-		return false;
+		for( granny_int32 i = 0; i < f->AnimationCount; ++i )
+		{
+			names.push_back( f->Animations[i]->Name );
+		}
+	};
+
+	if( auto fi = GetFileInfo() )
+	{
+		CopyNames( fi );
 	}
 
-	const T* src;
-	if( FAILED( from.MapForReading( src, renderContext ) ) )
+	for( auto it = begin( m_secondaryGrannyRes ); it != end( m_secondaryGrannyRes ); ++it )
 	{
-		return false;
+		if( !it->second )
+		{
+			continue;
+		}
+		if( auto fi = GetSecondaryFileInfo( it->first, it->second ) )
+		{
+			CopyNames( fi );
+		}
 	}
 
-	uint32_t* dest = reinterpret_cast<uint32_t*>( to.get() + ibOffset );
-	for( uint32_t j = 0; j < from.GetDesc().count; ++j )
-	{
-		*dest++ = offset + *src++;
-	}
-	from.UnmapForReading( renderContext );
-	return true;
-}
-
+	return names;
 }

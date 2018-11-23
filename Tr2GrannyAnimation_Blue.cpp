@@ -263,5 +263,7 @@ const Be::ClassInfo* Tr2GrannyAnimation::ExposeToBlue()
 			":param resPath: Path to secondary res file.\n"
 			":param index: Index of selected animation in res file."
 		)
+
+		MAP_METHOD_AND_WRAP( "GetAnimationNames", GetAnimationNames, "Returns all animation names" )
 	EXPOSURE_END()
 }
