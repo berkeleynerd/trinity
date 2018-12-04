@@ -393,3 +393,24 @@ const Be::ClassInfo* TriTextureRes::ExposeToBlue()
 #endif
 	EXPOSURE_CHAINTO( BlueAsyncRes )
 }
+
+namespace
+{
+	ALResult OpenSharedTexture( uint32_t handle, TriTextureRes*& result )
+	{
+		result = nullptr;
+
+		TriTextureResPtr ptr;
+		ptr.CreateInstance();
+		CR_RETURN_HR( ptr->OpenShared( handle ) );
+		result = ptr.Detach();
+		return ALResult( S_OK );
+	}
+}
+
+MAP_FUNCTION_AND_WRAP( 
+	"OpenSharedTexture", 
+	OpenSharedTexture, 
+	"Creates a TriTextureRes object that has access to a previously created shared texture.\n" 
+	":para handle: shared handle of the texture\n"
+);

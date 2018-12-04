@@ -763,6 +763,32 @@ bool TriTextureRes::Create(	uint32_t width,
 	return true;
 }
 
+ALResult TriTextureRes::OpenShared( uintptr_t handle )
+{
+	m_ownTexture = Tr2TextureAL();
+	SetTexture( m_ownTexture );
+
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+
+	CR_RETURN_HR( m_ownTexture.OpenShared( handle, Tr2GpuUsage::SHADER_RESOURCE, renderContext ) );
+
+	*static_cast<Tr2BitmapDimensions*>( this ) = m_ownTexture.GetDesc();
+
+	m_memoryUse = 0;
+	auto trueMipCount = GetTrueMipCount();
+	for( uint32_t i = 0; i < trueMipCount; ++i )
+	{
+		m_memoryUse += GetMipSize( i );
+	}
+	m_memoryUse *= std::max( 1u, GetArraySize() );
+
+	CCP_STATS_ADD( textureResBytes, m_memoryUse );
+	SetTexture( m_ownTexture );
+	SetPrepared( true );
+	SetGood( true );
+	return S_OK;
+}
+
 // ---------------------------------------------------------------
 bool TriTextureRes::SetTexture( Tr2TextureAL& texture )
 {

@@ -92,6 +92,8 @@ public:
 					Tr2RenderContextEnum::BufferUsageFlags usage,
 					Tr2PrimaryRenderContext& renderContext );
 
+	ALResult OpenShared( uintptr_t handle );
+
 	bool SaveAsync( const wchar_t* filename );
 	bool Save( const wchar_t* filename );	// synchronous
 
