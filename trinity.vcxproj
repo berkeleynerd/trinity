@@ -2838,6 +2838,9 @@
     <ClInclude Include="Particle\Tr2SphereConstraint.h" />
     <ClInclude Include="Particle\Tr2SphereShapeAttributeGenerator.h" />
     <ClInclude Include="Particle\Tr2StaticEmitter.h" />
+    <ClInclude Include="PostProcess\Tr2PostProcess2.h" />
+    <ClInclude Include="PostProcess\Tr2PostProcessManager.h" />
+    <ClInclude Include="PostProcess\Effects\Tr2PPSignalLossEffect.h" />
     <ClInclude Include="RenderJob\ITriRenderStep.h" />
     <ClInclude Include="RenderJob\Tr2RenderJobs.h" />
     <ClInclude Include="RenderJob\TriRenderJob.h" />
@@ -3490,6 +3493,12 @@
     <ClCompile Include="Particle\Tr2SphereShapeAttributeGenerator_Blue.cpp" />
     <ClCompile Include="Particle\Tr2StaticEmitter.cpp" />
     <ClCompile Include="Particle\Tr2StaticEmitter_Blue.cpp" />
+    <ClCompile Include="PostProcess\Tr2PostProcess2.cpp" />
+    <ClCompile Include="PostProcess\Tr2PostProcess2_Blue.cpp" />
+    <ClCompile Include="PostProcess\Tr2PostProcessManager.cpp" />
+    <ClCompile Include="PostProcess\Tr2PostProcessManager_Blue.cpp" />
+    <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect.cpp" />
+    <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect_Blue.cpp" />
     <ClCompile Include="RenderJob\Tr2RenderJobs.cpp" />
     <ClCompile Include="RenderJob\Tr2RenderJobs_Blue.cpp" />
     <ClCompile Include="RenderJob\TriRenderJob.cpp" />

@@ -24,6 +24,8 @@
     <Filter Include="Source Files\Include" />
     <Filter Include="Source Files\Interior" />
     <Filter Include="Source Files\Particle" />
+    <Filter Include="Source Files\PostProcess" />
+    <Filter Include="Source Files\PostProcess\Effects" />
     <Filter Include="Source Files\RenderJob" />
     <Filter Include="Source Files\Resources" />
     <Filter Include="Source Files\Resources\TexturePipeline" />
@@ -1109,6 +1111,15 @@
     </ClInclude>
     <ClInclude Include="Particle\Tr2StaticEmitter.h">
       <Filter>Source Files\Particle</Filter>
+    </ClInclude>
+    <ClInclude Include="PostProcess\Tr2PostProcess2.h">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="PostProcess\Tr2PostProcessManager.h">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="PostProcess\Effects\Tr2PPSignalLossEffect.h">
+      <Filter>Source Files\PostProcess\Effects</Filter>
     </ClInclude>
     <ClInclude Include="RenderJob\ITriRenderStep.h">
       <Filter>Source Files\RenderJob</Filter>
@@ -3053,6 +3064,24 @@
     </ClCompile>
     <ClCompile Include="Particle\Tr2StaticEmitter_Blue.cpp">
       <Filter>Source Files\Particle</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Tr2PostProcess2.cpp">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Tr2PostProcess2_Blue.cpp">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Tr2PostProcessManager.cpp">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Tr2PostProcessManager_Blue.cpp">
+      <Filter>Source Files\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect.cpp">
+      <Filter>Source Files\PostProcess\Effects</Filter>
+    </ClCompile>
+    <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect_Blue.cpp">
+      <Filter>Source Files\PostProcess\Effects</Filter>
     </ClCompile>
     <ClCompile Include="RenderJob\Tr2RenderJobs.cpp">
       <Filter>Source Files\RenderJob</Filter>
