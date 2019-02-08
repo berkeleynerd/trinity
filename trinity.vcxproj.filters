@@ -1115,9 +1115,6 @@
     <ClInclude Include="PostProcess\Tr2PostProcess2.h">
       <Filter>Source Files\PostProcess</Filter>
     </ClInclude>
-    <ClInclude Include="PostProcess\Tr2PostProcessManager.h">
-      <Filter>Source Files\PostProcess</Filter>
-    </ClInclude>
     <ClInclude Include="PostProcess\Tr2PostProcessRenderInfo.h">
       <Filter>Source Files\PostProcess</Filter>
     </ClInclude>
@@ -1230,6 +1227,9 @@
       <Filter>Source Files\RenderJob</Filter>
     </ClInclude>
     <ClInclude Include="RenderJob\TriStepRenderPass.h">
+      <Filter>Source Files\RenderJob</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderJob\TriStepRenderPostProcess.h">
       <Filter>Source Files\RenderJob</Filter>
     </ClInclude>
     <ClInclude Include="RenderJob\TriStepRenderScene.h">
@@ -3083,12 +3083,6 @@
     <ClCompile Include="PostProcess\Tr2PostProcess2_Blue.cpp">
       <Filter>Source Files\PostProcess</Filter>
     </ClCompile>
-    <ClCompile Include="PostProcess\Tr2PostProcessManager.cpp">
-      <Filter>Source Files\PostProcess</Filter>
-    </ClCompile>
-    <ClCompile Include="PostProcess\Tr2PostProcessManager_Blue.cpp">
-      <Filter>Source Files\PostProcess</Filter>
-    </ClCompile>
     <ClCompile Include="PostProcess\Tr2PostProcessRenderInfo.cpp">
       <Filter>Source Files\PostProcess</Filter>
     </ClCompile>
@@ -3309,6 +3303,12 @@
       <Filter>Source Files\RenderJob</Filter>
     </ClCompile>
     <ClCompile Include="RenderJob\TriStepRenderPass_Blue.cpp">
+      <Filter>Source Files\RenderJob</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderJob\TriStepRenderPostProcess.cpp">
+      <Filter>Source Files\RenderJob</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderJob\TriStepRenderPostProcess_Blue.cpp">
       <Filter>Source Files\RenderJob</Filter>
     </ClCompile>
     <ClCompile Include="RenderJob\TriStepRenderScene.cpp">

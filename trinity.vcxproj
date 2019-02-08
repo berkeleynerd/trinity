@@ -2839,7 +2839,6 @@
     <ClInclude Include="Particle\Tr2SphereShapeAttributeGenerator.h" />
     <ClInclude Include="Particle\Tr2StaticEmitter.h" />
     <ClInclude Include="PostProcess\Tr2PostProcess2.h" />
-    <ClInclude Include="PostProcess\Tr2PostProcessManager.h" />
     <ClInclude Include="PostProcess\Tr2PostProcessRenderInfo.h" />
     <ClInclude Include="PostProcess\Effects\Tr2PPBloomEffect.h" />
     <ClInclude Include="PostProcess\Effects\Tr2PPEffect.h" />
@@ -2878,6 +2877,7 @@
     <ClInclude Include="RenderJob\TriStepRenderLineGraph.h" />
     <ClInclude Include="RenderJob\TriStepRenderObject.h" />
     <ClInclude Include="RenderJob\TriStepRenderPass.h" />
+    <ClInclude Include="RenderJob\TriStepRenderPostProcess.h" />
     <ClInclude Include="RenderJob\TriStepRenderScene.h" />
     <ClInclude Include="RenderJob\TriStepRenderSceneDebug.h" />
     <ClInclude Include="RenderJob\TriStepRenderTexture.h" />
@@ -3499,8 +3499,6 @@
     <ClCompile Include="Particle\Tr2StaticEmitter_Blue.cpp" />
     <ClCompile Include="PostProcess\Tr2PostProcess2.cpp" />
     <ClCompile Include="PostProcess\Tr2PostProcess2_Blue.cpp" />
-    <ClCompile Include="PostProcess\Tr2PostProcessManager.cpp" />
-    <ClCompile Include="PostProcess\Tr2PostProcessManager_Blue.cpp" />
     <ClCompile Include="PostProcess\Tr2PostProcessRenderInfo.cpp" />
     <ClCompile Include="PostProcess\Tr2PostProcessRenderInfo_Blue.cpp" />
     <ClCompile Include="PostProcess\Effects\Tr2PPBloomEffect.cpp" />
@@ -3575,6 +3573,8 @@
     <ClCompile Include="RenderJob\TriStepRenderObject_Blue.cpp" />
     <ClCompile Include="RenderJob\TriStepRenderPass.cpp" />
     <ClCompile Include="RenderJob\TriStepRenderPass_Blue.cpp" />
+    <ClCompile Include="RenderJob\TriStepRenderPostProcess.cpp" />
+    <ClCompile Include="RenderJob\TriStepRenderPostProcess_Blue.cpp" />
     <ClCompile Include="RenderJob\TriStepRenderScene.cpp" />
     <ClCompile Include="RenderJob\TriStepRenderSceneDebug.cpp" />
     <ClCompile Include="RenderJob\TriStepRenderSceneDebug_Blue.cpp" />
