@@ -51,18 +51,10 @@ public:
 	Tr2RenderTarget* GetRt2Buffer() { return m_rt2; };
 	Tr2RenderTarget* GetBlackBuffer() { return m_black; };
 
-	Tr2ShaderBuffer* GetShaderBuffer() { return m_shaderBuffer; }
-	
-	Tr2GpuBuffer* GetExposureBuffer() { return m_exposure; }
-	Tr2GpuBuffer* GetHistogramBuffer() { return m_histogram; }
-
-	void SetPerFrameData( Tr2ShaderBuffer* psData );
-
 
 private:
 	void CopySourceTo( Tr2RenderTarget* buffer, float sizeScale );
 	void CreateBuffers( uint32_t width, uint32_t height );
-	void CreateHistogram( uint32_t width, uint32_t height );
 
 	// Buffers
 	Tr2RenderTargetPtr m_sourceBuffer;
@@ -76,12 +68,6 @@ private:
 	Tr2RenderTargetPtr m_rt2;
 
 	Tr2RenderTargetPtr m_black;
-
-	Tr2ShaderBufferPtr m_shaderBuffer;
-
-	Tr2GpuBufferPtr m_exposure;
-	Tr2GpuBufferPtr m_histogram;
-
 };
 
 TYPEDEF_BLUECLASS( Tr2PostProcessRenderInfo );

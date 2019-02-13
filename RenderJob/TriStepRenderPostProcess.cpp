@@ -3,17 +3,25 @@
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Shader/Parameter/TriTextureParameter.h"
 
+const uint32_t HISTOGRAM_TILE_SIZE_X = 16;
+const uint32_t HISTOGRAM_TILE_SIZE_Y = 16;
+const uint32_t NUM_TILES_PER_THREAD_GROUP = 256;
 
-TriStepRenderPostProcess::TriStepRenderPostProcess( IRoot* lockobj )
+
+TriStepRenderPostProcess::TriStepRenderPostProcess( IRoot* lockobj ) :
+	m_quality( HIGH ),
+	m_tilesX(0), 
+	m_tilesY(0),
+	m_localHistogramCount(0),
+	m_mergeHistogramXDim(0)
 {
 	m_renderInfo.CreateInstance();
 	m_tonemappingEffect.CreateInstance();
 	m_tonemappingEffect->StartUpdate();
 	m_tonemappingEffect->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/ToneMapping.fx" );
-	m_tonemappingEffect->SetParameter( BlueSharedString( "Method" ), 3.0 );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "VignetteDetailScroll" ), Vector4( 0.0, 0.0, 0.0, 0.0 ) );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "GrainColorAmount" ), 0.600000023842 );
-	m_tonemappingEffect->SetParameter( BlueSharedString( "Tonemapping" ), 0.0 );
+	m_tonemappingEffect->SetParameter( BlueSharedString( "Tonemapping" ), 1.0 );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "Desaturate" ), 0.0 );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "VignetteColor" ), Vector4( 1.0, 1.0, 1.0, 1.0 ) );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "VignetteSineRange" ), Vector4( 0.0, 1.0, 0.0, 0.0 ) );
@@ -39,6 +47,12 @@ TriStepRenderPostProcess::TriStepRenderPostProcess( IRoot* lockobj )
 	m_tonemappingEffect->SetParameter( BlueSharedString( "VignetteIntensity" ), Vector4( 0.0, 0.0, 0.0, 0.0 ) );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "MinExposure" ), -1.0 );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "SaturationFactor" ), 1.0 );
+	m_tonemappingEffect->AddResourceTexture2D( BlueSharedString( "Grime" ), "res:/texture/global/black.dds" );
+	m_tonemappingEffect->AddResourceTexture2D( BlueSharedString( "TexLUT" ), "res:/dx9/scene/postprocess/LUTdefault.dds" );
+	m_tonemappingEffect->AddResourceTexture2D( BlueSharedString( "VignetteDetail" ), "res:/texture/global/white.dds" );
+	m_tonemappingEffect->AddResourceTexture2D( BlueSharedString( "VignetteShape" ), "res:/texture/global/black.dds" );
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), m_renderInfo->GetBlackBuffer() );
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), m_renderInfo->GetSourceBufferCopy() );
 
 	m_tonemappingEffect->EndUpdate();
 }
@@ -47,11 +61,22 @@ TriStepRenderPostProcess::~TriStepRenderPostProcess( void )
 {
 }
 
-void TriStepRenderPostProcess::py__init__( EveSpaceScene* scene, Tr2RenderTarget* source, Tr2ShaderBuffer* psData  )
+void TriStepRenderPostProcess::py__init__( EveSpaceScene* scene, Tr2RenderTarget* source  )
 {
 	m_scene = scene;
 	m_renderInfo->SetSourceBuffer( source );
-	m_renderInfo->SetPerFrameData( psData );
+	
+	if( source != nullptr )
+	{
+		m_tilesX = source->GetWidth() / HISTOGRAM_TILE_SIZE_X + 1;
+		m_tilesY = source->GetHeight() / HISTOGRAM_TILE_SIZE_Y + 1;
+		m_localHistogramCount = m_tilesX * m_tilesY * 16;
+		m_mergeHistogramXDim = m_tilesX * m_tilesY / NUM_TILES_PER_THREAD_GROUP + 1;
+	}
+
+	m_tonemappingEffect->StartUpdate();
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), m_renderInfo->GetSourceBufferCopy() );
+	m_tonemappingEffect->EndUpdate();
 }
 
 
@@ -82,20 +107,30 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 	}
 
 	Tr2PostProcess2Ptr postProcess = m_scene->GetPostProcess();
-
+	
 	Tr2PPGodRaysEffect* godrays = nullptr;
 	Tr2PPBloomEffect* bloom = nullptr;
 	Tr2PPSignalLossEffect* signalLoss= nullptr;
+	Tr2PPDynamicExposureEffectPtr dynamicExposure = nullptr;
 
 	if( postProcess != nullptr )
 	{
-		godrays = postProcess->GetGodRays();
-		bloom = postProcess->GetBloom();
-		signalLoss = postProcess->GetSignalLoss();
+		// filter by quality
+		switch( m_quality )
+		{
+		case HIGH:
+			godrays = postProcess->GetGodRays();
+#if TRINITY_PLATFORM != TRINITY_DIRECTX9
+			dynamicExposure = postProcess->GetDynamicExposure();
+#endif
+		case MEDIUM:
+			bloom = postProcess->GetBloom();
+		case LOW:
+			signalLoss = postProcess->GetSignalLoss();
+		default:
+			break;
+		}
 	}
-
-	Tr2RenderTarget* blitCurrent = m_renderInfo->GetBlackBuffer();
-
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 	
 	PushRenderTarget( renderContext );
@@ -114,16 +149,15 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 		sourceBuffer->GetRenderTarget().Resolve( *m_renderInfo->GetSourceBufferCopy(), renderContext );
 	}
 
+	if( ProcessDynamicExposure( dynamicExposure ) )
+	{
+		RenderDynamicExposure( renderContext, dynamicExposure );
+	}
+
 	if( ProcessBloom( bloom) )
 	{
 		RenderBloom( renderContext, bloom );
-		blitCurrent = m_renderInfo->GetRt1Buffer();
 	}
-
-	m_tonemappingEffect->StartUpdate();
-	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), m_renderInfo->GetSourceBufferCopy() );
-	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), blitCurrent );
-	m_tonemappingEffect->EndUpdate();
 
 	Tr2Renderer::DrawTexture( m_tonemappingEffect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
 	
@@ -162,6 +196,14 @@ bool TriStepRenderPostProcess::ProcessBloom( Tr2PPBloomEffect* bloom )
 		m_bloomVerticalBlur->SetParameter( BlueSharedString( "Direction" ), Vector2( 0, 1 ) );
 		m_bloomVerticalBlur->EndUpdate();
 
+		m_tonemappingEffect->StartUpdate();
+		m_tonemappingEffect->SetParameter( BlueSharedString( "BloomBrightness" ), bloom->m_bloomBrightness );
+		m_tonemappingEffect->SetParameter( BlueSharedString( "GrimeWeight" ), bloom->m_grimeWeight );
+		m_tonemappingEffect->AddResourceTexture2D( BlueSharedString( "GrimePath" ), bloom->m_grimePath.c_str() );
+		m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), m_renderInfo->GetRt1Buffer() );
+
+		m_tonemappingEffect->EndUpdate();
+
 		bloom->SetDirty( false );
 
 	}
@@ -173,6 +215,9 @@ bool TriStepRenderPostProcess::ProcessBloom( Tr2PPBloomEffect* bloom )
 			m_bloomHorizontalBlur = nullptr;
 			m_bloomVerticalBlur = nullptr;
 		}
+		m_tonemappingEffect->StartUpdate();
+		m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), m_renderInfo->GetBlackBuffer() );
+		m_tonemappingEffect->EndUpdate();
 	}
 
 	if( bloom && bloom->IsDirty() )
@@ -182,6 +227,16 @@ bool TriStepRenderPostProcess::ProcessBloom( Tr2PPBloomEffect* bloom )
 		m_bloomHighPassFilter->SetParameter( BlueSharedString( "LuminanceScale" ), bloom->m_luminanceScale );
 		m_bloomHighPassFilter->SetParameter( BlueSharedString( "ExposureDependency" ), bloom->m_exposureDependency );
 		m_bloomHighPassFilter->EndUpdate();
+
+		m_tonemappingEffect->StartUpdate();
+		m_tonemappingEffect->SetParameter( BlueSharedString( "BloomBrightness" ), bloom->m_bloomBrightness );
+		m_tonemappingEffect->SetParameter( BlueSharedString( "GrimeWeight" ), bloom->m_grimeWeight );
+		
+		TriTextureParameter* resource = dynamic_cast< TriTextureParameter* >( m_godrayEffect->GetResourceByName( "GrimePath" ) );
+		resource->SetResourcePath( bloom->m_grimePath.c_str() );
+		
+		m_tonemappingEffect->EndUpdate();
+
 		bloom->SetDirty( false );
 	}
 
@@ -197,7 +252,6 @@ void TriStepRenderPostProcess::RenderBloom( Tr2RenderContext& renderContext, Tr2
 	auto rt1 = m_renderInfo->GetRt1Buffer();
 	auto rt2 = m_renderInfo->GetRt2Buffer();
 	auto sourceCopy = m_renderInfo->GetSourceBufferCopy();
-	auto exposureBuffer = m_renderInfo->GetExposureBuffer();
 
 	Tr2Renderer::PushRenderTarget( *rt1, renderContext );
 
@@ -209,7 +263,7 @@ void TriStepRenderPostProcess::RenderBloom( Tr2RenderContext& renderContext, Tr2
 
 	m_bloomHighPassFilter->StartUpdate();
 	m_bloomHighPassFilter->SetParameter( BlueSharedString( "BlitCurrent" ), sourceCopy );
-	m_bloomHighPassFilter->SetParameter( BlueSharedString( "Exposure" ), exposureBuffer );
+	m_bloomHighPassFilter->SetParameter( BlueSharedString( "Exposure" ), m_exposure );
 	m_bloomHighPassFilter->EndUpdate();
 
 	Tr2Renderer::DrawScreenQuad( m_bloomHighPassFilter );
@@ -253,6 +307,7 @@ bool TriStepRenderPostProcess::ProcessGodRays( Tr2PPGodRaysEffect* godrays )
 		m_godrayEffect->SetParameter( BlueSharedString( "Intensity" ), Vector4(godrays->m_intensity, 0.0f, 1.0f, 1.0f ) );
 		m_godrayEffect->SetParameter( BlueSharedString( "grFactors" ), godrays->grFactors );
 		m_godrayEffect->AddResourceTexture2D( BlueSharedString( "NoiseTexMap" ), godrays->m_noiseTexturePath.c_str() );
+		m_godrayEffect->SetParameter( BlueSharedString( "DepthMap" ), m_renderInfo->GetRt1Buffer() );
 		m_godrayEffect->EndUpdate();
 		godrays->SetDirty( false );
 	}
@@ -286,7 +341,6 @@ bool TriStepRenderPostProcess::ProcessGodRays( Tr2PPGodRaysEffect* godrays )
 
 void TriStepRenderPostProcess::RenderGodRays( Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays)
 {
-	auto shaderBuffer = m_renderInfo->GetShaderBuffer();
 	auto rt1 = m_renderInfo->GetRt1Buffer();
 	auto rt2 = m_renderInfo->GetRt2Buffer();
 	auto backBufferRT = m_renderInfo->GetSourceBuffer();
@@ -304,9 +358,6 @@ void TriStepRenderPostProcess::RenderGodRays( Tr2RenderContext& renderContext, T
 	{
 		CCP_LOGERR( "Godray clear failed" );
 	}
-	m_godrayEffect->StartUpdate();
-	m_godrayEffect->SetParameter( BlueSharedString( "DepthMap" ), rt1 );
-	m_godrayEffect->EndUpdate();
 
 	Tr2Renderer::DrawScreenQuad( m_godrayEffect );
 	Tr2Renderer::PopRenderTarget( renderContext );
@@ -354,5 +405,149 @@ void TriStepRenderPostProcess::RenderSignalLoss( Tr2RenderContext& renderContext
 	PushRenderTarget( renderContext );
 	Tr2Renderer::DrawScreenQuad( m_signalLossEffect );
 	Tr2Renderer::PopRenderTarget( renderContext );
+
+}
+
+
+bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2PPDynamicExposureEffect* dynamicExposure )
+{
+	if( dynamicExposure && dynamicExposure->IsActive() )
+	{
+		if( m_dynamicExposureCreateHistogramShader == nullptr || m_dynamicExposureMergeHistogramShader == nullptr || m_dynamicExposureMeasureExposureShader == nullptr )
+		{
+			m_exposure.CreateInstance();
+			m_localHistograms.CreateInstance();
+			m_histogram.CreateInstance();
+			
+			m_exposure->Create( 8, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, 2 );
+			m_localHistograms->Create( m_localHistogramCount, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_UINT, 2 );
+			m_histogram->Create( 65, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, 2 );
+
+			m_dynamicExposureCreateHistogramShader.CreateInstance();
+			m_dynamicExposureCreateHistogramShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/CreateHistograms.fx" );
+			m_dynamicExposureCreateHistogramShader->StartUpdate();
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MinLuminance" ), log(dynamicExposure->m_minLuminance) );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MaxLuminance" ), log( dynamicExposure->m_maxLuminance ) );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MinBrightness" ), dynamicExposure->m_minBrightness);
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MaxBrightness" ), dynamicExposure->m_maxBrightness );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "ScreenTilesX" ), float( m_tilesX ) );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "LocalHistograms" ), m_localHistograms );
+			m_dynamicExposureCreateHistogramShader->EndUpdate();
+
+			m_dynamicExposureMergeHistogramShader.CreateInstance();
+			m_dynamicExposureMergeHistogramShader->StartUpdate();
+			m_dynamicExposureMergeHistogramShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/MergeHistograms.fx" );
+			m_dynamicExposureMergeHistogramShader->SetParameter( BlueSharedString( "ScreenTilesX" ), float( m_tilesX ) );
+			m_dynamicExposureMergeHistogramShader->SetParameter( BlueSharedString( "ScreenTilesY" ), float( m_tilesY ) );
+			m_dynamicExposureMergeHistogramShader->SetParameter( BlueSharedString( "LocalHistograms"), m_localHistograms );
+			m_dynamicExposureMergeHistogramShader->SetParameter( BlueSharedString( "Histogram" ), m_histogram );
+			m_dynamicExposureMergeHistogramShader->EndUpdate();
+
+			m_dynamicExposureMeasureExposureShader.CreateInstance();
+			m_dynamicExposureMeasureExposureShader->StartUpdate();
+			m_dynamicExposureMeasureExposureShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/MeasureExposure.fx" );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinLuminance" ), log( dynamicExposure->m_minLuminance ) );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxLuminance" ), log( dynamicExposure->m_maxLuminance ) );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinBrightness" ), dynamicExposure->m_minBrightness );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxBrightness" ), dynamicExposure->m_maxBrightness );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "IncreaseSpeed" ), dynamicExposure->m_increaseSpeed );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "DecreaseSpeed" ), dynamicExposure->m_decreaseSpeed );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinExposure" ), dynamicExposure->m_minExposure );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxExposure" ), dynamicExposure->m_maxExposure );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "Histogram" ), m_histogram );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "Exposure" ), m_exposure );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "BlitOriginal" ), m_renderInfo->GetSourceBufferCopy() );
+
+			m_dynamicExposureMeasureExposureShader->EndUpdate();
+
+			// we also need to update the tonemapping buffer
+			m_tonemappingEffect->StartUpdate();
+			m_tonemappingEffect->SetParameter( BlueSharedString( "Exposure" ), m_exposure );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "Histogram" ), m_histogram );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureAdjust" ), pow( 2.0f, dynamicExposure->m_adjustment ) );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureMiddleValue" ), dynamicExposure->m_middleValue );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureInfluence" ), dynamicExposure->m_influence);
+			m_tonemappingEffect->SetParameter( BlueSharedString( "MinExposure" ), dynamicExposure->m_minExposure );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "MaxExposure" ), dynamicExposure->m_maxExposure );
+
+			// TODO replace with an option
+			m_tonemappingEffect->SetParameter( BlueSharedString( "DynamicExposure" ), 1.0f );
+
+			m_tonemappingEffect->EndUpdate();
+
+			dynamicExposure->SetDirty( false );
+		}
+		else if( dynamicExposure->IsDirty() )
+		{
+			m_dynamicExposureCreateHistogramShader->StartUpdate();
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MinLuminance" ), log( dynamicExposure->m_minLuminance ) );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MaxLuminance" ), log( dynamicExposure->m_maxLuminance ) );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MinBrightness" ), dynamicExposure->m_minBrightness );
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "MaxBrightness" ), dynamicExposure->m_maxBrightness );
+			m_dynamicExposureCreateHistogramShader->EndUpdate();
+
+			m_dynamicExposureMeasureExposureShader->StartUpdate();
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinLuminance" ), log( dynamicExposure->m_minLuminance ) );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxLuminance" ), log( dynamicExposure->m_maxLuminance ) );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinBrightness" ), dynamicExposure->m_minBrightness );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxBrightness" ), dynamicExposure->m_maxBrightness );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "IncreaseSpeed" ), dynamicExposure->m_increaseSpeed );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "DecreaseSpeed" ), dynamicExposure->m_decreaseSpeed );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MinExposure" ), dynamicExposure->m_minExposure );
+			m_dynamicExposureMeasureExposureShader->SetParameter( BlueSharedString( "MaxExposure" ), dynamicExposure->m_maxExposure );
+			m_dynamicExposureMeasureExposureShader->EndUpdate();
+
+			// we also need to update the tonemapping buffer
+			m_tonemappingEffect->StartUpdate();
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureAdjust" ), pow( 2.0f, dynamicExposure->m_adjustment ) );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureMiddleValue" ), dynamicExposure->m_middleValue );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "ExposureInfluence" ), dynamicExposure->m_influence );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "MinExposure" ), dynamicExposure->m_minExposure );
+			m_tonemappingEffect->SetParameter( BlueSharedString( "MaxExposure" ), dynamicExposure->m_maxExposure );
+			// TODO replace with an option
+			m_tonemappingEffect->SetParameter( BlueSharedString( "DynamicExposure" ), 1.0f );
+			m_tonemappingEffect->EndUpdate();
+
+			dynamicExposure->SetDirty( false );
+		}
+	}	
+	else if( dynamicExposure == nullptr || !dynamicExposure->IsActive() )
+	{
+		m_dynamicExposureCreateHistogramShader = nullptr;
+		m_dynamicExposureMeasureExposureShader = nullptr;
+		m_dynamicExposureMergeHistogramShader = nullptr;
+		m_localHistograms = nullptr;
+		m_histogram = nullptr;
+		m_exposure = nullptr;
+
+		// TODO replace with an option
+		m_tonemappingEffect->StartUpdate();
+		m_tonemappingEffect->SetParameter( BlueSharedString( "DynamicExposure" ), 0.0f );
+		m_tonemappingEffect->EndUpdate();
+	}
+
+	return dynamicExposure != nullptr && dynamicExposure->IsActive();
+}
+
+
+void TriStepRenderPostProcess::RenderDynamicExposure( Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure )
+{
+	uint32_t m_uintValue[4] = { 0, 0, 0, 0 };
+	// Clear local histograms
+	auto lhbuffer = m_localHistograms->GetGpuBuffer( 0 );
+	renderContext.ClearUav( *lhbuffer, m_uintValue );
+	
+	// Clear histograms
+	auto hbuffer = m_histogram->GetGpuBuffer( 0 );
+	renderContext.ClearUav( *hbuffer, m_uintValue );
+
+	// Create histograms
+	Tr2Renderer::RunComputeShader( m_dynamicExposureCreateHistogramShader, m_tilesX, m_tilesY, 1, renderContext );
+
+	// Merge histogram
+	Tr2Renderer::RunComputeShader( m_dynamicExposureMergeHistogramShader, m_mergeHistogramXDim, 1, 1, renderContext );
+
+	// Measure histogram
+	Tr2Renderer::RunComputeShader( m_dynamicExposureMeasureExposureShader, 1, 1, 1, renderContext );
 
 }

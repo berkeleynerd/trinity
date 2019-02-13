@@ -28,10 +28,18 @@ public:
 	TriStepRenderPostProcess( IRoot* lockobj = 0 );
 	~TriStepRenderPostProcess( void );
 
+	enum PostProcessingQuality {
+		LOW,
+		MEDIUM,
+		HIGH,
+
+		COUNT
+	};
+
 	//RenderStep
 	TriStepResult Execute( Be::Time realTime, Be::Time simTime, Tr2RenderContext& renderContext );
 
-	void py__init__( EveSpaceScene* scene, Tr2RenderTarget* source, Tr2ShaderBuffer* psData );
+	void py__init__( EveSpaceScene* scene, Tr2RenderTarget* source );
 private:
 	void PushRenderTarget( Tr2RenderContext& renderContext, Tr2RenderTarget* rt = nullptr );
 
@@ -43,22 +51,37 @@ private:
 	Tr2EffectPtr m_bloomVerticalBlur;
 
 	// godRays
-	bool TriStepRenderPostProcess::ProcessGodRays( Tr2PPGodRaysEffect* godrays );
-	void TriStepRenderPostProcess::RenderGodRays( Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays );
+	bool ProcessGodRays( Tr2PPGodRaysEffect* godrays );
+	void RenderGodRays( Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays );
 	Tr2EffectPtr m_godRayDownSampleEffect;
 	Tr2EffectPtr m_godrayEffect;
 
 	// signal loss
-	bool TriStepRenderPostProcess::ProcessSignalLoss( Tr2PPSignalLossEffect* signalLoss );
-	void TriStepRenderPostProcess::RenderSignalLoss( Tr2RenderContext& renderContext, Tr2PPSignalLossEffect* godrays );
+	bool ProcessSignalLoss( Tr2PPSignalLossEffect* signalLoss );
+	void RenderSignalLoss( Tr2RenderContext& renderContext, Tr2PPSignalLossEffect* signalLoss );
 	Tr2EffectPtr m_signalLossEffect;
+
+	// dynamic exposure
+	bool ProcessDynamicExposure( Tr2PPDynamicExposureEffect* signalLoss );
+	void RenderDynamicExposure( Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure );
+	Tr2GpuBufferPtr m_localHistograms;
+	Tr2GpuBufferPtr m_histogram;
+	Tr2GpuBufferPtr m_exposure;
+
+	uint32_t m_tilesX, m_tilesY, m_localHistogramCount, m_mergeHistogramXDim;
+
+	Tr2EffectPtr m_dynamicExposureCreateHistogramShader;
+	Tr2EffectPtr m_dynamicExposureMergeHistogramShader;
+	Tr2EffectPtr m_dynamicExposureMeasureExposureShader;
 
 
 	// tonemapping
 	Tr2EffectPtr m_tonemappingEffect;
-
 	EveSpaceScenePtr m_scene;
 	Tr2PostProcessRenderInfoPtr m_renderInfo;
+
+        // General
+	PostProcessingQuality m_quality;
 };
 
 TYPEDEF_BLUECLASS( TriStepRenderPostProcess );

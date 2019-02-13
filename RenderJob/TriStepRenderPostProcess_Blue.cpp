@@ -3,6 +3,16 @@
 
 BLUE_DEFINE( TriStepRenderPostProcess );
 
+Be::VarChooser PostProcessQualityChooser[] =
+{
+	{ "Low", BeCast( TriStepRenderPostProcess::LOW ), "Low Quality" },
+	{ "Medium", BeCast( TriStepRenderPostProcess::MEDIUM ), "Medium Quality" },
+	{ "High", BeCast( TriStepRenderPostProcess::HIGH ), "High Quality" },
+	{ 0 }
+};
+
+BLUE_REGISTER_ENUM_EX( "PostProcessQuality", TriStepRenderPostProcess::PostProcessingQuality, PostProcessQualityChooser, ENUM_REG_ENUM_OBJECT_ON_MODULE );
+
 const Be::ClassInfo* TriStepRenderPostProcess::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( TriStepRenderPostProcess, "Render step for rendering post process" )
@@ -19,6 +29,11 @@ const Be::ClassInfo* TriStepRenderPostProcess::ExposeToBlue()
 		MAP_ATTRIBUTE( "godrayEffect", m_godrayEffect, "The godray effect", Be::READWRITE )
 		MAP_ATTRIBUTE( "signalLossEffect", m_signalLossEffect, "The signal loss effect", Be::READWRITE )
 		MAP_ATTRIBUTE( "tonemappingEffect", m_tonemappingEffect, "The tone mapping effect", Be::READWRITE )
+		MAP_ATTRIBUTE( "dynamicExposureCreateHistogramShader", m_dynamicExposureCreateHistogramShader, "The create histogram effect", Be::READWRITE )
+		MAP_ATTRIBUTE( "dynamicExposureMergeHistogramShader", m_dynamicExposureMergeHistogramShader, "The merge histogram effect", Be::READWRITE )
+		MAP_ATTRIBUTE( "dynamicExposureMeasureExposureShader", m_dynamicExposureMeasureExposureShader, "The measure exposure effect", Be::READWRITE )
+
+		MAP_ATTRIBUTE_WITH_CHOOSER( "quality", m_quality, "The quality of the post process", Be::READWRITE | Be::ENUM, PostProcessQualityChooser )
 
 		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS
 		(
@@ -29,8 +44,6 @@ const Be::ClassInfo* TriStepRenderPostProcess::ExposeToBlue()
 			":param scene: an ITr2Scene object\n"
 			":param source: an Tr2RenderTarget object"
 		)
-
-
 
 		EXPOSURE_CHAINTO( TriRenderStep )
 }

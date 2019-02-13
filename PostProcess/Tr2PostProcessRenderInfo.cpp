@@ -31,12 +31,6 @@ Tr2PostProcessRenderInfo::Tr2PostProcessRenderInfo( IRoot* lockobj )
 	m_black.CreateInstance();
 	m_black->m_name = "Black";
 	m_black->Create( 4, 4, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM );
-	
-	m_exposure.CreateInstance();
-	m_exposure->Create( 8, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, Tr2RenderContextEnum::USAGE_CPU_WRITE );
-
-	m_histogram.CreateInstance();
-	m_histogram->Create( 65, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, Tr2RenderContextEnum::USAGE_CPU_WRITE );
 }
 
 
@@ -103,7 +97,6 @@ void Tr2PostProcessRenderInfo::SetSourceBuffer( Tr2RenderTarget* sourceBuffer )
 		0 );
 
 	CreateBuffers( m_sourceBuffer->GetWidth(), m_sourceBuffer->GetHeight() );
-	CreateHistogram( m_sourceBuffer->GetWidth(), m_sourceBuffer->GetHeight() );
 
 }
 
@@ -149,12 +142,3 @@ void Tr2PostProcessRenderInfo::CreateBuffers( uint32_t width, uint32_t height )
 	m_distortionBuffer->Create( width, height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 1 );
 }
 
-void Tr2PostProcessRenderInfo::CreateHistogram( uint32_t width, uint32_t height )
-{
-
-}
-
-void Tr2PostProcessRenderInfo::SetPerFrameData( Tr2ShaderBuffer* shaderBuffer )
-{
-	m_shaderBuffer = shaderBuffer;
-}
