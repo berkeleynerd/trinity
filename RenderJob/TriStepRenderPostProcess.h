@@ -76,7 +76,10 @@ private:
 
 	// film grain
 	void ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain );
-	
+
+	// desaturate
+	void ProcessDesaturate( Tr2PPDesaturateEffect* desaturate );
+
 	// tonemapping
 	Tr2EffectPtr m_tonemappingEffect;
 	EveSpaceScenePtr m_scene;

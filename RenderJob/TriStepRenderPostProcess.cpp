@@ -113,6 +113,7 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 	Tr2PPSignalLossEffect* signalLoss= nullptr;
 	Tr2PPDynamicExposureEffectPtr dynamicExposure = nullptr;
 	Tr2PPFilmGrainEffectPtr filmGrain = nullptr;
+	Tr2PPDesaturateEffectPtr desaturate = nullptr;
 
 	if( postProcess != nullptr )
 	{
@@ -127,6 +128,7 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 #endif
 		case MEDIUM:
 			bloom = postProcess->GetBloom();
+			desaturate = postProcess->GetDesaturate();
 		case LOW:
 			signalLoss = postProcess->GetSignalLoss();
 		default:
@@ -162,6 +164,7 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 	}
 
 	ProcessFilmGrain( filmGrain );
+	ProcessDesaturate( desaturate );
 
 	Tr2Renderer::DrawTexture( m_tonemappingEffect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
 	
@@ -579,6 +582,30 @@ void TriStepRenderPostProcess::ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain
 		// TODO replace with an option
 		m_tonemappingEffect->StartUpdate();
 		m_tonemappingEffect->SetParameter( BlueSharedString( "FilmGrain" ), 0.0f );
+		m_tonemappingEffect->EndUpdate();
+	}
+}
+
+void TriStepRenderPostProcess::ProcessDesaturate( Tr2PPDesaturateEffect* desaturate )
+{
+	if( desaturate && desaturate->IsActive() )
+	{
+		if( desaturate->IsDirty() )
+		{
+			// we only need to update the tonemapping buffer
+			m_tonemappingEffect->StartUpdate();
+			m_tonemappingEffect->SetParameter( BlueSharedString( "SaturationFactor" ), desaturate->m_intensity );
+			// TODO replace with an option
+			m_tonemappingEffect->SetParameter( BlueSharedString( "Desaturate" ), 1.0f );
+			m_tonemappingEffect->EndUpdate();
+
+			desaturate->SetDirty( false );
+		}
+	}
+	else {
+		// TODO replace with an option
+		m_tonemappingEffect->StartUpdate();
+		m_tonemappingEffect->SetParameter( BlueSharedString( "Desaturate" ), 0.0f );
 		m_tonemappingEffect->EndUpdate();
 	}
 }
