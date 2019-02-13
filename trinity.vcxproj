@@ -2849,6 +2849,7 @@
     <ClInclude Include="PostProcess\Effects\Tr2PPGodRaysEffect.h" />
     <ClInclude Include="PostProcess\Effects\Tr2PPLutEffect.h" />
     <ClInclude Include="PostProcess\Effects\Tr2PPSignalLossEffect.h" />
+    <ClInclude Include="PostProcess\Effects\Tr2PPVignetteEffect.h" />
     <ClInclude Include="RenderJob\ITriRenderStep.h" />
     <ClInclude Include="RenderJob\Tr2RenderJobs.h" />
     <ClInclude Include="RenderJob\TriRenderJob.h" />
@@ -3524,6 +3525,8 @@
     <ClCompile Include="PostProcess\Effects\Tr2PPLutEffect_Blue.cpp" />
     <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect.cpp" />
     <ClCompile Include="PostProcess\Effects\Tr2PPSignalLossEffect_Blue.cpp" />
+    <ClCompile Include="PostProcess\Effects\Tr2PPVignetteEffect.cpp" />
+    <ClCompile Include="PostProcess\Effects\Tr2PPVignetteEffect_Blue.cpp" />
     <ClCompile Include="RenderJob\Tr2RenderJobs.cpp" />
     <ClCompile Include="RenderJob\Tr2RenderJobs_Blue.cpp" />
     <ClCompile Include="RenderJob\TriRenderJob.cpp" />
