@@ -10,7 +10,7 @@ const Be::ClassInfo* Tr2Model::ExposeToBlue()
 		MAP_INTERFACE( Tr2Model )
 
 		MAP_ATTRIBUTE( "name", m_name, "Name of this model", Be::READWRITE | Be::PERSIST )
-        MAP_ATTRIBUTE( "meshes", m_meshes, "Meshes are sorted relative to the center of their granny mesh when getting transparent batches", Be::READWRITE | Be::PERSIST )
+        MAP_ATTRIBUTE( "meshes", m_meshes, "Meshes are sorted relative to the center of their granny mesh when getting transparent batches", Be::READ | Be::PERSIST )
 
         MAP_METHOD_AND_WRAP
 		(

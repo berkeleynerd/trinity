@@ -203,7 +203,7 @@ const Be::ClassInfo* Tr2Sprite2dScene::ExposeToBlue()
 			"children",
 			m_children,
 			"Sprites contained in this scene",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -213,7 +213,7 @@ const Be::ClassInfo* Tr2Sprite2dScene::ExposeToBlue()
 			"Background objects of this scene. Background objects don't get alignment,\n"
 			"but always fill the extent of the scene. They are never considered for\n"
 			"picking, either.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -229,7 +229,7 @@ const Be::ClassInfo* Tr2Sprite2dScene::ExposeToBlue()
 			"curveSets",
 			m_curveSets,
 			"Curve sets used in this scene",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

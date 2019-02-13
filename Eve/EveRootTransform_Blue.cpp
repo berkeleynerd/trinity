@@ -45,7 +45,7 @@ const Be::ClassInfo* EveRootTransform::ExposeToBlue()
 			"children",
 			m_children,
 			"",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(
@@ -59,7 +59,7 @@ const Be::ClassInfo* EveRootTransform::ExposeToBlue()
 			"observers", 
 			m_observers, 
 			"Observers for pushing data between modules every frame. Currently used to push locator data out to the audio2 module.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(

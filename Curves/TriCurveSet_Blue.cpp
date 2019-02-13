@@ -40,14 +40,14 @@ const Be::ClassInfo* TriCurveSet::ExposeToBlue()
 			"curves", 
 			m_curves, 
 			"List of curves. Bind these curves to target objects with a binding.", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"bindings", 
 			m_bindings, 
 			"List of bindings. Note that a single curve can have multiple bindings.", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(

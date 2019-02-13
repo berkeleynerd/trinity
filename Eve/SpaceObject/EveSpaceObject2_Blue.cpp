@@ -209,7 +209,7 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"locatorSets",
 			m_locatorSets,
 			"Set of Blue structure lists of locators identified by a name",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -273,18 +273,18 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"locators", 
 			m_locators, 
 			"Locators for things such as turrets, boosters, etc. Locators can also come from a skeleton.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"observers", 
 			m_observers, 
 			"Observers for pushing data between modules every frame. Currently used to push locator data out to the audio2 module.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE( "impactOverlay", m_impactOverlay, "object for rendering damage/impact fx on this space object.", Be::READWRITE )
-		MAP_ATTRIBUTE( "decals", m_decals, "list of all decals on this space object.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "decals", m_decals, "list of all decals on this space object.", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE
 		(
@@ -310,7 +310,7 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "lodLevel", m_lodLevel, "Current lod-level of this spaceobject\n", Be::READ )
 
-		MAP_ATTRIBUTE( "customMasks", m_customMasks, "\n", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "customMasks", m_customMasks, "\n", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "dirtLevel", m_dirtLevel, "The dirt amount of the object", Be::READWRITE | Be::NOTIFY )
 		MAP_ATTRIBUTE( "shapeEllipsoidCenter", m_shapeEllipsoidCenter, "User-authored ellipsoid data for center", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shapeEllipsoidRadius", m_shapeEllipsoidRadius, "User-authored ellipsoid data for radii", Be::READWRITE | Be::PERSIST )
@@ -320,21 +320,21 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"effectChildren",
 			m_effectChildren,
 			"",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(
 			"children",
 			m_children,
 			"",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"curveSets", 
 			m_curveSets, 
 			"Curvesets for animating things", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		
 		MAP_ATTRIBUTE( "dynamicBoundingSphereEnabled", m_dynamicBoundingSphereEnabled, "Indicate if object uses dynamic bounding spheres", Be::READ | Be::PERSIST )
@@ -441,7 +441,7 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"overlayEffects",
 			m_overlayEffects,
 			"A list of effects that are added to the current LOD. Rendered additive.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

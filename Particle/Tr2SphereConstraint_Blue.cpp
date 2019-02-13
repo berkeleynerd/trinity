@@ -33,8 +33,8 @@ const Be::ClassInfo* Tr2SphereConstraint::ExposeToBlue()
 			m_particleRadiusCoefficient,  
 			"What to treat as particle surface (0 - center, 1 - sphere with particle radius)", 
 			Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "generators", m_generators, "List of generators that are executed on collision", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "onCollisionEmitters", m_onCollisionEmitters, "List of emitters that are executed on collision", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "generators", m_generators, "List of generators that are executed on collision", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "onCollisionEmitters", m_onCollisionEmitters, "List of emitters that are executed on collision", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "isValid", m_isValid, "Is the constraint successfully bound to the particle system", Be::READ )
 
 	EXPOSURE_END()

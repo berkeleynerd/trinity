@@ -17,7 +17,7 @@ const Be::ClassInfo* Tr2FileExportInfo::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( Tr2FileExportInfo, "" )
 		MAP_INTERFACE( Tr2FileExportInfo )
-		MAP_ATTRIBUTE( "objects", m_objects, "List of exported objects", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "objects", m_objects, "List of exported objects", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "tool", m_tool, "The name of the exporting tool", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "version", m_version, "The version of the exported tool", Be::READWRITE | Be::PERSIST )
 	EXPOSURE_END()

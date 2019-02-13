@@ -98,7 +98,7 @@ const Be::ClassInfo* Tr2Transform::ExposeToBlue()
 		MAP_ATTRIBUTE( "distanceBasedScaleArg1", m_distanceBasedScaleArg1, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "distanceBasedScaleArg2", m_distanceBasedScaleArg2, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "mesh", m_mesh, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READ | Be::PERSIST )
 
     EXPOSURE_END()
 }

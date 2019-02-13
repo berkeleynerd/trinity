@@ -198,11 +198,11 @@ const Be::ClassInfo* EveSOFDataRaceDamage::ExposeToBlue()
 	EXPOSURE_BEGIN( EveSOFDataRaceDamage, "" )
 		MAP_INTERFACE( EveSOFDataRaceDamage )
 
-		MAP_ATTRIBUTE( "armorImpactParameters", m_armorImpactParameters, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "armorImpactTextures", m_armorImpactTextures, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "shieldImpactParameters", m_shieldImpactParameters, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "shieldImpactTextures", m_shieldImpactTextures, "", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "armorImpactParameters", m_armorImpactParameters, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "armorImpactTextures", m_armorImpactTextures, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldImpactParameters", m_shieldImpactParameters, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "shieldImpactTextures", m_shieldImpactTextures, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -237,7 +237,7 @@ const Be::ClassInfo* EveSOFDataHullSpotlightSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "zOffset", m_zOffset, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "coneTextureResPath", m_coneTextureResPath, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "glowTextureResPath", m_glowTextureResPath, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this spotlightset", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "items", m_items, "The items in this spotlightset", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -289,7 +289,7 @@ const Be::ClassInfo* EveSOFDataHullPlaneSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "atlasSize", m_atlasSize, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "skinned", m_skinned, "", Be::READWRITE | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "items", m_items, "The items in this planeset", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "items", m_items, "The items in this planeset", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -301,8 +301,8 @@ const Be::ClassInfo* EveSOFDataFactionVisibilityGroupSet::ExposeToBlue()
 	EXPOSURE_BEGIN( EveSOFDataFactionVisibilityGroupSet, "" )
 		MAP_INTERFACE( EveSOFDataFactionVisibilityGroupSet )
 
-		MAP_ATTRIBUTE( "visibilityGroups", m_visibilityGroups, "", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "visibilityGroups", m_visibilityGroups, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -366,7 +366,7 @@ const Be::ClassInfo* EveSOFDataHullSpriteSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "skinned", m_skinned, "Is this spriteset bone-animated.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this spriteset", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "items", m_items, "The items in this spriteset", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -406,8 +406,8 @@ const Be::ClassInfo* EveSOFDataHullSpriteLineSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "skinned", m_skinned, "Is this spriteset bone-animated.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this spritelineset", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "items", m_items, "The items in this spritelineset", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -441,8 +441,8 @@ const Be::ClassInfo* EveSOFDataHullHazeSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "hazeType", m_hazeType, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataHazeTypeChooser )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this hazeset", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "items", m_items, "The items in this hazeset", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 Be::VarChooser EveSOFDataHullBannerUsageChooser[] =
@@ -510,7 +510,7 @@ const Be::ClassInfo* EveSOFDataHullBooster::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "alwaysOn", m_alwaysOn, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hasTrails", m_hasTrails, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "items", m_items, "", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -557,7 +557,7 @@ const Be::ClassInfo* EveSOFDataInstancedMesh::ExposeToBlue()
 		MAP_ATTRIBUTE( "geometryResPath", m_geometryResPath, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "instances", m_instances, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "shader", m_shader, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -577,8 +577,8 @@ const Be::ClassInfo* EveSOFDataHullArea::ExposeToBlue()
 		MAP_ATTRIBUTE( "shader", m_shader, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "blockedMaterials", m_blockedMaterials, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "areaType", m_areaType, "na", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataAreaTypeChooser )
-		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -602,7 +602,7 @@ const Be::ClassInfo* EveSOFDataHullLocatorSet::ExposeToBlue()
 		MAP_INTERFACE( EveSOFDataHullLocatorSet )
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "locators", m_locators, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "locators", m_locators, "", Be::READ | Be::PERSIST )
 	EXPOSURE_END()
 }
 
@@ -736,36 +736,36 @@ const Be::ClassInfo* EveSOFDataHull::ExposeToBlue()
 		MAP_ATTRIBUTE( "enableDynamicBoundingSphere", m_enableDynamicBoundingSphere, "Used to toggle dynamic bounding sphere.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "castShadow", m_castShadow, "Used to toggle shadow casting.", Be::READWRITE | Be::PERSIST )
 		
-		MAP_ATTRIBUTE( "opaqueAreas", m_opaqueAreas, "The opaque areas on this mesh", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "decalAreas", m_decalAreas, "The decal aSOFDatareas on this mesh", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "transparentAreas", m_transparentAreas, "The transparent areas on this mesh", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "additiveAreas", m_additiveAreas, "The additive areas on this mesh", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "distortionAreas", m_distortionAreas, "The distortion areas on this mesh", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "opaqueAreas", m_opaqueAreas, "The opaque areas on this mesh", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "decalAreas", m_decalAreas, "The decal aSOFDatareas on this mesh", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "transparentAreas", m_transparentAreas, "The transparent areas on this mesh", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "additiveAreas", m_additiveAreas, "The additive areas on this mesh", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "distortionAreas", m_distortionAreas, "The distortion areas on this mesh", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "defaultPattern", m_defaultPattern, "The default pattern projection data for this hull", Be::READWRITE | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "spriteSets", m_spriteSets, "The spritesets", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "spotlightSets", m_spotlightSets, "The spotlightsets", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "planeSets", m_planeSets, "The planesets", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "spriteLineSets", m_spriteLineSets, "The spritelinesets", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "hazeSets", m_hazeSets, "The hazesets", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "spriteSets", m_spriteSets, "The spritesets", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "spotlightSets", m_spotlightSets, "The spotlightsets", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "planeSets", m_planeSets, "The planesets", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "spriteLineSets", m_spriteLineSets, "The spritelinesets", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "hazeSets", m_hazeSets, "The hazesets", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "banners", m_banners, "", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "decalSets", m_decalSets, "The decalsets", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "lightSets", m_lightSets, "The lightSets", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "decalSets", m_decalSets, "The decalsets", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "lightSets", m_lightSets, "The lightSets", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "impactEffectType", m_impactEffectType, "Type of impact effect on this hull", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFImpactEffectTypeChooser )
 
 		MAP_ATTRIBUTE( "booster", m_booster, "The booster", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "audioPosition", m_audioPosition, "The audio position", Be::READWRITE | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "children", m_children, "List of children", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "children", m_children, "List of children", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "soundEmitters", m_soundEmitters, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "controllers", m_controllers, "List of controller references", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "animations", m_animations, "List of animations", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "animations", m_animations, "List of animations", Be::READ | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "instancedMeshes", m_instancedMeshes, "List of instanced meshes", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "instancedMeshes", m_instancedMeshes, "List of instanced meshes", Be::READ | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "locatorTurrets", m_locatorTurrets, "Turret locators", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "locatorSets", m_locatorSets, "Damage locators", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "locatorTurrets", m_locatorTurrets, "Turret locators", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "locatorSets", m_locatorSets, "Damage locators", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "modelRotationCurvePath", m_modelRotationCurvePath, "Model rotation curve path", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "modelTranslationCurvePath", m_modelTranslationCurvePath, "Model translation curve path", Be::READWRITE | Be::PERSIST )
@@ -794,7 +794,7 @@ const Be::ClassInfo* EveSOFDataFactionHullArea::ExposeToBlue()
         MAP_INTERFACE( EveSOFDataFactionHullArea )
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -842,10 +842,10 @@ const Be::ClassInfo* EveSOFDataHullDecalSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "meshIndex", m_meshIndex, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "glowColorType", m_glowColorType, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataFactionColorSetTypeChooser )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "logoType", m_logoType, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataLogoSetTypeChooser )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "indexBuffer", m_indexBuffer, "", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "indexBuffer", m_indexBuffer, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -857,8 +857,8 @@ const Be::ClassInfo* EveSOFDataHullDecalSet::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 BLUE_DEFINE( EveSOFDataHullLightSetItem );
@@ -887,8 +887,8 @@ const Be::ClassInfo* EveSOFDataHullLightSet::ExposeToBlue()
 		MAP_INTERFACE( EveSOFDataHullLightSet )
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -897,8 +897,8 @@ const Be::ClassInfo* EveSOFDataLogo::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( EveSOFDataLogo, "" )
 		MAP_INTERFACE( EveSOFDataLogo )
-		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -930,9 +930,9 @@ const Be::ClassInfo* EveSOFDataFaction::ExposeToBlue()
 		MAP_ATTRIBUTE( "areaTypes", m_areaTypes, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "colorSet", m_colorSet, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "logoSet", m_logoSet, "", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "spotlightSets", m_spotlightSets, "All the groups of spotlight sets.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "planeSets", m_planeSets, "All the groups of plane sets.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "children", m_children, "All the groups of children.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "spotlightSets", m_spotlightSets, "All the groups of spotlight sets.", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "planeSets", m_planeSets, "All the groups of plane sets.", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "children", m_children, "All the groups of children.", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroupSet", m_visibilityGroupSet, "All visibility groups enabled on this faction.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "materialUsageMtl1", m_materialUsageMtl1, "Material usage of Mtl1\n:jessica-group: MaterialUsage", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "materialUsageMtl2", m_materialUsageMtl2, "Material usage of Mtl2\n:jessica-group: MaterialUsage", Be::READWRITE | Be::PERSIST )
@@ -940,7 +940,7 @@ const Be::ClassInfo* EveSOFDataFaction::ExposeToBlue()
 		MAP_ATTRIBUTE( "materialUsageMtl4", m_materialUsageMtl4, "Material usage of Mtl4\n:jessica-group: MaterialUsage", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultPattern", m_defaultPattern, "The default pattern data for this faction\n:jessica-group: DefaultPattern", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultPatternLayer1MaterialName", m_defaultPatternLayer1MaterialName, "The default pattern material name for this faction and layer 1\n:jessica-group: DefaultPattern", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+	EXPOSURE_END()
 }
 
 
@@ -968,7 +968,7 @@ const Be::ClassInfo* EveSOFDataMaterial::ExposeToBlue()
         MAP_INTERFACE( EveSOFDataMaterial )
 
 		MAP_ATTRIBUTE( "name", m_name, "The material name. This functions as an ID.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "All the material parameters.", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "parameters", m_parameters, "All the material parameters.", Be::READ | Be::PERSIST )
     EXPOSURE_END()
 }
 
@@ -983,8 +983,8 @@ const Be::ClassInfo* EveSOFDataPattern::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "The pattern name. This functions as an ID.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "layer1", m_layer1, "Pattern data for layer #1.", Be::READWRITE | Be::PERSIST)
 		MAP_ATTRIBUTE( "layer2", m_layer2, "Pattern data for layer #2.", Be::READWRITE | Be::PERSIST)
-		MAP_ATTRIBUTE( "projections", m_projections, "", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "projections", m_projections, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -1177,10 +1177,10 @@ const Be::ClassInfo* EveSOFDataGenericShader::ExposeToBlue()
 		MAP_ATTRIBUTE( "shader", m_shader, "The actual shader", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "transparencyTextureName", m_transparencyTextureName, "Some shaders have transparency maps.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "doGenerateDepthArea", m_doGenerateDepthArea, "Some shaders need an accompanying depth area.", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "defaultParameters", m_defaultParameters, "Default (global) parameters for this shader", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "defaultParameters", m_defaultParameters, "Default (global) parameters for this shader", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -1191,10 +1191,10 @@ const Be::ClassInfo* EveSOFDataGenericDecalShader::ExposeToBlue()
 		MAP_INTERFACE( EveSOFDataGenericDecalShader )
 
 		MAP_ATTRIBUTE( "shader", m_shader, "The actual shader", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "parentTextures", m_parentTextures, "Parent textures from the hull", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "parentTextures", m_parentTextures, "Parent textures from the hull", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -1224,17 +1224,17 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "decalShaderLocation", m_decalShaderLocation, "The location of all the decal shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shaderPrefix", m_shaderPrefix, "A prefix for all shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shaderPrefixAnimated", m_shaderPrefixAnimated, "A prefix for all skinned shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "materialPrefixes", m_materialPrefixes, "List of all the support material prefixes", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "patternMaterialPrefixes", m_patternMaterialPrefixes, "List of all the supported pattern material prefixes", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "areaShaders", m_areaShaders, "List of all the area shaders and their generic data", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "decalShaders", m_decalShaders, "List of all the decal shaders and their generic data", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "materialPrefixes", m_materialPrefixes, "List of all the support material prefixes", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "patternMaterialPrefixes", m_patternMaterialPrefixes, "List of all the supported pattern material prefixes", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "areaShaders", m_areaShaders, "List of all the area shaders and their generic data", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "decalShaders", m_decalShaders, "List of all the decal shaders and their generic data", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "damage", m_damage, "Global visual damage data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "hullDamage", m_hullDamage, "Global visual hull damage data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "swarm", m_swarm, "Global swarm behavior preset data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "bannerShader", m_bannerShader, "Banner shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "genericWreckMaterial", m_genericWreckMaterial, "Global wreck area shader data", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "variants", m_variants, "All the hull  variants", Be::READWRITE | Be::PERSIST )
-		EXPOSURE_END()
+		MAP_ATTRIBUTE( "variants", m_variants, "All the hull  variants", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
 }
 
 
@@ -1246,10 +1246,10 @@ const Be::ClassInfo* EveSOFData::ExposeToBlue()
         MAP_INTERFACE( EveSOFData )
 
 		MAP_ATTRIBUTE( "generic", m_generic, "All the generic data we have in EVE", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "hull", m_hull, "All the hull data we have in EVE", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "faction", m_faction, "All the factions data we have in EVE", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "race", m_race, "All the racial data we have in EVE", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "material", m_material, "All the material data we have in EVE", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "pattern", m_pattern, "All the pattern data we have in EVE", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "hull", m_hull, "All the hull data we have in EVE", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "faction", m_faction, "All the factions data we have in EVE", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "race", m_race, "All the racial data we have in EVE", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "material", m_material, "All the material data we have in EVE", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "pattern", m_pattern, "All the pattern data we have in EVE", Be::READ | Be::PERSIST )
 	EXPOSURE_END()
 }

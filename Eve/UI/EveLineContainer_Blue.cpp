@@ -16,7 +16,7 @@ const Be::ClassInfo* EveLineContainer::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST );
 		MAP_ATTRIBUTE( "display", m_display, "", Be::READWRITE );
-		MAP_ATTRIBUTE( "connectors", m_connectors, "", Be::READWRITE | Be::PERSIST );
+		MAP_ATTRIBUTE( "connectors", m_connectors, "", Be::READ | Be::PERSIST );
 		MAP_ATTRIBUTE( "lineSet", m_lineSet, "", Be::READWRITE | Be::PERSIST );
 
     EXPOSURE_END()

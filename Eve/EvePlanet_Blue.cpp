@@ -131,7 +131,7 @@ const Be::ClassInfo* EvePlanet::ExposeToBlue()
 			"observers", 
 			m_observers, 
 			"Observers for pushing data between modules every frame. Currently used to push locator data out to the audio2 module.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

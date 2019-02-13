@@ -225,7 +225,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"backgroundObjects", 
 			m_backgroundObjects, 
 			"Objects in the background, drawn after background skybox", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -249,7 +249,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"planets", 
 			m_planets, 
 			"Planets in space", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		
 		MAP_ATTRIBUTE
@@ -277,7 +277,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"distanceFields", 
 			m_distanceFields, 
 			"Distance fields used for environment atmospherics", 
-			Be::READWRITE
+			Be::READ
 		)
 
 		MAP_ATTRIBUTE
@@ -285,7 +285,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"objects", 
 			m_objects, 
 			"Objects in space", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -293,7 +293,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"uiObjects", 
 			m_uiObjects, 
 			"Objects in space", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -309,7 +309,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"curveSets", 
 			m_curveSets, 
 			"Curvesets for animating things", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -317,7 +317,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"lensflares", 
 			m_lensflares, 
 			"Lensflares of this scene (sun, etc.)", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_PROPERTY_READONLY
@@ -444,7 +444,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"staticParticles", 
 			m_staticParticles, 
 			"n/a",
-			Be::READWRITE
+			Be::READ
 		)
 		MAP_ATTRIBUTE
 		( 

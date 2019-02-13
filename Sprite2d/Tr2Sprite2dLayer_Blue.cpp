@@ -62,7 +62,7 @@ const Be::ClassInfo* Tr2Sprite2dLayer::ExposeToBlue()
 			"children",
 			m_children,
 			"Children of this Layer",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 	EXPOSURE_CHAINTO( Tr2Sprite2dContainer )

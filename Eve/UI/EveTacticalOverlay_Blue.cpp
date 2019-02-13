@@ -28,7 +28,7 @@ const Be::ClassInfo* EveTacticalOverlay::ExposeToBlue()
         MAP_INTERFACE( IEveSpaceObject2 )
         MAP_INTERFACE( IInitialize )
 
-		MAP_ATTRIBUTE( "trackObjects", m_trackObjects, "", Be::READWRITE )
+		MAP_ATTRIBUTE( "trackObjects", m_trackObjects, "", Be::READ )
 		MAP_ATTRIBUTE( "interestObject", m_interestObject, "", Be::READWRITE )
 		
 		MAP_ATTRIBUTE( "anchorEffect", m_anchorEffect, "", Be::READWRITE | Be::PERSIST | Be::NOTIFY )

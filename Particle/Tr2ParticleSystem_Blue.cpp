@@ -48,7 +48,7 @@ const Be::ClassInfo* Tr2ParticleSystem::ExposeToBlue()
 			"elements",  
 			m_elements,
 			"", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(
@@ -88,12 +88,12 @@ const Be::ClassInfo* Tr2ParticleSystem::ExposeToBlue()
 			"forces", 
 			m_forces, 
 			"A list of forces to be applied to the particles", 
-			Be::READWRITE | Be::PERSIST )
+			Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( 
 			"constraints", 
 			m_constraints, 
 			"A list of constraints to be applied to the particles", 
-			Be::READWRITE | Be::PERSIST )
+			Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "aabbMin", m_AabbMin, "Minimum of the AABB", Be::READ );
 		MAP_ATTRIBUTE( "aabbMax", m_AabbMax, "Maximum of the AABB", Be::READ );

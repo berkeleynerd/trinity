@@ -23,7 +23,7 @@ const Be::ClassInfo* EveSpriteSet::ExposeToBlue()
 			"sprites",
 			m_sprites,
 			"",
-			Be::READWRITE | Be::PERSIST | Be::NOTIFY
+			Be::READ | Be::PERSIST | Be::NOTIFY
 		)
 		MAP_ATTRIBUTE
 		(

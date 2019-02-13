@@ -18,7 +18,7 @@ const Be::ClassInfo* Tr2DynamicEmitter::ExposeToBlue()
 		MAP_INTERFACE( IInitialize )
 		
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST  )
-		MAP_ATTRIBUTE( "generators", m_generators, "List of generators for each particle element", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "generators", m_generators, "List of generators for each particle element", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "isValid", m_isValid, "If the emitter successfully bound to the particle system", Be::READ )
 		MAP_ATTRIBUTE( "particleSystem", m_particleSystem, "Particle system to emit particles to", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "rate", m_rate, "Number of particles to emit per second", Be::READWRITE | Be::PERSIST )

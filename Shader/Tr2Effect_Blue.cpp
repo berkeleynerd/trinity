@@ -156,14 +156,14 @@ const Be::ClassInfo* Tr2Effect::ExposeToBlue()
 			"parameters",      
 			m_parameters,
 			"Effect Parameters", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"constParameters",      
 			m_constParameters,
 			"Constant Effect Parameters", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		////////////////////////////////////////////////////////////////////////////
 		//
@@ -172,14 +172,14 @@ const Be::ClassInfo* Tr2Effect::ExposeToBlue()
 			"resources",      
 			m_resources,
 			"Effect Resources", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"samplerOverrides",      
 			m_samplerOverrides,
 			"Sampler state overrides", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_METHOD( 

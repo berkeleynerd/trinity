@@ -22,7 +22,7 @@ const Be::ClassInfo* EveSpriteLineSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "effect", m_effect, "Shader for blinkies", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "effectHash", m_effectHash, "Shader for blinkies", Be::READ )
 
-		MAP_ATTRIBUTE( "spriteLines", m_spriteLines, "All the line items", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "spriteLines", m_spriteLines, "All the line items", Be::READ | Be::PERSIST )
 
 		MAP_METHOD_AND_WRAP( "Rebuild", Rebuild, "Rebuild resources after adding/removing/changing individual sprites" )
 

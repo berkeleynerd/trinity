@@ -23,10 +23,10 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 		MAP_ATTRIBUTE( "position", m_position, "position of this lensflare", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "translationCurve", m_translationCurve, "", Be::READWRITE )
 
-		MAP_ATTRIBUTE( "flares", m_flares, "the actual content: each lensflare is made of a couple of single flares", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "flares", m_flares, "the actual content: each lensflare is made of a couple of single flares", Be::READ | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "occluders", m_occluders, "foreground (ships, stations, etc.) occluders module of this lensflare", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "backgroundOccluders", m_backgroundOccluders, "background (planets) occluders module of this lensflare", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "occluders", m_occluders, "foreground (ships, stations, etc.) occluders module of this lensflare", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "backgroundOccluders", m_backgroundOccluders, "background (planets) occluders module of this lensflare", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "occlusionIntensity", m_occlusionIntensity, "the sum-up of all attached occluders", Be::READ )
 		MAP_ATTRIBUTE( 
 			"distanceToEdgeCurves", 

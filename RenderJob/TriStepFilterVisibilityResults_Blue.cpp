@@ -82,7 +82,7 @@ const Be::ClassInfo* TriStepFilterVisibilityResults::ExposeToBlue()
 			"objects", 
 			m_objects,
 			"List of objects to include/exclude from visibility results",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

@@ -15,7 +15,7 @@ const Be::ClassInfo* Tr2ForceSphereVolume::ExposeToBlue()
 		MAP_INTERFACE( ITr2ParticleForce )
 		MAP_INTERFACE( Tr2ForceSphereVolume )
 
-		MAP_ATTRIBUTE( "forces", m_forces, "List of forces subject to volume", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "forces", m_forces, "List of forces subject to volume", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "position", m_position, "Sphere position", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "radius", m_radius, "Sphere radius", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "exponent", m_exponent, "Falloff function exponent", Be::READWRITE | Be::PERSIST )

@@ -30,7 +30,7 @@ const Be::ClassInfo* EveChildBulletStorm::ExposeToBlue()
 		MAP_ATTRIBUTE( "sourceObject", m_sourceObject, "", Be::READWRITE | Be::NOTIFY )
 		MAP_ATTRIBUTE( "sourceRadius", m_sourceRadius, "", Be::READ )
 
-		MAP_ATTRIBUTE( "targetObjects", m_targetObjects, "", Be::READWRITE | Be::NOTIFY )
+		MAP_ATTRIBUTE( "targetObjects", m_targetObjects, "", Be::READ | Be::NOTIFY )
 
 		MAP_ATTRIBUTE( "effect", m_effect, "The shader", Be::READWRITE | Be::PERSIST )
 

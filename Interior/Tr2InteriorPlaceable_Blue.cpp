@@ -31,7 +31,7 @@ const Be::ClassInfo* Tr2InteriorPlaceable::ExposeToBlue()
 		MAP_ATTRIBUTE( "isUnique", m_isUniqueInstance, "When true, the placeable res is a copy, rather than a shared instance", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
 		MAP_ATTRIBUTE( "placeableRes", m_placeableRes, "", Be::READ )
-		MAP_ATTRIBUTE( "transform", m_transform, "", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "transform", m_transform, "", Be::READ | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "display", m_display, "Boolean flag indicating whether or not to render this static object", Be::READWRITE )
 
 #if BLUE_WITH_PYTHON

@@ -15,7 +15,7 @@ const Be::ClassInfo* EveLocatorSets::ExposeToBlue()
         MAP_INTERFACE( EveLocatorSets )
 
 		MAP_ATTRIBUTE( "name", m_name, "The unique name of this set of locators", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "locators", m_locators, "List of all the locators of this set", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "locators", m_locators, "List of all the locators of this set", Be::READ | Be::PERSIST )
 
 	EXPOSURE_END()
 }

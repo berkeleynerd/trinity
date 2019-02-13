@@ -13,7 +13,7 @@ const Be::ClassInfo* WodPlaceableRes::ExposeToBlue()
         MAP_ATTRIBUTE( "farFadeDistance", m_farFadeDistance,"", Be::READWRITE | Be::PERSIST )
         MAP_ATTRIBUTE( "nearFadeDistance", m_nearFadeDistance,"", Be::READWRITE | Be::PERSIST )
 
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curve sets to animate light attributes", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curve sets to animate light attributes", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( 
 			"isShadowCaster", 

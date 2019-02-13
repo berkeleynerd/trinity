@@ -14,7 +14,7 @@ const Be::ClassInfo* Tr2PostProcess::ExposeToBlue()
 			"stages",      
 			m_stages,
 			"Post processing stages", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
     EXPOSURE_END()

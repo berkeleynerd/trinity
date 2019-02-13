@@ -33,7 +33,7 @@ const Be::ClassInfo* Tr2MeshLod::ExposeToBlue()
 			"associatedResources", 
 			m_associatedResources, 
 			"List of resources associated with this mesh that can select level of detail", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

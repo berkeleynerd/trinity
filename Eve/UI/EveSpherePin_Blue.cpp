@@ -18,7 +18,7 @@ const Be::ClassInfo* EveSpherePin::ExposeToBlue()
 		MAP_ATTRIBUTE( "pinEffect", m_pinEffect, "The effect to use to draw the 3d pin", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "pickEffect", m_pickEffect, "The effect to use to draw the 3d pin\n:jessica-skip-validation:", Be::READ )
 
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "geometryResPath", m_geomResPath, "resource path, should be the big sphere all the planets share!", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE( "pinEffectResPath", m_pinEffectResPath, "resource path to the drawing effect", Be::READWRITE | Be::NOTIFY | Be::PERSIST )

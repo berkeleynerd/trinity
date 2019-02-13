@@ -45,6 +45,6 @@ const Be::ClassInfo* Tr2ShLightingManager::ExposeToBlue()
 			"lights", 
 			m_lights, 
 			"Additional lights", 
-			Be::READWRITE | Be::PERSIST )
+			Be::READ | Be::PERSIST )
 	EXPOSURE_END()
 }

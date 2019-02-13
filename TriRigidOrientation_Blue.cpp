@@ -79,7 +79,7 @@ const Be::ClassInfo* TriRigidOrientation::ExposeToBlue()
 			"states",          
 			mStates,          
 			"na", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		////////////////////////////////////////////////////////////////////////////

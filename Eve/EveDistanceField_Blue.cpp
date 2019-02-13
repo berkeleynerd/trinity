@@ -11,7 +11,7 @@ const Be::ClassInfo* EveDistanceField::ExposeToBlue()
 		MAP_INTERFACE( INotify )
 
 		MAP_ATTRIBUTE( "cameraView", m_cameraView, "na", Be::READWRITE )
-		MAP_ATTRIBUTE( "objects", m_objects, "na", Be::READWRITE | Be::NOTIFY  )
+		MAP_ATTRIBUTE( "objects", m_objects, "na", Be::READ | Be::NOTIFY  )
 		MAP_ATTRIBUTE( "curveSet", m_curveSet, "na", Be::READWRITE )
 		MAP_ATTRIBUTE( "distance", m_distance, "na", Be::READWRITE )
 		

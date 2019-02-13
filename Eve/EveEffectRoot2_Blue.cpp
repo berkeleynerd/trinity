@@ -105,7 +105,7 @@ const Be::ClassInfo* EveEffectRoot2::ExposeToBlue()
 			"effectChildren",
 			m_effectChildren,
 			"",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		
 		MAP_ATTRIBUTE
@@ -113,14 +113,14 @@ const Be::ClassInfo* EveEffectRoot2::ExposeToBlue()
 			"observers", 
 			m_observers, 
 			"Observers for pushing data between modules every frame. Currently used to push locator data out to the audio2 module.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_METHOD_AND_WRAP( "GetBoundingSphereRadius", GetBoundingSphereRadius, "Returns the bounding sphere radius." )
 
 		MAP_ATTRIBUTE( "lights", m_lights, "List of dynamic lights", Be::READ | Be::PERSIST );
 
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "controllers", m_controllers, "List of object controllers", Be::READ | Be::PERSIST )
 

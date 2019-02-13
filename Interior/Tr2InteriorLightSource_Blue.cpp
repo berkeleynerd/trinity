@@ -29,7 +29,7 @@ const Be::ClassInfo* Tr2InteriorLightSource::ExposeToBlue()
 		MAP_ATTRIBUTE( "coneDirection", m_coneDirection, "A spotlight's direction", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "primaryLighting", m_primaryLighting, "Does this lightsource contribute to primary lighting?", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curve sets to animate light attributes", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curve sets to animate light attributes", Be::READ | Be::PERSIST )
 
 		MAP_METHOD_AND_WRAP( "IsSpotLight", IsSpotLight, "Returns true if the light is a spot light (cone angle < 90 degrees) ")
 

@@ -38,7 +38,7 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 			"children",
 			m_children,
 			"",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -46,7 +46,7 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 			"particleEmitters",
 			m_particleEmitters,
 			"A list of emitters owned by this transform",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE
@@ -54,14 +54,14 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 			"particleSystems",
 			m_particleSystems,
 			"A list of particle systems owned by this transform",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		( 
 			"observers", 
 			m_observers, 
 			"Observers for pushing data between modules every frame. Currently used to push locator data out to the audio2 module.",
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE

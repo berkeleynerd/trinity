@@ -74,7 +74,7 @@ const Be::ClassInfo* Tr2ScalarExprKeyCurve::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "currentValue", m_currentValue, "", Be::READ )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "interpolation", m_interpolation, "", Be::READWRITE | Be::PERSIST | Be::ENUM, ScalarInterpolationChooser )
-		MAP_ATTRIBUTE( "keys", m_keys, "These are the keys of the curve", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "keys", m_keys, "These are the keys of the curve", Be::READ | Be::PERSIST )
 
 		MAP_METHOD_AND_WRAP_OPTIONAL_ARGS( 
 			"AddKey", 

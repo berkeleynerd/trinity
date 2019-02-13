@@ -15,7 +15,7 @@ const Be::ClassInfo* Tr2Sprite2dContainerBase::ExposeToBlue()
 			"children",
 			m_children,
 			"Children of this container",
-			Be::READWRITE
+			Be::READ
 		)
 
 		MAP_ATTRIBUTE
@@ -25,7 +25,7 @@ const Be::ClassInfo* Tr2Sprite2dContainerBase::ExposeToBlue()
 			"Background objects of this container. Background objects don't get alignment,\n"
 			"but always fill the extent of the container. They are never considered for\n"
 			"picking, either.",
-			Be::READWRITE
+			Be::READ
 		)
 
 		MAP_ATTRIBUTE

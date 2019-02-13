@@ -15,7 +15,7 @@ const Be::ClassInfo* EveMissile::ExposeToBlue()
 		MAP_INTERFACE( IEveSpaceObject2 )
 		MAP_INTERFACE( ITr2Renderable )
 
-		MAP_ATTRIBUTE( "warheads", m_warheads, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "warheads", m_warheads, "", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "updateWarheads", m_updateWarheads, "", Be::READWRITE )
 

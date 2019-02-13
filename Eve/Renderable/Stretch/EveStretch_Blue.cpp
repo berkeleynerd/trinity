@@ -149,7 +149,7 @@ const Be::ClassInfo* EveStretch::ExposeToBlue()
 			"curveSets", 
 			m_curveSets, 
 			"Curvesets for animating things", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 		MAP_ATTRIBUTE
 		(

@@ -438,7 +438,7 @@ const Be::ClassInfo* Tr2Sprite2dPolygon::ExposeToBlue()
 			"vertices", 
 			m_vertices, 
 			"Vertices used to render polygon", 
-			Be::READWRITE
+			Be::READ
 		)
 
 		MAP_ATTRIBUTE
@@ -446,7 +446,7 @@ const Be::ClassInfo* Tr2Sprite2dPolygon::ExposeToBlue()
 			"triangles", 
 			m_triangles, 
 			"Triangles used to render polygon", 
-			Be::READWRITE
+			Be::READ
 		)
 
 #if BLUE_WITH_PYTHON

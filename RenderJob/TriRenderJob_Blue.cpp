@@ -58,7 +58,7 @@ const Be::ClassInfo* TriRenderJob::ExposeToBlue()
 			"steps", 
 			m_renderSteps, 
 			"RenderJob steps", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 	EXPOSURE_END()

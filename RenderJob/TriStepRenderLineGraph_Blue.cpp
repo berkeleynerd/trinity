@@ -16,7 +16,7 @@ const Be::ClassInfo* TriStepRenderLineGraph::ExposeToBlue()
 			"lineGraphs",
 			m_lineGraphs,
 			"",
-			Be::READWRITE
+			Be::READ
 		)
 		MAP_ATTRIBUTE
 		(

@@ -309,7 +309,7 @@ const Be::ClassInfo* Tr2Sprite2dLineTrace::ExposeToBlue()
 			"vertices", 
 			m_vertices, 
 			"Vertices used to render line trace", 
-			Be::READWRITE | Be::NOTIFY
+			Be::READ | Be::NOTIFY
 		)
 
 		MAP_ATTRIBUTE

@@ -107,13 +107,13 @@ const Be::ClassInfo* Tr2SkinnedObject::ExposeToBlue()
 			"curveSets", 
 			m_curveSets, 
 			"Curvesets for animating things", 
-			Be::READWRITE | Be::PERSIST
+			Be::READ | Be::PERSIST
 		)
 
 		MAP_ATTRIBUTE( "animationUpdater", m_animationUpdater, "Object that implements ITr2AnimationUpdater interface that provides bone transforms and bone names", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "worldTransformUpdater", m_worldTransformUpdater, "Object that implements ITr2WorldTransformUpdater to update this objects transform for rendering", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visualModel", m_visualModel, "Model used to render object representation", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
-		MAP_ATTRIBUTE( "transform", m_transform, "Model 4x4 transform matrix", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "transform", m_transform, "Model 4x4 transform matrix", Be::READ | Be::PERSIST )
 		MAP_PROPERTY( "translation", GetPosition, SetPosition, "Position of the model" )
 		MAP_PROPERTY( "rotation", GetRotation, SetRotation, "Rotation of the model" )
 		MAP_PROPERTY( "scaling", GetScaling, SetScaling, "Scale of the model" )

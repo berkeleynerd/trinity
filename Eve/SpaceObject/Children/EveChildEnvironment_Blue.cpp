@@ -58,8 +58,8 @@ const Be::ClassInfo* EveChildEnvironment::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )		
 		MAP_ATTRIBUTE( "intensity", m_environmentIntensity, "", Be::READ )
 		MAP_ATTRIBUTE( "boundingSphere", m_boundingSphere, "", Be::READ )
-		MAP_ATTRIBUTE( "volumes", m_volumes, "", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
-		MAP_ATTRIBUTE( "exclusionVolumes", m_exclusionVolumes, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "volumes", m_volumes, "", Be::READ | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "exclusionVolumes", m_exclusionVolumes, "", Be::READ | Be::PERSIST )
 
 	EXPOSURE_END()
 }

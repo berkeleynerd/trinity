@@ -20,7 +20,7 @@ const Be::ClassInfo* EveSprite2dBracketRenderer::ExposeToBlue()
 			"brackets",
 			m_brackets,
 			"The list of individual brackets",
-			Be::READWRITE
+			Be::READ
 		)
 
 		MAP_ATTRIBUTE

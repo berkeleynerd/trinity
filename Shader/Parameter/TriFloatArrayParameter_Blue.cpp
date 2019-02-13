@@ -25,7 +25,7 @@ const Be::ClassInfo* TriFloatArrayParameter::ExposeToBlue()
 		MAP_INTERFACE( IInitialize )
 
 		MAP_ATTRIBUTE( "name", m_name, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
-		MAP_ATTRIBUTE( "value", m_value, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
+		MAP_ATTRIBUTE( "value", m_value, "na", Be::READ | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE( "usedByCurrentTechnique", m_isUsedByEffect, "na", Be::READ )
 		MAP_ATTRIBUTE( "usedByCurrentEffect", m_isUsedByEffect, "na", Be::READ )
 	EXPOSURE_END()

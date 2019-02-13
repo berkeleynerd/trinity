@@ -407,14 +407,14 @@ const Be::ClassInfo* Tr2InteriorScene::ExposeToBlue()
 		MAP_INTERFACE( INotify )
 		MAP_INTERFACE( ITr2Updateable )
 
-		MAP_ATTRIBUTE( "lights", m_lights, "List of scene light sources", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
-		MAP_ATTRIBUTE( "dynamics", m_dynamics, "List of dynamic objects in scene", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "lights", m_lights, "List of scene light sources", Be::READ | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "dynamics", m_dynamics, "List of dynamic objects in scene", Be::READ | Be::PERSIST | Be::NOTIFY )
 
 		MAP_ATTRIBUTE( "sunDiffuseColor", m_sunDiffuseColor, "Sun diffuse color", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "sunSpecularColor", m_sunSpecularColor, "Sun specular color", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "sunDirection", m_sunDirection, "Sun direction", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "ambientColor", m_ambientColor, "Scene Ambient color", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "curveSets", m_curveSets, "", Be::READWRITE )
+		MAP_ATTRIBUTE( "curveSets", m_curveSets, "", Be::READ )
 
 		MAP_ATTRIBUTE( "apexLODResourceBudget", m_apexLODResourceBudget, "", Be::READWRITE )
 		MAP_ATTRIBUTE( "apexLODResourceBudgetConsumed", m_apexLODResourceBudgetConsumed, "", Be::READ )
