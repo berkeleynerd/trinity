@@ -27,7 +27,8 @@ EvePlanet::EvePlanet( IRoot* lockobj ) :
 	m_estimatedMaxPixelDiameter( 0.f ),
 	m_currentLod( TR2_LOD_UNSPECIFIED ),
 	m_albedoColor( 0, 0, 0, 0 ),
-	m_emissiveColor( 0, 0, 0, 0 )
+	m_emissiveColor( 0, 0, 0, 0 ),
+	m_radius( 1 )
 {
 	PrepareResources();
 }
