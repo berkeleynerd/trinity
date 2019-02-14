@@ -2725,6 +2725,7 @@
     <ClInclude Include="Eve\SpaceObject\Children\EveChildParticleSphere.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildParticleSystem.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildQuad.h" />
+    <ClInclude Include="Eve\SpaceObject\Children\EveChildSpherePin.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveChildTransform.h" />
     <ClInclude Include="Eve\SpaceObject\Children\EveCloudEditableVolume.h" />
     <ClInclude Include="Eve\SpaceObject\Children\IEveEffectChildrenOwner.h" />
@@ -3381,6 +3382,8 @@
     <ClCompile Include="Eve\SpaceObject\Children\EveChildParticleSystem_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildQuad.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildQuad_Blue.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildSpherePin.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildSpherePin_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveChildTransform.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveCloudEditableVolume.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\EveCloudEditableVolume_Blue.cpp" />

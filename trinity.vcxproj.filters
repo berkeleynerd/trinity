@@ -773,6 +773,9 @@
     <ClInclude Include="Eve\SpaceObject\Children\EveChildQuad.h">
       <Filter>Source Files\Eve\SpaceObject\Children</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\SpaceObject\Children\EveChildSpherePin.h">
+      <Filter>Source Files\Eve\SpaceObject\Children</Filter>
+    </ClInclude>
     <ClInclude Include="Eve\SpaceObject\Children\EveChildTransform.h">
       <Filter>Source Files\Eve\SpaceObject\Children</Filter>
     </ClInclude>
@@ -2727,6 +2730,12 @@
       <Filter>Source Files\Eve\SpaceObject\Children</Filter>
     </ClCompile>
     <ClCompile Include="Eve\SpaceObject\Children\EveChildQuad_Blue.cpp">
+      <Filter>Source Files\Eve\SpaceObject\Children</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildSpherePin.cpp">
+      <Filter>Source Files\Eve\SpaceObject\Children</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\SpaceObject\Children\EveChildSpherePin_Blue.cpp">
       <Filter>Source Files\Eve\SpaceObject\Children</Filter>
     </ClCompile>
     <ClCompile Include="Eve\SpaceObject\Children\EveChildTransform.cpp">
