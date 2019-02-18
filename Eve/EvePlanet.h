@@ -15,6 +15,8 @@ BLUE_DECLARE( EvePlanet );
 BLUE_DECLARE( EveUpdateContext );
 BLUE_DECLARE_VECTOR( EvePlanet );
 BLUE_DECLARE( EveTransform );
+BLUE_DECLARE( Tr2ExternalParameter );
+BLUE_DECLARE_VECTOR( Tr2ExternalParameter );
 
 class TriFrustum;
 struct ITr2Renderable;
@@ -110,6 +112,7 @@ private:
 
 	Tr2Lod m_currentLod;
 	EveChildMeshPtr m_zOnlyModel;
+	PTr2ExternalParameterVector m_externalParameters;
 };
 
 TYPEDEF_BLUECLASS( EvePlanet );

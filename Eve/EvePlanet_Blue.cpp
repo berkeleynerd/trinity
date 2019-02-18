@@ -141,6 +141,13 @@ const Be::ClassInfo* EvePlanet::ExposeToBlue()
 			"A model that is used to write to the z-buffer only",
 			Be::READWRITE | Be::PERSIST
 		)
+
+		MAP_ATTRIBUTE(
+			"externalParameters",
+			m_externalParameters,
+			"List of external parameters to bind to object elements",
+			Be::READ | Be::PERSIST 
+		)
 		
     EXPOSURE_END()
 }

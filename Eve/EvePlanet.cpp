@@ -19,6 +19,7 @@ EvePlanet::EvePlanet( IRoot* lockobj ) :
 	PARENTLOCK( m_observers ),
 	PARENTLOCK( m_effectChildren ),
 	PARENTLOCK( m_curveSets ),
+	PARENTLOCK( m_externalParameters ),
 	m_display( true ),
 	m_update( true ),
 	m_renderScale( SCALE ),
