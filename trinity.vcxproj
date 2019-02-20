@@ -2761,6 +2761,9 @@
     <ClInclude Include="Eve\UI\EveSpherePinIndexTree.h" />
     <ClInclude Include="Eve\UI\EveTacticalOverlay.h" />
     <ClInclude Include="Eve\UI\EveUiObject.h" />
+    <ClInclude Include="Eve\Volume\EveBoxVolume.h" />
+    <ClInclude Include="Eve\Volume\EveSphereVolume.h" />
+    <ClInclude Include="Eve\Volume\IEveVolume.h" />
     <ClInclude Include="Font\Tr2FontManager.h" />
     <ClInclude Include="Font\Tr2FontMeasurer.h" />
     <ClInclude Include="Font\Tr2SBit.h" />
@@ -2768,6 +2771,7 @@
     <ClInclude Include="Include\IEveReferencePoint.h" />
     <ClInclude Include="Include\IPhysXSdk.h" />
     <ClInclude Include="Include\ITr2AnimationUpdater.h" />
+    <ClInclude Include="Include\ITr2AudioEmitter.h" />
     <ClInclude Include="Include\ITr2BoundingBox.h" />
     <ClInclude Include="Include\ITr2DebugRenderer.h" />
     <ClInclude Include="Include\ITr2GpuBuffer.h" />
@@ -3444,6 +3448,10 @@
     <ClCompile Include="Eve\UI\EveTacticalOverlay_Blue.cpp" />
     <ClCompile Include="Eve\UI\EveUiObject.cpp" />
     <ClCompile Include="Eve\UI\EveUiObject_Blue.cpp" />
+    <ClCompile Include="Eve\Volume\EveBoxVolume.cpp" />
+    <ClCompile Include="Eve\Volume\EveBoxVolume_Blue.cpp" />
+    <ClCompile Include="Eve\Volume\EveSphereVolume.cpp" />
+    <ClCompile Include="Eve\Volume\EveSphereVolume_Blue.cpp" />
     <ClCompile Include="Font\Tr2FontManager.cpp" />
     <ClCompile Include="Font\Tr2FontManager_Blue.cpp" />
     <ClCompile Include="Font\Tr2FontMeasurer.cpp" />

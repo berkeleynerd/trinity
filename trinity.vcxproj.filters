@@ -20,6 +20,7 @@
     <Filter Include="Source Files\Eve\SpaceObject\Utils" />
     <Filter Include="Source Files\Eve\Turret" />
     <Filter Include="Source Files\Eve\UI" />
+    <Filter Include="Source Files\Eve\Volume" />
     <Filter Include="Source Files\Font" />
     <Filter Include="Source Files\Include" />
     <Filter Include="Source Files\Interior" />
@@ -881,6 +882,15 @@
     <ClInclude Include="Eve\UI\EveUiObject.h">
       <Filter>Source Files\Eve\UI</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\Volume\EveBoxVolume.h">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClInclude>
+    <ClInclude Include="Eve\Volume\EveSphereVolume.h">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClInclude>
+    <ClInclude Include="Eve\Volume\IEveVolume.h">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClInclude>
     <ClInclude Include="Font\Tr2FontManager.h">
       <Filter>Source Files\Font</Filter>
     </ClInclude>
@@ -900,6 +910,9 @@
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITr2AnimationUpdater.h">
+      <Filter>Source Files\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="Include\ITr2AudioEmitter.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
     <ClInclude Include="Include\ITr2BoundingBox.h">
@@ -2917,6 +2930,18 @@
     </ClCompile>
     <ClCompile Include="Eve\UI\EveUiObject_Blue.cpp">
       <Filter>Source Files\Eve\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Volume\EveBoxVolume.cpp">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Volume\EveBoxVolume_Blue.cpp">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Volume\EveSphereVolume.cpp">
+      <Filter>Source Files\Eve\Volume</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\Volume\EveSphereVolume_Blue.cpp">
+      <Filter>Source Files\Eve\Volume</Filter>
     </ClCompile>
     <ClCompile Include="Font\Tr2FontManager.cpp">
       <Filter>Source Files\Font</Filter>
