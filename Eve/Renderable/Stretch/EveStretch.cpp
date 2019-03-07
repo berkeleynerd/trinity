@@ -6,7 +6,7 @@
 #include "Utilities/BoundingSphere.h"
 #include "Eve/Turret/EveTurretSet.h"
 #include "Curves/Tr2CurveScalar.h"
-#include "Tr2PointLight.h"
+#include "Lights/Tr2PointLight.h"
 
 static const Vector3 Y_AXIS(0.0f, 1.0f, 0.0f);
 

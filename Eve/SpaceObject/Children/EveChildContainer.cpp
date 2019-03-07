@@ -12,7 +12,7 @@
 #include "Eve/EveUpdateContext.h"
 #include "TriObserverLocal.h"
 #include "Tr2LightManager.h"
-#include "Tr2PointLight.h"
+#include "Lights/Tr2PointLight.h"
 #include "Controllers/ITr2Controller.h"
 
 

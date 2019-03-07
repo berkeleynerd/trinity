@@ -3,7 +3,7 @@
 
 #include "Utilities/BoundingSphere.h"
 #include "TriFrustum.h"
-#include "Tr2PointLight.h"
+#include "Lights/Tr2PointLight.h"
 #include "Tr2LightManager.h"
 #include "Controllers/ITr2Controller.h"
 #include "Curves/TriCurveSet.h"

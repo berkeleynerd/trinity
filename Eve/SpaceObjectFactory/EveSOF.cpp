@@ -46,8 +46,8 @@
 #include "Particle/Tr2GpuUniqueEmitter.h"
 #include "TriSequencer.h"
 #include "Include/ITr2SoundEmitter.h"
-#include "Tr2PointLight.h"
-#include "Tr2TexturedPointLight.h"
+#include "Lights/Tr2PointLight.h"
+#include "Lights/Tr2TexturedPointLight.h"
 
 
 // --------------------------------------------------------------------------------

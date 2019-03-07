@@ -6,7 +6,7 @@
 
 #include "StdAfx.h"
 #include "Tr2ShLightingManager.h"
-#include "Tr2PointLight.h"
+#include "Lights/Tr2PointLight.h"
 
 CCP_STATS_DECLARE( shLightingSamples, "Trinity/shLighting/samples", true, CST_COUNTER_LOW, "How many SH lighting samples are evaluated per frame?" );
 CCP_STATS_DECLARE( shLightingSecondarySources, "Trinity/shLighting/secondarySources", true, CST_COUNTER_LOW, "How many SH lighting secondary sources are evaluated per frame?" );

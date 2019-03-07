@@ -10,7 +10,7 @@
 #include "Eve/EveUpdateContext.h"
 #include "Tr2PerObjectData.h"
 #include "TriRenderBatch.h"
-#include "Tr2PointLight.h"
+#include "Lights/Tr2PointLight.h"
 #include "Shader/Tr2Effect.h"
 #include "Particle/Tr2GpuSharedEmitter.h"
 #include "TriObserverLocal.h"
