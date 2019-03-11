@@ -22,10 +22,10 @@ const Be::ClassInfo* Tr2RenderTarget::ExposeToBlue()
 			":param width: render target width\n"
 			":param height: render target height\n"
 			":param mipCount: number of mip levels (0 = full pyramid)\n"
-			":param format: pixel format (trinity.PIXEL_FORMAT)"
+			":param format: pixel format (trinity.PIXEL_FORMAT)\n"
 			":param msaaType: number of samples\n"
 			":param msaaQuality: MSAA quality\n"
-			":param flags: trinity.EX_FLAG"
+			":param flags: trinity.EX_FLAG\n"
 			":param type: texture type (2D or CUBE)"
 		)
 
@@ -43,7 +43,7 @@ const Be::ClassInfo* Tr2RenderTarget::ExposeToBlue()
 			":param format: pixel format (trinity.PIXEL_FORMAT)\n"
 			":param msaaType: number of samples\n"
 			":param msaaQuality: MSAA quality\n"
-			":param flags: trinity.EX_FLAG"
+			":param flags: trinity.EX_FLAG\n"
 			":param type: texture type (2D or CUBE)"
 		)
 
