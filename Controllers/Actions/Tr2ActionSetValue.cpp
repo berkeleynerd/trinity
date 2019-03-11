@@ -12,7 +12,8 @@
 
 
 Tr2ActionSetValue::Tr2ActionSetValue( IRoot* )
-	:m_controller( nullptr )
+	:m_controller( nullptr ),
+	m_delayBinding( false )
 {
 
 }
@@ -20,9 +21,10 @@ Tr2ActionSetValue::Tr2ActionSetValue( IRoot* )
 void Tr2ActionSetValue::Link( Tr2Controller& controller )
 {
 	m_controller = &controller;
-	std::unordered_map<std::string, IRoot*> roots;
-	controller.GetBindingPathRoots( roots );
-	m_destination.Link( roots );
+	if( !HasDelayedBinding() )
+	{
+		LinkDestination( controller );
+	}
 	m_evaluator.SetExpr( m_value.c_str(), controller );
 }
 
@@ -35,6 +37,10 @@ void Tr2ActionSetValue::Unlink()
 
 void Tr2ActionSetValue::Start( Tr2Controller& controller )
 {
+	if( HasDelayedBinding() )
+	{
+		LinkDestination( controller );
+	}
 	if( !m_destination.IsValid() )
 	{
 		return;
@@ -53,11 +59,12 @@ bool Tr2ActionSetValue::OnModified( Be::Var* value )
 	{
 		return true;
 	}
-	if( IsMatch( value, m_destination.m_path ) || IsMatch( value, m_destination.m_attribute ) || IsMatch( value, m_destination.m_object ) )
+	if( IsMatch( value, m_destination.m_path ) || IsMatch( value, m_destination.m_attribute ) || IsMatch( value, m_destination.m_object ) || IsMatch( value, m_isPathDynamic ) )
 	{
-		std::unordered_map<std::string, IRoot*> roots;
-		m_controller->GetBindingPathRoots( roots );
-		m_destination.Link( roots );
+		if( !HasDelayedBinding() )
+		{
+			LinkDestination( *m_controller );
+		}
 	}
 	else if( IsMatch( value, m_value ) )
 	{
@@ -100,4 +107,16 @@ std::vector<Tr2ExpressionTermInfoPtr> Tr2ActionSetValue::GetExpressionTermInfo()
 		}
 	}
 	return result;
+}
+
+void Tr2ActionSetValue::LinkDestination( const Tr2Controller& controller )
+{
+	std::unordered_map<std::string, IRoot*> roots;
+	controller.GetBindingPathRoots( roots );
+	m_destination.Link( roots );
+}
+
+bool Tr2ActionSetValue::HasDelayedBinding() const
+{
+	return m_delayBinding && !m_destination.m_path.empty();
 }
