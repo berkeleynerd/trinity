@@ -21,6 +21,7 @@ const Be::ClassInfo* EveSpaceObjectDecal::ExposeToBlue()
 		MAP_ATTRIBUTE( "scaling", m_scaling, "size of decal", Be::READWRITE | Be::NOTIFY | Be::PERSIST );
 
 		MAP_ATTRIBUTE( "parentBoneIndex", m_parentBoneIndex, "the bone index this decal is tight to (-1 to disable)", Be::READWRITE | Be::PERSIST );
+		MAP_ATTRIBUTE( "minScreenSize", m_minScreenSize, "min size on screen in pixels before the decal is LODed out", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "decalEffect", m_decalEffect, "The effect used to draw the decal", Be::READWRITE | Be::PERSIST )
 

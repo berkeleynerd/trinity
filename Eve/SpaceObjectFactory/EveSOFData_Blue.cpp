@@ -202,7 +202,7 @@ const Be::ClassInfo* EveSOFDataRaceDamage::ExposeToBlue()
 		MAP_ATTRIBUTE( "armorImpactTextures", m_armorImpactTextures, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "shieldImpactParameters", m_shieldImpactParameters, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "shieldImpactTextures", m_shieldImpactTextures, "", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -302,7 +302,7 @@ const Be::ClassInfo* EveSOFDataFactionVisibilityGroupSet::ExposeToBlue()
 		MAP_INTERFACE( EveSOFDataFactionVisibilityGroupSet )
 
 		MAP_ATTRIBUTE( "visibilityGroups", m_visibilityGroups, "", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -407,7 +407,7 @@ const Be::ClassInfo* EveSOFDataHullSpriteLineSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "skinned", m_skinned, "Is this spriteset bone-animated.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "items", m_items, "The items in this spritelineset", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -442,7 +442,7 @@ const Be::ClassInfo* EveSOFDataHullHazeSet::ExposeToBlue()
 		MAP_ATTRIBUTE_WITH_CHOOSER( "hazeType", m_hazeType, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataHazeTypeChooser )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "items", m_items, "The items in this hazeset", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 Be::VarChooser EveSOFDataHullBannerUsageChooser[] =
@@ -845,7 +845,7 @@ const Be::ClassInfo* EveSOFDataHullDecalSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "indexBuffer", m_indexBuffer, "", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -930,7 +930,7 @@ const Be::ClassInfo* EveSOFDataHullLightSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -940,7 +940,7 @@ const Be::ClassInfo* EveSOFDataLogo::ExposeToBlue()
 	EXPOSURE_BEGIN( EveSOFDataLogo, "" )
 		MAP_INTERFACE( EveSOFDataLogo )
 		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -982,7 +982,7 @@ const Be::ClassInfo* EveSOFDataFaction::ExposeToBlue()
 		MAP_ATTRIBUTE( "materialUsageMtl4", m_materialUsageMtl4, "Material usage of Mtl4\n:jessica-group: MaterialUsage", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultPattern", m_defaultPattern, "The default pattern data for this faction\n:jessica-group: DefaultPattern", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultPatternLayer1MaterialName", m_defaultPatternLayer1MaterialName, "The default pattern material name for this faction and layer 1\n:jessica-group: DefaultPattern", Be::READWRITE | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -1026,7 +1026,7 @@ const Be::ClassInfo* EveSOFDataPattern::ExposeToBlue()
 		MAP_ATTRIBUTE( "layer1", m_layer1, "Pattern data for layer #1.", Be::READWRITE | Be::PERSIST)
 		MAP_ATTRIBUTE( "layer2", m_layer2, "Pattern data for layer #2.", Be::READWRITE | Be::PERSIST)
 		MAP_ATTRIBUTE( "projections", m_projections, "", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -1222,7 +1222,7 @@ const Be::ClassInfo* EveSOFDataGenericShader::ExposeToBlue()
 		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultParameters", m_defaultParameters, "Default (global) parameters for this shader", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -1236,7 +1236,7 @@ const Be::ClassInfo* EveSOFDataGenericDecalShader::ExposeToBlue()
 		MAP_ATTRIBUTE( "parameters", m_parameters, "Complete list of all parameters for this shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "defaultTextures", m_defaultTextures, "Default (global) textures for this shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "parentTextures", m_parentTextures, "Parent textures from the hull", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 
@@ -1264,6 +1264,19 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "resPathDefaultCeo", m_resPathDefaultCeo, "The texture for the default ceo logo\n:jessica-group: DefaultTextures\n:jessica-widget: filepath\n:jessica-file-filter: texture", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "areaShaderLocation", m_areaShaderLocation, "The location of all the area shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "decalShaderLocation", m_decalShaderLocation, "The location of all the decal shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
+
+#define MAP_SCREENSIZE( sc ) MAP_ATTRIBUTE( "decalMinScreenSize" # sc, m_decalMinScreenSizes[EveSOFDataHullDecalSetItem::USAGE_##sc], ":jessica-group: Decal Min Screen Size", Be::READWRITE | Be::PERSIST )
+
+		MAP_SCREENSIZE( STANDARD )
+		MAP_SCREENSIZE( KILLCOUNTER )
+		MAP_SCREENSIZE( HOLE )
+		MAP_SCREENSIZE( CYLINDRICAL )
+		MAP_SCREENSIZE( GLOWCYLINDRICAL )
+		MAP_SCREENSIZE( GLOWSTANDARD )
+		MAP_SCREENSIZE( LOGO )
+
+#undef MAP_SCREENSIZE
+
 		MAP_ATTRIBUTE( "shaderPrefix", m_shaderPrefix, "A prefix for all shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "shaderPrefixAnimated", m_shaderPrefixAnimated, "A prefix for all skinned shaders\n:jessica-group: ShaderInfo", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "materialPrefixes", m_materialPrefixes, "List of all the support material prefixes", Be::READ | Be::PERSIST )
@@ -1276,7 +1289,7 @@ const Be::ClassInfo* EveSOFDataGeneric::ExposeToBlue()
 		MAP_ATTRIBUTE( "bannerShader", m_bannerShader, "Banner shader", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "genericWreckMaterial", m_genericWreckMaterial, "Global wreck area shader data", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "variants", m_variants, "All the hull  variants", Be::READ | Be::PERSIST )
-	EXPOSURE_END()
+		EXPOSURE_END()
 }
 
 

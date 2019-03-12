@@ -9,8 +9,11 @@
 #include "Resources/TriGeometryRes.h"
 #include "Utilities/BoundingBox.h"
 #include "Utilities/MatrixUtils.h"
+#include "TriFrustum.h"
 
 CCP_STATS_DECLARED_ELSEWHERE( primitiveCount );
+CCP_STATS_DECLARE( decalDPCount, "Trinity/EveSpaceObject2/DecalDPCount", true, CST_COUNTER_LOW, "Number of decals rendered" );
+
 
 using namespace Tr2RenderContextEnum;
 
@@ -28,11 +31,13 @@ EveSpaceObjectDecal::EveSpaceObjectDecal( IRoot* lockobj ) :
 	m_scaling( 1.f, 1.f, 1.f ),
 	m_parentBoneIndex( -1 ),
 	m_rebuildIndexBuffer( false ),
+	m_isVisible( 0 ),
 	m_decalPrimitiveCount( 0 ),
 	PARENTLOCK( m_indices ),
 	m_decalMatrix( IdentityMatrix() ),
 	m_invDecalMatrix( IdentityMatrix() ),
-	m_parentBoneMatrix( IdentityMatrix() )
+	m_parentBoneMatrix( IdentityMatrix() ),
+	m_minScreenSize( 0 )
 {
 	// init
 	PrepareResources();
@@ -98,15 +103,45 @@ bool EveSpaceObjectDecal::OnPrepareResources()
 	return true;
 }
 
-// ------------------------------------------------------------------------------------------------------
-void EveSpaceObjectDecal::GetRenderables( TriGeometryRes* geomRes, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData )
+void EveSpaceObjectDecal::UpdateVisibility( const TriFrustum& frustum, const ParentData* parentData )
 {
-	if( !geomRes || !m_decalEffect )
+	m_isVisible = 0;
+
+	if( !m_display || !m_decalEffect )
 	{
 		return;
 	}
 
-	if( !m_display )
+	if( m_minScreenSize > 0 )
+	{
+		Matrix worldDecalMatrix = m_decalMatrix * m_parentBoneMatrix * parentData->transform;
+		Vector3 min( -1, -1, -1 );
+		Vector3 max( 1, 1, 1 );
+		BoundingBoxTransform( min, max, worldDecalMatrix );
+		Vector3 sphereCenter( ( min + max ) / 2 );
+		float sphereRadius( Length( min - max ) / 2 );
+		auto pixelSize = frustum.GetPixelSizeAccrossEst( sphereCenter, sphereRadius );
+		if( pixelSize < m_minScreenSize )
+		{
+			m_isVisible = 0;
+			return;
+		}
+		else
+		{
+			m_isVisible = std::min( ( pixelSize - m_minScreenSize ) / ( m_minScreenSize * 0.5f ), 1.f );
+		}
+	}
+	else
+	{
+		m_isVisible = 1;
+	}
+	m_parentData = *parentData;
+}
+
+// ------------------------------------------------------------------------------------------------------
+void EveSpaceObjectDecal::GetRenderables( std::vector<ITr2Renderable*>& renderables, TriGeometryRes* geomRes )
+{
+	if( m_isVisible <= 0 || !geomRes )
 	{
 		return;
 	}
@@ -147,9 +182,6 @@ void EveSpaceObjectDecal::GetRenderables( TriGeometryRes* geomRes, std::vector<I
 	}
 
 	renderables.push_back( this );
-
-	// store the parent transform etc. for later use
-	m_parentData = *parentData;
 }
 
 // --------------------------------------------------------------------------------
@@ -244,7 +276,7 @@ Tr2PerObjectData* EveSpaceObjectDecal::GetPerObjectData( ITriRenderBatchAccumula
 	perObjectData->m_clipData2 = m_parentData.clipDataEx;
 
 	// display data
-	perObjectData->m_displayData = Vector4( (float)m_parentData.displayCounter, 0.f, 0.f, 0.f );
+	perObjectData->m_displayData = Vector4( (float)m_parentData.displayCounter, m_isVisible, 0.f, 0.f );
 
 	if( m_parentData.shLighting )
 	{
@@ -297,6 +329,8 @@ void EveSpaceObjectDecal::SubmitGeometry( Tr2RenderContext& renderContext )
 		return;
 	}
 
+	CCP_STATS_INC( decalDPCount );
+
 	// render
 	renderContext.m_esm.ApplyVertexDeclaration( meshData->m_vertexDeclaration );
 	renderContext.m_esm.ApplyStreamSource( 0, meshData->m_vertexBuffer, 0, meshData->m_bytesPerVertex );
@@ -319,6 +353,7 @@ void EveSpaceObjectDecal::CopyFrom( EveSpaceObjectDecal *object )
 	m_parentBoneMatrix = m_parentBoneMatrix;
 	m_decalEffect = object->m_decalEffect;
 	m_indices = object->m_indices;
+	m_minScreenSize = object->m_minScreenSize;
 }
 
 // ------------------------------------------------------------------------------------------------------
@@ -646,6 +681,11 @@ void EveSpaceObjectDecal::SetIndices( const uint32_t* indices, size_t count )
 	{
 		m_indices.Append( indices + i );
 	}
+}
+
+void EveSpaceObjectDecal::SetMinScreenSize( float minScreenSize )
+{
+	m_minScreenSize = minScreenSize;
 }
 
 void EveSpaceObjectDecal::CreateStaticIndexBuffer()

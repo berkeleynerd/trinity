@@ -555,6 +555,8 @@ public:
 		std::string shaderPrefix, shaderPrefixAnimated;
 		std::string areaShaderLocation;
 		std::string decalShaderLocation;
+		float decalMinScreenSize[EveSOFDataHullDecalSetItem::USAGE_MAX];
+
 		// material perfixes
 		std::vector<std::string> materialPrefixes;
 		std::vector<std::string> patternMaterialPrefixes;

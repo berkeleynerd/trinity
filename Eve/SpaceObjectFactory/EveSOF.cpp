@@ -51,6 +51,12 @@
 #include "Lights/Tr2SpotLight.h"
 
 
+namespace
+{
+	const float MIN_DECAL_SCREEN_SIZE = 10.f;
+}
+
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Initialize data members
@@ -1961,6 +1967,7 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, con
 				decal->SetRotation( hdsiit->rotation );
 				decal->SetScaling( hdsiit->scaling );
 				decal->SetBoneIndex( hdsiit->boneIndex );
+				decal->SetMinScreenSize( MIN_DECAL_SCREEN_SIZE );
 
 				// pre-calculated index buffer is only valid for first multi-hull
 				if( hdsiit->indexBuffer.empty() || hullIdx != 0 )

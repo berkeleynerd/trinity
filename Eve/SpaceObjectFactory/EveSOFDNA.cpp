@@ -388,6 +388,11 @@ const char* EveSOFDNA::GetDecalShaderLocationResPath() const
 	return m_genericData->decalShaderLocation.c_str();
 }
 
+float EveSOFDNA::GetDecalMinScreenSize( EveSOFDataHullDecalSetItem::Usage usage ) const
+{
+	return m_genericData->decalMinScreenSize[usage];
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Return decal shader

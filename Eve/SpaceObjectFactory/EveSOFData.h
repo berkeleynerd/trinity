@@ -1477,6 +1477,8 @@ public:
 	std::string m_areaShaderLocation;
 	std::string m_decalShaderLocation;
 
+	float m_decalMinScreenSizes[EveSOFDataHullDecalSetItem::USAGE_MAX];
+
 	// shader material pre-fixes
 	PEveSOFDataGenericStringVector m_materialPrefixes;
 	PEveSOFDataGenericStringVector m_patternMaterialPrefixes;

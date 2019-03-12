@@ -112,7 +112,8 @@ public:
 	void CopyFrom( EveSpaceObjectDecal *object );
 
 	// access
-	void GetRenderables( TriGeometryRes* geomRes, std::vector<ITr2Renderable*>& renderables, const ParentData* parentData );
+	void UpdateVisibility( const TriFrustum& frustum, const ParentData* parentData );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, TriGeometryRes* geomRes );
 
 	// access position etc.
 	const Vector3& GetPosition() const;
@@ -124,6 +125,7 @@ public:
 	int GetBoneIndex() const;
 	void SetBoneIndex( int idx );
 	void SetIndices( const uint32_t* indices, size_t count );
+	void SetMinScreenSize( float minScreenSize );
 
 	// edit helper
 	void RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& worldMatrix ) const;
@@ -173,8 +175,10 @@ private:
 	// new index buffer
 	Tr2BufferAL m_indexBuffer;
 	bool m_rebuildIndexBuffer;
+	float m_isVisible;
 	// num of primitives for this decal
 	unsigned int m_decalPrimitiveCount;
+	float m_minScreenSize;
 
 	PEveSpaceObjectDecalIndexStructureList m_indices;
 };

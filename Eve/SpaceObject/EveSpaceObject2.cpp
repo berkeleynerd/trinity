@@ -1253,20 +1253,11 @@ void EveSpaceObject2::PushChildrenAndDecalRenderables( std::vector<ITr2Renderabl
 		TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 		if( geometryRes )
 		{
-			// put together parent data for the decals
-			EveSpaceObjectDecal::ParentData pd;
-			FillDecalParentData( &pd );
-
 			// runn over every decal and update it
 			for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 			{
-				// tell the decal of animation, IF we have any
-				if( m_animationUpdater && m_animationUpdater->GetMeshBoneCount() && m_animationUpdater->IsInitialized() )
-				{
-					(*it)->SetBoneMatrix( m_animationUpdater->GetMeshBoneMatrixList(), m_animationUpdater->GetMeshBoneCount() );
-				}
 				// now prep to get the renderables
-				(*it)->GetRenderables( geometryRes, renderables, &pd );
+				(*it)->GetRenderables( renderables, geometryRes );
 			}
 		}
 	}
@@ -1377,6 +1368,21 @@ void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 	for( auto ecIt = m_effectChildren.begin(); ecIt != m_effectChildren.end(); ++ecIt )
 	{
 		(*ecIt)->UpdateVisibility( frustum, m_worldTransform, m_lodLevelWithChildren );
+	}
+
+	if( DisplayDecals() && m_isMeshVisible )
+	{
+		EveSpaceObjectDecal::ParentData pd;
+		FillDecalParentData( &pd );
+
+		for( auto it = m_decals.begin(); it != m_decals.end(); ++it )
+		{
+			if( m_animationUpdater && m_animationUpdater->GetMeshBoneCount() && m_animationUpdater->IsInitialized() )
+			{
+				( *it )->SetBoneMatrix( m_animationUpdater->GetMeshBoneMatrixList(), m_animationUpdater->GetMeshBoneCount() );
+			}
+			( *it )->UpdateVisibility( frustum, &pd );
+		}
 	}
 }
 

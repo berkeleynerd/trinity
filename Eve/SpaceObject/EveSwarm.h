@@ -52,8 +52,9 @@ public:
 	void SetBoosterIntensity( float intensity );
 	void SetShaderData( const EveSpaceObjectVSData& vsData, const EveSpaceObjectPSData& psData );
 	void InitDecals( const PEveSpaceObjectDecalVector &decals );
-	void PushDecals( std::vector<ITr2Renderable*>& renderables, EveSpaceObjectDecal::ParentData &pd, Tr2GrannyAnimationPtr animationUpdater );
-	
+	void PushDecals( std::vector<ITr2Renderable*>& renderables );
+	void UpdateDecalVisibility( const TriFrustum& frustum, EveSpaceObjectDecal::ParentData &pd, Tr2GrannyAnimation* animationUpdater );
+
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2Pickable
 	IRoot* GetID( uint16_t ) override;
@@ -206,6 +207,7 @@ public:
 	void UpdateAsyncronous( EveUpdateContext& updateContext );
 	void UpdateTurretsAsyncronous( EveUpdateContext& updateContext );
 	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query=EVE_BOUNDS_NORMAL ) const;
+	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform ) override;
 	void PushRenderables( std::vector<ITr2Renderable*>& renderables );
 	void RebuildCachedData( BlueAsyncRes* p );
 	void UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t );

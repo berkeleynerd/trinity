@@ -1347,6 +1347,7 @@ void EveSOFDataMgr::GenerateGenericData( GenericData& gd, EveSOFDataGenericPtr s
 	gd.shaderPrefixAnimated = srcData->m_shaderPrefixAnimated;
 	gd.areaShaderLocation = srcData->m_areaShaderLocation;
 	gd.decalShaderLocation = srcData->m_decalShaderLocation;
+	std::copy( std::begin( srcData->m_decalMinScreenSizes ), std::end( srcData->m_decalMinScreenSizes ), std::begin( gd.decalMinScreenSize ) );
 
 	// damage
 	if( srcData->m_damage )

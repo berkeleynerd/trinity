@@ -53,6 +53,8 @@ public:
 	// get generic data
 	const char* GetAreaShaderLocationResPath() const;
 	const char* GetDecalShaderLocationResPath() const;
+	float GetDecalMinScreenSize( EveSOFDataHullDecalSetItem::Usage usage ) const;
+
 	uint32_t GetDecalShader() const;
 	const char* GetShaderPrefix( bool isAnimated ) const;
 	std::string GetCompleteShaderPath( const char* shaderPath ) const;

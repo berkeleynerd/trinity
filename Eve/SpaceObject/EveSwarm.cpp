@@ -199,7 +199,22 @@ void EveSwarmRenderable::InitDecals( const PEveSpaceObjectDecalVector &decals )
 	}
 }
 
-void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables, EveSpaceObjectDecal::ParentData &pd, Tr2GrannyAnimationPtr animationUpdater )
+void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables )
+{
+	TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
+
+	if( geometryRes )
+	{
+		// run over every decal and update it
+		for (EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it)
+		{
+			// now prep to get the renderables
+			(*it)->GetRenderables( renderables, geometryRes );
+		}
+	}
+}
+
+void EveSwarmRenderable::UpdateDecalVisibility( const TriFrustum& frustum, EveSpaceObjectDecal::ParentData &pd, Tr2GrannyAnimation* animationUpdater )
 {
 	TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 
@@ -208,15 +223,15 @@ void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables, 
 		pd.transform = m_worldTransform;
 
 		// run over every decal and update it
-		for (EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it)
+		for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 		{
 			// tell the decal of animation, IF we have any
-			if (animationUpdater && animationUpdater->GetMeshBoneCount() && animationUpdater->IsInitialized())
+			if( animationUpdater && animationUpdater->GetMeshBoneCount() && animationUpdater->IsInitialized() )
 			{
-				(*it)->SetBoneMatrix( animationUpdater->GetMeshBoneMatrixList(), animationUpdater->GetMeshBoneCount() );
+				( *it )->SetBoneMatrix( animationUpdater->GetMeshBoneMatrixList(), animationUpdater->GetMeshBoneCount() );
 			}
 			// now prep to get the renderables
-			(*it)->GetRenderables( geometryRes, renderables, &pd );
+			( *it )->UpdateVisibility( frustum, &pd );
 		}
 	}
 }
@@ -696,12 +711,22 @@ void EveSwarm::PushRenderables( std::vector<ITr2Renderable*>& renderables )
 	{
 		for (auto it = m_renderables.begin(); it != m_renderables.end(); it++)
 		{
-			// put together parent data for the decals
-			EveSpaceObjectDecal::ParentData pd;
-			FillDecalParentData( &pd );
-
-			(*it)->PushDecals( renderables, pd, m_animationUpdater );
+			(*it)->PushDecals( renderables );
 		}
+	}
+}
+
+void EveSwarm::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
+{
+	EveShip2::UpdateVisibility(
+		frustum, parentTransform );
+	for( auto it = m_renderables.begin(); it != m_renderables.end(); it++ )
+	{
+		// put together parent data for the decals
+		EveSpaceObjectDecal::ParentData pd;
+		FillDecalParentData( &pd );
+
+		( *it )->UpdateDecalVisibility( frustum, pd, m_animationUpdater );
 	}
 }
 
