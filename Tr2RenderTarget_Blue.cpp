@@ -72,6 +72,7 @@ const Be::ClassInfo* Tr2RenderTarget::ExposeToBlue()
 		MAP_PROPERTY_READONLY( "multiSampleQuality", GetMsaaQuality, "" );
 
 		MAP_PROPERTY_READONLY( "format", GetFormat,	"" );
+		MAP_PROPERTY_READONLY( "type", GetType, "" );
 
 		MAP_PROPERTY_READONLY( "isValid", IsValid, "is the graphics object successfully creaed" );
 		MAP_PROPERTY_READONLY( "isReadable", IsReadable, "can the RT be used as a texture" );
