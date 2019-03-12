@@ -2815,7 +2815,9 @@
     <ClInclude Include="Interior\Tr2InteriorScene.h" />
     <ClInclude Include="Interior\Tr2InteriorVisualization.h" />
     <ClInclude Include="Interior\Tr2IntSkinnedObject.h" />
+    <ClInclude Include="Lights\Tr2Light.h" />
     <ClInclude Include="Lights\Tr2PointLight.h" />
+    <ClInclude Include="Lights\Tr2SpotLight.h" />
     <ClInclude Include="Lights\Tr2TexturedPointLight.h" />
     <ClInclude Include="Particle\ITr2GenericEmitter.h" />
     <ClInclude Include="Particle\ITr2GenericParticleConstraint.h" />
@@ -3467,8 +3469,12 @@
     <ClCompile Include="Interior\Tr2InteriorScene_Blue.cpp" />
     <ClCompile Include="Interior\Tr2IntSkinnedObject.cpp" />
     <ClCompile Include="Interior\Tr2IntSkinnedObject_Blue.cpp" />
+    <ClCompile Include="Lights\Tr2Light.cpp" />
+    <ClCompile Include="Lights\Tr2Light_Blue.cpp" />
     <ClCompile Include="Lights\Tr2PointLight.cpp" />
     <ClCompile Include="Lights\Tr2PointLight_Blue.cpp" />
+    <ClCompile Include="Lights\Tr2SpotLight.cpp" />
+    <ClCompile Include="Lights\Tr2SpotLight_Blue.cpp" />
     <ClCompile Include="Lights\Tr2TexturedPointLight.cpp" />
     <ClCompile Include="Lights\Tr2TexturedPointLight_Blue.cpp" />
     <ClCompile Include="Particle\Tr2CapsuleShapeAttributeGenerator.cpp" />

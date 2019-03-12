@@ -1045,7 +1045,13 @@
     <ClInclude Include="Interior\Tr2IntSkinnedObject.h">
       <Filter>Source Files\Interior</Filter>
     </ClInclude>
+    <ClInclude Include="Lights\Tr2Light.h">
+      <Filter>Source Files\Lights</Filter>
+    </ClInclude>
     <ClInclude Include="Lights\Tr2PointLight.h">
+      <Filter>Source Files\Lights</Filter>
+    </ClInclude>
+    <ClInclude Include="Lights\Tr2SpotLight.h">
       <Filter>Source Files\Lights</Filter>
     </ClInclude>
     <ClInclude Include="Lights\Tr2TexturedPointLight.h">
@@ -2989,10 +2995,22 @@
     <ClCompile Include="Interior\Tr2IntSkinnedObject_Blue.cpp">
       <Filter>Source Files\Interior</Filter>
     </ClCompile>
+    <ClCompile Include="Lights\Tr2Light.cpp">
+      <Filter>Source Files\Lights</Filter>
+    </ClCompile>
+    <ClCompile Include="Lights\Tr2Light_Blue.cpp">
+      <Filter>Source Files\Lights</Filter>
+    </ClCompile>
     <ClCompile Include="Lights\Tr2PointLight.cpp">
       <Filter>Source Files\Lights</Filter>
     </ClCompile>
     <ClCompile Include="Lights\Tr2PointLight_Blue.cpp">
+      <Filter>Source Files\Lights</Filter>
+    </ClCompile>
+    <ClCompile Include="Lights\Tr2SpotLight.cpp">
+      <Filter>Source Files\Lights</Filter>
+    </ClCompile>
+    <ClCompile Include="Lights\Tr2SpotLight_Blue.cpp">
       <Filter>Source Files\Lights</Filter>
     </ClCompile>
     <ClCompile Include="Lights\Tr2TexturedPointLight.cpp">
