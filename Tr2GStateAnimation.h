@@ -42,6 +42,8 @@ public:
 
 	const std::string& GetGStateResPath() const;
 	void SetGStateResPath( const std::string& val );
+	const std::vector<std::string> GetGStateAnimFileRefPaths() const;
+	void BindAnimation();
 
 	void LoadAnimResPath( const std::string& val );
 
@@ -118,6 +120,7 @@ private:
 	std::map<std::string, TriGrannyResPtr>	m_gStateAnimFiles;
 	TriGeometryResPtr	m_geometryRes;
 
+	bool m_animationBound;
 	bool m_boneBoundsInitialized;
 	std::vector<GrannyBoneBindingBounds> m_boneBounds;
 	bool InitializeBoundingInfo();
@@ -151,6 +154,7 @@ private:
 
 	granny_file_info* GetFileInfo() const;
 	void LoadGStateResPath(const std::string& val);
+
 	GStateBindingCallbackData m_callbackData;
 
 	void	ApplyBoneOffsets ( unsigned i );

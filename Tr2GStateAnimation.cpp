@@ -9,6 +9,8 @@
 #include "Utilities/BoundingSphere.h"
 #include "gstate_character_instance.h"
 #include "gstate_transition.h"
+#define GSTATE_INTERNAL_HEADER 1
+#include "gstate_character_internal.h"
 #include <algorithm>
 
 using namespace gstate;
@@ -36,6 +38,7 @@ Tr2GStateAnimation::Tr2GStateAnimation(IRoot* lockobj) :
 	m_meshBindingIndex( -1 ),
 	m_animationEnabled( true ),
 	m_last_gstate_time( 0.0 ),
+	m_animationBound( false ),
 	m_boneBoundsInitialized( false ),
 	m_paused( false ),
 	m_pauseTime( 0.0 ),
@@ -94,19 +97,10 @@ bool Tr2GStateAnimation::Initialize()
 }
 
 
-granny_file_info* GStateAnimationBindingCallback(gstate_character_info *BindingInfo,
-															char const* SourceFilename,
-															void* UserData)
+std::string GetFullAnimPath(std::string SourceFilenameString, std::string dir_path)
 {
-	auto callbackData = *(static_cast<GStateBindingCallbackData *>(UserData));
-	std::map<std::string, TriGrannyResPtr> *gStateAnimFilesPtr = callbackData.anim_map_pointer;
-
-	// Animation granny files are relative to the parent directory of the .gsf file
-	std::string SourceFilenameString = SourceFilename;
-	std::string dir_path = callbackData.gsf_path;
-
-	auto last_delimiter_pos = dir_path.find_last_of( "/\\" );
-	dir_path.erase( last_delimiter_pos, dir_path.length() - last_delimiter_pos);
+	auto last_delimiter_pos = dir_path.find_last_of("/\\");
+	dir_path.erase(last_delimiter_pos, dir_path.length() - last_delimiter_pos);
 
 	while (SourceFilenameString.substr(0, 2) == "..")
 	{
@@ -125,6 +119,26 @@ granny_file_info* GStateAnimationBindingCallback(gstate_character_info *BindingI
 	SourceFilenameString = dir_path;
 
 	std::replace(SourceFilenameString.begin(), SourceFilenameString.end(), '\\', '/');
+	return SourceFilenameString;
+}
+
+
+
+
+
+granny_file_info* GStateAnimationBindingCallback(gstate_character_info *BindingInfo,
+															char const* SourceFilename,
+															void* UserData)
+{
+	auto callbackData = *(static_cast<GStateBindingCallbackData *>(UserData));
+	std::map<std::string, TriGrannyResPtr> *gStateAnimFilesPtr = callbackData.anim_map_pointer;
+
+
+	// Animation granny files are relative to the parent directory of the .gsf file
+	std::string SourceFilenameString = SourceFilename;
+	std::string dir_path = callbackData.gsf_path;
+
+	SourceFilenameString = GetFullAnimPath(SourceFilenameString, dir_path);
 
 	TriGrannyResPtr result_granny_res = nullptr;
 
@@ -235,20 +249,16 @@ void Tr2GStateAnimation::RebuildCachedData( BlueAsyncRes* p )
 
 		if ( p == m_gStateRes )
 		{
-			gstate_character_info *character_info = m_gStateRes->GetCharacterInfo();
-			m_callbackData.gsf_path = m_gStateResPath;
-			m_callbackData.anim_map_pointer = &m_gStateAnimFiles;
-			if (!GStateBindCharacterFileReferences(character_info, static_cast<gstate_file_ref_callback*>(GStateAnimationBindingCallback), static_cast<void*>(&m_callbackData)))
+			if ( m_gStateRes && !m_gStateRes->GetCharacterInfo() )
 			{
-				CCP_LOGERR("'%s' Granny State file refers to invalid or unavailable animation.", m_gStateResPath.c_str());
+				CCP_LOGERR("'%s' not found or not a valid GState file", m_gStateResPath.c_str());
 			}
 
-			m_gStateCharacterInstance = GStateInstantiateCharacter(character_info, GetAnimationTime(), 0, GetGrannyModel());
-			m_state_machine = GStateGetStateMachine(m_gStateCharacterInstance);
-
-			if ( !m_gstate_pose_cache )
+			auto file_list = GetGStateAnimFileRefPaths();
+			for ( auto it = file_list.begin(); it != file_list.end(); ++it )
 			{
-				m_gstate_pose_cache = GrannyNewPoseCache();
+				std::string anim_res_path = GetFullAnimPath(*it, m_gStateResPath);
+				LoadAnimResPath(anim_res_path);
 			}
 		}
 	}
@@ -378,6 +388,56 @@ void Tr2GStateAnimation::RebuildCachedData( BlueAsyncRes* p )
 		}
 	}
 }
+
+
+void Tr2GStateAnimation::BindAnimation()
+{
+	m_callbackData.gsf_path = m_gStateResPath;
+	m_callbackData.anim_map_pointer = &m_gStateAnimFiles;
+	gstate_character_info *character_info = m_gStateRes->GetCharacterInfo();
+
+	if (!GStateBindCharacterFileReferences(character_info, static_cast<gstate_file_ref_callback*>(GStateAnimationBindingCallback), static_cast<void*>(&m_callbackData)))
+	{
+		CCP_LOGERR("'%s' Granny State file refers to invalid or unavailable animation.", m_gStateResPath.c_str());
+	}
+
+	m_gStateCharacterInstance = GStateInstantiateCharacter(character_info, GetAnimationTime(), 0, GetGrannyModel());
+	m_state_machine = GStateGetStateMachine(m_gStateCharacterInstance);
+
+	if (!m_gstate_pose_cache)
+	{
+		m_gstate_pose_cache = GrannyNewPoseCache();
+	}
+	m_animationBound = true;
+}
+
+
+// WARNING:  The following method uses undocumented GState internals that may change.  Keep an eye out for
+//  changes that break it.
+const std::vector<std::string> Tr2GStateAnimation::GetGStateAnimFileRefPaths() const
+{
+	std::vector<std::string> path_list;
+
+	if ( !m_gStateRes->IsPrepared() )
+	{
+		return path_list;
+	}
+
+	gstate_character_info *character_info = m_gStateRes->GetCharacterInfo();
+
+	for (int Idx = 0; Idx < character_info->AnimationSetCount; Idx++)
+	{
+		animation_set *CurrSet = character_info->AnimationSets[Idx];
+		for (	int Idx2 = 0; Idx2 < CurrSet->SourceFileReferenceCount; Idx2++ )
+		{
+			source_file_ref *ref = CurrSet->SourceFileReferences[Idx2];
+			path_list.push_back(ref->SourceFilename);
+		}
+	}
+
+	return path_list;
+}
+
 
 bool Tr2GStateAnimation::InitializeBoundingInfo()
 {
@@ -1080,7 +1140,8 @@ float Tr2GStateAnimation::GetAnimationTime()
 
 bool Tr2GStateAnimation::IsInitialized() const
 {
-	return ( m_modelInstance != nullptr ) && ( m_gStateRes != nullptr ) && m_gStateRes->IsGood() && m_gStateCharacterInstance && m_gstate_pose_cache;
+	return ( m_modelInstance != nullptr ) && ( m_gStateRes != nullptr ) && m_gStateRes->IsGood() 
+	                                      && m_gStateCharacterInstance && m_gstate_pose_cache && m_animationBound;
 }
 
 
