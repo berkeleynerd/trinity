@@ -178,7 +178,8 @@ namespace
 Tr2BindingPoint::Tr2BindingPoint()
 	:m_entry( nullptr ),
 	m_destination( nullptr ),
-	m_entryOffset( -1 )
+	m_entryOffset( -1 ),
+	m_arraySize( 0 )
 {
 }
 
@@ -203,6 +204,7 @@ void Tr2BindingPoint::Unlink()
 	m_resolvedObject = nullptr;
 	m_notifyPtr = nullptr;
 	m_entryOffset = -1;
+	m_arraySize = 0;
 }
 
 bool Tr2BindingPoint::IsValid() const
@@ -228,10 +230,30 @@ void Tr2BindingPoint::SetValue( float value ) const
 		*reinterpret_cast<bool*>( m_destination ) = value != 0;
 		break;
 	case Be::FLOATARRAY:
-		reinterpret_cast<float*>( m_destination )[m_entryOffset] = value;
+		if( m_entryOffset == -1 )
+		{
+			for( int32_t i = 0; i < m_arraySize; ++i )
+			{
+				reinterpret_cast<float*>( m_destination )[i] = value;
+			}
+		}
+		else
+		{
+			reinterpret_cast<float*>( m_destination )[m_entryOffset] = value;
+		}
 		break;
 	case Be::DOUBLEARRAY:
-		reinterpret_cast<double*>( m_destination )[m_entryOffset] = value;
+		if( m_entryOffset == -1 )
+		{
+			for( int32_t i = 0; i < m_arraySize; ++i )
+			{
+				reinterpret_cast<double*>( m_destination )[i] = value;
+			}
+		}
+		else
+		{
+			reinterpret_cast<double*>( m_destination )[m_entryOffset] = value;
+		}
 		break;
 	default:
 		return;
@@ -260,10 +282,10 @@ bool Tr2BindingPoint::GetValue( float& value ) const
 		value = float( *reinterpret_cast<bool*>( m_destination ) ? 1.f : 0.f );
 		break;
 	case Be::FLOATARRAY:
-		value = reinterpret_cast<float*>( m_destination )[m_entryOffset];
+		value = reinterpret_cast<float*>( m_destination )[std::max( m_entryOffset, 0 )];
 		break;
 	case Be::DOUBLEARRAY:
-		value = float( reinterpret_cast<double*>( m_destination )[m_entryOffset] );
+		value = float( reinterpret_cast<double*>( m_destination )[std::max( m_entryOffset, 0 )] );
 		break;
 	default:
 		return false;
@@ -277,9 +299,11 @@ bool Tr2BindingPoint::SetDestination( IRoot* object, const std::string& attribut
 	m_destination = nullptr;
 	m_entryOffset = -1;
 	m_notifyPtr = nullptr;
+	m_arraySize = 0;
 
 	std::string name;
 	int32_t entryOffset = -1;
+	int32_t arraySize = 0;
 	auto dot = attribute.find( '.' );
 	if( dot != std::string::npos )
 	{
@@ -333,8 +357,15 @@ bool Tr2BindingPoint::SetDestination( IRoot* object, const std::string& attribut
 		}
 		break;
 	case Be::FLOATARRAY:
+		arraySize = entry.first->GetFloatArraySize();
+		if( entryOffset >= arraySize )
+		{
+			return false;
+		}
+		break;
 	case Be::DOUBLEARRAY:
-		if( entryOffset == -1 )
+		arraySize = entry.first->GetDoubleArraySize();
+		if( entryOffset >= arraySize )
 		{
 			return false;
 		}
@@ -346,6 +377,7 @@ bool Tr2BindingPoint::SetDestination( IRoot* object, const std::string& attribut
 	m_entry = entry.first;
 	m_destination = entry.second;
 	m_entryOffset = entryOffset;
+	m_arraySize = arraySize;
 	INotifyPtr notifyPtr = BlueCastPtr( object );
 	m_notifyPtr = notifyPtr.p;
 	return true;

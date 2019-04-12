@@ -33,4 +33,5 @@ private:
 	const Be::VarEntry* m_entry;
 	Be::Var* m_destination;
 	int32_t m_entryOffset;
+	int32_t m_arraySize;
 };
