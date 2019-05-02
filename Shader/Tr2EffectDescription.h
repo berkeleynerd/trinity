@@ -180,7 +180,7 @@ struct Tr2EffectStageInput
 	// Default constant buffer contents
 	char constantValues[SHADER_CONSTANTS_MAX];
 	// Shader pipeline inputs
-	Tr2ShaderInputDefinition inputDefinition;
+	Tr2ShaderSignatureAL signature;
 	// Thread group size for compute shaders
 	uint32_t threadGroupSize[3];
 	Tr2EffectParameterAnnotationMap annotation;

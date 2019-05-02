@@ -901,12 +901,6 @@ bool Tr2Renderer::RunComputeShader( Tr2Material* effect,
 			shader->ApplyAllStateForPass( 0, i, renderContext );
 			effect->ApplyMaterialDataForPass( 0, i, renderContext );
 			CR_RETURN_VAL( renderContext.RunComputeShader( groupDimX, groupDimY, groupDimZ ), false );
-			// Unset UAVs
-			const Tr2EffectResourceMap& uavs = stage.uavs;
-			for( auto it = uavs.begin(); it != uavs.end(); ++it )
-			{
-				CR_RETURN_VAL( renderContext.SetUav( COMPUTE_SHADER, it->first, Tr2BufferAL() ), false );
-			}
 			result = true;
 		}
 	}
@@ -951,12 +945,6 @@ bool Tr2Renderer::RunComputeShader(
 			shader->ApplyAllStateForPass( techniqueIndex, i, renderContext );
 			effect->ApplyMaterialDataForPass( techniqueIndex, i, renderContext );
 			CR_RETURN_VAL( renderContext.RunComputeShader( groupDimX, groupDimY, groupDimZ ), false );
-			// Unset UAVs
-			const Tr2EffectResourceMap& uavs = stage.uavs;
-			for( auto it = uavs.begin(); it != uavs.end(); ++it )
-			{
-				CR_RETURN_VAL( renderContext.SetUav( COMPUTE_SHADER, it->first, Tr2BufferAL() ), false );
-			}
 			result = true;
 		}
 	}
@@ -1003,12 +991,6 @@ bool Tr2Renderer::RunComputeShaderIndirect( Tr2Material* effect, Tr2BufferAL& in
 			shader->ApplyAllStateForPass( 0, uint32_t( i ), renderContext );
 			effect->ApplyMaterialDataForPass( 0, uint32_t( i ), renderContext );
 			CR_RETURN_VAL( renderContext.RunComputeShaderIndirect( indirectParams, offset ), false );
-			// Unset UAVs
-			const Tr2EffectResourceMap& uavs = stage.uavs;
-			for( auto it = uavs.begin(); it != uavs.end(); ++it )
-			{
-				CR_RETURN_VAL( renderContext.SetUav( COMPUTE_SHADER, it->first, Tr2BufferAL() ), false );
-			}
 		}
 	}
 	return true;

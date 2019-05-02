@@ -173,20 +173,6 @@ void TriShadowMap::SetReceiverObb( const Obb &obb )
 
 bool TriShadowMap::OnPrepareResources()
 {
-	// check for shadowmap formats, 32bit is really fine, if not supported, use 16bit
-
-	PixelFormat pixelFormat = PIXEL_FORMAT_R32G32_FLOAT;
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	if( !renderContext.IsSupportedRenderTargetFormat( pixelFormat, true ) )
-	{
-		pixelFormat = PIXEL_FORMAT_R16G16_UNORM;
-		if( !renderContext.IsSupportedRenderTargetFormat( pixelFormat ) )
-		{
-			// it makes no sense to go with 8bit...
-			return false;
-		}
-	}
-
 	// shadowmap size check
 	if( m_size == 0 )
 	{
@@ -201,10 +187,17 @@ bool TriShadowMap::OnPrepareResources()
 	{
 		mipCount = 0;
 	}
+	PixelFormat pixelFormat = PIXEL_FORMAT_R32G32_FLOAT;
+
+	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	if( !m_shadowMapRT->IsValid() )
 	{
-		CR_RETURN_VAL( m_shadowMapRT->Create( m_size, m_size, mipCount, pixelFormat ), false );
+		if( FAILED( m_shadowMapRT->Create( m_size, m_size, mipCount, pixelFormat ) ) )
+		{
+			pixelFormat = PIXEL_FORMAT_R16G16_FLOAT;
+			CR_RETURN_VAL( m_shadowMapRT->Create( m_size, m_size, mipCount, pixelFormat ), false );
+		}
 	}
 
 	if( m_filterVsm && !m_filterBlurRT.IsValid() )

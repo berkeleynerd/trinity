@@ -173,16 +173,15 @@ bool Tr2EffectDescription::Read( const void* data,
 				}
 
 				pass.stageInputs[type].m_exists = true;
-				pass.stageInputs[type].inputDefinition.elements.resize( inputCount );
+				pass.stageInputs[type].signature.pipelineInputs.resize( inputCount );
 				for( int inputIx = 0; inputIx < inputCount; ++inputIx )
 				{
-					Tr2ShaderInputDefinitionElement& element = pass.stageInputs[type].inputDefinition.elements[inputIx];
+					auto& element = pass.stageInputs[type].signature.pipelineInputs[inputIx];
 					READ( uint8_t, Tr2VertexDefinition::UsageCode, element.usage );
 					READ( uint8_t, unsigned, element.registerIndex );
 					READ( uint8_t, unsigned, element.usageIndex );
 					READ( uint8_t, unsigned, element.usedMask );
 				}
-				pass.stageInputs[type].inputDefinition.ComputeHash();
 
 				uint32_t shaderSize;
 				const void* shaderCode;
@@ -231,22 +230,6 @@ bool Tr2EffectDescription::Read( const void* data,
 					shadowShaderCode = stringTable + offset;
 				}
 
-				pass.stageInputs[type].m_shader = Tr2EffectStateManager::RegisterShader(
-					type,
-					shaderCode,
-					shaderSize,
-					shadowShaderCode,
-					shadowShaderSize,
-					pass.stageInputs[type].inputDefinition );
-				shaderHandles[stageIx] = pass.stageInputs[type].m_shader;
-
-				if( pass.stageInputs[type].m_shader == unsigned( -1 ) )
-				{
-					CCP_LOGERR( "Error compiling %s shader in effect \"%s\".", type == Tr2RenderContextEnum::VERTEX_SHADER ? "vertex" : "fragment", effectName );
-					techniques.clear();
-					return false;
-				}
-
 				pass.stageInputs[type].threadGroupSize[0] = 0;
 				pass.stageInputs[type].threadGroupSize[1] = 0;
 				pass.stageInputs[type].threadGroupSize[2] = 0;
@@ -287,6 +270,11 @@ bool Tr2EffectDescription::Read( const void* data,
 
 				unsigned constantValueSize;
 				READ( uint32_t, unsigned, constantValueSize );
+
+				if( constantValueSize )
+				{
+					pass.stageInputs[type].signature.Add( Tr2ShaderRegisterAL::CONSTANTS, Tr2RenderContextEnum::CONSTANT_BUFFER_FOR_EFFECT_PARAMETERS );
+				}
 
 				if( version < 5 )
 				{
@@ -353,6 +341,8 @@ bool Tr2EffectDescription::Read( const void* data,
 					READ( uint8_t, bool, resource.isAutoregister );
 
 					pass.stageInputs[type].resources[registerIndex] = resource;
+
+					pass.stageInputs[type].signature.Add( Tr2ShaderRegisterAL::RESOURCE, registerIndex );
 				}
 
 
@@ -441,7 +431,9 @@ bool Tr2EffectDescription::Read( const void* data,
 					samplerSetup.sampler.Create( sampler, renderContext );
 
 					pass.stageInputs[type].samplers[registerIndex] = samplerSetup;
-					pass.resourceSetDesc.Set( type, registerIndex, samplerSetup.sampler );
+					pass.resourceSetDesc.SetSampler( type, registerIndex, samplerSetup.sampler );
+
+					pass.stageInputs[type].signature.Add( Tr2ShaderRegisterAL::SAMPLER, registerIndex );
 				}
 
 				if( version >= 3 )
@@ -468,6 +460,8 @@ bool Tr2EffectDescription::Read( const void* data,
 						READ( uint8_t, bool, resource.isAutoregister );
 
 						pass.stageInputs[type].uavs[registerIndex] = resource;
+
+						pass.stageInputs[type].signature.Add( Tr2ShaderRegisterAL::UAV, registerIndex );
 					}
 					if( version >= 8 )
 					{
@@ -477,6 +471,20 @@ bool Tr2EffectDescription::Read( const void* data,
 						}
 					}
 				}
+				pass.stageInputs[type].m_shader = Tr2EffectStateManager::RegisterShader(
+					type,
+					Tr2ShaderBytecodeAL( shaderCode, shaderSize ),
+					Tr2ShaderBytecodeAL( shadowShaderCode, shadowShaderSize ),
+					pass.stageInputs[type].signature );
+				shaderHandles[stageIx] = pass.stageInputs[type].m_shader;
+
+				if( pass.stageInputs[type].m_shader == unsigned( -1 ) )
+				{
+					CCP_LOGERR( "Error compiling %s shader in effect \"%s\".", type == Tr2RenderContextEnum::VERTEX_SHADER ? "vertex" : "fragment", effectName );
+					techniques.clear();
+					return false;
+				}
+
 			}
 
 			pass.shaderProgram = Tr2EffectStateManager::RegisterShaderProgram( shaderHandles, stageCount );

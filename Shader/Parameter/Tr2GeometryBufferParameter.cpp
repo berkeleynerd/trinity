@@ -136,26 +136,26 @@ bool Tr2GeometryBufferParameter::CopyToResourceSet(
 	{
 		return false;
 	}
-	return resourceDesc.Set( stage, registerIndex, *buffer );
+	return resourceDesc.SetSrv( stage, registerIndex, *buffer );
 }
 
 // --------------------------------------------------------------------------------------
-void Tr2GeometryBufferParameter::ApplyUav(
+bool Tr2GeometryBufferParameter::ApplyUav(
+	Tr2ResourceSetDescriptionAL& resourceDesc,
 	Tr2RenderContextEnum::ShaderType stage,
 	uint32_t registerIndex,
-	uint32_t initialCount,
-	Tr2RenderContext &renderContext ) const
+	uint32_t initialCount ) const
 {
 	if( !m_gpuBuffer )
 	{
-		return;
+		return resourceDesc.SetUav( stage, registerIndex, Tr2BufferAL() );
 	}
 	auto buffer = m_gpuBuffer->GetGpuBuffer( m_meshIndex );
 	if( !buffer )
 	{
-		return;
+		return resourceDesc.SetUav( stage, registerIndex, Tr2BufferAL() );
 	}
-	renderContext.SetUav( stage, registerIndex, *buffer, initialCount == -1 ? m_initialCount : initialCount );
+	return resourceDesc.SetUav( stage, registerIndex, *buffer, initialCount == -1 ? m_initialCount : initialCount );
 }
 
 // --------------------------------------------------------------------------------------

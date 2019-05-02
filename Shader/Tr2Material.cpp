@@ -90,7 +90,13 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
 		CCP_STATS_INC( effectResourceSetCreated );
-		pp.m_resourceSet.Create( pp.m_resourceSetDesc, renderContext );
+
+		auto sp = renderContext.m_esm.GetShaderProgram( m_shader->GetEffect().techniques[techniqueIndex].passes[passIndex].shaderProgram );
+		if( !sp )
+		{
+			return;
+		}
+		pp.m_resourceSet.Create( pp.m_resourceSetDesc, *sp, renderContext );
 		pp.m_resourceSetDirty = false;
 	}
 
@@ -132,7 +138,7 @@ bool Tr2Material::ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passI
 
 	for( auto it = input.m_uavs.cbegin(); it != input.m_uavs.cend(); ++it )
 	{
-		it->m_sourceValue->ApplyUav( shaderType, it->m_registerIndex, it->m_initialCount, renderContext );
+		it->m_sourceValue->ApplyUav( pp.m_resourceSetDesc, shaderType, it->m_registerIndex, it->m_initialCount );
 	}
 
 	return descChanged;

@@ -429,11 +429,11 @@ bool EveCloudVolumeTextureParameter::CopyToResourceSet(
 	if( Tr2TextureAL* tex = ( resource ? resource->GetTexture() : nullptr ) )
 	{		
 
-		return resourceDesc.Set( stage, registerIndex, *tex, colorSpace );
+		return resourceDesc.SetSrv( stage, registerIndex, *tex, colorSpace );
 	}
 	else
 	{
-		return resourceDesc.Set( stage, registerIndex, Tr2Renderer::GetFallbackTexture( Tr2EffectResource::TEXTURE_3D, m_name.c_str() ), colorSpace );
+		return resourceDesc.SetSrv( stage, registerIndex, Tr2Renderer::GetFallbackTexture( Tr2EffectResource::TEXTURE_3D, m_name.c_str() ), colorSpace );
 	}
 }
 

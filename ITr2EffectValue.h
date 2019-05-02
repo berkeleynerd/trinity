@@ -39,12 +39,13 @@ BLUE_INTERFACE( ITr2EffectValue ) : public IRoot
 		return false;
 	}
 
-	virtual void ApplyUav(
+	virtual bool ApplyUav(
+		Tr2ResourceSetDescriptionAL& resourceDesc,
 		Tr2RenderContextEnum::ShaderType stage,
 		uint32_t registerIndex,
-		uint32_t initialCount,
-		Tr2RenderContext &renderContext ) const
+		uint32_t initialCount ) const
 	{
+		return false;
 	}
 };
 

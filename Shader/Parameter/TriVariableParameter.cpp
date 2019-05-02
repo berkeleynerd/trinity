@@ -68,16 +68,17 @@ bool TriVariableParameter::CopyToResourceSet(
 }
 
 // ---------------------------------------------------------------
-void TriVariableParameter::ApplyUav(
+bool TriVariableParameter::ApplyUav(
+	Tr2ResourceSetDescriptionAL& resourceDesc,
 	Tr2RenderContextEnum::ShaderType stage,
 	uint32_t registerIndex,
-	uint32_t initialCount,
-	Tr2RenderContext &renderContext ) const
+	uint32_t initialCount ) const
 {
 	if( m_variable )
 	{
-		m_variable->ApplyUav( stage, registerIndex, initialCount, renderContext );
+		return m_variable->ApplyUav( resourceDesc, stage, registerIndex, initialCount );
 	}
+	return resourceDesc.SetUav( stage, registerIndex, nullTX );
 }
 
 void TriVariableParameter::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType inputType, 

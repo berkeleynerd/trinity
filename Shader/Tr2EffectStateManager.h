@@ -71,6 +71,7 @@ public:
 
 	void ApplyRenderStates( uint32_t ix );
 	void ApplyShaderProgram( uint32_t ix );
+	Tr2ShaderProgramAL* GetShaderProgram( uint32_t ix );
 
 	void ApplyStreamSource( uint32_t stream, const Tr2BufferAL & buffer, uint32_t offset, uint32_t stride );
 	void ApplyIndexBuffer( const Tr2BufferAL & indices );
@@ -84,11 +85,9 @@ public:
 
 	static uint32_t RegisterShader( 
 		Tr2RenderContextEnum::ShaderType type, 
-		const void* bytecode, 
-		uint32_t bytecodeSize, 
-		const void* patchedBytecode, 
-		uint32_t patchedBytecodeSize, 
-		const Tr2ShaderInputDefinition& inputDefinition );
+		const Tr2ShaderBytecodeAL& bytecode,
+		const Tr2ShaderBytecodeAL& patchedBytecode,
+		const Tr2ShaderSignatureAL& signature );
 	static uint32_t RegisterShaderProgram( uint32_t* shaders, size_t count );
 	static uint32_t RegisterShaderProgramOverride( uint32_t originalProgram, uint32_t overrideProgram );
 

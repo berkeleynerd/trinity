@@ -306,11 +306,9 @@ uint32_t Tr2EffectStateManager::RegisterRenderStateSetup( const Tr2RenderStateSe
 
 uint32_t Tr2EffectStateManager::RegisterShader( 
 	ShaderType type, 
-	const void* bytecode, 
-	uint32_t bytecodeSize, 
-	const void* patchedBytecode, 
-	uint32_t patchedBytecodeSize, 
-	const Tr2ShaderInputDefinition& inputDefinition )
+	const Tr2ShaderBytecodeAL& bytecode,
+	const Tr2ShaderBytecodeAL& patchedBytecode,
+	const Tr2ShaderSignatureAL& signature )
 {
 	for( size_t i = 0; i != s_shaders.size(); ++i )
 	{
@@ -320,16 +318,15 @@ uint32_t Tr2EffectStateManager::RegisterShader(
 			continue;
 		}
 
-		uint32_t bufferSize = 0;
-		const void* buffer;
-		if( FAILED( existing.GetBytecode( buffer, bufferSize ) ) )
+		Tr2ShaderBytecodeAL existingBytecode;
+		if( FAILED( existing.GetBytecode( existingBytecode ) ) )
 		{
 			continue;
 		}
 
-		if( bufferSize == bytecodeSize )
+		if( existingBytecode.size == bytecode.size )
 		{
-			if( memcmp( buffer, bytecode, bufferSize ) == 0 )
+			if( memcmp( existingBytecode.bytecode, bytecode.bytecode, bytecode.size ) == 0 )
 			{
 				// We've seen this setup before
 				return (uint32_t)i;
@@ -340,13 +337,12 @@ uint32_t Tr2EffectStateManager::RegisterShader(
 	// New shader, add it; created using the primary rendercontext.
 	std::unique_ptr<Tr2ShaderAL> shader( new Tr2ShaderAL );
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	CR_RETURN_VAL(	shader->Create( renderContext, 
+	CR_RETURN_VAL(	shader->Create(  
 								type, 
 								bytecode, 
-								bytecodeSize, 
 								patchedBytecode, 
-								patchedBytecodeSize, 
-								inputDefinition )
+								signature,
+								renderContext )
 				, UNKNOWN );
 
 	s_shaders.push_back( shader.release() );
@@ -362,7 +358,7 @@ uint32_t Tr2EffectStateManager::RegisterShaderProgram( uint32_t* shaders, size_t
 	}
 	std::vector<uint32_t> shaderHandles;
 	shaderHandles.resize( count );
-	std::vector<Tr2ShaderAL*> args;
+	std::vector<Tr2ShaderAL> args;
 	args.resize( count );
 	for( size_t i = 0; i < count; ++i )
 	{
@@ -371,7 +367,7 @@ uint32_t Tr2EffectStateManager::RegisterShaderProgram( uint32_t* shaders, size_t
 			return UNKNOWN;
 		}
 		shaderHandles[i] = shaders[i];
-		args[i] = s_shaders[shaders[i]];
+		args[i] = *s_shaders[shaders[i]];
 	}
 	for( size_t i = 0; i < s_shaderPrograms.size(); ++i )
 	{
@@ -578,6 +574,16 @@ void Tr2EffectStateManager::ApplyShaderProgram( uint32_t ix )
 		m_renderContext.SetShaderProgram( nullSP );
 	}
 }
+
+Tr2ShaderProgramAL* Tr2EffectStateManager::GetShaderProgram( uint32_t ix )
+{
+	if( ix < s_shaderPrograms.size() )
+	{
+		return s_shaderPrograms[ix].first;
+	}
+	return nullptr;
+}
+
 
 void Tr2EffectStateManager::ApplyStandardStates( RenderingMode rm )
 {

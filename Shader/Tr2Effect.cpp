@@ -688,7 +688,7 @@ void Tr2Effect::RebuildSamplerOverrides()
 							d.registerIndex = it->first;
 
 							pp.m_stageInput[i].m_samplers.push_back( d );
-							pp.m_resourceSetDesc.Set( ShaderType( i ), it->first, d.sampler );
+							pp.m_resourceSetDesc.SetSampler( ShaderType( i ), it->first, d.sampler );
 							break;
 						}
 					}

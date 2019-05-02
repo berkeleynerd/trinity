@@ -23,11 +23,11 @@ public:
 		Tr2RenderContextEnum::ShaderType stage,
 		uint32_t registerIndex,
 		ResourceFlags flags ) const;
-	virtual void ApplyUav(
+	virtual bool ApplyUav(
+		Tr2ResourceSetDescriptionAL& resourceDesc,
 		Tr2RenderContextEnum::ShaderType stage,
 		uint32_t registerIndex,
-		uint32_t initialCount,
-		Tr2RenderContext &renderContext ) const;
+		uint32_t initialCount ) const;
 	virtual const char* GetParameterName() const;
 	virtual void RebuildEffectHandles( Tr2Shader* effectRes );
 	virtual unsigned GetHashValue( unsigned startingHash ) const;

@@ -1121,7 +1121,7 @@ void Tr2Sprite2dScene::IssueDrawCall()
 								}
 							}
 						}
-						desc->m_resourceSetDirty |= desc->m_resourceSetDesc.Set( PIXEL_SHADER, i, texAL ? *texAL : nullTX );
+						desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, i, texAL ? *texAL : nullTX );
 					}
 				}
 
@@ -1573,9 +1573,6 @@ void Tr2Sprite2dScene::StartLayer( Tr2TextureAL& rt )
 	m_transformStack = CCP_NEW( "Tr2Sprite2dScene/m_transformStack" ) TransformStack_t( "Tr2Sprite2dScene/m_transformStack" );
 	m_clipStack = CCP_NEW( "Tr2Sprite2dScene/m_clipStack" ) ClipStack_t( "Tr2Sprite2dScene/m_clipStack" );
 	m_clipStack->push_back( Tr2Sprite2dClipRect( 0.0f, 0.0f, vpSize.x, vpSize.y ) );
-
-	renderContext.SetRenderState( RS_SCISSORTESTENABLE, FALSE );
-
 }
 
 void Tr2Sprite2dScene::EndLayer( float x, float y, float width, float height, ITr2Sprite2dTexture* secondaryTexture )
@@ -2050,8 +2047,8 @@ void Tr2Sprite2dScene::ReplayCapture( Tr2Sprite2dDisplayList* dl )
 			m_texelSizeVar[1] = entry.texelSize1;
 
 			auto desc = entry.effect->GetPassDescription( 0, 0 );
-			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.Set( PIXEL_SHADER, 0, ( entry.texture0 && entry.texture0->GetTexture() ) ? *entry.texture0->GetTexture() : nullTX );
-			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.Set( PIXEL_SHADER, 1, ( entry.texture1 && entry.texture1->GetTexture() ) ? *entry.texture1->GetTexture() : nullTX );
+			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, 0, ( entry.texture0 && entry.texture0->GetTexture() ) ? *entry.texture0->GetTexture() : nullTX );
+			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, 1, ( entry.texture1 && entry.texture1->GetTexture() ) ? *entry.texture1->GetTexture() : nullTX );
 			
 			CCP_STATS_INC( spriteSceneDrawCallCount );
 

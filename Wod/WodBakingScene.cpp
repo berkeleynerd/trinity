@@ -120,16 +120,6 @@ void WodBakingScene::Render( Tr2RenderContext& renderContext )
 	
 	//m_transparentBatchStore->Clear();
 
-	// Restore original viewport and per-frame data
-	unsigned int width, height;
-	Tr2Renderer::GetBackBufferDimensions( width, height );
-	{
-		D3DPERF_EVENT( L"Restore original viewport & projection" );
-
-		renderContext.SetScissorRect( 0, 0, width, height );
-		renderContext.SetRenderState( RS_SCISSORTESTENABLE, FALSE );
-	}
-
 	renderContext.m_esm.EndManagedRendering();
 
 }

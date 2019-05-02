@@ -41,29 +41,28 @@ bool Tr2RuntimeTextureParameter::CopyToResourceSet(
 	auto colorSpace = isSrgb ? Tr2RenderContextEnum::COLOR_SPACE_SRGB : Tr2RenderContextEnum::COLOR_SPACE_LINEAR;
 	if( Tr2TextureAL* tex = ( m_texture ? m_texture->GetTexture() : nullptr ) )
 	{
-		return resourceDesc.Set( stage, registerIndex, *tex, colorSpace );
+		return resourceDesc.SetSrv( stage, registerIndex, *tex, colorSpace );
 	}
 	else
 	{
-		return resourceDesc.Set( stage, registerIndex, Tr2Renderer::GetFallbackTexture( m_resourceType, m_name.c_str() ), colorSpace );
+		return resourceDesc.SetSrv( stage, registerIndex, Tr2Renderer::GetFallbackTexture( m_resourceType, m_name.c_str() ), colorSpace );
 	}
 }
 
 // --------------------------------------------------------------------------------------
-void Tr2RuntimeTextureParameter::ApplyUav(
+bool Tr2RuntimeTextureParameter::ApplyUav(
+	Tr2ResourceSetDescriptionAL& resourceDesc,
 	Tr2RenderContextEnum::ShaderType stage,
 	uint32_t registerIndex,
-	uint32_t initialCount,
-	Tr2RenderContext &renderContext ) const
+	uint32_t initialCount ) const
 {
 	if( Tr2TextureAL* tex = ( m_texture ? m_texture->GetTexture() : nullptr ) )
 	{
-		renderContext.SetUav( stage, registerIndex, *tex, m_uavMipLevel );
+		return resourceDesc.SetUav( stage, registerIndex, *tex, m_uavMipLevel );
 	}
 	else
 	{
-		// TODO: Fix the signature of SetUav to take a const reference
-		renderContext.SetUav( stage, registerIndex, const_cast<Tr2TextureAL&>( nullTX ) );
+		return resourceDesc.SetUav( stage, registerIndex, nullTX );
 	}
 }
 

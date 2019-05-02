@@ -38,11 +38,11 @@ bool TriVariable::CopyToResourceSet(
 		}
 		if( tex )
 		{
-			return resourceDesc.Set( stage, registerIndex, *tex, colorSpace );
+			return resourceDesc.SetSrv( stage, registerIndex, *tex, colorSpace );
 		}
 		else
 		{
-			return resourceDesc.Set( stage, registerIndex, nullTX, colorSpace );
+			return resourceDesc.SetSrv( stage, registerIndex, nullTX, colorSpace );
 		}
 	}
 	case TRIVARIABLE_GPUBUFFER:
@@ -54,11 +54,11 @@ bool TriVariable::CopyToResourceSet(
 		}
 		if( buffer )
 		{
-			return resourceDesc.Set( stage, registerIndex, *buffer );
+			return resourceDesc.SetSrv( stage, registerIndex, *buffer );
 		}
 		else
 		{
-			return resourceDesc.Set( stage, registerIndex, Tr2BufferAL() );
+			return resourceDesc.SetSrv( stage, registerIndex, Tr2BufferAL() );
 		}
 	}
 	default:
@@ -66,11 +66,11 @@ bool TriVariable::CopyToResourceSet(
 	}
 }
 
-void TriVariable::ApplyUav(
+bool TriVariable::ApplyUav(
+	Tr2ResourceSetDescriptionAL& resourceDesc,
 	Tr2RenderContextEnum::ShaderType stage,
 	uint32_t registerIndex,
-	uint32_t initialCount,
-	Tr2RenderContext &renderContext ) const
+	uint32_t initialCount ) const
 {
 	switch( m_type )
 	{
@@ -83,11 +83,11 @@ void TriVariable::ApplyUav(
 		}
 		if( tex )
 		{
-			renderContext.SetUav( stage, registerIndex, *tex );
+			return resourceDesc.SetUav( stage, registerIndex, *tex );
 		}
 		else
 		{
-			renderContext.SetUav( stage, registerIndex, Tr2BufferAL() );
+			return resourceDesc.SetUav( stage, registerIndex, Tr2BufferAL() );
 		}
 		break;
 	}
@@ -100,17 +100,18 @@ void TriVariable::ApplyUav(
 		}
 		if( buffer )
 		{
-			renderContext.SetUav( stage, registerIndex, *buffer, initialCount );
+			return resourceDesc.SetUav( stage, registerIndex, *buffer, initialCount );
 		}
 		else
 		{
-			renderContext.SetUav( stage, registerIndex, Tr2BufferAL() );
+			return resourceDesc.SetUav( stage, registerIndex, Tr2BufferAL() );
 		}
 		break;
 	}
 	default:
 		break;
 	}
+	return resourceDesc.SetUav( stage, registerIndex, Tr2BufferAL() );
 }
 
 void TriVariable::CopyValueToEffect(	Tr2RenderContextEnum::ShaderType inputType, 
