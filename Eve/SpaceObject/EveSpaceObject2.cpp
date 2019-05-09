@@ -908,7 +908,7 @@ void EveSpaceObject2::GetShadowBatches( ITriRenderBatchAccumulator* batches, con
 		Tr2MeshArea* area = *it;
 		auto material = area->GetMaterialInterface();
 
-		if( !area->GetDisplay() || !material )
+		if( !area->GetDisplay() || !area->IsCastingShadows() || !material )
 		{
 			continue;
 		}

@@ -439,6 +439,7 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 		newShader.CreateInstance();
 		newShader->StartUpdate();
 
+		bool castsShadows = false;
 		switch( areaType )
 		{
 		case TRIBATCHTYPE_DECAL:
@@ -449,6 +450,7 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 			break;
 		case TRIBATCHTYPE_OPAQUE:
 			newShader->SetOption( BlueSharedString( "SPACE_OBJECT_TRANSPARENCY" ), BlueSharedString( "SOT_OPAQUE" ) );
+			castsShadows = true;
 			break;
 		default:
 			break;
@@ -567,6 +569,8 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 		newMeshArea->SetMaterial( newShader );
 		newMeshArea->SetIndex( area->index + (unsigned int)meshIndexOffset );
 		newMeshArea->SetCount( area->count );
+		newMeshArea->SetCastsShadows( castsShadows );
+		
 		meshAreaVector->Append( newMeshArea );
 	}
 

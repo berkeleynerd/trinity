@@ -8,6 +8,7 @@ Tr2MeshArea::Tr2MeshArea( IRoot* lockobj ):
 	m_reversed( false ),
 	m_useSHLighting( false ),
 	m_generateDepthArea( false ),
+	m_castShadows( true ),
 	m_jointCount( 0 ),
 	m_jointMappingAnimRig( NULL )
 {
@@ -92,6 +93,19 @@ void Tr2MeshArea::SetGenerateDepthArea( bool generate )
 {
 	m_generateDepthArea = generate;
 }
+
+// --------------------------------------------------------------------------------
+bool Tr2MeshArea::IsCastingShadows() const
+{
+	return m_castShadows;
+}
+
+// --------------------------------------------------------------------------------
+void Tr2MeshArea::SetCastsShadows( bool castShadows )
+{
+	m_castShadows = castShadows;
+}
+
 
 // -------------------------------------------------------------
 // Description:

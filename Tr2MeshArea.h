@@ -29,6 +29,9 @@ public:
 	bool GetDisplay() const;
 	void SetDisplay( bool display );
 
+	bool IsCastingShadows() const;
+	void SetCastsShadows( bool castShadows );
+
 	bool GetGenerateDepthArea() const;
 	void SetGenerateDepthArea( bool generate );
 
@@ -63,6 +66,8 @@ private:
 	bool m_useSHLighting;
 	// in the near future of trinity the shader will know if we need to generate a depth area for it. for now, we have to keep this info
 	bool m_generateDepthArea;
+	// do we want this area to cast shadows?
+	bool m_castShadows;
 
 	unsigned int m_jointCount;
 	unsigned int* m_jointMappingAnimRig;
