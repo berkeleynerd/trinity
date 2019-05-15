@@ -2282,7 +2282,6 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data )
 	data.ViewportSize.y = Tr2Renderer::GetDeviceViewport().m_height;
 
 	data.Time = Tr2Renderer::GetAnimationTime();
-	data.UseReflectionProbe = ( m_reflectionProbe && m_reflectionProbe->IsValid() ) ? 1.f : 0.f;
 	if( m_shadowMap )
 	{
 		data.ShadowMapSettings = m_shadowMap->GetShadowMapSettings();

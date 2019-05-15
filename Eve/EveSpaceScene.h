@@ -217,8 +217,7 @@ protected:
 
 		// MiscData
 		float Time;
-		float UseReflectionProbe;
-		float Unused;
+		Vector2 Unused;
 		float GammaBrightness;
 	};
 	double m_viewProjectLastD[16];
