@@ -120,6 +120,8 @@ const Be::ClassInfo* EveEffectRoot2::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "lights", m_lights, "List of dynamic lights", Be::READ | Be::PERSIST );
 
+		MAP_ATTRIBUTE( "externalParameters", m_externalParameters, "List of external parameters to bind to object elements", Be::READ | Be::PERSIST )
+
 		MAP_ATTRIBUTE( "curveSets", m_curveSets, "Curvesets for animating things", Be::READ | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "controllers", m_controllers, "List of object controllers", Be::READ | Be::PERSIST )

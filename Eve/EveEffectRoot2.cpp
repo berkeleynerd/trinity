@@ -19,6 +19,7 @@ extern float g_eveSpaceSceneLowDetailThreshold;
 EveEffectRoot2::EveEffectRoot2( IRoot* lockobj ) :
 	PARENTLOCK( m_observers ),
 	PARENTLOCK( m_lights ),
+	PARENTLOCK( m_externalParameters ),
 	PARENTLOCK( m_effectChildren ),
 	PARENTLOCK( m_curveSets ),
 	PARENTLOCK( m_controllers ),

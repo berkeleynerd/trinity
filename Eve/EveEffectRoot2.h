@@ -23,6 +23,9 @@ BLUE_DECLARE_VECTOR( Tr2Light );
 BLUE_DECLARE_INTERFACE( ITr2Controller );
 BLUE_DECLARE_IVECTOR( ITr2Controller );
 
+BLUE_DECLARE( Tr2ExternalParameter );
+BLUE_DECLARE_VECTOR( Tr2ExternalParameter );
+
 BLUE_DECLARE( EveEffectRoot2 );
 
 BLUE_CLASS( EveEffectRoot2 ):
@@ -137,7 +140,7 @@ private:
 	void UpdateWorldTransform( Be::Time time );
 
 	PIEveSpaceObjectChildVector m_effectChildren;
-
+	PTr2ExternalParameterVector m_externalParameters;
 
 	Vector3 m_scaling;
 	Quaternion m_rotation;
