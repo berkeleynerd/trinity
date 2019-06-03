@@ -1698,7 +1698,7 @@
       <IgnoreAllDefaultLibraries>False</IgnoreAllDefaultLibraries>
       <AdditionalAppleFrameworks>CoreFoundation;CoreFoundation;%(AdditionalAppleFrameworks)</AdditionalAppleFrameworks>
       <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <AdditionalDependencies>CcpCore.lib;CcpMath.lib;FreeType26.lib;GFSDK_Aftermath_Lib.x64.lib;ImageIO.lib;TrinityAL_dx11.lib;atimgpud_s_x64.lib;blue.lib;cairo-script.lib;cairo.lib;d3d11.lib;d3d9.lib;d3dx9.lib;dbghelp.lib;dxerr.lib;dxgi.lib;dxguid.lib;granny2_static_x64.lib;gstate_x64.lib;jpeg.lib;libpng.lib;muparser.lib;nvapi.lib;oldnames.lib;psapi.lib;python27.lib;rad_tm_win64.lib;squish.lib;tbb.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>legacy_stdio_definitions.lib;CcpCore.lib;CcpMath.lib;FreeType26.lib;GFSDK_Aftermath_Lib.x64.lib;ImageIO.lib;TrinityAL_dx11.lib;atimgpud_s_x64.lib;blue.lib;cairo-script.lib;cairo.lib;d3d11.lib;d3d9.lib;d3dx9.lib;dbghelp.lib;dxerr.lib;dxgi.lib;dxguid.lib;granny2_static_x64.lib;gstate_x64.lib;jpeg.lib;libpng.lib;muparser.lib;nvapi.lib;oldnames.lib;psapi.lib;python27.lib;rad_tm_win64.lib;squish.lib;tbb.lib;zlib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ResourceCompile>
       <PreprocessorDefinitions>TARGET_FILENAME=$(TargetFileName);TARGET_NAME=$(TargetName);%(PreprocessorDefinitions)</PreprocessorDefinitions>
