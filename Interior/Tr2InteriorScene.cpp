@@ -137,6 +137,7 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 	m_cameraPosVar( "Camera.eyePosWorld", Vector3( 0.0f, 0.0f, 0.0f ) ),
 	m_optimizeShadows( true ),
 	m_renderShadows( true ),
+	m_debugRenderShadowMaps(false),
 	m_shadowMap0Var( "SpotlightShadow0", (TriTextureRes*)NULL ),
 	m_shadowMap1Var( "SpotlightShadow1", (TriTextureRes*)NULL ),
 	m_shadowMap2Var( "SpotlightShadow2", (TriTextureRes*)NULL ),
@@ -172,7 +173,7 @@ Tr2InteriorScene::Tr2InteriorScene( IRoot* lockobj /*= NULL */ ):
 
 	PrepareResources();
 
-	BeResMan->GetResource( "res:/Texture/Global/NdotLLibrary.png", "", m_nDotLTexture );
+	BeResMan->GetResource("res:/texture/global/bluenoise32.png", "", m_noiseTexture);
 	m_nDotLTextureHandle = GlobalStore().RegisterVariable( "ColorNdotLLookupMap", static_cast<ITr2TextureProvider*>( nullptr ) );
 
 	BeResMan->GetResource("res:/texture/global/noise.png", "", m_noiseTexture);
@@ -864,7 +865,16 @@ void Tr2InteriorScene::RenderDebugInfo( Tr2RenderContext& renderContext )
 {
 	if (!m_debugRenderer)
 	{
-		return;
+		if (m_debugRenderShadowMaps)
+		{
+			// Need to create a debug renderer
+			m_debugRenderer = Tr2DebugRendererPtr();
+			m_debugRenderer.CreateInstance();
+		}
+		else
+		{
+			return;
+		}
 	}
 
 	// Display the debug meshes for the lights
@@ -1442,7 +1452,7 @@ void Tr2InteriorScene::GetDebugOptions(Tr2DebugRendererOptions & options)
 void Tr2InteriorScene::RenderDebugInfo(Tr2DebugRenderer & renderer)
 {
 	Tr2Renderer::PushViewport();
-	if (renderer.HasOption(GetRawRoot(), "Shadow Maps"))
+	if (renderer.HasOption(GetRawRoot(), "Shadow Maps") || m_debugRenderShadowMaps)
 	{
 		int i = 0;
 		for (auto it = m_lightRenderTargets.begin(); it != m_lightRenderTargets.end(); ++it)

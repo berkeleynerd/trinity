@@ -567,6 +567,7 @@ const Be::ClassInfo* Tr2InteriorScene::ExposeToBlue()
 
 		MAP_ATTRIBUTE("renderShadows", m_renderShadows, "", Be::READWRITE | Be::NOTIFY)
 				
+		MAP_ATTRIBUTE("debugRenderShadowMaps", m_debugRenderShadowMaps, "", Be::READWRITE | Be::NOTIFY)
 
 	EXPOSURE_END()
 }

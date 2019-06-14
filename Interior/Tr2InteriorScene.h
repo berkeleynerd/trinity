@@ -127,6 +127,7 @@ public:
 
 	bool m_optimizeShadows;
 	bool m_renderShadows;
+	bool m_debugRenderShadowMaps;
 
 protected:
 
