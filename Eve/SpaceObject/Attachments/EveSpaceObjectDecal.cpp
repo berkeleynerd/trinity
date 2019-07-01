@@ -728,6 +728,6 @@ std::vector<EveSpaceObjectDecalIndex> EveSpaceObjectDecal::GetStaticIndexBuffer(
 void EveDecalPerObjectData::SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
 {
 	// add up constant count, see EveDecalPerObjectData
-	FillAndSetConstants( *buffers[VERTEX_SHADER], &m_worldMatrix, 5 * 64, VERTEX_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
+	FillAndSetConstants( *buffers[VERTEX_SHADER], &m_worldMatrix, 6 * 64, VERTEX_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
 	FillAndSetConstants( *buffers[PIXEL_SHADER], &m_displayData, ( 4 + Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT ) * 16, PIXEL_SHADER, Tr2Renderer::GetPerObjectPSStartRegister(), renderContext );
 }
