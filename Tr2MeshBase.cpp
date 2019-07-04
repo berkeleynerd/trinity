@@ -334,6 +334,12 @@ void Tr2MeshBase::CollectAreaBlocks( std::vector<TriRenderBatchAreaBlock>& colle
 	const Tr2MeshAreaVector* areas = GetAreas( areaType );
 	for( auto a = areas->begin(); a != areas->end(); ++a )
 	{
+		if( areaType == TRIBATCHTYPE_OPAQUE && !( *a )->IsCastingShadows() )
+		{
+			// skip non-shadow casting areas when collecting areas for overlay rendering: such areas may cause problems
+			// (for example scaffolding + build effect)
+			continue;
+		}
 		TriRenderBatchAreaBlock ab( (*a)->GetIndex(), (*a)->GetCount() );
 		collector.push_back( ab );
 	}
