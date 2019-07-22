@@ -67,7 +67,7 @@ void EveSocketParameterBase::Propagate()
 	}\
 	void _className##::Reset()\
 	{\
-		for ( int i = 0; i < m_bindings.size(); ++i )\
+		for ( size_t i = 0; i < m_bindings.size(); ++i )\
 		{\
 			m_value = m_defaults[i];\
 			m_bindings[i]->CopyValue();\
