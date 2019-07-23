@@ -3370,6 +3370,7 @@
     <ClInclude Include="Utilities\GrannyCurveHelpers.h" />
     <ClInclude Include="Utilities\MatrixUtils.h" />
     <ClInclude Include="Utilities\Obb.h" />
+    <ClInclude Include="Utilities\Range.h" />
     <ClInclude Include="Utilities\StringUtils.h" />
     <ClInclude Include="Utilities\Vector3d.h" />
     <ClInclude Include="Utilities\Vector4d.h" />
@@ -4185,6 +4186,8 @@
     <ClCompile Include="Utilities\GeometryUtils.cpp" />
     <ClCompile Include="Utilities\MatrixUtils.cpp" />
     <ClCompile Include="Utilities\Obb.cpp" />
+    <ClCompile Include="Utilities\Range.cpp" />
+    <ClCompile Include="Utilities\Range_Blue.cpp" />
     <ClCompile Include="Wod\WodBakingScene.cpp" />
     <ClCompile Include="Wod\WodBakingScene_Blue.cpp" />
     <ClCompile Include="Wod\WodPlaceableRes.cpp" />
