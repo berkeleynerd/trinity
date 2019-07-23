@@ -2982,7 +2982,6 @@
     <ClInclude Include="TriVariable.h" />
     <ClInclude Include="TriView.h" />
     <ClInclude Include="TriViewport.h" />
-    <ClInclude Include="Utilities\Range.h" />
     <ClInclude Include="version.h" />
     <ClInclude Include="Controllers\ITr2Controller.h" />
     <ClInclude Include="Controllers\Tr2BindingPoint.h" />
@@ -4186,8 +4185,6 @@
     <ClCompile Include="Utilities\GeometryUtils.cpp" />
     <ClCompile Include="Utilities\MatrixUtils.cpp" />
     <ClCompile Include="Utilities\Obb.cpp" />
-    <ClCompile Include="Utilities\Range.cpp" />
-    <ClCompile Include="Utilities\Range_Blue.cpp" />
     <ClCompile Include="Wod\WodBakingScene.cpp" />
     <ClCompile Include="Wod\WodBakingScene_Blue.cpp" />
     <ClCompile Include="Wod\WodPlaceableRes.cpp" />
