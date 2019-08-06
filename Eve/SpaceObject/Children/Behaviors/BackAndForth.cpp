@@ -16,7 +16,8 @@ BackAndForth::~BackAndForth()
 {
 }
 
-void BackAndForth::CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime, BehaviorGroup& sys, EveChildBehaviorSystem& system )
+std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+                                                     BehaviorGroup& sys, EveChildBehaviorSystem& system)
 {
 	for (auto agent = agents.begin(); agent != agents.end(); ++agent)
 	{
@@ -65,8 +66,10 @@ void BackAndForth::CalculateBehavior( std::vector<DroneAgent>& agents, const flo
 
 		agent->acceleration += target;
 	}
+	std::vector<Vector3> todo;
+	return todo;
 }
 
-void BackAndForth::RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos )
+void BackAndForth::RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation)
 {
 }

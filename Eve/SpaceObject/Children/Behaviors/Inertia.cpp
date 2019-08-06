@@ -12,7 +12,8 @@ Inertia::~Inertia()
 {
 }
 
-void Inertia::CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime, BehaviorGroup& sys, EveChildBehaviorSystem& system )
+std::vector<Vector3> Inertia::CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+                                                BehaviorGroup& group, EveChildBehaviorSystem& system)
 {
 	for (auto agent = agents.begin(); agent != agents.end(); ++agent)
 	{
@@ -20,6 +21,7 @@ void Inertia::CalculateBehavior( std::vector<DroneAgent>& agents, const float de
 		auto lastAccelLength = Length( agent->lastAcceleration );
 		auto accelNormalized = Normalize( agent->acceleration );
 		auto accelLength = Length( agent->acceleration );
+
 		if ( Length( lastAccelNormalized ) != 0 && m_maxRotationSpeed > 0 )
 		{
 			auto c = Normalize( Cross( lastAccelNormalized, accelNormalized ) );
@@ -35,12 +37,16 @@ void Inertia::CalculateBehavior( std::vector<DroneAgent>& agents, const float de
 				auto quat = RotationQuaternion( c, angle );
 				TriVectorRotateQuaternion( &agent->acceleration, &lastAccelNormalized, &quat);
 			}
-			agent->acceleration = Normalize( agent->acceleration ) * Lerp( lastAccelLength, accelLength, TriClamp( m_inertiaWeight, 0, 1 ) * deltaTime );
+			
+			agent->acceleration = Normalize(agent->acceleration) * Lerp(lastAccelLength, accelLength,
+			                                                            TriClamp(m_inertiaWeight, 0, 1) * deltaTime);
 		}
 		agent->lastAcceleration = agent->acceleration;
 	}
+	std::vector<Vector3> noNeedToReturnForces;
+	return noNeedToReturnForces;
 }
 
-void Inertia::RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos )
+void Inertia::RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation)
 {
 }

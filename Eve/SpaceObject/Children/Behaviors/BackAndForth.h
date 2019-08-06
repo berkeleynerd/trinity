@@ -12,8 +12,9 @@ public:
 	BackAndForth( IRoot* lockobj = nullptr );
 	~BackAndForth();
 
-	virtual void CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime, BehaviorGroup& sys, EveChildBehaviorSystem& system );
-	void RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos );
+	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+	                                               BehaviorGroup& sys, EveChildBehaviorSystem& system);
+	void RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation);
 
 private:
 	float m_arrivedRadius;

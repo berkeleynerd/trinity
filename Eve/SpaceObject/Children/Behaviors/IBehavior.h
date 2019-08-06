@@ -5,8 +5,10 @@
 BLUE_INTERFACE( IBehavior ): public IRoot
 {
 public:
-	virtual void CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime, BehaviorGroup& sys , EveChildBehaviorSystem& system ) = 0;
-	virtual void RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos ) = 0;
+	// This function should apply a force to the acceleration and return an array with pos and force vector for each agent
+	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+	                                               BehaviorGroup& sys, EveChildBehaviorSystem& system) = 0;
+	virtual void RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation) = 0;
 };
 
 #endif

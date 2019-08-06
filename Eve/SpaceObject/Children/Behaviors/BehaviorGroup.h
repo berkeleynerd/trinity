@@ -140,6 +140,7 @@ private:
 	int m_count;
 	Vector3 m_scale;
 	Vector3 m_spriteScale;
+	bool m_collectForces;
 	int m_groupIndex;
 	bool m_meshToggle;
 	Tr2MeshPtr m_mesh;
@@ -149,10 +150,14 @@ private:
 	BlueSharedString m_name;
 	PIEveVolumeVector m_volumes;
 	PIBehaviorVector m_behaviors;
+	std::vector<Vector3> m_forces;
 	std::vector<DroneAgent> m_agents;
 	unsigned int m_spriteVertexDeclarationHandle;
 	unsigned int m_vertexDeclarationHandle;
 	std::function<void()> m_changeBufferVertexCount;
+
+	// Tr2Debug 
+
 
 	// Steering behavior characteristics, this could actually go under the vehicle struct
 	float m_maxVelocity;
@@ -161,6 +166,7 @@ private:
 	float m_blendRangeMax; // Effectively the distance threshold
 	float m_blendRangeMin; // The distance where a drone should stop having a mesh and be fully rendered as a light.
 	float m_blendRangeValue; // Normalized 0.0 - 1.0 from blendRangeMin to blendRangeMax;
+
 	// Crossfade blend range
 	float m_currentScreenSize;  // READONLY attribute to show artist what the current agent screen size
 	float m_renderThreshold;	// Do not render group if all agents have a screen size below this threshold.

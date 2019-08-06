@@ -205,11 +205,27 @@ Vector3 BehaviorGroup::RemoveAgentPrivate()
 void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system )
 {
 	//Calculate the behaviors
-	for (auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior)
+	if( m_collectForces )
 	{
-		//Rather send a list of all agents and in each behavior loop over them and apply the behavior
-		(*behavior)->CalculateBehavior( m_agents, dt, *this , system);
+		m_forces.clear();
+		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
+		{
+			std::vector<Vector3> forces = ( *behavior )->CalculateBehavior( m_agents, dt, *this, system );
+			
+			for ( auto force = forces.begin(); force != forces.end(); ++force )
+			{
+				m_forces.push_back( *force );
+			}
+		}
 	}
+	else
+	{
+		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
+		{
+			( *behavior )->CalculateBehavior( m_agents, dt, *this, system );
+		}
+	}
+
 	//Move the agents based on the behaviors and update LOD factor
 	for ( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
@@ -415,6 +431,7 @@ void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
 	options.insert( "ExclusionVolumes" );
 	options.insert( "Bounding Sphere" );
 	options.insert( "Locators" );
+	options.insert( "AgentPullForces" );
 }
 
 float BehaviorGroup::GetBoundingSphereRadius()
@@ -455,6 +472,44 @@ void BehaviorGroup::RenderDebugInfo( Tr2DebugRenderer& renderer, Matrix& parentW
 		{
 			renderer.DrawSphere( this, TranslationMatrix( agent->position ) * parentWorldLocation, m_boundingSphereRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
 		}
+	}
+
+	if ( renderer.HasOption( this, "AgentPullForces" ) )
+	{
+		for ( auto group = m_behaviors.begin(); group != m_behaviors.end(); ++group )
+		{
+			( *group )->RenderDebugInfo(renderer, m_agents, parentWorldLocation );
+		}
+
+		if( m_collectForces )
+		{
+			bool loopToggle = true;
+			Vector3 point;
+			for ( auto force = m_forces.begin(); force != m_forces.end(); ++force )
+			{
+				if(loopToggle)
+				{
+					point = ( *force );
+					loopToggle = false;
+				}
+				else
+				{
+					float lengthLerp = min( 1.f, max( 0.f, Length( *force ) / m_maxVelocity ) );
+					renderer.DrawLine(this, point, point + (*force),
+					                  Lerp(Color(0xff11ff11), Color(0xffff1111), lengthLerp));
+					Color(0xff11ff11);
+					loopToggle = true;
+				}
+			}
+		}
+		else
+		{
+			m_collectForces = true;
+		}
+	}
+	else
+	{
+		m_collectForces = false;
 	}
 
 	if (renderer.HasOption( this, "Locators" ))

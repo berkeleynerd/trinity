@@ -163,13 +163,9 @@ void SplineTunnelGroup::RenderDebugInfo( Tr2DebugRenderer& renderer, Matrix& par
 		auto pnts = (*tunnel).splinePoints;
 		for (auto point = pnts.begin(); point != pnts.end(); ++point)
 		{
-			renderer.DrawSphere(this, TranslationMatrix(point->pos) * parentWorldLocation, 2, 6,
+			renderer.DrawSphere(this, TranslationMatrix(point->pos) * parentWorldLocation, ( *tunnel ).cylWidth, 6,
 			                    Tr2DebugRenderer::Wireframe, 0xff555555);
-			/*
-			renderer.DrawLine(this, (TranslationMatrix(point->pos) * parentWorldLocation).GetTranslation(),
-			                  (TranslationMatrix(point->pos + point->rot) * parentWorldLocation).GetTranslation(),
-			                  0xffffff00);
-			*/
+
 			renderer.DrawCylinder( this, (TranslationMatrix( point->pos ) * parentWorldLocation).GetTranslation(),
 				(TranslationMatrix(point->pos + point->rot) * parentWorldLocation).GetTranslation(), (*tunnel).cylWidth,
 				8, Tr2DebugRenderer::Wireframe, 0xffffff00 );

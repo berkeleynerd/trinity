@@ -13,15 +13,20 @@ public:
 	EXPOSE_TO_BLUE();
 	FollowASpline( IRoot* lockobj = nullptr );
 	~FollowASpline();
-
-	virtual void CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime , BehaviorGroup& group , EveChildBehaviorSystem& system );
-	void RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos );
+	
+	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+	                                               BehaviorGroup& group, EveChildBehaviorSystem& system);
+	void RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation);
 
 private:
+	float ProcessTunnelEntrances(DroneAgent& agent, std::vector<SplineTunnel>& tunnels);
+	void ProcessAssignedTunnel(DroneAgent& agent, std::vector<SplineTunnel>& tunnels, BehaviorGroup& group);
+
 	float m_behaviorWeight;	
 	float m_smoothPullFactor;
-	Vector3 m_pullForce;
+	float m_cornerSmoothener;
 	Vector3 m_desiredVector;
+	std::vector <Vector3> m_targetPointVector;
 };
 
 TYPEDEF_BLUECLASS( FollowASpline );

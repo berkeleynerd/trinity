@@ -12,9 +12,10 @@ public:
 	Wander( IRoot* lockobj = nullptr );
 	~Wander();
 
-	virtual void CalculateBehavior( std::vector<DroneAgent>& agents, const float deltaTime, BehaviorGroup& sys, EveChildBehaviorSystem& system );
+	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, const float deltaTime,
+	                                               BehaviorGroup& sys, EveChildBehaviorSystem& system);
 
-	void RenderDebugInfo( Tr2DebugRenderer& renderer, Vector3 agentPos );
+	void RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation);
 
 private:
 	float m_freq;
