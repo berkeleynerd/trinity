@@ -226,18 +226,31 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		}
 	}
 
-	//Move the agents based on the behaviors and update LOD factor
+	//Move the agents based on the behaviors
 	for ( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
 		agent->lifetime += dt;
-		agent->velocity = agent->velocity + agent->acceleration;
+
+		static const Vector3 zAxis( 0.f, 0.f, 1.f );
+		Vector3 test = agent->velocity - agent->acceleration;
+		
+		// only apply force if boosters are facing the correct direction
+		float angle = Dot( Normalize( Vector3( agent->acceleration ) ), Normalize( agent->target ) );
+		
+		if( angle > 0.7 )
+		{
+			angle = ( angle - 0.7f)*10.f / 3.f;
+			// TODO Here we can enable booster effect 
+			agent->velocity += agent->acceleration * angle;
+		}
+		
+		Vector3 temp =  agent->acceleration;
+		TriQuaternionRotationArc( &agent->rotation, &zAxis, &temp);
+
 		agent->velocity = ClampLength( agent->velocity, m_maxVelocity );
 		agent->position = agent->position + agent->velocity * dt;
-		
 		agent->acceleration = Vector3( 0, 0, 0 );
-		
-		static const Vector3 zAxis( 0.f, 0.f, 1.f );
-		TriQuaternionRotationArc( &agent->rotation, &zAxis, &agent->velocity );
+		agent->target = Vector3( 0, 0, 0 );
 	}
 }
 
@@ -301,7 +314,7 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation
 		float LODmod;
 		if ( LOD != 1 && agent->isVisible )
 		{
-			LODmod = (1 - LOD) *(0.5f + (1 - LOD) * 0.5f);
+			LODmod = ( 1 - LOD ) * ( 0.5f + (1 - LOD) * 0.5f );
 			Vector3 meshScale = m_scale * Vector3( LODmod, LODmod, LODmod );
 
 			if ( m_meshToggle )
@@ -309,6 +322,14 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation
 				meshScale *= m_spriteScale;
 			}
 
+			//Vector3 aR = Vector3( agent->rotation ); // agentRotation
+			//Vector3 a = Cross( aR, agent->acceleration );
+			//Quaternion q = Normalize(Quaternion(a.x, a.y, a.z,
+			//                          sqrt((Length(aR) * Length(aR)) * (Length(agent->acceleration) * Length(
+			//	                          agent->acceleration))) + Dot(aR, (agent->acceleration))));
+			//static const Vector3 zAxis( 0.f, 0.f, 1.f );
+			//TriQuaternionRotationArc( &agent->rotation, &zAxis, &Vector3(q) );
+			
 			Matrix m = Transpose( TransformationMatrix( meshScale, agent->rotation, agent->position ) );
 			memcpy( data, &m, 12 * sizeof( float ) );
 		}
@@ -330,6 +351,7 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation
 			Matrix m2 = Transpose( agentMatrix );
 			memcpy( data, &m2, 12 * sizeof( float ) );
 		}
+
 		data += 12 * sizeof( float );
 	}
 }
@@ -431,7 +453,7 @@ void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
 	options.insert( "ExclusionVolumes" );
 	options.insert( "Bounding Sphere" );
 	options.insert( "Locators" );
-	options.insert( "AgentPullForces" );
+	options.insert( "DebugBehaviors" );
 }
 
 float BehaviorGroup::GetBoundingSphereRadius()
@@ -474,7 +496,7 @@ void BehaviorGroup::RenderDebugInfo( Tr2DebugRenderer& renderer, Matrix& parentW
 		}
 	}
 
-	if ( renderer.HasOption( this, "AgentPullForces" ) )
+	if ( renderer.HasOption( this, "DebugBehaviors" ) )
 	{
 		for ( auto group = m_behaviors.begin(); group != m_behaviors.end(); ++group )
 		{

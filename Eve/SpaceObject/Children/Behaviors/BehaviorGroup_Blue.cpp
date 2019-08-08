@@ -30,7 +30,8 @@ const Be::ClassInfo* BehaviorGroup::ExposeToBlue()
 		MAP_METHOD_AND_WRAP( "AddAgent", AddAgent, "Adds a drone to the swarm \n:jessica-placement: TOOLBAR\n:jessica-icon: far-drone-alt\n" )
 		MAP_METHOD_AND_WRAP( "RemoveAgent", RemoveAgent, "removes a random drone from the swarm \n:jessica-placement: TOOLBAR\n:jessica-icon: far-dumpster\n" )
 		MAP_METHOD_AND_WRAP( "SetCount", SetCount, "Specify a desired number of agents for the system \n:param count: number of agents\n:jessica-placement: TOOLBAR\n:jessica-icon: far-ball-pile\n" )
-		MAP_METHOD_AND_WRAP( "ToggleMesh", ToggleMesh, "a temp DEV toggle \n:jessica-placement: TOOLBAR\n:jessica-icon: far-dev\n" )
+		MAP_METHOD_AND_WRAP( "ToggleMesh", ToggleMesh, "a temp DEV toggle \n:jessica-placement: TOOLBAR\n:jessica-icon: fab-dev\n" )
+
 
 	EXPOSURE_END()
 }

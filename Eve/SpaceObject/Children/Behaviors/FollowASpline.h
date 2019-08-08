@@ -5,6 +5,8 @@
 #include "IBehavior.h"
 
 BLUE_DECLARE( TriCurveSet );
+BLUE_DECLARE( SplineTunnelGroup );
+BLUE_DECLARE_VECTOR( SplineTunnelGroup );
 
 BLUE_CLASS( FollowASpline ) :
 	public IBehavior
@@ -22,6 +24,7 @@ private:
 	float ProcessTunnelEntrances(DroneAgent& agent, std::vector<SplineTunnel>& tunnels);
 	void ProcessAssignedTunnel(DroneAgent& agent, std::vector<SplineTunnel>& tunnels, BehaviorGroup& group);
 
+	PSplineTunnelGroupVector m_splineTunnels;
 	TunnelGroupType m_tunnelGroupType;
 	float m_behaviorWeight;	
 	float m_smoothPullFactor;

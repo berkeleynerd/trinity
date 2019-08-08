@@ -577,21 +577,6 @@ void EveChildBehaviorSystem::RenderDebugInfo( Tr2DebugRenderer& renderer )
 	}
 }
 
-void EveChildBehaviorSystem::tempDebugTunnelsDEV()
-{
-	for (auto tunnel = m_tunnels.begin(); tunnel != m_tunnels.end(); ++tunnel)
-	{
-		CCP_LOGWARN( "next Tunnel id: %i \n", (*tunnel).tunnelID );
-		auto pnts = (*tunnel).splinePoints;
-		int i = 0;
-		for (auto point = pnts.begin(); point != pnts.end(); ++point)
-		{
-			i++;
-			CCP_LOGWARN( "next point, P%i p: %f %f %f r: %f %f %f \n ", i, point->pos.x, point->pos.y, point->pos.z, point->rot.x, point->rot.y, point->rot.z );
-		}
-	}
-}
-
 std::vector<SplineTunnel> EveChildBehaviorSystem::GetTunnels() const
 {
 	return m_tunnels;

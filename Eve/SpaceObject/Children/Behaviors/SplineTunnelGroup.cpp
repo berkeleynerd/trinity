@@ -152,10 +152,17 @@ void SplineTunnelGroup::RenderDebugInfo( Tr2DebugRenderer& renderer, Matrix& par
 		{
 			renderer.DrawSphere(this, TranslationMatrix(point->pos) * parentWorldLocation, ( *tunnel ).cylWidth, 6,
 			                    Tr2DebugRenderer::Wireframe, 0xff555555);
+			
+			uint32_t debugColor = 0xffffff00;
+			// this variable is only set if the STG is owned by a system so we can use it to pick a debug color 
+			if( !m_changeSystemTunnelRegistry )
+			{
+				debugColor = 0xff5555aa;
+			}
 
 			renderer.DrawCylinder( this, (TranslationMatrix( point->pos ) * parentWorldLocation).GetTranslation(),
 				(TranslationMatrix(point->pos + point->rot) * parentWorldLocation).GetTranslation(), (*tunnel).cylWidth,
-				8, Tr2DebugRenderer::Wireframe, 0xffffff00 );
+				8, Tr2DebugRenderer::Wireframe, debugColor );
 		}
 	}
 }

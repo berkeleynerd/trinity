@@ -88,8 +88,6 @@ public:
 	void Draw( TriBehaviorSystemInstancingBatch*, Tr2RenderContext& renderContext, int count, unsigned int vertexDecl,
 			  int groupIndex, bool isSpriteBatch );
 
-	void tempDebugTunnelsDEV();
-
 private:
 
 	bool OnPrepareResources();

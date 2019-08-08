@@ -2,6 +2,7 @@
 #include "followASpline.h"
 
 FollowASpline::FollowASpline( IRoot* lockobj ) :
+	PARENTLOCK( m_splineTunnels ),
 	m_behaviorWeight( 10.f ),
 	m_smoothPullFactor( 0.8 ),
 	m_cornerSmoothener( 0.8 ),
@@ -20,7 +21,7 @@ float FollowASpline::ProcessTunnelEntrances(DroneAgent& agent, std::vector<Splin
 	{
 		auto t = ( *tunnel );
 
-		if( t.tunnelGroupID != m_tunnelGroupType )
+		if( t.tunnelGroupID != OTHER_TUNNELS )
 		{
 			return 0;
 		}
@@ -134,6 +135,29 @@ std::vector<Vector3> FollowASpline::CalculateBehavior(std::vector<DroneAgent>& a
 	m_targetPointVector.clear();
 	std::vector<Vector3> forceVectors;
 
+	// additional appending in case people want to add tunnels for specific BehaviorGroups
+	if ( !m_splineTunnels.empty() )
+	{
+		int id = 0;
+		if ( !tunnels.empty() )
+		{
+			id = tunnels.back().tunnelID;
+		}
+
+		for ( auto it = begin( m_splineTunnels ); it != end( m_splineTunnels ); ++it )
+		{
+			auto group = ( *it )->GetTunnels();
+
+			for ( auto tunnel = begin( group ); tunnel != end( group ); ++tunnel )
+			{
+				( *tunnel ).tunnelID = id;
+				id++;
+				tunnels.push_back( *tunnel );
+			}
+		}
+	}
+
+
 	if ( tunnels.empty() )
 	{
 		return forceVectors;
@@ -177,6 +201,11 @@ void FollowASpline::RenderDebugInfo( Tr2DebugRenderer& renderer, std::vector<Dro
 	{
 		renderer.DrawSphere( this, TranslationMatrix( ( *tPoint ) ) * parentWorldLocation,
 			2, 6, Tr2DebugRenderer::Wireframe, 0xff114444 );
+	}
+
+	for ( auto t = m_splineTunnels.begin(); t != m_splineTunnels.end(); ++t )
+	{
+		( *t )->RenderDebugInfo( renderer, parentWorldLocation );
 	}
 	return;
 }

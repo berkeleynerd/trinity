@@ -17,6 +17,7 @@ public:
 	void RenderDebugInfo(Tr2DebugRenderer& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation);
 
 private:
+	float m_maxAcceleration;
 	float m_inertiaWeight;
 	float m_maxRotationSpeed;
 };

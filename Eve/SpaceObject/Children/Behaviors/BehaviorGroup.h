@@ -27,7 +27,9 @@ struct DroneAgent
 		deliver( false ),
 		arrived( true ),
 		avoidanceWeight( 75.f ),
-		lastAcceleration( 0, 0, 0 )
+		lastAcceleration( 0, 0, 0 ),
+		hasUsedEntryTunnels( false ),
+		hasUsedExitTunnels( false )
 	{}
 
 	float mass;
@@ -45,6 +47,10 @@ struct DroneAgent
 	// SplineTunnels
 	int tunnelLock;
 	int tunnelPoint;
+
+	// ProcessLifetime
+	bool hasUsedEntryTunnels;
+	bool hasUsedExitTunnels;
 
 	//This will need to be moved to an extra attribute array
 	bool seek;
@@ -137,26 +143,26 @@ private:
 	void AddAgentPrivate();
 	Vector3 RemoveAgentPrivate();
 
-	int m_count;
-	Vector3 m_scale;
-	Vector3 m_spriteScale;
-	bool m_collectForces;
-	int m_groupIndex;
-	bool m_meshToggle;
+	int m_count; // Number of agents
+	Vector3 m_scale; // Size Multiplier for the agent mesh
+	Vector3 m_spriteScale; // Size Multiplier for the sprite mesh
+	bool m_collectForces; // Bool toggle to skip bunch of calculations when debug is not being used
+	int m_groupIndex; // ID
+	bool m_meshToggle; // To configure sprite during development
 	Tr2MeshPtr m_mesh;
 	Tr2MeshPtr m_spriteMesh;
-	unsigned int m_cachedVD;
-	unsigned int m_cachedSVD;
-	BlueSharedString m_name;
-	PIEveVolumeVector m_volumes;
-	PIBehaviorVector m_behaviors;
-	std::vector<Vector3> m_forces;
-	std::vector<DroneAgent> m_agents;
-	unsigned int m_spriteVertexDeclarationHandle;
-	unsigned int m_vertexDeclarationHandle;
-	std::function<void()> m_changeBufferVertexCount;
+	unsigned int m_cachedVD; // A cached Vertex Declaration to detect change
+	unsigned int m_cachedSVD; // A cached Vertex Declaration for the sprite to detect change
+	BlueSharedString m_name; // A string so you can find the thing by name
+	PIEveVolumeVector m_volumes; // Probably moved soon to the behavior system since this is a global thing for all groups
+	PIBehaviorVector m_behaviors; // AI systems for the AgentGroup
+	std::vector<DroneAgent> m_agents; // The agents
+	unsigned int m_spriteVertexDeclarationHandle; // VertexDeclHandle for the BehaviorGroup sprite mesh 
+	unsigned int m_vertexDeclarationHandle; // VertexDeclHandle for the BehaviorGroup agent mesh 
+	std::function<void()> m_changeBufferVertexCount; // A reference to a function on the parent class
 
 	// Tr2Debug 
+	std::vector<Vector3> m_forces; // A debug vector that represents the forces applied to the agent 
 
 
 	// Steering behavior characteristics, this could actually go under the vehicle struct
@@ -179,6 +185,7 @@ private:
 	// Bounding sphere
 	Vector3 m_boundingSphereCenter;
 	float m_boundingSphereRadius;
+
 };
 
 TYPEDEF_BLUECLASS( BehaviorGroup );
