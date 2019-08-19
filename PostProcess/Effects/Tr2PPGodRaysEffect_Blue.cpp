@@ -15,7 +15,7 @@ const Be::ClassInfo* Tr2PPGodRaysEffect::ExposeToBlue()
 		MAP_INTERFACE( Tr2PPEffect )
 
 		MAP_ATTRIBUTE( "godRayColor", m_godRayColor, "The color of the godrays", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
-		MAP_ATTRIBUTE( "intensity", m_intensity, "The intensity of the godrays", Be::READWRITE | Be::NOTIFY )
+		MAP_ATTRIBUTE( "intensity", m_intensity, "The intensity of the godrays", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE( "noiseTexturePath", m_noiseTexturePath, "The noise texture to use", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
 	EXPOSURE_CHAINTO( Tr2PPEffect )
