@@ -16,8 +16,6 @@ Inertia::~Inertia()
 
 size_t Inertia::GetScratchMemorySize() const
 {
-	//return sizeof( InertiaData );
-	auto size = sizeof( Vector3);
 	return sizeof( Vector3 );
 }
 

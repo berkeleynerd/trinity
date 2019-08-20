@@ -4,17 +4,6 @@
 #include "Eve/SpaceObject/Children/EveChildBehaviorSystem.h"
 #include "IBehavior.h"
 
-/*
-struct InertiaData
-{
-	InertiaData() :
-		lastAcceleration( 0, 0, 0 )
-	{
-	}
-
-	Vector3 lastAcceleration; // Instead use std::vector<Vector3> lastAcceleration
-};
-*/
 BLUE_CLASS( Inertia ) :
 	public IBehavior
 {

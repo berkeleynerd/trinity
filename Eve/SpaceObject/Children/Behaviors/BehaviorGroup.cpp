@@ -53,28 +53,28 @@ void BehaviorGroup::OnListModified(
 		switch( event & BELIST_EVENTMASK )
 		{
 		case BELIST_INSERTED:
+		{
 			m_scratchData.insert( m_scratchData.begin() + key, CcpMallocBuffer() );
+			if( !m_agents.empty() )
+			{
+				auto size = m_behaviors[key]->GetScratchMemorySize();
+				auto& scratchData = m_scratchData[key];
+				scratchData.resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
+				for( size_t i = 0; i < m_agents.size(); ++i )
+				{
+					m_behaviors[key]->InitializeScratch( m_agents[i], scratchData.get() + size * i );
+				}
+			}
 			break;
+		}
 		case BELIST_REMOVED:
 			m_scratchData.erase( m_scratchData.begin() + key );
 			break;
 		case BELIST_SWAPPED:
 			std::swap( m_scratchData[key], m_scratchData[key2] );
 			break;
-		case BELIST_MOVED:
-		{
-			ssize_t i = key;
-			auto tmp = std::move( m_scratchData[key] );
-			for( ; i < key2; i++ )
-			{
-				m_scratchData[i] = std::move( m_scratchData[i + 1] );
-			}
-			for( ; i > key2; i-- )
-			{
-				m_scratchData[i] = std::move( m_scratchData[i - 1] );
-			}
-			m_scratchData[key2] = std::move( tmp );
-		}
+		case BELIST_UNLOADSTART:
+			m_scratchData.clear();
 			break;
 		default:
 			break;
