@@ -62,7 +62,6 @@ struct compareRef
 		switch ( rhs.planeType )
 		{
 		case X:
-			lhs.agent->position.x;
 			return lhs.agent->position.x < rhs.agent->position.x;
 			break;
 		case Y:
