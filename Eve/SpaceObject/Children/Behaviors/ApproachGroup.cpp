@@ -72,7 +72,7 @@ std::vector<Vector3> ApproachGroup::CalculateBehavior(std::vector<DroneAgent>& a
 
 		for ( auto agent = agents.begin(); agent != agents.end(); ++agent, c++ )
 		{
-			if ( c >= m_lastPullForces.size() )
+			if ( c >= static_cast< int >(m_lastPullForces.size()) )
 			{
 				break;
 			}

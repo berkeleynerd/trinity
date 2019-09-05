@@ -96,7 +96,7 @@ float FollowASpline::ProcessTunnelEntrances( DroneAgent& agent, const std::vecto
 
 void FollowASpline::ProcessAssignedTunnel( DroneAgent& agent, const std::vector<SplineTunnel*>& tunnels, BehaviorGroup& group, FollowASplineData* data )
 {
-	if( data->tunnelLock > tunnels.size())
+	if( data->tunnelLock > static_cast< int >(tunnels.size()))
 	{
 		return;
 	}

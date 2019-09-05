@@ -32,7 +32,7 @@ void EveKDdroneManagementTree::CreateTree(std::vector<DroneAgent>& agents, size_
 
 	m_groupSearchReturnInfoBlock.clear();
 
-	for ( int j = 0; j < NumberOfBehaviors; j++ )
+	for ( int j = 0; j < static_cast< int >(NumberOfBehaviors); j++ )
 	{
 		std::vector < std::vector <DroneAgent*>> perAgentData;
 		for ( unsigned int i = 0; i < agents.size(); i++ )

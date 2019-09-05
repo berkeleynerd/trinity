@@ -85,7 +85,7 @@ std::vector<Vector3> DroneAvoidance::CalculateBehavior(std::vector<DroneAgent>& 
 
 		for ( auto agent = agents.begin(); agent != agents.end(); ++agent, c++ )
 		{
-			if ( c >= m_lastPullForces.size() )
+			if ( c >= static_cast< int >(m_lastPullForces.size()) )
 			{
 				break;
 			}
