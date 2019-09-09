@@ -1397,7 +1397,7 @@ void EveSpaceObject2::GetRenderables( std::vector<ITr2Renderable*>& renderables,
 			SelectMeshLevelOfDetail();
 		}
 
-		if( m_impostorMode )
+		if( m_impostorMode && impostors != nullptr )
 		{
 			ImpostorHash hash;
 
