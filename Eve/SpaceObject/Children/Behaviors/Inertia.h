@@ -12,6 +12,7 @@ public:
 	Inertia( IRoot* lockobj = nullptr );
 	~Inertia();
 
+	virtual int GetProcessPriority();
 	virtual size_t GetScratchMemorySize() const;
 	virtual void InitializeScratch( const DroneAgent& drone, void* scratchMemory );
 	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, void* scratchData, const float deltaTime,

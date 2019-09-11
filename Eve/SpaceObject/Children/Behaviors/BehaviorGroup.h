@@ -90,6 +90,8 @@ public:
 private:
 	void ToggleMesh();
 	void AddAgentPrivate();
+	void UpdateCurrentScreenSize();
+	void SortBehaviorIndexes();
 
 	BlueSharedString m_behaviorGroupName; 	// name to identify group
 	int m_count; // Number of agents
@@ -104,6 +106,7 @@ private:
 	BlueSharedString m_name; // A string so you can find the thing by name
 	PIEveVolumeVector m_volumes; // Probably moved soon to the behavior system since this is a global thing for all groups
 	PIBehaviorVector m_behaviors; // AI systems for the AgentGroup
+	std::vector<int> m_sortedBehaviorIndexes; // A sorted list by processPriority
 	std::vector<DroneAgent> m_agents; // The agents
 
 
@@ -133,7 +136,7 @@ private:
 	float m_blendScreenSizeMax; // If mesh screen size exceeds this, it will be drawn as mesh
 	float m_xfadeValue;			// Normalized 0.0 - 1.0 from m_pixelSizeMin to m_pixelSizeMax;
 
-	void UpdateCurrentScreenSize();
+
 
 	// Bounding sphere
 	Vector3 m_boundingSphereCenter;

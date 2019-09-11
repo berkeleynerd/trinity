@@ -47,21 +47,19 @@ std::vector<Vector3> Wander::CalculateBehavior(std::vector<DroneAgent>& agents, 
 
 		desiredVector = rightVector - centerOfCircle;
 		desiredVector = Normalize( desiredVector );
-		desiredVector *= m_weightWander;
 		
-		// Get the offset to render debug
-		Vector3 forceOffset = desiredVector * group.GetBoundingSphereRadius();
 
-		// Apply the force to the acceleration
-		agent->acceleration += desiredVector;
-		
-		if( group.m_collectForces )
+		if ( group.m_collectForces )
 		{
 			Vector3 forceOffset = desiredVector * group.GetBoundingSphereRadius();
+
 			forceVectors.push_back( agent->position + forceOffset );
-			forceVectors.push_back( rightVector );
-			forceVectors.push_back( desiredVector );
+			forceVectors.push_back( desiredVector * m_weightWander );
 		}
+
+		desiredVector *= m_weightWander;
+		// Apply the force to the acceleration
+		agent->acceleration += desiredVector;
 	}
 	return forceVectors;
 }

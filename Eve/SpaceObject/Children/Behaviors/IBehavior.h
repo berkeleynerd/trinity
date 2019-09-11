@@ -5,12 +5,33 @@
 BLUE_INTERFACE( IBehavior ): public IRoot
 {
 public:
+	enum TunnelGroupType
+	{
+		EXIT_TUNNELS = 0,
+		ENTRANCE_TUNNELS = 1,
+		OTHER_TUNNELS = 2,
+	};
+
+	enum ProcessPriority
+	{
+		PROCESS_FIRST = 0,	// This should be the default and is for all behavior-decisions the 'ship's pilot' is making
+		PROCESS_NEXT = 1,	// Inertia and other effects that are affected by the first group
+		PROCESS_LATER = 2,	// This group is for behaviors that want to override the earlier categories and directly control movement (animations etc)
+		PROCESS_LAST = 3,	// things that should have more priority than direct control (ships pushing each other away, wind, or similar effects)
+	};
+
 	virtual size_t GetScratchMemorySize() const // per-agent
 	{
 		return 0;
 	}
+
 	virtual void InitializeScratch( const DroneAgent& drone, void* scratchMemory )
 	{
+	}
+
+	virtual int GetProcessPriority()
+	{
+		return PROCESS_FIRST;
 	}
 
 	// This function should apply a force to the acceleration and return an array with pos and force vector for each agent
@@ -21,14 +42,12 @@ public:
 	
 	// this is for Groups to do all range detections at the same time. ( return -1 if you don't care about other agents ) 
 	// this function could utilize deltaTime but it's probably a good thing that it updates less frequently when the system is tanking
-	virtual float GetBehaviorSearchRadius() = 0;
-
-	enum TunnelGroupType
+	virtual float GetBehaviorSearchRadius()
 	{
-		EXIT_TUNNELS = 0,
-		ENTRANCE_TUNNELS = 1,
-		OTHER_TUNNELS = 2,
-	};
+		return -1;
+	}
+
+	
 };
 
 #endif

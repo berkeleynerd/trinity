@@ -32,11 +32,14 @@ std::vector<Vector3> ApproachGroup::CalculateBehavior(std::vector<DroneAgent>& a
 				continue;
 			}
 			Vector3 middleP = Vector3( 0, 0, 0 );
+
 			for ( auto a = dronesInSearchRadius[ c ].begin(); a != dronesInSearchRadius[ c ].end(); ++a )
 			{
 				middleP += ( *a )->position;
 			}
-			
+
+			middleP /= static_cast< float >( dronesInSearchRadius[ c ].size() );
+
 			if( middleP - agent->position == Vector3(0,0,0))
 			{
 				m_lastPullForces.push_back( Vector3( 0, 0, 0 ) );

@@ -10,7 +10,7 @@
 EveKDdroneManagementTree::EveKDdroneManagementTree( IRoot* lockobj ):
 	m_debugSquareSize(0), 
 	m_updateTimeCounter(0),
-	m_timeBetweenUpdate(1), //update once per sec
+	m_timeBetweenUpdate(1), //update every '1' seconds
 	m_maxFoundPerAgent(5)
 {
 }
@@ -45,7 +45,7 @@ void EveKDdroneManagementTree::CreateTree(std::vector<DroneAgent>& agents, size_
 
 void EveKDdroneManagementTree::UpdateTree( const float dt )
 {
-	if ( m_updateTimeCounter >= m_timeBetweenUpdate )
+	if ( m_timeBetweenUpdate != -1 && m_updateTimeCounter >= m_timeBetweenUpdate )
 	{
 		m_updateTimeCounter = 0;
 		m_tree = *CompareNodeToChildren( &m_tree );

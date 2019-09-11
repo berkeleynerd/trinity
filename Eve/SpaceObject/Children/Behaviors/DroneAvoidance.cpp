@@ -38,7 +38,7 @@ std::vector<Vector3> DroneAvoidance::CalculateBehavior(std::vector<DroneAgent>& 
 				continue;
 			}
 
-			Vector3 avoidanceDirection = Vector3( 0.1, 0.1, 0.1 );
+			Vector3 avoidanceDirection = Vector3( 0, 0, 0 );
 
 			for ( auto a = dronesInSearchRadius[ c ].begin(); a != dronesInSearchRadius[ c ].end(); ++a )
 			{

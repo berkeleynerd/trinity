@@ -87,6 +87,7 @@ void BehaviorGroup::OnListModified(
 				break;
 		}
 	}
+	InitializeGeometryResource();
 }
 
 // --------------------------------------------------------------------------------
@@ -103,6 +104,8 @@ void BehaviorGroup::InitializeGeometryResource()
 	{
 		it->clear();
 	}
+
+	SortBehaviorIndexes();
 
 	const int t = m_count;
 	m_count = 0;
@@ -136,6 +139,24 @@ void BehaviorGroup::CreateAgentTree()
 		return;
 	}
 	m_tree->CreateTree( m_agents, m_behaviors.size());
+}
+
+void BehaviorGroup::SortBehaviorIndexes()
+{
+	m_sortedBehaviorIndexes.clear();
+
+	for ( int i = 0; i < 4; i++ )
+	{
+		int p = 0;
+		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
+		{
+			if ( ( *behavior )->GetProcessPriority() == i )
+			{
+				m_sortedBehaviorIndexes.push_back( p );
+			}
+			p++;
+		}
+	}
 }
 
 // For Artists when they are creating the sprite to easily swap between mesh's
@@ -199,15 +220,15 @@ void BehaviorGroup::AddAgentPrivate()
 
 	for( size_t i = 0; i < m_behaviors.size(); ++i )
 	{
-		auto size = m_behaviors[i]->GetScratchMemorySize();
+		auto size = m_behaviors[ m_sortedBehaviorIndexes[i] ]->GetScratchMemorySize();
 		if( m_scratchData.size() <= i )
 		{
 			m_scratchData.push_back( CcpMallocBuffer() );
 		}
 		if( size > 0)
 		{
-			m_scratchData[i].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
-			m_behaviors[i]->InitializeScratch( agent, m_scratchData[i].get() + size * ( m_agents.size() - 1 ) );
+			m_scratchData[ m_sortedBehaviorIndexes[i] ].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
+			m_behaviors[ m_sortedBehaviorIndexes[i] ]->InitializeScratch( agent, m_scratchData[ m_sortedBehaviorIndexes[i] ].get() + size * ( m_agents.size() - 1 ) );
 		}
 	}
 
@@ -289,14 +310,14 @@ Vector3 BehaviorGroup::RemoveSpecificAgent( int index )
 
 	for( size_t i = 0; i < m_behaviors.size(); ++i )
 	{
-		auto size = m_behaviors[i]->GetScratchMemorySize();
+		auto size = m_behaviors[ m_sortedBehaviorIndexes[ i ] ]->GetScratchMemorySize();
 		if( size == 0 )
 		{
 			continue;
 		}
 
-		memcpy( m_scratchData[i].get() + size * index, m_scratchData[i].get() + size * m_agents.size(), size );
-		m_scratchData[i].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
+		memcpy( m_scratchData[ m_sortedBehaviorIndexes[ i ] ].get() + size * index, m_scratchData[ m_sortedBehaviorIndexes[ i ] ].get() + size * m_agents.size(), size );
+		m_scratchData[ m_sortedBehaviorIndexes[ i ] ].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
 	}
 
 	m_count--;
@@ -317,7 +338,7 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 	for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
 	{
 		searchRad = ( *behavior )->GetBehaviorSearchRadius();
-		if( searchRad == -1.f)
+		if ( searchRad == -1.f )
 		{
 			ranges.push_back( -1.f );
 		}
@@ -328,19 +349,16 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 	}
 
 	const std::vector < std::vector<std::vector<DroneAgent*>>>* dronesInRange = m_tree->FindDronesInRange( m_agents, ranges, m_boundingSphereRadius );
-	int groupIndex = 0;
 
 	//Calculate the behaviors
 	if( m_collectForces )
 	{
 		m_forces.clear();
-
 		auto scratch = m_scratchData.begin();
-		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior, scratch++ )
+
+		for ( int i = 0; i < static_cast< int >(m_behaviors.size()); ++i)
 		{
-			
-			std::vector<Vector3> forces = ( *behavior )->CalculateBehavior( m_agents, scratch->get(), dt, *this, system, (*dronesInRange)[groupIndex]);
-			groupIndex++;
+			std::vector<Vector3> forces = m_behaviors[ m_sortedBehaviorIndexes[i] ]->CalculateBehavior( m_agents, (scratch + m_sortedBehaviorIndexes[i])->get(), dt, *this, system, (*dronesInRange)[ m_sortedBehaviorIndexes[i] ]);
 			for ( auto force = forces.begin(); force != forces.end(); ++force )
 			{
 				m_forces.push_back( *force );
@@ -350,17 +368,9 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 	else
 	{
 		auto scratch = m_scratchData.begin();
-		for( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior, scratch++ )
+		for ( int i = 0; i < static_cast< int >( m_behaviors.size()); ++i )
 		{
-			( *behavior )->CalculateBehavior( m_agents, scratch->get(), dt, *this, system, (*dronesInRange)[ groupIndex ]);
-
-			// XXX TEMP DEBUG XXX breaks Mac build but is good to catch unchecked behaviors
-			/*if ( _isnan( m_agents[0].acceleration[ 0 ] ) )
-			{
-				m_agents[ 0 ].velocity += Vector3( 0, 0, 0 );
-			}*/
-
-			groupIndex++;
+			m_behaviors[ m_sortedBehaviorIndexes[ i ] ]->CalculateBehavior( m_agents, ( scratch + m_sortedBehaviorIndexes[ i ] )->get(), dt, *this, system, ( *dronesInRange )[ m_sortedBehaviorIndexes[i] ] );
 		}
 	}
 
@@ -393,7 +403,11 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		agent->acceleration = Vector3( 0, 0, 0 );
 		agent->target = Vector3( 0, 0, 0 );
 	}
-	m_tree->UpdateTree( dt );
+
+	// later on we could have the updateTree input dynamically adjust based on dt
+	// one of my ideas was input = max( const - dt , minimumUpdateFreq )
+	// this would make it update less often on big dt-s
+	m_tree->UpdateTree( 0.015 );
 }
 
 void BehaviorGroup::UpdateVisibility( const TriFrustum & frustum, const Matrix & parentTransform )
