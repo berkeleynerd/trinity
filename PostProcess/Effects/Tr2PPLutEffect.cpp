@@ -19,9 +19,3 @@ Tr2PPLutEffect::~Tr2PPLutEffect()
 {
 
 }
-
-
-bool Tr2PPLutEffect::IsActive()
-{
-	return m_display && m_influence > 0.0f;
-}

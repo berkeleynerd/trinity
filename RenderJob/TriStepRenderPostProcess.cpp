@@ -202,7 +202,7 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 		RenderTaa(renderContext, taa);
 	}
 
-	if (ProcessDynamicExposure(dynamicExposure))
+	if (ProcessDynamicExposure(renderContext, dynamicExposure))
 	{
 		RenderDynamicExposure(renderContext, dynamicExposure);
 	}
@@ -462,7 +462,7 @@ void TriStepRenderPostProcess::RenderSignalLoss(Tr2RenderContext& renderContext,
 }
 
 
-bool TriStepRenderPostProcess::ProcessDynamicExposure(Tr2PPDynamicExposureEffect* dynamicExposure)
+bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderContext, Tr2PPDynamicExposureEffect* dynamicExposure)
 {
 	if (dynamicExposure && dynamicExposure->IsActive())
 	{
@@ -473,6 +473,9 @@ bool TriStepRenderPostProcess::ProcessDynamicExposure(Tr2PPDynamicExposureEffect
 			m_histogram.CreateInstance();
 
 			m_exposure->Create(8, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, 2);
+			const float clearValue[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+			renderContext.ClearUav( *m_exposure, clearValue);
+			
 			m_localHistograms->Create(m_localHistogramCount, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_UINT, 2);
 			m_histogram->Create(65, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, 2);
 

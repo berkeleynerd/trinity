@@ -20,9 +20,6 @@ public:
 	Tr2PPFogEffect( IRoot* lockobj = NULL );
 	~Tr2PPFogEffect();
 
-	// Tr2PPEffect
-	bool IsActive() override;
-
 	Color m_color;
 	float m_nebulaInfluence;
 	float m_nebulaBlur;

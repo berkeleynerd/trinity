@@ -19,7 +19,3 @@ Tr2PPFadeEffect::~Tr2PPFadeEffect()
 {
 
 }
-
-bool Tr2PPFadeEffect::IsActive() {
-	return m_display && m_intensity > 0;
-}

@@ -60,7 +60,7 @@ private:
 	Tr2EffectPtr m_signalLossEffect;
 
 	// dynamic exposure
-	bool ProcessDynamicExposure( Tr2PPDynamicExposureEffect* dynamicExposure );
+	bool ProcessDynamicExposure( Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure );
 	void RenderDynamicExposure( Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure );
 	Tr2GpuBufferPtr m_localHistograms;
 	Tr2GpuBufferPtr m_histogram;

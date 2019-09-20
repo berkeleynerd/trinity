@@ -44,8 +44,3 @@ Tr2PPFogEffect::~Tr2PPFogEffect()
 {
 
 }
-
-bool Tr2PPFogEffect::IsActive() 
-{
-	return m_display && m_intensity > 0.0f;
-}

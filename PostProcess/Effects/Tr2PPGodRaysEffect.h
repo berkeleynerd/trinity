@@ -23,9 +23,6 @@ public:
 	Tr2PPGodRaysEffect( IRoot* lockobj = NULL );
 	~Tr2PPGodRaysEffect();
 
-	// Tr2PPEffect
-	bool IsActive() override;
-
 	const Vector4 grFactors;
 	Color m_godRayColor;
 	float m_intensity;
