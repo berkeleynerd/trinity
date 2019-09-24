@@ -480,6 +480,9 @@
     <ClInclude Include="Controllers\Actions\Tr2ActionAnimateValue.h">
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClInclude>
+    <ClInclude Include="Controllers\Actions\Tr2ActionBindRTPC.h">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClInclude>
     <ClInclude Include="Controllers\Actions\Tr2ActionChildEffect.h">
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClInclude>
@@ -2290,6 +2293,12 @@
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClCompile>
     <ClCompile Include="Controllers\Actions\Tr2ActionAnimateValue_Blue.cpp">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Actions\Tr2ActionBindRTPC.cpp">
+      <Filter>Source Files\Controllers\Actions</Filter>
+    </ClCompile>
+    <ClCompile Include="Controllers\Actions\Tr2ActionBindRTPC_Blue.cpp">
       <Filter>Source Files\Controllers\Actions</Filter>
     </ClCompile>
     <ClCompile Include="Controllers\Actions\Tr2ActionChildEffect.cpp">

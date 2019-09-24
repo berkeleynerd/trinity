@@ -2995,6 +2995,7 @@
     <ClInclude Include="Controllers\Actions\ITr2ControllerAction.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionAnimateCurveSet.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionAnimateValue.h" />
+    <ClInclude Include="Controllers\Actions\Tr2ActionBindRTPC.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionChildEffect.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionOverlay.h" />
     <ClInclude Include="Controllers\Actions\Tr2ActionPlayCurveSet.h" />
@@ -3603,6 +3604,8 @@
     <ClCompile Include="Controllers\Actions\Tr2ActionAnimateCurveSet_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionAnimateValue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionAnimateValue_Blue.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionBindRTPC.cpp" />
+    <ClCompile Include="Controllers\Actions\Tr2ActionBindRTPC_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionChildEffect.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionChildEffect_Blue.cpp" />
     <ClCompile Include="Controllers\Actions\Tr2ActionOverlay.cpp" />
