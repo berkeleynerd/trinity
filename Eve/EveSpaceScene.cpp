@@ -263,9 +263,9 @@ void EveSpaceScene::ReleaseResources( TriStorage s )
 
 	if( ( s & TRISTORAGE_ALL ) == TRISTORAGE_ALL )
 	{
-		m_perFrameVSBuffer.Destroy();
-		m_perFramePSBuffer.Destroy();
-		m_shadowPerFrameVSBuffer.Destroy();
+		m_perFrameVSBuffer = Tr2ConstantBufferAL();
+		m_perFramePSBuffer = Tr2ConstantBufferAL();
+		m_shadowPerFrameVSBuffer = Tr2ConstantBufferAL();
 	}
 }
 
@@ -613,7 +613,7 @@ void EveSpaceScene::PrepareShadowMap(
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
 		renderContext.RenderBatches( m_shadowBatches );
 	}
-	m_shadowMap->EndShadowRendering();
+	m_shadowMap->EndShadowRendering( renderContext );
 
 	// column_major for shaders
 	m_perFrameVS.ShadowViewMat = Transpose( lightView );
@@ -949,11 +949,11 @@ bool EveSpaceScene::RenderDistortionBatches( BatchMap& batches, Tr2RenderContext
     {
 		if( m_depthMap->m_depthStencil.GetMsaaDesc().samples > 1 )
 		{
-			Tr2Renderer::SetDepthStencilBuffer( nullDS, renderContext );
+			renderContext.m_esm.SetDepthStencilBuffer( Tr2TextureAL() );
 		}
 		else
 		{
-			Tr2Renderer::SetDepthStencilBuffer( *m_depthMap, renderContext );        
+			renderContext.m_esm.SetDepthStencilBuffer( *m_depthMap );
 		}
     }
 
@@ -1082,8 +1082,10 @@ void EveSpaceScene::RenderObjectsReceivingShadows(	std::vector<ShadowReceiver>& 
 	}
 }
 
-void EveSpaceScene::TAAOffset()
+void EveSpaceScene::TAAOffset( Tr2RenderContext& renderContext )
 {
+	auto rtWidth = float( renderContext.m_esm.GetRenderTargetWidth() );
+	auto rtHeight = float( renderContext.m_esm.GetRenderTargetHeight() );
 	if( m_taaPattern == TAA_NONE )
 	{
 		m_xProjOffset = 0;
@@ -1091,26 +1093,26 @@ void EveSpaceScene::TAAOffset()
 	}
 	else if( m_taaPattern == TAA_RANDOM )
 	{
-		m_xProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetWidth() * (2.f * TriFloatRandom01() - 1.f);
-		m_yProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetHeight() * (2.f * TriFloatRandom01() - 1.f);
+		m_xProjOffset = m_taaPixelOffsetScale / rtWidth * (2.f * TriFloatRandom01() - 1.f);
+		m_yProjOffset = m_taaPixelOffsetScale / rtHeight * (2.f * TriFloatRandom01() - 1.f);
 	}
 	else if( m_taaPattern == TAA_2X )
 	{
 		m_taaSamplingIndex = m_taaSamplingIndex % 2;
-		m_xProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetWidth() * m_taaSamplingPatterns[m_taaSamplingIndex].x;
-		m_yProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetHeight() * m_taaSamplingPatterns[m_taaSamplingIndex].y;
+		m_xProjOffset = m_taaPixelOffsetScale / rtWidth * m_taaSamplingPatterns[m_taaSamplingIndex].x;
+		m_yProjOffset = m_taaPixelOffsetScale / rtHeight * m_taaSamplingPatterns[m_taaSamplingIndex].y;
 	}
 	else if( m_taaPattern == TAA_3X )
 	{
 		m_taaSamplingIndex = m_taaSamplingIndex % 3;
-		m_xProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetWidth() * m_taaSamplingPatterns[m_taaSamplingIndex + 6].x;
-		m_yProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetHeight() * m_taaSamplingPatterns[m_taaSamplingIndex + 6].y;
+		m_xProjOffset = m_taaPixelOffsetScale / rtWidth * m_taaSamplingPatterns[m_taaSamplingIndex + 6].x;
+		m_yProjOffset = m_taaPixelOffsetScale / rtHeight * m_taaSamplingPatterns[m_taaSamplingIndex + 6].y;
 	}
 	else
 	{
 		m_taaSamplingIndex = m_taaSamplingIndex % 4;
-		m_xProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetWidth() * m_taaSamplingPatterns[m_taaSamplingIndex+2].x;
-		m_yProjOffset = m_taaPixelOffsetScale / (float)Tr2Renderer::GetRenderTargetHeight() * m_taaSamplingPatterns[m_taaSamplingIndex+2].y;
+		m_xProjOffset = m_taaPixelOffsetScale / rtWidth * m_taaSamplingPatterns[m_taaSamplingIndex+2].x;
+		m_yProjOffset = m_taaPixelOffsetScale / rtHeight * m_taaSamplingPatterns[m_taaSamplingIndex+2].y;
 	}
 }
 
@@ -1195,9 +1197,9 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 	// Todo: Solve the issue of getting renderables from objects that aren't visible but
 	// still might trigger rendering, such as particle effects or turret firing effects.
 	TriFrustum& frustum = m_frameData.frustum;
-	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), Tr2Renderer::GetViewport() );
+	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), renderContext.m_esm.GetViewport() );
 	
-	TAAOffset();
+	TAAOffset( renderContext );
 	m_taaSamplingIndex++;
 
 	Matrix proj = Tr2Renderer::GetProjectionTransform();
@@ -1210,16 +1212,23 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 
 	renderContext.m_esm.BeginManagedRendering();
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
-	
+
+	if( g_eveSpaceSceneDynamicLighting )
+	{
+		Tr2LightManager::GetOrCreateInstance( "res:/graphics/effect/managed/space/system/computelightlists.fx" );
+	}
+	else
+	{
+		Tr2LightManager::DeleteInstance();
+	}
+
 	GatherBatches( renderContext );
 
 	UpdatePostProcessPSData();
 	UpdateVariableStore();
 
-	if( g_eveSpaceSceneDynamicLighting )
+	if( auto lightManager = Tr2LightManager::GetInstance() )
 	{
-		auto lightManager = Tr2LightManager::GetOrCreateInstance( "res:/graphics/effect/managed/space/system/computelightlists.fx" );
-
 		CCP_STATS_SCOPED_TIME( gatherDynamicLights );
 
 		lightManager->Clear();
@@ -1239,11 +1248,6 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 		}
 		m_cameraAttachmentParent->GetLights( *lightManager );
 	}
-	else
-	{
-		Tr2LightManager::DeleteInstance();
-	}
-
 
 	//  the lensflares need a special pre-render update
 	for( auto it = m_lensflares.cbegin(); it != m_lensflares.cend(); ++it )
@@ -1257,8 +1261,8 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 		renderContext.Clear( CLEARFLAGS_TARGET, 0x00000000, 1.f, 0, 1 );
 	}
 
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 }
 
@@ -1376,7 +1380,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 		m_impostorManager->EndUpdate();
 	}
 
-	UpdateImpostors();
+	UpdateImpostors( renderContext );
 	
 	for( auto it = m_staticParticles.begin(); it != m_staticParticles.end(); ++it )
 	{
@@ -1404,7 +1408,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 	UpdateShLighting( objectsReceivingShadow, objectsNotReceivingShadow );
 }
 
-void EveSpaceScene::UpdateImpostors()
+void EveSpaceScene::UpdateImpostors( Tr2RenderContext& renderContext )
 {
 	if( !m_impostorManager || m_impostorManager->GetRenderQueueLength() == 0 )
 	{
@@ -1419,15 +1423,13 @@ void EveSpaceScene::UpdateImpostors()
 
 	Tr2Renderer::PushViewTransform();
 	Tr2Renderer::PushProjection();
-	Tr2Renderer::PushViewport();
+	renderContext.m_esm.PushViewport();
 
 	ON_BLOCK_EXIT( [&]{ 
-		Tr2Renderer::PopViewport();
+		renderContext.m_esm.PopViewport();
 		Tr2Renderer::PopProjection();
 		Tr2Renderer::PopViewTransform();
 	} );
-
-	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	m_impostorManager->BeginUpdateAtlas( renderContext );
 	ON_BLOCK_EXIT( [&]{ m_impostorManager->EndUpdateAtlas( renderContext ); } );
@@ -1489,8 +1491,8 @@ void EveSpaceScene::UpdateImpostors()
 		TriFrustum frustum = m_frameData.frustum;
 		frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), fakeViewport );
 
-		PopulatePerFramePSData( m_perFramePS );
-		PopulatePerFrameVSData( m_perFrameVS );
+		PopulatePerFramePSData( m_perFramePS, renderContext );
+		PopulatePerFrameVSData( m_perFrameVS, renderContext );
 		m_perFrameVS.FogFactors.z = 0;
 		ApplyPerFrameData( renderContext );
 
@@ -1671,8 +1673,8 @@ void EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 		{
 			m_reflectionProbe->StartRenderFace( i, renderContext );
 
-			PopulatePerFramePSData( m_perFramePS );
-			PopulatePerFrameVSData( m_perFrameVS );
+			PopulatePerFramePSData( m_perFramePS, renderContext );
+			PopulatePerFrameVSData( m_perFrameVS, renderContext );
 			ApplyPerFrameData( renderContext );
 
 			RenderBackgroundPassObjects( renderContext, BACKGROUND_RENDER_REFLECTION );
@@ -1681,8 +1683,8 @@ void EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 		}
 
 		m_reflectionProbe->EndRenderPass( renderContext );
-		PopulatePerFramePSData( m_perFramePS );
-		PopulatePerFrameVSData( m_perFrameVS );
+		PopulatePerFramePSData( m_perFramePS, renderContext );
+		PopulatePerFrameVSData( m_perFrameVS, renderContext );
 		ApplyPerFrameData( renderContext );
 	}
 
@@ -1709,7 +1711,7 @@ void EveSpaceScene::RenderBackgroundPassObjects( Tr2RenderContext& renderContext
 	if( m_backgroundEffect )
 	{
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
-		Tr2Renderer::DrawCameraSpaceScreenQuad( m_backgroundEffect->GetShaderStateInterface(), m_backgroundEffect );
+		Tr2Renderer::DrawCameraSpaceScreenQuad( renderContext, m_backgroundEffect->GetShaderStateInterface(), m_backgroundEffect );
 	}
 
 	// stars
@@ -1744,7 +1746,7 @@ void EveSpaceScene::RenderBackgroundPassObjects( Tr2RenderContext& renderContext
 
 			if( m_secondaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount() || m_secondaryBatches[TRIBATCHTYPE_DECAL]->GetBatchCount() )
 			{
-				Tr2Renderer::ClearDepthBuffer( 0.f );
+				renderContext.Clear( CLEARFLAGS_ZBUFFER, 0, 0, 0 );
 			}
 
 			ClearBatches( m_secondaryBatches );
@@ -1770,7 +1772,7 @@ void EveSpaceScene::RenderBackgroundPassObjects( Tr2RenderContext& renderContext
 		}
 
 		// now it's ok to clear z-buffer
-		Tr2Renderer::ClearDepthBuffer( 0.f );
+		renderContext.Clear( CLEARFLAGS_ZBUFFER, 0, 0, 0 );
 	}
 
 	if( m_warpTunnel )
@@ -1812,7 +1814,7 @@ void EveSpaceScene::RenderDepthPass( Tr2RenderContext& renderContext )
 		m_hasDepthPass = true;
 #endif
 
-		Tr2Renderer::ClearDepthBuffer( 0.0f );
+		renderContext.Clear( CLEARFLAGS_ZBUFFER, 0, 0, 0 );
 
 		ApplyPerFrameData( renderContext );
 
@@ -1970,8 +1972,8 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 	renderContext.m_esm.BeginManagedRendering();
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
 
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 
 
@@ -1980,8 +1982,8 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 	// collect visible lensflares
 	std::vector<ITr2Renderable*> visible;
 
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 
 	if( !visible.empty() )
@@ -2038,13 +2040,13 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 	{
 		if( m_shadowMap && m_shadowMap->GetTexture().IsValid() )
 		{
-			Tr2Renderer::DrawTexture( m_shadowMap->GetTexture() );
+			Tr2Renderer::DrawTexture( renderContext, m_shadowMap->GetTexture() );
 		}
 	}
 
 	float xOffset = m_xProjOffset;
 	float yOffset = m_yProjOffset;
-	TAAOffset();
+	TAAOffset( renderContext );
 
 	Matrix currentProj = m_frameData.projection;
 	currentProj = EveCamera::AddCenterOffset( currentProj, m_xProjOffset-xOffset, m_yProjOffset-yOffset, Tr2Renderer::GetFrontClip(), Tr2Renderer::GetBackClip() );
@@ -2054,7 +2056,7 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 
 	if( m_visualizerEffects[m_visualizeMethod].type == VisualizerEffect::FULL_SCREEN_QUAD_OVERLAY )
 	{
-		Tr2Renderer::DrawTexture( m_visualizerEffects[m_visualizeMethod].effect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
+		Tr2Renderer::DrawTexture( renderContext, m_visualizerEffects[m_visualizeMethod].effect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
 	}
 }
 
@@ -2070,13 +2072,13 @@ void EveSpaceScene::Render3DUI( Tr2RenderContext& renderContext )
 	Tr2RenderableSortList transparentObjects;
 
 	TriFrustum& frustum = m_frameData.frustum;
-	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), Tr2Renderer::GetViewport() );
+	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), renderContext.m_esm.GetViewport() );
 	
 	renderContext.m_esm.BeginManagedRendering();
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
 	
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	
 	Tr2ParallelDo( m_uiObjects.begin(), m_uiObjects.end(), [&]( IEveSpaceObject2* obj ) { obj->UpdateVisibility( m_frameData.frustum, identity ); } );
 
@@ -2116,8 +2118,8 @@ void EveSpaceScene::Render3DUI( Tr2RenderContext& renderContext )
 
 void EveSpaceScene::PopulateAndApplyPerFrameData( Tr2RenderContext& renderContext ) 
 {
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 }
 
@@ -2224,7 +2226,7 @@ void EveSpaceScene::ClearVariableStore()
 }
 
 
-void EveSpaceScene::PopulatePerFrameVSData( PerFrameVSData &data )
+void EveSpaceScene::PopulatePerFrameVSData( PerFrameVSData &data, Tr2RenderContext& renderContext )
 {
 	// column_major for shaders
 	data.ViewMat = Transpose( Tr2Renderer::GetViewTransform() );
@@ -2250,8 +2252,8 @@ void EveSpaceScene::PopulatePerFrameVSData( PerFrameVSData &data )
 	data.Sun.DirWorld = -Normalize( data.Sun.DirWorld );
 
 	// resolution of rendertarget
-	data.TargetResolution.x = (float)Tr2Renderer::GetRenderTargetWidth();
-	data.TargetResolution.y = (float)Tr2Renderer::GetRenderTargetHeight();
+	data.TargetResolution.x = (float)renderContext.m_esm.GetRenderTargetWidth();
+	data.TargetResolution.y = (float)renderContext.m_esm.GetRenderTargetHeight();
 
 	// fov in both ways: width (x) and (height (y)
 	data.FovXY.y = EveCamera::CalculateFovFromProjection( Tr2Renderer::GetProjectionTransform() );
@@ -2265,19 +2267,19 @@ void EveSpaceScene::PopulatePerFrameVSData( PerFrameVSData &data )
     data.FogFactors = Vector3( m_fogEnd / distance, 1.f / distance, m_fogMax );
 	
 	// Derived from SetupViewport in Tr2Renderer.cpp
-	const Tr2Viewport& deviceViewport = Tr2Renderer::GetDeviceViewport();
-	const TriViewport& viewport = Tr2Renderer::GetViewport();
+	const Tr2Viewport& deviceViewport = renderContext.m_esm.GetDeviceViewport();
+	const TriViewport& viewport = renderContext.m_esm.GetViewport();
 	data.ViewportAdjustment.x = viewport.x < 0 ? -1.0f : 1.0f;
-	data.ViewportAdjustment.y = viewport.y + viewport.height > (int)Tr2Renderer::GetRenderTargetHeight() ? -1.0f : 1.0f;
+	data.ViewportAdjustment.y = viewport.y + viewport.height > (int)renderContext.m_esm.GetRenderTargetHeight() ? -1.0f : 1.0f;
 	data.ViewportAdjustment.z = deviceViewport.m_width  / viewport.width;
 	data.ViewportAdjustment.w = deviceViewport.m_height / viewport.height;
 	data.Time = Tr2Renderer::GetAnimationTime();
 
-	data.ViewportSize.x = Tr2Renderer::GetDeviceViewport().m_width;
-	data.ViewportSize.y = Tr2Renderer::GetDeviceViewport().m_height;
+	data.ViewportSize.x = renderContext.m_esm.GetDeviceViewport().m_width;
+	data.ViewportSize.y = renderContext.m_esm.GetDeviceViewport().m_height;
 }
 
-void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data )
+void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data, Tr2RenderContext& renderContext )
 {
 	// column_major for shaders
 	data.ViewMat = Transpose( Tr2Renderer::GetViewTransform() );
@@ -2299,8 +2301,8 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data )
 	data.GammaBrightness = g_eveSpaceSceneGammaBrightness;
 
 	// resolution of rendertarget
-	data.TargetResolution.x = (float)Tr2Renderer::GetRenderTargetWidth();
-	data.TargetResolution.y = (float)Tr2Renderer::GetRenderTargetHeight();
+	data.TargetResolution.x = (float)renderContext.m_esm.GetRenderTargetWidth();
+	data.TargetResolution.y = (float)renderContext.m_esm.GetRenderTargetHeight();
 
 	// fov in both ways: width (x) and (height (y)
 	data.FovXY.y = EveCamera::CalculateFovFromProjection( Tr2Renderer::GetProjectionTransform() );
@@ -2309,11 +2311,11 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data )
 	// disable shadows per default
 	data.ShadowCameraRange = Vector2( 1.f, 0.f );
 
-	data.ViewportOffset.x = (float)Tr2Renderer::GetViewport().x;
-	data.ViewportOffset.y = (float)Tr2Renderer::GetViewport().y;
+	data.ViewportOffset.x = (float)renderContext.m_esm.GetViewport().x;
+	data.ViewportOffset.y = (float)renderContext.m_esm.GetViewport().y;
 
-	data.ViewportSize.x = Tr2Renderer::GetDeviceViewport().m_width;
-	data.ViewportSize.y = Tr2Renderer::GetDeviceViewport().m_height;
+	data.ViewportSize.x = renderContext.m_esm.GetDeviceViewport().m_width;
+	data.ViewportSize.y = renderContext.m_esm.GetDeviceViewport().m_height;
 
 	data.Time = Tr2Renderer::GetAnimationTime();
 	data.UseNebulaIntensity = ( m_reflectionProbe && m_reflectionProbe->IsValid() ) ? 0.f : 1.f;
@@ -2564,8 +2566,8 @@ IRoot* EveSpaceScene::PickObjectAndArea( int x, int y, TriProjection* proj, TriV
 	ON_BLOCK_EXIT( Tr2Renderer::PopProjection );
 	Tr2Renderer::PushViewTransform();
 	ON_BLOCK_EXIT( Tr2Renderer::PopViewTransform );
-	Tr2Renderer::PushViewport();
-	ON_BLOCK_EXIT( Tr2Renderer::PopViewport );
+	renderContext.m_esm.PushViewport();
+	ON_BLOCK_EXIT( [&] { renderContext.m_esm.PopViewport(); } );
 
 	float fx,fy;
 	Vector3 startWorld;
@@ -2706,8 +2708,8 @@ void EveSpaceScene::SetupTransformsForPicking( float fx, float fy, TriProjection
 	EveSpaceScene::PerFramePSData perFramePS;
 	EveSpaceScene::PerFrameVSData perFrameVS;
 
-	EveSpaceScene::PopulatePerFramePSData( perFramePS );
-	EveSpaceScene::PopulatePerFrameVSData( perFrameVS );
+	EveSpaceScene::PopulatePerFramePSData( perFramePS, renderContext );
+	EveSpaceScene::PopulatePerFrameVSData( perFrameVS, renderContext );
 
 	// set the rendertarget resolution, which always 1x1 for icking
 	perFrameVS.TargetResolution.x = perFrameVS.TargetResolution.y = 1.f;
@@ -2817,8 +2819,8 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 	}
 
 	// Need to populate per frame data again as view/projection matrices changed
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 
 	Tr2RenderableSortList renderablesWithTransparencies;
@@ -2842,8 +2844,8 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 	Tr2Renderer::PopViewTransform();
 	guardPopViewTransform.Dismiss();
 
-	PopulatePerFramePSData( m_perFramePS );
-	PopulatePerFrameVSData( m_perFrameVS );
+	PopulatePerFramePSData( m_perFramePS, renderContext );
+	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );
 }
 
