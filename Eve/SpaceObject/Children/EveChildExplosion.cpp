@@ -418,9 +418,8 @@ void EveChildExplosion::SpawnLocalExplosion( const Matrix& transform )
 	IEveSpaceObjectChildPtr instance;
 
 	Transform t;
-	Vector3 localScale;
-	Decompose( localScale, t.rotation, t.position, transform );
-	localScale *= m_localExplosionScaling;
+	Vector3 scale;
+	Decompose( scale, t.rotation, t.position, transform );
 
 	auto localExplosion = m_localExplosion;
 	if( !m_localExplosions.empty() )
@@ -431,6 +430,6 @@ void EveChildExplosion::SpawnLocalExplosion( const Matrix& transform )
 	{
 		return;
 	}
-	instance->Setup( &localScale, &t.rotation, &t.position, TR2_LOD_LOW );
+	instance->Setup( &scale, &t.rotation, &t.position, TR2_LOD_LOW );
 	m_objects.Append( instance );
 }
