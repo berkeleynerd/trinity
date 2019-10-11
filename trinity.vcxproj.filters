@@ -1023,6 +1023,9 @@
     <ClInclude Include="Include\ITr2DebugRenderer.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
+    <ClInclude Include="Include\ITr2DebugRenderer2.h">
+      <Filter>Source Files\Include</Filter>
+    </ClInclude>
     <ClInclude Include="Include\ITr2GpuBuffer.h">
       <Filter>Source Files\Include</Filter>
     </ClInclude>
