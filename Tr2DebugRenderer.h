@@ -11,67 +11,10 @@
 #include "Include/ITr2DebugRenderer2.h"
 #include "TriDebugTextRenderer.h"
 
-
-
-//struct Tr2DebugColor
-//{
-//	// front color
-//	uint32_t m_color;
-//	// color for things behind other geometry
-//	uint32_t m_zFailColor;
-//
-//	// front color when object is selected
-//	uint32_t m_colorSelected;
-//	// color for things behind other geometry when object is selected
-//	uint32_t m_zFailColorSelected;
-//
-//	Tr2DebugColor( uint32_t color );
-//	Tr2DebugColor( const Color& color );
-//	Tr2DebugColor( uint32_t color, uint32_t zFailColor );
-//	Tr2DebugColor( const Color& color, const Color& zFailColor );
-//	Tr2DebugColor( const Color& color, const Color& zFailColor, const Color& selectedColor, const Color& zFailSelectedColor );
-//};
-//
-//struct Tr2DebugObjectReference
-//{
-//	IRootPtr m_object;
-//	uint32_t m_area;
-//
-//	template <typename T>
-//	Tr2DebugObjectReference( T* object )
-//		:m_object( object->GetRawRoot() ),
-//		m_area( 0 )
-//	{
-//	}
-//
-//	template <typename T>
-//	Tr2DebugObjectReference( T* object, uint32_t area )
-//		:m_object( object->GetRawRoot() ),
-//		m_area( area )
-//	{
-//	}
-//
-//	Tr2DebugObjectReference( IRoot* object );
-//	Tr2DebugObjectReference( IRoot* object, uint32_t area );
-//
-//	operator bool() const;
-//	bool operator<( const Tr2DebugObjectReference& other ) const;
-//	bool operator==( const Tr2DebugObjectReference& other ) const;
-//	bool operator!=( const Tr2DebugObjectReference& other ) const;
-//};
-
 BLUE_CLASS( Tr2DebugRenderer ) :
-	//public IRoot,
 	public ITr2DebugRenderer2
 {
 public:
-    /*enum Effect
-    {
-        Wireframe,
-        Solid,
-        Lit,
-    };*/
-
 	Tr2DebugRenderer( IRoot* lockobj = nullptr );
 
 	EXPOSE_TO_BLUE();

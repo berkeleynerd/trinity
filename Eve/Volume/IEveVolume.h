@@ -5,7 +5,6 @@
 
 #include "StdAfx.h"
 #include "Tr2DebugRenderer.h"
-//class Tr2DebugRenderer;
 
 BLUE_DECLARE_INTERFACE( IEveVolume );
 
