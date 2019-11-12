@@ -858,9 +858,12 @@ void EveSpaceObject2::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchT
 		return;
 	}
 
-	for( auto it = begin( m_attachments ); it != end( m_attachments ); ++it )
+	if( m_activationStrength != 0 )
 	{
-		( *it )->GetBatches( batches, batchType, perObjectData );
+		for( auto it = begin( m_attachments ); it != end( m_attachments ); ++it )
+		{
+			( *it )->GetBatches( batches, batchType, perObjectData );
+		}
 	}
 
 	if( m_impactOverlay )
