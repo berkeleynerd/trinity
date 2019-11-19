@@ -87,6 +87,7 @@ void EveHazeSet::ReleaseResources( TriStorage s )
 	m_vertexBuffer = Tr2BufferAL();
 }
 
+
 // --------------------------------------------------------------------------------
 // Description:
 //   (Re)-allocate all device stuff: create a vertex declaration for the instanced
@@ -295,7 +296,7 @@ void EveHazeSet::RenderDebugInfo( Tr2DebugRenderer& renderer, const Matrix& pare
 
 void EveHazeSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
 {
-	if ( nullptr != m_effect )
+	if( nullptr != m_effect )
 	{
 		m_effect->SetOption( name, value );
 	}

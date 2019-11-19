@@ -37,8 +37,8 @@ static const int MAX_JOINT_COUNT = 58;
 
 static const double UNINITIALIZED_POSITION = std::numeric_limits<double>::infinity();
 
-CCP_STATS_DECLARE( eveLowDetailObjects, "Trinity/EveSpaceObject2/lowDetailObjects", true, CST_COUNTER_LOW, "Number of objects rendered in low detail per frame.");
-CCP_STATS_DECLARE( eveHighDetailObjects, "Trinity/EveSpaceObject2/highDetailObjects", true, CST_COUNTER_LOW, "Number of objects rendered in high detail per frame.");
+CCP_STATS_DECLARE( eveLowDetailObjects, "Trinity/EveSpaceObject2/lowDetailObjects", true, CST_COUNTER_LOW, "Number of objects rendered in low detail per frame." );
+CCP_STATS_DECLARE( eveHighDetailObjects, "Trinity/EveSpaceObject2/highDetailObjects", true, CST_COUNTER_LOW, "Number of objects rendered in high detail per frame." );
 
 float g_secondaryLightingRadiusCutoffFactor = 0.3;
 TRI_REGISTER_SETTING( "secondaryLightingRadiusCutoffFactor", g_secondaryLightingRadiusCutoffFactor );
@@ -46,11 +46,11 @@ TRI_REGISTER_SETTING( "secondaryLightingRadiusCutoffFactor", g_secondaryLighting
 const BlueSharedString DAMAGE_LOCATOR_SET_NAME( "damage" );
 
 
-void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas, 
-										 ITriRenderBatchAccumulator* batches, 
-										 const Tr2PerObjectData* perObjectData,
-										 const Tr2MeshBase* mesh,
-										 const Matrix* worldTransform )
+void GetSortedBatchesFromMeshAreaVector(	const Tr2MeshAreaVector* areas,
+											ITriRenderBatchAccumulator* batches,
+											const Tr2PerObjectData* perObjectData,
+											const Tr2MeshBase* mesh,
+											const Matrix* worldTransform )
 {
 	TriGeometryRes* geomRes = mesh->GetGeometryResource();
 
@@ -58,11 +58,11 @@ void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas,
 	{
 		return;
 	}
-	
+
 	int meshIx = mesh->GetMeshIndex();
 
 	// build a sortable mesharea item list
-	Tr2MeshAreaItemList meshAreasToSort("EveSpaceObject2/SortMeshAreaVector");
+	Tr2MeshAreaItemList meshAreasToSort( "EveSpaceObject2/SortMeshAreaVector" );
 	meshAreasToSort.reserve( areas->size() );
 	for( Tr2MeshAreaVector::const_iterator it = areas->begin(); it != areas->end(); ++it )
 	{
@@ -306,19 +306,19 @@ Matrix EveSpaceObject2::GetObserverTransform()
 void EveSpaceObject2::UpdateSyncronous( EveUpdateContext& updateContext )
 {
 	Be::Time time = updateContext.GetTime();
-	
+
 	UpdateWorldTransform( time );
 
 	if( !m_update )
 	{
 		return;
 	}
-		
+
 	if( m_allowLodSelection )
 	{
 		UnloadLodIfNeeded( time );
 	}
-	
+
 	// Particle Systems
 	// Get the reference position
 	Vector3d referencePosition( 0.0, 0.0, 0.0 );
@@ -447,7 +447,7 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 
 	if( m_impactOverlay )
 	{
-		m_psData.miscData.y = (float)m_impactOverlay->GetDataTextureOffset();
+		m_psData.miscData.y = (float) m_impactOverlay->GetDataTextureOffset();
 	}
 
 	for( size_t i = 0; i < EVE_SPACEOBJECT_CUSTOWMASK_MAX; ++i )
@@ -475,7 +475,7 @@ void EveSpaceObject2::UpdateAsyncronous( EveUpdateContext& updateContext )
 	{
 		(*it)->Update( updateContext );
 	}
-	
+
 	if( !m_effectChildren.empty() )
 	{
 		Matrix worldTransform;
@@ -515,7 +515,7 @@ void EveSpaceObject2::UpdateWorldBounds()
 	}
 }
 
-void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext ) 
+void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext )
 {
 	UpdateWorldBounds();
 
@@ -530,10 +530,10 @@ void EveSpaceObject2::PrepareShaderData( EveUpdateContext& updateContext )
 	// the m_clipSphereFactor goes from 0.0 to 1.0 and is the "amount" of visibility of this whole
 	// object: 0.0 = fully visible, 1.0 = invisible.
 	// the following formula calculates a special number to pass to the shader to help determine this
-	float normalizedBoundingRadius = GetBoundingSphereRadius() / (m_modelScale == 0 ? 1.f : m_modelScale);
+	float normalizedBoundingRadius = GetBoundingSphereRadius() / ( m_modelScale == 0 ? 1.f : m_modelScale );
 	float nearDist = std::max( 0.f, Length( m_clipSphereCenter ) - normalizedBoundingRadius );
 	float insideSpherePercentage = std::min( 1.f, Length( m_clipSphereCenter ) / normalizedBoundingRadius );
-	float disolveRadius = nearDist + m_clipSphereFactor * normalizedBoundingRadius * (1.f + insideSpherePercentage);
+	float disolveRadius = nearDist + m_clipSphereFactor * normalizedBoundingRadius * ( 1.f + insideSpherePercentage );
 	m_psData.clipData = m_vsData.clipData = Vector4( m_clipSphereCenter + GetBoundingSphereCenter(), TriFloatSign( disolveRadius ) * disolveRadius * disolveRadius );
 	m_psData.miscData.w = m_clipSphereFactor;
 }
@@ -554,7 +554,7 @@ void EveSpaceObject2::GetDebugOptions( Tr2DebugRendererOptions& options )
 	options.insert( "Locators" );
 	options.insert( "Shield" );
 
-	for ( auto it = m_observers.begin(); it != m_observers.end(); ++it )
+	for( auto it = m_observers.begin(); it != m_observers.end(); ++it )
 	{
 		( *it )->GetDebugOptions( options );
 	}
@@ -592,7 +592,7 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 		}
 	}
 
-	for ( auto it = m_observers.begin(); it != m_observers.end(); ++it )
+	for( auto it = m_observers.begin(); it != m_observers.end(); ++it )
 	{
 		( *it )->RenderDebugInfo( renderer, m_worldTransform );
 	}
@@ -634,7 +634,7 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 	{
 		Vector3 radius;
 		Vector3 center;
-		GetShapeEllipsoid(center, radius);
+		GetShapeEllipsoid( center, radius );
 		Matrix transform( XMMatrixScalingFromVector( radius ) );
 		transform *= Matrix( XMMatrixTranslationFromVector( center ) );
 		transform *= m_worldTransform;
@@ -762,7 +762,7 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 					}
 				}
 
-				renderer.DrawSphereArrow( 
+				renderer.DrawSphereArrow(
 					Tr2DebugObjectReference( &locators, uint32_t( i ) ),
 					Vector3( XMVector3TransformCoord( position, m_worldTransform ) ),
 					Vector3( XMVector3TransformNormal( Vector3( 0, 1, 0 ), Matrix( XMMatrixRotationQuaternion( rotation ) ) * m_worldTransform ) ),
@@ -828,7 +828,7 @@ bool EveSpaceObject2::HasTransparentBatches()
 	{
 		return false;
 	}
-	
+
 	if( !m_mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT )->empty() )
 	{
 		return true;
@@ -843,7 +843,7 @@ bool EveSpaceObject2::HasTransparentBatches()
 	}
 
 	return false;
-	
+
 }
 
 void EveSpaceObject2::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData )
@@ -995,7 +995,7 @@ void EveSpaceObject2::GetBatchesFromOverlayVector( ITriRenderBatchAccumulator* b
 		EveMeshOverlayEffectPtr overlay = *it;
 		bool success = false;
 		const PTr2EffectVector& effects = overlay->GetEffects( batchType, success );
-		if ( success )
+		if( success )
 		{
 			EveMeshOverlayEffect::OverlayType overlayType = overlay->GetType( batchType );
 			for( auto eff = effects.begin(); eff != effects.end(); ++eff )
@@ -1026,22 +1026,22 @@ const Matrix* EveSpaceObject2::GetLocatorTransform( LocatorType lt, unsigned int
 	switch( lt )
 	{
 	case ELT_TRANSFORM:
-		{
-			EveLocator2* t = m_locators[lix];
-			return &t->GetTransform();
-		}
-		break;
+	{
+		EveLocator2* t = m_locators[lix];
+		return &t->GetTransform();
+	}
+	break;
 
 	case ELT_JOINT:
+	{
+		if( !m_animationUpdater || !m_animationUpdater->m_worldPose )
 		{
-			if( !m_animationUpdater || !m_animationUpdater->m_worldPose )
-			{
-				return nullptr;
-			}
-
-			return reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_animationUpdater->m_worldPose, lix ) );
+			return nullptr;
 		}
-		break;
+
+		return reinterpret_cast<const Matrix*>( GrannyGetWorldPose4x4( m_animationUpdater->m_worldPose, lix ) );
+	}
+	break;
 
 	default:
 		return nullptr;
@@ -1062,16 +1062,16 @@ const Matrix* EveSpaceObject2::GetLocatorTransform( LocatorType lt, unsigned int
 unsigned int EveSpaceObject2::CountLocatorsByPrefix( const char* namePrefix ) const
 {
 	// want all?
-	if( namePrefix == NULL)
+	if( namePrefix == NULL )
 	{
-		return (unsigned int)m_locators.size();
+		return ( unsigned int) m_locators.size();
 	}
 
 	// now, so count them
 	unsigned int count = 0;
 	for( PEveLocator2Vector::const_iterator it = m_locators.begin(); it != m_locators.end(); ++it )
 	{
-		if( strncmp( (*it)->GetName(), namePrefix, strlen( namePrefix ) ) == 0 )
+		if( strncmp( ( *it )->GetName(), namePrefix, strlen( namePrefix ) ) == 0 )
 		{
 			++count;
 		}
@@ -1105,8 +1105,8 @@ bool EveSpaceObject2::FindLocatorJointByName( const char* name, unsigned int& ix
 
 bool EveSpaceObject2::FindLocatorTransformByName( const char* name, unsigned int& ix ) const
 {
-	unsigned int n = (unsigned int)m_locators.size();
-	for( unsigned int i = 0; i < n ; ++i )
+	unsigned int n = ( unsigned int) m_locators.size();
+	for( unsigned int i = 0; i < n; ++i )
 	{
 		const char* locatorName = m_locators[i]->GetName();
 		if( strcmp( name, locatorName ) == 0 )
@@ -1181,13 +1181,13 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 
 	if( shaderType == Tr2RenderContextEnum::PIXEL_SHADER )
 	{
-		uint8_t* perObjectPS = (uint8_t*)data;
+		uint8_t* perObjectPS = ( uint8_t*) data;
 
 		memcpy( perObjectPS, &m_psData, sizeof( m_psData ) );
 	}
 	else
 	{
-		uint8_t* perObjectVS = (uint8_t*)data;
+		uint8_t* perObjectVS = ( uint8_t*) data;
 		memcpy( perObjectVS, &m_vsData, sizeof( m_vsData ) );
 		perObjectVS += sizeof( m_vsData );
 
@@ -1489,12 +1489,12 @@ void EveSpaceObject2::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2Quad
 
 	for( auto it = begin( m_attachments ); it != end( m_attachments ); ++it )
 	{
-		( *it )->AddToQuadRenderer( quadRenderer, m_worldTransform, m_spaceObjectShipData.y, m_spaceObjectShipData.x, bones, boneCount );
+		(*it)->AddToQuadRenderer( quadRenderer, m_worldTransform, m_spaceObjectShipData.y, m_spaceObjectShipData.x, bones, boneCount );
 	}
 	auto displayChildren = DisplayChildren();
 	for( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
 	{
-		if( displayChildren || (*it)->IsAlwaysOn() )
+		if( displayChildren || ( *it )->IsAlwaysOn() )
 		{
 			(*it)->AddQuadsToQuadRenderer( frustum, quadRenderer );
 		}
@@ -1514,7 +1514,7 @@ bool EveSpaceObject2::GetRenderablesCastingShadow( bool isSelf, const TriFrustum
 		return false;
 	}
 
-	if( m_boundingSphereWorldRadius > 0.0f  )
+	if( m_boundingSphereWorldRadius > 0.0f )
 	{
 		if( frustum.IsSphereVisibleAndInsideNearPlane( m_boundingSphereWorldCenter, m_boundingSphereWorldRadius ) )
 		{
@@ -1550,7 +1550,7 @@ float EveSpaceObject2::GetBoundingSphereRadius() const
 //   Access to the bounding sphere center, but make sure we use the dynamic one
 //   if this object has one!
 // --------------------------------------------------------------------------------
-Vector3 EveSpaceObject2::GetBoundingSphereCenter( ) const
+Vector3 EveSpaceObject2::GetBoundingSphereCenter() const
 {
 	if( m_dynamicBoundingSphere.w != -1 )
 	{
@@ -1641,7 +1641,7 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 		return;
 	}
 
-	m_animationUpdater->SetUseMeshBinding( true );	
+	m_animationUpdater->SetUseMeshBinding( true );
 	m_animationUpdater->SetSharedGeometryRes( m_geometryResFromMesh );
 	m_animationUpdater->RebuildCachedData( p );
 
@@ -1689,6 +1689,7 @@ bool EveSpaceObject2::OnModified( Be::Var* val )
 		m_oldClipSphereFactor = m_clipSphereFactor;
 		SetControllerVariable( "ClipSphereFactor", m_clipSphereFactor );
 	}
+
 	return true;
 }
 
@@ -1700,7 +1701,7 @@ bool EveSpaceObject2::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery qu
 	}
 
 	sphere = *reinterpret_cast<const Vector4*>( &m_boundingSphereWorldCenter );
-	if( query == EVE_BOUNDS_NORMAL || !DisplayChildren())
+	if( query == EVE_BOUNDS_NORMAL || !DisplayChildren() )
 	{
 		return true;
 	}
@@ -1723,7 +1724,7 @@ bool EveSpaceObject2::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery qu
 	return true;
 }
 
-bool EveSpaceObject2::IsAnimated() const 
+bool EveSpaceObject2::IsAnimated() const
 {
 	if( !m_shadowEffect )
 	{
@@ -1740,7 +1741,7 @@ void EveSpaceObject2::PlayAnimation( const char* animName, bool replace, int loo
 {
 	if( m_animationUpdater )
 	{
-		m_animationUpdater->PlayAnimation( animName, replace, loopCount, delay, speed );		
+		m_animationUpdater->PlayAnimation( animName, replace, loopCount, delay, speed );
 	}
 }
 
@@ -1768,7 +1769,7 @@ void EveSpaceObject2::EndAnimation()
 {
 	if( m_animationUpdater )
 	{
-		m_animationUpdater->EndAnimation();		
+		m_animationUpdater->EndAnimation();
 	}
 }
 
@@ -1776,7 +1777,7 @@ void EveSpaceObject2::ClearAnimations()
 {
 	if( m_animationUpdater )
 	{
-		m_animationUpdater->ClearAnimations();		
+		m_animationUpdater->ClearAnimations();
 	}
 }
 
@@ -1792,7 +1793,7 @@ int EveSpaceObject2::GetClosestDamageLocatorIndex( const Vector3* position )
 	float closestLength = std::numeric_limits<float>::max();
 	int closestIndex = -1;
 
-	Vector3 posInObjectSpace = ( Vector3 )XMVector3Transform( *position, m_invWorldTransform );
+	Vector3 posInObjectSpace = ( Vector3) XMVector3Transform( *position, m_invWorldTransform );
 
 	Vector3 locatorPosition, locatorDirection;
 
@@ -1803,14 +1804,14 @@ int EveSpaceObject2::GetClosestDamageLocatorIndex( const Vector3* position )
 		if( IsDamageLocatorFacingPosition( locatorDirection, posInObjectSpace ) )
 		{
 			auto distanceFromDamageLocator = LengthSq( locatorPosition - posInObjectSpace );
-			if ( distanceFromDamageLocator < closestLength )
+			if( distanceFromDamageLocator < closestLength )
 			{
 				closestIndex = int( i );
 				closestLength = distanceFromDamageLocator;
 			}
 		}
 	}
-	
+
 	return closestIndex;
 }
 
@@ -1847,8 +1848,8 @@ int EveSpaceObject2::GetGoodDamageLocatorIndex( const Vector3& position )
 	float minDistance = FLT_MAX;
 	float maxDistance = FLT_MIN;
 	float bestDirectionFit = 0.0f;
-		
-	Vector3 posInObjectSpace = (Vector3) XMVector3Transform( position, m_invWorldTransform );
+
+	Vector3 posInObjectSpace = ( Vector3) XMVector3Transform( position, m_invWorldTransform );
 	auto damageLocators = GetLocatorsForSet( DAMAGE_LOCATOR_SET_NAME );
 	if( !damageLocators )
 	{
@@ -1868,14 +1869,14 @@ int EveSpaceObject2::GetGoodDamageLocatorIndex( const Vector3& position )
 			minDistance = min( minDistance, length );
 			maxDistance = max( maxDistance, length );
 			v = Normalize( v );
-			float directionFit = GetDirectionFit( damageLocatorDirection , v );
+			float directionFit = GetDirectionFit( damageLocatorDirection, v );
 			bestDirectionFit = max( bestDirectionFit, directionFit );
 		}
 	}
 
 	float desiredFit = TriRand() * ( 0.25f - ( 1.0f - bestDirectionFit ) ) + 0.75f;
 	float bestFit = 1.0f;
-	
+
 	int bestLocator = -1;
 	for( size_t i = 0; i < damageLocators->size(); ++i )
 	{
@@ -1890,8 +1891,8 @@ int EveSpaceObject2::GetGoodDamageLocatorIndex( const Vector3& position )
 			if( std::abs( fitValue - desiredFit ) < bestFit )
 			{
 				bestFit = std::abs( fitValue - desiredFit );
-				bestLocator = (int)i;
-			}	
+				bestLocator = ( int) i;
+			}
 		}
 	}
 
@@ -1935,7 +1936,7 @@ bool EveSpaceObject2::GetDamageLocatorPosition( Vector3* out, int index, bool in
 	{
 		*out = position;
 	}
-	
+
 	return true;
 }
 
@@ -1946,7 +1947,7 @@ bool EveSpaceObject2::GetDamageLocatorPosition( Vector3* out, int index, bool in
 // --------------------------------------------------------------------------------
 bool EveSpaceObject2::HasImpactConfigurationShield() const
 {
-	return m_impactOverlay && m_impactOverlay->HasShieldEllipsoid() && ( m_impactOverlay->GetImpactConfiguration() == EveImpactOverlay::IMPACT_SHIELD ) ;
+	return m_impactOverlay && m_impactOverlay->HasShieldEllipsoid() && ( m_impactOverlay->GetImpactConfiguration() == EveImpactOverlay::IMPACT_SHIELD );
 }
 
 // --------------------------------------------------------------------------------
@@ -1971,7 +1972,7 @@ const LocatorStructureList* EveSpaceObject2::GetLocatorsForSet( const BlueShared
 // --------------------------------------------------------------------------------
 void EveSpaceObject2::MergeToLocatorSet( const EveLocatorSets& locatorSet )
 {
-	const Locator* locators = ( const Locator* ) &( *locatorSet.GetLocators() )[0];	
+	const Locator* locators = ( const Locator* ) & ( *locatorSet.GetLocators() )[0];
 
 	for( auto it = m_locatorSets.cbegin(); it != m_locatorSets.cend(); ++it )
 	{
@@ -2060,7 +2061,7 @@ bool EveSpaceObject2::GetDamageLocatorDirection( Vector3* out, int index, bool i
 	return true;
 }
 
-void EveSpaceObject2::UpdateModelCenterWorldPosition( Vector3 &position, Be::Time t )
+void EveSpaceObject2::UpdateModelCenterWorldPosition( Vector3& position, Be::Time t )
 {
 	// We are being looked at by a camera, so we need to make sure we update early enough
 	UpdateWorldTransform( t );
@@ -2092,12 +2093,12 @@ void EveSpaceObject2::GetMissPosition( const Vector3* hit, const Vector3* source
 	if( m_boundingSphereRadius > 0.0f )
 	{
 		*out = m_boundingSphereWorldCenter;
-		
-		if( hit && source ) 
+
+		if( hit && source )
 		{
 			Vector3 local( *hit - *out );
 			Vector3 dir = Normalize( *hit - *source );
-			
+
 			local -= dir * Dot( dir, local );
 
 			local = Normalize( local );
@@ -2172,7 +2173,7 @@ void EveSpaceObject2::UpdateWorldTransform( Be::Time time )
 	else
 	{
 		m_worldPosition = Vector3( 0.0f, 0.0f, 0.0f );
-		m_worldVelocity = Vector3( 0.f, 0.f , 0.f );
+		m_worldVelocity = Vector3( 0.f, 0.f, 0.f );
 	}
 
 	if( m_ballRotation )
@@ -2197,7 +2198,7 @@ void EveSpaceObject2::UpdateWorldTransform( Be::Time time )
 	}
 
 	// scaling: as of now: ONLY FOR ASTEROIDS!
-	if(m_modelScale != 1.f)
+	if( m_modelScale != 1.f )
 	{
 		// build and mult scale-matrix
 		Matrix scaleMatrix = ScalingMatrix( m_modelScale, m_modelScale, m_modelScale );
@@ -2230,13 +2231,13 @@ bool EveSpaceObject2::IsShadowReceiveEnabled()
 	return m_enableShadow && m_shadowEffect;
 }
 
-void EveSpaceObject2::GetModelCenterWorldPosition( Vector3 &position ) const
+void EveSpaceObject2::GetModelCenterWorldPosition( Vector3& position ) const
 {
 	// This version of the function does not perform an update on the object
 	position = TransformCoord( m_boundingSphereCenter, m_worldTransform );
 }
 
-bool EveSpaceObject2::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
+bool EveSpaceObject2::GetLocalBoundingBox( Vector3& min, Vector3& max )
 {
 	if( m_dynamicBoundingSphereEnabled && m_animationUpdater && m_animationUpdater->IsInitialized() )
 	{
@@ -2261,8 +2262,8 @@ bool EveSpaceObject2::GetLocalBoundingBox( Vector3 &min, Vector3 &max )
 	max = m_localAabbMax;
 	return true;
 }
-	
-void EveSpaceObject2::GetLocalToWorldTransform( Matrix &transform ) const
+
+void EveSpaceObject2::GetLocalToWorldTransform( Matrix& transform ) const
 {
 	transform = m_worldTransform;
 }
@@ -2285,7 +2286,7 @@ void EveSpaceObject2::FreeAnimationData()
 {
 	if( m_animationUpdater )
 	{
-		m_animationUpdater->Cleanup();		
+		m_animationUpdater->Cleanup();
 	}
 }
 
@@ -2304,7 +2305,7 @@ void EveSpaceObject2::PrepareForAnimation()
 			// immediately. Further initialization that relies on the granny file being in
 			// memory happens in the callback (RebuildCachedData)
 
-			m_geometryResFromMesh->AddNotifyTarget( this );			
+			m_geometryResFromMesh->AddNotifyTarget( this );
 		}
 	}
 }
@@ -2335,9 +2336,9 @@ bool EveSpaceObject2::DisplayChildren() const
 	return true;
 }
 
-ITriVectorFunctionPtr EveSpaceObject2::GetPositionFunction() 
-{ 
-	return m_ballPosition; 
+ITriVectorFunctionPtr EveSpaceObject2::GetPositionFunction()
+{
+	return m_ballPosition;
 }
 
 // --------------------------------------------------------------------------------
@@ -2416,8 +2417,8 @@ void EveSpaceObject2::AddOverlayEffect( EveMeshOverlayEffect* newOverlayEffect )
 //   Remove a specific overlayEffect from the space object
 // --------------------------------------------------------------------------------
 void EveSpaceObject2::RemoveOverlayEffect( EveMeshOverlayEffect* overlayEffectToRemove )
-{	
-	ssize_t index = m_overlayEffects.FindKey( overlayEffectToRemove );	
+{
+	ssize_t index = m_overlayEffects.FindKey( overlayEffectToRemove );
 	m_overlayEffects.Remove( index );
 }
 
@@ -2607,11 +2608,11 @@ void EveSpaceObject2::SetLastDamageLocatorHit( unsigned int locator )
 //   Create an impact effect on this object by getting the closest damage locator from the position
 // -----------------------------------------------------------------------------
 int EveSpaceObject2::CreateImpactFromPosition( const Vector3& position, const Vector3& direction, float lifeTime, float size )
-{																		                                     
+{
 	int closestDamageLocator = GetClosestDamageLocatorIndex( &position );
 	return CreateImpact( closestDamageLocator, direction, lifeTime, size );
 }
-  
+
 // -----------------------------------------------------------------------------
 // Description:
 //   Update the effect on this object
@@ -2622,16 +2623,16 @@ bool EveSpaceObject2::UpdateImpact( Vector3& out, const Vector3& direction, int 
 	{
 		return m_impactOverlay->UpdateImpact( out, direction, impactIndex );
 	}
-	return false;   
+	return false;
 }
 
 
-unsigned int EveSpaceObject2::GetDamageLocatorCount() const 
+unsigned int EveSpaceObject2::GetDamageLocatorCount() const
 {
 	auto damageLocators = GetLocatorsForSet( DAMAGE_LOCATOR_SET_NAME );
 	if( damageLocators )
 	{
-		return ( unsigned int ) damageLocators->size();
+		return ( unsigned int) damageLocators->size();
 	}
 	return 0;
 }
@@ -2691,7 +2692,7 @@ Vector3 EveSpaceObject2::GetTransformedDamageLocator( uint32_t index )
 
 void EveSpaceObject2::GetLocatorInObjectSpace( Vector3& position, Vector3& direction, const Locator& locator ) const
 {
-	Vector3 damagelocatorDirection = (Vector3)XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), locator.direction );
+	Vector3 damagelocatorDirection = ( Vector3) XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), locator.direction );
 	// We're assuming for now that the bone 0 isn't animated for performance reasons.
 	if( locator.boneIndex <= 0 )
 	{
@@ -2801,9 +2802,9 @@ void EveSpaceObject2::UpdateCurveSet( const std::string& name, Be::Time time )
 {
 	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
 	{
-		if( (*it)->GetName() == name )
+		if( ( *it )->GetName() == name )
 		{
-			(*it)->Update( time, time );
+			( *it )->Update( time, time );
 		}
 	}
 	for( auto it = m_children.begin(); it != m_children.end(); it++ )
@@ -2830,7 +2831,7 @@ void EveSpaceObject2::PlayCurveSet( const std::string& name, const std::string& 
 {
 	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
 	{
-		if( (*it)->GetName() == name )
+		if( ( *it )->GetName() == name )
 		{
 			if( rangeName.empty() )
 			{
@@ -2867,9 +2868,9 @@ void EveSpaceObject2::StopCurveSet( const std::string& name )
 {
 	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); it++ )
 	{
-		if( (*it)->GetName() == name )
+		if( ( *it )->GetName() == name )
 		{
-			(*it)->Stop();
+			( *it )->Stop();
 		}
 	}
 	for( auto childIt = m_children.begin(); childIt != m_children.end(); childIt++ )
@@ -2987,7 +2988,7 @@ void EveSpaceObject2::GetLights( Tr2LightManager& lightManager ) const
 
 	for( auto it = std::begin( m_attachments ); it != std::end( m_attachments ); ++it )
 	{
-		(*it)->GetLights( lightManager, worldTransform );
+		( *it )->GetLights( lightManager, worldTransform );
 	}
 }
 
@@ -3043,10 +3044,10 @@ void EveSpaceObject2::GetImpostorBatches( const TriFrustum& frustum, std::map<Tr
 	std::vector<ITr2Renderable*> renderables;
 	PushRenderables( renderables );
 
-	const TriBatchType allTypes[] = 
+	const TriBatchType allTypes[] =
 	{
 			TRIBATCHTYPE_OPAQUE,
-			TRIBATCHTYPE_DECAL, 
+			TRIBATCHTYPE_DECAL,
 			TRIBATCHTYPE_TRANSPARENT,
 			TRIBATCHTYPE_ADDITIVE,
 	};
@@ -3122,11 +3123,11 @@ std::map<std::string, float> EveSpaceObject2::GetControllerVariables() const
 
 void EveSpaceObject2::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
 {
-	if ( nullptr != m_mesh )
+	if( nullptr != m_mesh )
 	{
 		m_mesh->SetShaderOption( name, value );
-	} 
-	else if ( nullptr != m_meshLod )
+	}
+	else if( nullptr != m_meshLod )
 	{
 		m_meshLod->SetShaderOption( name, value );
 	}
@@ -3136,27 +3137,27 @@ void EveSpaceObject2::SetShaderOption( const BlueSharedString& name, const BlueS
 		m_shadowEffect->SetOption( name, value );
 	}
 
-	for ( auto it = m_overlayEffects.begin(); it != m_overlayEffects.end(); ++it )
+	for( auto it = m_overlayEffects.begin(); it != m_overlayEffects.end(); ++it )
 	{
-		EveMeshOverlayEffect *overlay = *it;
+		EveMeshOverlayEffect* overlay = *it;
 		overlay->SetShaderOption( name, value );
 	}
 
-	for ( auto it = m_decals.begin(); it != m_decals.end(); ++it )
+	for( auto it = m_decals.begin(); it != m_decals.end(); ++it )
 	{
-		EveSpaceObjectDecal *decal = *it;
+		EveSpaceObjectDecal* decal = *it;
 		decal->SetShaderOption( name, value );
 	}
 
-	for ( auto it = m_attachments.begin(); it != m_attachments.end(); ++it )
+	for( auto it = m_attachments.begin(); it != m_attachments.end(); ++it )
 	{
-		IEveSpaceObjectAttachment *attachment = *it;
+		IEveSpaceObjectAttachment* attachment = *it;
 		attachment->SetShaderOption( name, value );
 	}
 
-	for ( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
+	for( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
 	{
-		IEveSpaceObjectChild *child = *it;
+		IEveSpaceObjectChild* child = *it;
 		child->SetShaderOption( name, value );
 	}
 }
@@ -3201,7 +3202,7 @@ ITr2SoundEmitter* EveSpaceObject2::FindSoundEmitter( const char* name )
 		if( auto owner = dynamic_cast<ITr2SoundEmitterOwner*>( *it ) )
 		{
 			auto emitter = owner->FindSoundEmitter( name );
-			if ( emitter != nullptr )
+			if( emitter != nullptr )
 			{
 				return emitter;
 			}

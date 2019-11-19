@@ -10,8 +10,8 @@ BLUE_DEFINE( EveHazeSet );
 
 const Be::ClassInfo* EveHazeSet::ExposeToBlue()
 {
-    EXPOSURE_BEGIN( EveHazeSet, "" )
-        MAP_INTERFACE( EveHazeSet )
+	EXPOSURE_BEGIN( EveHazeSet, "" )
+		MAP_INTERFACE( EveHazeSet )
 		MAP_INTERFACE( IInitialize )
 		MAP_INTERFACE( IEveSpaceObjectAttachment )
 
@@ -22,5 +22,5 @@ const Be::ClassInfo* EveHazeSet::ExposeToBlue()
 
 		MAP_METHOD_AND_WRAP( "Rebuild", Rebuild, "Rebuild resources after adding/removing/changing individual items" )
 
-    EXPOSURE_END()
+	EXPOSURE_END()
 }

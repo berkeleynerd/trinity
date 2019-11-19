@@ -27,7 +27,7 @@ class Tr2PerObjectData;
 // SeeAlso:
 //   EveHazeSetItem
 // --------------------------------------------------------------------------------
-BLUE_CLASS( EveHazeSet ):
+BLUE_CLASS( EveHazeSet ) :
 	public IEveSpaceObjectAttachment,
 	public IInitialize,
 	public ITr2GeometryProvider,
@@ -45,7 +45,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize
 	bool Initialize();
-	
+
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITr2GeometryProvider
 	void SubmitGeometry( Tr2RenderContext& renderContext );
@@ -53,10 +53,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITriDeviceResource
 	void ReleaseResources( TriStorage s );
-private:
-	bool OnPrepareResources();
 
-public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
 	virtual void GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
@@ -76,8 +73,9 @@ public:
 	// picking
 	void GetPickingBatches( ITriRenderBatchAccumulator* batches, uint16_t& areaIDOffset, const Tr2PerObjectData* perObjectData );
 
-
 private:
+	bool OnPrepareResources();
+
 	// toggle visibility
 	bool m_display;
 	// keep a name
