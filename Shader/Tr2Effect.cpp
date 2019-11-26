@@ -1719,7 +1719,7 @@ void Tr2Effect::SetParameter( const BlueSharedString& name, uint32_t value )
 {
 	auto existing = GetParameterByName( name.c_str() );
 	Tr2FloatParameterPtr param = BlueCastPtr( existing );
-	auto cast = *reinterpret_cast<float*>( value );
+	float cast = *reinterpret_cast<float*>( &value );
 
 	if( param )
 	{
