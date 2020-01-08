@@ -1,4 +1,4 @@
-#include "StdAfx.h"
+﻿#include "StdAfx.h"
 #include "App.h"
 #include "../TriRect.h"
 #include "../TriError.h"
@@ -809,7 +809,12 @@ bool App::OnModified( Be::Var* val )
 	else if( IsMatch( val, mWindowTitle ) )
 	{
 #ifdef _WIN32
+		// Apparently trinity is not compiled with UNICODE so we will not get the DefWindowProcW as the window proc.
+		// This will result in ??? being put into the title when we try to set chinese characters in the window title...
+		LONG_PTR originalWndProc = GetWindowLongPtrW( mHwnd, GWLP_WNDPROC );
+		SetWindowLongPtrW( mHwnd, GWLP_WNDPROC, ( LONG_PTR )DefWindowProcW );
 		SetWindowTextW( mHwnd, mWindowTitle.c_str() );
+		SetWindowLongPtrW( mHwnd, GWLP_WNDPROC, originalWndProc );
 #elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
