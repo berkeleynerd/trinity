@@ -235,7 +235,7 @@ void BehaviorGroup::AddAgentPrivate()
 	//This function should change to resize the m_agents once and the buffer once, because if we setCount(1000) this is gonna be really slow
 	//Now we are adding an agent, repositioning it and repositioning the buffer as well. 
  	DroneAgent agent;
-	agent.position = Vector3( 0, 0, 0 ); // TODO: We might want to find a 'smart' spawn location
+	agent.position = Vector3( 0, 0, 0 ); // TODO: We might want to find a 'smart' spawn location, world position?
 	agent.id = TriRandInt( 500 ); //TODO: look better into parameter, could the same ID be generate more than once?
 	m_agents.push_back( agent );
 
@@ -315,6 +315,7 @@ void BehaviorGroup::RemoveAgent()
 	{
 		(m_changeBufferVertexCount)();
 	}
+
 	CreateAgentTree();
 }
 
@@ -403,10 +404,10 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 
 		static const Vector3 zAxis( 0.f, 0.f, 1.f );
 		Vector3 test = agent->velocity - agent->acceleration;
-		
+
 		// only apply force if boosters are facing the correct direction
 		//float angle = Dot( Normalize( Vector3( agent->acceleration ) ), Normalize( agent->target ) );
-		
+
 		//if( angle > 0.7 )
 		//{
 		//	angle = ( angle - 0.7f) * 10.f / 3.f;
@@ -414,7 +415,6 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		//	agent->velocity += agent->acceleration * angle * angle;
 		//} 
 		// Vector3 facingDir =  agent->acceleration;
-
 		
 		agent->velocity += agent->acceleration;
 		Vector3 facingDir = agent->velocity;
@@ -423,7 +423,6 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		agent->velocity = ClampLength( agent->velocity, m_maxVelocity );
 		agent->position = agent->position + agent->velocity * dt;
 		agent->acceleration = Vector3( 0, 0, 0 );
-		agent->target = Vector3( 0, 0, 0 );
 	}
 
 	// later on we could have the updateTree input dynamically adjust based on dt
@@ -464,6 +463,9 @@ void BehaviorGroup::UpdateVisibility( const TriFrustum & frustum, const Matrix &
 	}
 
 	this->UpdateCurrentScreenSize();
+
+	m_frustum = frustum;
+	m_parentTransform = parentTransform;
 }
 
 void BehaviorGroup::UpdateCurrentScreenSize()
@@ -602,6 +604,22 @@ void BehaviorGroup::CreateVertexDeclaration()
 	m_vertexDeclarationHandle = 0;
 }
 
+void BehaviorGroup::GetRenderables( std::vector<ITr2Renderable*>& renderables )
+{
+	for( auto it = begin( m_behaviors ); it != end( m_behaviors ); ++it )
+	{
+		( *it )->GetRenderables( renderables );
+	}
+}
+
+void BehaviorGroup::Update( EveUpdateContext& updateContext )
+{
+	for( auto it = begin( m_behaviors ); it != end( m_behaviors ); ++it )
+	{
+		( *it )->Update( updateContext, (*this) );
+	}
+}
+
 /////////////////////////////////////////////////////////////////////////////////////
 // ITr2DebugRenderable
 void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
@@ -616,6 +634,7 @@ void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
 	options.insert( "Wander" );
 	options.insert( "LocatorRadius" );
 	options.insert( "Formation" );
+	options.insert( "droneDebug" ); // TEMP
 }
 
 float BehaviorGroup::GetBoundingSphereRadius()

@@ -55,7 +55,9 @@ public:
 		return -1;
 	}
 
-	
+	virtual void GetRenderables( std::vector<ITr2Renderable*>& renderables ) {}
+	virtual void Update( EveUpdateContext& updateContext, BehaviorGroup& group ) {}
+	virtual void UpdateState( bool state ) {}
 };
 
 #endif

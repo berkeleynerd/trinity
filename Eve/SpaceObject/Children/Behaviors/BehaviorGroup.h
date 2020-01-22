@@ -1,12 +1,9 @@
 #pragma once
 
-#include "Tr2DebugRenderer.h"
 #include "Eve/SpaceObject/Children/EveChildBehaviorSystem.h"
 #include <functional>
 #include "TriFrustum.h"
 #include "EveKDdroneManagementTree.h"
-
-#include "DroneAgent.h"
 
 struct ITr2Renderable;
 
@@ -50,6 +47,9 @@ public:
 
 	void UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform );
 
+	TriFrustum m_frustum;
+	Matrix m_parentTransform;
+
 	// geom res
 	void InitializeGeometryResource();
 	Tr2MeshPtr GetMesh() const;
@@ -80,6 +80,9 @@ public:
 	void GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation );
 	void CreateSpriteVertexDeclaration();
 
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
+	void Update( EveUpdateContext& updateContext );
+
 	bool m_display;
 	bool IsGroupVisible();
 	float m_estimatedPixelDiameter;
@@ -106,9 +109,7 @@ private:
 	std::vector<int> m_sortedBehaviorIndexes; // A sorted list by processPriority
 	std::vector<DroneAgent> m_agents; // The agents
 
-
 	std::vector<CcpMallocBuffer> m_scratchData;
-
 
 	unsigned int m_spriteVertexDeclarationHandle; // VertexDeclHandle for the BehaviorGroup sprite mesh 
 	unsigned int m_vertexDeclarationHandle; // VertexDeclHandle for the BehaviorGroup agent mesh 
@@ -116,7 +117,6 @@ private:
 
 	// Tr2Debug 
 	std::vector<Vector3> m_forces; // A debug vector that represents the forces applied to the agent 
-
 
 	// Steering behavior characteristics, this could actually go under the vehicle struct
 	float m_maxVelocity;
@@ -132,8 +132,6 @@ private:
 	float m_blendScreenSizeMin; // If mesh screen size (in pixels) is smaller than this, it will be drawn as a sprite
 	float m_blendScreenSizeMax; // If mesh screen size exceeds this, it will be drawn as mesh
 	float m_xfadeValue;			// Normalized 0.0 - 1.0 from m_pixelSizeMin to m_pixelSizeMax;
-
-
 
 	// Bounding sphere
 	Vector3 m_boundingSphereCenter;

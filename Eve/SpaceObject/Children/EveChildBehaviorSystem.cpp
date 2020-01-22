@@ -1,6 +1,7 @@
+#pragma once
+
 #include "StdAfx.h"
 #include "EveChildBehaviorSystem.h"
-#include "Eve/EveUpdateContext.h"
 #include "TriRenderBatch.h"
 #include "Tr2Mesh.h"
 #include "Resources/TriGeometryRes.h"
@@ -294,9 +295,15 @@ void EveChildBehaviorSystem::UpdateSyncronous( EveUpdateContext& updateContext, 
 	UpdateAgents( updateContext.GetDeltaT() );
 
 	// might be a better way to get these initialized but Iinitialize doesn't work
-	// since these need to be called after children are initialized so basicly a single frame later...
-	if (m_needToPassInVertexFunction) PassInVertexesToBehaviorGroups();
-	if (m_needToPassInTunnelFunction) PassInTunnelFunctionsToBehaviorGroups();
+	// since these need to be called after children are initialized so basically a single frame later...
+	if( m_needToPassInVertexFunction )
+	{
+		PassInVertexesToBehaviorGroups();
+	}
+	if( m_needToPassInTunnelFunction )
+	{
+		PassInTunnelFunctionsToBehaviorGroups();
+	}
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	UpdateBuffer( renderContext );
@@ -653,6 +660,11 @@ void EveChildBehaviorSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 
 	m_vsData.worldTransform = Transpose( m_worldTransform );
 	m_vsData.invWorldTransform = Inverse( m_worldTransform );
+
+	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
+	{
+		( *it )->Update( updateContext );
+	}
 }
 
 const char* EveChildBehaviorSystem::GetName() const
@@ -668,6 +680,11 @@ void EveChildBehaviorSystem::Setup( const Vector3* scale, const Quaternion* rota
 void EveChildBehaviorSystem::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	renderables.push_back( this );
+
+	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
+	{
+		( *it )->GetRenderables( renderables );
+	}
 }
 
 void EveChildBehaviorSystem::SetName( const char* name )

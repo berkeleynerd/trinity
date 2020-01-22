@@ -9,9 +9,11 @@ struct DroneAgent
 		position( 0, 0, 0 ),		
 		acceleration( 0, 0, 0 ),
 		velocity( 0, 0, 0 ),		
-		target( 0, 0, 0 ),			
+		target( 0, 0, 0 ),
 		lifetime( 0.f ),
 		id( 0 ),
+		playFX( false ),
+		fxStartTime( -1 ),
 		// LOD
 		xfade( 0.f ),				
 		screenSize( 0.f ),			
@@ -24,11 +26,10 @@ struct DroneAgent
 	Vector3 acceleration;
 	Vector3 velocity;
 	Vector3 target;
-	float lifetime;
 	int id;
-	
-	//Collision avoidance
-	//float avoidanceWeight;  
+	float lifetime;
+	bool playFX;
+	Be::Time fxStartTime;
 
 	float xfade; // Crossfade between mesh and sprite. 1.0 = mesh, 0.0 = sprite
 	bool isVisible; // Don't render agents off-screen

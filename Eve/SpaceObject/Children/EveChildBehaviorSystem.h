@@ -2,6 +2,7 @@
 #ifndef EveChildBehaviorSystem_H
 #define EveChildBehaviorSystem_H
 
+#include "Eve/EveUpdateContext.h"
 #include "Behaviors/BehaviorGroup.h"
 #include "Behaviors/SplineTunnelGroup.h"
 #include "Tr2DeviceResource.h"
