@@ -6,6 +6,7 @@ SeekTarget::SeekTarget( IRoot* lockobj ) :
 	m_behaviorWeight( 20.f ),
 	m_arrivedRadius( 0.f ),
 	m_slowDownRadius( 0.f ),
+	m_seconds( 0.25f ),
 	m_exit( false ),
 	m_target( nullptr ),
 	m_tunnelBehavior( nullptr ),
@@ -96,11 +97,19 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 		Vector3 desiredVelocity = fakePoint - agent->position;
 		float distance = Length( desiredVelocity );
 		desiredVelocity = Normalize( desiredVelocity );
+		static const Vector3 zAxis( 0.f, 0.f, 1.f );
 
 		// If the agent is approaching, slow him down
 		if( distance < m_slowDownRadius )
 		{
 			desiredVelocity = desiredVelocity * m_behaviorWeight * ( distance / m_slowDownRadius );
+			
+			// Set the rotation of the drone
+			Quaternion newRotation;
+			auto invDir = Normalize(data->position - agent->position);
+			TriQuaternionRotationArc( &newRotation, &zAxis, &invDir );
+			agent->rotation = newRotation;
+			data->timePassed = 0.f;
 
 			// If the target has arrived then start playing effect
 			if( distance < m_arrivedRadius )
@@ -135,7 +144,10 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 		}
 		else
 		{
-			desiredVelocity *= m_behaviorWeight;
+			// Have the drone slowly start moving based on time passed
+			data->timePassed += deltaTime;
+			data->timePassed = max( data->timePassed, m_seconds );
+			desiredVelocity *= Lerp( 0, 1, max(data->timePassed, m_seconds ) / m_seconds );
 		}
 		agent->acceleration += desiredVelocity - agent->velocity;
 	}

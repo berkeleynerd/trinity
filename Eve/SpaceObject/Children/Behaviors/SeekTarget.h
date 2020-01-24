@@ -12,14 +12,14 @@ struct LocatorData
 {
 	LocatorData() :
 		index( -1 ),
-		droneWeight( 20.f ),
+		timePassed( 0.f ),
 		position( 0, 0, 0 ),
 		direction( 0, 0, 0 )
 	{
 	}
 
 	int index;
-	float droneWeight;
+	float timePassed;
 	Vector3 position;
 	Vector3 direction;
 };
@@ -54,6 +54,7 @@ private:
 	float m_behaviorWeight;
 	float m_arrivedRadius;
 	float m_slowDownRadius;
+	float m_seconds;
 	Vector3 m_debugLocator; // debug
 	Vector3 m_arrivalPoint; // debug
 	ITriTargetable* m_target;

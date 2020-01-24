@@ -6,9 +6,6 @@
 #include "Eve/SpaceObject/Children/TransformModifiers/EveChildModifierTransformCommon.h" 
 #include "Resources/TriGeometryRes.h"
 
-//temp
-//#include "float.h"
-
 BehaviorGroup::BehaviorGroup( IRoot* lockobj ) :
 	PARENTLOCK( m_behaviors ),
 	m_vertexDeclarationHandle( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
@@ -418,7 +415,10 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		
 		agent->velocity += agent->acceleration;
 		Vector3 facingDir = agent->velocity;
-		TriQuaternionRotationArc( &agent->rotation, &zAxis, &facingDir );
+		Vector3 interestPoint = Vector3();
+		TriVectorRotateQuaternion( &interestPoint, &zAxis, &agent->rotation );
+		Vector3 actualFacingDir = Lerp( interestPoint, facingDir, LengthSq(agent->velocity) / max(1.0f, m_maxVelocity * m_maxVelocity) );
+		TriQuaternionRotationArc( &agent->rotation, &zAxis, &actualFacingDir);
 
 		agent->velocity = ClampLength( agent->velocity, m_maxVelocity );
 		agent->position = agent->position + agent->velocity * dt;
@@ -616,7 +616,7 @@ void BehaviorGroup::Update( EveUpdateContext& updateContext )
 {
 	for( auto it = begin( m_behaviors ); it != end( m_behaviors ); ++it )
 	{
-		( *it )->Update( updateContext, (*this) );
+		( *it )->Update( updateContext, ( *this ) );
 	}
 }
 
