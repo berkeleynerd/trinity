@@ -636,7 +636,7 @@ namespace
 		const uint32_t vertexCount = 4 * 4;
 		EveBoosterSet2::BoosterVertex vertices[vertexCount];
 		auto p = &vertices[0];
-		for( unsigned int i = 0; i < _countof( vertices ); i += 4 )
+		for( unsigned int i = 0; i < vertexCount; i += 4 )
 		{
 			float t = (float)i * XM_PI / 4.f;
 			float x = cos( t ) * 0.5f;
