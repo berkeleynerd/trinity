@@ -18,7 +18,8 @@ public:
 		m_lastTime( 0 ),
 		m_currentTime( 0 ),
 		m_origin( UNINITIALIZED_ORIGIN, UNINITIALIZED_ORIGIN, UNINITIALIZED_ORIGIN ),
-		m_originShift( 0, 0, 0 )
+		m_originShift( 0, 0, 0 ),
+		m_originShiftRemainder( 0, 0, 0 )
 	{
 		SetTime( time );
 	}
@@ -79,8 +80,10 @@ public:
 			refObject->GetReferencePoint( &originNow, m_currentTime );
 			if( m_origin.x != UNINITIALIZED_ORIGIN )
 			{
-				m_origin = m_origin - originNow;
-				m_originShift = m_origin.AsVector3();
+				Vector3d originDelta = originNow - m_origin + m_originShiftRemainder;
+				Vector3 originDeltaF = originDelta.AsVector3();
+				m_originShiftRemainder = originDelta - Vector3d( originDeltaF );
+				m_originShift = -originDeltaF;
 			}
 			m_origin = originNow;
 		}
@@ -110,6 +113,7 @@ private:
 	// For tracking world origin
 	Vector3d m_origin;
 	Vector3 m_originShift;
+	Vector3d m_originShiftRemainder;
 };
 
 #endif //EveUpdateContext_h
