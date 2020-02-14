@@ -14,12 +14,6 @@
 
 #include "TriPoolAllocator.h"
 
-#if defined( __ORBIS__)
-#include "TrinityAL/Tr2MemoryAllocator.h"
-CCP_STATS_DECLARE( garlicAvailable, "Trinity/GarlicAvailable", false, CST_MEMORY, "Bytes of memory available on garlic bus" );
-CCP_STATS_DECLARE( onionAvailable, "Trinity/OnionAvailable", false, CST_MEMORY, "Bytes of memory available on onion bus" );
-#endif
-
 using namespace Tr2RenderContextEnum;
 
 bool Tr2Renderer::m_disableGeometryLoad		= false;
@@ -1060,10 +1054,6 @@ void Tr2Renderer::EndFrame()
 		s_debugLineSet->Clear();
 	}
 
-#if defined( __ORBIS__)
-	CCP_STATS_SET( garlicAvailable, Tr2MemoryAllocator::GetGarlicAvailableMemory() );
-	CCP_STATS_SET( onionAvailable, Tr2MemoryAllocator::GetOnionAvailableMemory() );
-#endif
 }
 
 HRESULT Tr2Renderer::BeginRenderContext()

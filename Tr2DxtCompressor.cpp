@@ -1,7 +1,5 @@
 #include "StdAfx.h"
 
-#if !defined(__ORBIS__)
-
 #include "Tr2DxtCompressor.h"
 #include <squish.h>
 
@@ -964,5 +962,3 @@ bool Tr2DxtCompressSurfaceAsync(	Tr2DxtCompressionFormat eCompressFmt,
 	
 	return result;
 }
-
-#endif

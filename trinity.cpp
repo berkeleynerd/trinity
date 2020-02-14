@@ -205,7 +205,7 @@ CCP_CONCATENATE( init, TRINITYNAME ) ()
 
 #elif BLUE_WITH_LUA
 extern "C" int
-#if defined(_MSC_VER) || defined(__ORBIS__)
+#if defined(_MSC_VER)
 	__declspec(dllexport)
 #endif
 CCP_CONCATENATE( luaopen_, TRINITYNAME ) ( lua_State* ls )

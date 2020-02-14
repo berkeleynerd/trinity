@@ -2247,9 +2247,6 @@
     <ClCompile Include="TriDeviceGLES2.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TriDeviceOrbis.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="TriDeviceStub.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

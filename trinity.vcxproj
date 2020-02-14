@@ -3562,7 +3562,6 @@
     <ClCompile Include="TriDevice12.cpp" />
     <ClCompile Include="TriDevice9.cpp" />
     <ClCompile Include="TriDeviceGLES2.cpp" />
-    <ClCompile Include="TriDeviceOrbis.cpp" />
     <ClCompile Include="TriDeviceStub.cpp" />
     <ClCompile Include="TriDevice_Blue.cpp" />
     <ClCompile Include="TriDirect3D.cpp" />

@@ -18,7 +18,7 @@ static char TICK_UIAPP[] =  "UI App";
 #ifdef _WIN32
 extern HINSTANCE gInstance;
 ATOM App::mWndClassAtom = NULL;
-#elif !defined(__ORBIS__) && !defined(__ANDROID__)
+#elif !defined(__ANDROID__)
 #include "GLFW/glfw3.h"
 #endif
 static const uint32_t DEFAULT_WINDOW_POSITION = 0x80000000; // CW_DEFAULT on windows
@@ -84,7 +84,6 @@ App::App()
 		// Register the windows class
 		mWndClassAtom = RegisterClassExW(&wclass);
 	}
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
     glfwInit();
@@ -118,7 +117,6 @@ bool App::Create()
 		BeOS->SetError(BEDEF, Clsid(), "Initialize3DEnvironment() failed.");
 #ifdef _WIN32
 		DestroyWindow(mHwnd);
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
         glfwDestroyWindow( reinterpret_cast<GLFWwindow*>( mHwnd ) );
@@ -175,7 +173,6 @@ bool App::Destroy()
 		//if we weren't invoked by the WM_DESTROY handler...  destroy the window.
 #ifdef _WIN32
 		DestroyWindow(mHwnd);
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
         glfwDestroyWindow( reinterpret_cast<GLFWwindow*>( mHwnd ) );
@@ -338,7 +335,7 @@ void App::Quit()
 //--------------------------------------------------------------------
 void App::MoveWindow( int x, int y, Be::Optional<int> width, Be::Optional<int> height )
 {
-#if !defined( __ORBIS__ ) && !defined( __ANDROID__ )
+#if !defined( __ANDROID__ )
 	int w, h;
 #ifdef _WIN32
 	RECT rc;
@@ -374,7 +371,6 @@ void App::Minimize( Be::OptionalWithDefaultValue<bool, true> minimize )
 {
 #ifdef _WIN32
 	::ShowWindow(mHwnd, minimize ? SW_MINIMIZE : SW_RESTORE);
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
 	if( minimize )
@@ -392,7 +388,6 @@ void App::Maximize( Be::OptionalWithDefaultValue<bool, true> maximize )
 {
 #ifdef _WIN32
 	::ShowWindow(mHwnd, maximize ? SW_MAXIMIZE : SW_RESTORE);
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
 	if( maximize )
@@ -616,7 +611,6 @@ bool App::AdjustWindowForChange(bool windowed, bool fixedWindow)
 
 		mActive = mHwnd == ::GetForegroundWindow();
 	}
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
     if( !mHwnd && !CreateWin() )
     {
@@ -675,7 +669,6 @@ bool App::CreateWin()
     // Save window properties
     mWindowStyle = GetWindowLong(mHwnd, GWL_STYLE);
     ::GetClientRect(mHwnd, reinterpret_cast<RECT*>( &mWindowClient ) );
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
     extern ANativeWindow* g_androidWindow;
     mHwnd = reinterpret_cast<Tr2WindowHandle>( g_androidWindow );
@@ -777,7 +770,6 @@ bool App::SetWindowPos(int left, int top)
 		mCreationTop = 0;
 		SetRect( reinterpret_cast<RECT*>( &mWindowClient ), 0, 0, mCreationWidth, mCreationHeight );
 	}
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
     mCreationLeft = left;
@@ -810,7 +802,6 @@ bool App::OnModified( Be::Var* val )
 	{
 #ifdef _WIN32
 		SetWindowTextW( mHwnd, mWindowTitle.c_str() );
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
         glfwSetWindowTitle( reinterpret_cast<GLFWwindow*>( mHwnd ), CW2A( mWindowTitle.c_str() ) );
@@ -827,7 +818,6 @@ bool App::IsActive()
 {
 #ifdef _WIN32
 	mActive = mHwnd == ::GetForegroundWindow();
-#elif defined( __ORBIS__ )
 #elif defined( __ANDROID__ )
 #else
     mActive = glfwGetWindowAttrib( reinterpret_cast<GLFWwindow*>( mHwnd ), GLFW_FOCUSED ) != 0;
@@ -924,8 +914,6 @@ bool App::ProcessMessages()
 	}
 
 	return returnValue;
-#elif defined( __ORBIS__ )
-    return true;
 #elif defined( __ANDROID__ )
     return true;
 #else

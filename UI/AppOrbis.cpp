@@ -7,7 +7,7 @@
 #include "StdAfx.h"
 #include "App.h"
 
-#if defined(__ORBIS__) || defined(__ANDROID__)
+#if defined(__ANDROID__)
 
 uint32_t App::GetKeyState( uint32_t vKeyCode )
 {

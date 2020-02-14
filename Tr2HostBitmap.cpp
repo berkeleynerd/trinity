@@ -509,10 +509,6 @@ bool Tr2HostBitmap::CreateFromFile( const std::wstring& file )
 
 bool Tr2HostBitmap::Compress( unsigned compressionFormat, unsigned qualityLevel, TriTextureRes* output )
 {
-#ifdef __ORBIS__
-	// TODO: Enable for PS4
-	return false;
-#else
 	if( !output || !IsValid() || GetType() != TEX_TYPE_2D || compressionFormat >= TR2DXT_COMPRESS_COUNT )
 	{
 		return false;
@@ -556,7 +552,6 @@ bool Tr2HostBitmap::Compress( unsigned compressionFormat, unsigned qualityLevel,
 		output->CreateFromHostBitmap( bitmap );
 	}
 	return true;
-#endif
 }
 
 

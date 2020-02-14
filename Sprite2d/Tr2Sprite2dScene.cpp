@@ -17,7 +17,7 @@
 #include "include/ITr2DebugRenderer.h"
 #include "Include/TriMath.h"
 
-#if !defined(_WIN32) && !defined(__ORBIS__) && !defined(__ANDROID__)
+#if !defined(_WIN32) && !defined(__ANDROID__)
 #include "GLFW/glfw3.h"
 #endif
 

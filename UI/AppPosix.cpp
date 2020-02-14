@@ -1,5 +1,5 @@
 #include "StdAfx.h"
-#if !defined(_WIN32) && !defined(__ORBIS__) && !defined(__ANDROID__)
+#if !defined(_WIN32) && !defined(__ANDROID__)
 
 #include "App.h"
 #include "../TriDevice.h"
