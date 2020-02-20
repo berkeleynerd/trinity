@@ -547,6 +547,11 @@ void EveChildContainer::StartControllers()
 	{
 		( *it )->Start();
 	}
+	
+	for( auto it = begin( m_objects ); it != end( m_objects ); ++it )
+	{
+		(*it)->StartControllers();
+	}
 }
 
 IEveSpaceObjectChildPtr EveChildContainer::GetEffectChildByName( const char* name ) const
