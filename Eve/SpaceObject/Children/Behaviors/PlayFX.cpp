@@ -69,9 +69,11 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 	}
 
 	auto data = static_cast<PlayFXData*>( scratchData );
-	int i = 0;
+	auto agent = agents.begin();
+	auto firingEffect = m_firingEffects.begin();
+
 	// This behavior will be activated when the drone has arrived near the damage locator
-	for( auto agent = agents.begin(); agent != agents.end(); ++agent, ++i, ++data )
+	for( ; agent != agents.end() && firingEffect != m_firingEffects.end(); ++agent, ++firingEffect, ++data )
 	{
 		// Drone has arrived to target so play effect
 		if( agent->playFX && !data->effectPlaying )
@@ -79,7 +81,7 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 			data->seconds = TriRandInt( m_minSec, m_maxSec );
 			data->effectPlaying = true;
 
-			m_firingEffects[i]->StartFiring( m_delay );
+			( *firingEffect )->StartFiring( m_delay );
 		}
 
 		// Set the agent's position to world space because if the parent object had an offset the effect would also offset
@@ -90,12 +92,12 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 		// Without this the drone will start shooting at the new target because of the cooldown of the effect
 		if( data->oldTarget != Vector3( 0, 0, 0 ) )
 		{
-			m_firingEffects[i]->SetFiringTransform( offsetEffect, data->oldTarget );
+			( *firingEffect )->SetFiringTransform( offsetEffect, data->oldTarget );
 		}
 
 		if( data->effectPlaying )
 		{
-			m_firingEffects[i]->SetFiringTransform( offsetEffect, agent->target );
+			( *firingEffect )->SetFiringTransform( offsetEffect, agent->target );
 
 			Be::Time diff = BeOS->GetActualTime() - agent->fxStartTime;
 
@@ -103,7 +105,7 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 
 			if( diff > duration )
 			{
-				m_firingEffects[i]->StopFiring();
+				( *firingEffect )->StopFiring();
 				data->effectPlaying = agent->playFX = false;
 				data->oldTarget = agent->target;
 				agent->target = Vector3( 0, 0, 0 );
@@ -163,6 +165,12 @@ void PlayFX::CheckCount( size_t agentSize )
 
 			auto firingEffect = m_firingEffect;
 	
+			// Special case for when we add drones THEN add the PlayFX behavior
+			if( firingEffect == NULL )
+			{
+				return;
+			}
+
 			// Copies data from 'source' into '*dest'
 			if( !BeClasses->CloneTo( firingEffect, (IRoot**)&newFx.p ) )
 			{
