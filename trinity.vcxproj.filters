@@ -1008,6 +1008,9 @@
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT.h">
       <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
     </ClInclude>
+    <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch.h">
+      <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
+    </ClInclude>
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTransformCommon.h">
       <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
     </ClInclude>
@@ -3220,6 +3223,12 @@
       <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
     </ClCompile>
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT_Blue.cpp">
+      <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch.cpp">
+      <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
+    </ClCompile>
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch_Blue.cpp">
       <Filter>Source Files\Eve\SpaceObject\Children\TransformModifiers</Filter>
     </ClCompile>
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTranslateWithCamera.cpp">
