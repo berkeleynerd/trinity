@@ -99,6 +99,7 @@ bool EveChildMesh::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query
 
 	if( m_mesh && m_mesh->GetBoundingSphere( sphere ) )
 	{
+		BoundingSphereTransform( m_worldTransform, sphere );
 		return true;
 	}
 
