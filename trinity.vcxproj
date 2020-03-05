@@ -3145,6 +3145,7 @@
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierHalo.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierHaloInverted.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT.h" />
+    <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTransformCommon.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTranslateWithCamera.h" />
     <ClInclude Include="Eve\SpaceObject\Children\TransformModifiers\IEveChildTransformModifier.h" />
@@ -3887,6 +3888,8 @@
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierHalo_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierSRT_Blue.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch.cpp" />
+    <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierStretch_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTranslateWithCamera.cpp" />
     <ClCompile Include="Eve\SpaceObject\Children\TransformModifiers\EveChildModifierTranslateWithCamera_Blue.cpp" />
     <ClCompile Include="Eve\SpaceObject\Utils\EveCustomMask.cpp" />
