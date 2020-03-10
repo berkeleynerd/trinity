@@ -25,7 +25,7 @@ size_t SeekTarget::GetScratchMemorySize() const
 	return sizeof( LocatorData );
 }
 
-void SeekTarget::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void SeekTarget::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<LocatorData*>( scratchMemory ) = LocatorData();
 }
@@ -150,7 +150,7 @@ void SeekTarget::SetExit( bool value )
 
 void SeekTarget::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation )
 {
-	if( renderer.HasOption( this, "droneDebug" ) )
+	if( renderer.HasOption( this, "SeekTarget" ) )
 	{
 		renderer.DrawSphere( this, m_arrivalPoint, m_arrivedRadius, 8, Tr2DebugRenderer::Wireframe, 0xffffffff );
 		renderer.DrawSphere( this, m_arrivalPoint, 5, 8, Tr2DebugRenderer::Wireframe, 0xff0000ff );

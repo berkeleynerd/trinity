@@ -23,7 +23,7 @@ public:
 
 	virtual size_t GetScratchMemorySize() const { return 0; }
 
-	virtual void InitializeScratch( const DroneAgent& drone, void* scratchMemory ) {}
+	virtual void InitializeScratch( void* scratchMemory ) {}
 
 	virtual int GetProcessPriority() { return PROCESS_FIRST; }
 

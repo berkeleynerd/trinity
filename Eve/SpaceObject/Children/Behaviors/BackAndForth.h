@@ -29,7 +29,7 @@ public:
 	~BackAndForth();
 
 	virtual size_t GetScratchMemorySize() const;
-	virtual void InitializeScratch( const DroneAgent& drone, void* scratchMemory );
+	virtual void InitializeScratch( void* scratchMemory );
 
 	virtual std::vector<Vector3> CalculateBehavior(std::vector<DroneAgent>& agents, void* scratchData, const float deltaTime,
 	                                               BehaviorGroup& group, EveChildBehaviorSystem& system, const std::vector<std::vector<DroneAgent*>>& dronesInSearchRadius);

@@ -31,7 +31,7 @@ size_t Formation::GetScratchMemorySize() const
 	return sizeof( FormationData );
 }
 
-void Formation::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void Formation::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<FormationData*>( scratchMemory ) = FormationData();
 }

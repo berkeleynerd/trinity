@@ -185,7 +185,7 @@ size_t FollowASpline::GetScratchMemorySize() const
 	return sizeof( FollowASplineData );
 }
 
-void FollowASpline::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void FollowASpline::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<FollowASplineData*>( scratchMemory ) = FollowASplineData();
 }

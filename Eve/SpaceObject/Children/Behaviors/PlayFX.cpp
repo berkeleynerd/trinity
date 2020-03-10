@@ -35,7 +35,7 @@ size_t PlayFX::GetScratchMemorySize() const
 	return sizeof( PlayFXData );
 }
 
-void PlayFX::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void PlayFX::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<PlayFXData*>( scratchMemory ) = PlayFXData();
 }
@@ -126,10 +126,6 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 	}
 
 	return m_todo;
-}
-
-void PlayFX::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation )
-{
 }
 
 void PlayFX::Update( EveUpdateContext& updateContext, const TriFrustum & frustum, const Matrix & parentTransform )

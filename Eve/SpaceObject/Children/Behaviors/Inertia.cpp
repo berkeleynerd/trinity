@@ -23,7 +23,7 @@ size_t Inertia::GetScratchMemorySize() const
 	return sizeof( Vector3 );
 }
 
-void Inertia::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void Inertia::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<Vector3*>( scratchMemory ) = Vector3( 0, 0, 0 );
 }
@@ -65,8 +65,4 @@ std::vector<Vector3> Inertia::CalculateBehavior(std::vector<DroneAgent>& agents,
 	}
 	std::vector<Vector3> noNeedToReturnForces;
 	return noNeedToReturnForces;
-}
-
-void Inertia::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation)
-{
 }

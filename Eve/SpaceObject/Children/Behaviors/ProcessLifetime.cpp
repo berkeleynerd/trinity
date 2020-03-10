@@ -68,7 +68,7 @@ size_t ProcessLifetime::GetScratchMemorySize() const
 	return sizeof( ProcessLifetimeData );
 }
 
-void ProcessLifetime::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void ProcessLifetime::InitializeScratch( void* scratchMemory )
 {
 	*static_cast< ProcessLifetimeData* >( scratchMemory ) = ProcessLifetimeData();
 }

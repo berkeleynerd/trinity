@@ -21,14 +21,7 @@ BehaviorGroup::BehaviorGroup( IRoot* lockobj ) :
 	m_renderThreshold( 1.0 ),
 	m_blendScreenSizeMin( 5.0 ),
 	m_blendScreenSizeMax( 15.0 ),
-	m_xfadeValue( 1.0 ),
-	m_boundingSphereCenter( 0.f, 0.f, 0.f ),
-	m_boundingSphereRadius( 5.f ),
-	m_blendRangeMax( 1000 ), // LOD system
-	m_blendRangeMin( 500 ),
-	m_blendRangeValue( 1.0 ),
-
-	m_TEMPDEBUGVECTORTOFINDCLOSEDRONES( Vector3( 0, 0, 0 ) )
+	m_boundingSphereRadius( 5.f )
 {
 	m_behaviors.SetNotify( this );
 	m_tree = nullptr;
@@ -39,6 +32,10 @@ bool BehaviorGroup::Initialize()
 {
 	m_scratchData.resize( m_behaviors.size() );
 	return true;
+}
+
+BehaviorGroup::~BehaviorGroup()
+{
 }
 
 void BehaviorGroup::OnListModified(
@@ -63,7 +60,7 @@ void BehaviorGroup::OnListModified(
 					scratchData.resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
 					for( size_t i = 0; i < m_agents.size(); ++i )
 					{
-						m_behaviors[key]->InitializeScratch( m_agents[i], scratchData.get() + size * i );
+						m_behaviors[key]->InitializeScratch( scratchData.get() + size * i );
 					}
 				}
 				CreateAgentTree();
@@ -113,20 +110,28 @@ void BehaviorGroup::SetVertexFunctionReferance( const std::function<void( void )
 	m_changeBufferVertexCount = F;
 }
 
-BehaviorGroup::~BehaviorGroup()
-{
-}
-
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return how many agents have been created
+// --------------------------------------------------------------------------------------
 size_t BehaviorGroup::GetSize()
 {
 	return m_agents.size();
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return local counter of agent count
+// --------------------------------------------------------------------------------------
 unsigned int BehaviorGroup::GetCount()
 {
 	return unsigned( m_count );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create a local KD tree
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::CreateAgentTree()
 {
 	m_tree = nullptr;
@@ -137,6 +142,14 @@ void BehaviorGroup::CreateAgentTree()
 	m_tree->CreateTree( m_agents, m_behaviors.size());
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Loop through behaviors and returns the one that matches the name
+// Argument:
+//	name - name of the behavior you want to find
+// Returns:
+//	The behavior object if it found a match, if not return a nullptr
+// --------------------------------------------------------------------------------------
 IBehavior* BehaviorGroup::GetBehaviorByName(std::string name)
 {
 	for( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
@@ -149,68 +162,108 @@ IBehavior* BehaviorGroup::GetBehaviorByName(std::string name)
 	return nullptr;
 }
 
-
+// --------------------------------------------------------------------------------------
+// Description:
+//   Loop through elements in ProcessPriority enum and re-arranges behavior indices 
+//   based on priority
+// Returns:
+//	A vector of sorted indices
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::SortBehaviorIndexes()
 {
 	m_sortedBehaviorIndexes.clear();
 
-	for ( int i = 0; i < 5; i++ )
+	// Hard-coded 5 because the enum ProcessPriority has 5 elements
+	for ( int i = 0; i < 5; ++i )
 	{
 		int p = 0;
-		// Add ++p in this loop?
-		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
+		for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior, ++p )
 		{
 			if ( ( *behavior )->GetProcessPriority() == i )
 			{
 				m_sortedBehaviorIndexes.push_back( p );
 			}
-			p++;
 		}
 	}
 }
 
-// For Artists when they are creating the sprite to easily swap between mesh's
+// --------------------------------------------------------------------------------------
+// Description:
+//   For artists when they are creating the sprite to easily swap between meshes
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::ToggleMesh()
 {
 	m_meshToggle = !m_meshToggle;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return either the instanced mesh or the lodded out mesh
+// --------------------------------------------------------------------------------------
 Tr2MeshPtr BehaviorGroup::GetMesh() const
 {
 	auto mesh = m_meshToggle ? m_spriteMesh : m_mesh;
 	return mesh;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return the lodded out mesh
+// --------------------------------------------------------------------------------------
 Tr2MeshPtr BehaviorGroup::GetSpriteMesh() const
 {
 	return m_spriteMesh;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return the max velocity set for agents in this behaviorGroup
+// --------------------------------------------------------------------------------------
 float BehaviorGroup::GetMaxVelocity() const
 {
 	return m_maxVelocity;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return the vertex declaration handle for the BehaviorGroup instanced mesh 
+// --------------------------------------------------------------------------------------
 unsigned int BehaviorGroup::GetVertexDeclarationHandle() const
 {
 	return m_vertexDeclarationHandle;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Return the vertex declaration handle for the BehaviorGroup sprite(lodded out) mesh 
+// --------------------------------------------------------------------------------------
 unsigned int BehaviorGroup::GetSpriteVertexDeclarationHandle() const
 {
 	return m_spriteVertexDeclarationHandle;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Set the group index, used by BehaviorSystem
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::SetGroupIndexIndicator( int index )
 {
 	m_groupIndex = index;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get the group index, used by BehaviorSystem
+// --------------------------------------------------------------------------------------
 int BehaviorGroup::GetGroupIndexIndicator() const
 {
 	return m_groupIndex;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Exposed function used to add an agent, calls the private function which does all the work
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::AddAgent()
 {
 	// The function without arguments to be called from the UI
@@ -223,6 +276,10 @@ void BehaviorGroup::AddAgent()
 	CreateAgentTree();
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create an agent and add it to the vector. Updates scratchdata for that new agent
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::AddAgentPrivate()
 {
  	DroneAgent agent;
@@ -239,11 +296,16 @@ void BehaviorGroup::AddAgentPrivate()
 		if( size > 0 )
 		{
 			m_scratchData[ m_sortedBehaviorIndexes[i] ].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
-			m_behaviors[ m_sortedBehaviorIndexes[i] ]->InitializeScratch( agent, m_scratchData[ m_sortedBehaviorIndexes[i] ].get() + size * ( m_agents.size() - 1 ) );
+			m_behaviors[ m_sortedBehaviorIndexes[i] ]->InitializeScratch( m_scratchData[ m_sortedBehaviorIndexes[i] ].get() + size * ( m_agents.size() - 1 ) );
 		}
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Exposed function to set agent count. Based on if adding multiple agents or removing
+//	 them, calls the appropriate function
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::SetCount( int count )
 {
 	if ( count == m_count || count < 0 )
@@ -260,8 +322,8 @@ void BehaviorGroup::SetCount( int count )
 		RemoveAgentsByCount( count );
 	}
 		
-	CreateAgentTree();
 	m_count = count;
+	CreateAgentTree();
 
 	if ( m_changeBufferVertexCount == nullptr )
 	{
@@ -270,11 +332,15 @@ void BehaviorGroup::SetCount( int count )
 	(m_changeBufferVertexCount)();
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Check if all the agents have lodded out or not.
+// Returns:
+//	 1 if all agents are sprites, 0 if all agents are instanced meshes, -1 if they are
+//	 not the same or neither (no agents)
+// --------------------------------------------------------------------------------------
 float BehaviorGroup::AllTheSame()
 {
-	// Returns 1 if all agents are sprites
-	// Returns 0 if all agents are meshes
-	// Returns -1 if they are not the same or neither (no agents)
 	float same = -1;
 	// if none of the agents need either of the meshes we let the system know
 	for ( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
@@ -285,7 +351,10 @@ float BehaviorGroup::AllTheSame()
 	return same;
 }
 
-// The function without arguments to be called from the UI
+// --------------------------------------------------------------------------------------
+// Description:
+//   Exposed function used to remove an agent, calls the private function which does all the work
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::RemoveAgent()
 {
 	if( m_agents.size() <= 0 )
@@ -304,6 +373,10 @@ void BehaviorGroup::RemoveAgent()
 	CreateAgentTree();
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Remove the last agent from the vector and update scratch data.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::RemoveSpecificAgent( int index )
 {
 	m_agents[index] = m_agents.back();
@@ -322,6 +395,12 @@ void BehaviorGroup::RemoveSpecificAgent( int index )
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Set agent count to size. Update scratch data for how many agents were added
+// Argument:
+//	 size: The new size of agent vector
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::AddAgentsByCount( int size )
 {
 	size_t sizeBeforeResize = m_agents.size();
@@ -334,21 +413,24 @@ void BehaviorGroup::AddAgentsByCount( int size )
 
 	for( size_t i = 0; i < m_behaviors.size(); ++i )
 	{
-		// When BehaviorGroup will be cleaned up this will be removed (another changelist)
-		DroneAgent agent;
  		auto size = m_behaviors[m_sortedBehaviorIndexes[i]]->GetScratchMemorySize();
 		if( size > 0 )
 		{
 			m_scratchData[m_sortedBehaviorIndexes[i]].resize( "BehaviorGroup::m_scratchData", m_agents.size() * size );
 			for( size_t j = sizeBeforeResize; j < m_agents.size(); j++ )
 			{
-				// TODO: Remove agent parameter
-				m_behaviors[m_sortedBehaviorIndexes[i]]->InitializeScratch( agent, m_scratchData[m_sortedBehaviorIndexes[i]].get() + size * ( j ) );
+				m_behaviors[m_sortedBehaviorIndexes[i]]->InitializeScratch( m_scratchData[m_sortedBehaviorIndexes[i]].get() + size * ( j ) );
 			}
 		}
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Set agent count to size. Update scratch data for how many agents were removed
+// Argument:
+//	 size: The new size of agent vector
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::RemoveAgentsByCount( int size )
 {
 	m_agents.resize( size );
@@ -365,6 +447,12 @@ void BehaviorGroup::RemoveAgentsByCount( int size )
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Update agents forces based on behaviors calculations.
+// Arguments:
+//	 dt: delta time, system: parent object
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system )
 {
 	if ( m_agents.empty() )
@@ -414,24 +502,13 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 		}
 	}
 
-	//Move the agents based on the behaviors
+	// Move the agents based on the behaviors
 	for ( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
 		agent->lifetime += dt;
 
 		static const Vector3 zAxis( 0.f, 0.f, 1.f );
 		Vector3 test = agent->velocity - agent->acceleration;
-
-		// only apply force if boosters are facing the correct direction
-		//float angle = Dot( Normalize( Vector3( agent->acceleration ) ), Normalize( agent->target ) );
-
-		//if( angle > 0.7 )
-		//{
-		//	angle = ( angle - 0.7f) * 10.f / 3.f;
-		//	// TODO Here we can enable booster effect 
-		//	agent->velocity += agent->acceleration * angle * angle;
-		//} 
-		// Vector3 facingDir =  agent->acceleration;
 		
 		agent->velocity += agent->acceleration;
 		Vector3 facingDir = agent->velocity;
@@ -452,6 +529,10 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 	m_tree->UpdateTree( 0.015 );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Check if each agent is still visible or not and update it's visibility based on that.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::UpdateVisibility( const TriFrustum & frustum, const Matrix & parentTransform )
 {
 	// Check if an agent is visible and calculate the xfade value
@@ -489,15 +570,22 @@ void BehaviorGroup::UpdateVisibility( const TriFrustum & frustum, const Matrix &
 	m_parentTransform = parentTransform;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Update the current screensize read-only attribute in Jessica using the first agent.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::UpdateCurrentScreenSize()
 {
-	// Update the current screensize read-only attribute in Jessica using the first agent.
 	if ( !m_agents.empty() )
 	{
 		m_currentScreenSize = m_agents.begin()->screenSize;
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//  Check if any of the agents are visible.
+// --------------------------------------------------------------------------------------
 bool BehaviorGroup::IsGroupVisible()
 {
 	bool isAnyAgentVisible = false;
@@ -512,6 +600,10 @@ bool BehaviorGroup::IsGroupVisible()
 	return isAnyAgentVisible;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get LOD info for buffer. Called from BehaviorSystem
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation )
 {
 	for( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
@@ -553,6 +645,10 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create lodded out mesh vertex declaration.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::CreateSpriteVertexDeclaration()
 {
 	Tr2MeshPtr meshPtr = GetSpriteMesh();
@@ -589,6 +685,10 @@ void BehaviorGroup::CreateSpriteVertexDeclaration()
 	m_spriteVertexDeclarationHandle = 0;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create instanced mesh vertex declaration
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::CreateVertexDeclaration()
 {
 	Tr2MeshPtr meshPtr = GetMesh();
@@ -625,6 +725,10 @@ void BehaviorGroup::CreateVertexDeclaration()
 	m_vertexDeclarationHandle = 0;
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   For the effect in PlayFX to be rendered this is needed.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	auto behavior = GetBehaviorByName( "PlayFX" );
@@ -639,6 +743,10 @@ void BehaviorGroup::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 	}
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   For the effect in PlayFX to be updated this is needed.
+// --------------------------------------------------------------------------------------
 void BehaviorGroup::Update( EveUpdateContext& updateContext )
 {
 	auto behavior = GetBehaviorByName( "PlayFX" );
@@ -667,7 +775,7 @@ void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
 	options.insert( "Wander" );
 	options.insert( "LocatorRadius" );
 	options.insert( "Formation" );
-	options.insert( "droneDebug" ); // TEMP
+	options.insert( "SeekTarget" );
 }
 
 float BehaviorGroup::GetBoundingSphereRadius()
@@ -679,7 +787,6 @@ EveKDdroneManagementTreePtr BehaviorGroup::GetKDTree()
 {
 	return m_tree;
 }
-
 
 void BehaviorGroup::RenderDebugInfo( ITr2DebugRenderer2& renderer, Matrix& parentWorldLocation )
 {
@@ -698,17 +805,6 @@ void BehaviorGroup::RenderDebugInfo( ITr2DebugRenderer2& renderer, Matrix& paren
 		{
 			CreateAgentTree();
 		}
-	}
-
-	if( m_TEMPDEBUGVECTORTOFINDCLOSEDRONES != Vector3(0,0,0)) // TODO remove, gona leave it here for a while to debug interaction with BHgroups
-	{
-		renderer.DrawSphere( this, TranslationMatrix( m_TEMPDEBUGVECTORTOFINDCLOSEDRONES ) * parentWorldLocation,
-				100, 6, Tr2DebugRenderer::Wireframe, 0xffee11ff );
-
-		DroneAgent* p = m_tree->FindClosestAgent( m_TEMPDEBUGVECTORTOFINDCLOSEDRONES );
-		if( p != nullptr )
-			renderer.DrawSphere( this, TranslationMatrix( ( p->position ) ) * parentWorldLocation,
-													72, 6, Tr2DebugRenderer::Wireframe, 0xffcc11ff );
 	}
 
 	if (renderer.HasOption( this, "Bounding Sphere" ))

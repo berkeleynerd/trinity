@@ -22,7 +22,7 @@ size_t BackAndForth::GetScratchMemorySize() const
 	return sizeof( BackAndForthData );
 }
 
-void BackAndForth::InitializeScratch( const DroneAgent& drone, void* scratchMemory )
+void BackAndForth::InitializeScratch( void* scratchMemory )
 {
 	*static_cast<BackAndForthData*>( scratchMemory ) = BackAndForthData();
 }
