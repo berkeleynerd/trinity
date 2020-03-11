@@ -248,12 +248,12 @@ void EveStretch3::UpdateVisibility( const TriFrustum& frustum, const Matrix& par
 
 	if( m_sourceObject )
 	{
-		m_sourceObject->UpdateVisibility( frustum, parentTransform, Tr2Lod::TR2_LOD_HIGH );
+		m_sourceObject->UpdateVisibility( frustum, parentTransform, TR2_LOD_HIGH );
 	}
 	
 	if( m_destObject )
 	{
-		m_destObject->UpdateVisibility( frustum, parentTransform, Tr2Lod::TR2_LOD_HIGH );
+		m_destObject->UpdateVisibility( frustum, parentTransform, TR2_LOD_HIGH );
 	}
 	
 	if( m_stretchObject )
@@ -262,12 +262,12 @@ void EveStretch3::UpdateVisibility( const TriFrustum& frustum, const Matrix& par
 		// an inverse modifier to update this correctly
 		// Currently this will almost always be visible, because of the stretch
 		// If we can not make it stretched, then we could make it invisible sooner
-		m_stretchObject->UpdateVisibility( frustum, parentTransform, Tr2Lod::TR2_LOD_HIGH );
+		m_stretchObject->UpdateVisibility( frustum, parentTransform, TR2_LOD_HIGH );
 	}
 
 	if( m_moveObject )
 	{
-		m_moveObject->UpdateVisibility( frustum, parentTransform, Tr2Lod::TR2_LOD_HIGH );
+		m_moveObject->UpdateVisibility( frustum, parentTransform, TR2_LOD_HIGH );
 	}
 	
 }
