@@ -23,6 +23,8 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 		MAP_ATTRIBUTE( "doOcclusionQueries", m_doOcclusionQueries, "Toggle occlusion queries", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "cameraFactor", m_cameraFactor, "na", Be::READWRITE | Be::PERSIST )
 
+		MAP_ATTRIBUTE("mesh", m_mesh, "A mesh that is rendered as a flare", Be::READWRITE | Be::PERSIST)
+
 		MAP_ATTRIBUTE( "position", m_position, "position of this lensflare", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "translationCurve", m_translationCurve, "", Be::READWRITE )
 
@@ -67,7 +69,6 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 			"List of curve sets", 
 			Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "controllers", m_controllers, "List of object controllers", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "mesh", m_mesh, "A mesh that is rendered as a flare", Be::READWRITE | Be::PERSIST )
-
+		
 	EXPOSURE_END()
 }
