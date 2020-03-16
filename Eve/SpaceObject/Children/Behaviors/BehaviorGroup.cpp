@@ -21,7 +21,8 @@ BehaviorGroup::BehaviorGroup( IRoot* lockobj ) :
 	m_renderThreshold( 1.0 ),
 	m_blendScreenSizeMin( 5.0 ),
 	m_blendScreenSizeMax( 15.0 ),
-	m_boundingSphereRadius( 5.f )
+	m_boundingSphereRadius( 5.f ),
+	m_spawnPosition( 0.f, 0.f, 0.f )
 {
 	m_behaviors.SetNotify( this );
 	m_tree = nullptr;
@@ -283,6 +284,12 @@ void BehaviorGroup::AddAgent()
 void BehaviorGroup::AddAgentPrivate()
 {
  	DroneAgent agent;
+	// This is because the process priority behavior can also affect where drones spawn
+	if( m_spawnPosition != Vector3( 0.f, 0.f, 0.f ) )
+	{
+		agent.position = m_spawnPosition;
+	}
+
 	m_agents.push_back( agent );
 
 	while( m_scratchData.size() < m_behaviors.size() )

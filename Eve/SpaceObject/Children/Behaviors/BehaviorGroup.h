@@ -117,6 +117,7 @@ private:
 	std::function<void()> m_changeBufferVertexCount; // A reference to a function on the parent class
 	float m_maxVelocity; // Steering behavior characteristics
 	float m_boundingSphereRadius;
+	Vector3 m_spawnPosition;
 
 	// Lod-ing
 	Vector3 m_scale; // Size Multiplier for the agent mesh
