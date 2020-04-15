@@ -286,6 +286,10 @@ void EveChildEffectPropagator::ProcessLocators( IEveSpaceObject2* parent )
 					spaceObject->GetBoundingSphere( bounds );
 					m_triggerSphereScalarMulti = bounds.w;
 				}
+				else
+				{
+					return;
+				}
 			}
 
 			if( locators )
