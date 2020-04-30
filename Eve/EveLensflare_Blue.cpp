@@ -69,6 +69,18 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 			"List of curve sets", 
 			Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "controllers", m_controllers, "List of object controllers", Be::READ | Be::PERSIST )
+		MAP_METHOD_AND_WRAP(
+			"SetControllerVariable",
+			SetControllerVariable,
+			"Set variable for all applicable controllers\n"
+			":param name: variable name\n"
+			":param value: new variable value\n"
+		)
+		MAP_METHOD_AND_WRAP(
+			"StartControllers",
+			StartControllers,
+			"Start all controllers"
+		)
 		
 	EXPOSURE_END()
 }

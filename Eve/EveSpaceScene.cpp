@@ -336,14 +336,14 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 		(*it)->Update( m_updateContext );
 	}
 
-	// Update planets
-	UpdatePlanets( m_updateContext );
-
 	// Update lensflares
 	for( EveLensflareVector::const_iterator it = m_lensflares.begin(); it != m_lensflares.end(); ++it )
 	{
 		(*it)->Update( realTime, simTime );
 	}
+
+	// Update planets
+	UpdatePlanets( m_updateContext );
 
 	// Update all space objects
 	for( TriCurveSetVector::const_iterator it = m_curveSets.begin(); it != m_curveSets.end(); ++it )
