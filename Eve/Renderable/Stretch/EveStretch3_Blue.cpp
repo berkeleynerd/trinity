@@ -200,5 +200,13 @@ const Be::ClassInfo* EveStretch3::ExposeToBlue()
 			"Stops the firing effect"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"SetControllerVariable",
+			SetControllerVariable,
+			"Set variable for all applicable controllers\n"
+			":param name: variable name\n"
+			":param value: new variable value\n"
+		)
+
     EXPOSURE_END()
 }
