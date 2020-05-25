@@ -684,3 +684,40 @@ void EveTurretFiringFX::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2Qu
 		( *it )->AddQuadsToQuadRenderer( frustum, quadRenderer );
 	}
 }
+
+void EveTurretFiringFX::SetControllerVariable( const char* name, float value )
+{
+	for( auto it = m_stretch.begin(); it != m_stretch.end(); ++it )
+	{
+		ITr2ControllerOwnerPtr co;
+		if( ( *it )->QueryInterface( BlueInterfaceIID<ITr2ControllerOwner>(), ( void** )&co, BEQI_SILENT ) )
+		{
+			co->SetControllerVariable( name, value );
+		}
+	}
+
+}
+
+void EveTurretFiringFX::HandleControllerEvent( const char* name )
+{
+	for( auto it = m_stretch.begin(); it != m_stretch.end(); ++it )
+	{
+		ITr2ControllerOwnerPtr co;
+		if( ( *it )->QueryInterface( BlueInterfaceIID<ITr2ControllerOwner>(), ( void** )&co, BEQI_SILENT ) )
+		{
+			co->HandleControllerEvent( name );
+		}
+	}
+}
+
+void EveTurretFiringFX::StartControllers()
+{
+	for( auto it = m_stretch.begin(); it != m_stretch.end(); ++it )
+	{
+		ITr2ControllerOwnerPtr co;
+		if( ( *it )->QueryInterface( BlueInterfaceIID<ITr2ControllerOwner>(), ( void** )&co, BEQI_SILENT ) )
+		{
+			co->StartControllers();
+		}
+	}
+}

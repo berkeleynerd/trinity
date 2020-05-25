@@ -86,6 +86,8 @@ public:
 	void SetControllerVariable( const char* name, float value );
 	void HandleControllerEvent( const char* name ) override;
 	void StartControllers();
+	void SetControllerVariableForInstance( const uint32_t index, const char* name, float value );
+	void HandleControllerEventForInstance( const uint32_t index, const char* name );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2CurveSetOwner
@@ -117,6 +119,10 @@ public:
 	void CreateInstance(const Vector3& scale, const Quaternion& rotation, const Vector3& translation, const int32_t boneIndex = -1);
 	void ClearInstanceList();
 	void PopFront();
+
+	void SetSourceEffect( IEveSpaceObjectChildPtr sourceEffect );
+	void AddInstanceTransform( const Vector3& scale, const Quaternion& rotation, const Vector3& translation, int32_t boneIndex = -1 );
+	void UpdateInstance( const uint32_t index, const Vector3& scale, const Quaternion& rotation, const Vector3& translation );
 
 protected:
 	void CreateInstances( IEveSpaceObject2* parent );

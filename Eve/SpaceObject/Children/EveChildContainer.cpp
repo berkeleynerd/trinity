@@ -531,6 +531,10 @@ void EveChildContainer::SetControllerVariable( const char* name, float value )
 	{
 		( *it )->SetVariable( name, value );
 	}
+	for( auto it = begin( m_objects ); it != end( m_objects ); ++it )
+	{
+		( *it )->SetControllerVariable( name, value );
+	}
 }
 
 void EveChildContainer::HandleControllerEvent( const char* name )
@@ -538,6 +542,10 @@ void EveChildContainer::HandleControllerEvent( const char* name )
 	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
 	{
 		( *it )->HandleEvent( name );
+	}
+	for( auto it = begin( m_objects ); it != end( m_objects ); ++it )
+	{
+		( *it )->HandleControllerEvent( name );
 	}
 }
 

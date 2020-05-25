@@ -125,7 +125,7 @@ void EveMobile::UpdateSyncronous( EveUpdateContext& updateContext )
 			}
 		}
 		// call standard update function
-		(*it)->UpdateSyncronous( deltaT, time, GetTurretTransform( (*it)->GetSwarmID() ) );
+		(*it)->UpdateSyncronous( updateContext, GetTurretTransform( (*it)->GetSwarmID() ) );
 
 		// next!
 		++locatorInfoIdx;
@@ -624,5 +624,32 @@ void EveMobile::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRender
 	for( auto it = begin( m_turretSets ); it != end( m_turretSets ); ++it )
 	{
 		( *it )->AddQuadsToQuadRenderer( frustum, quadRenderer );
+	}
+}
+
+void EveMobile::SetControllerVariable( const char* name, float value )
+{
+	EveSpaceObject2::SetControllerVariable( name, value );
+	for( auto it = begin( m_turretSets ); it != end( m_turretSets ); ++it )
+	{
+		( *it )->SetControllerVariable( name, value );
+	}
+}
+
+void EveMobile::HandleControllerEvent( const char* name )
+{
+	EveSpaceObject2::HandleControllerEvent( name );
+	for( auto it = begin( m_turretSets ); it != end( m_turretSets ); ++it )
+	{
+		( *it )->HandleControllerEvent( name );
+	}
+}
+
+void EveMobile::StartControllers()
+{
+	EveSpaceObject2::StartControllers();
+	for( auto it = begin( m_turretSets ); it != end( m_turretSets ); ++it )
+	{
+		( *it )->StartControllers();
 	}
 }

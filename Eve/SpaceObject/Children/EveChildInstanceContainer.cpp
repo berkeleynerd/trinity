@@ -74,6 +74,26 @@ bool EveChildInstanceContainer::OnModified( Be::Var* value )
 	return true;
 }
 
+void EveChildInstanceContainer::SetSourceEffect( IEveSpaceObjectChildPtr sourceEffect )
+{
+	m_source = sourceEffect;
+	m_reset = true;
+}
+
+void EveChildInstanceContainer::AddInstanceTransform( const Vector3& scale, const Quaternion& rotation, const Vector3& translation, int32_t boneIndex )
+{
+	EveChildInstanceTransform* transform = new EveChildInstanceTransform();
+	transform->boneIndex = boneIndex;
+	transform->rotation = rotation;
+	transform->scale = scale;
+	transform->translation = translation;
+
+	m_transforms.Append( transform );
+	
+	CreateInstance( scale, rotation, translation, boneIndex );
+	m_reset = false;
+}
+
 void EveChildInstanceContainer::OnListModified( long event, ssize_t key, ssize_t key2, IRoot* value, const IList* list )
 {
 	if( list == &m_transformModifiers )
@@ -170,6 +190,7 @@ void EveChildInstanceContainer::CreateInstance( const Vector3& scale, const Quat
 	}
 	translationParent->AddToEffectChildrenList( instance );
 	translationParent->Setup( &scale, &rotation, &translation, TR2_LOD_LOW );
+	translationParent->Initialize();
 
 	if( boneIndex >= 0 )
 	{
@@ -189,9 +210,24 @@ void EveChildInstanceContainer::CreateInstance( const Vector3& scale, const Quat
 		translationParent->RegisterWithQuadRenderer( *Tr2QuadRenderer::Instance() );
 		m_instances.Append( ( IEveSpaceObjectChildPtr ) translationParent );
 	}
+	
 	return;
 }
 
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   A helper method to update a position of an instance
+// --------------------------------------------------------------------------------------
+void EveChildInstanceContainer::UpdateInstance( const uint32_t index, const Vector3& scale, const Quaternion& rotation, const Vector3& translation )
+{
+	auto instance = ( IEveSpaceObjectChild* )m_instances.GetAt( index );
+	if( instance == nullptr )
+	{
+		return;
+	}
+	instance->Setup( &scale, &rotation, &translation, Tr2Lod::TR2_LOD_LOW );
+}
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -416,6 +452,28 @@ void EveChildInstanceContainer::HandleControllerEvent( const char* name )
 void EveChildInstanceContainer::StartControllers()
 {
 	RunOnInstances( []( IEveSpaceObjectChild* c ) { c->StartControllers(); } );
+}
+
+void EveChildInstanceContainer::SetControllerVariableForInstance( const uint32_t index, const char* name, float value )
+{
+	if( index > m_instances.size() ) 
+	{
+		return;
+	}
+	
+	auto instance = m_instances[index];
+	instance->SetControllerVariable( name, value );
+}
+
+void EveChildInstanceContainer::HandleControllerEventForInstance( const uint32_t index, const char* name )
+{
+	if( index > m_instances.size() )
+	{
+		return;
+	}
+
+	auto instance = m_instances[index];
+	instance->HandleControllerEvent( name );
 }
 
 void EveChildInstanceContainer::PlayCurveSet( const std::string& name, const std::string& rangeName )

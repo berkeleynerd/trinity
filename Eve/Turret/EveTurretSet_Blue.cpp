@@ -126,6 +126,10 @@ const Be::ClassInfo* EveTurretSet::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "chooseRandomLocator", m_chooseRandomLocator, "Allow choosing a random locator instead of the closest one", Be::READWRITE | Be::PERSIST )
 
+		MAP_ATTRIBUTE( "ambientEffect", m_ambientEffect, "The ambient effect around the turret", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
+		MAP_ATTRIBUTE( "generatedDistributedAmbientEffect", m_generatedDistributedAmbientEffect, "The generated and distributed ambient effect across all turret locations", Be::READ )
+		MAP_ATTRIBUTE( "recreateAmbientEffect", m_recreateAmbientEffect, "This toggle recreates the generated ambient effect and distributes it", Be::READWRITE | Be::NOTIFY )
+
 		MAP_METHOD_AND_WRAP(
 			"RebuildBoundingSphere",
 			RebuildBoundingSphere,

@@ -9,10 +9,15 @@
 
 #include "ITr2Renderable.h"
 #include "TriFrustum.h"
+#include "Controllers/ITr2ControllerOwner.h"
+#include "Eve/SpaceObject/Children/IEveEffectChildrenOwner.h"
 
 // forwards
 BLUE_DECLARE_INTERFACE( IEveFiringEffectElement );
 BLUE_DECLARE_IVECTOR( IEveFiringEffectElement );
+BLUE_DECLARE_INTERFACE( IEveEffectChildrenOwner );
+BLUE_DECLARE_INTERFACE( IEveSpaceObjectChild );
+BLUE_DECLARE_IVECTOR( IEveSpaceObjectChild );
 BLUE_DECLARE( TriCurveSet );
 BLUE_DECLARE( TriObserverLocal );
 BLUE_DECLARE( Tr2QuadRenderer );
@@ -28,7 +33,8 @@ class Tr2LightManager;
 // --------------------------------------------------------------------------------
 class EveTurretFiringFX :
 	public IInitialize,
-	public INotify
+	public INotify,
+	public ITr2ControllerOwner
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -104,6 +110,12 @@ public:
 
 	void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
 	void AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer );
+
+	// ITr2ControllerOwner
+	void SetControllerVariable( const char* name, float value );
+	void HandleControllerEvent( const char* name );
+	void StartControllers();
+
 private:
 	float GetCurveDuration();
 

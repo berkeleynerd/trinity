@@ -14,6 +14,9 @@
 #include "Tr2GrannyAnimation.h"
 #include "EveTurretTarget.h"
 #include "Tr2DebugRenderer.h"
+#include "Controllers/ITr2ControllerOwner.h"
+#include "Eve/SpaceObject/Children/EveChildInstanceContainer.h"
+
 
 // needed for override
 #include "Tr2PerObjectData.h"
@@ -91,7 +94,8 @@ BLUE_CLASS( EveTurretSet ):
 	public IBlueAsyncResNotifyTarget,
 	public Tr2DeviceResource,
 	public ITr2Renderable,
-	public IShaderConfigurer
+	public IShaderConfigurer,
+	public ITr2ControllerOwner
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -140,6 +144,13 @@ public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITriDeviceResource
 	void ReleaseResources( TriStorage s ) override;
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// ITr2ControllerOwner
+	void SetControllerVariable( const char* name, float value );
+	void HandleControllerEvent( const char* name );
+	void StartControllers();
+
 private:
 	bool OnPrepareResources() override;
 
@@ -149,7 +160,7 @@ public:
 	void UpdateTurretTransforms(const Matrix* parentWorldMatrix);
 
 	// timing and worldspace positioning
-	void UpdateSyncronous( float deltaT, Be::Time time, const Matrix* parentMatrix );
+	void UpdateSyncronous( EveUpdateContext& updateContext, const Matrix* parentMatrix );
 	void UpdateAsyncronous( EveUpdateContext& updateContext, const ParentData* parentData );
 
 	// rendering
@@ -249,6 +260,9 @@ private:
 	void InitializeInstanceBuffer();
 	// setup the attached firing effect
 	void InitializeFiringEffect();
+	// setup the attached ambient effect
+	void InitializeAmbientEffect();
+
 	// cleanup
 	void Cleanup();
 	// determine LOD and check for change
@@ -417,6 +431,11 @@ private:
 	bool m_firingEffectMuzzlePosSet;
 
 	bool m_chooseRandomLocator;
+
+	// ambient effects
+	IEveSpaceObjectChildPtr m_ambientEffect;
+	EveChildInstanceContainerPtr m_generatedDistributedAmbientEffect;
+	bool m_recreateAmbientEffect; // used for editing
 };
 
 TYPEDEF_BLUECLASS( EveTurretSet );

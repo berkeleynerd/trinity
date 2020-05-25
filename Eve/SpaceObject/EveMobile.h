@@ -47,6 +47,9 @@ public:
 	void GetLights(Tr2LightManager& lightManager) const override;
 	void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer ) override;
 	void AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer ) override;
+	void SetControllerVariable( const char* name, float value ) override;
+	void HandleControllerEvent( const char* name ) override;
+	void StartControllers() override;
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveShadowCaster - overriding EveSpaceObject2 implementations
