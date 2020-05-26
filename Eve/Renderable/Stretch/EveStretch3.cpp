@@ -492,8 +492,8 @@ float EveStretch3::GetCurveDuration()
 void EveStretch3::StartFiring( float delay )
 {
 	StartControllers();
-	SetControllerVariable( "firingDelay", delay );
-	SetControllerVariable( "isFiring", 1 );
+	SetControllerVariable( "FiringDelay", delay );
+	SetControllerVariable( "IsFiring", 1 );
 }
 
 void EveStretch3::StopFiring()
