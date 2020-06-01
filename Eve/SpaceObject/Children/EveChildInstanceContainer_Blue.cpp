@@ -62,7 +62,7 @@ const Be::ClassInfo* EveChildInstanceContainer::ExposeToBlue()
 		MAP_ATTRIBUTE( "source", m_source, "The sourceObject to instance", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "locatorSet", m_locatorSetName, "The name of the locatorset to distribute across", Be::READWRITE | Be::PERSIST |  Be::NOTIFY )
 		MAP_ATTRIBUTE( "reset", m_reset, "Redistributes the source", Be::READWRITE )
-		MAP_ATTRIBUTE( "instances", m_instances, "The generated instances", Be::READ )
+		MAP_ATTRIBUTE( "instances", m_instances, "The generated instances\n:jessica-skip-validation:", Be::READ )
 		MAP_ATTRIBUTE( "transforms", m_transforms, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "transformModifiers", m_transformModifiers, "", Be::READ | Be::PERSIST | Be::NOTIFY )
 
