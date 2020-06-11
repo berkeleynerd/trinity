@@ -1651,6 +1651,7 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 				if( impactType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 				{
 					// only the ellpisoid geometry
+					lodResource->SetResourcePath( TR2_LOD_LOW, genericDamageData->shieldGeometryResFilePath.c_str() );
 					lodResource->SetResourcePath( TR2_LOD_MEDIUM, genericDamageData->shieldGeometryResFilePath.c_str() );
 					lodResource->SetResourcePath( TR2_LOD_HIGH, genericDamageData->shieldGeometryResFilePath.c_str() );
 				}
