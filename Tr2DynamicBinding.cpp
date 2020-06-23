@@ -263,6 +263,7 @@ void Tr2DynamicBinding::Unlink()
 	m_binding = nullptr;
 	m_source = nullptr;
 	m_destination = nullptr;
+	m_bindingTime = 0;
 }
 
 void Tr2DynamicBinding::SetOwner( ITr2DynamicBindingOwner* owner)
