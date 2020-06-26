@@ -14,5 +14,7 @@ const Be::ClassInfo* EveChildModifierTranslateWithCamera::ExposeToBlue()
 		MAP_INTERFACE( EveChildModifierTranslateWithCamera )
 		MAP_INTERFACE( IEveChildTransformModifier )
 
+		MAP_ATTRIBUTE( "attachedToCamera", m_attachedToCamera, "Ignores the position of the parent, and attaches this child to the camera", Be::READWRITE | Be::PERSIST )
+
 	EXPOSURE_END()
 }

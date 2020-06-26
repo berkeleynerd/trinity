@@ -7,7 +7,8 @@
 #include "EveChildModifierTranslateWithCamera.h"
 #include "Tr2Renderer.h"
 
-EveChildModifierTranslateWithCamera::EveChildModifierTranslateWithCamera( IRoot* lockobj )
+EveChildModifierTranslateWithCamera::EveChildModifierTranslateWithCamera( IRoot* lockobj ):
+	m_attachedToCamera( false )
 {
 }
 
@@ -18,6 +19,13 @@ EveChildModifierTranslateWithCamera::~EveChildModifierTranslateWithCamera()
 Matrix EveChildModifierTranslateWithCamera::ApplyTransform( const Matrix& transform, size_t, const granny_matrix_3x4* ) const
 {
 	Matrix result = transform;
-	result.GetTranslation() += Tr2Renderer::GetViewPosition();
+	if( m_attachedToCamera ) 
+	{
+		result.GetTranslation() = Tr2Renderer::GetViewPosition();
+	}
+	else
+	{
+		result.GetTranslation() += Tr2Renderer::GetViewPosition();
+	}
 	return result;
 }
