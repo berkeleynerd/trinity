@@ -26,6 +26,7 @@ private:
 	IEveSpaceObjectChildPtr m_child;
 	bool m_addOnStart;
 	bool m_removeOnStop;
+	BlueSharedString m_targetAnotherOwner;
 };
 
 TYPEDEF_BLUECLASS( Tr2ActionChildEffect );

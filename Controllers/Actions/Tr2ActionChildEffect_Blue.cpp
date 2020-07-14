@@ -24,6 +24,7 @@ const Be::ClassInfo* Tr2ActionChildEffect::ExposeToBlue()
 			":jessica-file-filter : redfile",
 			Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "childName", m_childName, "Name to assign to the loaded child", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "targetAnotherOwner", m_targetAnotherOwner, "Designate a child or a MultiEffect parameter to target for the load (defaults to controller's owner)", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "addOnStart", m_addOnStart, "Add the effect on action start", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "removeOnStop", m_removeOnStop, "Remove the effect on action stop", Be::READWRITE | Be::PERSIST )
 	EXPOSURE_END()

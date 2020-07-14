@@ -151,6 +151,18 @@ bool EveMultiEffect::SetParameter( BlueSharedString parameterName, IRoot* object
 	return false;
 }
 
+EveMultiEffectParameter* EveMultiEffect::GetParameterByName( BlueSharedString parameterName )
+{
+	for( auto param = m_parameters.begin(); param != m_parameters.end(); ++param )
+	{
+		if( (*param)->GetName() == parameterName )
+		{
+			return *param;
+		}
+	}
+	return nullptr;
+}
+
 // -----------------------------------------------------------------------------
 void EveMultiEffect::SetControllerVariable( const char* name, float value )
 {

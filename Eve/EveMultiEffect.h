@@ -45,6 +45,7 @@ public:
 	
 	void Rebind();
 	bool SetParameter( BlueSharedString parameterName, IRoot* object );
+	EveMultiEffectParameter* GetParameterByName( BlueSharedString parameterName );
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// ITr2ControllerOwner

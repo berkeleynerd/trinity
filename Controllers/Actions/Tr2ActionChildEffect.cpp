@@ -9,6 +9,8 @@
 #include "Controllers/Tr2Controller.h"
 #include "Eve/SpaceObject/Children/IEveEffectChildrenOwner.h"
 #include "Eve/SpaceObject/Children/IEveSpaceObjectChild.h"
+#include "Eve/EveMultiEffect.h"
+#include "Eve/EveMultiEffectParameter.h"
 
 
 namespace {
@@ -25,7 +27,8 @@ namespace {
 
 Tr2ActionChildEffect::Tr2ActionChildEffect( IRoot* )
 	:m_addOnStart( true ),
-	m_removeOnStop( true )
+	m_removeOnStop( true ),
+	m_targetAnotherOwner( "" )
 {
 }
 
@@ -58,10 +61,40 @@ void Tr2ActionChildEffect::Link( Tr2Controller& controller )
 void Tr2ActionChildEffect::Start( Tr2Controller& controller )
 {
 	IEveEffectChildrenOwnerPtr owner = BlueCastPtr( controller.GetOwner() );
+	
+	if( owner && !m_targetAnotherOwner.empty() )
+	{
+		owner = BlueCastPtr( owner->GetEffectChildByName( m_targetAnotherOwner.c_str() ) );
+	}
+	
 	if( !owner )
 	{
-		return;
+		if( !m_targetAnotherOwner.empty() )
+		{
+			EveMultiEffectPtr effect = BlueCastPtr( controller.GetOwner() );
+			if( effect )
+			{
+				EveMultiEffectParameter* mep = effect->GetParameterByName( m_targetAnotherOwner );
+
+				if( !mep )
+				{
+					return;
+				}
+				
+				auto obj = mep->GetParameterObject();
+				auto cast = dynamic_cast<IEveEffectChildrenOwner*> (obj);
+				if( cast )
+				{
+					owner = BlueCastPtr( cast );
+				}
+			}
+		}
+		if( !owner )
+		{
+			return;
+		}
 	}
+
 	m_child = nullptr;
 	if( !m_childName.empty() )
 	{
@@ -85,9 +118,39 @@ void Tr2ActionChildEffect::Stop( Tr2Controller& controller )
 {
 	if( m_child && m_removeOnStop )
 	{
-		if( IEveEffectChildrenOwnerPtr owner = BlueCastPtr( controller.GetOwner() ) )
+		IEveEffectChildrenOwnerPtr owner = BlueCastPtr( controller.GetOwner() );
+
+		if( owner && !m_targetAnotherOwner.empty() )
+		{
+			owner = BlueCastPtr( owner->GetEffectChildByName( m_targetAnotherOwner.c_str() ) );
+		}
+		
+		if( owner )
 		{
 			owner->RemoveFromEffectChildrenList( m_child );
+		}
+		else
+		{
+			EveMultiEffectPtr effect = BlueCastPtr( controller.GetOwner() );
+			if( effect && !m_targetAnotherOwner.empty() )
+			{
+				EveMultiEffectParameter* mep = effect->GetParameterByName( m_targetAnotherOwner );
+
+				if( !mep )
+				{
+					return;
+				}
+
+				auto obj = mep->GetParameterObject();
+				auto cast = dynamic_cast<IEveEffectChildrenOwner*> (obj);
+				if( cast )
+				{
+					if( IEveEffectChildrenOwnerPtr owner = BlueCastPtr( cast ) )
+					{
+						owner->RemoveFromEffectChildrenList( m_child );
+					}
+				}
+			}
 		}
 	}
 	m_child = nullptr;

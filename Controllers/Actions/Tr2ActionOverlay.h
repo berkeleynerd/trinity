@@ -22,6 +22,7 @@ public:
 private:
 	std::string m_path;
 	EveMeshOverlayEffectPtr m_overlay;
+	BlueSharedString m_MultiEffectParameter;
 };
 
 TYPEDEF_BLUECLASS( Tr2ActionOverlay );
