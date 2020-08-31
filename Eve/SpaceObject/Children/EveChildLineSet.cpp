@@ -123,7 +123,8 @@ EveChildLineSet::EveChildLineSet( IRoot* lockobj ) :
 	m_objType( CIRCLE ),
  	m_scaleSegmentsByCompleteness( false ),
 	m_additiveBatch( false ),
-	m_updateLineSet( true )
+	m_updateLineSet( true ),
+	m_scaleObjectsAtEndpoints( false )
 {
 	Initialize();
 }
