@@ -317,6 +317,11 @@ void EveChildBehaviorSystem::UpdateSyncronous( EveUpdateContext& updateContext, 
 	{
 		(*it)->CreateVertexDeclaration();
 	}
+
+	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
+	{
+		( *it )->UpdateSyncronous( updateContext );
+	}
 }
 
 /////////////////////////////////////////////////////////////////////////////////////
@@ -708,7 +713,7 @@ void EveChildBehaviorSystem::UpdateAsyncronous( EveUpdateContext& updateContext,
 
 	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
 	{
-		( *it )->Update( updateContext );
+		( *it )->UpdateAsyncronous( updateContext );
 	}
 }
 

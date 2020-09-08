@@ -11,14 +11,12 @@ struct PlayFXData
 	PlayFXData() :
 		effectPlaying( false ),
 		droneArrived( false ),
-		seconds( 10 ),
 		oldTarget( 0, 0, 0 )
 	{
 	}
 
 	bool effectPlaying;
 	bool droneArrived;
-	int seconds;
 	Vector3 oldTarget;
 };
 
@@ -43,8 +41,8 @@ public:
 	int GetProcessPriority();
 
 	void GetRenderables( std::vector<ITr2Renderable*>& renderables );
-	void Update( EveUpdateContext& updateContext, const TriFrustum & frustum, const Matrix & parentTransform );
-
+	void UpdateAsyncronous( EveUpdateContext & updateContext, const TriFrustum& frustum, const Matrix& parentTransform );
+	void UpdateSyncronous( EveUpdateContext & updateContext );
 	void UpdateState( bool state ) { m_stop = state; }
 
 private:
@@ -52,10 +50,8 @@ private:
 
 	size_t m_count;
 	float m_behaviorWeight;
-	float m_delay;
 	float m_distanceFromCenter;
-	int m_minSec;
-	int m_maxSec;
+	int m_sec;
 	bool m_stop;
 
 	IEveFiringEffectElementPtr m_firingEffect;

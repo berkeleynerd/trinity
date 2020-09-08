@@ -10,12 +10,9 @@ const Be::ClassInfo* PlayFX::ExposeToBlue()
 		MAP_INTERFACE( IBehavior )
 
 		MAP_ATTRIBUTE( "behaviorWeight", m_behaviorWeight, ":jessica-group: PlayFX", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "minSec", m_minSec, "Lower value of a randomized timing for drones to play effect", Be::READWRITE )
-		MAP_ATTRIBUTE( "maxSec", m_maxSec, "Higher value of a randomized timing for drones to play effect", Be::READWRITE )
-		MAP_ATTRIBUTE( "distanceFromCenter", m_distanceFromCenter, "How much offset should be for the effect", Be::READWRITE )
+		MAP_ATTRIBUTE( "sec", m_sec, "How long should the fx play", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "firingEffect", m_firingEffect, "A stretch effect for this firing effect", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "firingEffects", m_firingEffects, "A stretch effect for this firing effect", Be::READ )
-		MAP_ATTRIBUTE( "delay", m_delay, "delay for firing effect", Be::READWRITE )
-
+	
 	EXPOSURE_END()
 }

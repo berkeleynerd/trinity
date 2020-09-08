@@ -8,7 +8,7 @@ SeekTarget::SeekTarget( IRoot* lockobj ) :
 	m_behaviorWeight( 20.f ),
 	m_arrivedRadius( 10.f ),
 	m_slowDownRadius( 33.f ),
-	m_seconds( 0.25f ),
+	m_seconds( 0.35f ),
 	m_counter( 0 ),
 	m_repairTimePassed( 0.f ),
 	m_totalRepairTime( -1.f ),
@@ -28,6 +28,12 @@ SeekTarget::SeekTarget( IRoot* lockobj ) :
 SeekTarget::~SeekTarget()
 {
 }
+
+int SeekTarget::GetProcessPriority()
+{
+	return PROCESS_LAST;
+}
+
 
 size_t SeekTarget::GetScratchMemorySize() const
 {
@@ -109,7 +115,7 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 		}
 		else
 		{
-			if( data->arrived )
+			if( data->arrived && agent->target == Vector3( 0, 0, 0 ) )
 			{
 				//Get count of locators under the "seek" locatorSet
 				auto seekLocators = GetLocatorsForSet( LOCATOR_SET_NAME );
@@ -177,16 +183,16 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 			agent->rotation = newRotation;
 			data->timePassed = 0.f;
 
-			if( !agent->playFX && m_fxBehavior != nullptr )
-			{
-				agent->fxStartTime = BeOS->GetActualTime();
-				agent->playFX = true;
-			}
-
 			// If the target has arrived then start playing effect
 			if( distance < m_arrivedRadius )
 			{
 				data->arrived = true;
+
+				if( !agent->playFX && m_fxBehavior != nullptr )
+				{
+					agent->fxStartTime = BeOS->GetActualTime();
+					agent->playFX = true;
+				}
 			}
 		}
 		else

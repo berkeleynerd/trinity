@@ -7,10 +7,8 @@ PlayFX::PlayFX( IRoot* lockobj ) :
 	PARENTLOCK( m_firingEffects ),
 	m_count( 0 ),
 	m_behaviorWeight( 20.f ),
-	m_delay( 0.f ),
 	m_distanceFromCenter( 5.f ),
-	m_minSec( 0 ),
-	m_maxSec( 1 ),
+	m_sec( 1 ),
 	m_stop( false )
 {
 	m_firingEffect = nullptr;
@@ -88,10 +86,8 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 				( *firingEffect )->SetDisplay( true );
 			}
 			
-			data->seconds = TriRandInt( m_minSec, m_maxSec );
+			( *firingEffect )->StartFiring( 0 );
 			data->effectPlaying = true;
-			
-			( *firingEffect )->StartFiring( m_delay );
 		}
 
 		// Set the agent's position to world space because if the parent object had an offset the effect would also offset
@@ -110,8 +106,7 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 			( *firingEffect )->SetFiringTransform( offsetEffect, agent->target );
 
 			Be::Time diff = BeOS->GetActualTime() - agent->fxStartTime;
-
-			auto duration = data->seconds * 10000000;
+			auto duration = m_sec * 10000000;
 
 			if( diff > duration )
 			{
@@ -126,12 +121,20 @@ std::vector<Vector3> PlayFX::CalculateBehavior( std::vector<DroneAgent>& agents,
 	return m_todo;
 }
 
-void PlayFX::Update( EveUpdateContext& updateContext, const TriFrustum & frustum, const Matrix & parentTransform )
+void PlayFX::UpdateAsyncronous( EveUpdateContext& updateContext, const TriFrustum& frustum, const Matrix& parentTransform )
 {
 	for( auto fx = m_firingEffects.begin(); fx != m_firingEffects.end(); ++fx )
 	{
-		( *fx )->Update( updateContext );
+		( *fx )->UpdateEffectAsync( updateContext );
 		( *fx )->UpdateVisibility( frustum, parentTransform );
+	}
+}
+
+void PlayFX::UpdateSyncronous( EveUpdateContext& updateContext )
+{
+	for( auto fx = m_firingEffects.begin(); fx != m_firingEffects.end(); ++fx )
+	{
+		( *fx )->UpdateEffectSync( updateContext );
 	}
 }
 

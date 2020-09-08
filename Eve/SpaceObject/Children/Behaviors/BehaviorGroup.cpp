@@ -765,7 +765,7 @@ void BehaviorGroup::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 // Description:
 //   For the effect in PlayFX to be updated this is needed.
 // --------------------------------------------------------------------------------------
-void BehaviorGroup::Update( EveUpdateContext& updateContext )
+void BehaviorGroup::UpdateAsyncronous( EveUpdateContext& updateContext )
 {
 	auto behavior = GetBehaviorByName( "PlayFX" );
 
@@ -774,7 +774,26 @@ void BehaviorGroup::Update( EveUpdateContext& updateContext )
 		auto tmp = dynamic_cast<PlayFX*>( behavior );
 		if( tmp )
 		{
-			tmp->Update( updateContext, m_frustum, m_parentTransform );
+			tmp->UpdateAsyncronous( updateContext, m_frustum, m_parentTransform );
+		}
+	}
+}
+
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   For the effect in PlayFX to be updated this is needed.
+// --------------------------------------------------------------------------------------
+void BehaviorGroup::UpdateSyncronous( EveUpdateContext& updateContext )
+{
+	auto behavior = GetBehaviorByName( "PlayFX" );
+
+	if( behavior != nullptr )
+	{
+		auto tmp = dynamic_cast<PlayFX*>( behavior );
+		if( tmp )
+		{
+			tmp->UpdateSyncronous( updateContext );
 		}
 	}
 }

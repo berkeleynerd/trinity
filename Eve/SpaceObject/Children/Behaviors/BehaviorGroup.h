@@ -55,7 +55,8 @@ public:
 	void AddAgent();
 	void RemoveAgent();
 	void RemoveSpecificAgent( int index );
-	void Update( EveUpdateContext& updateContext );
+	void UpdateAsyncronous( EveUpdateContext & updateContext );
+	void UpdateSyncronous( EveUpdateContext & updateContext );
 	void UpdateAgents( const float dt, EveChildBehaviorSystem& system );
 	float AllTheSame();
 	bool IsGroupVisible();
