@@ -13,34 +13,35 @@
 #include "Eve/EveMultiEffectParameter.h"
 
 
-namespace {
-	void PrefetchResFile( void* pContext )
-	{
-		std::wstring* path = static_cast<std::wstring*>( pContext );
+namespace
+{
+void PrefetchResFile( void* pContext )
+{
+	std::wstring* path = static_cast<std::wstring*>( pContext );
 
-		Be::Clsid resFileClsid( "blue", "ResFile" );
-		IResFilePtr stream( resFileClsid );
-		stream->OpenW( path->c_str(), true );
-		delete path;
-	}
+	Be::Clsid resFileClsid( "blue", "ResFile" );
+	IResFilePtr stream( resFileClsid );
+	stream->OpenW( path->c_str(), true );
+	delete path;
+}
 }
 
-Tr2ActionChildEffect::Tr2ActionChildEffect( IRoot* )
-	:m_addOnStart( true ),
+Tr2ActionChildEffect::Tr2ActionChildEffect( IRoot* ) :
+	m_addOnStart( true ),
 	m_removeOnStop( true ),
 	m_targetAnotherOwner( "" )
 {
 }
 
 void Tr2ActionChildEffect::Link( Tr2Controller& controller )
-{	
+{
 	if( m_path.empty() )
 	{
 		return;
 	}
 
 	std::wstring* wstrCopy = new std::wstring( m_path.begin(), m_path.end() );
-	
+
 	if( !BePaths->FileExistsLocally( wstrCopy->c_str() ) )
 	{
 		// make sure that the res file exists
@@ -61,12 +62,13 @@ void Tr2ActionChildEffect::Link( Tr2Controller& controller )
 void Tr2ActionChildEffect::Start( Tr2Controller& controller )
 {
 	IEveEffectChildrenOwnerPtr owner = BlueCastPtr( controller.GetOwner() );
-	
+	bool rebind = false;
+
 	if( owner && !m_targetAnotherOwner.empty() )
 	{
 		owner = BlueCastPtr( owner->GetEffectChildByName( m_targetAnotherOwner.c_str() ) );
 	}
-	
+
 	if( !owner )
 	{
 		if( !m_targetAnotherOwner.empty() )
@@ -80,14 +82,13 @@ void Tr2ActionChildEffect::Start( Tr2Controller& controller )
 				{
 					return;
 				}
-				
 				auto obj = mep->GetParameterObject();
-				auto cast = dynamic_cast<IEveEffectChildrenOwner*> (obj);
+				auto cast = dynamic_cast<IEveEffectChildrenOwner*>( obj );
 				if( cast )
 				{
 					owner = BlueCastPtr( cast );
+					rebind = true;
 				}
-				effect->Rebind( true );
 			}
 		}
 		if( !owner )
@@ -113,6 +114,15 @@ void Tr2ActionChildEffect::Start( Tr2Controller& controller )
 			owner->AddToEffectChildrenList( m_child );
 		}
 	}
+
+	if( rebind )
+	{
+		EveMultiEffectPtr effect = BlueCastPtr( controller.GetOwner() );
+		if( effect )
+		{
+			effect->Rebind( true );
+		}
+	}
 }
 
 void Tr2ActionChildEffect::Stop( Tr2Controller& controller )
@@ -125,7 +135,7 @@ void Tr2ActionChildEffect::Stop( Tr2Controller& controller )
 		{
 			owner = BlueCastPtr( owner->GetEffectChildByName( m_targetAnotherOwner.c_str() ) );
 		}
-		
+
 		if( owner )
 		{
 			owner->RemoveFromEffectChildrenList( m_child );
@@ -143,7 +153,7 @@ void Tr2ActionChildEffect::Stop( Tr2Controller& controller )
 				}
 
 				auto obj = mep->GetParameterObject();
-				auto cast = dynamic_cast<IEveEffectChildrenOwner*> (obj);
+				auto cast = dynamic_cast<IEveEffectChildrenOwner*>( obj );
 				if( cast )
 				{
 					if( IEveEffectChildrenOwnerPtr owner = BlueCastPtr( cast ) )
