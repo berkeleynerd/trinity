@@ -692,11 +692,14 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, Matrix& parentWorldLocation
 			memcpy( data, &zeroMatrix, 12 * sizeof( float ) );
 			data += 12 * sizeof( float );	
 
-			// boosters
-			memcpy( data, &zeroMatrix, 12 * sizeof( float ) );
-			data += 12 * sizeof( float );
+			if( m_booster != nullptr )
+			{ 
+				// boosters
+				memcpy( data, &zeroMatrix, 12 * sizeof( float ) );
+				data += 12 * sizeof( float );
 
-			m_booster->AddFlare( IdentityMatrix(), 0, 0, agentIndex, m_boundingSphereRadius );
+				m_booster->AddFlare( IdentityMatrix(), 0, 0, agentIndex, m_boundingSphereRadius );
+			}
 		}
 		agentIndex++;
 	}
