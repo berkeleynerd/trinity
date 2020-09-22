@@ -6,7 +6,7 @@
 #include "IEveSpaceObjectAttachment.h"
 #include "EveSpriteSetItem.h"
 #include "ITr2Renderable.h"
-
+#include "Utilities/BoundingBox.h"
 
 BLUE_DECLARE( EveSpriteSet );
 BLUE_DECLARE_VECTOR( EveSpriteSet );
@@ -63,6 +63,7 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
+	virtual bool UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
 	virtual void AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& parentTransform, float activation, float boosterGain, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
@@ -101,6 +102,14 @@ private:
 	// buffers for globals quadrenderer
 	TrackableStdVector<PoolVertex> m_buffer;
 	TrackableStdVector<SpriteData> m_spriteData;
+
+	// bounding box functions
+	AxisAlignedBoundingBox GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const;
+	void CreateBoundingBoxes();
+	// bounding boxes that are static
+	AxisAlignedBoundingBox m_aabb;
+	// bounding boxes are grouped together by bone index
+	std::vector<std::pair<int, AxisAlignedBoundingBox>> m_boundingBoxes;
 };
 
 TYPEDEF_BLUECLASS( EveSpriteSet );

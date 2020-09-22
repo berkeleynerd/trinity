@@ -15,6 +15,7 @@
 #include "EveSpriteSet.h"
 #include "EveSpotlightSetItem.h"
 #include "TriFrustum.h"
+#include "Utilities/BoundingBox.h"
 
 BLUE_DECLARE( ITriRenderBatchAccumulator );
 BLUE_DECLARE( Tr2PerObjectData );
@@ -44,6 +45,7 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
+	virtual bool UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
 	virtual void AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& parentTransform, float activation, float boosterGain, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
@@ -128,6 +130,14 @@ private:
 
 	void RegisterQuadRendererCone( Tr2QuadRenderer& quadRenderer );
 	void RegisterQuadRendererGlow( Tr2QuadRenderer& quadRenderer );
+
+	// bounding box functions
+	AxisAlignedBoundingBox GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const;
+	void CreateBoundingBoxes();
+	// bounding boxes that are static
+	AxisAlignedBoundingBox m_aabb;
+	// bounding boxes are grouped together by bone index
+	std::vector<std::pair<int, AxisAlignedBoundingBox>> m_boundingBoxes;
 };
 
 TYPEDEF_BLUECLASS( EveSpotlightSet );

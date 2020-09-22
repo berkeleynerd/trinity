@@ -82,6 +82,7 @@ void EvePlaneSet::SetEffect( Tr2EffectPtr effect )
 bool EvePlaneSet::Initialize()
 {
 	PrepareResources();
+	CreateBoundingBoxes();
 	return true;
 }
 
@@ -100,7 +101,7 @@ bool EvePlaneSet::OnModified( Be::Var* val )
 
 // --------------------------------------------------------------------------------
 // Description:
-//   Allow access to change the pickbuffer ID. (this is so the SOF can set the 
+//   Allow access to change the pickbuffer ID. (this is so the SOF can set the
 //   pickbuffers for hangar/space videos
 // --------------------------------------------------------------------------------
 void EvePlaneSet::SetPickBufferID( uint8_t pickBufferID )
@@ -224,6 +225,39 @@ void EvePlaneSet::SubmitGeometry( Tr2RenderContext& renderContext )
 	renderContext.DrawIndexedPrimitive( m_vertexCount, 0, m_vertexCount / 2 );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get bounding box around planes, update visibility based on if box is visible or not
+// --------------------------------------------------------------------------------------
+bool EvePlaneSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	auto aabb = GetAabb( bones, boneCount );
+	aabb.Transform( parentTransform );
+
+	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get bounding box surrounding planes
+// --------------------------------------------------------------------------------------
+AxisAlignedBoundingBox EvePlaneSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
+{
+	auto aabb = m_aabb;
+	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
+	{
+		if( box->first < int( boneCount ) )
+		{
+			Matrix boneTransform = IdentityMatrix();
+			TriMatrixCopyFrom3x4( &boneTransform, &bones[box->first] );
+			auto boxAabb = box->second;
+			boxAabb.Transform( boneTransform );
+			aabb.IncludeBox( boxAabb );
+		}
+	}
+	return aabb;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Trinity's way of providing batches to render
@@ -297,6 +331,35 @@ void EvePlaneSet::Rebuild()
 {
 	ReleaseResources( 0 );
 	PrepareResources();
+	CreateBoundingBoxes();
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create bounding boxes around planes and group together those who have the same bone index
+// --------------------------------------------------------------------------------------
+void EvePlaneSet::CreateBoundingBoxes()
+{
+	// Clear the list before we can rebuild it
+	m_boundingBoxes.clear();
+	m_aabb = AxisAlignedBoundingBox( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
+
+	for( auto it = m_planes.begin(); it != m_planes.end(); ++it )
+	{
+		AxisAlignedBoundingBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
+		aabb.Transform( TransformationMatrix( ( *it )->m_scaling, ( *it )->m_rotation, ( *it )->m_position ) );
+
+		// Group together all animated items that are attached to the same bone
+		if( ( *it )->m_boneIndex >= 0 )
+		{
+			m_boundingBoxes.push_back( std::make_pair( ( *it )->m_boneIndex, aabb ) );
+		}
+		else
+		{
+			// Group together all static items not attached to any bone
+			m_aabb.IncludeBox( aabb );
+		}
+	}
 }
 
 // --------------------------------------------------------------------------------
@@ -337,6 +400,7 @@ EvePlaneSetItemVector* EvePlaneSet::GetPlanes()
 void EvePlaneSet::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Plane Sets" );
+	options.insert( "Plane Sets Bounds" );
 }
 
 void EvePlaneSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
@@ -374,6 +438,18 @@ void EvePlaneSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& p
 				Tr2DebugRenderer::Solid,
 				0 );
 		}
+	}
+
+	if( renderer.HasOption( GetRawRoot(), "Plane Sets Bounds" ) )
+	{
+		auto aabb = GetAabb( bones, boneCount );
+		renderer.DrawBox(
+			Tr2DebugObjectReference( this ),
+			parentTransform,
+			aabb.m_min,
+			aabb.m_max,
+			Tr2DebugRenderer::Wireframe,
+			0xff00ff00 );
 	}
 }
 

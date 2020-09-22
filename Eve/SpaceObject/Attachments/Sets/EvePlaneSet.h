@@ -11,6 +11,7 @@
 #include "ITr2GeometryProvider.h"
 #include "ITr2Renderable.h"
 #include "Tr2GrannyAnimation.h"
+#include "Utilities/BoundingBox.h"
 
 #include "EvePlaneSetItem.h"
 
@@ -67,6 +68,7 @@ private:
 public:
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
+	virtual bool UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
 	virtual void RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
@@ -96,6 +98,14 @@ private:
 	uint8_t m_pickBufferID;
 	// keep a name
 	std::string m_name;
+
+	// bounding box functions
+	AxisAlignedBoundingBox GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const;
+	void CreateBoundingBoxes();
+	// bounding boxes that are static
+	AxisAlignedBoundingBox m_aabb;
+	// bounding boxes are grouped together by bone index
+	std::vector<std::pair<int, AxisAlignedBoundingBox>> m_boundingBoxes;
 
 	// the list of all them plane items
 	PEvePlaneSetItemVector m_planes;

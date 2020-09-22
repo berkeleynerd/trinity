@@ -97,6 +97,35 @@ void EveSpriteSet::AddBoosterGlowToQuadRenderer( Tr2QuadRenderer& quadRenderer, 
 	quadRenderer.AddQuads( m_effectHash, &m_buffer[0], m_sprites.GetSize() );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Go through list of sprites, update visibility based on if a sprite is visible or not.
+// --------------------------------------------------------------------------------------
+bool EveSpriteSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	auto aabb = GetAabb( bones, boneCount );
+	aabb.Transform( parentTransform );
+
+	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
+}
+
+AxisAlignedBoundingBox EveSpriteSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
+{
+	auto aabb = m_aabb;
+	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
+	{
+		if( box->first < int( boneCount ) )
+		{
+			Matrix boneTF = IdentityMatrix();
+			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
+			auto boxAabb = box->second;
+			boxAabb.Transform( boneTF );
+			aabb.IncludeBox( boxAabb );
+		}
+	}
+	return aabb;
+}
+
 void EveSpriteSet::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
 {
 	quadRenderer.RegisterEffect( m_effectHash, TRIBATCHTYPE_ADDITIVE, sizeof( PoolVertex ), 1, PoolVertex::GetDefinition(), m_effect );
@@ -265,8 +294,34 @@ void EveSpriteSet::Rebuild()
 		m_spriteData[i].position = m_sprites[i]->m_position;
 		m_spriteData[i].boneIndex = m_sprites[i]->m_boneIndex;
 	}
+
+	CreateBoundingBoxes();
 }
 
+void EveSpriteSet::CreateBoundingBoxes()
+{
+	// Clear the list before we can rebuild it
+	m_boundingBoxes.clear();
+	m_aabb = AxisAlignedBoundingBox( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
+
+	for( auto it = m_sprites.begin(); it != m_sprites.end(); ++it )
+	{
+		auto aabb = AxisAlignedBoundingBox();
+		auto sprite = *it;
+		aabb.IncludePoint( sprite->m_position );
+
+		// Group together all animated items that are attached to the same bone
+		if( sprite->m_boneIndex >= 0 )
+		{
+			m_boundingBoxes.push_back( std::make_pair( sprite->m_boneIndex, aabb ) );
+		}
+		else
+		{
+			// Group together all static items not attached to any bone
+			m_aabb.IncludeBox( aabb );
+		}
+	}
+}
 
 void EveSpriteSet::GetPickingBatches( ITriRenderBatchAccumulator* batches, uint16_t& areaIDOffset, const Tr2PerObjectData* perObjectData )
 {
@@ -290,6 +345,7 @@ void EveSpriteSet::GetPickingBatches( ITriRenderBatchAccumulator* batches, uint1
 void EveSpriteSet::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Sprite Sets" );
+	options.insert( "Sprite Sets Bounds" );
 }
 
 void EveSpriteSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
@@ -323,6 +379,18 @@ void EveSpriteSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& 
 				Tr2DebugRenderer::Lit,
 				color );
 		}
+	}
+
+	if( renderer.HasOption( GetRawRoot(), "Sprite Sets Bounds" ) )
+	{
+		auto aabb = GetAabb( bones, boneCount );
+		renderer.DrawBox(
+			Tr2DebugObjectReference( this ),
+			parentTransform,
+			aabb.m_min,
+			aabb.m_max,
+			Tr2DebugRenderer::Wireframe,
+			0xff00ff00 );
 	}
 }
 

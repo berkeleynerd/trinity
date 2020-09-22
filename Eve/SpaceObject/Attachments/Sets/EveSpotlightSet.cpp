@@ -112,6 +112,39 @@ inline void EveSpotlightSet::RegisterQuadRendererGlow( Tr2QuadRenderer& quadRend
 	quadRenderer.RegisterEffect( m_glowEffectHash, TRIBATCHTYPE_ADDITIVE, sizeof( GlowPoolVertex ), SPRITE_QUAD_COUNT, GlowPoolVertex::GetDefinition(), m_glowEffect );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get bounding box around spot lights, update visibility based on if box is visible or not
+// --------------------------------------------------------------------------------------
+bool EveSpotlightSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	auto aabb = GetAabb( bones, boneCount );
+	aabb.Transform( parentTransform );
+
+	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Get bounding box surrounding spot lights
+// --------------------------------------------------------------------------------------
+AxisAlignedBoundingBox EveSpotlightSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
+{
+	auto aabb = m_aabb;
+	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
+	{
+		if( box->first < int( boneCount ) )
+		{
+			Matrix boneTF = IdentityMatrix();
+			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
+			auto boxAabb = box->second;
+			boxAabb.Transform( boneTF );
+			aabb.IncludeBox( boxAabb );
+		}
+	}
+	return aabb;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Registers set effects with quad renderer if quad rendering was enabled with 
@@ -241,6 +274,38 @@ void EveSpotlightSet::Rebuild()
 		vertex.m_scale[1] = Float_16( m_spotlightItems[i]->m_spriteScale.y );
 		vertex.m_scale[2] = Float_16( m_spotlightItems[i]->m_spriteScale.z );
 	}
+
+	CreateBoundingBoxes();
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create bounding boxes around spot lights and group together those who have the same bone index
+// --------------------------------------------------------------------------------------
+void EveSpotlightSet::CreateBoundingBoxes()
+{
+	// Clear the list before we can rebuild it
+	m_boundingBoxes.clear();
+	m_aabb = AxisAlignedBoundingBox();
+
+	for( auto it = m_spotlightItems.begin(); it != m_spotlightItems.end(); ++it )
+	{
+		Vector3 min( -0.5f, -0.5f, -0.5f );
+		Vector3 max( 0.5f, 0.5f, 0.5f );
+		BoundingBoxTransform( min, max, ( *it )->m_transform );
+		AxisAlignedBoundingBox aabb( min, max );
+
+		// Group together all animated items that are attached to the same bone
+		if( ( *it )->m_boneIndex >= 0 )
+		{
+			m_boundingBoxes.push_back( std::make_pair( ( *it )->m_boneIndex, aabb ) );
+		}
+		else
+		{
+			// Group together all static items not attached to any bone
+			m_aabb.IncludeBox( aabb );
+		}
+	}
 }
 
 // --------------------------------------------------------------------------------
@@ -359,7 +424,7 @@ void EveSpotlightSet::GetPickingBatches( ITriRenderBatchAccumulator* batches, ui
 		if( auto batch = batches->Allocate<Tr2PickingHelperBatch>() )
 		{
 			batch->SetPerObjectData( perObjectData );
-			batch->AddSphere(  
+			batch->AddSphere(
 				( *it )->m_transform.GetTranslation(),
 				std::max( float( ( *it )->m_spriteScale.x ), std::max( float( ( *it )->m_spriteScale.y ), float( ( *it )->m_spriteScale.z ) ) ) * 0.5f );
 			batch->SetAreaID( areaIDOffset );
@@ -375,14 +440,14 @@ void EveSpotlightSet::GetPickingBatches( ITriRenderBatchAccumulator* batches, ui
 
 void EveSpotlightSet::SetShaderOption( const BlueSharedString& name, const BlueSharedString& value )
 {
-	if ( nullptr != m_coneEffect )
+	if( nullptr != m_coneEffect )
 	{
 		m_coneEffect->SetOption( name, value );
 		m_coneEffectHash = m_coneEffect->GetHashValue();
 		RegisterQuadRendererCone( *Tr2QuadRenderer::Instance() );
 	}
 
-	if ( nullptr != m_glowEffect )
+	if( nullptr != m_glowEffect )
 	{
 		m_glowEffect->SetOption( name, value );
 		m_glowEffectHash = m_glowEffect->GetHashValue();
@@ -393,6 +458,7 @@ void EveSpotlightSet::SetShaderOption( const BlueSharedString& name, const BlueS
 void EveSpotlightSet::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Spotlight Sets" );
+	options.insert( "Spotlight Sets Bounds" );
 }
 
 void EveSpotlightSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
@@ -421,5 +487,17 @@ void EveSpotlightSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matri
 				Tr2DebugRenderer::Solid,
 				0 );
 		}
+	}
+
+	if( renderer.HasOption( GetRawRoot(), "Spotlight Sets Bounds" ) )
+	{
+		auto aabb = GetAabb( bones, boneCount );
+		renderer.DrawBox(
+			Tr2DebugObjectReference( this ),
+			parentTransform,
+			aabb.m_min,
+			aabb.m_max,
+			Tr2DebugRenderer::Wireframe,
+			0xff00ff00 );
 	}
 }

@@ -73,6 +73,7 @@ void EveHazeSet::Setup( Tr2EffectPtr effect )
 bool EveHazeSet::Initialize()
 {
 	PrepareResources();
+	CreateBoundingBox();
 	return true;
 }
 
@@ -195,6 +196,33 @@ void EveHazeSet::SubmitGeometry( Tr2RenderContext& renderContext )
 	renderContext.DrawIndexedPrimitive( m_vertexCount, 0, m_vertexCount / 2 );
 }
 
+// --------------------------------------------------------------------------------------
+// Description:
+//   Update visibility based on if bounding box surrounding the hazes is visible or not.
+// --------------------------------------------------------------------------------------
+bool EveHazeSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	auto aabb = m_aabb;
+	aabb.Transform( parentTransform );
+	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
+}
+
+// --------------------------------------------------------------------------------------
+// Description:
+//   Create a bounding box around all HazeSetItems
+// --------------------------------------------------------------------------------------
+void EveHazeSet::CreateBoundingBox()
+{
+	m_aabb = AxisAlignedBoundingBox();
+
+	for( auto it = m_hazes.begin(); it != m_hazes.end(); ++it )
+	{
+		AxisAlignedBoundingBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 5.0f ) );
+		aabb.Transform( TransformationMatrix( (*it)->m_scaling, (*it)->m_rotation, (*it)->m_position ) );
+		m_aabb.IncludeBox( aabb );
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Trinity's way of providing batches to render
@@ -241,6 +269,7 @@ void EveHazeSet::Rebuild()
 {
 	ReleaseResources( 0 );
 	PrepareResources();
+	CreateBoundingBox();
 }
 
 // --------------------------------------------------------------------------------

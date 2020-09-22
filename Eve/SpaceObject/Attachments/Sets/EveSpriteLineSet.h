@@ -10,6 +10,7 @@
 #include "IEveSpaceObjectAttachment.h"
 #include "EveSpriteLineSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
+#include "Utilities/BoundingBox.h"
 
 // forwards
 BLUE_DECLARE( EveSpriteLineSet );
@@ -45,6 +46,7 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
+	virtual bool UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer );
 	virtual void AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& parentTransform, float activation, float boosterGain, const granny_matrix_3x4* bones, size_t boneCount );
 	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
@@ -72,6 +74,15 @@ private:
 
 	// all the line set
 	PEveSpriteLineSetItemVector m_spriteLines;
+	
+	// bounding box functions
+	AxisAlignedBoundingBox GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const;
+	void CreateBoundingBoxes();
+	// bounding boxes that are static
+	AxisAlignedBoundingBox m_aabb;
+	// bounding boxes are grouped together by bone index
+	std::vector<std::pair<int, AxisAlignedBoundingBox>> m_boundingBoxes;
+	
 };
 
 TYPEDEF_BLUECLASS( EveSpriteLineSet );

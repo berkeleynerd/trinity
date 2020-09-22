@@ -10,7 +10,7 @@
 #include "IEveSpaceObjectAttachment.h"
 #include "ITr2GeometryProvider.h"
 #include "ITr2Renderable.h"
-
+#include "Utilities/BoundingBox.h"
 #include "EveHazeSetItem.h"
 
 // forwards
@@ -56,6 +56,7 @@ public:
 
 	//////////////////////////////////////////////////////////////////////////////////////
 	// IEveSpaceObjectAttachment
+	virtual bool UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
 	virtual void GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData );
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
 	virtual void RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount );
@@ -92,6 +93,11 @@ private:
 	unsigned int m_vertexDeclHandle;
 	unsigned int m_vertexCount;
 	Tr2BufferAL m_vertexBuffer;
+
+	// bounding box around static items
+	AxisAlignedBoundingBox m_aabb;
+
+	void CreateBoundingBox();
 };
 
 TYPEDEF_BLUECLASS( EveHazeSet );
