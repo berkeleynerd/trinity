@@ -114,7 +114,7 @@ void EveSpriteLineSet::CreateBoundingBoxes()
 		{
 			auto pos = spriteLine->m_position;
 			// In this case the numOfSprites is the diameter of the circle
-			auto sphere = Vector4( pos.x, pos.y, pos.z, float( numOfSprites ) );
+			sphere = Vector4( pos.x, pos.y, pos.z, float( numOfSprites ) );
 		}
 
 		AxisAlignedBoundingBox aabb( sphere );
