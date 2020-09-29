@@ -535,6 +535,10 @@ Tr2PerObjectData* EveChildBehaviorSystem::GetPerObjectData( ITriRenderBatchAccum
 void EveChildBehaviorSystem::Draw( TriBehaviorSystemInstancingBatch* batch, Tr2RenderContext& renderContext, int count,
 	unsigned int vertexDecl, int groupIndex, RenderType renderType )
 {
+	if( m_offsets.empty() )
+	{
+		return;
+	}
 	switch( renderType )
 	{
 	case RENDER_SHIP:
