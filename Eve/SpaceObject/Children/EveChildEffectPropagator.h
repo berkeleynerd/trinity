@@ -108,6 +108,7 @@ private:
 
 	int m_currentTriggerIndex; // skip processing triggers until this point
 
+	bool m_skipCleanup;
 	float m_stopToClearDelay;
 	float m_delayTimer;
 	bool m_replayAfterDelay;

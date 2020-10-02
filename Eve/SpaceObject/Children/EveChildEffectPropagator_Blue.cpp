@@ -52,7 +52,8 @@ const Be::ClassInfo* EveChildEffectPropagator::ExposeToBlue()
 		MAP_ATTRIBUTE( "randScaleMax", m_randScaleMax, "additional randomness -> scaling range\n:jessica-group: SpawnSettings", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
 		MAP_ATTRIBUTE( "stopToClearDelay", m_stopToClearDelay, "delay between: curve finished playing -> the end \n:jessica-group: Looping (TriggerSphereCurve)", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "replayAfterDelay", m_replayAfterDelay, "should this effect loop \n:jessica-group: Looping (TriggerSphereCurve)", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "skipCleanup", m_skipCleanup, "use to only propagate once and then idle the propagator (mutually exclusive with replayAfterDelay)\n:jessica-group: Looping (TriggerSphereCurve)", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "replayAfterDelay", m_replayAfterDelay, "replay after curve finishes playing + the stopToClearDelay (mutually exclusive with skipCleanup)\n:jessica-group: Looping (TriggerSphereCurve)", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE( "numTriggers", m_numTriggers, "totall number of spawned locators\n:jessica-group: RandomLocators", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "range", m_rndRange, "total range locators can spawn in\n:jessica-group: RandomLocators", Be::READWRITE | Be::PERSIST | Be::NOTIFY )

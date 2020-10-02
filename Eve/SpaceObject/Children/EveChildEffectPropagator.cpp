@@ -24,6 +24,7 @@ EveChildEffectPropagator::EveChildEffectPropagator( IRoot* lockobj )
 	m_rndRange( 500 ),
 	m_rndClosenessPreference( 0.25 ),
 	m_rndMinRangeThreshold( 0 ),
+	m_skipCleanup( false ),
 	m_stopToClearDelay( 0 ),
 	m_delayTimer( 0 ),
 	m_replayAfterDelay( false ),
@@ -208,6 +209,11 @@ void EveChildEffectPropagator::UpdateTriggerCurve( EveUpdateContext& updateConte
 
 	if( m_playTime > m_triggerSphereRadiusCurve->Length() )
 	{
+		if( m_skipCleanup )
+		{
+			return;
+		}
+		
 		if( m_replayAfterDelay )
 		{
 			if( m_delayTimer > 0 )
