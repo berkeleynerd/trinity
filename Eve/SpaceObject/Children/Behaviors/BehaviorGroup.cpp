@@ -18,7 +18,7 @@ BehaviorGroup::BehaviorGroup( IRoot* lockobj ) :
 	m_display( true ),
 	m_maxVelocity( 100 ),
 	m_changeBufferVertexCount( nullptr ),
-	m_scale( Vector3( 1, 1, 1 ) ),
+	m_scale( 1.0 ),
 	m_currentScreenSize( 0.0 ),
 	m_renderThreshold( 1.0 ),
 	m_blendScreenSizeMin( 5.0 ),
@@ -176,7 +176,7 @@ void BehaviorGroup::CreateAgentTree()
 // Returns:
 //	The behavior object if it found a match, if not return a nullptr
 // --------------------------------------------------------------------------------------
-IBehavior* BehaviorGroup::GetBehaviorByName(std::string name)
+IBehavior* BehaviorGroup::GetBehaviorByName(const std::string name)
 {
 	for( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
 	{
@@ -366,7 +366,7 @@ float BehaviorGroup::AllTheSame()
 // --------------------------------------------------------------------------------------
 void BehaviorGroup::RemoveAgent()
 {
-	if( m_agents.size() <= 0 )
+	if( m_agents.size() == 0 )
 	{
 		return;
 	}
@@ -406,10 +406,10 @@ void BehaviorGroup::RemoveSpecificAgent( int index )
 // Argument:
 //	 size: The new size of agent vector
 // --------------------------------------------------------------------------------------
-void BehaviorGroup::AddAgentsByCount( int size )
+void BehaviorGroup::AddAgentsByCount( int count )
 {
 	size_t sizeBeforeResize = m_agents.size();
-	m_agents.resize( size );
+	m_agents.resize( count );
 
 	// This is because the process priority behavior can also affect where drones spawn
 	if( m_spawnPosition != Vector3( 0.f, 0.f, 0.f ) )
@@ -445,9 +445,9 @@ void BehaviorGroup::AddAgentsByCount( int size )
 // Argument:
 //	 size: The new size of agent vector
 // --------------------------------------------------------------------------------------
-void BehaviorGroup::RemoveAgentsByCount( int size )
+void BehaviorGroup::RemoveAgentsByCount( int count )
 {
-	m_agents.resize( size );
+	m_agents.resize( count );
 
 	for( size_t i = 0; i < m_behaviors.size(); ++i )
 	{
@@ -478,21 +478,21 @@ void BehaviorGroup::UpdateAgents(const float dt, EveChildBehaviorSystem& system 
 
 	std::vector<float> ranges;
 
-	float searchRad = 0;
 	for ( auto behavior = m_behaviors.begin(); behavior != m_behaviors.end(); ++behavior )
 	{
-		searchRad = ( *behavior )->GetBehaviorSearchRadius();
+		float searchRad = ( *behavior )->GetBehaviorSearchRadius();
 		if ( searchRad == -1.f )
 		{
 			ranges.push_back( -1.f );
 		}
 		else
 		{
-			ranges.push_back( searchRad + m_boundingSphereRadius );
+			ranges.push_back( searchRad + m_boundingSphereRadius * m_scale );
 		}
 	}
-
-	const std::vector < std::vector<std::vector<DroneAgent*>>>* dronesInRange = m_tree->FindDronesInRange( m_agents, ranges, m_boundingSphereRadius );
+	
+	auto bs = m_boundingSphereRadius * m_scale;
+	const std::vector<std::vector<std::vector<DroneAgent*>>>* dronesInRange = m_tree->FindDronesInRange( m_agents, ranges, bs );
 
 	//Calculate the behaviors
 	if( m_collectForces )
@@ -556,10 +556,10 @@ void BehaviorGroup::UpdateVisibility( const TriFrustum & frustum, const Matrix &
 	// Check if an agent is visible and calculate the xfade value
 	for ( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
-		if( frustum.IsSphereVisible( agent->position, m_boundingSphereRadius ) )
+		if( frustum.IsSphereVisible( agent->position, m_boundingSphereRadius * m_scale ) )
 		{
-			float pixelSize = frustum.GetPixelSizeAccross( agent->position, m_boundingSphereRadius );
-			agent->screenSize = pixelSize * m_scale[0]; // Store the screen size for each agent
+			float pixelSize = frustum.GetPixelSizeAccross( agent->position, m_boundingSphereRadius * m_scale );
+			agent->screenSize = pixelSize * m_scale; // Store the screen size for each agent
 
 			if( pixelSize >= m_blendScreenSizeMax )
 			{
@@ -633,10 +633,10 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, const Matrix& parentWorldLo
 	for( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
 		float LOD = m_debugMode ? m_debugLodLevel : ( *agent ).xfade;
-		float LODmod;
 		Matrix agentTransform = TransformationMatrix( agentScale, agent->rotation, agent->position );
 		if( agent->isVisible )
 		{
+			float LODmod = 0;
 			Matrix meshData = Matrix( zeroMatrix );
 			// agent mesh
 			if( LOD < 0.75f )
@@ -678,7 +678,7 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, const Matrix& parentWorldLo
 					}
 				}
 				auto m = agentTransform * parentWorldLocation;
-				m_booster->AddFlare( m, LOD, intensity, agentIndex, m_boundingSphereRadius );
+				m_booster->AddFlare( m, LOD, intensity, agentIndex, m_boundingSphereRadius * m_scale );
 			}
 
 			memcpy( data, &boosterPos, 4 * sizeof( float ) );
@@ -699,7 +699,7 @@ void BehaviorGroup::GetInfoForBuffer( uint8_t* data, const Matrix& parentWorldLo
 				memcpy( data, &zeroMatrix, 12 * sizeof( float ) );
 				data += 12 * sizeof( float );
 
-				m_booster->AddFlare( IdentityMatrix(), 0, 0, agentIndex, m_boundingSphereRadius );
+				m_booster->AddFlare( IdentityMatrix(), 0, 0, agentIndex, m_boundingSphereRadius * m_scale );
 			}
 		}
 		agentIndex++;
@@ -824,7 +824,7 @@ void BehaviorGroup::GetDebugOptions( Tr2DebugRendererOptions& options )
 
 float BehaviorGroup::GetBoundingSphereRadius()
 {
-	return m_boundingSphereRadius;
+	return m_boundingSphereRadius * m_scale;
 }
 
 EveKDdroneManagementTreePtr BehaviorGroup::GetKDTree()
@@ -897,7 +897,7 @@ void BehaviorGroup::RenderDebugInfo( ITr2DebugRenderer2& renderer, Matrix& paren
 		{
 			if( drawBS )
 			{
-				renderer.DrawSphere( this, TranslationMatrix( agent->position ) * parentWorldLocation, m_boundingSphereRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
+				renderer.DrawSphere( this, TranslationMatrix( agent->position ) * parentWorldLocation, m_boundingSphereRadius * m_scale, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
 			}
 			if( drawBoosters )
 			{
@@ -924,7 +924,6 @@ void BehaviorGroup::RenderDebugInfo( ITr2DebugRenderer2& renderer, Matrix& paren
 					float lengthLerp = min( 1.f, max( 0.f, Length( *force ) / m_maxVelocity ) );
 					renderer.DrawLine(this, point, point + (*force),
 					                  Lerp(Color(0xff11ff11), Color(0xffff1111), lengthLerp));
-					Color(0xff11ff11);
 					loopToggle = true;
 				}
 			}
@@ -942,8 +941,6 @@ void BehaviorGroup::RenderDebugInfo( ITr2DebugRenderer2& renderer, Matrix& paren
 
 	if( renderer.HasOption( this, "Lights" ) )
 	{
-		auto parentTranslation = m_parentTransform.GetTranslation();
-		
 		auto iq = IdentityQuaternion();
 		auto scale = Vector3( 1, 1, 1 );
 		

@@ -71,7 +71,7 @@ public:
 	float GetBoundingSphereRadius();
 	EveKDdroneManagementTreePtr GetKDTree();
 	unsigned int GetCount();
-	IBehavior* GetBehaviorByName( std::string name );
+	IBehavior* GetBehaviorByName( const std::string name );
 	int GetGroupIndexIndicator() const;
 	unsigned int GetVertexDeclarationHandle() const;
 	void GetInfoForBuffer( uint8_t* data, const Matrix& parentWorldLocation );
@@ -132,7 +132,7 @@ private:
 	float m_boundingSphereRadius;
 
 	// Lod-ing
-	Vector3 m_scale; // Size Multiplier for the agent mesh
+	float m_scale; // Size Multiplier for the agent mesh
 
 	// Tr2Debug 
 	std::vector<Vector3> m_forces; // A debug vector that represents the forces applied to the agent 
