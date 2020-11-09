@@ -11,7 +11,11 @@ BackAndForth::BackAndForth( IRoot* lockobj ) :
 	m_slowDownRadius( 200.f ),
 	m_backAndForthWeight( 100.f ),
 	m_seconds( 0.25f ),
-	m_fxBehavior( nullptr )
+	m_fxBehavior( nullptr ),
+	m_locatorType( LOCAL_LOCATORS ),
+	m_locatorSetName( "damage" ),
+	m_target( nullptr ),
+	m_parent( nullptr )
 {
 }
 
@@ -24,6 +28,11 @@ int BackAndForth::GetProcessPriority()
 	return LEAST_PRIORITY;
 }
 
+std::string BackAndForth::GetBehaviorName()
+{
+	return "BackAndForth";
+}
+
 size_t BackAndForth::GetScratchMemorySize() const
 {
 	return sizeof( BackAndForthData );
@@ -34,9 +43,8 @@ void BackAndForth::InitializeScratch( void* scratchMemory )
 	*static_cast<BackAndForthData*>( scratchMemory ) = BackAndForthData();
 }
 
-std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& agents, void* scratchData, const float deltaTime,
-                                                     BehaviorGroup& group, EveChildBehaviorSystem& system, const std::vector<std::vector<DroneAgent*>>& dronesInSearchRadius)
-{	
+std::vector<Vector3> BackAndForth::CalculateBehavior( std::vector<DroneAgent>& agents, void* scratchData, const float deltaTime, BehaviorGroup& group, EveChildBehaviorSystem& system, const std::vector<std::vector<DroneAgent*>>& dronesInSearchRadius )
+{
 	if( m_fxBehavior == nullptr )
 	{
 		m_fxBehavior = group.GetBehaviorByName( "PlayFX" );
@@ -46,35 +54,76 @@ std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& ag
 
 	for( auto agent = agents.begin(); agent != agents.end(); ++agent, ++data )
 	{
-		if( data->arrived )
+		if( m_locatorType == LOCAL_LOCATORS )
 		{
-			if( data->seek )
+			if( data->arrived )
 			{
-				//Get count of locators under the "seek" locatorSet
-				auto seekLocators = GetLocatorsForSet( SEEK_LOCATOR_SET_NAME );
-				if (seekLocators != NULL && seekLocators[0].size() > 0)
+				if( data->seek )
 				{
-					m_rand = TriRandInt( 0, (int)seekLocators->size() );
-					data->locatorTarget = seekLocators[0][m_rand].position;
-					data->locatorDirection = (Vector3)XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), seekLocators[0][m_rand].direction );
+					//Get count of locators under the "seek" locatorSet
+					auto seekLocators = GetLocatorsForSet( SEEK_LOCATOR_SET_NAME );
+					if( seekLocators != NULL && seekLocators[0].size() > 0 )
+					{
+						m_rand = TriRandInt( 0, (int)seekLocators->size() );
+						data->locatorTarget = seekLocators[0][m_rand].position;
+						data->locatorDirection = (Vector3)XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), seekLocators[0][m_rand].direction );
+					}
 				}
+				//If the deliver behavior is active
+				else if( data->deliver )
+				{
+					//Get count locators under the "deliver" locatorSet
+					auto deliverLocators = GetLocatorsForSet( DELIVER_LOCATOR_SET_NAME );
+					if( deliverLocators != NULL && deliverLocators[0].size() > 0 )
+					{
+						m_rand = TriRandInt( 0, (int)deliverLocators->size() );
+						data->locatorTarget = deliverLocators[0][m_rand].position;
+						data->locatorDirection = (Vector3)XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), deliverLocators[0][m_rand].direction );
+					}
+				}
+				data->arrived = false;
 			}
-			//If the deliver behavior is active
-			else if (data->deliver)
+		}
+		// UNFINISHED COULDN'T FIND OUT HOW TO GET PARENT WITHOUT CIRCULAR DEPENDENCY
+		else if( m_locatorType == PARENT_LOCATORS )
+		{
+			if( m_parent == nullptr )
 			{
-				//Get count locators under the "deliver" locatorSet
-				auto deliverLocators = GetLocatorsForSet( DELIVER_LOCATOR_SET_NAME );
-				if (deliverLocators != NULL && deliverLocators[0].size() > 0 )
-				{
-					m_rand = TriRandInt( 0, (int)deliverLocators->size() );
-					data->locatorTarget = deliverLocators[0][m_rand].position;
-					data->locatorDirection = (Vector3)XMVector3Rotate( Vector3( 0.f, 1.f, 0.f ), deliverLocators[0][m_rand].direction );
-				}
+				m_parent = group.GetParent();
 			}
+
+			if( data->arrived && m_parent )
+			{
+				// Pick a new locator to go to
+				unsigned int count = m_parent->GetLocatorCount( m_locatorSetName );
+				int rand = TriRandInt( count );
+				data->locatorIndex = rand;
+			}
+
+			GetParentLocatorPosition( data->locatorIndex, &data->locatorTarget, &data->locatorDirection );
+			data->arrived = false;
+		}
+		else if( m_locatorType == TARGET_LOCATORS )
+		{
+			if( data->arrived && m_target )
+			{
+				// Pick a new locator to go to
+				unsigned int count = m_target->GetLocatorCount( m_locatorSetName );
+				int rand = TriRandInt( count );
+				data->locatorIndex = rand;
+			}
+
+			GetTargetLocatorPosition( data->locatorIndex, &data->locatorTarget, &data->locatorDirection );
 			data->arrived = false;
 		}
 
 		agent->target = data->locatorTarget;
+
+		// If the direction is (0,0,0) it's pointing up but then the slowDown radius won't work
+		if( data->locatorDirection == Vector3( 0.0, 0.0, 0.0 ) )
+		{
+			data->locatorDirection = Vector3( 0.f, 1.f, 0.f );
+		}
 
 		Vector3 targetPoint = data->locatorDirection;
 		targetPoint = Normalize( targetPoint );
@@ -101,7 +150,7 @@ std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& ag
 			TriQuaternionRotationArc( &newRotation, &zAxis, &invDir );
 			agent->rotation = newRotation;
 			data->timePassed = 0.f;
-			
+
 			if( !agent->playFX && m_fxBehavior != nullptr )
 			{
 				agent->fxStartTime = BeOS->GetActualTime();
@@ -123,7 +172,6 @@ std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& ag
 			desiredVelocity *= Lerp( 0, 1, max( data->timePassed, m_seconds ) / m_seconds );
 		}
 		agent->acceleration += desiredVelocity - agent->velocity;
-
 	}
 	std::vector<Vector3> todo;
 	return todo;
@@ -132,27 +180,50 @@ std::vector<Vector3> BackAndForth::CalculateBehavior(std::vector<DroneAgent>& ag
 void BackAndForth::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Locators" );
-	options.insert( "LocatorRadius" );
+	options.insert( "Locator Radius" );
 }
 
-void BackAndForth::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation)
+void BackAndForth::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation )
 {
 	if( renderer.HasOption( this, "Locators" ) )
 	{
 		float boundingSphereRadius = 100.f;
 		float modelScale = 10;
-		for( auto it = m_locatorSets.begin(); it != m_locatorSets.end(); ++it )
+		if( m_locatorType == LOCAL_LOCATORS )
 		{
-			const LocatorStructureList& locators = ( *( *it )->GetLocators() );
-			for( size_t i = 0; i < locators.size(); ++i )
+			for( auto it = m_locatorSets.begin(); it != m_locatorSets.end(); ++it )
 			{
-				auto& locator = locators[i];
+				const LocatorStructureList& locators = ( *( *it )->GetLocators() );
+				for( size_t i = 0; i < locators.size(); ++i )
+				{
+					auto& locator = locators[i];
+					auto position = locator.position;
+					auto rotation = locator.direction;
+					uint32_t color = 0x990088ff;
+
+					renderer.DrawSphereArrow(
+						Tr2DebugObjectReference( &locators, uint32_t( i ) ),
+						Vector3( XMVector3TransformCoord( position, parentWorldLocation ) ),
+						Vector3( XMVector3TransformNormal( Vector3( 0, 1, 0 ), Matrix( XMMatrixRotationQuaternion( rotation ) ) * parentWorldLocation ) ),
+						boundingSphereRadius * modelScale / 50.f,
+						8,
+						Tr2DebugRenderer::Lit,
+						color );
+				}
+			}
+		}
+		else if( m_locatorType == PARENT_LOCATORS && m_parent )
+		{
+			const LocatorStructureList& locatorList = *m_parent->GetLocatorsForSet( m_locatorSetName );
+			for( size_t i = 0; i < locatorList.size(); ++i )
+			{
+				auto locator = locatorList[i];
 				auto position = locator.position;
 				auto rotation = locator.direction;
 				uint32_t color = 0x990088ff;
 
 				renderer.DrawSphereArrow(
-					Tr2DebugObjectReference( &locators, uint32_t( i ) ),
+					Tr2DebugObjectReference( &locatorList, uint32_t( i ) ),
 					Vector3( XMVector3TransformCoord( position, parentWorldLocation ) ),
 					Vector3( XMVector3TransformNormal( Vector3( 0, 1, 0 ), Matrix( XMMatrixRotationQuaternion( rotation ) ) * parentWorldLocation ) ),
 					boundingSphereRadius * modelScale / 50.f,
@@ -161,19 +232,77 @@ void BackAndForth::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<Dr
 					color );
 			}
 		}
+		else if( m_locatorType == TARGET_LOCATORS && m_target )
+		{
+			const LocatorStructureList& locatorList = *m_target->GetLocatorsForSet( m_locatorSetName );
+			for( size_t i = 0; i < locatorList.size(); ++i )
+			{
+				auto locator = locatorList[i];
+				auto position = locator.position;
+				auto rotation = locator.direction;
+				uint32_t color = 0x990088ff;
+
+				renderer.DrawSphereArrow(
+					Tr2DebugObjectReference( &locatorList, uint32_t( i ) ),
+					Vector3( XMVector3TransformCoord( position, parentWorldLocation ) ),
+					Vector3( XMVector3TransformNormal( Vector3( 0, 1, 0 ), Matrix( XMMatrixRotationQuaternion( rotation ) ) * parentWorldLocation ) ),
+					boundingSphereRadius * modelScale / 50.f,
+					8,
+					Tr2DebugRenderer::Lit,
+					color );
+			}
+		}
+		
 	}
 
-	if( renderer.HasOption( this, "LocatorRadius" ) )
+	if( renderer.HasOption( this, "Locator Radius" ) )
 	{
-		for( auto it = m_locatorSets.begin(); it != m_locatorSets.end(); ++it )
+		if( m_locatorType == LOCAL_LOCATORS )
 		{
-			const LocatorStructureList& locators = ( *( *it )->GetLocators() );
-			for( size_t i = 0; i < locators.size(); ++i )
+			for( auto it = m_locatorSets.begin(); it != m_locatorSets.end(); ++it )
 			{
-				auto& locator = locators[i];
-				auto position = locator.position;
-				renderer.DrawSphere( this, position, m_arrivedRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
-				renderer.DrawSphere( this, position, m_slowDownRadius, 8, Tr2DebugRenderer::Wireframe, 0xff86d2fd );
+				const LocatorStructureList& locators = ( *( *it )->GetLocators() );
+				for( size_t i = 0; i < locators.size(); ++i )
+				{
+					auto& locator = locators[i];
+					auto position = locator.position;
+					renderer.DrawSphere( this, position, m_arrivedRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
+					renderer.DrawSphere( this, position, m_slowDownRadius, 8, Tr2DebugRenderer::Wireframe, 0xff86d2fd );
+				}
+			}
+		}
+		else if( m_locatorType == PARENT_LOCATORS && m_parent )
+		{
+			unsigned int count = m_parent->GetLocatorCount( m_locatorSetName );
+			for( unsigned int i = 0; i < count; ++i )
+			{
+				Vector3 pos( 0, 0, 0 );
+				Vector3 dir( 0, 0, 0 );
+				m_parent->GetLocatorPosition( &pos, i, true, m_locatorSetName );
+				m_parent->GetLocatorDirection( &dir, i, true, m_locatorSetName );
+				Vector3 targetPoint = dir;
+				targetPoint = Normalize( targetPoint );
+				targetPoint *= m_arrivedRadius;
+				targetPoint += pos;
+				renderer.DrawSphere( this, targetPoint, m_arrivedRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
+				renderer.DrawSphere( this, targetPoint, m_slowDownRadius, 8, Tr2DebugRenderer::Wireframe, 0xff86d2fd );
+			}
+		}
+		else if( m_locatorType == TARGET_LOCATORS && m_target )
+		{
+			unsigned int count = m_target->GetLocatorCount( m_locatorSetName );
+			for( unsigned int i = 0; i < count; ++i )
+			{
+				Vector3 pos( 0, 0, 0 );
+				Vector3 dir( 0, 0, 0 );
+				m_target->GetLocatorPosition( &pos, i, true, m_locatorSetName );
+				m_target->GetLocatorDirection( &dir, i, true, m_locatorSetName );
+				Vector3 targetPoint = dir;
+				targetPoint = Normalize( targetPoint );
+				targetPoint *= m_arrivedRadius;
+				targetPoint += pos;
+				renderer.DrawSphere( this, targetPoint, m_arrivedRadius, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
+				renderer.DrawSphere( this, targetPoint, m_slowDownRadius, 8, Tr2DebugRenderer::Wireframe, 0xff86d2fd );
 			}
 		}
 	}
@@ -199,13 +328,38 @@ void BackAndForth::AddLocatorSet()
 {
 	EveLocatorSetsPtr seekSet;
 	seekSet.CreateInstance();
-	seekSet->Set( "seek", NULL, 0 );
+	seekSet->Set( SEEK_LOCATOR_SET_NAME.c_str(), NULL, 0 );
 
 	EveLocatorSetsPtr deliverSet;
 	deliverSet.CreateInstance();
-	deliverSet->Set( "deliver", NULL, 0 );
+	deliverSet->Set( DELIVER_LOCATOR_SET_NAME.c_str(), NULL, 0 );
 
 	m_locatorSets.Append( seekSet );
 	m_locatorSets.Append( deliverSet );
-	
+}
+
+void BackAndForth::SetParent( IEveSpaceObject2* parent )
+{
+	if( EveSpaceObject2Ptr spaceObject = BlueCastPtr( parent ) )
+	{
+		m_parent = spaceObject;
+	}
+}
+
+void BackAndForth::GetParentLocatorPosition( int locatorIndex, Vector3* locatorPosition, Vector3* locatorDirection )
+{
+	if( m_parent != nullptr )
+	{
+		m_parent->GetLocatorPosition( locatorPosition, locatorIndex, true, m_locatorSetName );
+		m_parent->GetLocatorDirection( locatorDirection, locatorIndex, true, m_locatorSetName );
+	}
+}
+
+void BackAndForth::GetTargetLocatorPosition( int locatorIndex, Vector3* locatorPosition, Vector3* locatorDirection )
+{
+	if( m_target != nullptr )
+	{
+		m_target->GetLocatorPosition( locatorPosition, locatorIndex, true, m_locatorSetName );
+		m_target->GetLocatorDirection( locatorDirection, locatorIndex, true, m_locatorSetName );
+	}
 }
