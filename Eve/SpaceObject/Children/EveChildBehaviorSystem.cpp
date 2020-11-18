@@ -318,7 +318,7 @@ void EveChildBehaviorSystem::UpdateSyncronous( EveUpdateContext& updateContext, 
 
 	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
 	{
-		( *it )->UpdateSyncronous( updateContext );
+		( *it )->UpdateSyncronous( updateContext, params );
 	}
 }
 

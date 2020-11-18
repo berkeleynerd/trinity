@@ -10,6 +10,7 @@ struct BackAndForthData
 	BackAndForthData() :
 		locatorTarget( 0, 0, 0 ),
 		locatorDirection( 0, 0, 0 ),
+		locatorIndex( -1 ),
 		seek( true ),
 		deliver( false ),
 		arrived( true ),
@@ -18,6 +19,7 @@ struct BackAndForthData
 
 	Vector3 locatorTarget;
 	Vector3 locatorDirection;
+	int locatorIndex;
 	bool seek;
 	bool deliver;
 	bool arrived;
@@ -32,6 +34,13 @@ public:
 	BackAndForth( IRoot* lockobj = nullptr );
 	~BackAndForth();
 
+	enum LocatorType
+	{
+		LOCAL_LOCATORS = 0,
+		PARENT_LOCATORS = 1,
+		TARGET_LOCATORS = 2,
+	};
+
 	virtual size_t GetScratchMemorySize() const;
 	virtual void InitializeScratch( void* scratchMemory );
 
@@ -40,20 +49,33 @@ public:
 	void GetDebugOptions( Tr2DebugRendererOptions& options );
 	void RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<DroneAgent>& agents, Matrix& parentWorldLocation);
 	int GetProcessPriority();
+	std::string GetBehaviorName();
 
-private:
+	void SetParent( IEveSpaceObject2 *parent );
+
+private:	
+	int m_priority;
+	int m_rand;
 	float m_arrivedRadius;
 	float m_slowDownRadius;
-	int m_rand;
 	float m_backAndForthWeight;
 	float m_seconds;
 
+	Vector3 m_arrivalPoint; //debugging
+
 	IBehavior* m_fxBehavior;
+
+	EveSpaceObject2* m_target;
+	EveSpaceObject2* m_parent;
 
 	//Locators
 	const LocatorStructureList* GetLocatorsForSet( const BlueSharedString& setName ) const;
 	PEveLocatorSetsVector m_locatorSets;
+	BlueSharedString m_locatorSetName;
 	void AddLocatorSet();
+	LocatorType m_locatorType;
+	void BackAndForth::GetParentLocatorPosition( int locatorIndex, Vector3* locatorPosition, Vector3* locatorDirection );
+	void GetTargetLocatorPosition( int locatorIndex, Vector3* locatorPosition, Vector3* locatorDirection );
 };
 
 TYPEDEF_BLUECLASS( BackAndForth );

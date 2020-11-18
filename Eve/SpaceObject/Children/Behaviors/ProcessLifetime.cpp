@@ -93,11 +93,11 @@ std::vector<Vector3> ProcessLifetime::CalculateBehavior(std::vector<DroneAgent>&
 	std::vector<int> dronesThatDie;
 	std::vector<Vector3> forceVectors;
 
-	for ( auto drone = agents.begin(); drone != agents.end(); ++drone, data++ )
+	for ( auto drone = agents.begin(); drone != agents.end(); ++drone, ++data )
 	{
 		if( drone->lifetime <= deltaTime )
 		{
-			FindASpawnPoint( *drone, data );
+			FindASpawnPoint( *drone, data, group );
 		}
 
 		m_desiredVector = Vector3( 0, 0, 0 );
@@ -155,7 +155,6 @@ std::vector<Vector3> ProcessLifetime::CalculateBehavior(std::vector<DroneAgent>&
 
 		if ( m_desiredVector == Vector3( 0, 0, 0 ) )
 		{
-			//m_lastPullForces.push_back( Vector3( 0, 0, 0 ) );
 			continue;
 		}
 
@@ -164,6 +163,7 @@ std::vector<Vector3> ProcessLifetime::CalculateBehavior(std::vector<DroneAgent>&
 		forceVectors.push_back( drone->position + forceOffset );
 		pullForce *= m_behaviorWeight;
 		forceVectors.push_back( pullForce );
+
 		drone->acceleration += pullForce;
 	}
 
@@ -210,8 +210,6 @@ bool ProcessLifetime::ProcessTunnel( DroneAgent& agent, SplineTunnel& tunnel, in
 		const Vector3 offset = ( tunnel.cylWidth / 2 ) * Normalize( vectorProj - targetVector );
 		targetVector += offset;
 	}
-
-	Vector3 desiredVector( 0, 0, 0 );
 
 	if ( tunnel.splinePoints[ pointID ] == ( *tunnel.splinePoints.end() ) )
 	{
@@ -281,7 +279,7 @@ void ProcessLifetime::findAndAssignAnExitTunnel( DroneAgent& agent, ProcessLifet
 	}
 }
 
-void ProcessLifetime::FindASpawnPoint(DroneAgent& agent, ProcessLifetimeData* data )
+void ProcessLifetime::FindASpawnPoint( DroneAgent& agent, ProcessLifetimeData* data, BehaviorGroup& group )
 {
 	std::vector<Vector3> potentialPoints;
 	std::vector<Vector3> potentialRotations;
@@ -305,14 +303,15 @@ void ProcessLifetime::FindASpawnPoint(DroneAgent& agent, ProcessLifetimeData* da
 
 	if( potentialPoints.empty() )
 	{
-		agent.position = Vector3( 0, 0, 0 );
 		return;
 	}
 
 	const auto randomNbr = rand() % potentialPoints.size();
+	group.m_spawnPosition = potentialPoints.at( randomNbr );
 	agent.position = potentialPoints.at( randomNbr );
 	static const Vector3 zAxis( 0.f, 0.f, 1.f );
 	TriQuaternionRotationArc( &agent.rotation, &zAxis, &potentialRotations.at( randomNbr ) );
+
 	data->assignedLifeTimeTunnel = tunnelIndex.at( randomNbr );
 }
 
