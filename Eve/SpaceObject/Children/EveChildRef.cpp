@@ -243,7 +243,7 @@ void EveChildRef::ChangeLOD( Tr2Lod lod )
 
 void EveChildRef::GetLights( Tr2LightManager& lightManager ) const
 {
-	if ( m_child )
+	if( m_display && m_child )
 	{
 		return m_child->GetLights( lightManager );
 	}
