@@ -20,7 +20,13 @@
 namespace
 {
 
+#if( TRINITY_PLATFORM == TRINITY_DIRECTX9 )
+// keep these particles fewer than other clients
 const uint32_t DEFAULT_MAX_PARTICLES = 512 * 512;
+#else
+const uint32_t DEFAULT_MAX_PARTICLES = 1024 * 1024;
+#endif
+
 const float MAXIMUM_FRAME_TIME = 1.f / 15.f;
 const float MAX_TURBULENCE_LENGTH = 4096.f;
 const float TURBULENCE_ANIMATION_SPEED = 0.05f;
