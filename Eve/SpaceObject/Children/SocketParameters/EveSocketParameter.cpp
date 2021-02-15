@@ -9,6 +9,10 @@
 #include "Tr2ExternalParameter.h"
 #include "TriValueBinding.h"
 
+#if BLUE_WITH_PYTHON
+#include "CcpUtils/PyCpp.h"
+#endif
+
 
 EveSocketParameterBindingBase::EveSocketParameterBindingBase( IRoot* lockobj ) :
 	PARENTLOCK( m_bindings ),
@@ -63,6 +67,14 @@ void EveSocketParameterBindingBase::Propagate()
 	}
 }
 
+#if BLUE_WITH_PYTHON
+#define SOCKET_PARAMETER_GIL_LOCK Ccp::PyGilEnsure gilWrapper
+#define SOCKET_PARAMETER_CLEAR_ERROR PyErr_Clear()
+#else
+#define SOCKET_PARAMETER_GIL_LOCK
+#define SOCKET_PARAMETER_CLEAR_ERROR
+#endif
+
 #define SOCKET_PARAMETER_DEFINE( _className, _valueType, _defaultValue )\
 	void _className::ClearBindings()\
 	{\
@@ -80,6 +92,7 @@ void EveSocketParameterBindingBase::Propagate()
 	}\
 	bool _className::ExtractDefault( const Tr2ExternalParameter& externalParameter )\
 	{\
+		SOCKET_PARAMETER_GIL_LOCK;\
 		_valueType value;\
 		BlueScriptValue blueValue;\
 		externalParameter.GetValue( blueValue );\
@@ -89,6 +102,7 @@ void EveSocketParameterBindingBase::Propagate()
 		}\
 		else\
 		{\
+			SOCKET_PARAMETER_CLEAR_ERROR;\
 			m_defaults.push_back( _defaultValue );\
 		}\
 		return true;\
