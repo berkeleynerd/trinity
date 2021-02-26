@@ -30,7 +30,7 @@ private:
 	void ResetClipSphereToLocator( EveSpaceObject2* owner, BlueSharedString locatorSetName, int locatorIndex );
 
 	BlueSharedString m_locatorSetName;
-	int m_locatorIndex;
+	int32_t m_locatorIndex;
 	ResetBehavior m_resetBehavior;
 };
 

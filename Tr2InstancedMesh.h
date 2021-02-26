@@ -127,7 +127,7 @@ private:
 	// Instance geometry resource loaded from m_instanceGeometryResPath
 	ITr2InstanceDataPtr m_loadedGeometryResource;
 	// Mesh index of instance data in instance geometry resource
-	int m_instanceMeshIndex;
+	int32_t m_instanceMeshIndex;
 	// Combined vertex declaration
 	mutable unsigned int m_vertexDeclaration;
 	// Cached instance geometry vertex declaration

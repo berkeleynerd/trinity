@@ -62,7 +62,7 @@ TYPEDEF_BLUECLASS( EveSocketParameterBindingBase );
 	TYPEDEF_BLUECLASS( _className );
 
 SOCKET_PARAM_DECLARE( EveSocketParameterBool, bool );
-SOCKET_PARAM_DECLARE( EveSocketParameterInt, int );
+SOCKET_PARAM_DECLARE( EveSocketParameterInt, int32_t );
 SOCKET_PARAM_DECLARE( EveSocketParameterFloat, float );
 SOCKET_PARAM_DECLARE( EveSocketParameterVector2, Vector2 );
 SOCKET_PARAM_DECLARE( EveSocketParameterVector3, Vector3 );

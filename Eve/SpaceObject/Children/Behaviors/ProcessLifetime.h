@@ -71,7 +71,7 @@ private:
 	bool m_shouldReassignTunnelIDs;
 	bool m_exit;
 	Vector3 m_desiredVector;
-	int m_priority;
+	int32_t m_priority;
 };
 
 TYPEDEF_BLUECLASS( ProcessLifetime );

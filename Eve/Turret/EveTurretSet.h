@@ -401,9 +401,9 @@ private:
 	// firing animation specialties
 	bool m_useRandomFiringDelay;
 	float m_randomFiringDelay;
-	unsigned int m_maxCyclingFirePos;
-	unsigned int m_cyclingFireGroupCount;
-	unsigned int m_currentCyclingFiresPos;
+	uint32_t m_maxCyclingFirePos;
+	uint32_t m_cyclingFireGroupCount;
+	uint32_t m_currentCyclingFiresPos;
 
 	// system bones
 	unsigned int m_systemBoneID[SYSBONE_MAX];

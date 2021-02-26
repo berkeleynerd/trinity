@@ -122,7 +122,7 @@ private:
 
 	// Variables
 	BlueSharedString m_behaviorGroupName; 	// name to identify group
-	int m_count; // Number of agents
+	int32_t m_count; // Number of agents
 	int m_groupIndex; // ID
 	Tr2MeshPtr m_mesh; // Instanced mesh
 	unsigned int m_cachedVD; // A cached Vertex Declaration to detect change

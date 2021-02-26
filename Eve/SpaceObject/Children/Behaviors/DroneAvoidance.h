@@ -21,12 +21,12 @@ public:
 	virtual int GetProcessPriority();
 
 private:
-	int m_framesBetweenUpdates;
-	int m_frameCounter;
+	int32_t m_framesBetweenUpdates;
+	int32_t m_frameCounter;
 	std::vector<Vector3> m_lastPullForces;
 	float m_behaviorWeight;
 	float m_visionRange;
-	int m_priority;
+	int32_t m_priority;
 };
 TYPEDEF_BLUECLASS( DroneAvoidance );
 

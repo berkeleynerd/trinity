@@ -164,7 +164,7 @@ private:
 	Vector3 m_scaling;
 
 	// decals can be parented to bones
-	int m_parentBoneIndex;
+	int32_t m_parentBoneIndex;
 	Matrix m_parentBoneMatrix;
 	Matrix m_invParentBoneMatrix;
 

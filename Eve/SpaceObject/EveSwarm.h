@@ -272,7 +272,7 @@ private:
 	bool m_swarmingEnabled;
 	bool m_started;
 
-	int m_count;
+	int32_t m_count;
 	float m_debugSize;
 
 	// frustum so we can update the decal visibility

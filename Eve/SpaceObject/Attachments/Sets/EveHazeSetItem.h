@@ -35,7 +35,7 @@ public:
 	Vector4 m_hazeData;
 	Color m_color;
 	// animation granny parent bone index
-	int m_boneIndex;
+	int32_t m_boneIndex;
 };
 
 TYPEDEF_BLUECLASS( EveHazeSetItem );

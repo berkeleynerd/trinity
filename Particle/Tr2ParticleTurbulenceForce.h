@@ -38,7 +38,7 @@ private:
 	// turbulence frequency (w - time)
 	Vector4 m_frequency;
 	// turbulence noise level (octave count)
-	unsigned m_noiseLevel;
+	uint32_t m_noiseLevel;
 	// turbulence noise ratio (octave amplitude coefficient)
 	float m_noiseRatio;
 	// current time

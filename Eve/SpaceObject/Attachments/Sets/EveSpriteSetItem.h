@@ -27,7 +27,7 @@ public:
 	float m_falloff;
 	Color m_color;
 	Color m_warpColor;
-	int m_boneIndex;
+	int32_t m_boneIndex;
 };
 
 TYPEDEF_BLUECLASS( EveSpriteSetItem );

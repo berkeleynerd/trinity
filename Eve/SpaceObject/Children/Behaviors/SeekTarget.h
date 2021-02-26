@@ -70,7 +70,7 @@ private:
 	bool m_startTimer;
 	bool m_doneRepairing;
 	int m_counter;
-	int m_priority;
+	int32_t m_priority;
 	float m_totalRepairTime;
 	float m_repairTimePassed;
 	float m_behaviorWeight;

@@ -115,8 +115,8 @@ private:
 	Vector3 m_boosterOffset;
 	float m_lightRadius;
 	Color m_lightColor;
-	unsigned int m_atlasIndex0;
-	unsigned int m_atlasIndex1;
+	uint32_t m_atlasIndex0;
+	uint32_t m_atlasIndex1;
 
 	bool m_display;
 

@@ -18,10 +18,10 @@ class TriViewport : public IRoot
 public:
 	// These are public for a reason - there is no need to wrap them in accessors.
 	// This is also why they don't have the 'm_' prefix.
-	int x;
-	int y;
-	int width;
-	int height;
+	int32_t x;
+	int32_t y;
+	int32_t width;
+	int32_t height;
 	float minZ;
 	float maxZ;
 
@@ -29,10 +29,10 @@ public:
 	{}
 
 	void py__init__( 
-		int _x,
-		int _y,
-		Be::OptionalWithDefaultValue<int, 1> _width,
-		Be::OptionalWithDefaultValue<int, 1> _height,
+		int32_t _x,
+		int32_t _y,
+		Be::OptionalWithDefaultValue<int32_t, 1> _width,
+		Be::OptionalWithDefaultValue<int32_t, 1> _height,
 		float _minZ,
 		Be::Optional<float> _maxZ )
 	{

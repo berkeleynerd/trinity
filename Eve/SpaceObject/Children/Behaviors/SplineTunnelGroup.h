@@ -96,7 +96,7 @@ public:
 private:
 
 	TunnelGroupType m_tunnelGroupType;
-	int m_numBreakPoints;
+	int32_t m_numBreakPoints;
 	std::vector<SplineTunnel> m_tunnels;
 	PTr2CurveVector3Vector m_curveSets;
 	std::function<void()> m_changeSystemTunnelRegistry;

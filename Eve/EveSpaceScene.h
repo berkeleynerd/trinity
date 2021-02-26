@@ -347,12 +347,12 @@ protected:
 	
 	// To help avoid horrible performance in degenerate situations we
 	// put a hard limit on the number of shadow maps drawn per frame.
-	unsigned int m_shadowReceiverMaxCount;
+	uint32_t m_shadowReceiverMaxCount;
 
 	// To help avoid horrible performance in degenerate situations we
 	// put a hard limit on the number of shadow casters drawn into
 	// each shadow map.
-	unsigned int m_shadowCasterMaxCount;
+	uint32_t m_shadowCasterMaxCount;
 	float m_shadowCameraDistance;
 
 	float m_planetScale;

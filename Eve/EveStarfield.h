@@ -55,8 +55,8 @@ public:
 
 private:	
 	bool m_display;
-	int m_starCount;
-	int m_seed;
+	int32_t m_starCount;
+	int32_t m_seed;
 	float m_maxDistance;
 	float m_minDistance;
 	float m_minFlashRate;

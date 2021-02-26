@@ -161,7 +161,7 @@ private:
 	// internal time scale
 	float m_timeScale;
 	// Default interpolation
-	unsigned int m_interpolation;
+	uint32_t m_interpolation;
 
 	PTr2ScalarExprKeyVector m_keys;
 };

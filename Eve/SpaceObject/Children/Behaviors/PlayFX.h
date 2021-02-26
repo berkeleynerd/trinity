@@ -51,8 +51,8 @@ private:
 	size_t m_count;
 	float m_behaviorWeight;
 	float m_distanceFromCenter;
-	int m_sec;
-	int m_priority;
+	int32_t m_sec;
+	int32_t m_priority;
 	bool m_stop;
 
 	IEveFiringEffectElementPtr m_firingEffect;

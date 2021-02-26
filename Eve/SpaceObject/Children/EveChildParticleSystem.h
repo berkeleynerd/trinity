@@ -88,7 +88,7 @@ private:
 	bool m_useDynamicLod;
 	float m_lodFactorMedium;
 	float m_lodFactorLow;
-	unsigned m_lodClampLow;
+	uint32_t m_lodClampLow;
 
 	float m_lodSphereRadius;
 	float m_minScreenSize;

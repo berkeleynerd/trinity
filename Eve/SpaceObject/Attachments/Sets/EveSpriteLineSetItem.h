@@ -39,7 +39,7 @@ public:
 	float m_maxScale;
 	float m_falloff;
 	Color m_color;
-	int m_boneIndex;
+	int32_t m_boneIndex;
 };
 
 TYPEDEF_BLUECLASS( EveSpriteLineSetItem );

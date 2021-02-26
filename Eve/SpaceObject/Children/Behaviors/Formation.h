@@ -51,11 +51,11 @@ private:
 	Vector3 m_formationPosition;
 	float m_maxFormationVelocityScaler;
 	
-	int m_framesBetweenUpdates;
-	int m_frameCounter;
-	int m_stubbornness;
-	int m_stubbornnessCounter;
-	int m_priority;
+	int32_t m_framesBetweenUpdates;
+	int32_t m_frameCounter;
+	int32_t m_stubbornness;
+	int32_t m_stubbornnessCounter;
+	int32_t m_priority;
 	float m_behaviorWeight;
 	float m_visionRange;
 	float m_maxFormationRotationSpeed;

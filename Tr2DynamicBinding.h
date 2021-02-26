@@ -47,7 +47,7 @@ private:
 	BlueSharedString m_sourceObjectAttribute;
 	BlueWeakRef<IRoot> m_source;
 	float m_scale;
-	long m_bindingDelay;
+	int32_t m_bindingDelay;
 
 	Be::Time m_bindingTime;
 

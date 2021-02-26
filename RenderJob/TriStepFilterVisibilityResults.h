@@ -63,7 +63,7 @@ public:
 
 private:
 	// Bitfield for filter on event type
-	unsigned int m_eventFilter;
+	uint32_t m_eventFilter;
 	// Type of per-object filter
 	FilterType m_filterType;
 	// List of objects to include/exclude in the result

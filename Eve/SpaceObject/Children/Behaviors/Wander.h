@@ -22,7 +22,7 @@ private:
 	float rand2;
 	float rand3;
 	float m_freq;
-	int m_priority;
+	int32_t m_priority;
 
 };
 

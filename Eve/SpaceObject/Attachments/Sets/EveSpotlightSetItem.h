@@ -40,7 +40,7 @@ public:
 	Color m_flareColor;
 
 	// animation granny parent bone index
-	int m_boneIndex;
+	int32_t m_boneIndex;
 
 	// booster gain (aka ship speed) dependent
 	bool m_boosterGainInfluence;

@@ -109,12 +109,12 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
         MAP_ATTRIBUTE ( "scene", m_scene, "na", Be::READWRITE | Be::NOTIFY )	
 
 		//MAP_ATTRIBUTE( "ui", mUi, "na", Be::READ )			
-		MAP_ATTRIBUTE( "width", mWidth, "na", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "height", mHeight, "na", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "width", mWidth, "na", Be::READ )
+		MAP_ATTRIBUTE( "height", mHeight, "na", Be::READ )
 		MAP_ATTRIBUTE( "viewport", mViewport, "na", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "deviceType", m_deviceType, "Hardware/Software device", Be::READWRITE| Be::ENUM, TriDeviceTypeChooser )
 
-		MAP_ATTRIBUTE( "backBufferCount", mBackBufferCount, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST )	
+		MAP_ATTRIBUTE( "backBufferCount", mBackBufferCount, "na", Be::READWRITE | Be::NOTIFY )	
 		MAP_ATTRIBUTE( "tickInterval", mTickInterval, "na", Be::READWRITE )
 
 		MAP_PROPERTY

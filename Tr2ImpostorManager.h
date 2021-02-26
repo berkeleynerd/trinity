@@ -145,7 +145,7 @@ private:
 	// Billboard height
 	uint32_t m_itemHeight;
 	// Maximum number of re-renderings per frame
-	size_t m_maxUpdates;
+	uint32_t m_maxUpdates;
 
 	// Atlas render target
 	Tr2RenderTargetPtr m_rt;

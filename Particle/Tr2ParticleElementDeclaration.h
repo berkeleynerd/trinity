@@ -216,9 +216,9 @@ public:
 	// Element type/name
 	Tr2ParticleElementDeclarationName m_name;
 	// Element dimension (from 1 to 4)
-	unsigned m_dimension;
+	uint32_t m_dimension;
 	// Custom type element usage index (for shader binding)
-	unsigned m_usageIndex;
+	uint32_t m_usageIndex;
 	// Is the element exposed to shaders
 	bool m_usedByGPU;
 };

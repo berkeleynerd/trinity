@@ -67,7 +67,7 @@ protected:
 	// Path to geometry resource
 	std::wstring m_resourcePath;
 	// Mesh index in geometry resource
-	int	m_meshIndex;
+	int32_t m_meshIndex;
 
 	// GPU buffer
 	ITr2GpuBufferPtr m_gpuBuffer;

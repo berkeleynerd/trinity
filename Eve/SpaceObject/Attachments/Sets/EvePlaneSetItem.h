@@ -44,7 +44,7 @@ public:
 	Vector4 m_layer1Scroll;
 	Vector4 m_layer2Scroll;
 	// animation granny parent bone index
-	int m_boneIndex;
+	int32_t m_boneIndex;
 	// supports atlasing
 	uint32_t m_maskAtlasID;
 	// Blink data - [rate, phase, dutyCycle, blinkMode]

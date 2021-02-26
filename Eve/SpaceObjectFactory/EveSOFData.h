@@ -115,7 +115,7 @@ public:
 	// data
 	Vector3 m_position;
 	Quaternion m_rotation;
-	int m_boneIndex;
+	int32_t m_boneIndex;
 };
 TYPEDEF_BLUECLASS( EveSOFDataTransform );
 BLUE_DECLARE_VECTOR( EveSOFDataTransform );
@@ -408,7 +408,7 @@ public:
 
 	// per-hull data of a spotlightset
 	Matrix m_transform;
-	int m_boneIndex, m_groupIndex;
+	int32_t m_boneIndex, m_groupIndex;
 	bool m_boosterGainInfluence;
 	Vector3 m_spriteScale;
 	float m_flareIntensity, m_spriteIntensity, m_coneIntensity;
@@ -452,11 +452,11 @@ public:
 	Quaternion m_rotation;
 	Color m_color;
 	Vector4 m_layer1Transform, m_layer2Transform, m_layer1Scroll, m_layer2Scroll;
-	int m_boneIndex, m_groupIndex, m_maskMapAtlasIndex;
+	int32_t m_boneIndex, m_groupIndex, m_maskMapAtlasIndex;
 	
 	// Blink data parameters
 	float m_rate, m_phase, m_dutyCycle; 
-	int m_blinkMode;
+	int32_t m_blinkMode;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullPlaneSetItem );
 BLUE_DECLARE_VECTOR( EveSOFDataHullPlaneSetItem );
@@ -505,7 +505,7 @@ public:
 	// per-hull data of a spriteset
 	Vector3 m_position;
 	float m_blinkRate, m_blinkPhase, m_minScale, m_maxScale, m_falloff, m_intensity;
-	int m_boneIndex;
+	int32_t m_boneIndex;
 	EveSOFDataFactionColorSet::ColorType m_colorType;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullSpriteSetItem );
@@ -544,7 +544,7 @@ public:
 	Vector3 m_position, m_scaling;
 	Quaternion m_rotation;
 	float m_spacing, m_blinkRate, m_blinkPhase, m_blinkPhaseShift, m_minScale, m_maxScale, m_falloff, m_intensity;
-	int m_boneIndex;
+	int32_t m_boneIndex;
 	bool m_isCircle;
 	EveSOFDataFactionColorSet::ColorType m_colorType;
 };
@@ -631,7 +631,7 @@ public:
 	float m_innerRadiusMultiplier;
 	float m_noiseAmplitude;
 	float m_noiseFrequency;
-	int m_noiseOctaves;
+	int32_t m_noiseOctaves;
 	float m_saturation;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullBannerLight );
@@ -838,11 +838,11 @@ public:
 	~EveSOFDataHullArea() {}
 
 	// data
-	unsigned int m_index;
-	unsigned int m_count;
+	uint32_t m_index;
+	uint32_t m_count;
 	BlueSharedString m_name;
 	BlueSharedString m_shader;
-	unsigned int m_blockedMaterials;
+	uint32_t m_blockedMaterials;
 	EveSOFDataArea::AreaType m_areaType;
 	PEveSOFDataTextureVector m_textures;
 	PEveSOFDataParameterVector m_parameters;
@@ -942,8 +942,8 @@ public:
 	Vector3 m_translation;
 	Quaternion m_rotation;
 	Vector3 m_scaling;
-	int m_id;
-	int m_groupIndex;
+	int32_t m_id;
+	int32_t m_groupIndex;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullChild );
 BLUE_DECLARE_VECTOR( EveSOFDataHullChild );
@@ -972,7 +972,7 @@ public:
 	float m_endTranslationTime;
 	
 	// The id of the children whose partice systems are controlled by the animation
-	int m_id;
+	int32_t m_id;
 	// The particle system spawn rates
 	float m_startRate;
 	float m_endRate;
@@ -1011,7 +1011,7 @@ public:
 	EveSOFDataLogoSet::LogoType m_logoType;
 	Vector3 m_position, m_scaling;
 	Quaternion m_rotation;
-	int m_boneIndex, m_meshIndex;
+	int32_t m_boneIndex, m_meshIndex;
 	EveSOFDataFactionColorSet::ColorType m_glowColorType;
 	PEveSOFDataTextureVector m_textures;
 	PEveSOFDataParameterVector m_parameters;
@@ -1287,7 +1287,7 @@ public:
 	~EveSOFDataFactionSpotlightSet() {}
 
 	// per-faction data of a spotlight
-	int m_groupIndex;
+	int32_t m_groupIndex;
 	std::string m_name;
 	Color m_coneColor, m_spriteColor, m_flareColor;
 };
@@ -1304,7 +1304,7 @@ public:
 	~EveSOFDataFactionPlaneSet() {}
 
 	// per-faction data of a planeset
-	int m_groupIndex;
+	int32_t m_groupIndex;
 	std::string m_name;
 	Color m_color;
 };
@@ -1321,7 +1321,7 @@ public:
 	~EveSOFDataFactionChild() {}
 
 	// group
-	int m_groupIndex;
+	int32_t m_groupIndex;
 	bool m_isVisible;
 	std::string m_name;
 };
@@ -1372,10 +1372,10 @@ public:
 	EveSOFDataLogoSetPtr m_logoSet;
 
 	// material usage
-	int m_materialUsageMtl1;
-	int m_materialUsageMtl2;
-	int m_materialUsageMtl3;
-	int m_materialUsageMtl4;
+	int32_t m_materialUsageMtl1;
+	int32_t m_materialUsageMtl2;
+	int32_t m_materialUsageMtl3;
+	int32_t m_materialUsageMtl4;
 
 	// material lib names
 	EveSOFDataAreaPtr m_areaTypes;
@@ -1536,7 +1536,7 @@ public:
 	float m_flickerPerlinSpeed;
 	float m_flickerPerlinAlpha;
 	float m_flickerPerlinBeta;
-	int m_flickerPerlinN;
+	int32_t m_flickerPerlinN;
 
 	// armor damage particles
 	float m_armorParticleRate;

@@ -205,7 +205,7 @@ public:
 	double mLastUpdated;
 	long mStartOffset;
 
-    int mN;   
+    int32_t mN;   
 
     /////////////////////////////////////////////////////////////////////////////////////
     // ITriFunction

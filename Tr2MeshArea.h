@@ -60,8 +60,8 @@ public:
 private:
 	Tr2MaterialPtr m_material;
 	std::string m_name;
-	int m_index;
-    int m_count;
+	int32_t m_index;
+	int32_t m_count;
 
 	Tr2Lod m_minLod; // minimal visible lod
 

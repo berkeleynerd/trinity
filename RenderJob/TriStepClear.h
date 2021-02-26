@@ -23,7 +23,7 @@ public:
 
 	Color m_color;
 	float m_depth;
-	unsigned int m_stencil;
+	uint32_t m_stencil;
 
 	bool m_isColorCleared;
 	bool m_isDepthCleared;

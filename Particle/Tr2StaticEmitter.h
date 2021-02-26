@@ -91,7 +91,7 @@ private:
 	// Does the emitter need synchronization when adding particles
 	bool m_isThreadSafe;
 	// Index of the mesh containing particle data
-	unsigned m_meshIndex;
+	uint32_t m_meshIndex;
 };
 
 TYPEDEF_BLUECLASS( Tr2StaticEmitter );

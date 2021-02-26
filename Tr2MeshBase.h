@@ -105,7 +105,7 @@ protected:
 protected:
 	std::string m_name;
 	bool m_display;
-	int	m_meshIndex;
+	int32_t	m_meshIndex;
 
 	PTr2MeshAreaVector m_opaqueAreas;
 	PTr2MeshAreaVector m_decalAreas;

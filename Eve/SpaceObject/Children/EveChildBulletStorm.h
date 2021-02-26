@@ -105,7 +105,7 @@ private:
 
 	// bullets data
 	unsigned int m_objectCount;
-	unsigned int m_multiplier;
+	uint32_t m_multiplier;
 	std::string m_sourceLocatorSet;
 	float m_range;
 	float m_speed;

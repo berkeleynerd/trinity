@@ -35,7 +35,7 @@ private:
 	float m_maxAcceleration;
 	float m_minInertiaWeight;	// We always want some inertia when the agent is at full speed
 	float m_maxRotationSpeed;
-	int m_priority;
+	int32_t m_priority;
 };
 TYPEDEF_BLUECLASS( Inertia );
 

@@ -24,9 +24,9 @@ public:
 
 private:
 	PIEveVolumeVector m_inclusionVolumes;
-	int m_priority;
-	int m_framesBetweenUpdates;
-	int m_frameCounter;
+	int32_t m_priority;
+	int32_t m_framesBetweenUpdates;
+	int32_t m_frameCounter;
 	std::vector<Vector3> m_lastPullForces;
 	float m_behaviorWeight;
 };

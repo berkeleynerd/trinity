@@ -60,7 +60,7 @@ private:
 	int m_framesBetweenUpdates;
 	int m_frameCounter;
 	std::vector<Vector3> m_lastPullForces;
-	int m_priority;
+	int32_t m_priority;
 };
 
 TYPEDEF_BLUECLASS( FollowASpline );
