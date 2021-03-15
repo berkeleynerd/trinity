@@ -132,7 +132,8 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 			}
 		}
 
-		agent->target = data->position;
+		Matrix worldTransform = system.GetWorldTransform();
+		agent->target = XMVector3TransformCoord( data->position, worldTransform );
 
 		// If the direction is (0,0,0) it's pointing up but then the slowDown radius won't work
 		if( data->direction == Vector3( 0.0, 0.0, 0.0 ) )
@@ -161,7 +162,6 @@ std::vector<Vector3> SeekTarget::CalculateBehavior( std::vector<DroneAgent>& age
 		// For debugging
 		m_arrivalPoint = fakePoint;
 
-		Matrix worldTransform = system.GetWorldTransform();
 		Vector3 agentPositionWS = XMVector3TransformCoord( agent->position, worldTransform );
 
 		Vector3 desiredVelocity = fakePoint - agentPositionWS;
