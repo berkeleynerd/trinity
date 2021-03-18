@@ -19,6 +19,8 @@ public:
 	~EveChildModifierBillboard3D();
 
 	Matrix ApplyTransform( const Matrix& transform, size_t boneCount, const granny_matrix_3x4* bones ) const;
+private:
+	bool m_fixed;
 };
 
 TYPEDEF_BLUECLASS( EveChildModifierBillboard3D );
