@@ -88,7 +88,6 @@ inline Matrix Billboard2D( const Matrix &transform )
 
 inline Matrix Billboard3D( const Vector3& position )
 {
-	Matrix invView = Tr2Renderer::GetInverseViewTransform();
 	const Vector3& camPos = Tr2Renderer::GetViewPosition();
 	
 	Vector3 toObject = Normalize( camPos - position );
