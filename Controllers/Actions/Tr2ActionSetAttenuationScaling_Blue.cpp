@@ -43,5 +43,11 @@ const Be::ClassInfo* Tr2ActionSetAttenuationScaling::ExposeToBlue()
                               GetScalingFactor,
                               "The final scaling factor that will be sent to Wwise."
 							  )
+		MAP_METHOD_AND_WRAP(
+			"StartWithController",
+			StartWithController,
+			"Starts the action manually without changing state machine state.\n"
+			":type controller: Tr2Controller\n"
+			":param controller: The controller sent to the start method of the action.\n" )
 	EXPOSURE_END()
 }

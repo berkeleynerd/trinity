@@ -28,7 +28,9 @@ public:
 	virtual void Link( Tr2Controller& controller );
 	virtual void Unlink();
 	virtual void Start( Tr2Controller& controller );
+	void StartWithController( PyObject * controller );
 	virtual void Stop( Tr2Controller& controller );
+	void StopWithController( PyObject * controller );
 
 	virtual void Update( Be::Time realTime, Be::Time simTime );
 

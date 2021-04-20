@@ -25,3 +25,14 @@ void Tr2ActionSetAudioSwitch::Start( Tr2Controller& controller )
 		}
 	}
 }
+
+void Tr2ActionSetAudioSwitch::StartWithController( PyObject* obj )
+{
+	Tr2Controller* controller = BluePythonCast<Tr2Controller*>( obj );
+	if( !controller )
+	{
+		PyErr_SetString( PyExc_TypeError, "StartWithController expects a Tr2Controller as a parameter." );
+		return;
+	}
+	Start( *controller );
+}

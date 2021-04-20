@@ -19,6 +19,7 @@ public:
 	void Link( Tr2Controller& controller ) override;
 	void Unlink() override;
 	void Start( Tr2Controller& controller ) override;
+	void StartWithController( PyObject * controller );
 
 	float GetScalingFactor() const;
 

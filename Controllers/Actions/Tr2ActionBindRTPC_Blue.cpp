@@ -40,5 +40,17 @@ const Be::ClassInfo* Tr2ActionBindRTPC::ExposeToBlue()
 			EvaluateExpression,
 			"Evaluates an expression against this object\n"
 			":param expression: expression to evaluate" )
+		MAP_METHOD_AND_WRAP(
+			"StartWithController",
+			StartWithController,
+			"Starts the action manually without changing state machine state.\n"
+			":type controller: Tr2Controller\n"
+			":param controller: The controller sent to the start method of the action.\n" )
+		MAP_METHOD_AND_WRAP(
+			"StopWithController",
+			StopWithController,
+			"Stops the action manually without changing state machine state.\n"
+			":type controller: Tr2Controller\n"
+			":param controller: The controller sent to the start method of the action.\n" )
 	EXPOSURE_END()
 }

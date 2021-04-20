@@ -38,6 +38,17 @@ void Tr2ActionSetAttenuationScaling::Start( Tr2Controller& controller )
 	}
 }
 
+void Tr2ActionSetAttenuationScaling::StartWithController( PyObject* obj )
+{
+	Tr2Controller* controller = BluePythonCast<Tr2Controller*>( obj );
+	if( !controller )
+	{
+		PyErr_SetString( PyExc_TypeError, "StartWithController expects a Tr2Controller as a parameter." );
+		return;
+	}
+	Start( *controller );
+}
+
 // Convert a scaling percentage to float for Wwise. If defined, apply 
 // a value from a controller variable to the final scaling factor.
 float Tr2ActionSetAttenuationScaling::GetScalingFactor() const
