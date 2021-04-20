@@ -11,7 +11,8 @@ struct ProcessLifetimeData
 		hasUsedEntryTunnel( false ),
 		hasUsedExitTunnel( false ),
 		assignedLifeTimeTunnel( 0 ),
-		tunnelPoint( 0 )
+		tunnelPoint( 0 ),
+		hasSpawned( false )
 	{
 	}
 
@@ -19,6 +20,7 @@ struct ProcessLifetimeData
 	bool hasUsedExitTunnel;
 	int assignedLifeTimeTunnel;
 	int tunnelPoint;
+	bool hasSpawned;
 };
 
 BLUE_DECLARE( TriCurveSet );
@@ -28,12 +30,17 @@ BLUE_DECLARE_VECTOR( SplineTunnelGroup );
 BLUE_CLASS( ProcessLifetime ) :
 	public IBehavior,
 	public IListNotify,
-	public INotify
+	public INotify,
+	public IInitialize
 {
 public:
 	EXPOSE_TO_BLUE();
 	ProcessLifetime( IRoot* lockobj = nullptr );
 	~ProcessLifetime();
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// IInitialize
+	bool Initialize();
 
 	// Notify
 	bool OnModified(Be::Var* value);
@@ -56,10 +63,12 @@ public:
 	
 private:
 	void FindASpawnPoint( DroneAgent & agent, ProcessLifetimeData * data, BehaviorGroup & group );
+	Vector3 FindInitialSpawnPoint( size_t& pointID );
 	bool ProcessTunnel(DroneAgent& agent, SplineTunnel& tunnel, int& pointID, float boundingSphere);
 	void findAndAssignAnExitTunnel(DroneAgent& agent, ProcessLifetimeData* data);
 	void UpdateTunnelRegistry();
 	void ReassignTunnelIDsAndAddSystemTunnels( EveChildBehaviorSystem& system );
+	float GetRandomOffset( float cylWidth ) const;
 
 	float m_firstAgentLifetime; // debug visualization 
 	PSplineTunnelGroupVector m_splineTunnels;
@@ -70,8 +79,11 @@ private:
 	bool m_respawnAgentsOnDeath;
 	bool m_shouldReassignTunnelIDs;
 	bool m_exit;
+	bool m_firstSpawnAtRandomPlaces;
+	bool m_intialSpawn;
 	Vector3 m_desiredVector;
 	int32_t m_priority;
+	float m_wanderAmount;
 };
 
 TYPEDEF_BLUECLASS( ProcessLifetime );

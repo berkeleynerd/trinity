@@ -21,6 +21,7 @@ const Be::ClassInfo* ProcessLifetime::ExposeToBlue()
 		MAP_INTERFACE( ProcessLifetime )
 		MAP_INTERFACE( IBehavior )
 		MAP_INTERFACE( INotify )
+		MAP_INTERFACE( IInitialize )
 
 		MAP_ATTRIBUTE_WITH_CHOOSER( "behaviorPriority", m_priority, "control what priority this behavior should have", 
 			Be::READWRITE | Be::PERSIST | Be::NOTIFY | Be::ENUM, BehaviorPriorityChooser )
@@ -29,9 +30,10 @@ const Be::ClassInfo* ProcessLifetime::ExposeToBlue()
 		MAP_ATTRIBUTE( "firstAgentLifetime", m_firstAgentLifetime, "Current lifetime for first agent in the group", Be::READ )
 		MAP_ATTRIBUTE( "behaviorWeight", m_behaviorWeight, "pull force multiplier", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "returningAge", m_returningAge, "designate when agent should exit the scene", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "wanderAmount", m_wanderAmount, "How much randomness should the drones wander around the tunnel, value between [0-1]", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		MAP_ATTRIBUTE( "respawnAgentsOnDeath", m_respawnAgentsOnDeath, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "splineTunnels", m_splineTunnels, "", Be::READ | Be::PERSIST | Be::NOTIFY )
-
+		MAP_ATTRIBUTE( "firstSpawnAtRandomPlaces", m_firstSpawnAtRandomPlaces, "If true, on load drones will spawn around the tunnel", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 		
 
 	EXPOSURE_END()
