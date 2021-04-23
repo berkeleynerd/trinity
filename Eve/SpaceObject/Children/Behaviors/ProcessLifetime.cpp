@@ -11,7 +11,7 @@ ProcessLifetime::ProcessLifetime( IRoot* lockobj ) :
 	m_shouldReassignTunnelIDs( true ),
 	m_respawnAgentsOnDeath( true ),
 	m_exit( false ),
-	m_firstSpawnAtRandomPlaces( false ),
+	m_firstSpawnAtRandomPlaces( true ),
 	m_intialSpawn( false ),
 	m_priority( LEAST_PRIORITY )
 {
@@ -115,12 +115,10 @@ std::vector<Vector3> ProcessLifetime::CalculateBehavior( std::vector<DroneAgent>
 		if( !data->hasSpawned && m_intialSpawn )
 		{
 			Vector3 spawnPos;
-			size_t pointID = 0;
-			spawnPos = FindInitialSpawnPoint( pointID );
-			group.m_spawnPosition = spawnPos;
-			drone->position = spawnPos;
-			data->hasSpawned = true;
-			data->tunnelPoint = static_cast<int>(pointID);
+			if( FindInitialSpawnPoint( *drone, data, spawnPos ) )
+			{
+				group.m_spawnPosition = spawnPos;
+			}
 		}
 
 		m_desiredVector = Vector3( 0, 0, 0 );
@@ -162,7 +160,7 @@ std::vector<Vector3> ProcessLifetime::CalculateBehavior( std::vector<DroneAgent>
 						dronesThatDie.push_back( index );
 					}
 
-					findAndAssignAnExitTunnel( *drone, data );
+					FindAndAssignAnExitTunnel( *drone, data );
 				}
 				else
 				{
@@ -217,6 +215,11 @@ float ProcessLifetime::GetRandomOffset( float cylWidth ) const
 
 bool ProcessLifetime::ProcessTunnel( DroneAgent& agent, SplineTunnel& tunnel, int& pointID, float boundingSphere )
 {
+	if( tunnel.splinePoints.empty() )
+	{
+		return false;
+	}
+
 	Vector3 targetVector = tunnel.splinePoints[pointID].pos - agent.position;
 	Vector3 vectorBetween( 0, 0, 0 );
 
@@ -286,7 +289,7 @@ bool ProcessLifetime::ProcessTunnel( DroneAgent& agent, SplineTunnel& tunnel, in
 	return false;
 }
 
-void ProcessLifetime::findAndAssignAnExitTunnel( DroneAgent& agent, ProcessLifetimeData* data )
+void ProcessLifetime::FindAndAssignAnExitTunnel( const DroneAgent& agent, ProcessLifetimeData* data )
 {
 	int closestPointIndex = -1;
 	float lengthSqToClosestPoint = -1;
@@ -314,37 +317,49 @@ void ProcessLifetime::findAndAssignAnExitTunnel( DroneAgent& agent, ProcessLifet
 	}
 }
 
-Vector3 ProcessLifetime::FindInitialSpawnPoint( size_t& pointID )
+bool ProcessLifetime::FindInitialSpawnPoint( DroneAgent& drone, ProcessLifetimeData* data, Vector3& pos )
 {
-	std::vector<Vector3> potentialPoints;
-	std::vector<int> potentialPointIDs;
-	for( auto tunnel = begin( m_privateTunnels ); tunnel != end( m_privateTunnels ); ++tunnel )
+	if( m_splineTunnels.size() <= 0 )
 	{
-		if( ( *tunnel )->tunnelGroupType == ENTRANCE_TUNNELS )
-		{
-			size_t min = 0;
-			size_t max = ( *tunnel )->splinePoints.size() - 1;
-			size_t randPoint = min + rand() / ( RAND_MAX / ( max - min + 1 ) + 1 );
-			// We want the drone to target the next point
-			pointID = randPoint + 1;
-			Vector3 point = ( *tunnel )->splinePoints[randPoint].pos;
-			for( int i = 0; i < 3; i++ )
-			{
-				point[i] += -( *tunnel )->pointOfNoReturnSize + static_cast<float>( rand() ) / ( static_cast<float>( RAND_MAX / ( 2 * ( *tunnel )->pointOfNoReturnSize ) ) );
-			}
-			potentialPoints.push_back( point );
-		}
+		return false;
 	}
 
-	if( potentialPoints.size() > 0 )
+	size_t sizeIndex = m_splineTunnels.size() - 1;
+	// random nr from 0 to sizeIndex - 1
+	size_t randomNr = rand() % ( sizeIndex + 1 );
+
+	// pick a random splineTunnel
+	auto splineTunnel = m_splineTunnels[randomNr];
+
+	if( splineTunnel->GetTunnelGroupType() == ENTRANCE_TUNNELS )
 	{
-		const auto randomNbr = rand() % potentialPoints.size();
-		return potentialPoints.at( randomNbr );
+		// get the curve sets for that tunnel
+		auto curveSets = splineTunnel->GetCurveSets();
+
+		size_t curveSize = ( *curveSets ).size() - 1;
+		// we can have more than 1 curve so pick a random curve
+		size_t randomCurve = rand() % ( curveSize + 1 );
+
+		// get random time
+		size_t length = size_t( ( *curveSets )[randomCurve]->Length() );
+		size_t time = rand() % ( length + 1 );
+
+		// get value at time
+		Vector3 pos = ( *curveSets )[randomCurve]->GetValue( double( time ) );
+
+		float stepSize = float( time ) / float( length );
+
+		// Get the next pointID
+		auto pointID =  floor(stepSize * ( splineTunnel->GetNumBreakPoints() ) + 1) + 0.5f;
+
+		drone.position = pos;
+		drone.lifetime += stepSize * pointID;
+		data->hasSpawned = true;
+		data->tunnelPoint = static_cast<int>( pointID );
+
+		return true;
 	}
-	else
-	{
-		return Vector3( 0, 0, 0 );
-	}
+	return false;
 }
 
 void ProcessLifetime::FindASpawnPoint( DroneAgent& agent, ProcessLifetimeData* data, BehaviorGroup& group )

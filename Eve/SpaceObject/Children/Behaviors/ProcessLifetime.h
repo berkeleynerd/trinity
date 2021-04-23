@@ -63,9 +63,9 @@ public:
 	
 private:
 	void FindASpawnPoint( DroneAgent & agent, ProcessLifetimeData * data, BehaviorGroup & group );
-	Vector3 FindInitialSpawnPoint( size_t& pointID );
-	bool ProcessTunnel(DroneAgent& agent, SplineTunnel& tunnel, int& pointID, float boundingSphere);
-	void findAndAssignAnExitTunnel(DroneAgent& agent, ProcessLifetimeData* data);
+	bool FindInitialSpawnPoint( DroneAgent & agent, ProcessLifetimeData* data, Vector3& pos );
+	bool ProcessTunnel( DroneAgent& agent, SplineTunnel& tunnel, int& pointID, float boundingSphere );
+	void FindAndAssignAnExitTunnel( const DroneAgent& agent, ProcessLifetimeData* data );
 	void UpdateTunnelRegistry();
 	void ReassignTunnelIDsAndAddSystemTunnels( EveChildBehaviorSystem& system );
 	float GetRandomOffset( float cylWidth ) const;

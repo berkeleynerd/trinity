@@ -533,7 +533,8 @@ void BehaviorGroup::UpdateAgents( const float dt, EveChildBehaviorSystem& system
 	// Move the agents based on the behaviors
 	for( auto agent = m_agents.begin(); agent != m_agents.end(); ++agent )
 	{
-		agent->lifetime += dt;
+		// make sure the update isn't too big when e.g. a player resizes his window (in window mode)
+		agent->lifetime += TriClamp( dt, 0.0, 0.1 );
 
 		static const Vector3 zAxis( 0.f, 0.f, 1.f );
 

@@ -80,7 +80,7 @@ public:
 	std::vector<SplineTunnel>* GetTunnels();
 	void SetNumBreakPoints(int val);
 	int GetNumBreakPoints() const;
-
+	Tr2CurveVector3Vector* GetCurveSets();
 
 	// ITr2DebugRenderable
 	virtual void GetDebugOptions( Tr2DebugRendererOptions& options );
@@ -90,7 +90,6 @@ public:
 	static bool Initialize();
 	void OnListModified(long event, ssize_t key, ssize_t key2, IRoot* value, const IList* theList);
 	bool OnModified( Be::Var* value );
-
 	
 
 private:

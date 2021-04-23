@@ -81,6 +81,10 @@ std::vector<SplineTunnel>* SplineTunnelGroup::GetTunnels()
 	return &m_tunnels;
 }
 
+Tr2CurveVector3Vector* SplineTunnelGroup::GetCurveSets()
+{
+	return &m_curveSets;
+}
 
 void SplineTunnelGroup::SetNumBreakPoints( int val )
 {
