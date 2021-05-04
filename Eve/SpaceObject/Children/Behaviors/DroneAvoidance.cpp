@@ -32,6 +32,11 @@ std::vector<Vector3> DroneAvoidance::CalculateBehavior( std::vector<DroneAgent>&
 		m_lastPullForces.clear();
 		for( auto agent = agents.begin(); agent != agents.end(); ++agent, ++c )
 		{
+			if( dronesInSearchRadius.size() <= c )
+			{
+				m_lastPullForces.push_back( Vector3( 0, 0, 0 ) );
+				continue;
+			}
 
 			if( dronesInSearchRadius.empty() )
 			{
@@ -46,12 +51,6 @@ std::vector<Vector3> DroneAvoidance::CalculateBehavior( std::vector<DroneAgent>&
 			}
 
 			if( dronesInSearchRadius[c].size() == 1 )
-			{
-				m_lastPullForces.push_back( Vector3( 0, 0, 0 ) );
-				continue;
-			}
-
-			if( c > dronesInSearchRadius.size() - 1 )
 			{
 				m_lastPullForces.push_back( Vector3( 0, 0, 0 ) );
 				continue;
