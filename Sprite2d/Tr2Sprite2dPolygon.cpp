@@ -119,6 +119,9 @@ ITr2SpriteObject* Tr2Sprite2dPolygon::PickPoint( float x, float y, Tr2Sprite2dSc
 
 	if( !m_pickingMask || m_pickingMask->SampleMask( renderer->InverseTransformPoint( Vector2( x, y ) ), m_translation, m_displayWidth, m_displayHeight ) )
 	{
+		renderer->PushTranslation( m_translation );
+		ON_BLOCK_EXIT( [renderer] { renderer->PopTranslation(); } );
+
 		Vector2 query( x, y );
 
 		for( auto it = m_triangles.begin(); it != m_triangles.end(); ++it )
