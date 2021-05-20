@@ -5,7 +5,7 @@ BLUE_INTERFACE( IEveLineSetPath ) :
 {
 public:
 	virtual bool Update( EveUpdateContext& updateContext, const EveChildUpdateParams& params );
-	virtual void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t*& data, const unsigned stride );
+	virtual void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t * &data, const Matrix& systemLocation, const unsigned stride );
 
 	virtual void GeneratePoints( const Matrix& parentTransform = IdentityMatrix() );
 	virtual void GetPointCount( unsigned& count);

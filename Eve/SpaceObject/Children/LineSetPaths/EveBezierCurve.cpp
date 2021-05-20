@@ -202,7 +202,7 @@ void EveBezierCurve::AddLinesToSet( EveCurveLineSet& lineSet, const Vector4& col
 	}
 }
 
-void EveBezierCurve::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const unsigned stride )
+void EveBezierCurve::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const Matrix& systemLocation, const unsigned stride )
 {
 	if( !m_isVisible || !m_display )
 	{
@@ -235,6 +235,7 @@ void EveBezierCurve::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& da
 
 		const unsigned nextPoint = ( count + 1 >= unsigned( m_points.size() ) ) ? 0 : count + 1;
 
+		
 		if( nextPoint == 0 )
 		{
 			if( m_completeness < 1.f )
@@ -264,14 +265,15 @@ void EveBezierCurve::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& da
 			dirToNextPoint = targetPoint - translation;
 		}
 
+		if( m_billboardObjects )
+		{
+			const Vector3 angleToCamera = Tr2Renderer::GetViewPosition() - TransformCoord( m_points[count], systemLocation );
+			dirToNextPoint = TransformCoord( angleToCamera, Inverse( systemLocation ) );
+		}
+		
 		TriQuaternionArcFromForward( &objRot, &dirToNextPoint );
 		
 		Matrix matrix = TransformationMatrix( sizeMod * m_objectScale, objRot, translation );
-		
-		if( m_billboardObjects )
-		{
-			matrix = Billboard2D( matrix );
-		}
 		
 		Matrix m = Transpose( matrix );
 		memcpy( data, &m, stride );

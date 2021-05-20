@@ -14,16 +14,16 @@ public:
 	EveBezierCurve( IRoot* lockobj = nullptr );
 	~EveBezierCurve();
 
-	virtual bool Update( EveUpdateContext & updateContext, const EveChildUpdateParams& params );
-	virtual void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t*& data, const unsigned stride );
+	bool Update( EveUpdateContext & updateContext, const EveChildUpdateParams& params ) override;
+	void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t * &data, const Matrix& systemLocation, const unsigned stride ) override;
 
-	virtual void GeneratePoints( const Matrix& parentTransform = IdentityMatrix() );
-	virtual void GetPointCount( unsigned& count );
-	virtual void AddLinesToSet( EveCurveLineSet & lineSet, const Vector4& color, const Vector4& animColor, float scrollSpeed );
+	void GeneratePoints( const Matrix& parentTransform = IdentityMatrix() ) override;
+	void GetPointCount( unsigned& count ) override;
+	void AddLinesToSet( EveCurveLineSet & lineSet, const Vector4& color, const Vector4& animColor, float scrollSpeed ) override;
 	
-	virtual void CalculateBoundingSphere( float meshSize = 0.0, bool reCalculateChildren = true );
-	virtual void GetBoundingSphere( Vector4 & sphere );
-	virtual void UpdateVisibility( const TriFrustum& frustum, Tr2Lod parentLod, const Matrix& systemLocation );
+	void CalculateBoundingSphere( float meshSize = 0.0, bool reCalculateChildren = true ) override;
+	void GetBoundingSphere( Vector4 & sphere ) override;
+	void UpdateVisibility( const TriFrustum& frustum, Tr2Lod parentLod, const Matrix& systemLocation ) override;
 
 	// IInitialize
 	bool Initialize() override;

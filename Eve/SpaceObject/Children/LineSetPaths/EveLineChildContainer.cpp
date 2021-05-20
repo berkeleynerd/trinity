@@ -53,7 +53,7 @@ bool EveLineChildContainer::Update( EveUpdateContext& updateContext, const EveCh
 	return updateBounds;
 }
 
-void EveLineChildContainer::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const unsigned stride )
+void EveLineChildContainer::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const Matrix& systemLocation, const unsigned stride )
 {
 	if( !m_isVisible || !m_display )
 	{
@@ -71,7 +71,7 @@ void EveLineChildContainer::UpdateBuffer( Tr2RenderContext& renderContext, uint8
 
 	for( auto it = begin( m_lines ); it != end( m_lines ); ++it )
 	{
-		( *it )->UpdateBuffer( renderContext, data, stride );
+		( *it )->UpdateBuffer( renderContext, data, systemLocation, stride );
 	}
 }
 

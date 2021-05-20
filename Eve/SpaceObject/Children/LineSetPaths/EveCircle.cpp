@@ -203,7 +203,7 @@ void EveCircle::AddLinesToSet( EveCurveLineSet& lineSet, const Vector4& color, c
 	}
 }
 
-void EveCircle::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const unsigned stride )
+void EveCircle::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, const Matrix& systemLocation, const unsigned stride )
 {
 	if( !m_isVisible || !m_display )
 	{
@@ -233,35 +233,22 @@ void EveCircle::UpdateBuffer( Tr2RenderContext& renderContext, uint8_t*& data, c
 
 		Vector3 dirToNextPoint( 0.f, 1.f, 0.f );
 		const unsigned nextPoint = ( count + 1 >= unsigned( m_points.size() ) ) ? 0 : count + 1;
-
-		if( nextPoint == 0 )
+		translation = Lerp( m_points[count], m_points[nextPoint], m_animValue );
+		
+		if( m_billboardObjects )
 		{
-			if( m_completeness != 1.f )
-			{
-				Matrix m = ScalingMatrix( Vector3( 0.f, 0.f, 0.f ) );
-				memcpy( data, &m, stride );
-				data += stride;
-				continue;
-			}
-			else
-			{
-				translation = Lerp( m_points[count], m_points[nextPoint], m_animValue );
-				dirToNextPoint = m_points[nextPoint] - m_points[count];
-			}
+			const Vector3 angleToCamera = Tr2Renderer::GetViewPosition() - TransformCoord( m_points[count], systemLocation );
+			dirToNextPoint = TransformCoord( angleToCamera, Inverse( systemLocation ) );
 		}
 		else
 		{
-			translation = Lerp( m_points[count], m_points[nextPoint], m_animValue );
-			dirToNextPoint = m_points[nextPoint] - m_points[count];
+			const unsigned farPoint = ( nextPoint + 1 >= unsigned( m_points.size() ) ) ? 0 : nextPoint + 1;
+			dirToNextPoint = Lerp( m_points[nextPoint], m_points[farPoint], m_animValue ) - translation;
 		}
 
 		TriQuaternionArcFromForward( &objRot, &dirToNextPoint );
+		
 		Matrix matrix = TransformationMatrix( sizeMod * m_objectScale, objRot, translation );
-
-		if( m_billboardObjects )
-		{
-			matrix = Billboard2D( matrix );
-		}
 
 		Matrix m = Transpose( matrix );
 		memcpy( data, &m, stride );

@@ -18,7 +18,7 @@ public:
 	~EveLineChildContainer();
 	
 	bool Update( EveUpdateContext & updateContext, const EveChildUpdateParams& params ) override;
-	void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t * &data, const unsigned stride ) override;
+	void UpdateBuffer( Tr2RenderContext & renderContext, uint8_t * &data, const Matrix& systemLocation, const unsigned stride ) override;
 
 	void GeneratePoints( const Matrix& parentTransform = IdentityMatrix() ) override;
 	void GetPointCount( unsigned& count ) override;
