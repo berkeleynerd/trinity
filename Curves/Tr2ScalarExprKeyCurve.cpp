@@ -150,6 +150,7 @@ bool Tr2ScalarExprKey::OnModified( Be::Var* value )
 // --------------------------------------------------------------------------------------
 void Tr2ScalarExprKey::InitializeParser( mu::Parser& parser )
 {
+	parser.EnableOptimizer( false );
 	parser.DefineFun( "perlin_simple", perlin_wrap_simple, false );
 	parser.DefineFun( "perlin", perlin_wrap, false );
 	parser.DefineFun( "random", frandom, false );

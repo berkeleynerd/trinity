@@ -81,6 +81,7 @@ Tr2CurveScalarExpression::Tr2CurveScalarExpression( IRoot* lockobj )
 	m_currentValue( 0 ),
 	m_timeScale( 1 ),
 	m_randomConstant( float( rand() ) / RAND_MAX ),
+	m_time( 0 ),
 	m_input1( 0 ),
 	m_input2( 0 ),
 	m_input3( 0 ),
@@ -103,6 +104,7 @@ bool Tr2CurveScalarExpression::Initialize()
 
 void Tr2CurveScalarExpression::SetupParser( mu::Parser& parser )
 {
+	parser.EnableOptimizer( false );
 	parser.DefineFun( "fractal", &Fractal, false );
 	parser.DefineFun( "noise", &Noise, false );
 	parser.DefineFun( "randomConstant", &RandomConstant, false );

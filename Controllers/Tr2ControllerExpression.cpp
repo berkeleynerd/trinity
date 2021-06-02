@@ -392,6 +392,7 @@ std::string Tr2ControllerExpression::SetExpr( const char* expression, const Tr2C
 std::string Tr2ControllerExpression::CreateParser( const char* expression, ModifyParser modifyParser )
 {
 	m_expressionParser = mu::Parser();
+	m_expressionParser.EnableOptimizer( false );
 	auto& variables = m_controller->GetVariables();
 	for( auto it = begin( variables ); it != end( variables ); ++it )
 	{

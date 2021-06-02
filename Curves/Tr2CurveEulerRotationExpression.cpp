@@ -78,6 +78,7 @@ Tr2CurveEulerRotationExpression::Tr2CurveEulerRotationExpression( IRoot* lockobj
 	m_currentValue( 0, 0, 0, 1 ),
 	m_timeScale( 1 ),
 	m_randomConstant( float( rand() ) / RAND_MAX ),
+	m_time( 0 ),
 	m_input1( 0 ),
 	m_input2( 0 ),
 	m_input3( 0 ),
@@ -108,6 +109,7 @@ bool Tr2CurveEulerRotationExpression::Initialize()
 
 void Tr2CurveEulerRotationExpression::SetupParser( mu::Parser& parser )
 {
+	parser.EnableOptimizer( false );
 	parser.DefineFun( "fractal", &Fractal, false );
 	parser.DefineFun( "noise", &Noise, false );
 	parser.DefineFun( "randomConstant", &RandomConstant, false );
