@@ -167,6 +167,9 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_useSunColorWithDynamicLights( false ),
 	m_nebulaBrightnessOverride( 0.f ),
 	m_nebulaBrightnessOverrideVar( "NebulaBrightnessOverride", m_nebulaBrightnessOverride ),
+	m_reflectionProbeIntensity( 1.f ),
+	m_reflectionProbeBackLightingContrast( 16.0f ),
+	m_reflectionProbeBackLightingColor( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_hasDepthPass( false ),
 	m_msaaSamples( 0 ),
 	m_hasBackgroundDistortionBatches( false ),
@@ -1692,7 +1695,7 @@ void EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 	}
 
 	// Render background reflection cubemap
-	if( m_reflectionProbe && m_reflectionProbe->IsValid() )
+	if( HasReflectionProbe() )
 	{
 		GPU_REGION( renderContext, "Reflection" );
 
@@ -2338,7 +2341,7 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data, Tr2RenderConte
 	// make sure whatever direction we get in here, it is normalized! And inverted: Shaders work with direction to light...
 	data.Sun.DirWorld = -Normalize( data.Sun.DirWorld );
 	data.AmbientColor = Vector3( m_ambientColor.r, m_ambientColor.g, m_ambientColor.b );
-	data.NebulaIntensity = m_nebulaBrightnessOverride > 0.0f ? m_nebulaBrightnessOverride : m_nebulaIntensity;
+	data.NebulaIntensity = ( HasReflectionProbe() && m_reflectionProbe->IsHollyWoodModeOn() ) ? m_reflectionProbeIntensity : ( m_nebulaBrightnessOverride > 0.0f ? m_nebulaBrightnessOverride : m_nebulaIntensity );
 	data.FogColor = Vector4( m_fogColor.r, m_fogColor.g, m_fogColor.b, m_fogMax );
 
 	// ps gamma brightness
@@ -2362,7 +2365,6 @@ void EveSpaceScene::PopulatePerFramePSData( PerFramePSData &data, Tr2RenderConte
 	data.ViewportSize.y = renderContext.m_esm.GetDeviceViewport().m_height;
 
 	data.Time = Tr2Renderer::GetAnimationTime();
-	data.UseNebulaIntensity = ( m_reflectionProbe && m_reflectionProbe->IsValid() ) ? 0.f : 1.f;
 	if( m_shadowMap )
 	{
 		data.ShadowMapSettings = m_shadowMap->GetShadowMapSettings();
@@ -2387,6 +2389,9 @@ bool EveSpaceScene::Initialize()
 	if( m_reflectionProbe && m_reflectionProbe->IsValid() )
 	{
 		m_envMapTextureRes = m_reflectionProbe->GetReflection();
+
+		m_reflectionProbe->SetBackLightColor( m_reflectionProbeBackLightingColor );
+		m_reflectionProbe->SetBackLightContrast( m_reflectionProbeBackLightingContrast );
 	}
 	else if( m_envMapHandle )
 	{
@@ -2433,9 +2438,11 @@ bool EveSpaceScene::OnModified( Be::Var* value )
 	if( IsMatch( value, m_reflectionProbe ) || IsMatch(value, m_envMapResPath) )
 	{
 		m_envMapTextureRes.Unlock();
-		if( m_reflectionProbe && m_reflectionProbe->IsValid() )
+		if( HasReflectionProbe() )
 		{
 			m_envMapTextureRes = m_reflectionProbe->GetReflection();
+			m_reflectionProbe->SetBackLightColor( m_reflectionProbeBackLightingColor );
+			m_reflectionProbe->SetBackLightContrast( m_reflectionProbeBackLightingContrast );
 		}
 		else if( !m_envMapResPath.empty() )
 		{
@@ -2465,6 +2472,15 @@ bool EveSpaceScene::OnModified( Be::Var* value )
 		{
 			BeResMan->GetResource( m_envMap3ResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_envMap3 );
 		}
+	}
+
+	if( IsMatch( value, m_reflectionProbeBackLightingColor ) && HasReflectionProbe() )
+	{
+		m_reflectionProbe->SetBackLightColor( m_reflectionProbeBackLightingColor );
+	}
+	if( IsMatch( value, m_reflectionProbeBackLightingContrast ) && HasReflectionProbe() )
+	{
+		m_reflectionProbe->SetBackLightContrast( m_reflectionProbeBackLightingContrast );	
 	}
 
 	return true;
@@ -2995,4 +3011,10 @@ bool EveSpaceScene::GetPredicate( const char* name ) const
 		return m_hasForegroundDistortionBatches;
 	}
 	return false;
+}
+
+// Checks if we have a reflection probe
+bool EveSpaceScene::HasReflectionProbe() const
+{
+	return m_reflectionProbe && m_reflectionProbe->IsValid();
 }

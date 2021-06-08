@@ -22,14 +22,6 @@ BLUE_CLASS( Tr2ReflectionProbe ) :
 public:
 	EXPOSE_TO_BLUE();
 
-	enum HackBacklightApplication
-	{
-		BACK_LIGHT_PLAIN,
-		BACK_LIGHT_MODULATE_WITH_BACKGROUND,
-		BACK_LIGHT_MODULATE_WITH_CUBE_MAP,
-		BACK_LIGHT_MODULATE_WITH_CUBE_MAP_CENTER,
-	};
-
 	Tr2ReflectionProbe( IRoot* lockobj = NULL );
 	~Tr2ReflectionProbe();
 
@@ -44,7 +36,13 @@ public:
 	Tr2RenderTargetPtr GetReflection();
 	void SetPosition( Vector3 position );
 
+	void SetBackLightColor( Color color );
+	void SetIntensity( float intensity);
+	void SetBackLightContrast( float contrast );
+
 	bool OnModified( Be::Var* value );
+
+	bool IsHollyWoodModeOn() const;
 
 private:
 	void RunFilter();
@@ -68,15 +66,10 @@ private:
 	bool m_prevCullInversion;
 	bool m_hdrOutput;
 
-	// TEMPORARY controls for experiments with environment maps
-	bool m_hackMode;
-	HackBacklightApplication m_backlightApplication;
+	// Controls for hollywood lighting
+	bool m_hollywoodMode;
 	Color m_backlightColor;
 	float m_backlightContrast;
-	float m_intensity;
-	std::wstring m_backlightModulateCubeMapPath;
-	TriTextureResPtr m_backlightModulateCubeMap;
-	uint32_t m_backlightModulateCubeMapMip;
 };
 
 TYPEDEF_BLUECLASS( Tr2ReflectionProbe );

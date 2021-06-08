@@ -225,8 +225,8 @@ protected:
 
 		// MiscData
 		float Time;
-		float UseNebulaIntensity;
-		float Unused;
+		float unused2;
+		float unused3;
 		float GammaBrightness;
 	};
 	double m_viewProjectLastD[16];
@@ -468,6 +468,8 @@ private:
 		m_updateContext.SetGpuParticleSystem( ps );
 	}
 
+	bool HasReflectionProbe() const;
+
 	Be::Time m_updateTime;
 	EveSpaceObject2Ptr m_egoBall;
 
@@ -567,6 +569,10 @@ private:
 
 	Tr2PostProcess2Ptr m_postProcess;
 	Tr2ReflectionProbePtr m_reflectionProbe;
+
+	float m_reflectionProbeIntensity;
+	float m_reflectionProbeBackLightingContrast;
+	Color m_reflectionProbeBackLightingColor;
 
 	BlueSharedString m_name;
 };
