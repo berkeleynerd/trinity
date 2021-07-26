@@ -793,8 +793,3 @@ void Tr2Sprite2dLineTrace::OnListModified( long event, /* BLUELISTEVENT values *
 		break;
 	}
 }
-
-size_t Tr2Sprite2dLineTrace::GetRenderVertexCount() const
-{
-	return m_renderVertices.size();
-}
