@@ -132,3 +132,8 @@ void Tr2MeshLod::GetBatches( ITriRenderBatchAccumulator* batches,
 		}
 	}
 }
+
+bool Tr2MeshLod::IsGeometryUsingSelectedLod() const
+{
+	return m_geometryRes->IsUsingSelectedLod();
+}

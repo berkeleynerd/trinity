@@ -54,7 +54,7 @@ PyObject* ParseAttribs( wchar_t *&curPos, const wchar_t *keyAlreadyParsed = NULL
     };
 
     attribStates astate;
-    const wchar_t* key;
+    const wchar_t* key = nullptr;
     PyObject* result = PyDict_New();
 
     if( keyAlreadyParsed )

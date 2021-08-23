@@ -13,6 +13,8 @@ const Be::VarChooser Tr2DxtCompressionChooser[] =
 	{ "TR2DXT_COMPRESS_SQUISH_DXT1",		BeCast( TR2DXT_COMPRESS_SQUISH_DXT1 ),		"High quality squish dxt1 compression" },
 	{ "TR2DXT_COMPRESS_SQUISH_DXT3",		BeCast( TR2DXT_COMPRESS_SQUISH_DXT3 ),		"High quality squish dxt3 compression" },
 	{ "TR2DXT_COMPRESS_SQUISH_DXT5",		BeCast( TR2DXT_COMPRESS_SQUISH_DXT5 ),		"High quality squish dxt5 compression" },
+	{ "TR2DXT_COMPRESS_SQUISH_KBC4",		BeCast( TR2DXT_COMPRESS_SQUISH_KBC4 ),		"High quality squish kbc4 compression" },
+	{ "TR2DXT_COMPRESS_SQUISH_KBC5",		BeCast( TR2DXT_COMPRESS_SQUISH_KBC5 ),		"High quality squish kbc5 compression" },
 	{0}
 };
 
@@ -22,8 +24,6 @@ const Be::VarChooser Tr2DxtCompressionSquishQualityChooser[] =
 	{ "TR2DXT_COMPRESS_SQ_ITER_CLUSTER_FIT",	BeCast( TR2DXT_COMPRESS_SQ_ITER_CLUSTER_FIT ),	"Use a very slow but very high quality colour compressor." }, 
 	{ "TR2DXT_COMPRESS_SQ_CLUSTER_FIT",			BeCast( TR2DXT_COMPRESS_SQ_CLUSTER_FIT ),		"Use a slow but high quality colour compressor." },
 	{ "TR2DXT_COMPRESS_SQ_RANGE_FIT",			BeCast( TR2DXT_COMPRESS_SQ_RANGE_FIT ),			"Use a fast but low quality colour compressor." },
-	{ "TR2DXT_COMPRESS_SQ_METRIC_PERCEPTUAL",	BeCast( TR2DXT_COMPRESS_SQ_METRIC_PERCEPTUAL ),	"Use a perceptual metric for colour error." },
-	{ "TR2DXT_COMPRESS_SQ_UNIFORM",				BeCast( TR2DXT_COMPRESS_SQ_UNIFORM),			"Use a uniform metric for colour error." },
 	{0}
 };
 

@@ -201,3 +201,8 @@ void Tr2LodResource::RebuildCachedData( BlueAsyncRes* p )
 		}
 	}
 }
+
+bool Tr2LodResource::IsUsingSelectedLod() const
+{
+	return m_requested == nullptr;
+}

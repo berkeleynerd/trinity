@@ -139,7 +139,7 @@ void Tr2ProfileTimer::SetCaptureGpuTime( bool capture )
 	if( capture )
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		m_gpuTimer.Create( renderContext );
+		m_gpuTimer.Create( renderContext ).GetResult();
 	}
 	else
 	{

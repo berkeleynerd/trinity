@@ -134,8 +134,8 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 						particleRadiusCoefficient ) );
 				}
 			}
-			XMVECTOR curPosition = XMLoadFloat3A( position );
-			XMVECTOR curVelocity = XMLoadFloat3A( velocity );
+			XMVECTOR curPosition = XMLoadFloat3( position );
+			XMVECTOR curVelocity = XMLoadFloat3( velocity );
 			XMVECTOR offset = XMVectorSubtract( curPosition, refPosition );
 			XMVECTOR offsetLengthSq = XMVector3LengthSq( offset );
 
@@ -146,7 +146,7 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 				{
 					offset = XMVectorMultiply( offset, XMVectorReciprocal( XMVectorSqrt( offsetLengthSq ) ) );
 					XMVECTOR newPosition = XMVectorMultiplyAdd( offset, radius, refPosition );
-					XMStoreFloat3A( position, newPosition );
+					XMStoreFloat3( position, newPosition );
 
 					if( m_affectVelocity && m_velocityElement.m_offset != -1 )
 					{
@@ -159,7 +159,7 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 							XMVECTOR slide = XMVectorAdd( curVelocity, bounce );
 							bounce = XMVectorScale( bounce, m_elasticity );
 							slide = XMVectorScale( slide, m_friction );
-							XMStoreFloat3A( velocity, XMVectorAdd( bounce, slide ) );
+							XMStoreFloat3( velocity, XMVectorAdd( bounce, slide ) );
 							if( m_reflectionNoise > 0 )
 							{
 								XMVECTOR reflectionNoise;
@@ -169,9 +169,9 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 									Tr2ParticleSystem::RandFloat() * 2 - 1 );
 								reflectionNoise = XMVectorScale( reflectionNoise, m_reflectionNoise );
 								reflectionNoise = XMVectorSubtract( reflectionNoise, XMVectorMultiply( offset, XMVector3Dot( reflectionNoise, offset ) ) );
-								XMVECTOR speed = XMVector3LengthEst( XMLoadFloat3A( velocity ) );
+								XMVECTOR speed = XMVector3LengthEst( XMLoadFloat3( velocity ) );
 								reflectionNoise = XMVectorMultiply( reflectionNoise, speed );
-								XMStoreFloat3A( velocity, reflectionNoise );
+								XMStoreFloat3( velocity, reflectionNoise );
 							}
 						}
 					}
@@ -205,7 +205,7 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 				if( m_affectPosition )
 				{
 					XMVECTOR newPosition = XMVectorMultiplyAdd( curVelocity, XMVectorReplicate( t ), curPosition );
-					XMStoreFloat3A( position, newPosition );
+					XMStoreFloat3( position, newPosition );
 
 					if( m_affectVelocity )
 					{
@@ -220,7 +220,7 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 							XMVECTOR slide = XMVectorAdd( curVelocity, bounce );
 							bounce = XMVectorScale( bounce, m_elasticity );
 							slide = XMVectorScale( slide, m_friction );
-							XMStoreFloat3A( velocity, XMVectorAdd( bounce, slide ) );
+							XMStoreFloat3( velocity, XMVectorAdd( bounce, slide ) );
 							if( m_reflectionNoise > 0 )
 							{
 								XMVECTOR reflectionNoise;
@@ -232,7 +232,7 @@ void Tr2SphereConstraint::ApplyConstraint( const ITr2GenericEmitter::UpdateArgum
 								reflectionNoise = XMVectorSubtract( reflectionNoise, XMVectorMultiply( offset, XMVector3Dot( reflectionNoise, offset ) ) );
 								XMVECTOR speed = XMVector3LengthEst( curVelocity );
 								reflectionNoise = XMVectorMultiply( reflectionNoise, speed );
-								XMStoreFloat3A( velocity, reflectionNoise );
+								XMStoreFloat3( velocity, reflectionNoise );
 							}
 						}
 					}

@@ -44,15 +44,15 @@ public:
 	void py__init__( EveSpaceScene* scene, Tr2RenderTarget* source );
 private:
 	// bloom
-	bool ProcessBloom( Tr2PPBloomEffect* bloom );
-	void RenderBloom( Tr2RenderContext& renderContext, Tr2PPBloomEffect* bloom );
+	bool ProcessBloom( Tr2PPBloomEffect* bloom, Tr2PPDynamicExposureEffect* dynamicExposure );
+	Tr2PostProcessRenderInfo::Texture RenderBloom( Tr2RenderTarget* dest, Tr2RenderContext & renderContext, Tr2PPBloomEffect * bloom );
 	Tr2EffectPtr m_bloomHighPassFilter;
 	Tr2EffectPtr m_bloomHorizontalBlur;
 	Tr2EffectPtr m_bloomVerticalBlur;
 
 	// godRays
 	bool ProcessGodRays( Tr2PPGodRaysEffect* godrays );
-	void RenderGodRays( Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays );
+	void RenderGodRays( Tr2RenderTarget* dest, Tr2RenderContext & renderContext, Tr2PPGodRaysEffect * godrays );
 	Tr2EffectPtr m_godRayDownSampleEffect;
 	Tr2EffectPtr m_godrayEffect;
 
@@ -63,7 +63,7 @@ private:
 
 	// dynamic exposure
 	bool ProcessDynamicExposure( Tr2RenderContext & renderContext, Tr2PPDynamicExposureEffect * dynamicExposure, Tr2PPBloomEffect * bloom );
-	void RenderDynamicExposure( Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure );
+	void RenderDynamicExposure( Tr2RenderTarget* dest, Tr2RenderContext & renderContext, Tr2PPDynamicExposureEffect * dynamicExposure );
 	Tr2GpuBufferPtr m_localHistograms;
 	Tr2GpuBufferPtr m_histogram;
 	Tr2GpuBufferPtr m_exposure;
@@ -76,12 +76,12 @@ private:
 
 	// fidelityFX
 	bool ProcessFidelityFX( Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx );
-	void RenderFidelityFX( Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx );
+	Tr2PostProcessRenderInfo::Texture RenderFidelityFX( Tr2RenderTarget * src, Tr2RenderContext & renderContext, Tr2PPFidelityFXEffect * fx );
 	Tr2EffectPtr m_fidelityFXShader;
 
 	// fog
 	bool ProcessFog( Tr2PPFogEffect* fog );
-	void RenderFog( Tr2RenderContext& renderContext, Tr2PPFogEffect* fog );
+	void RenderFog( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog );
 	Tr2EffectPtr m_fogColorEffect;
 	Tr2EffectPtr m_fogHorizontalBlurEffect;
 	Tr2EffectPtr m_fogVerticalBlurEffect;
@@ -89,14 +89,14 @@ private:
 
 	// TAA
 	bool ProcessTaa( Tr2PPTaaEffect* taa );
-	void RenderTaa( Tr2RenderContext& renderContext, Tr2PPTaaEffect* taa );
+	void RenderTaa( Tr2RenderTarget * dest, Tr2RenderContext & renderContext, Tr2PPTaaEffect * taa );
 	Tr2EffectPtr m_taaEffect;
 	Tr2RenderTargetPtr m_accumulationBuffer;
 	Tr2RenderTargetPtr m_velocityBuffer;
 
 	// film grain
 	bool ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain );
-	void RenderFilmGrain( Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain );
+	void RenderFilmGrain( Tr2RenderTarget* dest, Tr2RenderContext & renderContext, Tr2PPFilmGrainEffect * filmGrain );
 	Tr2EffectPtr m_grainShader;
 
 	// desaturate

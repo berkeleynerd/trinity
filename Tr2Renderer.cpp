@@ -7,11 +7,6 @@
 #include "TriLineSet.h"
 #include "TriError.h"
 #include "TriSettingsRegistrar.h"
-
-#if TBB_ENABLED
-#include "tbb/task_scheduler_init.h"
-#endif
-
 #include "TriPoolAllocator.h"
 
 using namespace Tr2RenderContextEnum;
@@ -21,7 +16,7 @@ bool Tr2Renderer::m_disableTextureLoad		= false;
 bool Tr2Renderer::m_disableEffectLoad		= false;
 bool Tr2Renderer::m_disableAsyncLoad		= false;
 
-extern unsigned long g_currentFrameCounter;
+extern unsigned long long g_currentFrameCounter;
 
 // Expose this for Tr2RenderTargetALDx9.cpp.
 // The whole s_blitter thing needs to be rethough anyway.
@@ -71,11 +66,17 @@ namespace
 	unsigned int s_perObjectPSStartRegister = 4;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
 #elif( TRINITY_PLATFORM==TRINITY_OPENGL4 )
-	unsigned int s_perFrameVSStartRegister  = 1;
-	unsigned int s_perFramePSStartRegister  = 2;
-	unsigned int s_perObjectVSStartRegister = 3;
-	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSGUIStartRegister = 6;
+    unsigned int s_perFrameVSStartRegister  = 1;
+    unsigned int s_perFramePSStartRegister  = 2;
+    unsigned int s_perObjectVSStartRegister = 3;
+    unsigned int s_perObjectPSStartRegister = 4;
+    unsigned int s_perObjectVSGUIStartRegister = 6;
+#elif( TRINITY_PLATFORM==TRINITY_METAL )
+    unsigned int s_perFrameVSStartRegister  = 1;
+    unsigned int s_perFramePSStartRegister  = 2;
+    unsigned int s_perObjectVSStartRegister = 3;
+    unsigned int s_perObjectPSStartRegister = 4;
+    unsigned int s_perObjectVSGUIStartRegister = 6;
 #else
 #	error "Missing platform"
 #endif
@@ -156,10 +157,6 @@ namespace
 	Tr2Variable s_viewProjectionMatrixVar;
 	Tr2Variable s_worldMatrixVar;
 	Tr2Variable s_frustumPlanes[6];
-
-#if TBB_ENABLED
-	tbb::task_scheduler_init* s_taskScheduler = NULL;
-#endif
 
 
 	typedef std::set<Tr2Effect *> EffectSet;
@@ -316,11 +313,7 @@ namespace
 
 bool Tr2Renderer::Initialize()
 {
-#if TBB_ENABLED
-	s_taskScheduler = CCP_NEW( "Tr2Renderer/s_taskScheduler" ) tbb::task_scheduler_init;
-#endif
 	s_debugTextRenderer = CCP_NEW( "Tr2Renderer/s_debugTextRenderer" ) TriDebugTextRenderer;
-
 	s_renderTimeVar			 .Register(  "Time",				Vector4(0.0f, 0.0f, 0.0f, 0.0f) );
 	s_worldMatrixVar		 .Register(  "WorldMat",			s_worldTransform );
 	s_viewMatrixVar.Register( "ViewMat", s_viewTransform );
@@ -361,10 +354,6 @@ void Tr2Renderer::Shutdown()
 		s_debugLineSet->Unlock();
 		s_debugLineSet = NULL;
 	}
-
-#if TBB_ENABLED
-	CCP_DELETE s_taskScheduler;
-#endif
 }
 
 void Tr2Renderer::GetBackBufferDimensions( unsigned int& w, unsigned int& h )
@@ -613,7 +602,7 @@ void Tr2Renderer::Printf( int x, int y, uint32_t color, const char* msg, ... )
 	va_list args;
 	va_start( args, msg );
 
-	Rect rect;
+	Tr2Rect rect;
 	rect.top = y;
 	rect.left = x;
 	rect.bottom = rect.top + 512;
@@ -634,7 +623,7 @@ void Tr2Renderer::PrintfImmediate( Tr2RenderContext& renderContext, int x, int y
 	Tr2Viewport viewport;
 	renderContext.GetViewport( viewport );
 	
-	Rect rect;
+	Tr2Rect rect;
 	if( format & TRI_DFS_RIGHT )
 	{
 		rect.top = y + (int32_t)viewport.m_y;
@@ -652,7 +641,7 @@ void Tr2Renderer::PrintfImmediate( Tr2RenderContext& renderContext, int x, int y
 	s_debugTextRenderer->VprintfImmediate( renderContext, TRI_DBG_FONT_SMALL, rect, format, ColorToVec4( color ), msg, args );
 }
 
-void Tr2Renderer::Printf( TriDebugFont font, const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
+void Tr2Renderer::Printf( TriDebugFont font, const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
 {
 	if( !s_debugTextRenderer )
 	{
@@ -664,7 +653,7 @@ void Tr2Renderer::Printf( TriDebugFont font, const Rect& rect, uint32_t format, 
     s_debugTextRenderer->Vprintf( font, rect, format, ColorToVec4( color ), msg, args );
 }
 
-void Tr2Renderer::PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
+void Tr2Renderer::PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
 {
 	if( !s_debugTextRenderer )
 	{
@@ -686,7 +675,7 @@ void Tr2Renderer::Printf( TriDebugFont font, const Vector3& pos, uint32_t color,
 	va_list args;
     va_start( args, msg );
 
-    Rect rect;
+	Tr2Rect rect;
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	Tr2Viewport vp;
 	renderContext.GetViewport( vp );
@@ -714,7 +703,7 @@ void Tr2Renderer::Printf( TriDebugFont font, int fontStyle, const Vector3& pos, 
 	va_list args;
     va_start( args, msg );
 
-    Rect rect;
+	Tr2Rect rect;
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	Tr2Viewport vp;
 	renderContext.GetViewport( vp );
@@ -1078,7 +1067,7 @@ TriPoolAllocator* Tr2Renderer::GetPoolAllocator()
 	return s_poolAllocator;
 }
 
-unsigned long Tr2Renderer::GetCurrentFrameCounter()
+unsigned long long Tr2Renderer::GetCurrentFrameCounter()
 {
 	return g_currentFrameCounter;
 }
@@ -1301,15 +1290,6 @@ Tr2BufferAL* Tr2Renderer::GetQuadListIndexBuffer( unsigned int numOfQuads )
 	s_quadListSize = numOfQuads;
 
 	return &s_quadListIndexBuffer;
-}
-
-void Tr2Renderer::SetTbbWorkerThreadCount( int threads )
-{	
-#if TBB_ENABLED
-	tbb::task_scheduler_init* taskScheduler = s_taskScheduler;
-	taskScheduler->terminate();
-	taskScheduler->initialize( threads );
-#endif
 }
 
 void Tr2Renderer::PrepareDeviceResources()

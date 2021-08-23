@@ -10,59 +10,21 @@
 
 Tr2PostProcessRenderInfo::Tr2PostProcessRenderInfo( IRoot* lockobj )
 {
-	m_rt1.CreateInstance();
-	m_rt1->m_name = "PostProcess RT1";
-
-	m_rt2.CreateInstance();
-	m_rt2->m_name = "PostProcess RT2";
-
-	m_sourceBufferCopy.CreateInstance();
-	m_sourceBufferCopy->m_name = "Source Copy";
-
 	m_black.CreateInstance();
 	m_black->m_name = "Black";
-
-	m_fidelityInputRT.CreateInstance();
-	m_fidelityInputRT->m_name = "FidelityFX Input SRV RT";
-
-	m_fidelityOutputRT.CreateInstance();
-	m_fidelityOutputRT->m_name = "FidelityFX Output UAV RT";
-
-	m_grainInputRT.CreateInstance();
-	m_grainInputRT->m_name = "FilmGrain input RT";
 }
 
 
 Tr2PostProcessRenderInfo::~Tr2PostProcessRenderInfo()
 {
-	if( m_rt1->IsValid() )
+	for( auto& texture : m_tempTextures )
 	{
-		m_rt1->Destroy();
-	}
-	if( m_rt2->IsValid() )
-	{
-		m_rt2->Destroy();
+		CCP_ASSERT( texture.lockCount == 0 );
+		texture.texture->Destroy();
 	}
 	if( m_black->IsValid() )
 	{
 		m_black->Destroy();
-	}
-	if( m_fidelityInputRT->IsValid() )
-	{
-		m_fidelityInputRT->Destroy();
-	}
-	if( m_fidelityOutputRT->IsValid() )
-	{
-		m_fidelityOutputRT->Destroy();
-	}
-	if( m_grainInputRT->IsValid() )
-	{
-		m_grainInputRT->Destroy();
-	}
-
-	if( m_sourceBufferCopy && m_sourceBufferCopy->IsValid() )
-	{
-		m_sourceBufferCopy->Destroy();
 	}
 }
 
@@ -110,116 +72,172 @@ bool Tr2PostProcessRenderInfo::Setup( Tr2RenderContext& renderContext )
 			return false;
 		}
 	}
-
-	if( !m_sourceBufferCopy->IsValid() )
-	{
-		CopySourceTo( m_sourceBufferCopy, 1.0f );
-	}
-
-	if( !m_rt1->IsValid() )
-	{
-		CopySourceTo( m_rt1, 0.5f );
-	}
-
-	if( !m_rt2->IsValid() )
-	{
-		CopySourceTo( m_rt2, 0.5f );
-	}
 	return true;
 }
 
 void Tr2PostProcessRenderInfo::SetSourceBuffer( Tr2RenderTarget* sourceBuffer )
 {
 	m_sourceBuffer = sourceBuffer;
+	for( auto& texture : m_tempTextures )
+	{
+		CCP_ASSERT( texture.lockCount == 0 );
+		texture.texture->Destroy();
+	}
+	m_tempTextures.clear();
+}
 
-	if( m_rt1->IsValid() )
+Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetSourceBuffer()
+{
+	return Texture( this, m_sourceBuffer );
+}
+
+Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetBlackTexture()
+{
+	return Texture( this, m_black );
+}
+
+Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetTempTexture( float sizeFactor, Tr2RenderContextEnum::ExFlag exFlag )
+{
+	CCP_ASSERT( sizeFactor > 0 );
+	if( !m_sourceBuffer )
 	{
-		m_rt1->Destroy();
+		return Texture();
 	}
-	if( m_rt2->IsValid() )
+
+	for( auto& tempTexture : m_tempTextures )
 	{
-		m_rt2->Destroy();
+		if( tempTexture.sizeFactor == sizeFactor && tempTexture.exFlag == exFlag && tempTexture.lockCount == 0 )
+		{
+			++tempTexture.lockCount;
+			return Texture( this, tempTexture.texture );
+		}
 	}
-	if( m_sourceBufferCopy->IsValid() )
+
+	TempTexture tempTexture;
+	tempTexture.sizeFactor = sizeFactor;
+	tempTexture.exFlag = exFlag;
+	tempTexture.lockCount = 1;
+	tempTexture.texture.CreateInstance();
+	tempTexture.texture->Create( 
+		std::max( unsigned( m_sourceBuffer->GetWidth() * sizeFactor ), 1u ), 
+		std::max( unsigned( m_sourceBuffer->GetHeight() * sizeFactor ), 1u ), 
+		1, 
+		m_sourceBuffer->GetFormat(),
+		1,
+		0,
+		exFlag
+	);
+	m_tempTextures.push_back( tempTexture );
+	return Texture( this, tempTexture.texture );
+}
+
+void Tr2PostProcessRenderInfo::LockTempTexture( Tr2RenderTarget* texture )
+{
+	if( !texture || texture == m_sourceBuffer || texture == m_black )
 	{
-		m_sourceBufferCopy->Destroy();
+		return;
 	}
-	if( m_fidelityInputRT->IsValid() )
+	for( auto& tempTexture : m_tempTextures )
 	{
-		m_fidelityInputRT->Destroy();
+		if( tempTexture.texture == texture )
+		{
+			++tempTexture.lockCount;
+			return;
+		}
 	}
-	if( m_fidelityOutputRT->IsValid() )
+	CCP_ASSERT( false );
+}
+
+void Tr2PostProcessRenderInfo::ReleaseTempTexture( Tr2RenderTarget* texture )
+{
+	if( !texture || texture == m_sourceBuffer || texture == m_black )
 	{
-		m_fidelityOutputRT->Destroy();
+		return;
 	}
+	for( auto& tempTexture : m_tempTextures )
+	{
+		if( tempTexture.texture == texture )
+		{
+			CCP_ASSERT( tempTexture.lockCount > 0 );
+			--tempTexture.lockCount;
+			return;
+		}
+	}
+	CCP_ASSERT( false );
+}
+
+std::vector<Tr2RenderTargetPtr> Tr2PostProcessRenderInfo::GetAllTempTextures() const
+{
+	std::vector<Tr2RenderTargetPtr> result;
+	result.reserve( m_tempTextures.size() );
+	for( auto& tempTexture : m_tempTextures )
+	{
+		result.push_back( tempTexture.texture );
+	}
+	return result;
 }
 
 
-void Tr2PostProcessRenderInfo::CopySourceTo( Tr2RenderTarget* renderTarget, float sizeScale )
+Tr2PostProcessRenderInfo::Texture::Texture() :
+	m_renderTarget( nullptr ),
+	m_renderInfo( nullptr )
 {
-	if( renderTarget->IsValid() )
-	{
-		renderTarget->Destroy();
-	}
+}
 
-	if( m_sourceBuffer )
+Tr2PostProcessRenderInfo::Texture::Texture( Tr2PostProcessRenderInfo* renderInfo, Tr2RenderTarget* renderTarget ) :
+	m_renderTarget( renderTarget ),
+	m_renderInfo( renderInfo )
+{
+}
+
+Tr2PostProcessRenderInfo::Texture::Texture( const Texture& other ) :
+	m_renderTarget( other.m_renderTarget ),
+	m_renderInfo( other.m_renderInfo )
+{
+	if( m_renderInfo )
 	{
-		renderTarget->Create(
-			uint32_t( float( m_sourceBuffer->GetWidth() ) * sizeScale ),
-			uint32_t( float( m_sourceBuffer->GetHeight() ) * sizeScale ),
-			1,
-			m_sourceBuffer->GetFormat(),
-			1,
-			0 );
+		m_renderInfo->LockTempTexture( m_renderTarget );
 	}
 }
 
-Tr2RenderTarget* Tr2PostProcessRenderInfo::GetFidelityInputBuffer()
+Tr2PostProcessRenderInfo::Texture& Tr2PostProcessRenderInfo::Texture::operator=( const Texture& other )
 {
-	auto source = GetSourceBufferCopy();
-	if( source && !m_fidelityInputRT->IsValid() )
+	if( this == &other )
 	{
-		m_fidelityInputRT->Create(
-			source->GetWidth(),
-			source->GetHeight(),
-			1,
-			source->GetFormat() );
+		return *this;
 	}
-
-	return m_fidelityInputRT;
+	if( m_renderInfo )
+	{
+		m_renderInfo->ReleaseTempTexture( m_renderTarget );
+	}
+	m_renderInfo = other.m_renderInfo;
+	m_renderTarget = other.m_renderTarget;
+	if( m_renderInfo )
+	{
+		m_renderInfo->LockTempTexture( m_renderTarget );
+	}
+	return *this;
 }
 
-
-Tr2RenderTarget* Tr2PostProcessRenderInfo::GetFidelityOutputBuffer()
+Tr2PostProcessRenderInfo::Texture::~Texture()
 {
-	auto source = GetSourceBufferCopy();
-	if( source && !m_fidelityOutputRT->IsValid() )
+	if( m_renderInfo )
 	{
-		m_fidelityOutputRT->Create(
-			source->GetWidth(),
-			source->GetHeight(),
-			1,
-			source->GetFormat(),
-			source->GetMsaaType(),
-			source->GetMsaaQuality(),
-			Tr2RenderContextEnum::EX_BIND_UNORDERED_ACCESS );
+		m_renderInfo->ReleaseTempTexture( m_renderTarget );
 	}
-
-	return m_fidelityOutputRT;
 }
 
-
-Tr2RenderTarget* Tr2PostProcessRenderInfo::GetGrainInputBuffer()
+Tr2RenderTarget* Tr2PostProcessRenderInfo::Texture::GetRenderTarget() const
 {
-	auto source = GetSourceBufferCopy();
-	if( source && !m_grainInputRT->IsValid() )
-	{
-		m_grainInputRT->Create(
-			source->GetWidth(),
-			source->GetHeight(),
-			1,
-			source->GetFormat() );
-	}
+	return m_renderTarget;
+}
 
-	return m_grainInputRT;
+Tr2PostProcessRenderInfo::Texture::operator Tr2RenderTarget*() const
+{
+	return m_renderTarget;
+}
+
+Tr2RenderTarget* Tr2PostProcessRenderInfo::Texture::operator->() const
+{
+	return m_renderTarget;
 }

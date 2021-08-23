@@ -139,6 +139,9 @@ public:
 	bool PushDepthStencilBuffer( const Tr2TextureAL& ds );
 	void PopDepthStencilBuffer();
 	bool SetDepthStencilBuffer( const Tr2TextureAL& ds );
+	
+	void SetupContextResources();
+	void AssignFrom( const Tr2EffectStateManager& other );
 
 private:
 	friend class Tr2EffectRes;

@@ -23,7 +23,7 @@ struct Tr2TextureAtlasArea
 	Type type;
 
 	// Bounds of the area
-	Rect rect;
+	Tr2Rect rect;
 
 	// Weak reference to a texture object for in-use areas
 	Tr2AtlasTexture* tex;
@@ -79,8 +79,8 @@ public:
 
 	//Return a copy of the area list to avoid users fiddling with our privates
 	// (only used by the Atlas render step for debugging anyway)
-	std::list< Rect > GetFreeAreas() const;
-	std::list< Rect > GetUsedAreas() const;
+	std::list<Tr2Rect> GetFreeAreas() const;
+	std::list<Tr2Rect> GetUsedAreas() const;
 
 	uint32_t GetMsaaSamples() const;
 	uint32_t GetMsaaQuality() const;
@@ -160,12 +160,12 @@ private:
 	//mipmaps
 	bool m_hasMipMaps;
 	unsigned m_mipLevels;
-	std::vector<Rect> m_dirtyMipRegions;
+	std::vector<Tr2Rect> m_dirtyMipRegions;
 public:
 	//call manually to calculate lower mips
 	void UpdateMipMaps( Tr2RenderContext& renderContext );
 	//add a dirty region after changing the top level
-	void DirtyRegion( const Rect &rect );
+	void DirtyRegion( const Tr2Rect& rect );
 };
 
 TYPEDEF_BLUECLASS( Tr2TextureAtlas );

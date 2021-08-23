@@ -151,9 +151,7 @@ TriGeometryRes::TriGeometryRes(IRoot* lockobj) :
 	m_meshes( "TriGeometryRes/m_meshes" ),
 	m_models( "TriGeometryRes/m_models" ),
 	m_skeletons( "TriGeometryRes/m_skeletons" ),
-	m_inMemoryInfo( NULL ),
-	m_data( nullptr ),
-	m_dataSize( 0 )
+	m_inMemoryInfo( NULL )
 {
 }
 
@@ -394,12 +392,6 @@ void TriGeometryRes::GetDescription( std::string& desc )
 	desc += "'";
 }
 #endif
-
-void TriGeometryRes::OnCloseStream()
-{
-	m_data = NULL;
-	m_dataSize = 0;
-}
 
 // This gets called on the background loading thread
 BlueAsyncRes::LoadingResult TriGeometryRes::DoLoad()
@@ -826,11 +818,9 @@ bool TriGeometryRes::ReadGrannyFile( granny_file_info* gi )
 			return false;
 		}
 
-		m_dataSize = (unsigned int)m_dataStream->GetSize();
+		CCP_STATS_ZONE( "TriGeometryRes::ReadGrannyFile reading Granny file" );
 
-		CCP_STATS_ZONE( __FUNCTION__ " reading Granny file" );
-
-		m_pGrannyFile = ProtectedGrannyReadEntireFileFromMemory( m_path.c_str(), m_dataSize, data );
+		m_pGrannyFile = ProtectedGrannyReadEntireFileFromMemory( m_path.c_str(), uint32_t( m_dataStream->GetSize() ), data );
 
 		if( !m_pGrannyFile )
 		{
@@ -841,7 +831,6 @@ bool TriGeometryRes::ReadGrannyFile( granny_file_info* gi )
 	}
 	else
 	{
-		m_dataSize = 0;
 		m_pGrannyFile = NULL;
 		m_inMemoryInfo = gi;
 	}

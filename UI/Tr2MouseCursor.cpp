@@ -19,6 +19,8 @@ Tr2MouseCursor::Tr2MouseCursor( IRoot* lockobj )
 	, m_hotspotX( 0 )
 	, m_hotspotY( 0 )
 #endif
+#elif __APPLE__
+:   m_cursor( 0 )
 #endif
 {
 }
@@ -62,6 +64,8 @@ bool Tr2MouseCursor::IsValid() const
 {
 #ifdef _WIN32
 	return m_cursor != nullptr;
+#elif __APPLE__
+    return m_cursor != 0;
 #else
     return false;
 #endif
@@ -436,6 +440,37 @@ bool Tr2MouseCursor::Create( Tr2HostBitmap* bitmap, int hotspotX, int hotspotY )
     m_cursor = (HCURSOR)CreateIconIndirect( &ii );
 
 	return m_cursor != nullptr;
+#elif __APPLE__
+    std::unique_ptr<char[]> bits( new char[bitmap->GetWidth() * bitmap->GetHeight() * 4] );
+    switch( bitmap->GetFormat() )
+    {
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_TYPELESS:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_UNORM:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_UNORM_SRGB:
+        DecompressBC1( bits.get(), bitmap->GetRawData(), bitmap->GetWidth(), bitmap->GetHeight(), bitmap->GetWidth() * sizeof( uint32_t ) );
+        break;
+
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_TYPELESS:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_UNORM:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_UNORM_SRGB:
+        DecompressBC2( bits.get(), bitmap->GetRawData(), bitmap->GetWidth(), bitmap->GetHeight(), bitmap->GetWidth() * sizeof( uint32_t ) );
+        break;
+    case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_TYPELESS:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM:
+    case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB:
+        {
+            const char* row = bitmap->GetRawData();
+            for( uint32_t j = 0; j < bitmap->GetHeight(); ++j )
+            {
+                memcpy( bits.get() + j * bitmap->GetWidth() * 4, row, bitmap->GetWidth() * 4 );
+                row += bitmap->GetPitch();
+            }
+        }
+        break;
+    default:
+        return false;
+    }
+    return Create_MacOS( bits.get(), bitmap->GetWidth(), bitmap->GetHeight(), hotspotX, hotspotY );
 #else
     return false;
 #endif
@@ -460,6 +495,8 @@ void Tr2MouseCursor::Apply()
 	}
 #elif defined(_WIN32)
 	SetCursor( m_cursor );
+#elif __APPLE__
+    Apply_MacOS();
 #endif
 }
 

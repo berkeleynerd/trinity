@@ -5,11 +5,6 @@
 #include "TriError.h"
 #include "TriPythonContext.h"
 
-static void SetTbbWorkerThreadCount( int threads )
-{	
-	Tr2Renderer::SetTbbWorkerThreadCount( threads );
-}
-
 static void SetViewTransform( const Matrix& m )
 {	
 	Tr2Renderer::SetViewTransform( m );

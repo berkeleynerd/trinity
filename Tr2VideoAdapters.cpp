@@ -349,7 +349,7 @@ ALResult Tr2VideoAdapter::GetDriverInfo( Tr2VideoDriver** info )
 	*info = nullptr;
 	
 	Tr2VideoDriverInfo driverInfo;
-	CR_RETURN_HR( Tr2DriverUtilities::GetDriverVersion( m_info.deviceID, driverInfo ) );
+	FORWARD_HR( Tr2DriverUtilities::GetDriverVersion( m_info.deviceID, driverInfo ) );
 
 	Tr2VideoDriverPtr result;
 	result.CreateInstance();

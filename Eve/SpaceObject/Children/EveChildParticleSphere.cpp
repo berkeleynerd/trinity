@@ -349,14 +349,14 @@ void EveChildParticleSphere::ApplyConstraint( const Vector3& previousReferencePo
 
 		for( unsigned i = 0; i < count; ++i, ++position, ++velocity, ++lifetime )
 		{
-			XMVECTOR localPosition = XMVectorAdd( XMLoadFloat3A( position ), originShift );
-			XMStoreFloat3A( position, localPosition );
+			XMVECTOR localPosition = XMVectorAdd( XMLoadFloat3( position ), originShift );
+			XMStoreFloat3( position, localPosition );
 
 			XMStoreFloat(
 				lifetime,
 				XMVectorMultiply( XMVector3LengthSq( localPosition ), oneOverRadius2 ) );
 
-			XMStoreFloat3A( velocity, constVelocity );
+			XMStoreFloat3( velocity, constVelocity );
 
 			if( *lifetime.Get() >= 1 )
 			{

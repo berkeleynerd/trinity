@@ -504,7 +504,7 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 		// shader textures from the hull data
 		for( auto it = area->textures.begin(); it != area->textures.end(); ++it )
 		{
-			CCP_STATS_ZONE( __FUNCTION__ " texture" );
+			CCP_STATS_ZONE( "texture" );
 
 			// res path how it is from hull data
 			std::string highResPath = it->second.resFilePath;
@@ -527,7 +527,7 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 					Tr2LodResourcePtr lodResource;
 					lodResource.CreateInstance();
 
-					CCP_STATS_ZONE( __FUNCTION__ " lodResource" );
+					CCP_STATS_ZONE( "lodResource" );
 
 					lodResource->SetName( it->first );
 					lodResource->SetResourcePath( TR2_LOD_LOW, lowResPath.c_str() );

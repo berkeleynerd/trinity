@@ -18,7 +18,10 @@ static bool GetBuf(void **buffer, int *bufLen, PyObject *arrayO)
 	//Get destination buffer interface
 	PyBufferProcs *bp = arrayO->ob_type->tp_as_buffer;
 	if (!bp || !bp->bf_getwritebuffer)
-		return PyErr_SetString(PyExc_TypeError, "destination must support buffer interface"), false;
+    {
+        PyErr_SetString(PyExc_TypeError, "destination must support buffer interface");
+		return false;
+    }
 	*bufLen = (int)(bp->bf_getwritebuffer)(arrayO, 0, buffer);
 	return *bufLen != -1;
 }

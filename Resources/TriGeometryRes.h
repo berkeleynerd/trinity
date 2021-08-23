@@ -266,8 +266,6 @@ public:
 	Be::Result<std::string> SaveMesh( const char* filename, uint32_t meshIndex ) const;
 
 private:
-	void* m_data;
-	uint32_t m_dataSize;
 	unsigned int m_memoryUse;
 	TrackableStdVector<TriGeometryResMeshData*> m_meshes;
 	TrackableStdVector<TriGeometryResModelData*> m_models;
@@ -281,7 +279,6 @@ private:
 	// The async management itself is done in TriAsyncLoadedResource.
 	virtual LoadingResult DoLoad();
 	virtual bool DoPrepare();
-	virtual void OnCloseStream();
 
 	// Read granny file, keep data in m_pGrannyFile
 	bool ReadGrannyFile( granny_file_info* gi = NULL );

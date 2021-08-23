@@ -34,6 +34,7 @@ public:
 	// Constructor
 	TriRenderBatch()
 		:m_next( nullptr ),
+		m_needsSyncronousSubmit( false ),
 		m_objectData( nullptr ),
 		m_userData( 0 ),
 		m_depth( 0 ),
@@ -95,6 +96,12 @@ public:
     // EndPass and End on the effect.
     virtual void SubmitGeometry( Tr2RenderContext& renderContext ) = 0;
 	
+	// In case of parallel render encoding, SyncronousSubmit can be called
+	// before if the batch needs to perform any work on the main render context.
+	// For SyncronousSubmit to be called, m_needsSyncronousSubmit must be true.
+	// SyncronousSubmit is only called for parallel render code paths.
+	virtual void SyncronousSubmit( Tr2RenderContext& renderContext ) {}
+	
 	// Gets the batch type name for PIX debugging
 	virtual const std::string& GetBatchTypeName( void ) const
 	{ 
@@ -104,7 +111,7 @@ public:
 
 	// Next render batch in the linked-list
 	TriRenderBatch* m_next;
-
+	bool m_needsSyncronousSubmit;
 protected:
 	const Tr2PerObjectData* m_objectData;
 
@@ -162,6 +169,12 @@ public:
 		m_areaIndex = areaIx;
 		m_areaCount = areaCount;
 		m_reversed = reversed;
+		if( reversed )
+		{
+			// Reversing an index buffer may involved reading it back from GPU memory
+			// which can't be done with parallel rendering
+			m_needsSyncronousSubmit = true;
+		}
 	}
 
 
@@ -192,6 +205,8 @@ public:
 
 	// Submits geometry to the device
     virtual void SubmitGeometry( Tr2RenderContext& renderContext );
+	
+	void SyncronousSubmit( Tr2RenderContext& renderContext ) override;
 	
 	// Gets the batch type name for PIX debugging
 	virtual const std::string& GetBatchTypeName( void ) const 
@@ -295,29 +310,19 @@ struct DefaultKeyGenerator
 	RenderBatchSortType GetSortType( void ) const { return RENDERBATCHSORTTYPE_NONE; }
 };
 
-// --------------------------------------------------------------------------------------
-// Description
-//  Effect sort key generator.  If the render batch has an effect, this generator gets
-//  the sort key from the effect and assigns it to the low 32-bits of the sort key.  If
-//  there is no effect, the generator assigns 0xFFFFFFFF to the low 32-bits, placing
-//  the batch at the end of the sorted list.
-// See Also
-//   TriRenderBatch, TriRenderBatchAccumulator, RenderBatchSortEntry
-// --------------------------------------------------------------------------------------
 struct EffectKeyGenerator
 {
 	// Generates a key from the Tr2Effect used by the batch
 	void GenerateKey( RenderBatchSortEntry& entry ) const
 	{
-		entry.m_sortKey = 0;
-		unsigned int effectKey = 0xFFFFFFFF;
+		int64_t effectKey = 0xFFFFFFFF;
 		auto shaderMaterial = entry.m_batch->GetShaderMaterialInterface();
 		if( shaderMaterial )
 		{
-			effectKey = shaderMaterial->GetSortValue();
+			effectKey = (int64_t)shaderMaterial->GetSortValue();
 		}
 		
-		entry.m_sortKey = (int64_t)effectKey;
+		entry.m_sortKey = effectKey;
 	}
 
 	// Requests regular std::sort

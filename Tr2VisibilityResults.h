@@ -82,7 +82,7 @@ struct Tr2VisibilityEvent
 	IRootPtr m_userData;
 	Matrix m_objectToWorldMatrix;
 	Vector4 m_clipPlane;
-	Rect m_scissorRect;
+	Tr2Rect m_scissorRect;
 	int m_stencilWrite, m_stencilTest;
 	int m_mirrorIndex;
 	EventType m_eventType;

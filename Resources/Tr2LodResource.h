@@ -53,6 +53,8 @@ public:
 
 	void AddNotifyTarget( ITr2LodResourceListener* p );
 	void RemoveNotifyTarget( ITr2LodResourceListener* p );
+	
+	bool IsUsingSelectedLod() const;
 protected:
 	void ReleaseCachedData( BlueAsyncRes* p ) override;
 	void RebuildCachedData( BlueAsyncRes* p ) override;

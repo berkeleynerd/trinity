@@ -59,7 +59,7 @@ namespace
 		auto entry = FindEntry( object, name.c_str() );
 		if( !entry.second )
 		{
-			return nullptr;
+			return false;
 		}
 		switch( entry.first->mType )
 		{

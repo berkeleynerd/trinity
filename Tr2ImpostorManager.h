@@ -165,6 +165,8 @@ private:
 	std::unordered_map<ITr2ImpostorSource*, Impostor> m_objects;
 	// Queue of objects to re-render in current frame
 	std::vector<ITr2ImpostorSource*> m_renderQueue;
+	
+	bool m_atlasDirty;
 };
 
 TYPEDEF_BLUECLASS( Tr2ImpostorManager );

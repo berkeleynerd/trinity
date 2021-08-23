@@ -46,15 +46,6 @@ bool PresentationParameters::Set(PyObject *_dict)
 	py = dict.Get("Windowed");
 	if (py)
 		windowed = py.True();
-	py = dict.Get("EnableAutoDepthStencil");
-	if (py && py.True())
-	{
-		GETINT(AutoDepthStencilFormat) depthStencilFormat = Tr2RenderContextEnum::DepthStencilFormat( i.Int() );
-	}
-	else
-	{
-		depthStencilFormat = Tr2RenderContextEnum::DSFMT_UNKNOWN;
-	}
 	GETINT(FullScreen_RefreshRateInHz) mode.refreshRateDenominator = unsigned( i.Int() );
 	GETINT(PresentationInterval) presentInterval = Tr2RenderContextEnum::PresentInterval( i.Int() );
 
@@ -82,9 +73,6 @@ BluePyDict PresentationParameters::Get() const
 	dict.Set( "hDeviceWindow", handle );
 	Py_XDECREF( handle );
 	dict.Set( "Windowed", windowed ? pTrue : pFalse );
-	dict.Set( "EnableAutoDepthStencil", depthStencilFormat == Tr2RenderContextEnum::DSFMT_UNKNOWN ? pFalse : pTrue );
-
-	dict.Set( "AutoDepthStencilFormat", BluePyInt( depthStencilFormat ) );
 	dict.Set( "Flags", BluePyInt( 0 ) );
 	dict.Set( "FullScreen_RefreshRateInHz", BluePyInt( mode.refreshRateDenominator ) );
 	dict.Set( "PresentationInterval", BluePyInt( presentInterval ) );

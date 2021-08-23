@@ -84,6 +84,7 @@ Tr2LightManager::Tr2LightManager( const char* effectPath )
 
 	m_lightBuffer.CreateInstance();
 	m_indexBuffer.CreateInstance();
+	m_indexBufferCounter.CreateInstance();
 
 	m_lightBufferVariable.Register( "LightBuffer", m_lightBuffer );
 	m_indexBufferVariable.Register( "LightIndexBuffer", m_indexBuffer );
@@ -125,6 +126,12 @@ void Tr2LightManager::DeleteInstance()
 	auto& singleton = Singleton();
 	CCP_DELETE singleton;
 	singleton = nullptr;
+}
+
+void Tr2LightManager::SetVariableStore()
+{
+	m_lightBufferVariable = m_lightBuffer;
+	m_indexBufferVariable = m_indexBuffer;
 }
 
 void Tr2LightManager::Clear()
@@ -225,7 +232,7 @@ ALResult Tr2LightManager::UpdateLightBuffer( Tr2RenderContext& renderContext )
 
 ALResult Tr2LightManager::DoUpdateLists( uint32_t msaaType, Tr2RenderContext& renderContext )
 {
-	if( !m_lightBuffer->IsValid() || !m_indexBuffer->IsValid() )
+	if( !m_lightBuffer->IsValid() || !m_indexBuffer->IsValid() || !m_indexBufferCounter->IsValid() )
 	{
 		return E_INVALIDCALL;
 	}
@@ -252,6 +259,11 @@ ALResult Tr2LightManager::DoUpdateLists( uint32_t msaaType, Tr2RenderContext& re
 		BlueSharedString( "DEPTH_BUFFER_NON_MSAA" ), 
 		BlueSharedString( "DEPTH_BUFFER_MSAA" ) };
 	m_effect->SetOption( BlueSharedString( "DEPTH_BUFFER_TYPE" ), msaaOptions[std::min( msaaType, 2u )]);
+
+	if( !Tr2Renderer::RunComputeShader( m_effect, BlueSharedString( "Clear" ), 1, 1, 1, renderContext ) )
+	{
+		return E_FAIL;
+	}
 
 	if( !Tr2Renderer::RunComputeShader( m_effect, perFrameData.tilesX, perFrameData.tilesY, 1, renderContext ) )
 	{
@@ -292,12 +304,14 @@ bool Tr2LightManager::OnPrepareResources()
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
 	m_lightBuffer->Create( LIGHT_BUFFER_SIZE, sizeof( PerLightData ), Tr2GpuBuffer::CPU_WRITABLE );
-	m_indexBuffer->Create( INDEX_BUFFER_SIZE, sizeof( uint32_t ), Tr2GpuStructuredBuffer::GPU_WRITABLE | Tr2GpuStructuredBuffer::COUNTER );
+	m_indexBuffer->Create( INDEX_BUFFER_SIZE, sizeof( uint32_t ), Tr2GpuStructuredBuffer::GPU_WRITABLE );
+	m_indexBufferCounter->Create( 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32_SINT,  Tr2GpuBuffer::GPU_WRITABLE );
 	ClearLightIndices( renderContext );
 	m_perFrameData.Create( sizeof( PerFrameData ), Tr2ConstantUsageAL::ONE_SHOT, nullptr, renderContext );
 
 	m_effect->SetParameter( BlueSharedString( "LightBuffer" ), m_lightBuffer );
-	m_effect->SetParameter( BlueSharedString( "LightIndices" ), m_indexBuffer, 0 );
+	m_effect->SetParameter( BlueSharedString( "LightIndices" ), m_indexBuffer );
+	m_effect->SetParameter( BlueSharedString( "LightIndexCount" ), m_indexBufferCounter );
 
 	return true;
 }

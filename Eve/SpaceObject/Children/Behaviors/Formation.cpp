@@ -359,14 +359,4 @@ void Formation::RenderDebugInfo( ITr2DebugRenderer2& renderer, std::vector<Drone
 			renderer.DrawSphere( this, TranslationMatrix( m_formationPosition + *point ) * parentWorldLocation, 20, 8, Tr2DebugRenderer::Wireframe, 0xffff1111 );
 		}
 	}
-	
-	//temp stuff above
-	return;
-	if ( renderer.HasOption( this, "Formation" ) )
-	{
-		for ( auto point = m_debugPoints.begin(); point != m_debugPoints.end(); ++point )
-		{
-			renderer.DrawSphere( this, TranslationMatrix( *point ) * parentWorldLocation, 20, 8, Tr2DebugRenderer::Wireframe, 0xffff1111 );
-		}
-	}
 }

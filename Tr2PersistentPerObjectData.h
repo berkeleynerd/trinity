@@ -62,8 +62,14 @@ public:
 		Tr2ConstantBufferAL** buffers,
 		Tr2RenderContext& renderContext )
 	{
+#if TRINITY_PLATFORM == TRINITY_METAL
+		bool isPrimary = &renderContext == Tr2RenderContext::GetPrimaryRenderContextPointer();
+#else
+		bool isPrimary = true;
+#endif
+
 #if TRINITY_PLATFORM != TRINITY_DIRECTX9
-		if( !m_bufferDirty )
+		if( isPrimary && !m_bufferDirty )
 		{
 			renderContext.SetConstants( m_constantBuffer,
 				shaderType,
@@ -77,7 +83,7 @@ public:
 #if TRINITY_PLATFORM == TRINITY_DIRECTX9
 			auto& buffer = *buffers[shaderType];
 #else
-			auto& buffer = m_constantBuffer;
+			auto& buffer = isPrimary ? m_constantBuffer : *buffers[shaderType];
 #endif
 			if( !buffer.IsValid() || size > buffer.GetSize() )
 			{
@@ -93,7 +99,10 @@ public:
 			}
 		}
 #if TRINITY_PLATFORM != TRINITY_DIRECTX9
-		m_bufferDirty = false;
+		if( isPrimary )
+		{
+			m_bufferDirty = false;
+		}
 #endif
 	}
 

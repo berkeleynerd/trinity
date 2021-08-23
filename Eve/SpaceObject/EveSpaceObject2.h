@@ -94,7 +94,11 @@ struct EveSpaceObjectVSData
 	Vector4 ellpsoidCenter;
 	Matrix customMaskMatrix[ EVE_SPACEOBJECT_CUSTOWMASK_MAX ];
 	Vector4 customMaskData[ EVE_SPACEOBJECT_CUSTOWMASK_MAX ];
+	// following this is a variable size array of 4x3 bone matrices
+	static const size_t MAX_BONE_COUNT = 58;
 };
+
+static const size_t EVE_SPACE_OBJECT_VS_DATA_MAX_SIZE = sizeof( EveSpaceObjectVSData ) + EveSpaceObjectVSData::MAX_BONE_COUNT * 12 * sizeof( float );
 
 // --------------------------------------------------------------------------------
 // Description:

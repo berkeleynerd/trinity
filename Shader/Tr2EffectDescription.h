@@ -31,6 +31,7 @@ struct Tr2EffectConstant
 	{
 		FLOAT,
 		INT,
+		UINT,
 		BOOL,
 
 		OTHER,
@@ -181,8 +182,6 @@ struct Tr2EffectStageInput
 	char constantValues[SHADER_CONSTANTS_MAX];
 	// Shader pipeline inputs
 	Tr2ShaderSignatureAL signature;
-	// Thread group size for compute shaders
-	uint32_t threadGroupSize[3];
 	Tr2EffectParameterAnnotationMap annotation;
 };
 

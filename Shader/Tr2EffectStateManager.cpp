@@ -440,7 +440,10 @@ uint32_t Tr2EffectStateManager::RegisterShaderProgramOverride( uint32_t original
 
 void Tr2EffectStateManager::Initialize()
 {
-	m_viewportSizeVar.Register( "ViewportSize", Vector4( 0.0f, 0.0f, 1.0f, 0.0f ) );
+	if( !GlobalStore().FindVariable( "ViewportSize" ) )
+	{
+		m_viewportSizeVar.Register( "ViewportSize", Vector4( 0.0f, 0.0f, 1.0f, 0.0f ) );
+	}
 
 	m_currentValues.Reset();
 	m_isManagedRendering = false;
@@ -936,6 +939,34 @@ bool Tr2EffectStateManager::SetDepthStencilBuffer( const Tr2TextureAL& ds )
 	}
 
 	return true;
+}
+
+void Tr2EffectStateManager::SetupContextResources()
+{
+	// Create all HW vertex layouts here to avoid creating those during multithreaded rendering
+	for( auto& it: s_vertexLayoutMap )
+	{
+		Tr2VertexLayoutAL& hvl = *it.second;
+		if( !hvl.IsValid() )
+		{
+			USE_MAIN_THREAD_RENDER_CONTEXT();
+			hvl.Create( it.first, renderContext );
+		}
+	}
+}
+
+void Tr2EffectStateManager::AssignFrom( const Tr2EffectStateManager& other )
+{
+	BeginManagedRendering();
+	if( !other.m_isManagedRendering )
+	{
+		EndManagedRendering();
+	}
+	
+	m_renderStates = other.m_renderStates;
+	std::copy( std::begin( other.m_renderStateOverrides ), std::end( other.m_renderStateOverrides ), m_renderStateOverrides );
+	
+	ApplyStandardStates( other.m_currentValues.m_renderingMode );
 }
 
 void Tr2EffectStateManager::UpdateRenderTargetViewport( unsigned width, unsigned height )

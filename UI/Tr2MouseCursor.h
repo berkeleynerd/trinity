@@ -41,11 +41,14 @@ private:
 	// Hotspot coordinates
 	int m_hotspotX;
 	int m_hotspotY;
-#else
-#ifdef _WIN32
+#elif _WIN32
 	// WinApi cursor (for DX11/GL)
 	HCURSOR m_cursor;
-#endif
+#elif __APPLE__
+    bool Create_MacOS( const char* bits, uint32_t width, uint32_t height, int hotspotX, int hotspotY );
+    void Apply_MacOS();
+    
+    id m_cursor;  // NSCursor
 #endif
 };
 

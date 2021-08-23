@@ -15,14 +15,8 @@ const Be::ClassInfo* Tr2PostProcessRenderInfo::ExposeToBlue()
 	EXPOSURE_BEGIN( Tr2PostProcessRenderInfo, "" )
 		MAP_INTERFACE( INotify )
 
-
-		MAP_ATTRIBUTE( "destBuffer", m_destBuffer, "The destination buffer of the post process", Be::READWRITE )
 		MAP_ATTRIBUTE( "sourceBuffer", m_sourceBuffer, "The source buffer of the post process", Be::READWRITE | Be::NOTIFY )
-		MAP_ATTRIBUTE( "sourceBufferCopy", m_sourceBufferCopy, "A copy of the source buffer, before any post processing is rendered", Be::READ )
-
-		MAP_ATTRIBUTE( "rt1", m_rt1, "One of the render buffers", Be::READ )
-		MAP_ATTRIBUTE( "rt2", m_rt2, "the other render buffer", Be::READ )
-		
-		EXPOSURE_END()
+		MAP_METHOD_AND_WRAP( "GetAllTempTextures", GetAllTempTextures, "Returns all temp textures used by post-process. For debugging purposes." )
+	EXPOSURE_END()
 }
 

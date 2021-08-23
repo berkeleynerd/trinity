@@ -159,6 +159,14 @@ void TriGeometryBatch::SubmitGeometry( Tr2RenderContext& renderContext )
 	}
 }
 
+void TriGeometryBatch::SyncronousSubmit( Tr2RenderContext& renderContext )
+{
+	if( m_geometryResource && m_reversed )
+	{
+		m_geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
+	}
+}
+
 void TriGeometryBatch::SetGeometryResource( TriGeometryRes* val )
 {
 	m_geometryResource = val;

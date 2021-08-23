@@ -65,8 +65,6 @@ TriTextureRes::TriTextureRes():
 	m_cutoutHeight( 1.0f ),
 	m_mipLevelMaxCount( std::numeric_limits<uint32_t>::max() ),
 	m_isTextureResizable( true ),
-	m_data( nullptr ),
-	m_dataSize( 0 ),
 	m_resourceLoadCbId( 0 ),
 	m_resourcePrepCbId( 0 ),
 	m_averageColor( 0.0, 0.0, 0.0, 0.0 )
@@ -304,7 +302,7 @@ size_t TriTextureRes::GetMemoryUsage()
 	return m_memoryUse;
 }
 
-void TriTextureRes::OnCloseStream()
+void TriTextureRes::CleanupLoadData()
 {
 	if( m_loadedBitmap )
 	{
@@ -315,9 +313,6 @@ void TriTextureRes::OnCloseStream()
 	}
 
 	m_loadedBitmap.reset();
-
-	m_data = nullptr;
-	m_dataSize = 0;
 }
 
 bool TriTextureRes::OnPrepareResources()
@@ -469,15 +464,9 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 	CCP_ASSERT( m_loadedBitmap != nullptr );
 
 	ImageIO::Result result;
-	if( Tr2ImageIOHelpers::IsCairoScriptPath( GetFilePath().c_str() ) )
-	{
-		result = Tr2ImageIOHelpers::RasterizeCairoScript( *m_loadedBitmap, m_dataStream, m_queryArguments );
-	}
-	else
-	{
-		ImageIO::LoadParameters params( m_path.c_str(), ComputeMipSkipCount(), m_mipLevelMaxCount );
-		result = ImageIO::ReadImage( *m_dataStream, params, *m_loadedBitmap, &m_metadata );
-	}
+	ImageIO::LoadParameters params( m_path.c_str(), ComputeMipSkipCount(), m_mipLevelMaxCount );
+	result = ImageIO::ReadImage( *m_dataStream, params, *m_loadedBitmap, &m_metadata );
+
 	if( !result )
 	{
 		CCP_LOGERR( "Tr2ImageHandler failed to load texture '%S': %s", GetPath(), result.GetErrorMessage().c_str() );
@@ -668,6 +657,56 @@ bool TriTextureRes::CreateFromHostBitmap( Tr2HostBitmap* bitmap )
 	m_isTextureResizable = false;
 	SetTexture( m_ownTexture );
 	return true;	
+}
+
+bool TriTextureRes::CreateEmptyTexture( uint32_t width, uint32_t height, uint32_t mipCount, Tr2RenderContextEnum::PixelFormat format )
+{
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+
+	if( !width || !height )
+	{
+		return false;
+	}
+
+	Tr2BitmapDimensions bmp( width, height, mipCount, format );
+
+	auto trueMipLevelCount = bmp.GetTrueMipCount();
+	unsigned memoryUse = 0;
+
+	std::vector<uint8_t> empty;
+	empty.resize( bmp.GetMipSize( 0 ), 0 );
+
+	std::vector<Tr2SubresourceData> initData( trueMipLevelCount );
+
+	for( unsigned i = 0; i != trueMipLevelCount; ++i )
+	{
+		Tr2SubresourceData& srd = initData[i];
+		srd.m_sysMem = empty.data();
+		srd.m_sysMemSlicePitch = bmp.GetMipSize( i );
+		srd.m_sysMemPitch = bmp.GetMipPitch( i );
+		memoryUse += srd.m_sysMemSlicePitch;
+	}
+
+	m_ownTexture = Tr2TextureAL();
+	SetTexture( m_ownTexture );
+
+	CR_RETURN_VAL( m_ownTexture.Create(
+					   bmp,
+					   Tr2GpuUsage::SHADER_RESOURCE,
+					   Tr2CpuUsage::READ | Tr2CpuUsage::WRITE,
+					   initData.data(),
+					   renderContext ),
+				   false );
+
+	*static_cast<Tr2BitmapDimensions*>( this ) = m_ownTexture.GetDesc();
+
+	m_memoryUse = memoryUse;
+
+	CCP_STATS_ADD( textureResBytes, m_memoryUse );
+	SetTexture( m_ownTexture );
+	SetPrepared( true );
+	SetGood( true );
+	return true;
 }
 
 BlueStdResult TriTextureRes::CreateFromTexture( TriTextureRes* texture )

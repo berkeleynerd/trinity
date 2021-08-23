@@ -145,7 +145,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_enableShadowObb( true ),
 	m_enableShadowDistanceTweak( true ),
 	m_shadowCameraDistance( 50.0f ),
-	m_updateContext( NULL ),
+	m_updateContext( 0 ),
 	m_envMapHandle( NULL ),
 	m_envMap1Var( "EnvMap1", m_envMap1 ),
 	m_envMap2Var( "EnvMap2", m_envMap2 ),
@@ -1054,6 +1054,9 @@ void EveSpaceScene::RenderObjectsReceivingShadows(	std::vector<ShadowReceiver>& 
 				renderContext.SetReadOnlyDepth( false );
 			}
 			PrepareShadowMap( obj, shadowRenderables[i], debugCasters[i], renderContext );
+
+			renderContext.RenderPassHint( { Tr2LoadAction::LOAD, Tr2StoreAction::STORE }, { Tr2LoadAction::LOAD, Tr2StoreAction::STORE }, { Tr2LoadAction::LOAD, m_hasDepthPass ? Tr2StoreAction::DONT_CARE : Tr2StoreAction::STORE } );
+
 			if( m_hasDepthPass )
 			{
 				renderContext.SetReadOnlyDepth( true );
@@ -1224,7 +1227,10 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 
 	if( g_eveSpaceSceneDynamicLighting )
 	{
-		Tr2LightManager::GetOrCreateInstance( "res:/graphics/effect/managed/space/system/computelightlists.fx" );
+		if( auto lightManager = Tr2LightManager::GetOrCreateInstance( "res:/graphics/effect/managed/space/system/computelightlists.fx" ) )
+		{
+			lightManager->SetVariableStore();
+		}
 	}
 	else
 	{
@@ -1266,8 +1272,10 @@ void EveSpaceScene::BeginRender( Tr2RenderContext& renderContext )
 	
 	if( m_velocityMap )
 	{
+#if !TRINITY_PLATFORM_SUPPORTS_RENDER_PASS_HINTS
 		Tr2PushPopRT rt( *m_velocityMap, renderContext, 1 );
 		renderContext.Clear( CLEARFLAGS_TARGET, 0x00000000, 1.f, 0, 1 );
+#endif
 	}
 
 	PopulatePerFramePSData( m_perFramePS, renderContext );
@@ -1366,7 +1374,8 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 		objectsReceivingShadow.erase(start, end);
 	}
 
-	if( m_impostorManager )
+	Tr2ImpostorManager* impostorManager = nullptr;
+	if( m_impostorManager && ( !m_reflectionProbe || !TRINITY_PLATFORM_SUPPORTS_COMPUTE || m_reflectionProbe->HasData() ) )
 	{
 		uint32_t size = 2;
 		uint32_t threshold = uint32_t( g_eveSpaceSceneLowDetailThreshold ) / 2;
@@ -1376,6 +1385,7 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 		}
 		m_impostorManager->SetItemSize( size, size );
 		m_impostorManager->BeginUpdate();
+		impostorManager = m_impostorManager;
 	}
 
 	for( std::vector<IEveSpaceObject2*>::iterator it = objectsNotReceivingShadow.begin(); it != objectsNotReceivingShadow.end(); ++it )
@@ -1384,12 +1394,11 @@ void EveSpaceScene::GatherBatches( Tr2RenderContext& renderContext )
 		obj->GetRenderables( renderables, m_impostorManager );
 	}
 
-	if( m_impostorManager )
+	if( impostorManager )
 	{
-		m_impostorManager->EndUpdate();
+		impostorManager->EndUpdate();
+		UpdateImpostors( renderContext );
 	}
-
-	UpdateImpostors( renderContext );
 	
 	for( auto it = m_staticParticles.begin(); it != m_staticParticles.end(); ++it )
 	{
@@ -1494,7 +1503,8 @@ void EveSpaceScene::UpdateImpostors( Tr2RenderContext& renderContext )
 		Vector3 viewDir = Normalize( eye - position );
 
 		const float distance = sphere.w * 10;
-		Matrix view( XMMatrixLookAtRH( position + viewDir * distance, position, up ) );
+		Vector3 eyePosition = position + viewDir * distance;
+		Matrix view( XMMatrixLookToLH( eyePosition, viewDir, up ) );
 		Matrix proj( XMMatrixPerspectiveRH( sphere.w * 2, sphere.w * 2, distance - sphere.w, distance + sphere.w ) );
 
 		Tr2Renderer::SetViewTransform( view );
@@ -1693,6 +1703,8 @@ void EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 	
 	{
 		GPU_REGION( renderContext, "Background" );
+		renderContext.RenderPassHint( { Tr2LoadAction::CLEAR, Tr2StoreAction::STORE },
+									  { Tr2LoadAction::CLEAR, Tr2StoreAction::DONT_CARE } );
 		RenderBackgroundPassObjects( renderContext, BACKGROUND_RENDER_COLOR );
 		if( !m_planets.empty() )
 		{
@@ -1850,6 +1862,13 @@ void EveSpaceScene::RenderDepthPass( Tr2RenderContext& renderContext )
 		m_hasDepthPass = true;
 #endif
 
+#if TRINITY_PLATFORM == TRINITY_METAL
+		renderContext.m_esm.PushRenderTarget();
+        Tr2TextureAL nullTex;
+        renderContext.SetRenderTarget( nullTex, 0 );
+#endif
+		renderContext.RenderPassHint( {}, { Tr2LoadAction::CLEAR, Tr2StoreAction::STORE } );
+
 		renderContext.Clear( CLEARFLAGS_ZBUFFER, 0, 0, 0 );
 
 		ApplyPerFrameData( renderContext );
@@ -1887,6 +1906,9 @@ void EveSpaceScene::RenderDepthPass( Tr2RenderContext& renderContext )
 
 			visible.clear();
 		}
+#if TRINITY_PLATFORM == TRINITY_METAL
+        renderContext.m_esm.PopRenderTarget();
+#endif
 	}
 
 	renderContext.m_esm.EndManagedRendering();
@@ -1916,8 +1938,6 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 		renderContext.SetReadOnlyDepth( true );
 	}
 
-	std::vector<ITr2Renderable*> objectRenderables;
-	
 	if( auto lightManager = Tr2LightManager::GetInstance() )
 	{
 		GPU_REGION( renderContext, "Lighting" );
@@ -1934,16 +1954,19 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 	if( !m_hasDepthPass )
 	{
 		GPU_REGION( renderContext, "Depth Pass" );
+		
+#if TRINITY_PLATFORM == TRINITY_METAL
+		renderContext.m_esm.PushRenderTarget();
+        Tr2TextureAL nullTex;
+        renderContext.SetRenderTarget( nullTex, 0 );
+		renderContext.RenderPassHint( {}, { Tr2LoadAction::CLEAR, Tr2StoreAction::STORE } );
+#endif
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_DEPTH_ONLY );
 		renderContext.RenderBatches( m_primaryBatches[TRIBATCHTYPE_DEPTH], BlueSharedString( "Depth" ) );
-	}
 
-	GPU_REGION( renderContext, "Color Pass" );
-
-	{
-		GPU_REGION( renderContext, "Opaque" );
 		// Draw the planets to the z-buffer to occlude any stations etc.
 		// that might be drawn behind moons.
+		std::vector<ITr2Renderable*> objectRenderables;
 		for( EvePlanetVector::iterator it = m_planets.begin(); it != m_planets.end(); ++it )
 		{
 			EvePlanet* obj = *it;
@@ -1952,21 +1975,40 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 		if( !objectRenderables.empty() )
 		{
 			RenderRenderables( objectRenderables,
-				m_secondaryBatches[TRIBATCHTYPE_OPAQUE],
-				TRIBATCHTYPE_OPAQUE,
-				Tr2EffectStateManager::RM_OPAQUE,
-				renderContext );
-			objectRenderables.clear();
+							   m_secondaryBatches[TRIBATCHTYPE_OPAQUE],
+							   TRIBATCHTYPE_OPAQUE,
+							   Tr2EffectStateManager::RM_OPAQUE,
+							   renderContext );
 		}
+
+#if TRINITY_PLATFORM == TRINITY_METAL
+        renderContext.m_esm.PopRenderTarget();
+#endif
+	}
+
+	GPU_REGION( renderContext, "Color Pass" );
+
+	{
+		GPU_REGION( renderContext, "Opaque" );
 
 		{
 			if( m_velocityMap )
 			{
+#if TRINITY_PLATFORM_SUPPORTS_RENDER_PASS_HINTS
+                if( m_primaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount() == 0 &&
+                   m_primaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount() == 0 )
+                {
+                    Tr2PushPopRT rt( *m_velocityMap, renderContext, 1 );
+                    renderContext.Clear( CLEARFLAGS_TARGET, 0, 0, 0, 1 );
+                }
+#endif
 				Tr2PushPopRT rt( *m_velocityMap, renderContext, 1 );
+				renderContext.RenderPassHint( { Tr2LoadAction::LOAD, Tr2StoreAction::STORE }, { Tr2LoadAction::CLEAR, Tr2StoreAction::STORE }, { Tr2LoadAction::LOAD, m_hasDepthPass ? Tr2StoreAction::DONT_CARE : Tr2StoreAction::STORE } );
 				RenderOpaqueBatches( m_primaryBatches, renderContext );
 			}
 			else
 			{
+				renderContext.RenderPassHint( { Tr2LoadAction::LOAD, Tr2StoreAction::STORE }, { Tr2LoadAction::LOAD, m_hasDepthPass ? Tr2StoreAction::DONT_CARE : Tr2StoreAction::STORE } );
 				RenderOpaqueBatches( m_primaryBatches, renderContext );
 			}
 		}
@@ -1986,6 +2028,10 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 	{
 		GPU_REGION( renderContext, "Transparent" );
 
+		if( !m_hasDepthPass )
+		{
+			renderContext.RenderPassHint( { Tr2LoadAction::LOAD, Tr2StoreAction::STORE }, { Tr2LoadAction::LOAD, Tr2StoreAction::DONT_CARE } );
+		}
 		RenderTransparentBatches( m_primaryBatches, renderContext );
 		m_hasForegroundDistortionBatches = RenderDistortionBatches( m_primaryBatches, renderContext );
 	}

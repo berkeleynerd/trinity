@@ -69,20 +69,21 @@ struct Tr2IntKeyGenerator
 		const int64_t mask = 0x0000FFFF00000000;
 		const int64_t baseKey = entry.m_batch->GetUserData();
 		int64_t group = ( baseKey & mask ) >> 32;
+		const int64_t userDataMask = group << 56;
 
 		// Opaque batches are sort-by-effect
 		if( group == (unsigned int)WODINTBATCHGROUP_OPAQUE )
 		{
 			// Get the effect sort key
-			int64_t effectKey = 0x00000000FFFFFFFF;
+			int64_t effectKey = 0x00FFFFFFFFFFFFFF;
 			auto shaderMaterial = entry.m_batch->GetShaderMaterialInterface();
 			if( shaderMaterial )
 			{
-				effectKey = (int64_t)shaderMaterial->GetSortValue();
+				effectKey = shaderMaterial->GetSortValue() & effectKey;
 			}
 
 			// Pack the effect sort key into the low 32 bits
-			entry.m_sortKey = baseKey | effectKey;
+			entry.m_sortKey = userDataMask | effectKey;
 		}
 		// Everything else is sort-by-depth
 		else
@@ -93,7 +94,7 @@ struct Tr2IntKeyGenerator
 			int64_t depthKey = entry.m_batch->GetDepth();
 
 			// Pack the depth key into the low 32 bits
-			entry.m_sortKey = baseKey | depthKey;
+			entry.m_sortKey = userDataMask | depthKey;
 		}
 	}
 

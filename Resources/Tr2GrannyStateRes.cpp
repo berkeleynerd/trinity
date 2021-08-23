@@ -63,7 +63,7 @@ BlueAsyncRes::LoadingResult Tr2GrannyStateRes::DoLoad()
 			m_characterFile = NULL;
 		}
 
-		CCP_STATS_ZONE(__FUNCTION__ " reading Granny file");
+		CCP_STATS_ZONE( "Tr2GrannyStateRes::DoLoad reading Granny file" );
 		m_characterFile = ProtectedGrannyReadEntireFileFromMemory(m_path.c_str(), (uint32_t)m_dataSize, m_data);
 	}
 	if (!m_characterFile)

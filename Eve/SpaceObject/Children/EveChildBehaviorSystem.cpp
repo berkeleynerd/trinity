@@ -15,10 +15,11 @@ namespace
 		virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
 		{
 			FillAndSetConstants( *buffers[Tr2RenderContextEnum::VERTEX_SHADER],
-				m_vsData, sizeof( *m_vsData ),
-				Tr2RenderContextEnum::VERTEX_SHADER,
-				Tr2Renderer::GetPerObjectVSStartRegister(),
-				renderContext );
+								 m_vsData,
+								 sizeof( *m_vsData ),
+								 Tr2RenderContextEnum::VERTEX_SHADER,
+								 Tr2Renderer::GetPerObjectVSStartRegister(),
+								 renderContext );
 			FillAndSetConstants( *buffers[Tr2RenderContextEnum::PIXEL_SHADER],
 				m_psData, sizeof( *m_psData ),
 				Tr2RenderContextEnum::PIXEL_SHADER,
@@ -688,7 +689,7 @@ void EveChildBehaviorSystem::ChangeBufferVertexCount()
 
 	auto b = m_vertexBuffer.Create(
 		2 * m_stride,				// 12 * sizeof( float )
-		m_vertexCount,			// Number of instances
+		m_vertexCount + 1,			// Number of instances
 		Tr2GpuUsage::VERTEX_BUFFER, // VERTEX_BUFFER
 		Tr2CpuUsage::WRITE_OFTEN,	// WRITE_OFTEN
 		nullptr,

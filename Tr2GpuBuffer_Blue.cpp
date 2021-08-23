@@ -57,7 +57,8 @@ namespace
 		}
 		if( !pThis->IsValid() )
 		{
-			return PyErr_SetString( PyExc_RuntimeError, "buffer is not valid" ), nullptr;
+            PyErr_SetString( PyExc_RuntimeError, "buffer is not valid" );
+			return nullptr;
 		}
 
 		auto buffer = pThis->GetGpuBuffer( 0 );
@@ -68,7 +69,8 @@ namespace
 		auto hr = buffer->MapForReading( data, renderContext );
 		if( FAILED( hr ) )
 		{
-			return PyErr_SetString( BeGetException( hr ), BeGetErrorMessage( hr ) ), nullptr;
+            PyErr_SetString( BeGetException( hr ), BeGetErrorMessage( hr ) );
+			return nullptr;
 		}
 		ON_BLOCK_EXIT( [&]() { buffer->UnmapForReading( renderContext ); } );
 

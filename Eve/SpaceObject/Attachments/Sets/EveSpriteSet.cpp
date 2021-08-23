@@ -159,13 +159,13 @@ void EveSpriteSet::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matri
 			{
 				TriMatrixCopyFrom3x4( &m, &bones[boneIndex] );
 				XMVECTOR position = XMVector3TransformCoord( XMLoadFloat3( reinterpret_cast<XMFLOAT3*>( &m_spriteData[i] ) ), m );
-				XMStoreFloat3A( 
+				XMStoreFloat3( 
 					reinterpret_cast<XMFLOAT3*>( &m_buffer[i].position ), 
 					XMVector3TransformCoord( position, parentTransform ) );
 			}
 			else
 			{
-				XMStoreFloat3A( 
+				XMStoreFloat3( 
 					reinterpret_cast<XMFLOAT3*>( &m_buffer[i].position ), 
 					XMVector3TransformCoord( XMLoadFloat3( reinterpret_cast<XMFLOAT3*>( &m_spriteData[i] ) ), parentTransform ) );
 			}

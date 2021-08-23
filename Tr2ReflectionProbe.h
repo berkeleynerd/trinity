@@ -29,6 +29,7 @@ public:
 	bool OnPrepareResources();
 
 	bool IsValid();
+	bool HasData() const;
 	void InitRenderPass( Tr2RenderContext &renderContext );
 	void StartRenderFace( unsigned face, Tr2RenderContext &renderContext );
 	void EndRenderPass( Tr2RenderContext &renderContext );
@@ -49,6 +50,7 @@ private:
 	void Filter( Tr2RenderContext &renderContext );
 
 	bool m_initialized;
+	bool m_hasData;
 	Vector3 m_position;
 	int m_intermediateSize;
 

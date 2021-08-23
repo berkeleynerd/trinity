@@ -27,6 +27,26 @@ BLUE_CLASS( Tr2PostProcessRenderInfo ) :
 public:
 	EXPOSE_TO_BLUE();
 
+	class Texture
+	{
+	public:
+		Texture();
+		Texture( const Texture& other );
+		Texture& operator=( const Texture& other );
+		~Texture();
+
+		Tr2RenderTarget* GetRenderTarget() const;
+		operator Tr2RenderTarget*() const;
+		Tr2RenderTarget* operator->() const;
+	private:
+		Texture( Tr2PostProcessRenderInfo* renderInfo, Tr2RenderTarget* renderTarget );
+
+		Tr2RenderTarget* m_renderTarget;
+		Tr2PostProcessRenderInfo* m_renderInfo;
+
+		friend class Tr2PostProcessRenderInfo;
+	};
+
 	Tr2PostProcessRenderInfo( IRoot* lockobj = NULL );
 	~Tr2PostProcessRenderInfo();
 
@@ -34,47 +54,29 @@ public:
 
 	bool Setup( Tr2RenderContext & renderContext );
 	void SetSourceBuffer( Tr2RenderTarget* sourceBuffer );
-	Tr2RenderTarget* GetSourceBuffer() { return m_sourceBuffer; };
-	Tr2RenderTarget* GetSourceBufferCopy() 
-	{ 
-		if( m_sourceBuffer && m_sourceBuffer->GetMsaaType() > 1 )
-		{
-			return m_sourceBufferCopy;
-		}
-		return m_sourceBuffer;		
-	};
 
-	Tr2RenderTarget* GetSourceBufferCopyDirectly()
-	{
-		return m_sourceBufferCopy;		
-	};
+	Texture GetTempTexture( float sizeFactor = 1.f, Tr2RenderContextEnum::ExFlag exFlag = Tr2RenderContextEnum::EX_NONE );
+	Texture GetSourceBuffer();
+	Texture GetBlackTexture();
 
-	Tr2RenderTarget* GetDestBuffer() { return m_destBuffer; };
-	Tr2RenderTarget* GetRt1Buffer() { return m_rt1; };
-	Tr2RenderTarget* GetRt2Buffer() { return m_rt2; };
-	Tr2RenderTarget* GetBlackBuffer() { return m_black; };
-	Tr2RenderTarget* GetFidelityInputBuffer();
-	Tr2RenderTarget* GetFidelityOutputBuffer();
-	Tr2RenderTarget* GetGrainInputBuffer();
-
-
+	std::vector<Tr2RenderTargetPtr> GetAllTempTextures() const;
 private:
-	void CopySourceTo( Tr2RenderTarget* buffer, float sizeScale );
+	friend class Tr2PostProcessRenderInfo::Texture;
 
-	// Buffers
+	void LockTempTexture( Tr2RenderTarget * tempTexture );
+	void ReleaseTempTexture( Tr2RenderTarget * tempTexture );
+
+	struct TempTexture
+	{
+		Tr2RenderTargetPtr texture;
+		float sizeFactor;
+		Tr2RenderContextEnum::ExFlag exFlag;
+		int32_t lockCount;
+	};
+
+	std::vector<TempTexture> m_tempTextures;
 	Tr2RenderTargetPtr m_sourceBuffer;
-	Tr2RenderTargetPtr m_destBuffer;
-	Tr2RenderTargetPtr m_sourceBufferCopy;
-
-	Tr2RenderTargetPtr m_rt1;
-	Tr2RenderTargetPtr m_rt2;
-
 	Tr2RenderTargetPtr m_black;
-
-	Tr2RenderTargetPtr m_fidelityInputRT;
-	Tr2RenderTargetPtr m_fidelityOutputRT;
-
-	Tr2RenderTargetPtr m_grainInputRT;
 };
 
 TYPEDEF_BLUECLASS( Tr2PostProcessRenderInfo );

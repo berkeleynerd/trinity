@@ -189,15 +189,8 @@ BlueAsyncRes::LoadingResult Tr2AtlasTexture::DoLoad()
 
 	m_loadedBitmap.reset( CCP_NEW( "Tr2AtlasTexture::m_loadedBitmap" ) ImageIO::HostBitmap );
 
-	ImageIO::Result result;
-	if( Tr2ImageIOHelpers::IsCairoScriptPath( GetFilePath().c_str() ) )
-	{
-		result = Tr2ImageIOHelpers::RasterizeCairoScript( *m_loadedBitmap, m_dataStream, m_queryArguments );
-	}
-	else
-	{
-		result = ImageIO::ReadImage( *m_dataStream, ImageIO::LoadParameters( m_path.c_str() ), *m_loadedBitmap );
-	}
+	ImageIO::Result result = ImageIO::ReadImage( *m_dataStream, ImageIO::LoadParameters( m_path.c_str() ), *m_loadedBitmap );
+
 	if( result )
 	{
 		m_loadedBitmap->ConvertFormat( PIXEL_FORMAT_B8G8R8A8_UNORM );

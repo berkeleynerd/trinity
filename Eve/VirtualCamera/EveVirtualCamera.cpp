@@ -19,7 +19,7 @@ namespace
 	static const uint32_t DEBUG_COLOR_SUCCESS = 0xffaa9911;
 	static const uint32_t DEBUG_COLOR_FAIL = 0xffff0000;
 	static const Tr2DebugColor DEBUG_COLOR = Tr2DebugColor( DEBUG_COLOR_SUCCESS, DEBUG_COLOR_FAIL );
-	// Little buffer space between the camera position and the debug gizmos so they aren't visible when 
+	// Little buffer space between the camera position and the debug gizmos so they aren't visible when
 	// looking through the camera, regardless of near clipping plane.
 	static const float DEBUG_BORDER_SIZE = 0.1f;
 
@@ -47,7 +47,7 @@ namespace
 	{
 		if( anchors.size() == 0 )
 		{
-			// If behaviours are relative to the bounding sphere radius but we don't have one, might as well let them 
+			// If behaviours are relative to the bounding sphere radius but we don't have one, might as well let them
 			// work in kilometers. Space is pretty big after all.
 			return 1000.0f;
 		}
@@ -90,7 +90,8 @@ namespace
 				Matrix out;
 				( *it )->GetLocalToWorldTransform( out );
 				Vector3 fwd;
-				TriVectorRotateQuaternion( &fwd, &FORWARD, &RotationQuaternion( out ) );
+				auto tmp = RotationQuaternion( out ); // apple-clang complains about "taking address of temporary"
+				TriVectorRotateQuaternion( &fwd, &FORWARD, &tmp );
 				forward += Normalize( fwd );
 			}
 			forward /= (double)anchors.size();
@@ -422,7 +423,7 @@ void EveVirtualCamera::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 		renderer.DrawCone( this, coneTransform, -coneSize, coneSize, 12, Tr2DebugRenderer::Lit, DEBUG_COLOR );
 		renderer.DrawBox( this, invView, Vector3(coneSize / 1.5f, coneSize, coneSize + DEBUG_BORDER_SIZE), Vector3(-coneSize / 1.5f, -coneSize, coneSize * 4), Tr2DebugRenderer::Lit, DEBUG_COLOR );
 		renderer.DrawText( TRI_DBG_FONT_LARGE, m_position + GetForwardDirection() * coneSize * -2.0f, DEBUG_COLOR_SUCCESS, m_name.c_str() );
-		
+
 		// Draw the point of interest
 		renderer.DrawText( TRI_DBG_FONT_LARGE, m_pointOfInterest, DEBUG_COLOR_SUCCESS, (m_name + " POI").c_str() );
 		renderer.DrawSphere( this, m_pointOfInterest, poiSize, 16, Tr2DebugRenderer::Lit, DEBUG_COLOR );

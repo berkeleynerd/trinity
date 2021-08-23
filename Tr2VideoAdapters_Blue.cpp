@@ -7,37 +7,12 @@
 #include "StdAfx.h"
 #include "Tr2VideoAdapters.h"
 
-#ifdef _WIN32
-extern std::vector<HANDLE> g_D3DCreatedHeaps;
-#endif
 
 BLUE_DEFINE( Tr2VideoAdapters );
 BLUE_DEFINE( Tr2VideoAdapter );
 BLUE_DEFINE( Tr2DisplayMode );
 BLUE_DEFINE( Tr2VideoDriver );
 
-namespace
-{
-
-#ifdef _WIN32
-size_t GetD3DCreatedHeapCount()
-{	
-	return g_D3DCreatedHeaps.size();
-}
-
-ALResult GetD3DCreatedHeap( unsigned index, size_t& handle )
-{
-	if( index >= g_D3DCreatedHeaps.size() )
-	{
-		return E_INVALIDARG;
-	}
-
-	handle = (size_t)g_D3DCreatedHeaps[index];
-	return S_OK;
-}
-#endif
-
-}
 
 const Be::ClassInfo* Tr2VideoAdapter::ExposeToBlue()
 {
@@ -194,10 +169,3 @@ const Be::ClassInfo* Tr2VideoAdapters::ExposeToBlue()
 			"Refreshes adapter information." )
 	EXPOSURE_END()
 }
-
-
-#ifdef _WIN32
-MAP_FUNCTION_AND_WRAP( "GetD3DCreatedHeapCount", GetD3DCreatedHeapCount, "" );
-
-MAP_FUNCTION_AND_WRAP( "GetD3DCreatedHeap", GetD3DCreatedHeap, "Returns D3D heap handle\n:param indx: heap index" );
-#endif

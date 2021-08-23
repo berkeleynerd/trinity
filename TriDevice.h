@@ -57,12 +57,19 @@ public:
 	using ITriDevice::Lock;
 	using ITriDevice::Unlock;
 
+	enum ThrottlingReason
+	{
+		WINDOW_OUT_OF_FOCUS = 1,
+		WINDOW_HIDDEN = 1 << 1,
+		THERMAL_STATE = 1 << 2,
+	};
+
     ITr2ScenePtr m_scene;
 
 	Tr2WindowHandle mHwnd;	
 
-	long mWidth;
-	long mHeight;
+	int32_t mWidth;
+	int32_t mHeight;
 
 	//device creation parameters
 	Tr2RenderContextEnum::SwapEffect mSwapEffect;
@@ -84,6 +91,9 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 
 	float AspectRatio();
+
+	void SetThrottling( ThrottlingReason reason, bool on );
+	bool GetThrottling( ThrottlingReason reason ) const;
 
 	// Window handling	
 	bool SetPresentation( int adapter, const Tr2PresentParametersAL* d3dpp );
@@ -160,8 +170,6 @@ public:
 	float GetAnimationTime() { return m_animationTime; }
 	float GetAnimationTimeElapsed( float startTime );
 
-	virtual void SetTickInterval( int value );
-
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IBlueEvents
@@ -235,6 +243,8 @@ private:
 
 	static void LogAllLiveResources( Tr2ALMemoryTypes flags = AL_MEMORY_VIDEO | AL_MEMORY_MANAGED );
 
+	bool ShouldSkipFrame() const;
+	void Throttle() const;
 
 private:
 	BlueScriptCallback m_onDeviceRemoved;
@@ -268,6 +278,9 @@ private:
 
 	unsigned int m_mipLevelSkipCount;
 
+	uint32_t m_throttlingState;
+	bool m_allowThrottling;
+
 	//////////////////////////////////////////////////////////////////////////
 	// Curve sets
 	PTriCurveSetVector m_curveSets;
@@ -289,6 +302,7 @@ private:
 	};
 
 	IBlueCallbackManPtr m_postUpdateCallbacks;
+
 
 public:
 	EXPOSE_TO_BLUE();

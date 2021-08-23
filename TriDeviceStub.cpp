@@ -5,8 +5,6 @@
 #include "TriDevice.h"
 #include "TriError.h"
 
-#include "UI/App.h"
-
 #include "RenderJob/Tr2RenderJobs.h"
 
 using namespace Tr2RenderContextEnum;

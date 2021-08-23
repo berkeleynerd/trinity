@@ -73,11 +73,16 @@ PyObject* TriDevice::PyGetPickRayFromViewport( PyObject* args )
 }
 #endif
 
-const Be::VarChooser TriDeviceTypeChooser[] =
-{
+const Be::VarChooser TriDeviceTypeChooser[] = {
 	// Name		   Value		    Docstring
-	{ "HARDWARE",			BeCast( TriDevice::DEVICE_TYPE_HARDWARE),			"Hardware device" }, 
-	{ "SOFTWARE",			BeCast( TriDevice::DEVICE_TYPE_SOFTWARE ),			"Software device" },
+	{ "HARDWARE", BeCast( TriDevice::DEVICE_TYPE_HARDWARE ), "Hardware device" },
+	{ "SOFTWARE", BeCast( TriDevice::DEVICE_TYPE_SOFTWARE ), "Software device" },
+	{ 0 }
+};
+
+const Be::VarChooser TriDeviceThrottlingReasonChooser[] = {
+	{ "WINDOW_OUT_OF_FOCUS", BeCast( TriDevice::WINDOW_OUT_OF_FOCUS ), "" },
+	{ "WINDOW_HIDDEN", BeCast( TriDevice::WINDOW_HIDDEN ), "" },
 	{ 0 }
 };
 
@@ -94,7 +99,6 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 
 		MAP_INTERFACE(ITriDevice)
 
-		MAP_ATTRIBUTE_WITH_CHOOSER( "depthStencilFormat", mPresentParam.depthStencilFormat, "na", Be::READ | Be::ENUM, Tr2RenderContextEnum_DepthStencilFormat_Chooser )	
 		MAP_ATTRIBUTE_WITH_CHOOSER( "swapEffect", mSwapEffect, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST | Be::ENUM, Tr2RenderContextEnum_SwapEffect_Chooser )	
 		MAP_ATTRIBUTE( "multiSampleType", mPresentParam.msaaType, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST )	
 		MAP_ATTRIBUTE_WITH_CHOOSER( "presentationInterval", mPresentParam.presentInterval, "na", Be::READWRITE | Be::NOTIFY | Be::PERSIST | Be::ENUM, Tr2RenderContextEnum_PresentInterval_Chooser )	
@@ -116,6 +120,9 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "backBufferCount", mBackBufferCount, "na", Be::READWRITE | Be::NOTIFY )	
 		MAP_ATTRIBUTE( "tickInterval", mTickInterval, "na", Be::READWRITE )
+
+		MAP_ATTRIBUTE_WITH_CHOOSER( "throttlingState", m_throttlingState, "", Be::READ, TriDeviceThrottlingReasonChooser )
+		MAP_ATTRIBUTE( "allowThrottling", m_allowThrottling, "", Be::READWRITE )
 
 		MAP_PROPERTY
 		(

@@ -47,7 +47,7 @@ void TriRect::SetDimentions( int32_t _left, int32_t _top, int32_t _right, int32_
 	bottom = _bottom;
 }
 
-void TriRect::SetRect( const ::Rect* c )
+void TriRect::SetRect( const ::Tr2Rect* c )
 {
 	left = c->left;
 	top = c->top;
@@ -55,12 +55,12 @@ void TriRect::SetRect( const ::Rect* c )
 	bottom = c->bottom;
 }
 
-const ::Rect* TriRect::GetRect() const
+const ::Tr2Rect* TriRect::GetRect() const
 {
 	return this;
 }
 
-::Rect* TriRect::CopyRect( ::Rect* in ) const
+::Tr2Rect* TriRect::CopyRect( ::Tr2Rect* in ) const
 {
 	// would this work?
 	//return &(*in = *this);
@@ -68,7 +68,7 @@ const ::Rect* TriRect::GetRect() const
 	return in;
 }
 
-::Rect* TriRect::Rect()
+::Tr2Rect* TriRect::Rect()
 {
 	return this;
 }

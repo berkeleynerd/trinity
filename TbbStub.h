@@ -11,7 +11,7 @@
 #if TBB_ENABLED
 
 #define Tr2ParallelFor tbb::parallel_for
-#define Tr2ParallelDo tbb::parallel_do
+#define Tr2ParallelDo tbb::parallel_for_each
 #define Tr2BlockedRange tbb::blocked_range
 #define Tr2ParallelSort tbb::parallel_sort
 #define Tr2EnumerableThreadSpecific tbb::enumerable_thread_specific

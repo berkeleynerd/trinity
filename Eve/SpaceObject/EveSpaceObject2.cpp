@@ -1195,7 +1195,6 @@ void EveSpaceObject2::UpdatePerObjectBuffer( Tr2RenderContextEnum::ShaderType sh
 		memcpy( perObjectVS, &m_vsData, sizeof( m_vsData ) );
 		perObjectVS += sizeof( m_vsData );
 
-		// maybe animated?
 		size -= sizeof( m_vsData );
 		if( size )
 		{
@@ -1273,14 +1272,22 @@ void EveSpaceObject2::PushChildrenAndDecalRenderables( std::vector<ITr2Renderabl
 	// are decals visible?
 	if( DisplayDecals() && m_mesh && m_isMeshVisible )
 	{
-		TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
-		if( geometryRes )
+		bool hasHighLodGeometry = true;
+		if( m_meshLod )
 		{
-			// runn over every decal and update it
-			for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
+			hasHighLodGeometry = m_meshLod->IsGeometryUsingSelectedLod();
+		}
+		if( hasHighLodGeometry )
+		{
+			TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
+			if( geometryRes )
 			{
-				// now prep to get the renderables
-				( *it )->GetRenderables( renderables, geometryRes );
+				// runn over every decal and update it
+				for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
+				{
+					// now prep to get the renderables
+					( *it )->GetRenderables( renderables, geometryRes );
+				}
 			}
 		}
 	}

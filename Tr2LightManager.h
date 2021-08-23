@@ -54,6 +54,7 @@ public:
 	void AddPointLight( const Vector3& position, float radius, const Color& color, float innerRadius=0.0f);
 	void AddLight( PerLightData& data );
 	ALResult UpdateLists( uint32_t msaaType, Tr2RenderContext& renderContext );
+	void SetVariableStore();
 
 	virtual void ReleaseResources( TriStorage s );
 
@@ -74,6 +75,7 @@ private:
 	Tr2AddSafeGrowableBuffer<PerLightData> m_lightData;
 	Tr2GpuStructuredBufferPtr m_lightBuffer;
 	Tr2GpuStructuredBufferPtr m_indexBuffer;
+	Tr2GpuBufferPtr m_indexBufferCounter;
 	Tr2ConstantBufferAL m_perFrameData;
 	Tr2EffectPtr m_effect;
 	Tr2Variable m_lightBufferVariable;

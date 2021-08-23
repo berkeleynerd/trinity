@@ -42,12 +42,5 @@ const Be::ClassInfo* Tr2PresentParameters::ExposeToBlue()
 			Be::READWRITE | Be::ENUM,
 			TriDeviceTypeChooser
 		)
-		MAP_ATTRIBUTE
-		(
-			"depthStencilFormat",
-			depthStencilFormat,
-			"",
-			Be::READWRITE
-		)
 	EXPOSURE_END()
 }

@@ -240,40 +240,55 @@ namespace
 	}
 
 #else
-	float GetServerYear()
-	{
-		return 0;
-	}
+    struct tm GetServerTimeParts()
+    {
+        Be::Time time;
+        if( g_controllerFunctionOverrideEnabled )
+        {
+            time = g_controllerServerTime;
+        }
+        else
+        {
+            time = BeOS->GetCurrentFrameTime();
+        }
 
-	float GetServerMonth()
-	{
-		return 0;
-	}
+        time_t t = time_t( time / 10000000 );
+        return *localtime( &t );
+    }
+    float GetServerYear()
+    {
+        return float( 1900 + GetServerTimeParts().tm_year );
+    }
 
-	float GetServerDay()
-	{
-		return 0;
-	}
+    float GetServerMonth()
+    {
+        return float( GetServerTimeParts().tm_mon + 1 );
+    }
 
-	float GetServerDayOfWeek()
-	{
-		return 0;
-	}
+    float GetServerDay()
+    {
+        return float( GetServerTimeParts().tm_mday );
+    }
 
-	float GetServerHour()
-	{
-		return 0;
-	}
+    float GetServerDayOfWeek()
+    {
+        return float( GetServerTimeParts().tm_wday );
+    }
 
-	float GetServerMinute()
-	{
-		return 0;
-	}
+    float GetServerHour()
+    {
+        return float( GetServerTimeParts().tm_hour );
+    }
 
-	float GetServerSecond()
-	{
-		return 0;
-	}
+    float GetServerMinute()
+    {
+        return float( GetServerTimeParts().tm_min );
+    }
+
+    float GetServerSecond()
+    {
+        return float( GetServerTimeParts().tm_sec );
+    }
 #endif
 
 	float IsWeekend()

@@ -47,16 +47,16 @@ TriStepResult TriStepRenderAtlas::Execute( Be::Time realTime, Be::Time simTime, 
 
 		if( m_showFree ) 
 		{
-			const std::list<Rect> freeAreas = m_atlas->GetFreeAreas();
+			const auto freeAreas = m_atlas->GetFreeAreas();
 			const static float borderScale = 0.6f;
 			Vector4 freeBorderColour = m_freeColour;
 			freeBorderColour.x *= borderScale;
 			freeBorderColour.y *= borderScale;
 			freeBorderColour.z *= borderScale;
 
-			for( std::list<Rect>::const_iterator i = freeAreas.begin(); i != freeAreas.end(); ++i )
+			for( auto i = freeAreas.begin(); i != freeAreas.end(); ++i )
 			{
-				const Rect &rect = *i;
+				auto& rect = *i;
 				m_simpleOutColourHandle->SetValue( freeBorderColour );
 				Tr2Renderer::DrawScreenQuad( renderContext, m_areaEffect, 
 					Vector2( rect.left * rw, rect.top * rh ) - offset,
@@ -71,15 +71,15 @@ TriStepResult TriStepRenderAtlas::Execute( Be::Time realTime, Be::Time simTime, 
 
 		if( m_showUsed )
 		{
-			const std::list<Rect> usedAreas = m_atlas->GetUsedAreas();
+			const auto usedAreas = m_atlas->GetUsedAreas();
 			if( !m_focus )
 			{
 				m_simpleOutColourHandle->SetValue( m_borderColour );
 			}
 
-			for( std::list<Rect>::const_iterator i = usedAreas.begin(); i != usedAreas.end(); ++i )
+			for( auto i = usedAreas.begin(); i != usedAreas.end(); ++i )
 			{
-				const Rect &rect = *i;
+				auto& rect = *i;
 				if( m_focus )
 				{
 					if( m_focus->GetX() - m_atlas->GetMargin() == rect.left &&

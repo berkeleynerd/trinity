@@ -110,7 +110,7 @@ public:
 
 	static void BeginFrame();
 	static void EndFrame();
-	static unsigned long GetCurrentFrameCounter();
+	static unsigned long long GetCurrentFrameCounter();
 
 	static HRESULT BeginRenderContext();
 	static HRESULT EndRenderContext();
@@ -174,7 +174,7 @@ public:
 	// Calls to Printf gather up text - text is rendered on RenderDebugInfo.
 	// This allows calls to Printf outside the rendering phase.
 	static void Printf( int x, int y, uint32_t color, const char* msg, ... );
-	static void Printf( TriDebugFont font, const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
+	static void Printf( TriDebugFont font, const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
     static void Printf( TriDebugFont font, const Vector3& pos, uint32_t color, const char* msg, ... );
     static void Printf( TriDebugFont font, int fontStyle, const Vector3& pos, Vector4 color, const char* msg, ... );
 
@@ -182,7 +182,7 @@ public:
 	// Text is rendered immediately so these functions can only be called within
 	// a render context.
 	static void PrintfImmediate( Tr2RenderContext& renderContext, int x, int y, uint32_t color, uint32_t format, const char* msg, ... );
-	static void PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
+	static void PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
 	static void PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Vector3& pos, uint32_t color, const char* msg, ... );
 
 	// Line rendering for debugging purposes.
@@ -216,8 +216,6 @@ public:
 	static void PopProjection();
 	static void PushViewTransform();
 	static void PopViewTransform();
-
-	static void SetTbbWorkerThreadCount( int threads );
 
 	static TriSettings& GetSettings();
 

@@ -350,7 +350,6 @@ void EveSpaceObjectDecal::CopyFrom( EveSpaceObjectDecal *object )
 	m_decalPrimitiveCount = object->m_decalPrimitiveCount;
 	m_decalMatrix = object->m_decalMatrix;
 	m_invDecalMatrix = object->m_invDecalMatrix;
-	m_parentBoneMatrix = m_parentBoneMatrix;
 	m_decalEffect = object->m_decalEffect;
 	m_indices = object->m_indices;
 	m_minScreenSize = object->m_minScreenSize;

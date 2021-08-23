@@ -24,7 +24,7 @@ BLUE_INTERFACE( ITr2DebugRenderer ) : IRoot
 
 	// Text output
 	virtual void Printf( int x, int y, uint32_t color, const char* msg, ... ) = 0;
-	virtual void Printf( const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... ) = 0;
+	virtual void Printf( const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... ) = 0;
 	virtual void Printf( const Vector3& pos, uint32_t color, const char* msg, ... ) = 0;
 };
 

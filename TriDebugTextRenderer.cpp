@@ -58,7 +58,7 @@ TriDebugTextRenderer::~TriDebugTextRenderer()
 #endif
 }
 
-void TriDebugTextRenderer::Vprintf( TriDebugFont font, const Rect& rect, uint32_t format, const Vector4& color, const char* msg, va_list args )
+void TriDebugTextRenderer::Vprintf( TriDebugFont font, const Tr2Rect& rect, uint32_t format, const Vector4& color, const char* msg, va_list args )
 {
 	const int BUFFER_SIZE = 1024;
 	static char buffer[BUFFER_SIZE];
@@ -75,7 +75,7 @@ void TriDebugTextRenderer::Vprintf( TriDebugFont font, const Rect& rect, uint32_
 	m_entries.push_back( e );
 }
 
-void TriDebugTextRenderer::VprintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Rect& rect, uint32_t format, const Vector4& color, const char* msg, va_list args )
+void TriDebugTextRenderer::VprintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Tr2Rect& rect, uint32_t format, const Vector4& color, const char* msg, va_list args )
 {
 	const int BUFFER_SIZE = 1024;
 	static char buffer[BUFFER_SIZE];
@@ -84,7 +84,7 @@ void TriDebugTextRenderer::VprintfImmediate( Tr2RenderContext& renderContext, Tr
 	DrawText( renderContext, font, buffer, rect, format, color );
 }
 
-void TriDebugTextRenderer::Printf( TriDebugFont font, const Rect& rect, uint32_t format, const Vector4& color, const char* msg, ... )
+void TriDebugTextRenderer::Printf( TriDebugFont font, const Tr2Rect& rect, uint32_t format, const Vector4& color, const char* msg, ... )
 {
     va_list args;
     va_start( args, msg );
@@ -94,7 +94,7 @@ void TriDebugTextRenderer::Printf( TriDebugFont font, const Rect& rect, uint32_t
 }
 
 
-void TriDebugTextRenderer::PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Rect& rect, uint32_t format, const Vector4& color, const char* msg, ... )
+void TriDebugTextRenderer::PrintfImmediate( Tr2RenderContext& renderContext, TriDebugFont font, const Tr2Rect& rect, uint32_t format, const Vector4& color, const char* msg, ... )
 {
 	va_list args;
 	va_start( args, msg );
@@ -140,7 +140,7 @@ bool TriDebugTextRenderer::OnPrepareResources()
 //   format - Bitfield of TRI_DFS_... constants
 //   color - Color to use for rendering (alpha component is ignored)
 // --------------------------------------------------------------------------------------
-void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFont font, const char* string, const Rect& rect, uint32_t format, const Vector4& vecColor)
+void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFont font, const char* string, const Tr2Rect& rect, uint32_t format, const Vector4& vecColor)
 {
 	uint32_t color = Color( vecColor.x, vecColor.y, vecColor.z, vecColor.w );
 	
@@ -251,7 +251,7 @@ void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFo
 	}
 	m_texture.UnmapForWriting( renderContext );
 #else
-	Rect size = { 0, 0, 0, s_charHeight[font] };
+	Tr2Rect size = { 0, 0, 0, s_charHeight[font] };
 	int rowWidth = 0;
 	for( const char* ch = string; *ch; ++ch )
 	{
@@ -268,7 +268,7 @@ void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFo
 			}
 			else
 			{
-				rowWidth += s_charWidths[font][*ch];
+				rowWidth += s_charWidths[font][static_cast<int>( *ch )];
 			}
 		}
 	}
@@ -301,6 +301,7 @@ void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFo
 	int pixelWidths = int( s_charPixelsArraySizes[font] / s_charHeight[font] );
 	for( const char* ch = string; *ch; ++ch )
 	{
+		int index = *ch;
 		if( *ch > 0 )
 		{
 			if( *ch == '\n' )
@@ -313,9 +314,9 @@ void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFo
 				for( int j = 0; j < s_charHeight[font]; ++j )
 				{
 					uint32_t* outRow = reinterpret_cast<uint32_t*>( reinterpret_cast<char*>( textureData ) + ( j + offsetY ) * pitch + offsetX * 4 );
-					for( int i = 0; i < s_charWidths[font][*ch]; ++i )
+					for( int i = 0; i < s_charWidths[font][index]; ++i )
 					{
-						uint32_t alpha = s_charPixels[font][pixelWidths * j + i + s_charOffsets[font][*ch]];
+						uint32_t alpha = s_charPixels[font][pixelWidths * j + i + s_charOffsets[font][index]];
 						outRow[i] = ( ( b * alpha ) >> 8 ) |
 							( ( ( g * alpha ) >> 8 ) << 8 ) |
 							( ( ( r * alpha ) >> 8 ) << 16 ) |
@@ -323,7 +324,7 @@ void TriDebugTextRenderer::DrawText( Tr2RenderContext& renderContext, TriDebugFo
 					}
 				}
 			}
-			offsetX += s_charWidths[font][*ch];
+			offsetX += s_charWidths[font][index];
 		}
 	}
 	m_texture.UnmapForWriting( renderContext );

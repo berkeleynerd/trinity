@@ -685,7 +685,7 @@ void Tr2DebugRenderer::DrawText( TriDebugFont font, const Vector3& pos, const Co
 	va_list args;
     va_start( args, msg );
 
-    Rect rect;
+	Tr2Rect rect;
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	Tr2Viewport vp;
 	renderContext.GetViewport( vp );

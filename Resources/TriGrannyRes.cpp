@@ -76,7 +76,7 @@ BlueAsyncRes::LoadingResult TriGrannyRes::DoLoad()
 			m_grannyFile = NULL;
 		}
 
-		CCP_STATS_ZONE( __FUNCTION__ " reading Granny file" );
+		CCP_STATS_ZONE( "TriGrannyRes::DoLoad reading Granny file" );
 		m_grannyFile = ProtectedGrannyReadEntireFileFromMemory( m_path.c_str(), (uint32_t)m_dataSize, m_data );
 	}
 
@@ -273,7 +273,7 @@ bool TriGrannyRes::BakeBlendshape( unsigned int meshIx, const std::vector<float>
 		return false;
 	}
 
-	granny_data_type_definition* blendVertexFormat;
+	granny_data_type_definition* blendVertexFormat = nullptr;
 
 	if( blendshapesFromAnnotations )
 	{

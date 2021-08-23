@@ -136,12 +136,6 @@ bool Tr2TextureAtlas::DoPrepare( Tr2AtlasTexture* tex )
 
 	Tr2TextureAtlasArea* area = GetFreeArea( areaWidth, areaHeight );
 
-	if( !area && false )
-	{
-		CollapseFreeAreas();
-		area = GetFreeArea( areaWidth, areaHeight );
-	}
-
 	if( !area )
 	{
 		// There isn't room in the atlas for this texture. This isn't an error per se,
@@ -224,7 +218,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 	}
 
 	struct Squareness {
-		static float Metric( const Rect &a ) {
+		static float Metric( const Tr2Rect& a ) {
 			const int w = a.right - a.left;
 			const int h = a.bottom - a.top;
 			if( w == 0 || h == 0 ) return 0.f;
@@ -240,12 +234,12 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 		restartLoop = false;
 		for( AreaList_t::iterator i = m_freeAreas.begin(); i != m_freeAreas.end(); ++i )
 		{
-			const Rect &rect_i = (*i)->rect;
+			const auto& rect_i = (*i)->rect;
 			const float square_i = Squareness::Metric( rect_i );
 			AreaList_t::iterator j = i;
 			for( ++j; j != m_freeAreas.end(); ++j )
 			{
-				const Rect &rect_j = (*j)->rect;
+				const auto& rect_j = (*j)->rect;
 				const float square_j = Squareness::Metric( rect_j );
 				const float squareStart = square_i + square_j;
 
@@ -258,7 +252,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 						rect_i.left == rect_j.left )
 					{
 						//have an exact match, can just merge these two areas
-						Rect sum;
+						Tr2Rect sum;
 						sum.left = rect_i.left;
 						sum.right = rect_i.right;
 						sum.top = std::min( rect_i.top, rect_j.top );
@@ -275,7 +269,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 					else if( rect_i.right == rect_j.right )
 					{
 						//areas are right aligned, can rotate the splitting plane
-						Rect l,r;
+						Tr2Rect l,r;
 						l.left = std::min( rect_i.left, rect_j.left );
 						l.right = std::max( rect_i.left, rect_j.left );
 						r.left = l.right;
@@ -309,7 +303,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 					else if( rect_i.left == rect_j.left )
 					{
 						//left aligned, can rotate the splitting plane
-						Rect l,r;
+						Tr2Rect l,r;
 						r.left = std::min( rect_i.right, rect_j.right );
 						r.right = std::max( rect_i.right, rect_j.right );
 						l.left = rect_i.left;
@@ -354,7 +348,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 					if( rect_i.top == rect_j.top )
 					{
 						//areas are top aligned, can rotate the splitting plane
-						Rect t,b;
+						Tr2Rect t,b;
 						t.top = rect_i.top;
 						t.bottom = std::min( rect_i.bottom, rect_j.bottom );
 						t.left = std::min( rect_i.left, rect_i.bottom );
@@ -389,7 +383,7 @@ void Tr2TextureAtlas::ConsolidateFreeAreas()
 					else if( rect_i.bottom == rect_j.bottom )
 					{
 						//bottom aligned, can rotate the splitting plane
-						Rect t,b;
+						Tr2Rect t,b;
 						t.top = std::min( rect_i.top, rect_j.top );
 						t.bottom = std::max( rect_i.top, rect_j.top );
 						b.left = std::min( rect_i.left, rect_i.bottom );
@@ -522,7 +516,7 @@ void Tr2TextureAtlas::CollapseFreeAreas()
 
 				++collapseAttempts;
 
-				Rect newRect;
+				Tr2Rect newRect;
 				bool isAdjacent = false;
 				if( (area1->rect.top == area2->rect.top) && (area1->rect.bottom == area2->rect.bottom) )
 				{
@@ -586,7 +580,7 @@ void Tr2TextureAtlas::CollapseFreeAreas()
 
 				++collapseAttempts;
 
-				Rect newRect;
+				Tr2Rect newRect;
 				bool isAdjacent = false;
 				if( (area1->rect.left == area2->rect.left) && (area1->rect.right == area2->rect.right) )
 				{
@@ -636,7 +630,7 @@ void Tr2TextureAtlas::CollapseFreeAreas()
 
 bool Tr2TextureAtlas::CollapseAreas( Tr2TextureAtlasArea* area1, Tr2TextureAtlasArea* area2 )
 {
-	Rect newRect;
+	Tr2Rect newRect;
 	bool isAdjacent = false;
 
 	if( (area1->rect.left == area2->rect.left) && (area1->rect.right == area2->rect.right) )
@@ -1044,7 +1038,7 @@ bool Tr2TextureAtlas::CopyTextureIntoAtlas( Tr2AtlasTexture* tex )
 		return false;
 	}
 	
-	const Rect &r = tex->m_atlasArea->rect;
+	const auto& r = tex->m_atlasArea->rect;
 
 	if( !m_margin )
 	{
@@ -1210,9 +1204,9 @@ void Tr2TextureAtlas::SetMaxTextureArea( unsigned int maxTextureArea )
 	m_maxTextureArea = maxTextureArea;
 }
 
-std::list< Rect > Tr2TextureAtlas::GetFreeAreas() const 
+std::list<Tr2Rect> Tr2TextureAtlas::GetFreeAreas() const
 {
-	std::list< Rect > areas;
+	std::list<Tr2Rect> areas;
 	for( AreaList_t::const_iterator i = m_freeAreas.begin(); i != m_freeAreas.end(); ++i ) 
 	{
 		areas.push_back( (*i)->rect );
@@ -1220,9 +1214,9 @@ std::list< Rect > Tr2TextureAtlas::GetFreeAreas() const
 	return areas;
 }
 
-std::list< Rect > Tr2TextureAtlas::GetUsedAreas() const 
+std::list<Tr2Rect> Tr2TextureAtlas::GetUsedAreas() const
 {
-	std::list< Rect > areas;
+	std::list<Tr2Rect> areas;
 	for( Tr2AtlasTextureSet_t::const_iterator i = m_texturesInAtlas.begin(); i != m_texturesInAtlas.end(); ++i ) 
 	{
 		Tr2AtlasTexture *t = *i;
@@ -1290,7 +1284,7 @@ bool Tr2TextureAtlas::EjectTextureHelper( Tr2AtlasTexture *tex )
 	
 	Tr2TextureAtlasArea *texArea = tex->m_atlasArea;
 	
-	Rect copyRect;
+	Tr2Rect copyRect;
 	copyRect.left = texArea->rect.left + m_margin;
 	copyRect.top = texArea->rect.top + m_margin;
 	copyRect.right = copyRect.left + tex->GetWidth();
@@ -1465,8 +1459,8 @@ void Tr2TextureAtlas::UpdateMipMaps( Tr2RenderContext& renderContext )
 		bool updated = false;
 		for( auto it = m_dirtyMipRegions.begin(); it != m_dirtyMipRegions.end(); ++it ) 
 		{
-			const Rect source = { it->left >> ( i - 1 ), it->top >> ( i - 1 ), it->right >> ( i - 1 ), it->bottom >> ( i - 1 ) };
-			Rect dest = { it->left >> i, it->top >> i, it->right >> i, it->bottom >> i };
+			const Tr2Rect source = { it->left >> ( i - 1 ), it->top >> ( i - 1 ), it->right >> ( i - 1 ), it->bottom >> ( i - 1 ) };
+			Tr2Rect dest = { it->left >> i, it->top >> i, it->right >> i, it->bottom >> i };
 			const int height = dest.bottom - dest.top;
 			const int width = dest.right - dest.left;
 			if( height == 0 || width == 0 ) 
@@ -1517,7 +1511,7 @@ void Tr2TextureAtlas::UpdateMipMaps( Tr2RenderContext& renderContext )
 	m_dirtyMipRegions.clear();
 }
 
-void Tr2TextureAtlas::DirtyRegion( const Rect &rect ) 
+void Tr2TextureAtlas::DirtyRegion( const Tr2Rect& rect )
 {
 	if( m_hasMipMaps )
 		m_dirtyMipRegions.push_back( rect );

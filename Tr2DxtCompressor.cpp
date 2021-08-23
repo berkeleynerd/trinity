@@ -744,14 +744,6 @@ bool Tr2DxtCompressSurface(	Tr2DxtCompressionFormat eCompressFmt,
 	case TR2DXT_COMPRESS_SQ_RANGE_FIT:
 		squishQuality = squish::kColourRangeFit;
 		break;
-
-	case TR2DXT_COMPRESS_SQ_METRIC_PERCEPTUAL:
-		squishQuality = squish::kColourMetricPerceptual;
-		break;
-
-	case TR2DXT_COMPRESS_SQ_UNIFORM:
-		squishQuality = squish::kColourMetricUniform;
-		break;
     default:
         break;
 	}

@@ -95,7 +95,7 @@ private:
 	BlueSharedString m_locatorSetName;
 
 	bool m_firstSpawnAtRandomPlaces;
-	Vector3 SeekTarget::FindSpawnPoint();
+	Vector3 FindSpawnPoint();
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// locator sets

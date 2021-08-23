@@ -106,7 +106,8 @@ PyObject* EveSpaceObject2::PyTransformLocators( PyObject* self, PyObject* args )
 				!BlueExtractVector( PyTuple_GET_ITEM( item, 1 ), &rotation.x, 4 ) || !PyInt_Check( PyTuple_GET_ITEM( item, 2 ) ) )
 			{
 				Py_DECREF( item );
-				return PyErr_SetString( PyExc_TypeError, "arument must be a sequence of (position, rotation, boneIndex) tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "arument must be a sequence of (position, rotation, boneIndex) tuples" );
+				return nullptr;
 			}
 			int boneIndex = int( PyInt_AsLong( PyTuple_GET_ITEM( item, 2 ) ) );
 
@@ -123,7 +124,8 @@ PyObject* EveSpaceObject2::PyTransformLocators( PyObject* self, PyObject* args )
 		}
 		return result;
 	}
-	return PyErr_SetString( PyExc_TypeError, "arument must be a sequence of (position, rotation, boneIndex) tuples" ), nullptr;
+    PyErr_SetString( PyExc_TypeError, "arument must be a sequence of (position, rotation, boneIndex) tuples" );
+	return nullptr;
 }
 #endif
 

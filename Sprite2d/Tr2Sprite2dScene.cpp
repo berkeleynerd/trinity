@@ -17,9 +17,6 @@
 #include "include/ITr2DebugRenderer.h"
 #include "Include/TriMath.h"
 
-#if !defined(_WIN32) && !defined(__ANDROID__)
-#include "GLFW/glfw3.h"
-#endif
 
 using namespace Tr2RenderContextEnum;
 
@@ -129,6 +126,9 @@ Tr2Sprite2dScene::Tr2Sprite2dScene( IRoot* lockobj ) :
 
 	m_uberShader3d.CreateInstance();
 	m_uberShader3d->SetEffectPathName( EFFECT_RENDER_UBERSHADER_RESPATH_3D );
+
+	m_textureRegisters[0] = 0;
+	m_textureRegisters[1] = 1;
 
 	if( g_textureAtlasMan )
 	{
@@ -1131,7 +1131,7 @@ void Tr2Sprite2dScene::IssueDrawCall()
 							}
 						}
 						auto colorSpace = m_useLinearColorSpace ? Tr2RenderContextEnum::COLOR_SPACE_SRGB : Tr2RenderContextEnum::COLOR_SPACE_LINEAR;
-						desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, i, texAL ? *texAL : Tr2TextureAL(), colorSpace );
+						desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, m_textureRegisters[i], texAL ? *texAL : Tr2TextureAL(), colorSpace );
 					}
 				}
 
@@ -1678,10 +1678,29 @@ bool Tr2Sprite2dScene::SelectEffect()
 
 		if( newEffect && newEffect->GetShaderStateInterface() )
 		{
+			m_textureRegisters[0] = 0;
+			m_textureRegisters[1] = 1;
+
 #if TRINITY_PLATFORM!=TRINITY_DIRECTX9
 			// In DX11 g_uiTransforms is in a separate constant buffer and is not exposed
 			// in constant table, so we just believe we have UI shader.
 			m_effect = newEffect;
+
+			if( auto shader = m_effect->GetShaderStateInterface() )
+			{
+				auto& resources = shader->GetEffectDescription().techniques[0].passes[0].stageInputs[PIXEL_SHADER].resources;
+				for( auto& resource : resources )
+				{
+					if( strcmp( resource.second.name, "PrimaryTexture0" ) == 0 )
+					{
+						m_textureRegisters[0] = uint32_t( resource.first );
+					}
+					else if( strcmp( resource.second.name, "PrimaryTexture1" ) == 0 )
+					{
+						m_textureRegisters[1] = uint32_t( resource.first );
+					}
+				}
+			}
 			return true;
 #else
 			const Tr2EffectConstantVector& constants = newEffect->GetShaderStateInterface()->GetEffectDescription().techniques[0].passes[0].stageInputs[VERTEX_SHADER].constants;
@@ -2076,8 +2095,8 @@ void Tr2Sprite2dScene::ReplayCapture( Tr2Sprite2dDisplayList* dl )
 
 			auto desc = entry.effect->GetPassDescription( 0, 0 );
 			auto colorSpace = m_useLinearColorSpace ? Tr2RenderContextEnum::COLOR_SPACE_SRGB : Tr2RenderContextEnum::COLOR_SPACE_LINEAR;
-			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, 0, ( entry.texture0 && entry.texture0->GetTexture() ) ? *entry.texture0->GetTexture() : Tr2TextureAL(), colorSpace );
-			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, 1, ( entry.texture1 && entry.texture1->GetTexture() ) ? *entry.texture1->GetTexture() : Tr2TextureAL(), colorSpace );
+			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, m_textureRegisters[0], ( entry.texture0 && entry.texture0->GetTexture() ) ? *entry.texture0->GetTexture() : Tr2TextureAL(), colorSpace );
+			desc->m_resourceSetDirty |= desc->m_resourceSetDesc.SetSrv( PIXEL_SHADER, m_textureRegisters[1], ( entry.texture1 && entry.texture1->GetTexture() ) ? *entry.texture1->GetTexture() : Tr2TextureAL(), colorSpace );
 			
 			CCP_STATS_INC( spriteSceneDrawCallCount );
 
@@ -2470,7 +2489,7 @@ bool Tr2Sprite2dScene::EnsureBufferSpace( unsigned int vertexCount, unsigned sho
 {
 	if( m_captureDisplayList )
 	{
-		CCP_STATS_ZONE( __FUNCTION__ " capture" );
+		CCP_STATS_ZONE( "Tr2Sprite2dScene::EnsureBufferSpace capture" );
 
 		// Ensure we have enough space for vertices.
 		if( m_captureVertexDataSize + vertexCount >= m_captureVertexDataCapacity )
@@ -2603,7 +2622,6 @@ void Tr2Sprite2dScene::SetUseLinearColorSpace( bool use )
 		m_uberShader3d->SetOption( BlueSharedString( "COLOR_SPACE" ), BlueSharedString( m_useLinearColorSpace ? "COLOR_SPACE_LINEAR" : "COLOR_SPACE_SRGB" ) );
 	}
 }
-
 void Tr2Sprite2dScene::SetGammaCorrectText( bool use)
 {
 	m_isGammaCorrectingText = use;
@@ -2615,40 +2633,3 @@ bool Tr2Sprite2dScene::IsGammaCorrectingText()
 	return m_isGammaCorrectingText;
 }
 
-
-#if BLUE_WITH_PYTHON
-static PyObject* PyGetCursorPos( PyObject* module, PyObject* args )
-{
-	if( !gTriDev )
-	{
-		Py_RETURN_NONE;
-	}
-
-	PyObject* tuple = PyTuple_New( 2 );
-
-	Tr2WindowHandle h = gTriDev->GetWindow();
-#ifdef _WIN32
-	POINT pt;
-	GetCursorPos( &pt );
-	ScreenToClient( h, &pt );
-
-	PyTuple_SET_ITEM( tuple, 0, PyInt_FromLong( pt.x ) );
-	PyTuple_SET_ITEM( tuple, 1, PyInt_FromLong( pt.y ) );
-#else
-    double x = 0, y = 0;
-    glfwGetCursorPos( reinterpret_cast<GLFWwindow*>( h ), &x, &y );
-	PyTuple_SET_ITEM( tuple, 0, PyInt_FromLong( int( x ) ) );
-	PyTuple_SET_ITEM( tuple, 1, PyInt_FromLong( int( y ) ) );
-#endif
-	return tuple;
-
-}
-
-MAP_FUNCTION( 
-	"GetCursorPos", 
-	PyGetCursorPos, 
-	"Gets current cursor position as a 2-tuple\n"
-	":rtype: (int, int)"
-	);
-
-#endif

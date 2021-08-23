@@ -25,7 +25,7 @@ struct Tr2Sprite2dDisplayList:
 	Tr2BufferAL vertexBuffer;
 	Tr2BufferAL indexBuffer;
 
-	struct Entry : public IRenderCallback
+	struct Entry final : public IRenderCallback
 	{
 		// Render job to run, rather than issuing a draw call
 		TriRenderJobPtr job;
@@ -44,17 +44,17 @@ struct Tr2Sprite2dDisplayList:
 
 		//////////////////////////////////////////////////////////////////////////
 		// IRenderCallback
-		virtual void SubmitGeometry( Tr2RenderContext& renderContext );
+		void SubmitGeometry( Tr2RenderContext& renderContext ) override;
 	};
 
 	std::list<Entry> entries;
 
 	Tr2Sprite2dDisplayList( ITr2SpriteObject* owner );
-	~Tr2Sprite2dDisplayList();
+	~Tr2Sprite2dDisplayList() override;
 
 	//////////////////////////////////////////////////////////////////////////
 	// ITriDeviceResource
-	virtual void ReleaseResources( TriStorage s );
+	void ReleaseResources( TriStorage s ) override;
 private:
 	bool OnPrepareResources();
 

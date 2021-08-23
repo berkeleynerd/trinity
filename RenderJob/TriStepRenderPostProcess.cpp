@@ -10,9 +10,31 @@
 #include "ffx_cas.h"
 
 
+namespace
+{
 const uint32_t HISTOGRAM_TILE_SIZE_X = 16;
 const uint32_t HISTOGRAM_TILE_SIZE_Y = 16;
 const uint32_t NUM_TILES_PER_THREAD_GROUP = 256;
+
+ITr2TextureProvider* PLACEHOLDER = nullptr;
+
+void DrawInto( Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2TextureAL& src, Tr2RenderContext& renderContext )
+{
+	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
+	renderContext.m_esm.PushRenderTarget( dest );
+	Tr2Renderer::DrawTexture( renderContext, src );
+	renderContext.m_esm.PopRenderTarget();
+}
+
+void DrawInto( Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, Tr2RenderContext& renderContext )
+{
+	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
+	renderContext.m_esm.PushRenderTarget( dest );
+	Tr2Renderer::DrawScreenQuad( renderContext, effect );
+	renderContext.m_esm.PopRenderTarget();
+}
+
+}
 
 
 TriStepRenderPostProcess::TriStepRenderPostProcess(IRoot* lockobj) :
@@ -61,8 +83,8 @@ TriStepRenderPostProcess::TriStepRenderPostProcess(IRoot* lockobj) :
 	m_tonemappingEffect->AddResourceTexture2D(BlueSharedString("TexLUT"), "res:/dx9/scene/postprocess/LUTdefault.dds");
 	m_tonemappingEffect->AddResourceTexture2D(BlueSharedString("VignetteDetail"), "res:/texture/global/white.dds");
 	m_tonemappingEffect->AddResourceTexture2D(BlueSharedString("VignetteShape"), "res:/texture/global/black.dds");
-	m_tonemappingEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetBlackBuffer());
-	m_tonemappingEffect->SetParameter(BlueSharedString("BlitOriginal"), m_renderInfo->GetSourceBufferCopy());
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), PLACEHOLDER );
 
 	m_tonemappingEffect->SetParameter( BlueSharedString( "ShoulderStrength" ), 0.125f );
 	m_tonemappingEffect->SetParameter( BlueSharedString( "LinearStrength" ), 0.25f );
@@ -193,39 +215,41 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 		m_sceneDirty = false;
 	}
 
+	auto nonMsaaSource = sourceBuffer;
+	if( sourceBuffer->GetMsaaType() > 1 )
+	{
+		nonMsaaSource = m_renderInfo->GetTempTexture();
+		sourceBuffer->GetRenderTarget().Resolve( *nonMsaaSource, renderContext );
+	}
+
 	if (ProcessFog(fog))
 	{
-		RenderFog(renderContext, fog);
+		RenderFog( nonMsaaSource, renderContext, fog );
 	}
 
 	if (ProcessGodRays(godrays))
 	{
-		RenderGodRays(renderContext, godrays);
-	}
-
-	renderContext.m_esm.ApplyStandardStates(Tr2EffectStateManager::RM_FULLSCREEN);
-
-	// copy the source to the source copy buffer
-	if (sourceBuffer->GetMsaaType() > 1)
-	{
-		sourceBuffer->GetRenderTarget().Resolve(*m_renderInfo->GetSourceBufferCopyDirectly(), renderContext);
+		RenderGodRays( nonMsaaSource, renderContext, godrays );
 	}
 
 	if (ProcessTaa(taa))
 	{
-		RenderTaa(renderContext, taa);
+		RenderTaa( nonMsaaSource, renderContext, taa );
 	}
 
 	if (ProcessDynamicExposure(renderContext, dynamicExposure, bloom))
 	{
-		RenderDynamicExposure(renderContext, dynamicExposure);
+		RenderDynamicExposure( nonMsaaSource, renderContext, dynamicExposure );
 	}
 
-	// this needs to be after dynamic exposure, since bloom can be exposure dependant
-	if (ProcessBloom(bloom))
+	// this needs to be after dynamic exposure, since bloom can be exposure dependent
+	Tr2PostProcessRenderInfo::Texture bloomTexture;
+	if( ProcessBloom( bloom, dynamicExposure ) )
 	{
-		RenderBloom(renderContext, bloom);
+		bloomTexture = RenderBloom( nonMsaaSource, renderContext, bloom );
 	}
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), bloomTexture ? bloomTexture.GetRenderTarget() : m_renderInfo->GetBlackTexture() );
+	m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), nonMsaaSource );
 
 	ProcessDesaturate(desaturate);
 	ProcessFade(fade);
@@ -234,41 +258,30 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 
 	bool doFidelity = ProcessFidelityFX( renderContext, fidelity );
 	bool doGrain = ProcessFilmGrain( filmGrain );
-	if( doFidelity )
-	{
-		renderContext.m_esm.PushRenderTarget( *m_renderInfo->GetFidelityInputBuffer() );
-	}
-	else if( doGrain )
-	{
-		renderContext.m_esm.PushRenderTarget( *m_renderInfo->GetGrainInputBuffer() );
-	}
 
-	Tr2Renderer::DrawTexture( renderContext, m_tonemappingEffect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
-
-	if( doFidelity )
+	if( doFidelity || doGrain )
 	{
-		renderContext.m_esm.PopRenderTarget();
+		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
+		auto temp = m_renderInfo->GetTempTexture();
+		DrawInto( *temp, Tr2LoadAction::DONT_CARE, m_tonemappingEffect, renderContext );
+		nonMsaaSource = Tr2PostProcessRenderInfo::Texture();
 
+		if( doFidelity )
+		{
+			temp = RenderFidelityFX( temp, renderContext, fidelity );
+		}
 		if( doGrain )
 		{
-			renderContext.m_esm.PushRenderTarget( *m_renderInfo->GetGrainInputBuffer() );
+			RenderFilmGrain( temp, renderContext, filmGrain );
 		}
-
-		RenderFidelityFX( renderContext, fidelity );
-
-		if( doGrain )
+		else
 		{
-			renderContext.m_esm.PopRenderTarget();
+			Tr2Renderer::DrawTexture( renderContext, *temp );
 		}
 	}
-	else if( doGrain )
+	else
 	{
-		renderContext.m_esm.PopRenderTarget();
-	}
-
-	if( doGrain )
-	{
-		RenderFilmGrain( renderContext, filmGrain );
+		Tr2Renderer::DrawTexture( renderContext, m_tonemappingEffect, Vector2( 0, 0 ), Vector2( 1, 1 ) );
 	}
 
 	if (ProcessSignalLoss(signalLoss))
@@ -283,7 +296,7 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 }
 
 
-bool TriStepRenderPostProcess::ProcessBloom(Tr2PPBloomEffect* bloom)
+bool TriStepRenderPostProcess::ProcessBloom( Tr2PPBloomEffect* bloom, Tr2PPDynamicExposureEffect* dynamicExposure )
 {
 	if (bloom && bloom->IsActive())
 	{
@@ -296,33 +309,31 @@ bool TriStepRenderPostProcess::ProcessBloom(Tr2PPBloomEffect* bloom)
 			m_bloomHighPassFilter->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/HighPassFilter.fx");
 			m_bloomHighPassFilter->SetParameter(BlueSharedString("LuminanceThreshold"), bloom->m_luminanceThreshold);
 			m_bloomHighPassFilter->SetParameter(BlueSharedString("LuminanceScale"), bloom->m_luminanceScale);
-			m_bloomHighPassFilter->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetSourceBufferCopy());
+			m_bloomHighPassFilter->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 
-			m_bloomHighPassFilter->SetParameter( BlueSharedString( "ExposureDependency" ), exposureDependant ? 1.0f : 0.0f );
-			if( exposureDependant )
-			{
-				m_bloomHighPassFilter->SetParameter(BlueSharedString("Exposure"), m_exposure);
-			}
+			bool hasDynamicExposure = dynamicExposure != nullptr && dynamicExposure->IsActive();
+			m_bloomHighPassFilter->SetParameter(BlueSharedString("ExposureDependency"), bloom->m_exposureDependency && hasDynamicExposure ? 1.0f : 0.0f);
+			m_bloomHighPassFilter->SetParameter(BlueSharedString("Exposure"), m_exposure);
 			m_bloomHighPassFilter->EndUpdate();
 
 			m_bloomHorizontalBlur.CreateInstance();
 			m_bloomHorizontalBlur->StartUpdate();
 			m_bloomHorizontalBlur->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/BlurBig.fx");
-			m_bloomHorizontalBlur->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt1Buffer());
+			m_bloomHorizontalBlur->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_bloomHorizontalBlur->EndUpdate();
 
 			m_bloomVerticalBlur.CreateInstance();
 			m_bloomVerticalBlur->StartUpdate();
 			m_bloomVerticalBlur->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/BlurBig.fx");
 			m_bloomVerticalBlur->SetParameter(BlueSharedString("Direction"), Vector2(0, 1));
-			m_bloomVerticalBlur->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt2Buffer());
+			m_bloomVerticalBlur->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_bloomVerticalBlur->EndUpdate();
 
 			m_tonemappingEffect->StartUpdate();
 			m_tonemappingEffect->SetParameter(BlueSharedString("BloomBrightness"), bloom->m_bloomBrightness);
 			m_tonemappingEffect->SetParameter(BlueSharedString("GrimeWeight"), bloom->m_grimeWeight);
 			m_tonemappingEffect->AddResourceTexture2D(BlueSharedString("Grime"), bloom->m_grimePath.c_str());
-			m_tonemappingEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt1Buffer());
+			m_tonemappingEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 
 			m_tonemappingEffect->EndUpdate();
 
@@ -362,7 +373,7 @@ bool TriStepRenderPostProcess::ProcessBloom(Tr2PPBloomEffect* bloom)
 			m_bloomVerticalBlur = nullptr;
 
 			m_tonemappingEffect->StartUpdate();
-			m_tonemappingEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetBlackBuffer());
+			m_tonemappingEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetBlackTexture());
 			m_tonemappingEffect->EndUpdate();
 		}
 	}
@@ -370,40 +381,24 @@ bool TriStepRenderPostProcess::ProcessBloom(Tr2PPBloomEffect* bloom)
 	return bloom != nullptr && bloom->IsActive();
 }
 
-void TriStepRenderPostProcess::RenderBloom(Tr2RenderContext& renderContext, Tr2PPBloomEffect* bloom)
+Tr2PostProcessRenderInfo::Texture TriStepRenderPostProcess::RenderBloom( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPBloomEffect* bloom )
 {
-	if (!bloom || !bloom->IsActive())
-	{
-		return;
-	}
 	GPU_REGION( renderContext, "Bloom" );
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
-	auto rt1 = m_renderInfo->GetRt1Buffer();
-	auto rt2 = m_renderInfo->GetRt2Buffer();
 
-	renderContext.m_esm.PushRenderTarget(*rt1);
+	auto rt1 = m_renderInfo->GetTempTexture( 0.5f );
+	m_bloomHighPassFilter->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
+	DrawInto( *rt1, Tr2LoadAction::DONT_CARE, m_bloomHighPassFilter, renderContext );
 
-	HRESULT hr = renderContext.Clear(Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0x00000000, 1.0, 0);
-	if (!SUCCEEDED(hr))
-	{
-		CCP_LOGERR("Bloom RT1 clear failed");
-	}
+	auto rt2 = m_renderInfo->GetTempTexture( 0.5f );
+	m_bloomHorizontalBlur->SetParameter( BlueSharedString( "BlitCurrent" ), rt1 );
+	DrawInto( *rt2, Tr2LoadAction::DONT_CARE, m_bloomHorizontalBlur, renderContext );
 
-	Tr2Renderer::DrawScreenQuad( renderContext, m_bloomHighPassFilter);
-	renderContext.m_esm.PopRenderTarget();
+	m_bloomVerticalBlur->SetParameter( BlueSharedString( "BlitCurrent" ), rt2 );
+	DrawInto( *rt1, Tr2LoadAction::DONT_CARE, m_bloomVerticalBlur, renderContext );
 
-	renderContext.m_esm.PushRenderTarget(*rt2);
-	hr = renderContext.Clear(Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0x00000000, 1.0, 0);
-	if (!SUCCEEDED(hr))
-	{
-		CCP_LOGERR("Bloom RT2 clear failed");
-	}
-	Tr2Renderer::DrawScreenQuad( renderContext, m_bloomHorizontalBlur);
-	renderContext.m_esm.PopRenderTarget();
-
-	renderContext.m_esm.PushRenderTarget(*rt1);
-	Tr2Renderer::DrawScreenQuad( renderContext, m_bloomVerticalBlur);
-	renderContext.m_esm.PopRenderTarget();
+	return rt1;
 }
 
 
@@ -425,7 +420,7 @@ bool TriStepRenderPostProcess::ProcessGodRays(Tr2PPGodRaysEffect* godrays)
 			m_godrayEffect->SetParameter(BlueSharedString("Intensity"), Vector4(godrays->m_intensity, 0.0f, 1.0f, 1.0f));
 			m_godrayEffect->SetParameter(BlueSharedString("grFactors"), godrays->grFactors);
 			m_godrayEffect->AddResourceTexture2D(BlueSharedString("NoiseTexMap"), godrays->m_noiseTexturePath.c_str());
-			m_godrayEffect->SetParameter(BlueSharedString("DepthMap"), m_renderInfo->GetRt1Buffer());
+			m_godrayEffect->SetParameter( BlueSharedString( "DepthMap" ), PLACEHOLDER );
 			m_godrayEffect->EndUpdate();
 			godrays->SetDirty(false);
 		}
@@ -453,36 +448,26 @@ bool TriStepRenderPostProcess::ProcessGodRays(Tr2PPGodRaysEffect* godrays)
 }
 
 
-void TriStepRenderPostProcess::RenderGodRays(Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays)
+void TriStepRenderPostProcess::RenderGodRays( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays )
 {
 	GPU_REGION( renderContext, "Godrays" );
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
-	auto rt1 = m_renderInfo->GetRt1Buffer();
-	auto rt2 = m_renderInfo->GetRt2Buffer();
-	auto backBufferRT = m_renderInfo->GetSourceBuffer();
-
-	// Downsample 
-	renderContext.m_esm.PushRenderTarget(*rt1);
-	Tr2Renderer::DrawScreenQuad( renderContext, m_godRayDownSampleEffect);
-	renderContext.m_esm.PopRenderTarget();
+	// Downsample depth
+	auto rt1 = m_renderInfo->GetTempTexture( 0.5f );
+	DrawInto( *rt1, Tr2LoadAction::DONT_CARE, m_godRayDownSampleEffect, renderContext );
 
 	// God rays
-	renderContext.m_esm.PushRenderTarget(*rt2);
-	HRESULT hr = renderContext.Clear(Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0x00000000, 1.0, 0);
-
-	if (!SUCCEEDED(hr))
-	{
-		CCP_LOGERR("Godray clear failed");
-	}
-
-	Tr2Renderer::DrawScreenQuad( renderContext, m_godrayEffect);
+	auto rt2 = m_renderInfo->GetTempTexture( 0.5f );
+	m_godrayEffect->SetParameter( BlueSharedString( "DepthMap" ), rt1 );
+	renderContext.m_esm.PushRenderTarget( *rt2 );
+	renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0, 0 ); // clear is needed because godray vertex shader can opt out of rendering
+	Tr2Renderer::DrawScreenQuad( renderContext, m_godrayEffect );
 	renderContext.m_esm.PopRenderTarget();
 
-	renderContext.m_esm.ApplyStandardStates(Tr2EffectStateManager::RM_ALPHA_ADDITIVE);
 	// Blit
-	renderContext.m_esm.PushRenderTarget(*backBufferRT);
-	Tr2Renderer::DrawTexture( renderContext, *rt2, Vector2(0, 0), Vector2(1, 1));
-	renderContext.m_esm.PopRenderTarget();
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
+	DrawInto( *dest, Tr2LoadAction::LOAD, *rt2, renderContext );
 }
 
 
@@ -528,18 +513,23 @@ void TriStepRenderPostProcess::RenderSignalLoss(Tr2RenderContext& renderContext,
 
 bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderContext, Tr2PPDynamicExposureEffect* dynamicExposure, Tr2PPBloomEffect* bloom)
 {
+#if TRINITY_PLATFORM_SUPPORTS_COMPUTE
+	if( !m_exposure || !m_exposure->IsValid() )
+	{
+		m_exposure = nullptr;
+		m_exposure.CreateInstance();
+		m_exposure->Create(8, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, 2);
+		const float clearValue[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+		renderContext.ClearUav( *m_exposure, clearValue);
+	}
+#endif	
 	if (dynamicExposure && dynamicExposure->IsActive())
 	{
 		if (m_dynamicExposureCreateHistogramShader == nullptr || m_dynamicExposureMergeHistogramShader == nullptr || m_dynamicExposureMeasureExposureShader == nullptr)
 		{
-			m_exposure.CreateInstance();
 			m_localHistograms.CreateInstance();
 			m_histogram.CreateInstance();
 
-			m_exposure->Create(8, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, 2);
-			const float clearValue[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-			renderContext.ClearUav( *m_exposure, clearValue);
-			
 			m_localHistograms->Create(m_localHistogramCount, Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_UINT, 2);
 			m_histogram->Create(65, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, 2);
 
@@ -550,7 +540,7 @@ bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderC
 			m_dynamicExposureCreateHistogramShader->SetParameter(BlueSharedString("MaxLuminance"), log(dynamicExposure->m_maxLuminance));
 			m_dynamicExposureCreateHistogramShader->SetParameter(BlueSharedString("ScreenTilesX"), float(m_tilesX));
 			m_dynamicExposureCreateHistogramShader->SetParameter(BlueSharedString("LocalHistograms"), m_localHistograms);
-			m_dynamicExposureCreateHistogramShader->SetParameter(BlueSharedString("BlitOriginal"), m_renderInfo->GetSourceBufferCopy());
+			m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "BlitOriginal" ), PLACEHOLDER );
 			m_dynamicExposureCreateHistogramShader->EndUpdate();
 
 			m_dynamicExposureMergeHistogramShader.CreateInstance();
@@ -636,14 +626,13 @@ bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderC
 	else
 	{
 		if (m_dynamicExposureCreateHistogramShader != nullptr || m_dynamicExposureMeasureExposureShader != nullptr || m_dynamicExposureMergeHistogramShader != nullptr ||
-			m_localHistograms != nullptr || m_histogram != nullptr || m_exposure != nullptr)
+			m_localHistograms != nullptr || m_histogram != nullptr )
 		{
 			m_dynamicExposureCreateHistogramShader = nullptr;
 			m_dynamicExposureMeasureExposureShader = nullptr;
 			m_dynamicExposureMergeHistogramShader = nullptr;
 			m_localHistograms = nullptr;
 			m_histogram = nullptr;
-			m_exposure = nullptr;
 			
 			// mark the bloom as dirty so it can decide what to do with the exposure
 			if( bloom != nullptr )
@@ -661,9 +650,11 @@ bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderC
 }
 
 
-void TriStepRenderPostProcess::RenderDynamicExposure(Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure)
+void TriStepRenderPostProcess::RenderDynamicExposure( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure )
 {
 	GPU_REGION( renderContext, "Exposure" );
+
+	m_dynamicExposureCreateHistogramShader->SetParameter( BlueSharedString( "BlitOriginal" ), dest );
 
 	uint32_t m_uintValue[4] = { 0, 0, 0, 0 };
 	// Clear local histograms
@@ -690,22 +681,14 @@ bool TriStepRenderPostProcess::ProcessFidelityFX( Tr2RenderContext& renderContex
 	{
 		if( fx->IsDirty() || !m_fidelityFXShader )
 		{
-			auto source = m_renderInfo->GetFidelityInputBuffer();
-			auto dest = m_renderInfo->GetFidelityOutputBuffer();
-
-			if( !source->IsValid() || !dest->IsValid() )
-			{
-				return false;
-			}
-
 			if( !m_fidelityFXShader )
 			{
 				m_fidelityFXShader.CreateInstance();
 				m_fidelityFXShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/CAS.fx" );
 			}
 
-			AF1 outWidth = static_cast<AF1>( source->GetWidth() );
-			AF1 outHeight = static_cast<AF1>( source->GetHeight() );
+			AF1 outWidth = static_cast<AF1>( m_renderInfo->GetSourceBuffer()->GetWidth() );
+			AF1 outHeight = static_cast<AF1>( m_renderInfo->GetSourceBuffer()->GetHeight() );
 
 			union
 			{
@@ -715,8 +698,8 @@ bool TriStepRenderPostProcess::ProcessFidelityFX( Tr2RenderContext& renderContex
 			CasSetup( const0.u, const1.u, fx->m_intensity, outWidth, outHeight, outWidth, outHeight );
 
 			m_fidelityFXShader->StartUpdate();
-			m_fidelityFXShader->SetParameter( BlueSharedString( "InputTexture" ), source );
-			m_fidelityFXShader->SetParameter( BlueSharedString( "OutputTexture" ), dest );
+			m_fidelityFXShader->SetParameter( BlueSharedString( "InputTexture" ), PLACEHOLDER );
+			m_fidelityFXShader->SetParameter( BlueSharedString( "OutputTexture" ), PLACEHOLDER );
 			m_fidelityFXShader->SetParameter( BlueSharedString( "const0" ), Vector4( const0.f[0], const0.f[1], const0.f[2], const0.f[3] ) );
 			m_fidelityFXShader->SetParameter( BlueSharedString( "const1" ), Vector4( const1.f[0], const1.f[1], const1.f[2], const1.f[3] ) );
 			m_fidelityFXShader->EndUpdate();
@@ -733,16 +716,19 @@ bool TriStepRenderPostProcess::ProcessFidelityFX( Tr2RenderContext& renderContex
 	}
 }
 
-void TriStepRenderPostProcess::RenderFidelityFX( Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx )
+Tr2PostProcessRenderInfo::Texture TriStepRenderPostProcess::RenderFidelityFX( Tr2RenderTarget* src, Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx )
 {
 	const uint32_t CAS_THREAD_GROUP_WORK_REGION_DIM = 16;
 
-	auto source = m_renderInfo->GetFidelityInputBuffer();
-	int dispatchX = ( source->GetWidth () + ( CAS_THREAD_GROUP_WORK_REGION_DIM - 1 ) ) / CAS_THREAD_GROUP_WORK_REGION_DIM;
-	int dispatchY = ( source->GetHeight() + ( CAS_THREAD_GROUP_WORK_REGION_DIM - 1 ) ) / CAS_THREAD_GROUP_WORK_REGION_DIM;
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
+	auto temp = m_renderInfo->GetTempTexture( 1.f, Tr2RenderContextEnum::EX_BIND_UNORDERED_ACCESS );
+	m_fidelityFXShader->SetParameter( BlueSharedString( "InputTexture" ), src );
+	m_fidelityFXShader->SetParameter( BlueSharedString( "OutputTexture" ), temp );
+	int dispatchX = ( src->GetWidth() + ( CAS_THREAD_GROUP_WORK_REGION_DIM - 1 ) ) / CAS_THREAD_GROUP_WORK_REGION_DIM;
+	int dispatchY = ( src->GetHeight() + ( CAS_THREAD_GROUP_WORK_REGION_DIM - 1 ) ) / CAS_THREAD_GROUP_WORK_REGION_DIM;
 	Tr2Renderer::RunComputeShader( m_fidelityFXShader, dispatchX, dispatchY, 1, renderContext );
-	Tr2Renderer::DrawTexture( renderContext, *m_renderInfo->GetFidelityOutputBuffer() );
+	return temp;
 }
 
 bool TriStepRenderPostProcess::ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain )
@@ -766,7 +752,7 @@ bool TriStepRenderPostProcess::ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain
 			m_grainShader->SetParameter( BlueSharedString( "GrainSize" ), filmGrain->m_grainSize );
 			m_grainShader->SetParameter( BlueSharedString( "GrainLuminanceExponent" ), filmGrain->m_luminanceExponent );
 			
-			m_grainShader->SetParameter( BlueSharedString( "InputTexture" ), m_renderInfo->GetGrainInputBuffer() );
+			m_grainShader->SetParameter( BlueSharedString( "InputTexture" ), PLACEHOLDER );
 			m_grainShader->EndUpdate();
 
 			filmGrain->SetDirty( false );
@@ -779,13 +765,13 @@ bool TriStepRenderPostProcess::ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain
 	return false;
 }
 
-void TriStepRenderPostProcess::RenderFilmGrain( Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain )
+void TriStepRenderPostProcess::RenderFilmGrain( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain )
 {
 	GPU_REGION( renderContext, "Film grain" );
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
-	renderContext.m_esm.PushRenderTarget();
+	m_grainShader->SetParameter( BlueSharedString( "InputTexture" ), dest );
 	Tr2Renderer::DrawScreenQuad( renderContext, m_grainShader );
-	renderContext.m_esm.PopRenderTarget();
 }
 
 void TriStepRenderPostProcess::ProcessDesaturate(Tr2PPDesaturateEffect* desaturate)
@@ -943,7 +929,7 @@ bool TriStepRenderPostProcess::ProcessFog(Tr2PPFogEffect* fog)
 			m_fogColorEffect.CreateInstance();
 			m_fogColorEffect->StartUpdate();
 			m_fogColorEffect->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/EnvironmentFogColor.fx");
-			m_fogColorEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetSourceBufferCopy());
+			m_fogColorEffect->SetParameter(BlueSharedString("BlitCurrent"), PLACEHOLDER);
 			m_fogColorEffect->SetParameter(BlueSharedString("Params"), Vector4(fog->m_nebulaInfluence, fog->m_nebulaBlur, fog->m_originalBrightenOnly, fog->m_colorInfluence));
 			m_fogColorEffect->SetParameter(BlueSharedString("Color"), Vector4(fog->m_color));
 			m_fogColorEffect->EndUpdate();
@@ -951,21 +937,21 @@ bool TriStepRenderPostProcess::ProcessFog(Tr2PPFogEffect* fog)
 			m_fogHorizontalBlurEffect.CreateInstance();
 			m_fogHorizontalBlurEffect->StartUpdate();
 			m_fogHorizontalBlurEffect->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/BlurBig.fx");
-			m_fogHorizontalBlurEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt1Buffer());
+			m_fogHorizontalBlurEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_fogHorizontalBlurEffect->EndUpdate();
 
 			m_fogVerticalBlurEffect.CreateInstance();
 			m_fogVerticalBlurEffect->StartUpdate();
 			m_fogVerticalBlurEffect->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/BlurBig.fx");
-			m_fogVerticalBlurEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt2Buffer());
+			m_fogVerticalBlurEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_fogVerticalBlurEffect->SetParameter(BlueSharedString("Direction"), Vector2(0.0f, 1.0f));
 			m_fogVerticalBlurEffect->EndUpdate();
 
 			m_fogCompositeEffect.CreateInstance();
 			m_fogCompositeEffect->StartUpdate();
 			m_fogCompositeEffect->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/EnvironmentFogComposit.fx");
-			m_fogCompositeEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetRt1Buffer());
-			m_fogCompositeEffect->SetParameter(BlueSharedString("BlitOriginal"), m_renderInfo->GetSourceBufferCopyDirectly()); // this used _fogsource in eve.yaml, but I'm trying _source here
+			m_fogCompositeEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
+			m_fogCompositeEffect->SetParameter( BlueSharedString( "BlitOriginal" ), PLACEHOLDER ); // this used _fogsource in eve.yaml, but I'm trying _source here
 			m_fogCompositeEffect->SetParameter(BlueSharedString("FogParameters"), Vector4(fog->m_totalAmount, fog->m_totalPower, fog->m_backgroundOcclusion, fog->m_intensity));
 			m_fogCompositeEffect->SetParameter(BlueSharedString("BrightnessAdjustment"), Vector4(fog->m_brightnessThreshold0, fog->m_brightnessThreshold1, fog->m_brightnessAdjustmentAmount, 0.0f));
 			m_fogCompositeEffect->SetParameter(BlueSharedString("BlendFunction0"), Vector4(fog->m_blendDistance0, fog->m_blendBias0, fog->m_blendAmount0, fog->m_blendPower0));
@@ -1007,41 +993,32 @@ bool TriStepRenderPostProcess::ProcessFog(Tr2PPFogEffect* fog)
 	return fog && fog->IsActive();
 }
 
-void TriStepRenderPostProcess::RenderFog(Tr2RenderContext& renderContext, Tr2PPFogEffect* fog)
+void TriStepRenderPostProcess::RenderFog( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog )
 {
 	GPU_REGION( renderContext, "Fog" );
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
-	auto sourceBuffer = m_renderInfo->GetSourceBuffer();
-	if (sourceBuffer->GetMsaaType() > 1)
-	{
-		sourceBuffer->GetRenderTarget().Resolve(*m_renderInfo->GetSourceBufferCopyDirectly(), renderContext);
-	}
-	else
-	{
-		renderContext.m_esm.PushRenderTarget(*m_renderInfo->GetSourceBufferCopyDirectly());
-		Tr2Renderer::DrawTexture( renderContext, *sourceBuffer);
-		renderContext.m_esm.PopRenderTarget();
-	}
+	auto tempCopy = m_renderInfo->GetTempTexture();
+	DrawInto( *tempCopy, Tr2LoadAction::DONT_CARE, *dest, renderContext );
 
 	// render fog color
-	renderContext.m_esm.PushRenderTarget(*m_renderInfo->GetRt1Buffer());
-	Tr2Renderer::DrawScreenQuad( renderContext, m_fogColorEffect);
-	renderContext.m_esm.PopRenderTarget();
+	auto rt1 = m_renderInfo->GetTempTexture( 0.5f );
+	m_fogColorEffect->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
+	DrawInto( *rt1, Tr2LoadAction::DONT_CARE, m_fogColorEffect, renderContext );
 
 	// horizontal blur
-	renderContext.m_esm.PushRenderTarget(*m_renderInfo->GetRt2Buffer());
-	Tr2Renderer::DrawScreenQuad( renderContext, m_fogHorizontalBlurEffect);
-	renderContext.m_esm.PopRenderTarget();
+	auto rt2 = m_renderInfo->GetTempTexture( 0.5f );
+	m_fogHorizontalBlurEffect->SetParameter( BlueSharedString( "BlitCurrent" ), rt1 );
+	DrawInto( *rt2, Tr2LoadAction::DONT_CARE, m_fogHorizontalBlurEffect, renderContext );
 
 	// vertical blur
-	renderContext.m_esm.PushRenderTarget(*m_renderInfo->GetRt1Buffer());
-	Tr2Renderer::DrawScreenQuad( renderContext, m_fogVerticalBlurEffect);
-	renderContext.m_esm.PopRenderTarget();
+	m_fogVerticalBlurEffect->SetParameter( BlueSharedString( "BlitCurrent" ), rt2 );
+	DrawInto( *rt1, Tr2LoadAction::DONT_CARE, m_fogVerticalBlurEffect, renderContext );
 
 	// final composite
-	renderContext.m_esm.PushRenderTarget(*m_renderInfo->GetSourceBuffer());
-	Tr2Renderer::DrawScreenQuad( renderContext, m_fogCompositeEffect);
-	renderContext.m_esm.PopRenderTarget();
+	m_fogCompositeEffect->SetParameter( BlueSharedString( "BlitCurrent" ), rt1 );
+	m_fogCompositeEffect->SetParameter( BlueSharedString( "BlitOriginal" ), tempCopy );
+	DrawInto( *dest, Tr2LoadAction::DONT_CARE, m_fogCompositeEffect, renderContext );
 }
 
 bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
@@ -1059,7 +1036,7 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 			m_taaEffect.CreateInstance();
 			m_taaEffect->StartUpdate();
 			m_taaEffect->SetEffectPathName("res:/Graphics/Effect/Managed/Space/PostProcess/TAA.fx");
-			m_taaEffect->SetParameter(BlueSharedString("BlitCurrent"), m_renderInfo->GetSourceBufferCopyDirectly());
+			m_taaEffect->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_taaEffect->SetParameter(BlueSharedString("LastFrame"), m_accumulationBuffer);
 
 			m_velocityBuffer.CreateInstance();
@@ -1069,12 +1046,12 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 			if (source->GetMsaaType() > 1)
 			{
 				m_taaEffect->SetParameter(BlueSharedString("VelocityMapMSAA"), m_velocityBuffer);
-				m_taaEffect->SetParameter(BlueSharedString("VelocityMap"), m_renderInfo->GetBlackBuffer());
+				m_taaEffect->SetParameter(BlueSharedString("VelocityMap"), m_renderInfo->GetBlackTexture());
 			}
 			else
 			{
 				m_taaEffect->SetParameter(BlueSharedString("VelocityMap"), m_velocityBuffer);
-				m_taaEffect->SetParameter(BlueSharedString("VelocityMapMSAA"), m_renderInfo->GetBlackBuffer());
+				m_taaEffect->SetParameter(BlueSharedString("VelocityMapMSAA"), m_renderInfo->GetBlackTexture());
 			}
 
 			m_taaEffect->SetParameter(BlueSharedString("BlendingParams0"), taa->m_blendParams0);
@@ -1114,25 +1091,21 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 	return taa && taa->IsActive();
 }
 
-void TriStepRenderPostProcess::RenderTaa(Tr2RenderContext& renderContext, Tr2PPTaaEffect* taa)
+void TriStepRenderPostProcess::RenderTaa( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPTaaEffect* taa )
 {
 	GPU_REGION( renderContext, "TAA" );
+	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
 	auto source = m_renderInfo->GetSourceBuffer();
 
 	m_scene->GetPostProcessPSBuffer()->ApplyBuffer(renderContext);
 
-	renderContext.m_esm.PushRenderTarget(*source);
-	Tr2Renderer::DrawScreenQuad( renderContext, m_taaEffect);
-	renderContext.m_esm.PopRenderTarget();
+	auto temp = m_renderInfo->GetTempTexture();
+	DrawInto( *temp, Tr2LoadAction::DONT_CARE, *dest, renderContext );
 
-	if (source->GetMsaaType() > 1)
-	{
-		source->GetRenderTarget().Resolve(*m_renderInfo->GetSourceBufferCopy(), renderContext);
-	}
-
-	m_renderInfo->GetSourceBufferCopy()->GetRenderTarget().Resolve(*m_accumulationBuffer, renderContext);
-
+	m_taaEffect->SetParameter( BlueSharedString( "BlitCurrent" ), temp );
+	DrawInto( *dest, Tr2LoadAction::DONT_CARE, m_taaEffect, renderContext );
+	DrawInto( *m_accumulationBuffer, Tr2LoadAction::DONT_CARE, *dest, renderContext );
 }
 
 
@@ -1148,14 +1121,10 @@ void TriStepRenderPostProcess::SetRenderTarget( Tr2RenderTarget* rt )
 			m_localHistogramCount = m_tilesX * m_tilesY * 16;
 			m_mergeHistogramXDim = m_tilesX * m_tilesY / NUM_TILES_PER_THREAD_GROUP + 1;
 		}
-
-		m_tonemappingEffect->StartUpdate();
-		m_tonemappingEffect->SetParameter( BlueSharedString( "BlitOriginal" ), m_renderInfo->GetSourceBufferCopy() );
-		m_tonemappingEffect->EndUpdate();
 	}
 }
 
 Tr2RenderTargetPtr TriStepRenderPostProcess::GetRenderTarget() const
 {
-	return m_renderInfo->GetSourceBuffer();
+	return m_renderInfo->GetSourceBuffer().GetRenderTarget();
 }

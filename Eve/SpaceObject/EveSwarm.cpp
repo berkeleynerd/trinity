@@ -310,7 +310,7 @@ EveSwarm::~EveSwarm()
 // Description:
 //   Return a transform used for audio observers
 // --------------------------------------------------------------------------------
-Matrix EveSwarm::GetObserverTransform() const
+Matrix EveSwarm::GetObserverTransform()
 {
 	Vector3 translation = GetModelWorldPosition() - m_worldPosition;
 	Matrix translationMatrix = TranslationMatrix( translation );

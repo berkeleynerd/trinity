@@ -2,9 +2,6 @@
 
 #include "blue/include/Blue.h"
 #ifdef TRINITYBUILD
-#include "BlueExposure/include/InterfaceDefinitions.cxx"
-#include "blue/include/Blue.cxx"
-#include "include/TrinityId.cxx"
 
 //Blue interfaces
 BLUE_DEFINE_INTERFACE( IBluePlacementObserver );
@@ -42,8 +39,6 @@ BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
 #error Please add TRINITYNAME=<PythonModuleName> to compiler preprocessor definitions (/D)
 #endif
 
-const char* BLUEMODULENAME = CCP_STRINGIZE( TRINITYNAME );
-
 #ifdef TRINITYBUILD
 const char* g_moduleName = "trinity";
 #endif
@@ -55,7 +50,6 @@ __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 __declspec(dllexport) uint32_t NvOptimusEnablement = 1;
 }
 #endif
-
 
 // reduce CRT link
 extern "C" void _setargv(){}
@@ -80,7 +74,7 @@ const char* InitializeForPython()
 	const PyMethodDef dummyMethods[] = {0};
 
 	// put myself into python as a module
-	PyObject* module = Py_InitModule((char*)BLUEMODULENAME, (PyMethodDef*)dummyMethods);
+	PyObject* module = Py_InitModule( CCP_STRINGIZE( CCP_CONCATENATE( TRINITYNAME, CCP_BUILD_FLAVOR ) ), (PyMethodDef*)dummyMethods);
 	PyObject* dict = PyModule_GetDict(module);
 
 	// Initialize trinity exceptions
@@ -122,6 +116,7 @@ extern bool g_isR10G10B10FormatInverted;
 extern bool g_convertA8L8FormatToB8G8R8A8;
 extern bool g_requestDeviceDebugLayer;
 extern bool g_requestDebugMarkers;
+extern bool g_gpuTimersEnabled;
 
 void InitializeTrinity()
 {
@@ -134,12 +129,60 @@ void InitializeTrinity()
 #else
 	g_isR10G10B10FormatInverted = false;
 #endif
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX11 || TRINITY_PLATFORM==TRINITY_DIRECTX12 )
+#if( TRINITY_PLATFORM!=TRINITY_DIRECTX9 )
 	g_convertA8L8FormatToB8G8R8A8 = true;
 #else
 	g_convertA8L8FormatToB8G8R8A8 = false;
 #endif
 
+
+#if TRINITY_PLATFORM == TRINITY_METAL
+	bool isUsingMetalValidation = false;
+	if( auto type = getenv( "METAL_DEVICE_WRAPPER_TYPE" ) )
+	{
+		isUsingMetalValidation = strcmp( type, "0" ) != 0;
+	}
+
+	extern bool g_fullSizeConstantBuffers;
+	g_fullSizeConstantBuffers = BeOS->HasStartupArg( L"fullcb" );
+	if( isUsingMetalValidation )
+	{
+		g_fullSizeConstantBuffers = true;
+	}
+	if( g_fullSizeConstantBuffers )
+	{
+		CCP_LOGNOTICE( "trinity is using full constant buffer uploads to bypass graphics validation issues" );
+	}
+#endif
+
+#if TRINITY_PLATFORM_SUPPORTS_PARALLEL_CONTEXTS
+	extern bool g_useParallelEncoding;
+	auto parallelRenderArg = BeOS->GetStartupArgValue( L"parallelrender" );
+	if( parallelRenderArg == L"1" )
+	{
+		g_useParallelEncoding = true;
+	}
+	else if( parallelRenderArg == L"0" )
+	{
+		g_useParallelEncoding = false;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	if( g_useParallelEncoding && isUsingMetalValidation )
+	{
+		g_useParallelEncoding = false;
+		CCP_LOGWARN( "Disabled parallel encoding because of metal validation is present and that may cause stalls during parallel encoding" );
+	}
+#endif
+	if( g_useParallelEncoding )
+	{
+		CCP_LOGNOTICE( "trinity is using parallel encoding" );
+	}
+	else
+	{
+		CCP_LOGNOTICE( "trinity is not using parallel encoding" );
+	}
+#endif
+	
 	auto debugArg = BeOS->GetStartupArgValue( L"deviceDebug" );
 	if( !debugArg.empty() )
 	{
@@ -152,6 +195,12 @@ void InitializeTrinity()
 		g_requestDebugMarkers = markersArg == L"1";
 	}
 
+	auto timers = BeOS->GetStartupArgValue( L"gpuTimers" );
+	if( !timers.empty() )
+	{
+		g_gpuTimersEnabled = timers != L"0";
+	}
+
 	GrannySetAllocator( Tr2GrannyAllocate, Tr2GrannyDeallocate );
 
 	Tr2FontManager::Initialize();
@@ -161,32 +210,11 @@ void InitializeTrinity()
 
 static void StartDLL()
 {
-	CCP_LOG( "Trinity (%s) module starting", BLUEMODULENAME );
-	BeClasses->RegisterClasses( BlueRegistration::GetClassRegs() );
+	CCP_LOG( "Trinity (%s) module starting", CCP_STRINGIZE( TRINITYNAME ) );
+    BeClasses->RegisterClasses( BlueRegistration::GetClassRegs() );
 
 	InitializeTrinity();
 }
-
-
-#ifdef _WIN32 
-HINSTANCE gInstance = NULL;
-
-#ifdef _WINDLL
-BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID)
-{
-	if (reason == DLL_PROCESS_ATTACH)
-	{
-		gInstance = instance;
-		DisableThreadLibraryCalls(gInstance);
-	}
-	else if (reason == DLL_PROCESS_DETACH)
-	{
-		;
-	}
-	return TRUE;
-}
-#endif
-#endif
 
 #if BLUE_WITH_PYTHON
 
@@ -196,27 +224,13 @@ BOOL APIENTRY DllMain(HINSTANCE instance, DWORD reason, LPVOID)
 extern "C" void
 #ifdef _MSC_VER
 	__declspec(dllexport)
+#else
+__attribute__((visibility("default")))
 #endif
-CCP_CONCATENATE( init, TRINITYNAME ) ()
+CCP_CONCATENATE( CCP_CONCATENATE( init, TRINITYNAME ), CCP_BUILD_FLAVOR )()
 {
 	StartDLL();
 	InitializeForPython();
-}
-
-#elif BLUE_WITH_LUA
-extern "C" int
-#if defined(_MSC_VER)
-	__declspec(dllexport)
-#endif
-CCP_CONCATENATE( luaopen_, TRINITYNAME ) ( lua_State* ls )
-{
-	StartDLL();
-
-	BlueRegisterClasses( ls, g_moduleName, BlueRegistration::GetClassRegs() );
-	BlueRegisterFunctions( ls, g_moduleName, BlueRegistration::GetFuncRegs() );
-	BlueRegisterObjectsToModule( ls, g_moduleName, BlueRegistration::GetObjectRegs() );
-
-	return 1;
 }
 
 #endif
@@ -323,3 +337,110 @@ MAP_FUNCTION_AND_WRAP(
 	":param obj: blue object to get world transform from\n"
 	":raies TypeError: if the function does not support the object type"
 );
+
+// Interface definitions
+BLUE_DEFINE_INTERFACE( IWorldPosition );
+BLUE_DEFINE_INTERFACE( ITr2AnimationUpdater );
+BLUE_DEFINE_INTERFACE( ITr2WorldTransformUpdater );
+BLUE_DEFINE_INTERFACE( ITr2PhysicsUpdater );
+BLUE_DEFINE_INTERFACE( ITr2BoundingBox );
+
+BLUE_DEFINE_INTERFACE( ITriDevice );
+
+BLUE_DEFINE_INTERFACE( ITriColor );
+BLUE_DEFINE_INTERFACE( ITriVector );
+BLUE_DEFINE_INTERFACE( ITriQuaternion );
+BLUE_DEFINE_INTERFACE( ITriMatrix );
+BLUE_DEFINE_INTERFACE( ITriPlane );
+BLUE_DEFINE_INTERFACE( ITriRect );
+BLUE_DEFINE_INTERFACE( ITriVertexElement );
+BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix3 );
+BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix5 );
+BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix7 );
+
+BLUE_DEFINE_INTERFACE( ITriFunction );
+BLUE_DEFINE_INTERFACE( ITriDuration );
+BLUE_DEFINE_INTERFACE( ITriCurveLength );
+
+BLUE_DEFINE_INTERFACE( ITriScalarFunction );
+BLUE_DEFINE_INTERFACE( ITriQuaternionFunction );
+BLUE_DEFINE_INTERFACE( ITriVectorFunction );
+BLUE_DEFINE_INTERFACE( ITriColorFunction );
+
+BLUE_DEFINE_INTERFACE( ITriScalarRenderFunc );
+
+
+BLUE_DEFINE_INTERFACE( ITriScalarCurve );
+BLUE_DEFINE_INTERFACE( ITriRotationCurve );
+BLUE_DEFINE_INTERFACE( ITriVectorCurve );
+BLUE_DEFINE_INTERFACE( ITriColorCurve );
+
+BLUE_DEFINE_INTERFACE( ITriEffect );
+BLUE_DEFINE_INTERFACE( ITriEffectRes );
+BLUE_DEFINE_INTERFACE( ITriGeometryRes );
+
+
+BLUE_DEFINE_INTERFACE( ITriShader );
+BLUE_DEFINE_INTERFACE( ITriArea );
+BLUE_DEFINE_INTERFACE( ITriAreaInfo );
+BLUE_DEFINE_INTERFACE( ITriRenderObject );
+BLUE_DEFINE_INTERFACE( ITriRenderObjectList );
+BLUE_DEFINE_INTERFACE( ITriFStretch );
+BLUE_DEFINE_INTERFACE( ITriSplTransform );
+BLUE_DEFINE_INTERFACE( ITriTransform );
+BLUE_DEFINE_INTERFACE( ITriCplTransform );
+BLUE_DEFINE_INTERFACE( ITriLODGroup );
+BLUE_DEFINE_INTERFACE( ITriDirect3D );
+BLUE_DEFINE_INTERFACE( ITriDirect3D10 );
+BLUE_DEFINE_INTERFACE( ITriLight );
+BLUE_DEFINE_INTERFACE( ITriMaterial );
+BLUE_DEFINE_INTERFACE( ITriModel );
+BLUE_DEFINE_INTERFACE( ITriParticleCloud );
+BLUE_DEFINE_INTERFACE( ITriParticleEmitter );
+BLUE_DEFINE_INTERFACE( ITriTexture );
+BLUE_DEFINE_INTERFACE( ITriTextureStage );
+BLUE_DEFINE_INTERFACE( ITriPass );
+BLUE_DEFINE_INTERFACE( ITriTextureRes );
+BLUE_DEFINE_INTERFACE( ITriVertexRes );
+BLUE_DEFINE_INTERFACE( ITriVertexResIter );
+
+BLUE_DEFINE_INTERFACE( ITriVertexBuffer );
+
+BLUE_DEFINE_INTERFACE( ITriIndexBuffer );
+BLUE_DEFINE_INTERFACE( ITriSurface );
+
+BLUE_DEFINE_INTERFACE( ITriPostProcess );
+BLUE_DEFINE_INTERFACE( ITriPostProcessStage );
+BLUE_DEFINE_INTERFACE( ITriEffectParameter );
+BLUE_DEFINE_INTERFACE( ITriEffectResourceParameter );
+
+
+BLUE_DEFINE_INTERFACE( ITriPickable );
+BLUE_DEFINE_INTERFACE( ITriTargetable );
+
+BLUE_DEFINE_INTERFACE( ITr2Renderable );
+BLUE_DEFINE_INTERFACE( ITr2Updateable );
+BLUE_DEFINE_INTERFACE( ITr2Pickable );
+BLUE_DEFINE_INTERFACE( IWodDynamicallyLit );
+
+// IME
+BLUE_DEFINE_INTERFACE( ITriIME );
+
+
+BLUE_DEFINE_INTERFACE( ITriSortable );
+
+BLUE_DEFINE_INTERFACE( ITr2Scene );
+BLUE_DEFINE_INTERFACE( ITr2VisibilityQueryable );
+
+BLUE_DEFINE_INTERFACE( ITr2VisualizationModeRenderer );
+
+BLUE_DEFINE_INTERFACE( ITr2MultiPassScene );
+
+BLUE_DEFINE_INTERFACE( ITr2DebugRenderer );
+BLUE_DEFINE_INTERFACE( ITr2ShaderMaterial );
+BLUE_DEFINE_INTERFACE( ITr2ShaderState );
+
+BLUE_DEFINE_INTERFACE( ITr2ClothMesh );
+BLUE_DEFINE_INTERFACE( IPhysXSdk );
+
+BLUE_DEFINE_INTERFACE( ID3DTexture );

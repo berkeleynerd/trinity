@@ -22,6 +22,7 @@ const unsigned FILTER_GROUP_DIM = 342; // ceil(sum(2**(x+x) for x in range(1, MI
 
 Tr2ReflectionProbe::Tr2ReflectionProbe( IRoot* lockobj )
 	: m_initialized( false ),
+	m_hasData( false ),
 	m_position( 0, 0, 0 ),
 	m_intermediateSize( FILTER_SIZE * 4 ),
 	m_prevCullInversion( false ),
@@ -54,6 +55,11 @@ bool Tr2ReflectionProbe::IsValid()
 	return PrepareResources();
 }
 
+bool Tr2ReflectionProbe::HasData() const
+{
+	return m_hasData && m_postFilterTarget->IsValid();
+}
+
 void Tr2ReflectionProbe::InitRenderPass( Tr2RenderContext &renderContext )
 {
 	renderContext.m_esm.PushViewport();
@@ -78,8 +84,12 @@ void Tr2ReflectionProbe::InitRenderPass( Tr2RenderContext &renderContext )
 	m_prevCullInversion = renderContext.m_esm.IsCullModeInverted();
 	renderContext.m_esm.SetInvertedCullMode( true );
 
+#if !TRINITY_PLATFORM_SUPPORTS_RENDER_PASS_HINTS
 	{
 		GPU_REGION( renderContext, "Reflection Depth Clear" );
+
+		Tr2TextureAL nullTex;
+		renderContext.SetRenderTarget( nullTex, 0 );
 
 		for( int i = 0; i < 6; i++ )
 		{
@@ -87,10 +97,13 @@ void Tr2ReflectionProbe::InitRenderPass( Tr2RenderContext &renderContext )
 			CR( renderContext.Clear( CLEARFLAGS_ZBUFFER, 0, 0, 0 ) );
 		}
 	}
+#endif
 }
 
 void Tr2ReflectionProbe::StartRenderFace( unsigned face, Tr2RenderContext &renderContext )
 {
+	renderContext.RenderPassHint( { Tr2LoadAction::CLEAR, Tr2StoreAction::STORE, 0 }, { Tr2LoadAction::CLEAR, Tr2StoreAction::DONT_CARE, 0.F } );
+
 	renderContext.m_esm.SetRenderTarget( 0, *m_renderTargets[face] );
 	renderContext.m_esm.SetDepthStencilBuffer( m_stencilMaps[face] );
 
@@ -138,6 +151,7 @@ void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext &renderContext )
 	renderContext.m_esm.PopViewport();
 
 	Filter( renderContext );
+	m_hasData = true;
 }
 
 Tr2RenderTargetPtr Tr2ReflectionProbe::GetReflection()
@@ -201,6 +215,7 @@ bool Tr2ReflectionProbe::OnPrepareResources()
 	if( !m_postFilterTarget->IsValid() )
 	{
 		CR_RETURN_VAL( m_postFilterTarget->Create( FILTER_SIZE, FILTER_SIZE, MIP_COUNT, m_hdrOutput ? PIXEL_FORMAT_R11G11B10_FLOAT : PIXEL_FORMAT_R8G8B8A8_UNORM, 0, 0, EX_BIND_UNORDERED_ACCESS, TEX_TYPE_CUBE ), false );
+		m_hasData = false;
 	}
 
 	if( !m_initialized )
@@ -290,7 +305,6 @@ void Tr2ReflectionProbe::RunFilter()
 	OnPrepareResources();
 	Filter( renderContext );
 }
-
 bool Tr2ReflectionProbe::IsHollyWoodModeOn() const
 {
 	return m_hollywoodMode;

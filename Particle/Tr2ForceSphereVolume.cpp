@@ -44,7 +44,7 @@ XMVECTOR FASTCALL Tr2ForceSphereVolume::GetForce( FXMVECTOR position, FXMVECTOR 
 		}
 		force = XMVectorMultiply( 
 			force,
-			XMVectorPowEst( 
+			XMVectorPow( 
 				XMVectorSubtract(
 					XMVectorReplicate( 1.f ),
 					XMVectorMultiply( distance, XMVectorReciprocal( radius ) )

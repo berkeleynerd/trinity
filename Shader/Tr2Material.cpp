@@ -14,15 +14,85 @@
 CCP_STATS_DECLARE( effectCBLocks, "Trinity/effectCBLocks", true, CST_COUNTER_LOW, "number of CB locks for effect parameters" );
 CCP_STATS_DECLARE( effectResourceSetCreated, "Trinity/effectResourceSetCreated", true, CST_COUNTER_LOW, "number of resource sets created" );
 
-namespace
+Tr2SharedConstantBuffers g_sharedConstantBuffers;
+
+
+std::pair<Tr2SharedConstantBuffers::Key, Tr2ConstantBufferAL> Tr2SharedConstantBuffers::GetBuffer( const void* contents, uint32_t size )
 {
+	if( !size || !contents )
+	{
+		return std::make_pair( Key(), Tr2ConstantBufferAL() );
+	}
+	Key key;
+	key.size = size;
+	key.hash = CcpHashFNV1( contents, size );
+	key.contents = contents;
 
-CcpAtomic<uint32_t> s_materialId( 0 );
+	auto found = m_buffers.find( key );
+	if( found != m_buffers.end() )
+	{
+		auto& value = found->second;
+		if( !value.buffer.IsValid() )
+		{
+			USE_MAIN_THREAD_RENDER_CONTEXT();
+			if( FAILED( value.buffer.Create( size, Tr2ConstantUsageAL::ONE_SHOT, contents, renderContext ) ) )
+			{
+				return std::make_pair( Key(), Tr2ConstantBufferAL() );
+			}
+		}
+		++value.refCount;
+		return std::make_pair( found->first, value.buffer );
+	}
 
+	if( size % sizeof( Vector4 ) )
+	{
+		size += sizeof( Vector4 ) - size % sizeof( Vector4 );
+	}
+
+	Value value;
+	{
+		USE_MAIN_THREAD_RENDER_CONTEXT();
+		if( FAILED( value.buffer.Create( size, Tr2ConstantUsageAL::ONE_SHOT, contents, renderContext ) ) )
+		{
+			return std::make_pair( Key(), Tr2ConstantBufferAL() );
+		}
+	}
+	
+	value.refCount = 1;
+
+	auto copy = new uint8_t[size];
+	memcpy( copy, contents, size );
+	key.contents = copy;
+
+	m_buffers[key] = value;
+	return std::make_pair( key, value.buffer );
 }
 
+void Tr2SharedConstantBuffers::ReleaseBuffer( const Key& key )
+{
+	if( !key.contents )
+	{
+		return;
+	}
+
+	auto found = m_buffers.find( key );
+	if( found == m_buffers.end() )
+	{
+		CCP_ASSERT( false );
+		return;
+	}
+	if( --found->second.refCount == 0 )
+	{
+		auto contents = static_cast<const uint8_t*>( found->first.contents );
+		m_buffers.erase( found );
+		delete[] contents;
+	}
+}
+
+
 Tr2EffectPassParameters::Tr2EffectPassParameters()
-	:m_resourceSetDirty( true )
+	:m_resourceSetDirty( true ),
+	m_resourceSetHash( 0 )
 {
 }
 
@@ -37,6 +107,30 @@ Tr2EffectPassParameters::~Tr2EffectPassParameters()
 
 void Tr2EffectPassParameters::AllocateConstantMirror( Tr2RenderContextEnum::ShaderType type, unsigned int size )
 {
+	m_stageInput[type].AllocateConstants( size );
+}
+
+void Tr2EffectPassParameters::GetSharedConstantBuffer( Tr2RenderContextEnum::ShaderType type, const void* contents, unsigned int size )
+{
+	m_stageInput[type].GetSharedConstantBuffer( contents, size );
+}
+
+
+Tr2EffectPassParameters::StageInput::StageInput() :
+	m_constantBufferDirty( false )
+{
+}
+
+Tr2EffectPassParameters::StageInput::~StageInput()
+{
+	g_sharedConstantBuffers.ReleaseBuffer( m_sharedBufferKey );
+}
+
+void Tr2EffectPassParameters::StageInput::AllocateConstants( uint32_t size )
+{
+	g_sharedConstantBuffers.ReleaseBuffer( m_sharedBufferKey );
+	m_sharedBufferKey = Tr2SharedConstantBuffers::Key();
+
 	if( size )
 	{
 		// fix the size to be multiple of Vector4s
@@ -46,23 +140,38 @@ void Tr2EffectPassParameters::AllocateConstantMirror( Tr2RenderContextEnum::Shad
 		}
 
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-		m_stageInput[type].m_constantBuffer.Create(
+		m_constantBuffer.Create(
 			size,
 			Tr2ConstantUsageAL::ONE_SHOT,
 			nullptr,
 			renderContext );
-		m_stageInput[type].m_constantMirror.resize( "StageInput::m_constantMirror", size );
-		m_stageInput[type].m_constantBufferDirty = true;
+		m_constantMirror.resize( "StageInput::m_constantMirror", size );
+		m_constantBufferDirty = true;
 	}
 	else
 	{
-		m_stageInput[type].m_constantBufferDirty = false;
+		m_constantBuffer = Tr2ConstantBufferAL();
+		m_constantBufferDirty = false;
 	}
 }
 
-Tr2Material::Tr2Material( IRoot* lockobj )
+void Tr2EffectPassParameters::StageInput::GetSharedConstantBuffer( const void* contents, uint32_t size )
 {
-	m_sortValue = s_materialId++;
+	g_sharedConstantBuffers.ReleaseBuffer( m_sharedBufferKey );
+
+	auto cb = g_sharedConstantBuffers.GetBuffer( contents, size );
+	m_constantBuffer = cb.second;
+	m_sharedBufferKey = cb.first;
+
+	m_constantMirror.clear();
+	m_constantBufferDirty = false;
+}
+
+
+
+Tr2Material::Tr2Material( IRoot* lockobj ) :
+	m_resourceSetHash( 0 )
+{
 }
 
 Tr2Material::~Tr2Material()
@@ -99,7 +208,17 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 			return;
 		}
 		pp.m_resourceSet.Create( pp.m_resourceSetDesc, *sp, renderContext );
+		pp.m_resourceSetHash = pp.m_resourceSetDesc.ComputeHash();
 		pp.m_resourceSetDirty = false;
+
+		m_resourceSetHash = 0;
+		for( auto& technique : m_parametersForPasses )
+		{
+			for( auto& params : technique )
+			{
+				m_resourceSetHash = CcpHashFNV1( &params->m_resourceSetHash, sizeof( params->m_resourceSetHash ), m_resourceSetHash );
+			}
+		}
 	}
 
 	renderContext.SetResourceSet( pp.m_resourceSet );
@@ -153,15 +272,16 @@ bool Tr2Material::ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passI
 
 	return descChanged;
 }
-unsigned int Tr2Material::GetSortValue() const
+
+uint64_t Tr2Material::GetSortValue() const
 {
 	if( m_shader )
 	{
-		return m_shader->GetSortValue();
+		return ( uint64_t( m_shader->GetSortValue() ) << 32 ) | m_resourceSetHash;
 	}
 	else
 	{
-		return m_sortValue;
+		return 0;
 	}
 }
 
@@ -184,7 +304,9 @@ void Tr2Material::InvalidateResourceSets()
 			auto params = pit->get();
 			params->m_resourceSet = Tr2ResourceSetAL();
 			params->m_resourceSetDesc.ClearResources();
+			params->m_resourceSetHash = 0;
 			params->m_resourceSetDirty = true;
 		}
 	}
+	m_resourceSetHash = 0;
 }

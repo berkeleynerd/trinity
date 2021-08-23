@@ -321,6 +321,15 @@ const Be::ClassInfo* TriTextureRes::ExposeToBlue()
 			"\n:param height: destination height"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"CreateEmptyTexture",
+			CreateEmptyTexture,
+			"Creates a new texture of the given size and fills it with zeroes\n"
+			":param width: texture width\n"
+			":param height: texture height\n"
+			":param mipCount: number of mip levels\n"
+			":param format: pixel format (trinity.PIXEL_FORMAT)" )
+
 		MAP_METHOD_AND_WRAP
 		(
 			"CreateFromHostBitmap",

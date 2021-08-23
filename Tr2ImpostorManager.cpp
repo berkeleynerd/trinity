@@ -52,7 +52,7 @@ void Tr2ImpostorManager::ImpostorAtlas::Resize( uint32_t width, uint32_t height,
 		for( uint32_t i = 0; i < xCount; ++i )
 		{
 
-			m_free.push_back( Vector2_16( float( i * itemWidth ) / width, float( j * itemHeight ) / height ) );
+			m_free.push_back( Vector2_16( float( i * itemWidth + 0.5f ) / width, float( j * itemHeight + 0.5f ) / height ) );
 		}
 	}
 }
@@ -95,7 +95,8 @@ Tr2ImpostorManager::Tr2ImpostorManager()
 	m_itemWidth( 32 ),
 	m_itemHeight( 32 ),
 	m_maxUpdates( 16 ),
-	m_effectKey( -1 )
+	m_effectKey( -1 ),
+	m_atlasDirty( true )
 {
 	m_rt.CreateInstance();
 	m_itemRt.CreateInstance();
@@ -163,8 +164,9 @@ void Tr2ImpostorManager::ReleaseResources( TriStorage )
 bool Tr2ImpostorManager::OnPrepareResources()
 {
 	m_rt->Create( m_width, m_height, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM );
-	m_itemRt->Create( m_itemWidth, m_itemHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM );
-	m_ds->Create( m_itemWidth, m_itemHeight, Tr2Renderer::GetShaderModel() >= TR2SM_3_0_DEPTH ? Tr2RenderContextEnum::DSFMT_READABLE : Tr2RenderContextEnum::DSFMT_D24S8, 1, 0 );
+	m_itemRt->Create( uint32_t( m_itemWidth * m_maxUpdates ), m_itemHeight, 1, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM );
+	m_ds->Create( uint32_t( m_itemWidth * m_maxUpdates ), m_itemHeight, Tr2Renderer::GetShaderModel() >= TR2SM_3_0_DEPTH ? Tr2RenderContextEnum::DSFMT_READABLE : Tr2RenderContextEnum::DSFMT_D24S8, 1, 0 );
+	m_atlasDirty = true;
 	return true;
 }
 
@@ -365,7 +367,7 @@ size_t Tr2ImpostorManager::GetRenderQueueLength() const
 // --------------------------------------------------------------------------------------
 bool Tr2ImpostorManager::CompareImpostors( const std::pair<ITr2ImpostorSource*, Impostor*>& item1, const std::pair<ITr2ImpostorSource*, Impostor*>& item2 )
 {
-	if( item1.second->renderPriority < item2.second->renderPriority )
+	if( item1.second->renderPriority <= item2.second->renderPriority )
 	{
 		return false;
 	}
@@ -385,15 +387,29 @@ void Tr2ImpostorManager::BeginUpdateAtlas( Tr2RenderContext& renderContext )
 	{
 		return;
 	}
+	
+	if( m_atlasDirty )
+	{
+		renderContext.m_esm.PushDepthStencilBuffer( Tr2TextureAL() );
+		renderContext.m_esm.PushRenderTarget( *m_rt );
+		
+		renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0, 0 );
+		
+		renderContext.m_esm.PopRenderTarget();
+		renderContext.m_esm.PopDepthStencilBuffer();
+		m_atlasDirty = false;
+	}
 
 	renderContext.m_esm.PushRenderTarget( *m_itemRt );
 	renderContext.m_esm.PushDepthStencilBuffer( *m_ds );
+
+	renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET | Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER, 0, 0.f );
 }
 
 // --------------------------------------------------------------------------------------
 // Description:
 //   Finishes re-rendering of impostor billboards. Should be called before any 
-//   EndImpostorUpdate.
+//   EndImpostorUpdate. Copies updated impostor images to the atlas.
 // Arguments:
 //   renderContext - Current render context
 // --------------------------------------------------------------------------------------
@@ -406,6 +422,22 @@ void Tr2ImpostorManager::EndUpdateAtlas( Tr2RenderContext& renderContext )
 
 	renderContext.m_esm.PopDepthStencilBuffer();
 	renderContext.m_esm.PopRenderTarget();
+
+	for( size_t i = 0; i < m_renderQueue.size(); ++i )
+	{
+		auto impostor = m_objects.find( m_renderQueue[i] );
+
+		impostor->second.oldHash = impostor->second.hash;
+
+		auto x = uint32_t( float( impostor->second.texcoord.x ) * m_width );
+		auto y = uint32_t( float( impostor->second.texcoord.y ) * m_height );
+		Tr2TextureSubresource dst( 0 );
+		dst.SetRect( x, y, x + m_itemWidth, y + m_itemHeight );
+		Tr2TextureSubresource src( 0 );
+		src.SetRect( uint32_t( i ) * m_itemWidth, 0, uint32_t( i + 1 ) * m_itemWidth, m_itemHeight );
+
+		m_rt->GetRenderTarget().CopySubresourceRegion( dst, *m_itemRt, src, renderContext );
+	}
 }
 
 // --------------------------------------------------------------------------------------
@@ -423,33 +455,19 @@ ITr2ImpostorSource* Tr2ImpostorManager::BeginImpostorUpdate( size_t index, Tr2Re
 	{
 		return nullptr;
 	}
-	renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET | Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER, 0, 0.f );
+	renderContext.m_esm.SetViewport( m_itemWidth, m_itemHeight, uint32_t( index ) * m_itemWidth, 0, 0.f, 1.f );
 	return m_renderQueue[index];
 }
 
 // --------------------------------------------------------------------------------------
 // Description:
-//   Finishes rendering of an impostor, copies rendered image into the billboard atlas.
+//   Finishes rendering of an impostor, currently unused.
 // Arguments:
 //   index - Impostor index in the rendering queue
 //   renderContext - Current render context
 // --------------------------------------------------------------------------------------
-void Tr2ImpostorManager::EndImpostorUpdate( size_t index, Tr2RenderContext& renderContext )
+void Tr2ImpostorManager::EndImpostorUpdate( size_t, Tr2RenderContext& )
 {
-	if( !m_rt || !m_rt->IsValid() || index > m_renderQueue.size() )
-	{
-		return;
-	}
-	auto impostor = m_objects.find( m_renderQueue[index] );
-	
-	impostor->second.oldHash = impostor->second.hash;
-
-	auto x = uint32_t( float( impostor->second.texcoord.x ) * m_width );
-	auto y = uint32_t( float( impostor->second.texcoord.y ) * m_height );
-	Tr2TextureSubresource dst( 0 );
-	dst.SetRect( x, y, x + m_itemRt->GetWidth(), y + m_itemRt->GetHeight() );
-
-	m_rt->GetRenderTarget().CopySubresourceRegion( dst, *m_itemRt, Tr2TextureSubresource( 0 ), renderContext );
 }
 
 // --------------------------------------------------------------------------------------

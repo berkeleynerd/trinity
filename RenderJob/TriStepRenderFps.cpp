@@ -8,16 +8,15 @@
 #ifdef _WIN32
 #include <ctime>
 
-EXTERN_C IMAGE_DOS_HEADER __ImageBase;
 char timeString[9];
 char dateString[11];
 
 struct tm GetUnixBuildTime()
 {
-	const IMAGE_NT_HEADERS* nt_header = (const IMAGE_NT_HEADERS*)( (char*)&__ImageBase + __ImageBase.e_lfanew );
+	auto nt_header = reinterpret_cast<const IMAGE_NT_HEADERS*>( reinterpret_cast<BYTE*>( &__ImageBase ) + __ImageBase.e_lfanew );
 	__time64_t t = nt_header->FileHeader.TimeDateStamp;
 	struct tm ptm;
-	_gmtime64_s(&ptm, &t);
+	_gmtime64_s( &ptm, &t );
 
 	return ptm;
 }
@@ -84,7 +83,7 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 	const float fpsCalculationTime = 0.25f;
 	
 	// position of the fps, left top corner
-	Rect screenFPSPos;
+	Tr2Rect screenFPSPos;
 	const TriViewport& vp = renderContext.m_esm.GetViewport();
 	screenFPSPos.left = vp.x + m_displayX;
 	screenFPSPos.top = vp.y + m_displayY;
@@ -145,41 +144,43 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 		textColor = 0xffff0000;
 	}
 
-	auto type =
-#ifdef _DEBUG
-	"debug"
-#elif defined( TRINITYDEV )
-	"dev"
-#elif defined( CCP_DEPLOY )
-	"deploy"
-#else
-	"internal"
-#endif
-	;
+	std::string flavor{ CCP_STRINGIZE( CCP_BUILD_FLAVOR ) };
+	flavor = flavor.empty() ? "release" : flavor.substr( 1 );
 
-	auto bitcount = CCP_STRINGIZE( CCP_CONCATENATE( x, PROCESS_BIT_COUNT ) );
-	auto toolset = GetPlatformToolset();
-	uint64_t counter = Tr2Renderer::GetCurrentFrameCounter();
+	auto bitcount = "x" + std::to_string( CcpGetProcessBitCount() );
 	int dpCount = m_dpCount ? int( m_dpCount->GetValue() ) : 0;
+
 	std::string str =
-		"Build Date: %10s\n"
-		"Build Time: %10s\n"
-		"  Platform: %10s\n"
-		"      Type: %10s\n"
-		"   Bitness: %10s\n"
-		"   Toolset: %10s\n"
-		"     Frame: %10.0lld\n"
-		"       FPS: %10.2f\n"
-		"        MS: %10.2f\n"
-		"Draw Calls: %10.0d";
+		"Build Date: %11s\n"
+		"Build Time: %11s\n"
+		"  Platform: %11s\n"
+		"    Flavor: %11s\n"
+		"   Bitness: %11s\n"
+		"   Toolset: %11s\n"
+		"Resolution: %11s\n"
+		"     Frame: %11.0lld\n"
+		"       FPS: %11.2f\n"
+		"        MS: %11.2f\n"
+		"Draw Calls: %11.0d";
+
+#if __APPLE__
+    str += "\n   Rosetta: %11s";
+#endif
 
 	if( PDM::IsWine() )
 	{
-		str += "\n      Wine: %10s";
+		str += "\n      Wine: %11s";
 	}
 
 	const int bufferSize = 512; // Make sure to increase this as necessary
 	char fpsBuffer[bufferSize];
+	
+	Tr2BitmapDimensions bbDesc;
+	{
+		USE_MAIN_THREAD_RENDER_CONTEXT();
+		bbDesc = renderContext.GetDefaultBackBuffer().GetDesc();
+	}
+	std::string resolution = std::to_string( bbDesc.GetWidth() ) + "x" + std::to_string( bbDesc.GetHeight() );
 
 	sprintf_s
 	(
@@ -188,13 +189,17 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 		GetDate(),
 		GetTime(),
 		TRINITY_PLATFORM_NAME,
-		type,
-		bitcount,
-		toolset,
-		counter,
+		flavor.c_str(),
+		bitcount.c_str(),
+		CcpGetPlatformToolset(),
+		resolution.c_str(),
+		Tr2Renderer::GetCurrentFrameCounter(),
 		m_averageFPS,
 		m_averageMSPerFrame,
 		dpCount,
+#if __APPLE__
+        PDM::IsRosetta() ? "Yes" : "No",
+#endif
 		PDM::GetWineVersion()
 	);
 

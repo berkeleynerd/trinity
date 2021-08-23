@@ -105,6 +105,10 @@ void Tr2RuntimeTextureParameter::Create( const BlueSharedString& name, ITr2Textu
 // --------------------------------------------------------------------------------------
 void Tr2RuntimeTextureParameter::SetTextureProvider( ITr2TextureProvider* texture )
 {
+	if( m_texture == texture )
+	{
+		return;
+	}
 	m_texture = texture;
 	for( auto it = begin( m_materials ); it != end( m_materials ); ++it )
 	{

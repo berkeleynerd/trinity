@@ -55,25 +55,25 @@ void Tr2ElementBlendConstraint::ApplyConstraint( const ITr2GenericEmitter::Updat
 		case 2:
 			for( unsigned i = 0; i < count; ++i, ++data )
 			{
-				XMStoreFloat2A( 
+				XMStoreFloat2( 
 					(XMFLOAT2*)data.Get(), 
-					XMVectorMultiplyAdd( XMLoadFloat2A( (XMFLOAT2*)data.Get() ), originalFactor, value ) );
+					XMVectorMultiplyAdd( XMLoadFloat2( (XMFLOAT2*)data.Get() ), originalFactor, value ) );
 			}
 			break;
 		case 3:
 			for( unsigned i = 0; i < count; ++i, ++data )
 			{
-				XMStoreFloat3A( 
+				XMStoreFloat3( 
 					(XMFLOAT3*)data.Get(), 
-					XMVectorMultiplyAdd( XMLoadFloat3A( (XMFLOAT3*)data.Get() ), originalFactor, value ) );
+					XMVectorMultiplyAdd( XMLoadFloat3( (XMFLOAT3*)data.Get() ), originalFactor, value ) );
 			}
 			break;
 		case 4:
 			for( unsigned i = 0; i < count; ++i, ++data )
 			{
-				XMStoreFloat4A( 
+				XMStoreFloat4( 
 					(XMFLOAT4*)data.Get(), 
-					XMVectorMultiplyAdd( XMLoadFloat4A( (XMFLOAT4*)data.Get() ), originalFactor, value ) );
+					XMVectorMultiplyAdd( XMLoadFloat4( (XMFLOAT4*)data.Get() ), originalFactor, value ) );
 			}
 			break;
 		}

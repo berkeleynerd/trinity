@@ -78,18 +78,21 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 1 ), 3, &transform._21 ) ||
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 2 ), 3, &transform._41 ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" );
+		return nullptr;
 	}
 
 	bool constPosition = ToFloatTuple( pyPositions, 2, &position.x );
 	if( !constPosition && !PySequence_Check( pyPositions ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+		return nullptr;
 	}
 	bool constColor = ToFloatTuple( pyColors, 4, &color.r );
 	if( !constColor && !PySequence_Check( pyColors ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+		return nullptr;
 	}
 	bool constTexcoord0 = true;
 	if( pyTexCoord0 )
@@ -97,7 +100,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 		constTexcoord0 = ToFloatTuple( pyTexCoord0, 2, &texcoord0.x );
 		if( !constTexcoord0 && !PySequence_Check( pyTexCoord0 ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	else
@@ -111,7 +115,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 		constTexcoord1 = ToFloatTuple( pyTexCoord1, 2, &texcoord1.x );
 		if( !constTexcoord1 && !PySequence_Check( pyTexCoord1 ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	else
@@ -134,7 +139,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+				return nullptr;
 			}
 		}
 		if( !constColor )
@@ -149,7 +155,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+				return nullptr;
 			}
 		}
 		if( !constTexcoord0 )
@@ -164,7 +171,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" );
+				return nullptr;
 			}
 		}
 		if( !constTexcoord1 )
@@ -179,7 +187,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendVertices( PyObject* self, PyObject* args )
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" );
+				return nullptr;
 			}
 		}
 
@@ -248,7 +257,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 1 ), 3, &transform._21 ) ||
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 2 ), 3, &transform._41 ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" );
+		return nullptr;
 	}
 
 	bool constPosition = true;
@@ -257,7 +267,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 		constPosition = ToFloatTuple( pyPositions, 2, &position.x );
 		if( !constPosition && !PySequence_Check( pyPositions ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	bool constColor = true;
@@ -266,7 +277,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 		constColor = ToFloatTuple( pyColors, 4, &color.r );
 		if( !constColor && !PySequence_Check( pyColors ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+			return nullptr;
 		}
 	}
 	bool constTexcoord0 = true;
@@ -275,7 +287,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 		constTexcoord0 = ToFloatTuple( pyTexCoord0, 2, &texcoord0.x );
 		if( !constTexcoord0 && !PySequence_Check( pyTexCoord0 ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	else
@@ -289,7 +302,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 		constTexcoord1 = ToFloatTuple( pyTexCoord1, 2, &texcoord1.x );
 		if( !constTexcoord1 && !PySequence_Check( pyTexCoord1 ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	else
@@ -315,7 +329,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->position = XMVector2TransformCoord( position, transform );
@@ -334,7 +349,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->color = color;
@@ -353,7 +369,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->texCoord[0] = texcoord0;
@@ -372,7 +389,8 @@ PyObject* Tr2Sprite2dPolygon::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "texCoords1 parameter must be a 2-tuple or a sequence of 2-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->texCoord[1] = texcoord1;
@@ -394,7 +412,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendTriangles( PyObject* self, PyObject* args 
 
 	if( !PySequence_Check( pyTriangles ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "triangles parameter must be a sequence of 3-tuples" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "triangles parameter must be a sequence of 3-tuples" );
+		return nullptr;
 	}
 
 	for( ssize_t index = 0; ; ++index )
@@ -409,7 +428,8 @@ PyObject* Tr2Sprite2dPolygon::PyAppendTriangles( PyObject* self, PyObject* args 
 			!PyInt_Check( PyTuple_GET_ITEM( item, 0 ) ) || !PyInt_Check( PyTuple_GET_ITEM( item, 1 ) ) || !PyInt_Check( PyTuple_GET_ITEM( item, 2 ) ) )
 		{
 			Py_DECREF( item );
-			return PyErr_SetString( PyExc_TypeError, "triangles parameter must be a sequence of 3-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "triangles parameter must be a sequence of 3-tuples" );
+			return nullptr;
 		}
 		Tr2Sprite2dTrianglePtr triangle;
 		triangle.CreateInstance();

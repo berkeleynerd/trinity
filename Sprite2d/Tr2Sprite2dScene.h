@@ -188,6 +188,7 @@ private:
 	PITr2SpriteObjectVector m_background;
 	PTriCurveSetVector m_curveSets;
 	Tr2EffectPtr m_effect;
+	uint32_t m_textureRegisters[2];
 
 	Tr2EffectConstant m_transformsHandle;
 

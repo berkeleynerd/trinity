@@ -40,6 +40,54 @@ struct Tr2SamplerOverrideData
 
 typedef std::vector<Tr2SamplerOverrideData> Tr2SamplerOverrideDataVector;
 
+
+class Tr2SharedConstantBuffers
+{
+public:
+	struct Key
+	{
+		Key() :
+			size( 0 ),
+			hash( 0 ),
+			contents( nullptr )
+		{
+		}
+
+		uint32_t size;
+		uint32_t hash;
+		const void* contents;
+	};
+
+	std::pair<Key, Tr2ConstantBufferAL> GetBuffer( const void* contents, uint32_t size );
+	void ReleaseBuffer( const Key& key );
+
+private:
+	struct Value
+	{
+		Tr2ConstantBufferAL buffer;
+		uint32_t refCount;
+	};
+
+	struct KeyHash
+	{
+		size_t operator()( const Key& cb ) const
+		{
+			return cb.hash;
+		}
+	};
+
+	struct KeyEquals
+	{
+		size_t operator()( const Key& key1, const Key& key2 ) const
+		{
+			return key1.size == key2.size && key1.hash == key2.hash && memcmp( key1.contents, key2.contents, key1.size ) == 0;
+		}
+	};
+
+	std::unordered_map<Key, Value, KeyHash, KeyEquals> m_buffers;
+};
+
+
 // Tr2EffectPassParameters holds information on parameters for the effect pass.
 // * For each vertex/pixel shader parameter there is a Tr2EffectParam instance
 //   describing where the value comes from.
@@ -54,6 +102,7 @@ public:
 	~Tr2EffectPassParameters();
 
 	void AllocateConstantMirror( Tr2RenderContextEnum::ShaderType type, unsigned int size );
+	void GetSharedConstantBuffer( Tr2RenderContextEnum::ShaderType type, const void* contents, unsigned int size );
 
 	// ----------------------------------------------------------------------------------
 	// Description:
@@ -61,11 +110,18 @@ public:
 	// ----------------------------------------------------------------------------------
 	struct StageInput
 	{
+		StageInput();
+		~StageInput();
+
+		void AllocateConstants( uint32_t size );
+		void GetSharedConstantBuffer( const void* contents, uint32_t size );
+
 		Tr2EffectParamVector m_shaderParameters;
 		Tr2EffectParamVector m_textures;
 		Tr2EffectParamVector m_uavs;
 		Tr2SamplerOverrideDataVector m_samplers;
 		Tr2ConstantBufferAL m_constantBuffer;
+		Tr2SharedConstantBuffers::Key m_sharedBufferKey;
 		CcpMallocBuffer m_constantMirror;
 		bool m_constantBufferDirty;
 	};
@@ -74,6 +130,7 @@ public:
 	std::vector<ITriReroutable*> m_reroutedParameters;
 	Tr2ResourceSetDescriptionAL m_resourceSetDesc;
 	Tr2ResourceSetAL m_resourceSet;
+	uint32_t m_resourceSetHash;
 	bool m_resourceSetDirty;
 };
 
@@ -90,7 +147,7 @@ public:
 	EXPOSE_TO_BLUE();
 
 	void ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContext& renderContext ) const;
-	uint32_t GetSortValue() const;
+	uint64_t GetSortValue() const;
 	Tr2Shader* GetShaderStateInterface() const;
 
 	virtual void SetOption( const BlueSharedString& name, const BlueSharedString& value ) {}
@@ -103,7 +160,7 @@ protected:
 
 	Tr2ShaderPtr m_shader;
 	Tr2EffectTechniqueParametersVector m_parametersForPasses;
-	uint32_t m_sortValue;
+	mutable uint32_t m_resourceSetHash;
 };
 
 TYPEDEF_BLUECLASS( Tr2Material );

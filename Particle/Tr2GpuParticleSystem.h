@@ -167,6 +167,7 @@ private:
 	Tr2GpuBufferPtr m_sortParameters;
 	// buffer with persistent emitter data (see EmitterParams)
 	Tr2GpuStructuredBufferPtr m_emitterParamsBuffer;
+	Tr2GpuBufferPtr m_counters;
 #else
 	// current target index in ping-pong game
 	uint32_t m_targetIndex;

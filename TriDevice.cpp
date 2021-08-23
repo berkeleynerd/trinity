@@ -89,7 +89,7 @@ CCP_STATS_DECLARE( presentTime, "Trinity/PresentTime", true, CST_TIME, "Time spe
 // We never want this rot object to die, so we hold a reference here.
 BlueBasicPtr<TriDevice> gTriDev;
 
-unsigned long g_currentFrameCounter = 0;
+unsigned long long g_currentFrameCounter = 0;
 
 TriDevice::ResourceSet	TriDevice::s_resourcesToBeRemoved;
 bool TriDevice::s_iteratingForRelease = false;
@@ -108,12 +108,14 @@ TriDevice::TriDevice(IRoot* lockobj) :
 	m_deviceType( TriDevice::DEVICE_TYPE_HARDWARE ),
 
 	mAdapter ( 0 ),
-	mTickInterval ( 10 ), // ten ms between ticks
+	mTickInterval ( 0 ),
 	PARENTLOCK( mViewport ),
 	m_animationTime( 0.0f ),
 	m_animationTimeScale( 1.0f ),
 	m_mipLevelSkipCount( 0U ),
-	PARENTLOCK( m_curveSets )
+	PARENTLOCK( m_curveSets ),
+	m_throttlingState( 0 ),
+	m_allowThrottling( true )
 {	
 	Tr2DisplayModeInfo empty = {0};
 	mDisplayMode = empty;
@@ -144,12 +146,6 @@ TriDevice::TriDevice(IRoot* lockobj) :
 	mPresentParam.swapEffect       = mSwapEffect;
 	mPresentParam.outputWindow	   = 0;
 	mPresentParam.windowed		   = true;
-	
-#if( TRINITY_PLATFORM!=TRINITY_DIRECTX9 && TRINITY_PLATFORM!=TRINITY_OPENGLES2 )
-	mPresentParam.depthStencilFormat = DSFMT_D32F;
-#else
-	mPresentParam.depthStencilFormat = DSFMT_D24S8;
-#endif
 
 	mPresentParam.presentInterval = PRESENT_INTERVAL_ONE;
 
@@ -442,7 +438,10 @@ void TriDevice::ReleaseDeviceResources( TriStorage s )
 	//And the python objects too:
 	if( m_pyResourceSet )
 	{
-		BluePySeq keys = BluePy(PyObject_CallMethod( m_pyResourceSet, const_cast<char*>("keys"), 0) );
+		auto gil = PyGILState_Ensure();
+		ON_BLOCK_EXIT( [&gil] { PyGILState_Release( gil ); } );
+
+		BluePySeq keys = BluePy( PyObject_CallMethod( m_pyResourceSet, const_cast<char*>( "keys" ), 0 ) );
         if( !keys )
         {
             CCP_LOGERR( "TriDev: Python callback failed in \"ReleaseDeviceResources\"" );
@@ -478,7 +477,10 @@ void TriDevice::RebuildDeviceResourcesInPython()
 #if BLUE_WITH_PYTHON
 	if( m_pyResourceSet )
 	{
-		BluePySeq keys = BluePy(PyObject_CallMethod(m_pyResourceSet, const_cast<char*>( "keys" ), 0));
+		auto gil = PyGILState_Ensure();
+		ON_BLOCK_EXIT( [&gil] { PyGILState_Release( gil ); } );
+
+		BluePySeq keys = BluePy( PyObject_CallMethod( m_pyResourceSet, const_cast<char*>( "keys" ), 0 ) );
         if (!keys)
         {
             CCP_LOGERR( "TriDev: Python callback failed in \"RebuildDeviceResourcesInPython\"" );
@@ -762,13 +764,13 @@ PyObject* TriDevice::PythonCreateDeviceHelper( PyObject* args, DeviceScreenType 
 {
 	TriPythonContext pythonCtx;
 
-	Tr2WindowHandle hwnd = 0;
+	unsigned PY_LONG_LONG hwnd = 0;
 	int width = 0;
 	int height = 0;
 	int presentInterval = Tr2RenderContextEnum::PRESENT_INTERVAL_IMMEDIATE;
 	int adapter = Tr2VideoAdapterInfo::DEFAULT_ADAPTER;
 
-	if( screenType != NO_ADAPTER && !PyArg_ParseTuple( args, "i|iiii", &hwnd, &width, &height, &presentInterval, &adapter ) )
+	if( screenType != NO_ADAPTER && !PyArg_ParseTuple( args, "K|iiii", &hwnd, &width, &height, &presentInterval, &adapter ) )
 	{
 		return nullptr;
 	}
@@ -776,14 +778,19 @@ PyObject* TriDevice::PythonCreateDeviceHelper( PyObject* args, DeviceScreenType 
 	width  = std::max( 0, width );
 	height = std::max( 0, height );
 
-	bool OK = CreateSimpleDevice( hwnd, width, height, screenType, Tr2RenderContextEnum::PresentInterval( presentInterval ), adapter );
+#if __APPLE__
+	void* hwndAsPtr = (void*)hwnd;
+	bool OK = CreateSimpleDevice( (__bridge Tr2WindowHandle)( hwndAsPtr ), width, height, screenType, Tr2RenderContextEnum::PresentInterval( presentInterval ), adapter );
+#else
+	bool OK = CreateSimpleDevice( reinterpret_cast<Tr2WindowHandle>( hwnd ), width, height, screenType, Tr2RenderContextEnum::PresentInterval( presentInterval ), adapter );
+#endif
 		
 	if( !OK )
 	{
 		return nullptr;
 	}
 
-	Py_RETURN_NONE;
+	Py_RETURN_NONE; 
 }
 
 PyObject* TriDevice::PyCreateWindowedDevice( PyObject* args )
@@ -991,6 +998,9 @@ bool TriDevice::Render()
 {
 	D3DPERF_EVENT(L"TriDevice::Render");
 
+	// We need to throttle the client right after Present call, so that GPU can have a break
+	Throttle();
+
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	Tr2Viewport vp;
 	mViewport.ConvertToTr2Viewport( vp );
@@ -1011,6 +1021,8 @@ bool TriDevice::Render()
 		CHECKDXFAIL("BeginScene Failed");
 #endif
 	}
+	
+	Tr2Renderer::GetQuadListIndexBuffer( 16384 );
 
 	if( m_renderJobs )
 	{		
@@ -1026,11 +1038,6 @@ bool TriDevice::Render()
 void TriDevice::AddPostUpdateCallback( IBlueCallbackMan::CallbackFunc cb, void* context )
 {
 	m_postUpdateCallbacks->Add( cb, context, IBlueCallbackMan::BCBF_NONE, nullptr );
-}
-
-void TriDevice::SetTickInterval( int value )
-{
-	mTickInterval = value;
 }
 
 namespace
@@ -1073,4 +1080,66 @@ bool TriDevice::SupportsDepthStencilFormat( Tr2RenderContextEnum::DepthStencilFo
 		return Tr2VideoAdapterInfo::SupportsDepthStencilFormat( unsigned( mAdapter ), renderContext.GetBackBufferFormat(), format );
 	}
 	return Tr2VideoAdapterInfo::SupportsDepthStencilFormat( Tr2VideoAdapterInfo::DEFAULT_ADAPTER, PIXEL_FORMAT_B8G8R8X8_UNORM, format );
+}
+
+void TriDevice::Throttle() const
+{
+	if( !m_allowThrottling )
+	{
+		return;
+	}
+
+	uint32_t sleepTime = 0;
+
+	if( GetThrottling( WINDOW_OUT_OF_FOCUS ) )
+	{
+		sleepTime = std::max( sleepTime, 10u );
+	}
+	if( GetThrottling( THERMAL_STATE ) )
+	{
+		sleepTime = std::max( sleepTime, 20u );
+	}
+	if( GetThrottling( WINDOW_HIDDEN ) )
+	{
+		sleepTime = std::max( sleepTime, 20u );
+	}
+
+	if( sleepTime > 0 )
+	{
+		CCP_STATS_ZONE( "TriDevice::Throttle" );
+		CcpThreadSleep( sleepTime );
+	}
+}
+
+bool TriDevice::ShouldSkipFrame() const
+{
+	static unsigned s_tickCounter = 0;
+	if( m_allowThrottling && GetThrottling( WINDOW_HIDDEN ) )
+	{
+		//Update the game very occasionally, as things like missiles need to be handled
+		// even if we're not actually rendering anything.
+		++s_tickCounter %= 50;
+		if( s_tickCounter != 0 )
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void TriDevice::SetThrottling( ThrottlingReason reason, bool on )
+{
+	if( on )
+	{
+		m_throttlingState |= reason;
+	}
+	else
+	{
+		m_throttlingState &= ~reason;
+	}
+}
+
+bool TriDevice::GetThrottling( ThrottlingReason reason ) const
+{
+	return ( m_throttlingState & reason ) != 0;
 }

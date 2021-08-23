@@ -65,7 +65,7 @@ TriStepResult TriStepRenderDebug::Execute( Be::Time realTime, Be::Time simTime, 
 	{
 		ProjectedTextEntry e = *it;
 
-		Rect rect;
+		Tr2Rect rect;
 		Vector3 screenPos = Tr2Renderer::ProjectWorldToScreen( e.pos, viewport );
 
 		if( (screenPos.z > 0.0f) && (screenPos.z < 1.0f) )
@@ -139,7 +139,7 @@ void TriStepRenderDebug::Printf( int x, int y, uint32_t color, const char* msg, 
 	va_list args;
 	va_start( args, msg );
 
-	Rect rect;
+	Tr2Rect rect;
 	rect.top = y;
 	rect.left = x;
 	rect.bottom = rect.top + 512;
@@ -149,7 +149,7 @@ void TriStepRenderDebug::Printf( int x, int y, uint32_t color, const char* msg, 
 	va_end( args );
 }
 
-void TriStepRenderDebug::Printf( const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
+void TriStepRenderDebug::Printf( const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... )
 {
 	va_list args;
 	va_start( args, msg );
@@ -218,7 +218,7 @@ void TriStepRenderDebug::Print2D( int x, int y, uint32_t color, const std::strin
 
 void TriStepRenderDebug::Print2Df( int x, int y, int w, int h, uint32_t format, uint32_t color, const std::string& msg )
 {
-	Rect rect = {x, y, w, h};
+	Tr2Rect rect = {x, y, w, h};
 	Printf( rect, color, format, msg.c_str() );
 }
 

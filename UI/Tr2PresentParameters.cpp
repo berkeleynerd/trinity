@@ -14,7 +14,6 @@ Tr2PresentParameters::Tr2PresentParameters( IRoot* lockobj /*= nullptr */ )
 	msaaType = 0;
 	msaaQuality = 0;
 	swapEffect = Tr2RenderContextEnum::SWAP_EFFECT_DISCARD;
-	depthStencilFormat = Tr2RenderContextEnum::DSFMT_AUTO;
 	outputWindow = 0;
 	windowed = false;
 	software = false;

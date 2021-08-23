@@ -117,6 +117,7 @@ void Tr2DynamicRingBuffer::DoneUsingData( Tr2RenderContext& renderContext )
 	{
 		if( !m_regions.empty() && m_regions.back().fence && FAILED( m_regions.back().fence->PutFence( renderContext ) ) )
 		{
+			DeallocateFence( m_regions.back().fence );
 			m_regions.back().fence = nullptr;
 		}
 		m_lastPutSucceeded = false;

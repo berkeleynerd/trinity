@@ -12,7 +12,7 @@ static PyObject * PyApplyAsGeometry( PyObject * self, PyObject * args )
 {
 	Tr2NamedPipeListener* pThis = BluePythonCast<Tr2NamedPipeListener*>( self );
 
-	TriGeometryRes* geoRes;
+	TriGeometryRes* geoRes = nullptr;
 	
 	PyObject *pyRes;
 	if( !PyArg_ParseTuple( args, "O", &pyRes ))

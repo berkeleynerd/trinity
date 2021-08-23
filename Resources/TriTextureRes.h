@@ -85,6 +85,7 @@ public:
 
 	// Make an immutable TriTextureRes that takes a copy of the hostBitmap contents and sticks with it (not a live view).
 	bool CreateFromHostBitmap( Tr2HostBitmap* bitmap );
+	bool CreateEmptyTexture( uint32_t width, uint32_t height, uint32_t mipCount, Tr2RenderContextEnum::PixelFormat format );
 	BlueStdResult CreateFromTexture( TriTextureRes* texture );
 
 	// Create a new TriTextureRes with undefined contents.  It's implied that the usage is dynamic.
@@ -172,7 +173,7 @@ protected:
 	// The async management itself is done in BlueAsyncRes.
 	virtual LoadingResult DoLoad();
 	virtual bool DoPrepare();
-	virtual void OnCloseStream();
+	virtual void CleanupLoadData();
 
 private:
 	// These member variables and functions exist to support async texture saving;
@@ -182,9 +183,6 @@ private:
 	virtual void DoCleanupAsyncSave();
 
 	friend Tr2HostBitmap;
-
-	void* m_data;
-	uint32_t m_dataSize;
 
 	Tr2TexturePipelinePtr m_pipeline;
 	std::unordered_map<std::wstring, Tr2ImageResPtr> m_pipelineInputs;

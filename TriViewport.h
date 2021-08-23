@@ -27,6 +27,7 @@ public:
 
 	TriViewport(IRoot* lockobj = NULL) : x(0),y(0),width(1),height(1),minZ(0.0f),maxZ(1.0f)
 	{}
+	virtual ~TriViewport(){}
 
 	void py__init__( 
 		int32_t _x,

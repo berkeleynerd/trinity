@@ -32,7 +32,7 @@
 
 BLUE_CLASS( TriRect ) :
 	public IPythonMethods,
-	public Rect
+	public Tr2Rect
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -48,10 +48,10 @@ public:
 	PyObject* Repr( bool* handled );
 
 	void SetDimentions( int32_t _left, int32_t _top, int32_t _right, int32_t _bottom );
-	void SetRect( const ::Rect* c );
-	const ::Rect* GetRect() const;
-	::Rect* CopyRect( ::Rect* in ) const;
-	::Rect* Rect();
+	void SetRect( const ::Tr2Rect* c );
+	const ::Tr2Rect* GetRect() const;
+	::Tr2Rect* CopyRect( ::Tr2Rect* in ) const;
+	::Tr2Rect* Rect();
 
 	void PySetRect(Be::Optional<int32_t> l, Be::Optional<int32_t> t, Be::Optional<int32_t> r, Be::Optional<int32_t> b );
 };

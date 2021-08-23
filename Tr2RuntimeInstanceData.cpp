@@ -169,7 +169,7 @@ bool Tr2RuntimeInstanceData::OnPrepareResources()
 // --------------------------------------------------------------------------------------
 bool Tr2RuntimeInstanceData::IsInstanceDataReady() const
 {
-	return m_vertexDeclaration != Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
+	return m_vertexDeclaration != Tr2EffectStateManager::UNINITIALIZED_DECLARATION && m_vb.IsValid();
 }
 
 // --------------------------------------------------------------------------------------

@@ -732,6 +732,7 @@ void Tr2Effect::RebuildCachedDataInternal()
 					m_parametersForPasses[technique][passIx].reset( CCP_NEW( "Tr2EffectPassParameters" ) Tr2EffectPassParameters() );
 					Tr2EffectPassParameters& pp = *m_parametersForPasses[technique][passIx];
 					pp.m_resourceSetDesc = desc.techniques[technique].passes[passIx].resourceSetDesc;
+					pp.m_resourceSetHash = 0;
 					pp.m_resourceSetDirty = true;
 
 					for( unsigned i = 0; i != Tr2RenderContextEnum::SHADER_TYPE_COUNT; ++i )
@@ -1550,112 +1551,144 @@ void Tr2Effect::MapPassParameters(
 	const void* constantDefaultValues = desc.techniques[technique].passes[passIx].stageInputs[stage].constantValues;
 
 	constantSize = std::max( constantSize, constantDefaultValueSize );
-	// Allocate constant buffer
-	pp.AllocateConstantMirror( stage, constantSize );
-	if( constantSize == 0 || !pp.m_stageInput[stage].m_constantBuffer.IsValid() )
-	{
-		return;
-	}
 
-	void* mirror = pp.m_stageInput[stage].m_constantMirror.get();
-	if( !mirror )
+	if( constantSize > 0 && !hasVariableParams )
 	{
-		return;
-	}
-
-	memcpy( mirror, constantDefaultValues, constantDefaultValueSize );
-
-	if( hasConstantParams )
-	{
-		for( size_t i = 0; i < constants.size(); ++i )
+		std::unique_ptr<uint8_t[]> mirror( new uint8_t[constantSize] );
+		if( !mirror )
 		{
-			if( constIndexes[i] != -1 )
+			return;
+		}
+
+		memcpy( mirror.get(), constantDefaultValues, constantDefaultValueSize );
+		if( constantSize > constantDefaultValueSize )
+		{
+			memset( mirror.get() + constantDefaultValueSize, 0, constantSize - constantDefaultValueSize );
+		}
+
+		if( hasConstantParams )
+		{
+			for( size_t i = 0; i < constants.size(); ++i )
 			{
-				auto& c = constants[i];
-				memcpy( static_cast<uint8_t*>( mirror ) + c.offset, &constParams[constIndexes[i]].value, sizeof( float ) * c.dimension );
+				if( constIndexes[i] != -1 )
+				{
+					auto& c = constants[i];
+					memcpy( mirror.get() + c.offset, &constParams[constIndexes[i]].value, c.size );
+				}
 			}
 		}
+
+		pp.GetSharedConstantBuffer( stage, mirror.get(), constantSize );
 	}
-
-	if( hasVariableParams )
+	else
 	{
-		index = 0;
-		// Now iterate again over the list and process the parameters:
-		for( auto constantIx = constants.begin(); constantIx != constants.end(); ++constantIx )
+		// Allocate constant buffer
+		pp.AllocateConstantMirror( stage, constantSize );
+		if( constantSize == 0 || !pp.m_stageInput[stage].m_constantBuffer.IsValid() )
 		{
-			ITriReroutablePtr paramAsReroutable;
-			ITr2EffectValuePtr paramAsEffectValue = foundParams[index++];
+			return;
+		}
 
-			ITriEffectParameterPtr param = ITriEffectParameterPtr( BlueCastPtr( paramAsEffectValue ) );
-			if( param )
+		void* mirror = pp.m_stageInput[stage].m_constantMirror.get();
+		if( !mirror )
+		{
+			return;
+		}
+
+		memcpy( mirror, constantDefaultValues, constantDefaultValueSize );
+
+		if( hasConstantParams )
+		{
+			for( size_t i = 0; i < constants.size(); ++i )
 			{
-				// Notify a parameter of its future binding. Here
-				// the parameter might check for sRGB flags, etc.
-				param->RebuildEffectHandles( m_shader );
-
-				paramAsReroutable = ITriReroutablePtr( BlueCastPtr( param ) );
-				if( paramAsReroutable )
+				if( constIndexes[i] != -1 )
 				{
-					paramAsEffectValue.Unlock();
+					auto& c = constants[i];
+					memcpy( static_cast<uint8_t*>( mirror ) + c.offset, &constParams[constIndexes[i]].value, c.size );
 				}
 			}
+		}
 
-			if( paramAsEffectValue || paramAsReroutable )
+		if( hasVariableParams )
+		{
+			index = 0;
+			// Now iterate again over the list and process the parameters:
+			for( auto constantIx = constants.begin(); constantIx != constants.end(); ++constantIx )
 			{
-				// It's illegal to pass the perObjectStart if the effect has the block
-				if( constantIx->offset >= perObjectStart )
+				ITriReroutablePtr paramAsReroutable;
+				ITr2EffectValuePtr paramAsEffectValue = foundParams[index++];
+
+				ITriEffectParameterPtr param = ITriEffectParameterPtr( BlueCastPtr( paramAsEffectValue ) );
+				if( param )
 				{
-					// We must ignore this parameter! ValuePassParameters will have
-					// spit out an error message.
-					continue;
+					// Notify a parameter of its future binding. Here
+					// the parameter might check for sRGB flags, etc.
+					param->RebuildEffectHandles( m_shader );
+
+					paramAsReroutable = ITriReroutablePtr( BlueCastPtr( param ) );
+					if( paramAsReroutable )
+					{
+						paramAsEffectValue.Unlock();
+					}
 				}
 
-				if( paramAsReroutable )
+				if( paramAsEffectValue || paramAsReroutable )
 				{
-					// Parameter is reroutable - this means we can hook it up directly
-					// and won't have to copy its value every frame
-
-					if( paramAsReroutable->IsRerouted() )
+					// It's illegal to pass the perObjectStart if the effect has the block
+					if( constantIx->offset >= perObjectStart )
 					{
-						// Parameter is already rerouted - likely used in a previous pass
-						paramAsEffectValue = param;
+						// We must ignore this parameter! ValuePassParameters will have
+						// spit out an error message.
+						continue;
 					}
-					else
+
+					if( paramAsReroutable )
 					{
-						CCP_ASSERT( constantIx->offset + constantIx->size <= constantSize );
+						// Parameter is reroutable - this means we can hook it up directly
+						// and won't have to copy its value every frame
 
-						void* dest = (void*)((uint8_t*)mirror + constantIx->offset);
-						paramAsReroutable->SetDestination( dest, constantIx->size );
-
-						// check that it actually worked; ie the param may be reroutable in theory, but not for
-						// this specific instance.
-						if( !paramAsReroutable->IsRerouted() )
+						if( paramAsReroutable->IsRerouted() )
 						{
+							// Parameter is already rerouted - likely used in a previous pass
 							paramAsEffectValue = param;
 						}
 						else
 						{
-							reroutables.push_back( paramAsReroutable.Detach() );				
+							CCP_ASSERT( constantIx->offset + constantIx->size <= constantSize );
+
+							void* dest = (void*)( (uint8_t*)mirror + constantIx->offset );
+							paramAsReroutable->SetDestination( dest, constantIx->size );
+
+							// check that it actually worked; ie the param may be reroutable in theory, but not for
+							// this specific instance.
+							if( !paramAsReroutable->IsRerouted() )
+							{
+								paramAsEffectValue = param;
+							}
+							else
+							{
+								reroutables.push_back( paramAsReroutable.Detach() );
+							}
 						}
 					}
-				}
-			
-				if( paramAsEffectValue )
-				{
 
-					Tr2EffectParam param;
-					param.m_sourceValue = paramAsEffectValue;
+					if( paramAsEffectValue )
+					{
 
-					// Size is now passed down when copying value from parameter so
-					// we don't need to check for the size here. In fact, it is normal
-					// for the destination to be smaller than the value, in particular for
-					// TriTransformParameter where a portion of a 4x4 matrix is used.
+						Tr2EffectParam param;
+						param.m_sourceValue = paramAsEffectValue;
 
-					param.m_sourceName = constantIx->name.c_str();
-					param.m_registerIndex = constantIx->offset;
-					param.m_registerCount = constantIx->size;
+						// Size is now passed down when copying value from parameter so
+						// we don't need to check for the size here. In fact, it is normal
+						// for the destination to be smaller than the value, in particular for
+						// TriTransformParameter where a portion of a 4x4 matrix is used.
 
-					pv.push_back( param );
+						param.m_sourceName = constantIx->name.c_str();
+						param.m_registerIndex = constantIx->offset;
+						param.m_registerCount = constantIx->size;
+
+						pv.push_back( param );
+					}
 				}
 			}
 		}

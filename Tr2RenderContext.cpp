@@ -11,6 +11,7 @@
 #include "Tr2PerObjectData.h"
 #include "TriRenderBatch.h"
 #include "Shader/Tr2Shader.h"
+#include "TbbStub.h"
 
 CCP_STATS_DECLARE( batchCount, "Trinity/batchCount", true, CST_COUNTER_HIGH, "Batches rendered per frame");
 
@@ -58,12 +59,116 @@ Tr2RenderTargetPtr Tr2RenderContextBase::GetBackBuffer()
 
 
 Tr2RenderContext::Tr2RenderContext()
-	:Tr2RenderContextBase( *this )
+	:Tr2RenderContextBase( *this ),
+	m_parallelContextMutex( "Tr2RenderContext", "m_parallelContextMutex" ),
+	m_parallelContextSemaphore( 0, 1024 )
 {
 #if !TRINITY_PLATFORM_HAS_PRIMARY_CONTEXT
 	m_events = this;
 #endif
 }
+
+void Tr2RenderContext::PrepareParallelContext( uint32_t index, Tr2RenderContext& context )
+{
+#if TRINITY_PLATFORM_SUPPORTS_PARALLEL_CONTEXTS
+	ForkContext( &context, index );
+	for( uint32_t i = 0; i != CBUFFER_COUNT; ++i )
+	{
+		Tr2ConstantBufferAL* buffer = GetConstantBuffer( i );
+		if( buffer && buffer->IsValid() )
+		{
+			void* data = nullptr;
+			buffer->Lock( &data, *this );
+			context.GetConstantBuffer( i )->Create( buffer->GetSize(), Tr2ConstantUsageAL::REUSABLE, data, *this );
+			buffer->Unlock( *this );
+		}
+	}
+	context.m_esm.AssignFrom( m_esm );
+#endif
+}
+
+uint32_t Tr2RenderContext::BeginParallelEncoding( uint32_t count )
+{
+#if TRINITY_PLATFORM_SUPPORTS_PARALLEL_CONTEXTS
+	CCP_STATS_ZONE( __FUNCTION__ );
+	
+	CCP_ASSERT( m_parallelContextsPool.empty() );
+
+	uint32_t available = 0;
+	{
+		CCP_STATS_ZONE( "Tr2RenderContextAL::BeginParallelEncoding" );
+		available = std::min( count, Tr2RenderContextAL::BeginParallelEncoding( count ) );
+	}
+	if( available )
+	{
+		m_esm.SetupContextResources();
+		
+		for( size_t i = m_parallelContexts.size(); i < available; ++i )
+		{
+			Tr2RenderContextPtr context;
+			context.CreateInstance();
+			m_parallelContexts.push_back( context );
+		}
+		
+		for( size_t i = 0; i < available; ++i )
+		{
+			PrepareParallelContext( i, *m_parallelContexts[i] );
+			m_parallelContextsPool.push_back( m_parallelContexts[i] );
+			m_parallelContextSemaphore.Signal();
+		}
+	}
+	return available;
+#else
+	return 0;
+#endif
+}
+
+Tr2RenderContext* Tr2RenderContext::Fork()
+{
+	while( true )
+	{
+		m_parallelContextSemaphore.Wait();
+		
+		CcpAutoMutex lock( m_parallelContextMutex );
+		
+		if( m_parallelContextsPool.empty() )
+		{
+			continue;
+		}
+		
+		auto ctx = m_parallelContextsPool.back();
+		m_parallelContextsPool.pop_back();
+		return ctx.Detach();
+	}
+}
+
+void Tr2RenderContext::Join( Tr2RenderContext* context )
+{
+	CcpAutoMutex lock( m_parallelContextMutex );
+	Tr2RenderContextPtr ctx;
+	ctx.Attach( context );
+	m_parallelContextsPool.push_back( ctx );
+	m_parallelContextSemaphore.Signal();
+}
+
+void Tr2RenderContext::EndParallelEncoding()
+{
+#if TRINITY_PLATFORM_SUPPORTS_PARALLEL_CONTEXTS
+	CCP_STATS_ZONE( __FUNCTION__ );
+	{
+		CCP_STATS_ZONE( "Tr2RenderContextAL::EndParallelEncoding" );
+		Tr2RenderContextAL::EndParallelEncoding();
+	}
+	
+	// Reset semaphore to 0
+	for( size_t i = 0; i < m_parallelContextsPool.size(); ++i )
+	{
+		m_parallelContextSemaphore.Wait();
+	}
+	m_parallelContextsPool.clear();
+#endif
+}
+
 
 #if TRINITY_PLATFORM_HAS_PRIMARY_CONTEXT
 Tr2PrimaryRenderContext::Tr2PrimaryRenderContext()
@@ -189,27 +294,22 @@ void Tr2RenderContextBase::RenderBatchesInOrder( ITriRenderBatchAccumulator* bat
 	}
 }
 
-void Tr2RenderContextBase::RenderBatchesSortedByEffect( ITriRenderBatchAccumulator* batches, const BlueSharedString& techniqueName )
+void Tr2RenderContextBase::RenderBatchesSortedByEffectHelper( TriRenderBatch* batch, TriRenderBatch* endBatch, const BlueSharedString& techniqueName )
 {
-	CCP_STATS_ZONE( __FUNCTION__ );
-	D3DPERF_EVENT(L"Tr2EffectStateManager::RenderBatchesSortedByEffect");
-
+	Tr2RenderContext *renderContext = reinterpret_cast<Tr2RenderContext*>( this );
 
 	Tr2EffectStateManager::RenderingMode currentMode = Tr2EffectStateManager::RM_ANY;
 	const Tr2PerObjectData* curPerObjectData = nullptr;
 	unsigned int curShaderTypeMask = 0;
 
-	Tr2ConstantBufferAL*	perObjectConstantBuffers[CBUFFER_COUNT];
-	for( uint32_t i = 0; i != CBUFFER_COUNT; ++i )
+	while( batch != endBatch )
 	{
-		perObjectConstantBuffers[i] = &m_perObjectConstantBuffers[i];
-	}
-
-	Tr2RenderContext *renderContext = reinterpret_cast<Tr2RenderContext*>( this );
-
-	TriRenderBatch* batch = batches->GetFirstBatch();
-	while( batch != nullptr )
-	{
+		Tr2ConstantBufferAL*	perObjectConstantBuffers[CBUFFER_COUNT];
+		for( uint32_t i = 0; i != CBUFFER_COUNT; ++i )
+		{
+			perObjectConstantBuffers[i] = renderContext->GetConstantBuffer( i );
+		}
+		
 		auto material = batch->GetShaderMaterialInterface();
 
 
@@ -271,7 +371,7 @@ void Tr2RenderContextBase::RenderBatchesSortedByEffect( ITriRenderBatchAccumulat
 			// Figure out in advance, before we actually start applying state and submitting geometry, how many
 			// batches we will be able to batch based on rendering mode and shader sharing.
 			TriRenderBatch *lastBatch = batch;
-			while( lastBatch )
+			while( lastBatch && lastBatch != endBatch )
 			{
 				const Tr2EffectStateManager::RenderingMode mode = lastBatch->GetRenderingMode();
 				if( mode != Tr2EffectStateManager::RM_ANY && mode != currentMode )
@@ -320,6 +420,73 @@ void Tr2RenderContextBase::RenderBatchesSortedByEffect( ITriRenderBatchAccumulat
 				batch = batch->GetNext();
 			}
 		}
+	}
+}
+
+void Tr2RenderContextBase::RenderBatchesSortedByEffect( ITriRenderBatchAccumulator* batches, const BlueSharedString& techniqueName )
+{
+	CCP_STATS_ZONE( __FUNCTION__ );
+	D3DPERF_EVENT(L"Tr2EffectStateManager::RenderBatchesSortedByEffect");
+
+	Tr2RenderContext* primaryContext = reinterpret_cast<Tr2RenderContext*>( this );
+#if TRINITY_PLATFORM_SUPPORTS_PARALLEL_CONTEXTS
+	size_t batchCount = batches->GetBatchCount();
+	extern bool g_useParallelEncoding;
+	if( g_useParallelEncoding && batchCount > 256 )
+	{
+		const uint32_t coresCount = std::thread::hardware_concurrency();
+		uint32_t batchesPerEncoder = std::max( 32u, uint32_t( ( batchCount + coresCount ) / coresCount ) );
+		uint32_t taskCount = uint32_t( ( batchCount + batchesPerEncoder ) / batchesPerEncoder );
+		
+		std::vector<std::pair<int, TriRenderBatch*>> encodingTasks;
+		encodingTasks.reserve( taskCount );
+		
+		TriRenderBatch* batch = batches->GetFirstBatch();
+		int i = 0;
+		while( batch )
+		{
+			if( batch->m_needsSyncronousSubmit )
+			{
+				batch->SyncronousSubmit( *primaryContext );
+			}
+			if( i == 0 )
+			{
+				encodingTasks.push_back( std::make_pair( encodingTasks.size(), batch ) );
+			}
+			++i %= batchesPerEncoder;
+			batch = batch->GetNext();
+		}
+
+		if( primaryContext->BeginParallelEncoding( taskCount ) )
+		{
+			Tr2ParallelDo( encodingTasks.begin(), encodingTasks.end(), [&]( const std::pair<int, TriRenderBatch*>& task )
+			{
+				CCP_STATS_ZONE( "Parallel Encoding Task" );
+
+				Tr2RenderContext* ctx = primaryContext->Fork();
+				
+				TriRenderBatch* beginBatch = task.second;
+				TriRenderBatch* doneBatch = nullptr;
+				if( task.first < encodingTasks.size() - 1 )
+				{
+					doneBatch = encodingTasks[task.first + 1].second;
+				}
+				
+				ctx->RenderBatchesSortedByEffectHelper( beginBatch , doneBatch, techniqueName );
+				
+				primaryContext->Join( ctx );
+			} );
+			primaryContext->EndParallelEncoding();
+		}
+		else
+		{
+			RenderBatchesSortedByEffectHelper( batches->GetFirstBatch(), nullptr, techniqueName );
+		}
+	}
+	else
+#endif
+	{
+		RenderBatchesSortedByEffectHelper( batches->GetFirstBatch(), nullptr, techniqueName );
 	}
 }
 

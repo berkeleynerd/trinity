@@ -246,7 +246,7 @@ protected:
 	// EveShip2 override
 	void UpdateWorldBounds();
 	void EstimatePixelDiameter( const TriFrustum& frustum );
-	Matrix GetObserverTransform() const;
+	Matrix GetObserverTransform() override;
 	const Matrix* GetTurretTransform( unsigned int turretSetIndex ) const;
 	
 	void UpdateBoosters( EveUpdateContext& updateContext ) {}

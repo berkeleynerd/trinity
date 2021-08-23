@@ -88,6 +88,8 @@ private:
 	Color m_albedoColor;
 	Color m_emissiveColor;;
 	EveChildMeshPtr m_zOnlyModel;
+	
+	using EveEffectRoot2::GetRenderables; // Silence warning about this hidden function
 };
 
 TYPEDEF_BLUECLASS( EvePlanet );

@@ -169,6 +169,7 @@ void Tr2GpuParticleSystem::InitializeBuffers()
 	m_emitterParamsBuffer.CreateInstance();
 	m_drawParameters.CreateInstance();
 	m_sortParameters.CreateInstance();
+	m_counters.CreateInstance();
 }
 
 // --------------------------------------------------------------------------------------
@@ -183,6 +184,7 @@ void Tr2GpuParticleSystem::RegisterVariables()
 	m_variableStore->RegisterVariable( "DrawParameters", m_drawParameters );
 	m_variableStore->RegisterVariable( "SortParameters", m_sortParameters );
 	m_variableStore->RegisterVariable( "Emitters", m_emitterParamsBuffer );
+	m_variableStore->RegisterVariable( "ParticleCounters", m_counters );
 }
 
 #else
@@ -240,6 +242,7 @@ void Tr2GpuParticleSystem::SetMaxParticles( uint32_t maxParticles )
 	m_particleData->ReleaseResources( TRISTORAGE_ALL );
 	m_deadList->ReleaseResources( TRISTORAGE_ALL );
 	m_visibleList->ReleaseResources( TRISTORAGE_ALL );
+	m_counters->ReleaseResources( TRISTORAGE_ALL );
 #else
 	uint32_t width, height;
 	GetMinPow2Rectange( maxParticles, width, height );
@@ -296,12 +299,17 @@ bool Tr2GpuParticleSystem::OnPrepareResources()
 	}
 	if( !m_deadList->IsValid() )
 	{
-		m_deadList->Create( m_maxParticles, sizeof( uint32_t ), Tr2GpuStructuredBuffer::COUNTER | Tr2GpuStructuredBuffer::GPU_WRITABLE );
+		m_deadList->Create( m_maxParticles, sizeof( uint32_t ), Tr2GpuStructuredBuffer::GPU_WRITABLE );
 		m_clearRequested = true;
 	}
 	if( !m_visibleList->IsValid() )
 	{
-		m_visibleList->Create( m_maxParticles, sizeof( uint32_t ) * 2, Tr2GpuStructuredBuffer::COUNTER | Tr2GpuStructuredBuffer::GPU_WRITABLE );
+		m_visibleList->Create( m_maxParticles, sizeof( uint32_t ) * 2, Tr2GpuStructuredBuffer::GPU_WRITABLE );
+		m_clearRequested = true;
+	}
+	if( !m_counters->IsValid() )
+	{
+		m_counters->Create( 2, Tr2RenderContextEnum::PIXEL_FORMAT_R32_SINT, Tr2GpuBuffer::GPU_WRITABLE );
 		m_clearRequested = true;
 	}
 	UpdateGpuEmitterParams( renderContext );
@@ -508,9 +516,6 @@ void Tr2GpuParticleSystem::Update( Be::Time time, const Vector3& originShift, Tr
 	m_liveTime -= dt;
 
 #if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
-	renderContext.CopyBufferCounter( *m_drawParameters, 0, *m_visibleList );
-
-	UpdateLiveCount( renderContext );
 
 	if( m_enableSort )
 	{
@@ -519,6 +524,8 @@ void Tr2GpuParticleSystem::Update( Be::Time time, const Vector3& originShift, Tr
 
 	// prepare draw arguments for Render
 	Tr2Renderer::RunComputeShader( m_setDrawParameters, 1, 1, 1, renderContext );
+
+	UpdateLiveCount( renderContext );
 #endif
 }
 
@@ -533,7 +540,7 @@ void Tr2GpuParticleSystem::UpdateLiveCount( Tr2RenderContext& renderContext )
 	{
 		const uint32_t* count = nullptr;
 		CR_RETURN( m_drawParameters->GetGpuBuffer( 0 )->MapForReading( count, renderContext ) );
-		m_visibleCount = *count;
+		m_visibleCount = *count / 6;
 		m_drawParameters->GetGpuBuffer( 0 )->UnmapForReading( renderContext );
 	}
 #endif
@@ -547,6 +554,11 @@ bool Tr2GpuParticleSystem::DoClear( Tr2RenderContext& renderContext )
 {
 	m_liveTime = 0;
 #if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
+	uint32_t zeroes[] = { 0, 0, 0, 0 };
+	renderContext.ClearUav( *m_counters->GetGpuBuffer( 0 ), zeroes );
+
+	uint32_t perObjectData[4] = { m_particleData->GetCount(), 0, 0, 0 };
+	FillAndSetConstants( m_updateCB, perObjectData, sizeof( perObjectData ), Tr2RenderContextEnum::COMPUTE_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
 	return Tr2Renderer::RunComputeShader( m_clear, 1, 1, 1, renderContext );
 #else
 	m_targetIndex = 0;
@@ -572,6 +584,9 @@ void Tr2GpuParticleSystem::RunSimulation( float dt, const Vector3& originShift, 
 	m_updateTimer.Begin( renderContext );
 	ON_BLOCK_EXIT( [&] { m_updateTimer.End( renderContext ); } );
 
+	const uint32_t numthreadsX = 16;
+	const uint32_t numthreadsY = 16;
+
 	struct
 	{
 		uint32_t groupX;
@@ -580,7 +595,7 @@ void Tr2GpuParticleSystem::RunSimulation( float dt, const Vector3& originShift, 
 		float dt;
 
 		Vector3 originShift;
-		float padding0;
+		uint32_t bufferSize;
 
 		Vector3 turbulenceOffset;
 		float padding1;
@@ -592,10 +607,11 @@ void Tr2GpuParticleSystem::RunSimulation( float dt, const Vector3& originShift, 
 	} updateCB;
 
 	updateCB.groupX = 32;
-	updateCB.groupY = std::max( m_maxParticles / 32 / 32 / 32, 1u );
-	updateCB.groupZ = std::max( m_maxParticles / 32 / 32 / 32 / 32, 1u );
+	updateCB.groupY = std::max( m_maxParticles / 32 / numthreadsX / numthreadsY, 1u );
+	updateCB.groupZ = std::max( m_maxParticles / 32 / 32 / numthreadsX / numthreadsY, 1u );
 	updateCB.dt = dt;
 	updateCB.originShift = originShift;
+	updateCB.bufferSize = m_particleData->GetCount();
 	updateCB.turbulenceOffset = m_turbulenceOffset;
 	updateCB.turbulenceAnimation = m_turbulenceAnimation;
 
@@ -604,6 +620,7 @@ void Tr2GpuParticleSystem::RunSimulation( float dt, const Vector3& originShift, 
 		Tr2Renderer::GetFrustumPlane( i, updateCB.frustumPlanes[i] );
 	}
 	FillAndSetConstants( m_updateCB, updateCB, Tr2RenderContextEnum::COMPUTE_SHADER, Tr2Renderer::GetPerObjectVSStartRegister(), renderContext );
+	Tr2Renderer::RunComputeShader( m_update, BlueSharedString( "ClearCounters" ), 1, 1, 1, renderContext );
 	Tr2Renderer::RunComputeShader( m_update, updateCB.groupX, updateCB.groupY, updateCB.groupZ, renderContext );
 }
 
@@ -810,7 +827,7 @@ void Tr2GpuParticleSystem::EmitParticles( Tr2RenderContext& renderContext )
 		float padding[3];
 	};
 
-	static const size_t maxSize = 64 * 1024;
+	static const size_t maxSize = TRINITY_PLATFORM_MAX_CONSTANT_BUFFER_SIZE;
 	static const size_t emitsPerDispatch = ( maxSize - sizeof( EmitterCBPrefix ) ) / sizeof( EmitterGpu );
 	struct CB
 	{
@@ -939,7 +956,6 @@ void Tr2GpuParticleSystem::Sort( Tr2RenderContext& renderContext )
 	m_sortTimer.Begin( renderContext );
 	ON_BLOCK_EXIT( [&] { m_sortTimer.End( renderContext ); } );
 
-	renderContext.CopyBufferCounter( *m_sortParameters, 0, *m_visibleList );
 	Tr2Renderer::RunComputeShader( m_setSortParameters, 1, 1, 1, renderContext );
 	Tr2Renderer::RunComputeShaderIndirect( m_sort, *m_sortParameters, 0, renderContext );
 

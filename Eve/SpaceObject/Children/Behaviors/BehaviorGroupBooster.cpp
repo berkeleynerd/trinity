@@ -130,6 +130,21 @@ bool BehaviorGroupBooster::Initialize()
 		InitializeHaloFlare();
 	}
 	SetupQuads();
+
+	static Tr2VertexDefinition s_boosterInstancedVertex;
+	if( s_boosterInstancedVertex.empty() )
+	{
+		Tr2VertexDefinition& vd = s_boosterInstancedVertex;
+		vd.Add( vd.FLOAT32_3, vd.POSITION );
+		vd.Add( vd.FLOAT32_2, vd.TEXCOORD, 0 );
+		// stream 1
+		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 1, 1, 1 ); // transform row 1
+		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 2, 1, 1 ); // transform row 2
+		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 3, 1, 1 ); // intensity, wavephase, atlasIndex0, atlasindex1
+	}
+
+	// create vertex-declarartion
+	m_vertexDeclarationHandle = Tr2EffectStateManager::GetVertexDeclarationHandle( s_boosterInstancedVertex );
 	return true;
 }
 
@@ -354,21 +369,6 @@ Tr2EffectPtr BehaviorGroupBooster::GetEffect()
 
 unsigned int BehaviorGroupBooster::GetVertexDeclaration()
 {
-	static Tr2VertexDefinition s_boosterInstancedVertex;
-	if( s_boosterInstancedVertex.empty() )
-	{
-		Tr2VertexDefinition& vd = s_boosterInstancedVertex;
-		vd.Add( vd.FLOAT32_3, vd.POSITION );
-		vd.Add( vd.FLOAT32_2, vd.TEXCOORD, 0 );
-		// stream 1
-		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 1, 1, 1 ); // transform row 1
-		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 2, 1, 1 ); // transform row 2
-		vd.Add( vd.FLOAT32_4, vd.TEXCOORD, 3, 1, 1 ); // intensity, wavephase, atlasIndex0, atlasindex1
-	}
-
-	// create vertex-declarartion
-	m_vertexDeclarationHandle = Tr2EffectStateManager::GetVertexDeclarationHandle( s_boosterInstancedVertex );
-	
 	return m_vertexDeclarationHandle;
 }
 

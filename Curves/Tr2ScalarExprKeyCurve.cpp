@@ -188,6 +188,7 @@ void Tr2ScalarExprKey::SetExpression( mu::Parser& parser, std::string& expressio
 	{
 		if( expression.size() )
 		{
+
 			CCP_LOGERR( "Tr2ScalarExprKey expression: %s", e.GetMsg().c_str() );
 		}
 	}

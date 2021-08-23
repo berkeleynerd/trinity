@@ -10,7 +10,12 @@ Tr2SwapChain::Tr2SwapChain( IRoot* lockobj )
 
 bool Tr2SwapChain::CreateForWindow( size_t windowHandle )
 {
+#if __APPLE__
+	void* windowHandleAsPtr = (void*)windowHandle;
+	m_windowHandle = (__bridge Tr2WindowHandle)windowHandleAsPtr;
+#else
 	m_windowHandle = (Tr2WindowHandle)windowHandle;
+#endif
 	return PrepareResources();
 }
 

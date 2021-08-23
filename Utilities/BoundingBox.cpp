@@ -215,47 +215,6 @@ BlueScriptValue BlueWrapReturnValueImpl( BlueScriptArguments args, const AxisAli
 }
 #endif
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Helper function to convert python value to an AxisAlignedBoundingBox. Used by Blue
-//   exposure functions. The AABB is represented as a sequence ((x,y,z),(x,y,z)) in Python.
-// Arguments:
-//   argument - Python function argument
-//   result - Resulting AABB
-//   argID - Argument number (used for error reporting)
-//   isBlueType - This is not an IRoot descendant
-// Return value:
-//   true if convertion successful
-//   false otherwise
-// --------------------------------------------------------------------------------------
-#if BLUE_WITH_LUA
-bool BlueExtractArgumentImpl( 
-	BlueScriptValue argument, 
-	AxisAlignedBoundingBox& result, 
-	unsigned int argID, 
-	std::false_type isBlueType )
-{
-	luaL_error( argument.ls, "Not implemented" );
-	return false;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Helper function to convert AxisAlignedBoundingBox to a python value. Used by Blue
-//   exposure functions. The AABB is represented as a sequence ((x,y,z),(x,y,z)) in Python.
-// Arguments:
-//   val - AABB
-// Return value:
-//   Python representation of AABB
-// --------------------------------------------------------------------------------------
-BlueScriptValue BlueWrapReturnValueImpl( BlueScriptArguments args, const AxisAlignedBoundingBox& val )
-{
-	luaL_error( args, "Not implemented" );
-	return BLUE_SCRIPT_ERROR;
-}
-#endif
-
-
 void BoundingBoxInitialize( Vector3& min, Vector3& max )
 {
     min.x = FLT_MAX;
@@ -534,37 +493,19 @@ bool IntersectOrientedBoxAxisAlignedBox( const Vector3& centerA, const Vector3& 
 bool IntersectOrientedBoxOrientedBox( const Vector3& centerA, const Vector3& extentsA, const Quaternion& orientationA,
 									  const Vector3& centerB, const Vector3& extentsB, const Quaternion& orientationB )
 {
-	static const XMVECTORI32 Permute0W1Z0Y0X =
-                 {
-                    XM_PERMUTE_0W, XM_PERMUTE_1Z, XM_PERMUTE_0Y, XM_PERMUTE_0X
-                 };
-    static const XMVECTORI32 Permute0Z0W1X0Y =
-                 {
-                    XM_PERMUTE_0Z, XM_PERMUTE_0W, XM_PERMUTE_1X, XM_PERMUTE_0Y
-                 };
-    static const XMVECTORI32 Permute1Y0X0W0Z =
-                 {
-                    XM_PERMUTE_1Y, XM_PERMUTE_0X, XM_PERMUTE_0W, XM_PERMUTE_0Z
-                 };
-    static const XMVECTORI32 PermuteWZYX =
-                 {
-                    XM_PERMUTE_0W, XM_PERMUTE_0Z, XM_PERMUTE_0Y, XM_PERMUTE_0X
-                 };
-    static const XMVECTORI32 PermuteZWXY =
-                 {
-                    XM_PERMUTE_0Z, XM_PERMUTE_0W, XM_PERMUTE_0X, XM_PERMUTE_0Y
-                 };
-    static const XMVECTORI32 PermuteYXWZ =
-                 {
-                    XM_PERMUTE_0Y, XM_PERMUTE_0X, XM_PERMUTE_0W, XM_PERMUTE_0Z
-                 };
+#define Permute0W1Z0Y0X XM_PERMUTE_0W, XM_PERMUTE_1Z, XM_PERMUTE_0Y, XM_PERMUTE_0X
+#define Permute0Z0W1X0Y XM_PERMUTE_0Z, XM_PERMUTE_0W, XM_PERMUTE_1X, XM_PERMUTE_0Y
+#define Permute1Y0X0W0Z XM_PERMUTE_1Y, XM_PERMUTE_0X, XM_PERMUTE_0W, XM_PERMUTE_0Z
+#define PermuteWZYX XM_PERMUTE_0W, XM_PERMUTE_0Z, XM_PERMUTE_0Y, XM_PERMUTE_0X
+#define PermuteZWXY XM_PERMUTE_0Z, XM_PERMUTE_0W, XM_PERMUTE_0X, XM_PERMUTE_0Y
+#define PermuteYXWZ XM_PERMUTE_0Y, XM_PERMUTE_0X, XM_PERMUTE_0W, XM_PERMUTE_0Z
 
     // Build the 3x3 rotation matrix that defines the orientation of B relative to A.
 	XMVECTOR A_quat = XMVectorSet( orientationA.x, orientationA.y, orientationA.z, orientationA.w );
 	XMVECTOR B_quat = XMVectorSet( orientationB.x, orientationB.y, orientationB.z, orientationB.w );
    
-    XMASSERT( XMQuaternionIsUnit( A_quat ) );
-    XMASSERT( XMQuaternionIsUnit( B_quat ) );
+    assert( XMQuaternionIsUnit( A_quat ) );
+    assert( XMQuaternionIsUnit( B_quat ) );
 
     XMVECTOR Q = XMQuaternionMultiply( A_quat, XMQuaternionConjugate( B_quat ) );
     XMMATRIX R = XMMatrixRotationQuaternion( Q );

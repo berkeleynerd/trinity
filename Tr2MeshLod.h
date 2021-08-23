@@ -50,6 +50,8 @@ public:
 
 	virtual bool GetBoundingBox( Vector3& min, Vector3& max ) const;
 	virtual bool GetBoundingSphere( Vector4& sphere );
+	
+	bool IsGeometryUsingSelectedLod() const;
 
 protected:
 	Tr2LodResourcePtr m_geometryRes;

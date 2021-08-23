@@ -75,24 +75,28 @@ PyObject* Tr2Sprite2dLineTrace::PyAppendVertices( PyObject* self, PyObject* args
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 1 ), 3, &transform._21 ) ||
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 2 ), 3, &transform._41 ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" );
+		return nullptr;
 	}
 
 	bool constPosition = ToFloatTuple( pyPositions, 2, &position.x );
 	if( !constPosition && !PySequence_Check( pyPositions ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+		return nullptr;
 	}
 	bool constColor = ToFloatTuple( pyColors, 4, &color.r );
 	if( !constColor && !PySequence_Check( pyColors ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+		return nullptr;
 	}
 	if( pyNames )
 	{
 		if( !PySequence_Check( pyNames ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "names parameter must be a sequence of strings" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "names parameter must be a sequence of strings" );
+			return nullptr;
 		}
 	}
 
@@ -110,7 +114,8 @@ PyObject* Tr2Sprite2dLineTrace::PyAppendVertices( PyObject* self, PyObject* args
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+				return nullptr;
 			}
 		}
 		if( !constColor )
@@ -125,7 +130,8 @@ PyObject* Tr2Sprite2dLineTrace::PyAppendVertices( PyObject* self, PyObject* args
 			Py_DECREF( item );
 			if( !success )
 			{
-				return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+				return nullptr;
 			}
 		}
 		if( pyNames )
@@ -138,7 +144,8 @@ PyObject* Tr2Sprite2dLineTrace::PyAppendVertices( PyObject* self, PyObject* args
 			}
 			if( !PyString_Check( item ) )
 			{
-				return PyErr_SetString( PyExc_TypeError, "names parameter must be a sequence of strings" ), nullptr;
+                PyErr_SetString( PyExc_TypeError, "names parameter must be a sequence of strings" );
+				return nullptr;
 			}
 			name = PyString_AsString( item );
 		}
@@ -200,7 +207,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 1 ), 3, &transform._21 ) ||
 		!ToFloatTuple( PyTuple_GET_ITEM( pyTransform, 2 ), 3, &transform._41 ) )
 	{
-		return PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" ), nullptr;
+        PyErr_SetString( PyExc_TypeError, "positionTransform parameter must be a 3x3 matrix or None" );
+		return nullptr;
 	}
 
 	bool constPosition = true;
@@ -209,7 +217,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 		constPosition = ToFloatTuple( pyPositions, 2, &position.x );
 		if( !constPosition && !PySequence_Check( pyPositions ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+			return nullptr;
 		}
 	}
 	bool constColor = true;
@@ -218,7 +227,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 		constColor = ToFloatTuple( pyColors, 4, &color.r );
 		if( !constColor && !PySequence_Check( pyColors ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+			return nullptr;
 		}
 	}
 	bool constName = true;
@@ -227,7 +237,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 		constName = PyString_Check( pyNames );
 		if( !constName && !PySequence_Check( pyNames ) )
 		{
-			return PyErr_SetString( PyExc_TypeError, "names parameter must be a string or a sequence of strings" ), nullptr;
+            PyErr_SetString( PyExc_TypeError, "names parameter must be a string or a sequence of strings" );
+			return nullptr;
 		}
 	}
 
@@ -248,7 +259,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "positions parameter must be a 2-tuple or a sequence of 2-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->m_position = XMVector2TransformCoord( position, transform );
@@ -267,7 +279,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 				Py_DECREF( item );
 				if( !success )
 				{
-					return PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "colors parameter must be a 4-tuple or a sequence of 4-tuples" );
+					return nullptr;
 				}
 			}
 			vertex->m_color = color;
@@ -285,7 +298,8 @@ PyObject* Tr2Sprite2dLineTrace::PySetVertices( PyObject* self, PyObject* args )
 				if( !PyString_Check( item ) )
 				{
 					Py_DECREF( item );
-					return PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" ), nullptr;
+                    PyErr_SetString( PyExc_TypeError, "texCoords0 parameter must be a 2-tuple or a sequence of 2-tuples" );
+					return nullptr;
 				}
 				name = PyString_AsString( item );
 				Py_DECREF( item );

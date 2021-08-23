@@ -49,7 +49,7 @@ public:
 	void DrawPlane( const Vector4& planeEquation, int segments, uint32_t color = 0xffffffff );
 	void DrawAxes( const Matrix& m, float scale = 1.0f );
 	void Printf( int x, int y, uint32_t color, const char* msg, ... );
-	void Printf( const Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
+	void Printf( const Tr2Rect& rect, uint32_t format, uint32_t color, const char* msg, ... );
 	void Printf( const Vector3& pos, uint32_t color, const char* msg, ... );
 
 	// Need to expose a single draw line for python

@@ -33,7 +33,7 @@ public:
 	virtual void UpdateValue( double time );
 
 	Vector3 GetValue( double time ) const;
-	
+
 	virtual Vector3* Update( Vector3* in, Be::Time time );
 	virtual Vector3* Update( Vector3* in, double time );
 	virtual Vector3* GetValueAt( Vector3* in, Be::Time time );
@@ -45,7 +45,7 @@ public:
 	virtual Vector3d* InterpolatedPosition( Vector3d* out, Be::Time time );
 private:
 	Vector3 LerpToFirstKey( double time ) const;
-	Vector3 Tr2CurveVector3Lerp::GetAutoTangent() const;
+	Vector3 GetAutoTangent() const;
 
 	std::string m_name;
 

@@ -6,9 +6,6 @@ const char ERRNODEVICE[] = "There is no D3D device available";
 
 #include "TriDevice.h"
 #include "TriError.h"
-
-#include "UI/App.h"
-
 #include "RenderJob/Tr2RenderJobs.h"
 
 using namespace Tr2RenderContextEnum;
@@ -50,16 +47,10 @@ void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 		return;
 	}
 
-	static unsigned s_tickCounter = 0;
-	if( (g_app && g_app->IsHidden()) )
+	if( ShouldSkipFrame() )
 	{
-		//Update the game very occasionally, as things like missiles need to be handled
-		// even if we're not actually rendering anything.
-		++s_tickCounter	%= 100;
-		if( s_tickCounter != 0 )
-		{
-			return;
-		}
+		Throttle();
+		return;
 	}
 
 	HRESULT hr = renderContext.TestCooperativeLevel();

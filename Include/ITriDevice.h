@@ -78,8 +78,6 @@ BLUE_INTERFACE(ITriDevice) : public IRoot
 
 	virtual bool ChangeDevice(
 		uint32_t adapter, Tr2WindowHandle hWnd, const Tr2PresentParametersAL *pp) = 0;
-
-	virtual void SetTickInterval( int value ) = 0;
 };
 
 #endif

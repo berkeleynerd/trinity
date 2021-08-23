@@ -58,6 +58,9 @@ struct Tr2RenderContextBase: public IRoot, public ITr2RenderContextEvents
 protected:
 	Tr2ConstantBufferAL		m_perObjectConstantBuffers[ Tr2RenderContextEnum::CBUFFER_COUNT ];
 private:
+	void RenderBatchesSortedByEffectHelper( TriRenderBatch* batch, TriRenderBatch* endBatch, const BlueSharedString& techniqueName );
+
+	
 #if !TRINITY_PLATFORM_HAS_PRIMARY_CONTEXT
 	Tr2RenderTargetPtr m_backBuffer;
 #endif
@@ -83,7 +86,20 @@ public:
 	EXPOSE_TO_BLUE();
 
 	static void DestroyMainThreadRenderContext();
+	
+	uint32_t BeginParallelEncoding( uint32_t requestedEncodersCount );
+	Tr2RenderContext* Fork();
+	void Join( Tr2RenderContext* context );
+	void EndParallelEncoding();
 private:
+	void PrepareParallelContext( uint32_t index, Tr2RenderContext& context );
+	
+	// persistent list of created parallel contexts
+	std::vector<Tr2RenderContextPtr> m_parallelContexts;
+	// pool of available parallel contexts (is reset every time Begin/End parallel rendering is called)
+	std::vector<Tr2RenderContextPtr> m_parallelContextsPool;
+	CcpMutex m_parallelContextMutex;
+	CcpSemaphore m_parallelContextSemaphore;
 };
 
 TYPEDEF_BLUECLASS( Tr2RenderContext );

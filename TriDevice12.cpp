@@ -3,7 +3,6 @@
 #if TRINITY_PLATFORM==TRINITY_DIRECTX12
 
 #include "TriDevice.h"
-#include "UI/App.h"
 #include "TriError.h"
 #include "RenderJob/Tr2RenderJobs.h"
 
@@ -38,16 +37,10 @@ void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 		return;
 	}
 
-	static unsigned s_tickCounter = 0;
-	if( ( g_app && g_app->IsHidden() ) )
+	if( ShouldSkipFrame() )
 	{
-		//Update the game very occasionally, as things like missiles need to be handled
-		// even if we're not actually rendering anything.
-		++s_tickCounter %= 100;
-		if( s_tickCounter != 0 )
-		{
-			return;
-		}
+		Throttle();
+		return;
 	}
 
 	HRESULT hr = Tr2RenderContext_GetMainThreadRenderContext().m_device->GetDeviceRemovedReason();
@@ -91,7 +84,7 @@ void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 
 			if( BeCrashes )
 			{
-				extern unsigned long g_currentFrameCounter;
+				extern unsigned long long g_currentFrameCounter;
 
 				std::string str;
 				BeCrashes->SetCrashKeyValue( "gpuRemovedCount", ( str = std::to_string( s_deviceLostCount ) ).c_str() );

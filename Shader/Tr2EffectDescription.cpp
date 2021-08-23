@@ -16,9 +16,6 @@ Tr2EffectStageInput::Tr2EffectStageInput()
 	, m_constantValueSize( 0 )
 {
 	constantValues[0] = 0;
-	threadGroupSize[0] = 0;
-	threadGroupSize[1] = 0;
-	threadGroupSize[2] = 0;
 }
 
 Tr2EffectDescription::Tr2EffectDescription()
@@ -178,9 +175,19 @@ bool Tr2EffectDescription::Read( const void* data,
 				{
 					auto& element = pass.stageInputs[type].signature.pipelineInputs[inputIx];
 					READ( uint8_t, Tr2VertexDefinition::UsageCode, element.usage );
-					READ( uint8_t, unsigned, element.registerIndex );
-					READ( uint8_t, unsigned, element.usageIndex );
-					READ( uint8_t, unsigned, element.usedMask );
+					READ( uint8_t, uint32_t, element.registerIndex );
+					READ( uint8_t, uint32_t, element.usageIndex );
+					READ( uint8_t, uint32_t, element.usedMask );
+					if( version > 10 )
+					{
+						READ( uint8_t, Tr2ShaderPipelineInputAL::Type, element.type );
+						READ( uint8_t, uint32_t, element.dimension );
+					}
+					else
+					{
+						element.type = element.usage == Tr2VertexDefinition::BLENDINDICES ? Tr2ShaderPipelineInputAL::UINT : Tr2ShaderPipelineInputAL::FLOAT;
+						element.dimension = 4;
+					}
 				}
 
 				if( version > 8 )
@@ -190,7 +197,33 @@ bool Tr2EffectDescription::Read( const void* data,
 					for( int inputIx = 0; inputIx < inputCount; ++inputIx )
 					{
 						auto& element = pass.stageInputs[type].signature.registers[inputIx];
-						READ( uint8_t, Tr2VertexDefinition::UsageCode, element.registerType );
+						if( version > 9 )
+						{
+							READ( uint8_t, Tr2ShaderRegisterAL::RegisterType, element.registerType );
+						}
+						else
+						{
+							uint8_t oldRegisterType;
+							READ( uint8_t, uint8_t, oldRegisterType );
+							switch( oldRegisterType )
+							{
+							case 0:
+								element.registerType = Tr2ShaderRegisterAL::CONSTANT_BUFFER;
+								break;
+							case 1:
+								element.registerType = Tr2ShaderRegisterAL::SRV_TEXTURE2D; // best guess
+								break;
+							case 2:
+								element.registerType = Tr2ShaderRegisterAL::UAV_TEXTURE2D; // best guess
+								break;
+							case 3:
+								element.registerType = Tr2ShaderRegisterAL::SAMPLER;
+								break;
+							default:
+								CCP_ASSERT( false );
+								element.registerType = Tr2ShaderRegisterAL::SRV_TEXTURE2D;
+							}
+						}
 						READ( uint32_t, unsigned, element.registerIndex );
 					}
 				}
@@ -242,14 +275,12 @@ bool Tr2EffectDescription::Read( const void* data,
 					shadowShaderCode = stringTable + offset;
 				}
 
-				pass.stageInputs[type].threadGroupSize[0] = 0;
-				pass.stageInputs[type].threadGroupSize[1] = 0;
-				pass.stageInputs[type].threadGroupSize[2] = 0;
+				pass.stageInputs[type].signature.threadGroupSize = Tr2ShaderThreadGroupSizeAL();
 				if( version >= 3 )
 				{
-					READ( uint32_t, uint32_t, pass.stageInputs[type].threadGroupSize[0] );
-					READ( uint32_t, uint32_t, pass.stageInputs[type].threadGroupSize[1] );
-					READ( uint32_t, uint32_t, pass.stageInputs[type].threadGroupSize[2] );
+					READ( uint32_t, uint32_t, pass.stageInputs[type].signature.threadGroupSize.x );
+					READ( uint32_t, uint32_t, pass.stageInputs[type].signature.threadGroupSize.y );
+					READ( uint32_t, uint32_t, pass.stageInputs[type].signature.threadGroupSize.z );
 				}
 
 				uint32_t constantCount;
@@ -271,7 +302,30 @@ bool Tr2EffectDescription::Read( const void* data,
 
 					READ( uint32_t, unsigned, constant.offset );
 					READ( uint32_t, unsigned, constant.size );
-					READ( uint8_t, Tr2EffectConstant::Type, constant.type );
+					if( version < 11 )
+					{
+						uint8_t oldType = 0;
+						READ( uint8_t, uint8_t, oldType );
+						switch( oldType )
+						{
+						case 0:
+							constant.type = Tr2EffectConstant::FLOAT;
+							break;
+						case 1:
+							constant.type = Tr2EffectConstant::INT;
+							break;
+						case 2:
+							constant.type = Tr2EffectConstant::BOOL;
+							break;
+						default:
+							constant.type = Tr2EffectConstant::OTHER;
+							break;
+						}
+					}
+					else
+					{
+						READ( uint8_t, Tr2EffectConstant::Type, constant.type );
+					}
 					READ( uint8_t, unsigned, constant.dimension );
 					READ( uint32_t, unsigned, constant.elements );
 					READ( uint8_t, bool, constant.isSRGB );
