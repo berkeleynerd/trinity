@@ -260,7 +260,6 @@ ALResult Tr2MainWindow::SetState( bool adjustWindow, const Tr2MainWindowState::S
 	CCP_LOG_CH( s_moduleChannel, "Trying to change main window to %s", state.ToString().c_str() );
 
 	Tr2PresentParametersAL presentParams;
-	CR_RETURN_HR( state.PopulatePresentParameters( presentParams ) );
 
 	m_isResizing = true;
 
@@ -279,6 +278,7 @@ ALResult Tr2MainWindow::SetState( bool adjustWindow, const Tr2MainWindowState::S
 	{
 		AdjustWindow( state );
 	}
+	CR_RETURN_HR( state.PopulatePresentParameters( presentParams ) );
 	presentParams.outputWindow = GetOutputWindow();
 
 	gTriDev->SetThrottling( TriDevice::WINDOW_HIDDEN, state.showState == Tr2WindowShowState::MINIMIZED );
