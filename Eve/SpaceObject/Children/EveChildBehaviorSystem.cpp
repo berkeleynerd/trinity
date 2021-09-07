@@ -752,12 +752,17 @@ void EveChildBehaviorSystem::Setup( const Vector3* scale, const Quaternion* rota
 
 void EveChildBehaviorSystem::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
-	renderables.push_back( this );
+	if( !m_display )
+	{
+		return;
+	}
 
 	if( !m_behaviorGroupLoaded )
 	{
-		return;	
+		return;
 	}
+
+	renderables.push_back( this );
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	UpdateBuffer( renderContext );
@@ -774,6 +779,11 @@ void EveChildBehaviorSystem::SetName( const char* name )
 
 void EveChildBehaviorSystem::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
+	if( !m_display )
+	{
+		return;
+	}
+
 	for ( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
 	{
 		( *it )->UpdateVisibility( frustum, m_worldTransform );
@@ -800,6 +810,11 @@ void EveChildBehaviorSystem::ChangeLOD( Tr2Lod lod )
 
 void EveChildBehaviorSystem::GetLights( Tr2LightManager& lightManager ) const
 {
+	if( !m_display )
+	{
+		return;
+	}
+
 	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
 	{
 		( *it )->AddLights( lightManager, m_worldTransform );
@@ -816,6 +831,11 @@ void EveChildBehaviorSystem::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRend
 
 void EveChildBehaviorSystem::AddQuadsToQuadRenderer( const TriFrustum& frustum, Tr2QuadRenderer& quadRenderer ) const
 {
+	if( !m_display )
+	{
+		return;
+	}
+
 	for( auto it = begin( m_behaviorGroups ); it != end( m_behaviorGroups ); ++it )
 	{
 		( *it )->AddQuadsToQuadRenderer( frustum, quadRenderer );
