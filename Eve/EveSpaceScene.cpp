@@ -1956,6 +1956,7 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 		GPU_REGION( renderContext, "Depth Pass" );
 		
 #if TRINITY_PLATFORM == TRINITY_METAL
+        renderContext.m_esm.PushViewport();
 		renderContext.m_esm.PushRenderTarget();
         Tr2TextureAL nullTex;
         renderContext.SetRenderTarget( nullTex, 0 );
@@ -1983,6 +1984,7 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext )
 
 #if TRINITY_PLATFORM == TRINITY_METAL
         renderContext.m_esm.PopRenderTarget();
+        renderContext.m_esm.PopViewport();
 #endif
 	}
 
