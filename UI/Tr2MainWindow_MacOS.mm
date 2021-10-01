@@ -173,6 +173,30 @@ bool DisableScreensaver()
 	return success == kIOReturnSuccess;
 }
 
+void FixUpRedScreen()
+{
+    if( auto mainWindow = [NSApp mainWindow] )
+    {
+        [mainWindow setDelegate:nil];
+        [mainWindow close];
+        @autoreleasepool
+        {
+            while( true )
+            {
+                NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                                    untilDate:[NSDate distantPast]
+                                                       inMode:NSDefaultRunLoopMode
+                                                      dequeue:YES];
+                if (event == nil)
+                {
+                    break;
+                }
+                [NSApp sendEvent:event];
+            }
+        }
+    }
+}
+
 void InitializeApplication()
 {
     if( s_applicationInitialized )
@@ -189,6 +213,8 @@ void InitializeApplication()
     {
         [NSApp run];
     }
+    
+    BeOS->RegisterIndispensableTerminationStep( &FixUpRedScreen );
 
     HandleThermalState();
     [NSNotificationCenter.defaultCenter addObserverForName:@"NSProcessInfoThermalStateDidChangeNotification" object:nil queue:nil usingBlock:^(NSNotification * _Nonnull note) {
