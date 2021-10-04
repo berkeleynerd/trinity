@@ -40,6 +40,8 @@ private:
 
 	unsigned int m_cornerSize;
 
+	float m_cornerScale;
+
 	// Offset the frame. Positive values will make it smaller, and negative bigger.
 	int m_offset;
 

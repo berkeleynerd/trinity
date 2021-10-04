@@ -34,6 +34,7 @@ static const Color WHITE( 1.0f, 1.0f, 1.0f, 1.0f );
 
 Tr2Sprite2dFrame::Tr2Sprite2dFrame( IRoot* lockobj ) : 
 	m_cornerSize( 0 ),
+	m_cornerScale( 1.f ),
 	m_offset( 0 ),
 	m_fillCenter( true ),
 	m_saturation( 1.0f ),
@@ -167,10 +168,10 @@ unsigned int Tr2Sprite2dFrame::GetVertexCount()
 
 void Tr2Sprite2dFrame::PrepareVertices( Tr2Sprite2dVertexBase* v, float srcWidth, float srcHeight, const Vector2& vertOffset, const Vector2& scale ) const
 {
-	float cs = (float)m_cornerSize;
+	float cs = floor( 0.5f + m_cornerScale * static_cast<float>( m_cornerSize ) );
 
-	float texHorizontalCs = cs / srcWidth;
-	float texVerticalCs = cs / srcHeight;
+	float texHorizontalCs = static_cast<float>( m_cornerSize ) / srcWidth;
+	float texVerticalCs = static_cast<float>( m_cornerSize ) / srcHeight;
 
 	const Color white( WHITE );
 

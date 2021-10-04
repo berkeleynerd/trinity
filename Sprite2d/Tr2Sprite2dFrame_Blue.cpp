@@ -25,6 +25,12 @@ const Be::ClassInfo* Tr2Sprite2dFrame::ExposeToBlue()
 			Be::READWRITE | Be::NOTIFY
 		)
 
+		MAP_ATTRIBUTE(
+			"cornerScale",
+			m_cornerScale,
+			"Corner size scaling when rendering the frame; used for UI scaling",
+			Be::READWRITE | Be::NOTIFY )
+
 		MAP_ATTRIBUTE
 		(
 			"fillCenter",
