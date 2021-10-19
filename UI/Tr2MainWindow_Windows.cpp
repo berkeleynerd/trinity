@@ -93,7 +93,7 @@ void Tr2MainWindow::CreateOSWindow( Tr2MainWindowState::State& state )
 		}
 	}
 #endif
-	RECT rect = { 0, 0, width, width };
+	RECT rect = { 0, 0, width, height };
 	auto style = GetWindowStyle( state.windowMode );
 	::AdjustWindowRect( &rect, style, FALSE );
 
@@ -111,6 +111,20 @@ void Tr2MainWindow::CreateOSWindow( Tr2MainWindowState::State& state )
 		NULL,
 		wclass.hInstance,
 		this );
+	if( state.windowMode == Tr2WindowMode::WINDOWED && m_hwnd )
+	{
+		RECT clientRect = {};
+		if( GetClientRect( m_hwnd, &clientRect ) )
+		{
+			auto width = uint32_t( clientRect.right - clientRect.left );
+			auto height = uint32_t( clientRect.bottom - clientRect.top );
+			if( width > 0 && height > 0 )
+			{
+				state.width = width;
+				state.height = height;
+			}
+		}
+	}
 	SetPropW( m_hwnd, L"Tr2MainWindow", reinterpret_cast<HANDLE>( this ) );
 }
 
@@ -720,8 +734,6 @@ void Tr2MainWindow::SanitizeWindowedResolution( Tr2MainWindowState::State& state
         Size desktopSize;
         desktopSize.width = uint32_t( desktop.right - desktop.left );
         desktopSize.height = uint32_t( desktop.bottom - desktop.top );
-
-        desktopSize = GetClientSize( desktopSize, state.windowMode );
 
         state.width = std::min( desktopSize.width, state.width );
         state.height = std::min( desktopSize.height, state.height );
