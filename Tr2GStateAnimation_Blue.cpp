@@ -208,6 +208,12 @@ const Be::ClassInfo* Tr2GStateAnimation::ExposeToBlue()
 			"InstantiateCharacter()\n\n"
 			"Used to bind animation once it is fully loaded." )
 
+		MAP_METHOD_AND_WRAP(
+			"ResetParamsToDefault",
+			ResetParamsToDefault,
+			"ResetParamsToDefault()\n\n"
+			"Resets all parameters to initial values." )
+
 	EXPOSURE_END()
 }
 

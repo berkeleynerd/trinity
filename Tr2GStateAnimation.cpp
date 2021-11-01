@@ -48,7 +48,8 @@ Tr2GStateAnimation::Tr2GStateAnimation( IRoot* lockobj ) :
 	m_paused( false ),
 	m_pauseTime( 0.0 ),
 	m_totalPauseOffset( 0.0 ),
-	PARENTLOCK( m_gStateParameterList )
+	PARENTLOCK( m_gStateParameterList ),
+	PARENTLOCK( m_gStateParameterDefaultList )
 {
 }
 
@@ -116,6 +117,27 @@ Tr2GStateParameterPtr Tr2GStateAnimation::GetParameterObjectByName( const std::s
 	return nullptr;
 }
 
+void Tr2GStateAnimation::ResetParamsToDefault()
+{
+	auto defaultParameterInstance = m_gStateParameterDefaultList.cbegin();
+	for( auto parameterInstance = m_gStateParameterList.cbegin(); parameterInstance != m_gStateParameterList.cend(); parameterInstance++ )
+	{
+		auto parameterNodeName = ( *parameterInstance )->GetNodeName();
+		auto name = ( *parameterInstance )->GetName();
+		auto value = ( *defaultParameterInstance )->GetValue();
+		( *parameterInstance )->SetValue( value );
+		if( ( parameterNodeName.length() != 0 ) && ( name.length() != 0 ) )
+		{
+			auto iterator = m_gStateParameterCachedList.find( { parameterNodeName, name } );
+			if( iterator != m_gStateParameterCachedList.end() )
+			{
+				SetParameter( parameterNodeName, iterator->second, value );
+			}
+		}
+		defaultParameterInstance++;
+	}
+}
+
 void Tr2GStateAnimation::InitializeParametersFromGState()
 {
 	// Get Top level nodes
@@ -141,6 +163,13 @@ void Tr2GStateAnimation::InitializeParametersFromGState()
 				mytest->SetName( *param_name );
 				mytest->SetNodeName( *node_name );
 				m_gStateParameterList.Append( mytest );
+
+				Tr2GStateParameterPtr default_param;
+				default_param.CreateInstance();
+				default_param->SetValue( value );
+				default_param->SetName( *param_name );
+				default_param->SetNodeName( *node_name );
+				m_gStateParameterDefaultList.Append( default_param );
 			}
 
 			// cache index

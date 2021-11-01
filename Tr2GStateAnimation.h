@@ -162,7 +162,7 @@ private:
 
 	granny_file_info* GetFileInfo() const;
 	void LoadGrannyRes();
-
+	void ResetParamsToDefault();
 
 	IBlueEventListenerPtr m_eventListener;
 
@@ -171,6 +171,7 @@ private:
 	void InitializeParametersFromGState();
 	Tr2GStateParameterPtr GetParameterObjectByName( const std::string nodeName, const std::string name );
 	PTr2GStateParameterVector m_gStateParameterList;
+	PTr2GStateParameterVector m_gStateParameterDefaultList;
 	// 2d map/dictionary to store parameter indices given parameter node name and parameter name
 	std::map<std::tuple<std::string, std::string>, int> m_gStateParameterCachedList;
 };
