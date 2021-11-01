@@ -38,7 +38,6 @@ void EveSpaceObjectFxAttributes::UpdateAsyncronous( EveUpdateContext& updateCont
         if ( EveShip2Ptr rootParent = BlueCastPtr( params.spaceObjectParent ) )
         {
             m_killCount = rootParent->GetKillCounterValue();
-			m_activeTurretCount = float(rootParent->GetActiveTurretCount());
         }
 
 		m_initialized = true;
@@ -53,4 +52,8 @@ void EveSpaceObjectFxAttributes::UpdateAsyncronous( EveUpdateContext& updateCont
     m_activationStrength = params.activationStrength;
 	m_distanceToShip = Length( objPos ) - m_boundingSphereRadius;
 	m_boundingSphereRadius = sphere.w;
+	if( EveShip2Ptr rootParent = BlueCastPtr( params.spaceObjectParent ) )
+	{
+		m_activeTurretCount = float( rootParent->GetActiveTurretCount() );
+	}
 }
