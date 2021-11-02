@@ -101,7 +101,7 @@ void Tr2GStateAnimation::LoadGrannyRes()
 
 bool Tr2GStateAnimation::IsFullyLoaded()
 {
-	return m_gStateRes->IsFullyLoaded() && m_grannyRes->IsGood() && m_modelInstance != nullptr;
+	return m_gStateRes != nullptr && m_gStateRes->IsGood() && m_gStateRes->IsFullyLoaded() && m_grannyRes->IsGood() && m_modelInstance != nullptr;
 }
 
 
