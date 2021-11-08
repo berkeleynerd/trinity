@@ -88,6 +88,12 @@ void Tr2ActionSetExternalControllerVariable::LinkToDestinationOwner()
 	{
 		return;
 	}
+
+	ITr2ControllerOwnerPtr pappy = BlueCastPtr( owner->GetRootObject() );
+	if( !pappy )
+	{
+		return;
+	}
 	owner->GetBindingRoots( bindingPathRoots );
 	std::string destOwner = m_destinationOwner.c_str();
 	std::transform( destOwner.begin(), destOwner.end(), destOwner.begin(), ::tolower );
