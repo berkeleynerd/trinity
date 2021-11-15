@@ -195,7 +195,8 @@ const Be::ClassInfo* Tr2SpriteObject::ExposeToBlue()
 			"shadowOffset",
 			m_shadowOffset,
 			"Optional shadow offset. If this is non-zero, a second copy of this\n"
-			"object is rendered with 'shadowColor' before the regular rendering.\n",
+			"object is rendered with 'shadowColor' before the regular rendering.\n\n"
+			":jessica-group: Shadow",
 			Be::READWRITE | Be::NOTIFY
 		)
 
@@ -203,7 +204,8 @@ const Be::ClassInfo* Tr2SpriteObject::ExposeToBlue()
 		(
 			"shadowColor",
 			m_shadowColor,
-			"Shadow color - see 'shadowOffset'",
+			"Shadow color - see 'shadowOffset'\n"
+			":jessica-group: Shadow",
 			Be::READWRITE | Be::NOTIFY
 		)
 

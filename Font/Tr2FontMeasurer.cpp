@@ -742,7 +742,7 @@ int Tr2FontMeasurer::GetFontSize() const
 	return m_fontSize;
 }
 
-void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2& translation, const Color& color, Tr2SpriteObjectEffect sfx, Tr2SpriteObjectBlendMode blendMode )
+void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2& translation, const Color& color, Tr2SpriteObjectEffect sfx, Tr2SpriteObjectBlendMode blendMode, bool dropShadow, const Vector2& shadowOffset, const Color& shadowColor, Tr2SpriteObjectEffect shadowSfx )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -773,6 +773,11 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 		return;
 	}
 
+	if( dropShadow )
+	{
+		spriteCount *= 2;
+	}
+
 	m_drawCalls.clear();
 
 	m_vertexCount = spriteCount * 4;
@@ -794,222 +799,230 @@ void Tr2FontMeasurer::PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2&
 	// is segmented for each drawcall.
 	int vertexIx = 0;
 
-	for( auto it = m_committedRenderData.begin(); it != m_committedRenderData.end(); ++it )
-	{
-		Tr2FontRenderData* rd = *it;
-
-		Color finalColor( rd->color );
-		finalColor.r *= color.r;
-		finalColor.g *= color.g;
-		finalColor.b *= color.b;
-		finalColor.a *= color.a;
-
-		for( auto sbIter = rd->sbits.get(); sbIter != nullptr; sbIter = sbIter->next.get() )
+	auto addSprites = [&]( const Vector2& offset, const Color& currentColor, Tr2SpriteObjectEffect currentSfx ) {
+		for( auto it = m_committedRenderData.begin(); it != m_committedRenderData.end(); ++it )
 		{
-			CharacterBitmap& cbit = *sbIter;
-			FTC_SBit sbit = cbit.sbit;
+			Tr2FontRenderData* rd = *it;
 
-			// Spaces don't have any actual pixels so we don't get a texture for them
-			// and may as well skip them.
-			if( (sbit->width == 0) || (sbit->height == 0) )
+			Color finalColor( rd->color );
+			finalColor.r *= currentColor.r;
+			finalColor.g *= currentColor.g;
+			finalColor.b *= currentColor.b;
+			finalColor.a *= currentColor.a;
+
+			for( auto sbIter = rd->sbits.get(); sbIter != nullptr; sbIter = sbIter->next.get() )
 			{
-				m_vertexCount -= 4;
-				m_indexCount -= 6;
-				continue;
-			}
+				CharacterBitmap& cbit = *sbIter;
+				FTC_SBit sbit = cbit.sbit;
 
-			Tr2AtlasTexture* at = cbit.atlasTexture;
-
-			if( !at )
-			{
-				g_fontManager->GetAtlasTextureForSbit( cbit.sbit, &cbit.atlasTexture );
-				at = cbit.atlasTexture;
-			}
-
-			float textureWidthReciprocal = 1.f;
-			float textureHeightReciprocal = 1.f;
-
-			Vector4 tw;
-			if( at )
-			{
-				if( !currentTexture || (currentTexture->GetTexture() != at->GetTexture()) )
+				// Spaces don't have any actual pixels so we don't get a texture for them
+				// and may as well skip them.
+				if( ( sbit->width == 0 ) || ( sbit->height == 0 ) )
 				{
-					if( spriteIx != startIx )
-					{
-						// This glyph does not come from the same D3D texture as the one
-						// before. This can happen if the texture atlas fills up. Rather
-						// than failing horribly at rendering the text, we break it up
-						// into more draw calls.
-						DrawCallEntry entry;
-						entry.startSprite = startIx;
-						entry.spriteCount = spriteIx - startIx;
-						entry.texture = currentTexture;
-
-						m_drawCalls.push_back( entry );
-
-						startIx = spriteIx;
-						vertexIx = 0;
-					}
-					currentTexture = at;
+					m_vertexCount -= 4;
+					m_indexCount -= 6;
+					continue;
 				}
-				
-				at->GetTextureWindow( tw );
-				textureWidthReciprocal = 1.f / at->GetTextureWidth();
-				textureHeightReciprocal = 1.f / at->GetTextureHeight();
+
+				Tr2AtlasTexture* at = cbit.atlasTexture;
+
+				if( !at )
+				{
+					g_fontManager->GetAtlasTextureForSbit( cbit.sbit, &cbit.atlasTexture );
+					at = cbit.atlasTexture;
+				}
+
+				float textureWidthReciprocal = 1.f;
+				float textureHeightReciprocal = 1.f;
+
+				Vector4 tw;
+				if( at )
+				{
+					if( !currentTexture || ( currentTexture->GetTexture() != at->GetTexture() ) )
+					{
+						if( spriteIx != startIx )
+						{
+							// This glyph does not come from the same D3D texture as the one
+							// before. This can happen if the texture atlas fills up. Rather
+							// than failing horribly at rendering the text, we break it up
+							// into more draw calls.
+							DrawCallEntry entry;
+							entry.startSprite = startIx;
+							entry.spriteCount = spriteIx - startIx;
+							entry.texture = currentTexture;
+
+							m_drawCalls.push_back( entry );
+
+							startIx = spriteIx;
+							vertexIx = 0;
+						}
+						currentTexture = at;
+					}
+
+					at->GetTextureWindow( tw );
+					textureWidthReciprocal = 1.f / at->GetTextureWidth();
+					textureHeightReciprocal = 1.f / at->GetTextureHeight();
+				}
+				else
+				{
+					// This shouldn't really happen
+					tw = Vector4( 0, 0, 0, 0 );
+				}
+
+				for( unsigned int i = 0; i < 4; ++i )
+				{
+					Tr2Sprite2dD3DVertex& curVertex = m_vertices[spriteIx * 4 + i];
+
+					curVertex.color = finalColor;
+					curVertex.blendMode = blendMode;
+					curVertex.spriteEffect = currentSfx;
+					curVertex.transformIndex = 0;
+					curVertex.tileMode = 0;
+				}
+
+				float xZero = tw.x;
+				float yZero = tw.y;
+				float xOne = xZero + tw.z;
+				float yOne = yZero + tw.w;
+
+				float xLeft = (float)( cbit.x + sbit->left ) + offset.x;
+				float width = (float)sbit->width;
+				float yTop = (float)( cbit.y - sbit->top ) + offset.y;
+
+				// We add one pixel vertically to account for possible drop-shadow
+				float height = (float)sbit->height + 1.0f;
+
+				float alphaLeft = CalcAlphaForHorizontal( xLeft );
+				float alphaRight = CalcAlphaForHorizontal( xLeft + width );
+				float alphaTop = CalcAlphaForVertical( yTop );
+				float alphaBottom = CalcAlphaForVertical( yTop + height );
+
+				float xZeroInitial = xZero;
+				float yZeroInitial = yZero;
+				float xOneInitial = xOne;
+				float yOneInitial = yOne;
+
+				if( ( currentSfx == TR2_SFX_BLUR ) || ( currentSfx == TR2_SFX_GLOW ) )
+				{
+					xLeft -= 1;
+					yTop -= 1;
+					width += 2;
+					height += 2;
+
+					xZero -= textureWidthReciprocal;
+					yZero -= textureHeightReciprocal;
+					xOne += textureWidthReciprocal;
+					yOne += textureHeightReciprocal;
+				}
+
+				Tr2Sprite2dD3DVertex& tl = m_vertices[spriteIx * 4];
+				tl.position.x = translation.x + xLeft;
+				tl.position.y = translation.y + yTop;
+				tl.position.z = 0.0f;
+				tl.texCoord[0] = Vector2( xZero, yZero );
+				tl.texCoord[1] = Vector2( xOneInitial, yOneInitial );
+				tl.color.a = alphaLeft * alphaTop * finalColor.a;
+
+				Tr2Sprite2dD3DVertex& tr = m_vertices[spriteIx * 4 + 1];
+				tr.position.x = tl.position.x + width;
+				tr.position.y = tl.position.y;
+				tr.position.z = 0.0f;
+				tr.texCoord[0] = Vector2( xOne, yZero );
+				tr.texCoord[1] = Vector2( xZeroInitial, yOneInitial );
+				tr.color.a = alphaRight * alphaTop * finalColor.a;
+
+				Tr2Sprite2dD3DVertex& br = m_vertices[spriteIx * 4 + 2];
+				br.position.x = tl.position.x + width;
+				br.position.y = tl.position.y + height;
+				br.position.z = 0.0f;
+				br.texCoord[0] = Vector2( xOne, yOne );
+				br.texCoord[1] = Vector2( xZeroInitial, yZeroInitial );
+				br.color.a = alphaRight * alphaBottom * finalColor.a;
+
+				Tr2Sprite2dD3DVertex& bl = m_vertices[spriteIx * 4 + 3];
+				bl.position.x = tl.position.x;
+				bl.position.y = tl.position.y + height;
+				bl.position.z = 0.0f;
+				bl.texCoord[0] = Vector2( xZero, yOne );
+				bl.texCoord[1] = Vector2( xOneInitial, yZeroInitial );
+				bl.color.a = alphaLeft * alphaBottom * finalColor.a;
+
+				curIndex[0] = vertexIx;
+				curIndex[1] = vertexIx + 1;
+				curIndex[2] = vertexIx + 3;
+				curIndex[3] = vertexIx + 3;
+				curIndex[4] = vertexIx + 1;
+				curIndex[5] = vertexIx + 2;
+
+				++spriteIx;
+				curIndex += 6;
+				vertexIx += 4;
 			}
-			else
+
+			if( rd->underline && rd->sbits )
 			{
-				// This shouldn't really happen
-				tw = Vector4( 0, 0, 0, 0 );
+				CharacterBitmap& cbitFirst = *rd->sbits;
+				FTC_SBit sbitFirst = cbitFirst.sbit;
+
+				CharacterBitmap& cbitLast = *rd->tail;
+				FTC_SBit sbitLast = cbitLast.sbit;
+
+				Vector2 ulTopLeft;
+				ulTopLeft.x = cbitFirst.x + (float)sbitFirst->left;
+				ulTopLeft.y = cbitFirst.y - (float)rd->underlinePosition;
+
+				float ulWidth = cbitLast.x + sbitLast->xadvance - ulTopLeft.x;
+
+				ulTopLeft += translation + offset;
+
+				float ulHeight = (float)rd->underlineThickness;
+
+				for( unsigned int i = 0; i < 4; ++i )
+				{
+					Tr2Sprite2dD3DVertex& curVertex = m_vertices[spriteIx * 4 + i];
+
+					curVertex.color = finalColor;
+					curVertex.blendMode = blendMode;
+					curVertex.spriteEffect = TR2_SFX_FILL;
+					curVertex.transformIndex = 0;
+					curVertex.tileMode = 0;
+				}
+
+				Tr2Sprite2dD3DVertex& tl = m_vertices[spriteIx * 4];
+				tl.position.x = ulTopLeft.x;
+				tl.position.y = ulTopLeft.y;
+
+				Tr2Sprite2dD3DVertex& tr = m_vertices[spriteIx * 4 + 1];
+				tr.position.x = tl.position.x + ulWidth;
+				tr.position.y = tl.position.y;
+
+				Tr2Sprite2dD3DVertex& br = m_vertices[spriteIx * 4 + 2];
+				br.position.x = tl.position.x + ulWidth;
+				br.position.y = tl.position.y + ulHeight;
+
+				Tr2Sprite2dD3DVertex& bl = m_vertices[spriteIx * 4 + 3];
+				bl.position.x = tl.position.x;
+				bl.position.y = tl.position.y + ulHeight;
+
+				curIndex[0] = vertexIx;
+				curIndex[1] = vertexIx + 1;
+				curIndex[2] = vertexIx + 3;
+				curIndex[3] = vertexIx + 3;
+				curIndex[4] = vertexIx + 1;
+				curIndex[5] = vertexIx + 2;
+
+				++spriteIx;
+				curIndex += 6;
+				vertexIx += 4;
 			}
-
-			for( unsigned int i = 0; i < 4; ++i )
-			{
-				Tr2Sprite2dD3DVertex& curVertex = m_vertices[spriteIx*4 + i];
-
-				curVertex.color = finalColor;
-				curVertex.blendMode = blendMode;
-				curVertex.spriteEffect = sfx;
-				curVertex.transformIndex = 0;
-				curVertex.tileMode = 0;
-			}
-
-			float xZero = tw.x;
-			float yZero = tw.y;
-			float xOne = xZero + tw.z;
-			float yOne = yZero + tw.w;
-
-			float xLeft = (float)(cbit.x + sbit->left);
-			float width = (float)sbit->width;
-			float yTop = (float)(cbit.y - sbit->top);
-
-			// We add one pixel vertically to account for possible drop-shadow
-			float height = (float)sbit->height + 1.0f;
-
-			float alphaLeft = CalcAlphaForHorizontal( xLeft );
-			float alphaRight = CalcAlphaForHorizontal( xLeft + width );
-			float alphaTop = CalcAlphaForVertical( yTop );
-			float alphaBottom = CalcAlphaForVertical( yTop + height );
-
-			float xZeroInitial = xZero;
-			float yZeroInitial = yZero;
-			float xOneInitial = xOne;
-			float yOneInitial = yOne;
-
-			if( (sfx == TR2_SFX_BLUR) || (sfx == TR2_SFX_GLOW) )
-			{
-				xLeft -= 1;
-				yTop -= 1;
-				width += 2;
-				height += 2;
-				
-				xZero -= textureWidthReciprocal;
-				yZero -= textureHeightReciprocal;
-				xOne += textureWidthReciprocal;
-				yOne += textureHeightReciprocal;
-			}
-
-			Tr2Sprite2dD3DVertex& tl = m_vertices[spriteIx*4];
-			tl.position.x = translation.x + xLeft;
-			tl.position.y = translation.y + yTop;
-			tl.position.z = 0.0f;
-			tl.texCoord[0] = Vector2( xZero, yZero );
-			tl.texCoord[1] = Vector2( xOneInitial, yOneInitial );
-			tl.color.a = alphaLeft * alphaTop * finalColor.a;
-
-			Tr2Sprite2dD3DVertex& tr = m_vertices[spriteIx*4 + 1];
-			tr.position.x = tl.position.x + width;
-			tr.position.y = tl.position.y;
-			tr.position.z = 0.0f;
-			tr.texCoord[0] = Vector2( xOne, yZero );
-			tr.texCoord[1] = Vector2( xZeroInitial, yOneInitial );
-			tr.color.a = alphaRight * alphaTop * finalColor.a;
-
-			Tr2Sprite2dD3DVertex& br = m_vertices[spriteIx*4 + 2];
-			br.position.x = tl.position.x + width;
-			br.position.y = tl.position.y + height;
-			br.position.z = 0.0f;
-			br.texCoord[0] = Vector2( xOne, yOne );
-			br.texCoord[1] = Vector2( xZeroInitial, yZeroInitial );
-			br.color.a = alphaRight * alphaBottom * finalColor.a;
-
-			Tr2Sprite2dD3DVertex& bl = m_vertices[spriteIx*4 + 3];
-			bl.position.x = tl.position.x;
-			bl.position.y = tl.position.y + height;
-			bl.position.z = 0.0f;
-			bl.texCoord[0] = Vector2( xZero, yOne );
-			bl.texCoord[1] = Vector2( xOneInitial, yZeroInitial );
-			bl.color.a = alphaLeft * alphaBottom * finalColor.a;
-
-			curIndex[0] = vertexIx;
-			curIndex[1] = vertexIx + 1;
-			curIndex[2] = vertexIx + 3;
-			curIndex[3] = vertexIx + 3;
-			curIndex[4] = vertexIx + 1;
-			curIndex[5] = vertexIx + 2;
-
-			++spriteIx;
-			curIndex += 6;
-			vertexIx += 4;
 		}
+	};
 
-		if( rd->underline && rd->sbits )
-		{
-			CharacterBitmap& cbitFirst = *rd->sbits;
-			FTC_SBit sbitFirst = cbitFirst.sbit;
-
-			CharacterBitmap& cbitLast = *rd->tail;
-			FTC_SBit sbitLast = cbitLast.sbit;
-
-			Vector2 ulTopLeft;
-			ulTopLeft.x = cbitFirst.x + (float)sbitFirst->left;
-			ulTopLeft.y = cbitFirst.y - (float)rd->underlinePosition;
-
-			float ulWidth = cbitLast.x + sbitLast->xadvance - ulTopLeft.x;
-
-			ulTopLeft += translation;
-
-			float ulHeight = (float)rd->underlineThickness;
-
-			for( unsigned int i = 0; i < 4; ++i )
-			{
-				Tr2Sprite2dD3DVertex& curVertex = m_vertices[spriteIx*4 + i];
-
-				curVertex.color = finalColor;
-				curVertex.blendMode = blendMode;
-				curVertex.spriteEffect = TR2_SFX_FILL;
-				curVertex.transformIndex = 0;
-				curVertex.tileMode = 0;
-			}
-
-			Tr2Sprite2dD3DVertex& tl = m_vertices[spriteIx*4];
-			tl.position.x = ulTopLeft.x;
-			tl.position.y = ulTopLeft.y;
-
-			Tr2Sprite2dD3DVertex& tr = m_vertices[spriteIx*4 + 1];
-			tr.position.x = tl.position.x + ulWidth;
-			tr.position.y = tl.position.y;
-
-			Tr2Sprite2dD3DVertex& br = m_vertices[spriteIx*4 + 2];
-			br.position.x = tl.position.x + ulWidth;
-			br.position.y = tl.position.y + ulHeight;
-
-			Tr2Sprite2dD3DVertex& bl = m_vertices[spriteIx*4 + 3];
-			bl.position.x = tl.position.x;
-			bl.position.y = tl.position.y + ulHeight;
-
-			curIndex[0] = vertexIx;
-			curIndex[1] = vertexIx + 1;
-			curIndex[2] = vertexIx + 3;
-			curIndex[3] = vertexIx + 3;
-			curIndex[4] = vertexIx + 1;
-			curIndex[5] = vertexIx + 2;
-
-			++spriteIx;
-			curIndex += 6;
-			vertexIx += 4;
-		}
+	if( dropShadow )
+	{
+		addSprites( shadowOffset, shadowColor, shadowSfx );
 	}
+	addSprites( Vector2( 0.f, 0.f ), color, sfx );
 
 	if( spriteIx != startIx )
 	{

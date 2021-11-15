@@ -28,14 +28,6 @@ const Be::ClassInfo* Tr2Sprite2dTextObject::ExposeToBlue()
 			"\na rectangular area.",
 			Be::READWRITE
 		)
-
-		MAP_ATTRIBUTE
-		(
-			"dropShadow",
-			m_dropShadow,
-			"If set, the text is rendered with a drop shadow",
-			Be::READWRITE | Be::NOTIFY
-		)
 	
 		MAP_ATTRIBUTE
 		(
@@ -68,6 +60,21 @@ const Be::ClassInfo* Tr2Sprite2dTextObject::ExposeToBlue()
 			"Height of clip rectangle to put around text",
 			Be::READWRITE | Be::NOTIFY
 		)
+
+		MAP_ATTRIBUTE_WITH_CHOOSER(
+			"shadowSpriteEffect",
+			m_shadowSpriteEffect,
+			"Sprite effect to use with drop shadow if useShadowSpriteEffect is True\n"
+			":jessica-group: Shadow",
+			Be::READWRITE | Be::ENUM | Be::NOTIFY,
+			Tr2SpriteObjectEffectChooser )
+
+		MAP_ATTRIBUTE(
+			"useShadowSpriteEffect",
+			m_useShadowSpriteEffect,
+			"If True, use shadowSpriteEffect for drop shadow, otherwise use spriteEffect\n"
+			":jessica-group: Shadow",
+			Be::READWRITE | Be::NOTIFY )
 
 		MAP_ATTRIBUTE
 		(

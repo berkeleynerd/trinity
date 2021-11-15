@@ -55,7 +55,8 @@ private:
 	float m_textWidth;
 	float m_textHeight;
 
-	bool m_dropShadow;
+	bool m_useShadowSpriteEffect;
+	Tr2SpriteObjectEffect m_shadowSpriteEffect;
 
 	// hack
 	ITr2Sprite2dTexturePtr m_texturePrimary;

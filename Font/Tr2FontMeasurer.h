@@ -70,7 +70,7 @@ public:
 
 	// Prepares sprites based on the current contents of the measurer for later
 	// rendering with SubmitSprites.
-	void PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2& translation, const Color& color, Tr2SpriteObjectEffect sfx, Tr2SpriteObjectBlendMode blendMode );
+	void PrepareSprites( Tr2Sprite2dScene* renderer, const Vector2& translation, const Color& color, Tr2SpriteObjectEffect sfx, Tr2SpriteObjectBlendMode blendMode, bool dropShadow, const Vector2& shadowOffset, const Color& shadowColor, Tr2SpriteObjectEffect shadowSfx );
 
 	// Submits sprites previously prepared with PrepareSprites for rendering.
 	void SubmitSprites( Tr2Sprite2dScene* renderer );

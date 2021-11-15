@@ -10,10 +10,11 @@
 #include "Tr2Sprite2dScene.h"
 
 Tr2Sprite2dTextObject::Tr2Sprite2dTextObject( IRoot* lockobj /*= nullptr */ ) :
-	m_dropShadow( false ),
 	m_textWidth( 0.0f ),
 	m_textHeight( 0.0f ),
 	m_pickRadius( 0.0f ),
+	m_shadowSpriteEffect( TR2_SFX_FONT ),
+	m_useShadowSpriteEffect( false ),
 	m_hasAuxiliaryTooltip( false ),
 	m_useSizeFromTexture( false )
 {
@@ -37,19 +38,33 @@ void Tr2Sprite2dTextObject::GatherSprites( Tr2Sprite2dScene* renderer )
 
 	if( m_fontMeasurer )
 	{
+		auto dropShadow = m_shadowOffset.x != 0 || m_shadowOffset.y != 0;
 		if( m_isDirty )
 		{
-			m_fontMeasurer->PrepareSprites( renderer, m_translation, m_color, m_spriteEffect, m_blendMode );
+			m_fontMeasurer->PrepareSprites(
+				renderer,
+				m_translation,
+				m_color,
+				m_spriteEffect,
+				m_blendMode,
+				dropShadow,
+				m_shadowOffset,
+				m_shadowColor,
+				m_useShadowSpriteEffect ? m_shadowSpriteEffect : m_spriteEffect );
 			m_isDirty = false;
 		}
 
+		auto left = m_translation.x + std::min( m_shadowOffset.x, 0.f );
+		auto top = m_translation.y + std::min( m_shadowOffset.y, 0.f );
+		auto width = m_textWidth + abs( m_shadowOffset.x );
+		auto height = m_textHeight + abs( m_shadowOffset.x );
 		if( (m_spriteEffect == TR2_SFX_BLUR) || (m_spriteEffect == TR2_SFX_GLOW) )
 		{
-			renderer->PushClipRectangle( m_translation.x - 1, m_translation.y - 1, m_textWidth + 2, m_textHeight + 2 );
+			renderer->PushClipRectangle( m_translation.x - 1 + std::min( m_shadowOffset.x, 0.f ), m_translation.y - 1 + std::min( m_shadowOffset.y, 0.f ), m_textWidth + 2 + abs( m_shadowOffset.x ), m_textHeight + 2 + abs( m_shadowOffset.y ) );
 		}
 		else
 		{
-			renderer->PushClipRectangle( m_translation.x, m_translation.y, m_textWidth, m_textHeight );
+			renderer->PushClipRectangle( m_translation.x + std::min( m_shadowOffset.x, 0.f ), m_translation.y + std::min( m_shadowOffset.y, 0.f ), m_textWidth + abs( m_shadowOffset.x ), m_textHeight + abs( m_shadowOffset.y ) );
 		}
 		m_fontMeasurer->SubmitSprites( renderer );
 		renderer->PopClipRectangle();
