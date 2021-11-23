@@ -94,7 +94,7 @@ const Be::ClassInfo* EveStretch3::ExposeToBlue()
 			"sourceSpaceObject",
 			m_sourceSpaceObject,
 			"",
-			Be::READWRITE
+			Be::READWRITE | Be::NOTIFY
 		)
 
 		MAP_ATTRIBUTE
@@ -102,7 +102,7 @@ const Be::ClassInfo* EveStretch3::ExposeToBlue()
 			"destSpaceObject",
 			m_destSpaceObject,
 			"",
-			Be::READWRITE
+			Be::READWRITE | Be::NOTIFY
 		)
 
 		MAP_ATTRIBUTE

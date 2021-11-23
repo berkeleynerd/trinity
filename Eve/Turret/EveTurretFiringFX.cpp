@@ -505,18 +505,13 @@ bool EveTurretFiringFX::UpdateAsynchronous( EveUpdateContext& updateContext )
 
 bool EveTurretFiringFX::UpdateSynchronous( EveUpdateContext &updateContext )
 {
-	// check all stretch effects and see if we have to start them
+	// check all stretch effects and see if we have to start or stop them
 	for( unsigned int i = 0; i < m_stretch.size(); ++i )
 	{		
 		if( m_perMuzzleData[i].elapsedTime < m_firingDuration || m_isLoopFiring )
 		{
-			auto stretchEffect = m_stretch[i];
-
-			// do not do all calculations if we are not firing -> waste
-			if( m_isFiring )
-			{				
-				stretchEffect->UpdateEffectSync( updateContext );
-			}
+			auto stretchEffect = m_stretch[i];			
+			stretchEffect->UpdateEffectSync( updateContext );
 		}
 	}
 	return true;

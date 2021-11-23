@@ -70,32 +70,32 @@ bool EveStretch3::Initialize()
 
 IEveSpaceObject2Ptr EveStretch3::GetSourceSpaceObject() const
 {
-    return m_sourceSpaceObject;
+	return m_sourceSpaceObject;
 }
 
 IEveSpaceObject2Ptr EveStretch3::GetDestSpaceObject() const
 {
-    return m_destSpaceObject;
+	return m_destSpaceObject;
 }
 
 void EveStretch3::Rebind( bool onlyUpdateBindings )
 {
-    for( auto binding = begin(m_dynamicBindings); binding != end(m_dynamicBindings); ++binding )
-    {
-        ( *binding )->Link();
-        const Be::Time time = 0;
-        ( *binding )->Update( time );
-    }
+	for( auto binding = begin( m_dynamicBindings ); binding != end( m_dynamicBindings ); ++binding )
+	{
+		( *binding )->Link();
+		const Be::Time time = 0;
+		( *binding )->Update( time );
+	}
 
-    if( onlyUpdateBindings )
-    {
-        return;
-    }
+	if( onlyUpdateBindings )
+	{
+		return;
+	}
 
-    for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
-    {
-        ( *it )->Link( *GetRawRoot() );
-    }
+	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
+	{
+		( *it )->Link( *GetRawRoot() );
+	}
 }
 
 void EveStretch3::RunOnComponents( std::function<void( IEveSpaceObjectChild* )> func ) const
@@ -205,11 +205,11 @@ bool EveStretch3::OnModified( Be::Var* value )
 	}
 	else if( IsMatch( value, m_dest ) )
 	{
-		if( m_dest == nullptr ) 
+		if( m_dest == nullptr )
 		{
 			m_stretchModifier = nullptr;
 		}
-		else 
+		else
 		{
 			if( m_stretchModifier == nullptr )
 			{
@@ -218,6 +218,15 @@ bool EveStretch3::OnModified( Be::Var* value )
 			m_stretchModifier->SetDest( m_dest );
 		}
 	}
+	else if( IsMatch( value, m_sourceSpaceObject ) || IsMatch( value, m_destSpaceObject ) )
+	{
+		for( auto binding = m_dynamicBindings.begin(); binding != m_dynamicBindings.end(); ++binding )
+		{
+			( *binding )->SetOwner( this );
+			( *binding )->Link();
+		}
+	}
+
 	return true;
 }
 
@@ -315,7 +324,7 @@ void EveStretch3::UpdateSyncronous( EveUpdateContext& updateContext )
 	m_length->m_value = Length( directionVec );
 
 	EveChildUpdateParams params;
-    params.spaceObjectParent = m_sourceSpaceObject == nullptr ? static_cast<IEveSpaceObject2*>(this) : m_sourceSpaceObject.p;
+	params.spaceObjectParent = m_sourceSpaceObject == nullptr ? static_cast<IEveSpaceObject2*>( this ) : m_sourceSpaceObject.p;
 	params.childParent = nullptr;
 	params.boneCount = 0;
 	params.bones = nullptr;
@@ -344,7 +353,7 @@ void EveStretch3::UpdateSyncronous( EveUpdateContext& updateContext )
 	if( m_destObject )
 	{
 		params.localToWorldTransform = TranslationMatrix( m_destinationPosition );
-        params.spaceObjectParent = m_destSpaceObject == nullptr ? static_cast< IEveSpaceObject2* >( this ) : m_destSpaceObject.p;
+		params.spaceObjectParent = m_destSpaceObject == nullptr ? static_cast<IEveSpaceObject2*>( this ) : m_destSpaceObject.p;
 		m_destObject->UpdateSyncronous( updateContext, params );
 	}
 }
@@ -412,15 +421,12 @@ void EveStretch3::UpdateAsyncronous( EveUpdateContext& updateContext )
 	{
 		// make the rotation matrix face source
 		auto oneEighty = Matrix(
-			-1.0, 0.0, 0.0, 0.0,
-			0.0, 1.0, 0.0, 0.0,
-			0.0, 0.0, -1.0, 0.0,
-			0.0, 0.0, 0.0, 1.0);
+			-1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0, 1.0 );
 		params.localToWorldTransform = ScalingMatrix( Vector3( 1, 1, 1 ) * m_destObjectScale ) * oneEighty * rotationMatrix * TranslationMatrix( m_destinationPosition );
 		m_destObject->UpdateAsyncronous( updateContext, params );
 	}
 
-	if (auto tmp = dynamic_cast< Tr2AudioStretchBase* > ( m_audio.p ))
+	if( auto tmp = dynamic_cast<Tr2AudioStretchBase*>( m_audio.p ) )
 	{
 		tmp->Update( m_sourcePosition, m_destinationPosition );
 	}
@@ -480,10 +486,9 @@ void EveStretch3::UpdateVisibility( const TriFrustum& frustum, const Matrix& par
 
 		m_moveObject->UpdateVisibility( frustum, moveMatrix, TR2_LOD_HIGH );
 	}
-
 }
 
-void EveStretch3::GetRenderables( std::vector<ITr2Renderable*>& renderables)
+void EveStretch3::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
 	GetRenderables( renderables, nullptr );
 }
@@ -579,7 +584,6 @@ void EveStretch3::SetFiringTransform( const Matrix& source, const Vector3& dest 
 	m_sourcePosition = source.GetTranslation();
 	m_destinationPosition = dest;
 	m_sourceMatrix = source;
-
 }
 
 void EveStretch3::SetFiringTransform( const Vector3& source, const Vector3& dest )
@@ -596,7 +600,6 @@ void EveStretch3::SetFiringTransform( const Vector3& source, const Vector3& dest
 
 void EveStretch3::DisplayEndPoints( bool displaySource, bool displayDest )
 {
-
 }
 
 void EveStretch3::GetLights( Tr2LightManager& lightManager ) const
@@ -656,7 +659,7 @@ void EveStretch3::StartControllers()
 
 void EveStretch3::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
 {
-	if( !m_display ) 
+	if( !m_display )
 	{
 		return;
 	}
@@ -699,14 +702,14 @@ void EveStretch3::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Lights" );
 	RunOnComponents( [&options]( IEveSpaceObjectChild* c ) {
-		auto debugRenderable = dynamic_cast< ITr2DebugRenderable* >( c );
+		auto debugRenderable = dynamic_cast<ITr2DebugRenderable*>( c );
 		if( debugRenderable )
 		{
 			debugRenderable->GetDebugOptions( options );
 		}
 	} );
 
-	if (auto tmp = dynamic_cast< Tr2AudioStretchBase* > ( m_audio.p ))
+	if( auto tmp = dynamic_cast<Tr2AudioStretchBase*>( m_audio.p ) )
 	{
 		tmp->GetDebugOptions( options );
 	}
@@ -719,14 +722,14 @@ void EveStretch3::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 		return;
 	}
 	RunOnComponents( [&renderer]( IEveSpaceObjectChild* c ) {
-		auto debugRenderable = dynamic_cast< ITr2DebugRenderable* >( c );
+		auto debugRenderable = dynamic_cast<ITr2DebugRenderable*>( c );
 		if( debugRenderable )
 		{
 			debugRenderable->RenderDebugInfo( renderer );
 		}
 	} );
 
-	if (auto tmp = dynamic_cast< Tr2AudioStretchBase* > ( m_audio.p ))
+	if( auto tmp = dynamic_cast<Tr2AudioStretchBase*>( m_audio.p ) )
 	{
 		tmp->RenderDebugInfo( renderer );
 	}
@@ -756,7 +759,7 @@ void EveStretch3::PlayCurveSet( const std::string& name, const std::string& rang
 	}
 
 	RunOnComponents( [name, rangeName]( IEveSpaceObjectChild* c ) {
-		auto curveSetOwner = dynamic_cast< ITr2CurveSetOwner* >( c );
+		auto curveSetOwner = dynamic_cast<ITr2CurveSetOwner*>( c );
 		if( curveSetOwner )
 		{
 			curveSetOwner->PlayCurveSet( name, rangeName );
@@ -780,7 +783,7 @@ void EveStretch3::StopCurveSet( const std::string& name )
 	}
 
 	RunOnComponents( [name]( IEveSpaceObjectChild* c ) {
-		auto curveSetOwner = dynamic_cast< ITr2CurveSetOwner* >( c );
+		auto curveSetOwner = dynamic_cast<ITr2CurveSetOwner*>( c );
 		if( curveSetOwner )
 		{
 			curveSetOwner->StopCurveSet( name );
@@ -799,13 +802,12 @@ void EveStretch3::UpdateCurveSet( const std::string& name, Be::Time time )
 	}
 
 	RunOnComponents( [name, time]( IEveSpaceObjectChild* c ) {
-		auto curveSetOwner = dynamic_cast< ITr2CurveSetOwner* >( c );
+		auto curveSetOwner = dynamic_cast<ITr2CurveSetOwner*>( c );
 		if( curveSetOwner )
 		{
 			curveSetOwner->UpdateCurveSet( name, time );
 		}
 	} );
-
 }
 
 float EveStretch3::GetCurveSetDuration( const std::string& name ) const
@@ -823,8 +825,8 @@ float EveStretch3::GetCurveSetDuration( const std::string& name ) const
 			maxDuration = max( maxDuration, ( *it )->GetMaxCurveDuration() );
 		}
 	}
-	float componentMax = RunOnComponentsGetMax( [name]( IEveSpaceObjectChild* c )-> float {
-		auto curveSetOwner = dynamic_cast< ITr2CurveSetOwner* >( c );
+	float componentMax = RunOnComponentsGetMax( [name]( IEveSpaceObjectChild* c ) -> float {
+		auto curveSetOwner = dynamic_cast<ITr2CurveSetOwner*>( c );
 		if( curveSetOwner )
 		{
 			return curveSetOwner->GetCurveSetDuration( name );
@@ -832,7 +834,7 @@ float EveStretch3::GetCurveSetDuration( const std::string& name ) const
 		return 0.0f;
 	} );
 
-	return max(maxDuration, componentMax);
+	return max( maxDuration, componentMax );
 }
 
 float EveStretch3::GetRangeDuration( const std::string& name, const std::string& rangeName ) const
@@ -852,7 +854,7 @@ float EveStretch3::GetRangeDuration( const std::string& name, const std::string&
 	}
 
 	float componentMax = RunOnComponentsGetMax( [name, rangeName]( IEveSpaceObjectChild* c ) -> float {
-		auto curveSetOwner = dynamic_cast< ITr2CurveSetOwner* >( c );
+		auto curveSetOwner = dynamic_cast<ITr2CurveSetOwner*>( c );
 		if( curveSetOwner )
 		{
 			return curveSetOwner->GetRangeDuration( name, rangeName );
@@ -860,12 +862,12 @@ float EveStretch3::GetRangeDuration( const std::string& name, const std::string&
 		return 0.0f;
 	} );
 
-	return max(maxDuration, componentMax);
+	return max( maxDuration, componentMax );
 }
 
 ITr2AudEmitterPtr EveStretch3::FindSoundEmitter( const char* name )
 {
-	if ( auto tmp = dynamic_cast<Tr2AudioStretchBase*> (m_audio.p) )
+	if( auto tmp = dynamic_cast<Tr2AudioStretchBase*>( m_audio.p ) )
 	{
 		return tmp->FindEmitterByName( name );
 	}
