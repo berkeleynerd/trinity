@@ -8,15 +8,7 @@ namespace
 {
 	void GetUsage( uint32_t msaaType, Tr2RenderContextEnum::ExFlag flags, Tr2GpuUsage::Type& gpuUsage, Tr2CpuUsage::Type& cpuUsage )
 	{
-		gpuUsage = Tr2GpuUsage::RENDER_TARGET;
-#if TRINITY_PLATFORM_SUPPORTS_MSAA_SAMPLE
-		gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
-#else
-		if( msaaType < 2 )
-		{
-			gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
-		}
-#endif
+		gpuUsage = Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE;
 		cpuUsage = Tr2CpuUsage::READ;
 		if( msaaType > 1 )
 		{

@@ -1681,7 +1681,6 @@ bool Tr2Sprite2dScene::SelectEffect()
 			m_textureRegisters[0] = 0;
 			m_textureRegisters[1] = 1;
 
-#if TRINITY_PLATFORM!=TRINITY_DIRECTX9
 			// In DX11 g_uiTransforms is in a separate constant buffer and is not exposed
 			// in constant table, so we just believe we have UI shader.
 			m_effect = newEffect;
@@ -1702,28 +1701,6 @@ bool Tr2Sprite2dScene::SelectEffect()
 				}
 			}
 			return true;
-#else
-			const Tr2EffectConstantVector& constants = newEffect->GetShaderStateInterface()->GetEffectDescription().techniques[0].passes[0].stageInputs[VERTEX_SHADER].constants;
-			bool foundHandle = false;
-			for( auto it = constants.begin(); it != constants.end(); ++it )
-			{
-				if( strcmp( it->name.c_str(), "g_uiTransforms" ) == 0 )
-				{
-					m_transformsHandle = *it;
-					foundHandle = true;
-				}
-			}
-			if( foundHandle )
-			{
-				m_effect = newEffect;
-				return true;
-			}
-			else
-			{
-				CCP_LOGWARN( "Tr2Sprite2dScene::SubmitGeometry - couldn't get VS constant handle" );
-				return false;
-			}
-#endif
 		}
 		return false;
 	}

@@ -13,7 +13,6 @@
 // Forward declarations
 //
 class TriFrustum;
-class Tr2LitPerObjectData;
 
 //--------------------------------------------------------------------------------------------------
 // Blue declarations

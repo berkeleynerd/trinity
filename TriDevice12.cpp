@@ -3,7 +3,6 @@
 #if TRINITY_PLATFORM==TRINITY_DIRECTX12
 
 #include "TriDevice.h"
-#include "TriError.h"
 #include "RenderJob/Tr2RenderJobs.h"
 
 
@@ -13,8 +12,6 @@ TRI_REGISTER_SETTING( "emulateDriverReset", g_emulateDriverReset );
 
 CCP_STATS_DECLARED_ELSEWHERE( presentTime );
 
-
-void TriDevice::UpdateCursor() {}
 
 void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 {
@@ -26,7 +23,7 @@ void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 	{
 		if( !ChangeDevice( mAdapter, mHwnd, nullptr ) )
 		{
-			REPORTERROR( "Failed to create D3D device" );
+			CCP_LOGERR( "Failed to create D3D device" );
 		}
 
 		return;
@@ -132,7 +129,7 @@ void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 
 	if( !Render() )
 	{
-		REPORTERROR( "Failed to render a frame" );
+		CCP_LOGERR( "Failed to render a frame" );
 	}
 }
 

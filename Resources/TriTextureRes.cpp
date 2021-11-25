@@ -239,12 +239,7 @@ void TriTextureRes::ReleaseResources( TriStorage s )
 		return;
 	}
 
-	if( (s & TRISTORAGE_MANAGEDMEMORY) || 
-		((s & TRISTORAGE_VIDEOMEMORY) && m_texture->GetMemoryClass() == AL_MEMORY_VIDEO
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-		&& !g_usingEXDevice
-#endif
-		) )
+	if( (s & TRISTORAGE_MANAGEDMEMORY) || ((s & TRISTORAGE_VIDEOMEMORY) && m_texture->GetMemoryClass() == AL_MEMORY_VIDEO ) )
 	{
 		CCP_STATS_ADD( textureResBytes, -(int)m_memoryUse );
 		m_memoryUse = 0;

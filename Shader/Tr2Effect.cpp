@@ -1459,19 +1459,6 @@ void Tr2Effect::MapPassParameters(
 
 	unsigned int perObjectStart = 0xffffffff;
 
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-	// First find perObjectStart if the effect has it:
-	const char* perObjectName = stage == PIXEL_SHADER ? "PerObjectPS" : "PerObjectVS";
-	for( auto constantIx = constants.begin(); constantIx != constants.end(); ++constantIx )
-	{
-		if( strcmp( constantIx->name.c_str(), perObjectName ) == 0 )
-		{
-			perObjectStart = constantIx->offset;
-			break;
-		}
-	}
-#endif
-
 	CCP_ASSERT( constants.size() < MAX_PARAMS );
 	ITr2EffectValue* foundParams[MAX_PARAMS];
 	unsigned constantSize = 0;

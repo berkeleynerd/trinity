@@ -3,7 +3,6 @@
 #if( TRINITY_PLATFORM==TRINITY_STUB )
 
 #include "TriDevice.h"
-#include "TriError.h"
 
 #include "RenderJob/Tr2RenderJobs.h"
 
@@ -11,9 +10,6 @@ using namespace Tr2RenderContextEnum;
 
 CCP_STATS_DECLARED_ELSEWHERE( presentTime );
 
-void TriDevice::UpdateCursor()
-{	
-}
 
 void TriDevice::HandleRenderTick( Be::Time realTime, Be::Time simTime )
 {

@@ -216,24 +216,11 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 #if BLUE_WITH_PYTHON
 		MAP_METHOD_AND_WRAP
 		( 
-			"GetWindow",
-			PyGetWindow, 
-			"no comment" 
-		)		
-		MAP_METHOD_AND_WRAP
-		( 
 			"Render",
 			PyRender,
 			"Renders the device." 
 		)		
 
-		MAP_METHOD_AS_METHOD
-		(
-			"GetPresentParameters",
-			PyGetPresentParameters,
-			"retrieves a dict with the current presentation parameters\n"
-			":rtype: dict"
-		)
 		MAP_METHOD_AS_METHOD
 		(
 			"RegisterResource",
@@ -305,14 +292,6 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 			SupportsRenderTargetFormat,
 			"Returns True if the device support render targets with the given pixel format\n"
 			":param format: render target pixel format"
-		)
-
-		MAP_METHOD_AND_WRAP
-		(
-			"SupportsDepthStencilFormat",
-			SupportsDepthStencilFormat,
-			"Returns True if the device support depth stencil buffers with the given format\n"
-			":param format: depth stencil format"
 		)
 
     EXPOSURE_END()

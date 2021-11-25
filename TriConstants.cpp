@@ -18,34 +18,11 @@ void AddTriConstants(PyObject* d)
 		
 		TriBlendOp,
 		TriBlend,
-		TriFillMode,
         TriTextureChooser,
-		TriModelChooser,
-		TriParticleBirth,
-		TriParticleDeath,
-		TriParticleAnimation,
-		TriParticleCycle,
-		TriParticleType,
-		TriBoidSwarmType,
 		TriExtrapolation,
-		TriInterpolation,
 		TriOperator,
-		TriTextureSource,
-		TriMaterialSource,
-		TriStageSelection,
 		TriTransformBase,
-		TriCloudType,
-		TriTransformBaseFlags,
-		TriLodBy,
-		TriCull,
-		TriCmpFunc,
-		TriClearFlags,
-		TriScissorMode,
 		TriGR2Chooser,
-		TriPoseClipTime,
-		TriBipedMovementState,
-		TriHACKFORTESTING,
-		TriSkeletonType,
 		TriD3DRenderState,
 	};
 
@@ -79,16 +56,6 @@ const char* KeyFromVal(const Be::VarChooser* i, long val)
 
 
 
-////////////////////////////////////////////////////////////////////////////////
-// The actual definitions of these constants.
-// the rot group ids
-const long TRIGRPID_TEXTURE = 8001;
-const long TRIGRPID_VERTEXBUFFER = 8002;
-const long TRIGRPID_INDEXBUFFER = 8003;
-const long TRIGRPID_SURFACE = 8004;
-const long TRIGRPID_GR2 = 8005; // granny file
-const long TRIGRPID_MORPHEME = 8006; // morpheme bundle
-
 #define VAL(v) BeCast(v)
 #define KV( name, doc ) \
 { \
@@ -118,16 +85,6 @@ const Be::VarChooser TriTextureChooser[] =
 	{0}
 };
 
-const Be::VarChooser TriModelChooser[] =
-{
-	{ 
-		"SELECT_TRIMODEL",     
-		VAL(0),     
-		"Blue Object(.blue)|*.blue;|Maya Exported Model (.tri)|*.tri;|All Files (*.*)|*.*" 
-	},
-	{0}
-};
-
 const Be::VarChooser TriGR2Chooser[] =
 {
 	{ 
@@ -135,149 +92,6 @@ const Be::VarChooser TriGR2Chooser[] =
 		VAL(0),     
 		"Granny file(.gr2)|*.GR2" 
 	},
-	{0}
-};
-
-const Be::VarChooser TriMorphemeBundleChooser[] =
-{
-	{ 
-		"SELECT_BUNDLEMODEL",     
-		VAL(0),     
-		"Morpheme Bundle file|*.*" 
-	},
-	{0}
-};
-
-const Be::VarChooser TriParticleBirth[] =
-{
-	{ 
-		"TRTPB_POINT",     
-		VAL(TRTPB_POINT),     
-		"no comment" 
-	},
-	{ 
-		"TRTPB_FIELD", 
-		VAL(TRTPB_FIELD), 
-		"no comment" 
-	},	
-	{0}
-};
-
-
-const Be::VarChooser TriParticleDeath[] =
-{
-	{ 
-		"TRTPD_TIME",     
-		VAL(TRTPD_TIME),     
-		"no comment" 
-	},
-	{ 
-		"TRTPD_RANGE", 
-		VAL(TRTPD_RANGE), 
-		"no comment" 
-	},
-	{ 
-		"TRTPD_CAMERADIST", 
-		VAL(TRTPD_CAMERADIST), 
-		"no comment" 
-	},	
-	{ 
-		"TRTPD_NEEDED", 
-		VAL(TRTPD_NEEDED), 
-		"no comment" 
-	},	
-	{0}
-};
-
-const Be::VarChooser TriParticleAnimation[] =
-{
-	{ 
-		"TRTPA_NONE",     
-		VAL(TRTPA_NONE),     
-		"no comment" 
-	},
-	{ 
-		"TRTPA_4", 
-		VAL(TRTPA_4), 
-		"no comment" 
-	},
-	{ 
-		"TRTPA_16", 
-		VAL(TRTPA_16), 
-		"no comment" 
-	},
-	{ 
-		"TRTPA_64", 
-		VAL(TRTPA_64), 
-		"no comment" 
-	},	
-	{0}
-};
-
-const Be::VarChooser TriParticleCycle[] =
-{
-	{ 
-		"TRTPC_NONE",     
-		VAL(TRTPC_NONE),     
-		"no uv cycling" 
-	},
-	{ 
-		"TRTPC_RANDOM_HOLD", 
-		VAL(TRTPC_RANDOM_HOLD), 
-		"new particle starts somewhere in uv cycle and will always show that frame.\r\n" 
-		"This has the same effect as TRTPC_RANDOM_LOOP with uvFPS == 0.0" 
-	},
-	{ 
-		"TRTPC_RANDOM_LOOP", 
-		VAL(TRTPC_RANDOM_LOOP), 
-		"new particle starts somewhere in uv cycle, and loops, changes frames as per uvFPS" 
-	},
-	{ 
-		"TRTPC_CONSTANT", 
-		VAL(TRTPC_CONSTANT), 
-		"new particle starts at frame 1, and plays to the end frame. Depends on uvFPS" 
-	},
-	{ 
-		"TRTPC_LIFETIME", 
-		VAL(TRTPC_LIFETIME), 
-		"new particle starts at frame 1, and plays to the end frame over it's whole lifetime" 
-	},	
-	{0}
-};
-
-const Be::VarChooser TriParticleType[] =
-{
-	{ 
-		"TRTPT_SIMPLE",     
-		VAL(TRTPT_SIMPLE),     
-		"no comment" 
-	},
-	{ 
-		"TRTPT_MOVING", 
-		VAL(TRTPT_MOVING), 
-		"no comment" 
-	},	
-	{ 
-		"TRTPT_RIBBON", 
-		VAL(TRTPT_RIBBON), 
-		"no comment" 
-	},	
-	{0}
-};
-
-
-const Be::VarChooser TriBoidSwarmType[] =
-{
-	{ 
-		"TRTBST_WHIP",     
-		VAL(TRTBST_WHIP),     
-		"Makes the boids behave like a torch" 
-	},
-	{ 
-		"TRTBST_TRAIL", 
-		VAL(TRTBST_TRAIL), 
-		"Makes the boids behave like smoke" 
-	},	
 	{0}
 };
 
@@ -303,140 +117,6 @@ const Be::VarChooser TriExtrapolation[] =
 		"TRIEXT_CYCLE",    
 		VAL(TRIEXT_CYCLE),    
 		"no comment" 
-	},
-	{0}
-};
-
-
-const Be::VarChooser TriInterpolation[] =
-{
-	{ 
-		"TRIINT_NONE",     
-		VAL(TRIINT_NONE),     
-		"No Interpolation" 
-	},
-	{ 
-		"TRIINT_CONSTANT", 
-		VAL(TRIINT_CONSTANT), 
-		"Performs a constant interpolation" 
-	},
-	{ 
-		"TRIINT_LINEAR",   
-		VAL(TRIINT_LINEAR),   
-		"Performs a linear interpolation" 
-	},
-	{ 
-		"TRIINT_HERMITE",  
-		VAL(TRIINT_HERMITE),  
-		"Performs a Hermite spline interpolation" 
-	},
-	{ 
-		"TRIINT_CATMULLROM",  
-		VAL(TRIINT_CATMULLROM),  
-		"Performs a Catmull-Rom interpolation" 
-	},
-	{ 
-		"TRIINT_SLERP",  
-		VAL(TRIINT_SLERP),  
-		"Interpolates between two quaternions, using spherical linear interpolation." 
-	},
-	{ 
-		"TRIINT_SQUAD",  
-		VAL(TRIINT_SQUAD),  
-		"Interpolates between quaternions, using spherical quadrangle interpolation" 
-	},			
-	{ 
-		"TRIINT_SIGMOID",  
-		VAL(TRIINT_SIGMOID),  
-		"Only used for scalar curves. Uses the first key's value and the right value" 
-	},			
-	{0}
-};
-
-
-const Be::VarChooser TriTextureSource[] =
-{
-	{
-		"TRITEXSRC_NONE", 
-		VAL(TRITEXSRC_NONE),   
-		"The there is no texture to be used."
-	},
-	{
-		"TRITEXSRC_SHADER", 
-		VAL(TRITEXSRC_SHADER),   
-		"The textures of the shader are used as texture inputs."
-	},
-	{
-		"TRITEXSRC_AREA", 
-		VAL(TRITEXSRC_AREA), 
-		"The base textures of the model are used as texture inputs."
-	},
-	{
-		"TRITEXSRC_SCENE", 
-		VAL(TRITEXSRC_SCENE), 
-		"The global textures of the scene are used as texture inputs."
-	},
-
-	{0}
-};
-
-
-const Be::VarChooser TriMaterialSource[] =
-{
-	{
-		"TRIMATSRC_NONE", 
-		VAL(TRITEXSRC_NONE),   
-		"The there is no material to be used."
-	},
-
-	{
-		"TRIMATSRC_SHADER", 
-		VAL(TRIMATSRC_SHADER),   
-		"The materials of the shader are used as material inputs."
-	},
-	{
-		"TRIMATSRC_AREA", 
-		VAL(TRIMATSRC_AREA), 
-		"The base materials of the model are used as material inputs."
-	},
-	{
-		"TRIMATSRC_SCENE", 
-		VAL(TRIMATSRC_SCENE), 
-		"The global materials of the scene are used as material inputs."
-	},
-	{
-		"TRIMATSRC_VERTEX", 
-		VAL(TRIMATSRC_VERTEX), 
-		"Uses the color defined in the vertices of the geometry. THE GEOMETRY MUST HAVE COLOR FOR THIS TO WORK!!!!."
-	},
-
-	{0}
-};
-
-
-const Be::VarChooser TriStageSelection[] =
-{
-	{
-		"TRISTS_USE2STAGEPASSES", 
-		VAL(TRISTS_USE2STAGEPASSES),   
-		"On Hardware that has 2 or more stages, use passes that have not more than "
-		"2 stages (textureStage0 and textureStage1) enabled. This is the 'passes' "
-		"list of passes"
-	},
-
-	{
-		"TRISTS_USE3STAGEPASSES", 
-		VAL(TRISTS_USE3STAGEPASSES),   
-		"On Hardware that has 3 or more stages, use passes that have not more than "
-		"3 stages (textureStage0, textureStage1 and textureStage2) enabled. This is "
-		"the 'passes3Stage' list of passes"
-	},
-	{
-		"TRISTS_USE4STAGEPASSES", 
-		VAL(TRISTS_USE4STAGEPASSES), 
-		"On Hardware that has 4 or more stages, use passes that have not more than "
-		"4 stages (textureStage0, textureStage1, textureStage2, textureStage3) enabled. "
-		"This is the 'passes4Stage' list of passes"
 	},
 	{0}
 };
@@ -553,66 +233,6 @@ const Be::VarChooser TriTransformBase[] =
 	{0}
 };
 
-const Be::VarChooser TriTransformBaseFlags[] =
-{
-	{
-		"TRITBF_SCALING", 
-		VAL(TRITBF_SCALING),   
-		"Use Scaling"
-	},
-	{
-		"TRITBF_TRANSLATION", 
-		VAL(TRITBF_TRANSLATION),   
-		"Use translation"
-	},
-	{
-		"TRITBF_ROTATION_FWD", 
-		VAL(TRITBF_ROTATION_FWD),   
-		"Use rotation forward"
-	},	
-	{
-		"TRITBF_ROTATION_UP", 
-		VAL(TRITBF_ROTATION_UP),   
-		"Use rotation up"
-	},	
-	{0}
-};
-
-const Be::VarChooser TriPoseClipTime[] =
-{
-	{
-		"TRIPC_WORLD", 
-		VAL(TRIPC_WORLD),   
-		"World time"
-	},
-	{
-		"TRIPC_LOCAL", 
-		VAL(TRIPC_LOCAL),   
-		"Local ( birth ) time"
-	},
-	{
-		"TRIPC_OFFSETX", 
-		VAL(TRIPC_OFFSETX),   
-		"Use local X translation"
-	},	
-	{
-		"TRIPC_OFFSETY", 
-		VAL(TRIPC_OFFSETY),   
-		"Use local Y translation"
-	},	
-	{
-		"TRIPC_OFFSETZ", 
-		VAL(TRIPC_OFFSETZ),   
-		"Use local Z translation"
-	},	
-	{
-		"TRIPC_YAW", 
-		VAL(TRIPC_YAW),   
-		"Use model yaw"
-	},	
-	{0}
-};
-
 const Be::VarChooser TriOperator[] =
 {
 	{
@@ -629,133 +249,6 @@ const Be::VarChooser TriOperator[] =
 		"TRIOP_AVERAGE", 
 		VAL(TRIOP_AVERAGE),   
 		"average"
-	},
-	{0}
-};
-
-const Be::VarChooser TriCloudType[] =
-{
-	{
-		"TRICT_SPRITE", 
-		VAL(TRICT_SPRITE),   
-		"Sprite"
-	},
-	{
-		"TRICT_POINT", 
-		VAL(TRICT_POINT),   
-		"points"
-	},
-	{
-		"TRICT_LINE", 
-		VAL(TRICT_LINE),   
-		"lines connecting points"
-	},
-	{0}
-};
-
-const Be::VarChooser TriLodBy[] =
-{
-	{
-		"TRILB_NONE", 
-		VAL(TRILB_NONE),   
-		"No automated switching of LOD levels, use this if you want to control "
-		"externaly what LOD level is displayed"
-	},
-	{
-		"TRILB_CAMERA_DISTANCE", 
-		VAL(TRILB_CAMERA_DISTANCE),   
-		"Use the theshold values as distances from the camera"
-	},
-	{
-		"TRITB_CAMERA_DISTANCE_FOV_HEIGHT", 
-		VAL(TRITB_CAMERA_DISTANCE_FOV_HEIGHT),   
-		"Use the theshold values as height of the view-volume at the current distance from the camera"
-	},
-	{0}
-};
-
-const Be::VarChooser TriCull[] =
-{
-	{
-		"TRICULL_NONE", 
-		VAL(CULLMODE_NONE),
-		"Do not cull back faces."
-	},
-	{
-		"TRICULL_CW",   
-		VAL(CULLMODE_CW),
-		"Cull back faces with clockwise vertices."
-	},
-	{
-		"TRICULL_CCW",  
-		VAL(CULLMODE_CCW),
-		"Cull back faces with counterclockwise vertices."
-	},
-	{0}
-};
-
-const Be::VarChooser TriFillMode[] =
-{
-	{
-		"TRIFILL_POINT",     
-		VAL(Tr2RenderContextEnum::FM_POINT),     
-		"Fill points."
-	},
-	{
-		"TRIFILL_WIREFRAME", 
-		VAL(Tr2RenderContextEnum::FM_WIREFRAME), 
-		"Fill wireframes. This fill mode currently does not work for clipped "
-		"primitives when you use the DrawPrimitive methods."
-	},
-	{
-		"TRIFILL_SOLID",     
-		VAL(Tr2RenderContextEnum::FM_SOLID),     
-		"Fill solids."
-	},
-	{0}
-};
-
-const Be::VarChooser TriCmpFunc[] =
-{
-	{
-		"TRICMP_NEVER",         
-		VAL_RC(CMP_NEVER),         
-		"Always fail the test\n" 		
-	},
-	{
-		"TRICMP_LESS",         
-		VAL_RC(CMP_LESS),         
-		"Accept the new pixel if its value is less than the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_EQUAL",    
-		VAL_RC(CMP_EQUAL),    
-		"Accept the new pixel if its value equals the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_LESSEQUAL", 
-		VAL_RC(CMP_LESSEQUAL ), 
-		"Accept the new pixel if its value is less than or equal to the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_GREATER",         
-		VAL_RC(CMP_GREATER),         
-		"Accept the new pixel if its value is greater than the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_NOTEQUAL",         
-		VAL_RC(CMP_NOTEQUAL),         
-		"Accept the new pixel if its value does not equal the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_GREATEREQUAL",         
-		VAL_RC(CMP_GREATEREQUAL),         
-		"Accept the new pixel if its value is greater than or equal to the value of the current pixel.\n"
-	},
-	{
-		"TRICMP_ALWAYS",         
-		VAL_RC(CMP_ALWAYS ),         
-		"Always pass the test.\n"
 	},
 	{0}
 };
@@ -913,116 +406,7 @@ const Be::VarChooser TriTextureAddress [] =
 
 
 #endif
-const Be::VarChooser TriClearFlags [] = 
-{
-	{
-		"TRICLEAR_STENCIL",
-		VAL(CLEARFLAGS_STENCIL),
-		"Clear the stencil buffer to 0.\r\n"
-	},
-	{
-		"TRICLEAR_TARGET",
-		VAL(CLEARFLAGS_TARGET),
-		"Clear the render target to the scenes bgColor parameter.\r\n"
-	},
-	{
-		"TRICLEAR_ZBUFFER",
-		VAL(CLEARFLAGS_ZBUFFER),
-		"Clear the depth buffer to 1.0.\r\n"
-	},
-	{0}
-};
 
-const Be::VarChooser TriHACKFORTESTING [] = 
-{
-	{
-		"TRIVSDE_POSITION",
-		VAL(0),
-		"n/a.\r\n"
-	},
-	{
-		"TRIVSDE_NORMAL",
-		VAL(1),
-		"n/a.\r\n"
-	},
-	{0}
-};
-
-
-const Be::VarChooser TriScissorMode[] =
-{
-	{
-		"SCISSOR_NONE",
-		VAL(SCISSOR_NONE),
-		"disable scissoring"
-	},
-	{
-		"SCISSOR_SCISSOR",
-		VAL(SCISSOR_SCISSOR),
-		"use d3d scissoring"
-	},
-	{
-		"SCISSOR_EMULATE",
-		VAL(SCISSOR_EMULATE),
-		"emulate d3d scissoring"
-	},
-	{
-		"SCISSOR_CHOOSE",
-		VAL(SCISSOR_CHOOSE),
-		"choose d3d scissoring"
-	},
-	{0}
-};
-
-const Be::VarChooser TriBipedMovementState[] =
-{
-	{
-		"TRIBPS_IDLE",
-		VAL(TRIBPS_IDLE),
-		"Idle"
-	},
-	{
-		"TRIBPS_WALKING",
-		VAL(TRIBPS_WALKING),
-		"Walking"
-	},
-	{
-		"TRIBPS_TURNING",
-		VAL(TRIBPS_TURNING),
-		"Turning"
-	},
-	{
-		"TRIBPS_RUNNING",
-		VAL(TRIBPS_RUNNING),
-		"Running"
-	},
-	{
-		"TRIBPS_STRAFING",
-		VAL(TRIBPS_STRAFING),
-		"Running"
-	},
-	{0}
-};
-
-const Be::VarChooser TriSkeletonType[] =
-{
-	{
-		"TRIST_MAIN",
-		VAL(TRIST_MAIN),
-		"Main skeleton"
-	},
-	{
-		"TRIST_CLOTH_UPPER",
-		VAL(TRIST_CLOTH_UPPER),
-		"Upper cloth skeleton"
-	},
-	{
-		"TRIST_CLOTH_LOWER",
-		VAL(TRIST_CLOTH_LOWER),
-		"Lower cloth skeleton"
-	},
-	{0}
-};
 
 const Be::VarChooser TriD3DRenderState[] =
 {
@@ -1040,26 +424,12 @@ const Be::VarChooser TriD3DRenderState[] =
 		"One or more members of the FILLMODE enumerated type.\n"
 		"The default value is FILL_SOLID."
 	),
-	KV_RC( RS_SHADEMODE, "" ),
 	KV_RC( RS_ZWRITEENABLE, "" ),
-	KV_RC( RS_ALPHATESTENABLE, "" ),
-	KV_RC( RS_LASTPIXEL, "" ),
 	KV_RC( RS_SRCBLEND, "" ),
 	KV_RC( RS_DESTBLEND, "" ),
 	KV_RC( RS_CULLMODE, "" ),
 	KV_RC( RS_ZFUNC, "" ),
-	KV_RC( RS_ALPHAREF, "" ),
-	KV_RC( RS_DITHERENABLE, "" ),
 	KV_RC( RS_ALPHABLENDENABLE, "" ),
-	KV_RC( RS_ALPHABLENDENABLE, "" ),
-	KV_RC( RS_FOGENABLE, "" ),
-	KV_RC( RS_SPECULARENABLE, "" ),
-	KV_RC( RS_FOGCOLOR, "" ),
-	KV_RC( RS_FOGTABLEMODE, "" ),
-	KV_RC( RS_FOGSTART, "" ),
-	KV_RC( RS_FOGEND, "" ),
-	KV_RC( RS_FOGDENSITY, "" ),
-	KV_RC( RS_RANGEFOGENABLE, "" ),
 	KV_RC( RS_STENCILENABLE, "" ),
 	KV_RC( RS_STENCILFAIL, "" ),
 	KV_RC( RS_STENCILZFAIL, "" ),
@@ -1068,74 +438,16 @@ const Be::VarChooser TriD3DRenderState[] =
 	KV_RC( RS_STENCILREF, "" ),
 	KV_RC( RS_STENCILMASK, "" ),
 	KV_RC( RS_STENCILWRITEMASK, "" ),
-	KV_RC( RS_TEXTUREFACTOR, "" ),
-	KV_RC( RS_WRAP0, "" ),
-	KV_RC( RS_WRAP1, "" ),
-	KV_RC( RS_WRAP2, "" ),
-	KV_RC( RS_WRAP3, "" ),
-	KV_RC( RS_WRAP4, "" ),
-	KV_RC( RS_WRAP5, "" ),
-	KV_RC( RS_WRAP6, "" ),
-	KV_RC( RS_WRAP7, "" ),
-	KV_RC( RS_CLIPPING, "" ),
-	KV_RC( RS_LIGHTING, "" ),
-	KV_RC( RS_AMBIENT, "" ),
-	KV_RC( RS_FOGVERTEXMODE, "" ),
-	KV_RC( RS_COLORVERTEX, "" ),
-	KV_RC( RS_LOCALVIEWER, "" ),
-	KV_RC( RS_NORMALIZENORMALS, "" ),
-	KV_RC( RS_DIFFUSEMATERIALSOURCE, "" ),
-	KV_RC( RS_SPECULARMATERIALSOURCE, "" ),
-	KV_RC( RS_AMBIENTMATERIALSOURCE, "" ),
-	KV_RC( RS_EMISSIVEMATERIALSOURCE, "" ),
-	KV_RC( RS_VERTEXBLEND, "" ),
-	KV_RC( RS_CLIPPLANEENABLE, "" ),
-	KV_RC( RS_POINTSIZE, "" ),
-	KV_RC( RS_POINTSIZE_MIN, "" ),
-	KV_RC( RS_POINTSPRITEENABLE, "" ),
-	KV_RC( RS_POINTSCALEENABLE, "" ),
-	KV_RC( RS_POINTSCALE_A, "" ),
-	KV_RC( RS_POINTSCALE_B, "" ),
-	KV_RC( RS_POINTSCALE_C, "" ),
-	KV_RC( RS_MULTISAMPLEANTIALIAS, "" ),
-	KV_RC( RS_MULTISAMPLEMASK, "" ),
-	KV_RC( RS_PATCHEDGESTYLE, "" ),
-	KV_RC( RS_DEBUGMONITORTOKEN, "" ),
-	KV_RC( RS_POINTSIZE_MAX, "" ),
-	KV_RC( RS_INDEXEDVERTEXBLENDENABLE, "" ),
 	KV_RC( RS_COLORWRITEENABLE, "" ),
-	KV_RC( RS_TWEENFACTOR, "" ),
 	KV_RC( RS_BLENDOP, "" ),
-	KV_RC( RS_POSITIONDEGREE, "" ),
-	KV_RC( RS_NORMALDEGREE, "" ),
 	KV_RC( RS_SLOPESCALEDEPTHBIAS, "" ),
-	KV_RC( RS_ANTIALIASEDLINEENABLE, "" ),
-	KV_RC( RS_MINTESSELLATIONLEVEL, "" ),
-	KV_RC( RS_MAXTESSELLATIONLEVEL, "" ),
-	KV_RC( RS_ADAPTIVETESS_X, "" ),
-	KV_RC( RS_ADAPTIVETESS_Y, "" ),
-	KV_RC( RS_ADAPTIVETESS_Z, "" ),
-	KV_RC( RS_ADAPTIVETESS_W, "" ),
-	KV_RC( RS_ENABLEADAPTIVETESSELLATION, "" ),
 	KV_RC( RS_TWOSIDEDSTENCILMODE, "" ),
 	KV_RC( RS_CCW_STENCILFAIL, "" ),
 	KV_RC( RS_CCW_STENCILZFAIL, "" ),
 	KV_RC( RS_CCW_STENCILPASS, "" ),
 	KV_RC( RS_CCW_STENCILFUNC, "" ),
-	KV_RC( RS_COLORWRITEENABLE1, "" ),
-	KV_RC( RS_COLORWRITEENABLE2, "" ),
-	KV_RC( RS_COLORWRITEENABLE3, "" ),
-	KV_RC( RS_BLENDFACTOR, "" ),
 	KV_RC( RS_SRGBWRITEENABLE, "" ),
 	KV_RC( RS_DEPTHBIAS, "" ),
-	KV_RC( RS_WRAP8, "" ),
-	KV_RC( RS_WRAP9, "" ),
-	KV_RC( RS_WRAP10, "" ),
-	KV_RC( RS_WRAP11, "" ),
-	KV_RC( RS_WRAP12, "" ),
-	KV_RC( RS_WRAP13, "" ),
-	KV_RC( RS_WRAP14, "" ),
-	KV_RC( RS_WRAP15, "" ),
 	KV_RC( RS_SEPARATEALPHABLENDENABLE, "" ),
 	KV_RC( RS_SRCBLENDALPHA, "" ),
 	KV_RC( RS_DESTBLENDALPHA, "" ),

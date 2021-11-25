@@ -40,25 +40,12 @@ public:
 							 Tr2DisplayMode** mode );
 	ALResult GetRenderTargetMsaaSupport( unsigned adapterIndex,
 										 int /*Tr2RenderContextEnum::PixelFormat*/ format,
-										 bool windowed,
 										 unsigned msaaType,
 										 unsigned& msaaQuality );
-	ALResult GetDepthStencilMsaaSupport( unsigned adapterIndex,
-										 int /*Tr2RenderContextEnum::DepthStencilFormat*/ format,
-										 bool windowed,
-										 unsigned msaaType,
-										 unsigned& msaaQuality );
-	ALResult GetShaderVersion( unsigned adapterIndex,
-							   float& version );
 	bool SupportsBackBufferFormat( unsigned adapterIndex,
-								   int /*Tr2RenderContextEnum::PixelFormat*/ backBufferFormat,
-								   bool windowed );
+								   int /*Tr2RenderContextEnum::PixelFormat*/ backBufferFormat );
 	bool SupportsRenderTargetFormat( unsigned adapterIndex,
-									 int /*Tr2RenderContextEnum::PixelFormat*/ backBufferFormat,
 									 int /*Tr2RenderContextEnum::PixelFormat*/ format );
-	bool SupportsDepthStencilFormat( unsigned adapterIndex,
-									 int /*Tr2RenderContextEnum::PixelFormat*/ backBufferFormat,
-									 int /*Tr2RenderContextEnum::DepthStencilFormat*/ format );
 	ALResult GetMaxTextureSize( unsigned adapterIndex,
 								unsigned& maxWidth );
 

@@ -1,7 +1,6 @@
 #include "StdAfx.h"
 
 #include "TriDevice.h"
-#include "TriError.h"
 #include "Tr2Renderer.h"
 
 #include "TriPythonContext.h"
@@ -192,7 +191,7 @@ bool TriDevice::CreateSimpleDevice(
 		Tr2DisplayModeInfo mode;
 		if( FAILED( Tr2VideoAdapterInfo::GetAdapterDisplayMode( Tr2VideoAdapterInfo::DEFAULT_ADAPTER, mode ) ) )
 		{
-			TriError::ReportError( 0, Clsid(), "Failed to get adapter display mode!" );
+			CCP_LOGERR( "Failed to get adapter display mode!" );
 			return false;
 		}
 		pp.mode.format = mode.format;
@@ -214,7 +213,7 @@ bool TriDevice::CreateSimpleDevice(
 	if( !DeviceExists() )
 	{
 		// failed to create a device, forced to give up.
-		TriError::ReportError( E_FAIL, Clsid(), "Failed to create compatible device!" );
+		CCP_LOGERR( "Failed to create compatible device!" );
 		return false;
 	}
 
@@ -252,7 +251,7 @@ bool TriDevice::InitD3DDevice()
 		return false;
 	}
 
-	if( mPresentParam.IsAdapterRequired()
+	if( ( mPresentParam.outputWindow || !mPresentParam.software )
 		&& FAILED( Tr2VideoAdapterInfo::GetAdapterDisplayMode( 
 						Tr2VideoAdapterInfo::DEFAULT_ADAPTER, 
 						mDisplayMode ) ) 
@@ -316,7 +315,7 @@ bool TriDevice::ChangeDevice(
 	mHeight = pp->mode.height;
 	mPresentParam = *pp;
 	// find out the mode we are in now
-	if( mPresentParam.IsAdapterRequired() &&
+	if( ( mPresentParam.outputWindow || !mPresentParam.software ) &&
 		FAILED( Tr2VideoAdapterInfo::GetAdapterDisplayMode( mAdapter, mDisplayMode ) ) )
 	{
 		return false;
@@ -351,8 +350,6 @@ void TriDevice::Update( Be::Time realTime, Be::Time simTime )
 #endif
 
 	TriSrand( simTime );
-
-	UpdateCursor();
 
 	// Callbacks to Python when curve sets finish may add curve sets to the device curve sets
 	// list. This will mess up the iterator unless we iterate over a copy.
@@ -542,11 +539,6 @@ void TriDevice::InvalidateAndUnregisterForTicks()
 	mWidth = mHeight = 0;
 }
 
-Tr2WindowHandle TriDevice::GetWindow()
-{
-	return mHwnd;
-}
-
 static const float ANIMATION_TIME_MAX = 3600.0f; // One hour
 
 void TriDevice::OnTick( Be::Time realTime, Be::Time simTime, void* cookie )
@@ -734,7 +726,7 @@ bool TriDevice::ResetDevice( unsigned adapter, const Tr2PresentParametersAL* pp 
 	mPresentParam = *pp;
 	
 	// We may have changed display modes
-	if( mPresentParam.IsAdapterRequired()
+	if( ( mPresentParam.outputWindow || !mPresentParam.software )
 		&& FAILED( Tr2VideoAdapterInfo::GetAdapterDisplayMode( mAdapter, mDisplayMode ) ) )
 	{
 		CCP_LOGNOTICE( "Device Reset: Adapter Display Mode Changed" );
@@ -808,23 +800,6 @@ PyObject* TriDevice::PyCreateWindowlessDevice( PyObject* args )
 	return PythonCreateDeviceHelper( args, NO_ADAPTER );	
 }
 
-size_t TriDevice::PyGetWindow()
-{
-	return (size_t)GetWindow();
-}
-
-PyObject *TriDevice::PyGetPresentParameters( PyObject *args)
-{
-	TriPythonContext pythonCtx;
-
-	if( !PyArg_ParseTuple( args, "" ) )
-	{
-		return nullptr;
-	}
-
-	return mPresentParam.Get().Detach();
-}
-
 PyObject *TriDevice::PyRegisterResource( PyObject *args )
 {
 	PyObject *obj;
@@ -872,7 +847,7 @@ bool TriDevice::SetPresentParameters( unsigned adapter, const Tr2PresentParamete
 	if( FAILED( hr ) )
 	{
 		LogAllLiveResources( TRISTORAGE_VIDEOMEMORY );
-		TriError::ReportError( hr, Clsid(), "Device Reset failed" );
+		CCP_LOGERR( "Device Reset failed: 0x%X", unsigned( hr.GetResult() )  );
 		return false;
 	}
 	return true;
@@ -1011,18 +986,7 @@ bool TriDevice::Render()
 	// start rendering
 	Tr2Renderer::BeginFrame();
 
-	HRESULT hr = Tr2Renderer::BeginRenderContext();
-	if( FAILED( hr ) )
-	{
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-		if( hr == D3DERR_OUTOFVIDEOMEMORY )
-		{
-			ReleaseDeviceResources( TRISTORAGE_VIDEOMEMORY );
-			hr = Tr2Renderer::BeginRenderContext();
-		}
-		CHECKDXFAIL("BeginScene Failed");
-#endif
-	}
+	Tr2Renderer::BeginRenderContext();
 	
 	Tr2Renderer::GetQuadListIndexBuffer( 16384 );
 
@@ -1070,19 +1034,9 @@ bool TriDevice::SupportsRenderTargetFormat( Tr2RenderContextEnum::PixelFormat fo
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	if( renderContext.IsValid() )
 	{
-		return Tr2VideoAdapterInfo::SupportsRenderTargetFormat( unsigned( mAdapter ), renderContext.GetBackBufferFormat(), format, false );
+		return Tr2VideoAdapterInfo::SupportsRenderTargetFormat( unsigned( mAdapter ), format );
 	}
-	return Tr2VideoAdapterInfo::SupportsRenderTargetFormat( Tr2VideoAdapterInfo::DEFAULT_ADAPTER, PIXEL_FORMAT_B8G8R8X8_UNORM, format, false );
-}
-
-bool TriDevice::SupportsDepthStencilFormat( Tr2RenderContextEnum::DepthStencilFormat format ) const
-{
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	if( renderContext.IsValid() )
-	{
-		return Tr2VideoAdapterInfo::SupportsDepthStencilFormat( unsigned( mAdapter ), renderContext.GetBackBufferFormat(), format );
-	}
-	return Tr2VideoAdapterInfo::SupportsDepthStencilFormat( Tr2VideoAdapterInfo::DEFAULT_ADAPTER, PIXEL_FORMAT_B8G8R8X8_UNORM, format );
+	return Tr2VideoAdapterInfo::SupportsRenderTargetFormat( Tr2VideoAdapterInfo::DEFAULT_ADAPTER, format );
 }
 
 void TriDevice::Throttle() const

@@ -18,11 +18,7 @@ CcpStdDevStatisticsEntry g_activeFrametimeStdDev;
 
 namespace
 {
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	const Tr2RenderContextEnum::PixelFormat BACK_BUFFER_FORMAT = Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8X8_UNORM;
-#else
 	const Tr2RenderContextEnum::PixelFormat BACK_BUFFER_FORMAT = Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM;
-#endif
 
 	ALResult PopulatePresentParams( Tr2PresentParametersAL& presentParams, Tr2WindowMode::Type windowMode, uint32_t adapter, uint32_t width, uint32_t height, Tr2RenderContextEnum::PresentInterval presentInterval )
 	{
@@ -430,8 +426,7 @@ void Tr2MainWindow::SanitizeAdapter( uint32_t& adapter ) const
 		adapter = 0;
 	}
 
-	if( Tr2VideoAdapterInfo::SupportsBackBufferFormat( adapter, BACK_BUFFER_FORMAT, true ) &&
-		Tr2VideoAdapterInfo::SupportsBackBufferFormat( adapter, BACK_BUFFER_FORMAT, false ) )
+	if( Tr2VideoAdapterInfo::SupportsBackBufferFormat( adapter, BACK_BUFFER_FORMAT ) )
 	{
 		return;
 	}
@@ -439,8 +434,7 @@ void Tr2MainWindow::SanitizeAdapter( uint32_t& adapter ) const
 
 	for( unsigned i = 0; i < count; ++i )
 	{
-		if( Tr2VideoAdapterInfo::SupportsBackBufferFormat( i, BACK_BUFFER_FORMAT, true ) &&
-			Tr2VideoAdapterInfo::SupportsBackBufferFormat( i, BACK_BUFFER_FORMAT, false ) )
+		if( Tr2VideoAdapterInfo::SupportsBackBufferFormat( i, BACK_BUFFER_FORMAT ) )
 		{
 			adapter = i;
 			return;

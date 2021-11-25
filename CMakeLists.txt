@@ -84,15 +84,6 @@ set_shared_trinity_properties(trinity_stub)
 endif()
 
 if(WIN32)
-    add_library(trinity_dx9 SHARED EXCLUDE_FROM_ALL)
-    target_compile_definitions(trinity_dx9
-        PRIVATE
-            TRINITY_PLATFORM=TRINITY_DIRECTX9
-            TRINITYNAME=_trinity_dx9
-    )
-    target_link_libraries(trinity_dx9 PRIVATE TrinityAL_dx9)
-    set_shared_trinity_properties(trinity_dx9)
-
     add_library(trinity_dx11 SHARED)
     target_compile_definitions(trinity_dx11
         PRIVATE

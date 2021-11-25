@@ -33,7 +33,6 @@ BLUE_DECLARE(Tr2Effect);
 BLUE_DECLARE(Tr2VisibilityResults);
 BLUE_DECLARE(Tr2TextureAtlas);
 BLUE_DECLARE_VECTOR(Tr2TextureAtlas);
-BLUE_DECLARE_INTERFACE(ITr2PhysicsUpdater);
 BLUE_DECLARE(TriCurveSet);
 BLUE_DECLARE_VECTOR(TriCurveSet);
 BLUE_DECLARE(Tr2DebugRenderer);
@@ -271,9 +270,6 @@ private:
 
 	// visualization
 	VisualizeMethod m_visualizeMethod;
-
-	// Ragdoll simulation
-	ITr2PhysicsUpdaterPtr m_ragdollScene;
 
 	// N dot L lookup texture (used during lighting pass)
 	TriTextureResPtr m_nDotLTexture;

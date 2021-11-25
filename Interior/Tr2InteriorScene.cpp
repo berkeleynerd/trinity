@@ -7,13 +7,12 @@
 #include "TriView.h"
 #include "TriViewport.h"
 #include "Tr2VisibilityResults.h"
-#include "Tr2LitPerObjectData.h"
+#include "Tr2PerObjectData.h"
 #include "Tr2AtlasTexture.h"
 #include "Tr2PushPopDS.h"
 #include "Tr2PushPopRT.h"
 
 #include "Tr2InteriorPlaceable.h"
-#include "ITr2PhysicsUpdater.h"
 #include "Curves/TriCurveSet.h"
 #include "Tr2TextureAtlas.h"
 #include "Shader/Tr2Effect.h"
@@ -421,11 +420,6 @@ void Tr2InteriorScene::Update( Be::Time realTime, Be::Time simTime )
 	m_ambientColorVar		= m_ambientColor;
 	m_cameraPosVar			= Tr2Renderer::GetViewPosition();
 
-	if( m_ragdollScene != NULL )
-    {
-		m_ragdollScene->PrePhysics( simTime );
-	}
-
 	{
 		CCP_STATS_ZONE( "UpdateCurves" );
 		for( TriCurveSetVector::const_iterator it = m_curveSets.begin(); it != m_curveSets.end(); ++it )
@@ -466,11 +460,6 @@ void Tr2InteriorScene::Update( Be::Time realTime, Be::Time simTime )
 		{
 			( *it )->PrePhysicsUpdate( simTime );
 		}
-	}
-
-	if( m_ragdollScene != NULL )
-    {
-		m_ragdollScene->SimulatePhysics();
 	}
 
 	{
@@ -805,8 +794,8 @@ void Tr2InteriorScene::PrepareBackgroundCubemapBatch( ITriRenderBatchAccumulator
 			batches->Allocate<Tr2InteriorBackgroundCubemapBatch>();
 
 		// Allocate a per-object data for the background cubemap
-		Tr2LitPerObjectData* perObjectData =
-			batches->Allocate<Tr2LitPerObjectData>();
+		Tr2PerObjectDataStandard* perObjectData =
+			batches->Allocate<Tr2PerObjectDataStandard>();
 
 		// If the batch & per-object data allocations succeeded
 		if( batch && perObjectData )

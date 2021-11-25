@@ -15,10 +15,6 @@
 Tr2MouseCursor::Tr2MouseCursor( IRoot* lockobj )
 #ifdef _WIN32
 :    m_cursor( nullptr )
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	, m_hotspotX( 0 )
-	, m_hotspotY( 0 )
-#endif
 #elif __APPLE__
 :   m_cursor( 0 )
 #endif
@@ -32,12 +28,10 @@ Tr2MouseCursor::Tr2MouseCursor( IRoot* lockobj )
 Tr2MouseCursor::~Tr2MouseCursor()
 {
 #ifdef _WIN32
-#if TRINITY_PLATFORM != TRINITY_DIRECTX9
 	if( m_cursor )
 	{
 		DeleteObject( m_cursor );
 	}
-#endif
 #endif
 }
 
@@ -118,9 +112,8 @@ static void DecompressBC1( char* dest, const char* source, unsigned width, unsig
 					for( unsigned x = 0; x < 4; ++x )
 					{
 						unsigned destY = j + y;
-#if TRINITY_PLATFORM != TRINITY_DIRECTX9
 						destY = height - 1 - destY;
-#endif
+
 						uint32_t* destPixel = reinterpret_cast<uint32_t*>( dest + destY * pitch + ( x + i ) * sizeof( uint32_t ) );
 						switch( ( bits >> 2 * ( 4 * y + x ) ) & 3 )
 						{
@@ -147,9 +140,8 @@ static void DecompressBC1( char* dest, const char* source, unsigned width, unsig
 					for( unsigned x = 0; x < 4; ++x )
 					{
 						unsigned destY = j + y;
-#if TRINITY_PLATFORM != TRINITY_DIRECTX9
 						destY = height - 1 - destY;
-#endif
+
 						uint32_t* destPixel = reinterpret_cast<uint32_t*>( dest + destY * pitch + ( x + i ) * sizeof( uint32_t ) );
 						switch( ( bits >> 2*(4*y+x) ) & 3 )
 						{
@@ -201,9 +193,8 @@ static void DecompressBC2( char* dest, const char* source, unsigned width, unsig
 				for( unsigned x = 0; x < 4; ++x )
 				{
 					unsigned destY = j + y;
-#if TRINITY_PLATFORM != TRINITY_DIRECTX9
 					destY = height - 1 - destY;
-#endif
+
 					uint32_t* destPixel = reinterpret_cast<uint32_t*>( dest + destY * pitch + ( x + i ) * sizeof( uint32_t ) );
 					unsigned alphaValue = ( *( reinterpret_cast<const unsigned short*>( source ) + y ) >> x * 4 ) & 15;
 					alphaValue = alphaValue * 255 / 15;
@@ -284,12 +275,10 @@ bool Tr2MouseCursor::Create( Tr2HostBitmap* bitmap, int hotspotX, int hotspotY, 
 	}
 
 #ifdef _WIN32
-#if TRINITY_PLATFORM != TRINITY_DIRECTX9
 	if( m_cursor )
 	{
 		DeleteObject( m_cursor );
 	}
-#endif
 	m_cursor = nullptr;
 #endif
 	// Check the format: we really need B8G8R8A8 for cursor,
@@ -314,64 +303,7 @@ bool Tr2MouseCursor::Create( Tr2HostBitmap* bitmap, int hotspotX, int hotspotY, 
 		return false;
 	}
 
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
-	if( !renderContext.m_d3dDevice9 )
-	{
-		CCP_LOGERR( "Tr2MouseCursor.Create: no DX9 device available" );
-		return false;
-	}
-
-	CR_RETURN_VAL( 
-		renderContext.m_d3dDevice9->CreateOffscreenPlainSurface( 
-			bitmap->GetWidth(), 
-			bitmap->GetHeight(),
-			D3DFMT_A8R8G8B8, 
-			D3DPOOL_SYSTEMMEM, 
-			&m_cursor, 
-			nullptr ),
-		false );
-
-	D3DLOCKED_RECT rect;
-	if( FAILED( m_cursor->LockRect( &rect, nullptr, 0 ) ) )
-	{
-		m_cursor = nullptr;
-		return false;
-	}
-	switch( bitmap->GetFormat() )
-	{
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_TYPELESS:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_UNORM:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC1_UNORM_SRGB:
-		DecompressBC1( reinterpret_cast<char*>( rect.pBits ), bitmap->GetRawData(), bitmap->GetWidth(), bitmap->GetHeight(), rect.Pitch );
-		break;
-
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_TYPELESS:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_UNORM:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_BC2_UNORM_SRGB:
-		DecompressBC2( reinterpret_cast<char*>( rect.pBits ), bitmap->GetRawData(), bitmap->GetWidth(), bitmap->GetHeight(), rect.Pitch );
-		break;
-	case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_TYPELESS:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM:
-	case Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB:
-		{
-			const char* row = bitmap->GetRawData();
-			for( unsigned j = 0; j < bitmap->GetHeight(); ++j )
-			{
-				memcpy( reinterpret_cast<char*>( rect.pBits ) + j * rect.Pitch, row, bitmap->GetWidth() * 4 );
-				row += bitmap->GetPitch();
-			}
-		}
-		break;
-	}
-	m_cursor->UnlockRect();
-
-	m_hotspotX = hotspotX;
-	m_hotspotY = hotspotY;
-
-	return true;
-#elif defined(_WIN32)
+#if defined(_WIN32)
     BITMAPV5HEADER bi;
     ZeroMemory( &bi, sizeof( BITMAPV5HEADER ) );
     bi.bV5Size = sizeof( BITMAPV5HEADER );
@@ -511,43 +443,9 @@ void Tr2MouseCursor::Apply()
 	{
 		return;
 	}
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-
-	if( renderContext.m_d3dDevice9 )
-	{
-		renderContext.m_d3dDevice9->SetCursorProperties( m_hotspotX, m_hotspotY, m_cursor );
-	}
-#elif defined(_WIN32)
+#if defined(_WIN32)
 	SetCursor( m_cursor );
 #elif __APPLE__
     Apply_MacOS();
 #endif
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements Tr2DeviceResource. Destroys cursor surface for DX9.
-// Arguments:
-//   s - Memory class
-// --------------------------------------------------------------------------------------
-void Tr2MouseCursor::ReleaseResources( TriStorage s )
-{
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	if( s & TRISTORAGE_MANAGEDMEMORY )
-	{
-		m_cursor = nullptr;
-	}
-#endif
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements Tr2DeviceResource. Does nothing: we don't auto-restore cursors.
-// Return Value:
-//   true Always
-// --------------------------------------------------------------------------------------
-bool Tr2MouseCursor::OnPrepareResources()
-{
-	return true;
 }

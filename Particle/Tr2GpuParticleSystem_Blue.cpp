@@ -123,19 +123,6 @@ const Be::ClassInfo* Tr2GpuParticleSystem::ExposeToBlue()
 			HasParticles, 
 			"If the system contains no alive particles; acts as an estimate and can return false positives" )
 
-#if GPU_PARTICLES_METHOD == GPU_PARTICLES_TEXTURE_METHOD
-		MAP_ATTRIBUTE( 
-			"debugPositionRT", 
-			m_positions[0], 
-			"Position render target (for debug only)", 
-			Be::READ )
-		MAP_ATTRIBUTE( 
-			"debugVelocityRT", 
-			m_velocities[0], 
-			"Velocity render target (for debug only)", 
-			Be::READ )
-#endif
-
 		MAP_METHOD_AND_WRAP( 
 			"Clear", 
 			Clear, 

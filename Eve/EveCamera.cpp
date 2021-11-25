@@ -3,7 +3,6 @@
 #include "TriDevice.h"
 #include "TriProjection.h"
 #include "TriView.h"
-#include "TriError.h"
 #include "Include/TriMath.h"
 #include "Curves/Tr2CurveScalar.h"
 
@@ -194,9 +193,7 @@ void EveCamera::Zoom( Be::OptionalWithDefaultValue<int, -1> key )
 	}
 	if (size < 1)
 	{
-		TriError::ReportError( BEDEF, Clsid(), 
-			"\r\nTried to zoom but the camera had no keys on zoomCurve"
-			);
+		CCP_LOGERR( "Tried to zoom but the camera had no keys on zoomCurve" );
 		return;
 	}
     if (key != -1)

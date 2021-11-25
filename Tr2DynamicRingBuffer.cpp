@@ -8,9 +8,6 @@
 #include "Tr2DynamicRingBuffer.h"
 #include "TriSettingsRegistrar.h"
 
-bool g_ringBufferUseNoOverwrite = true;
-TRI_REGISTER_SETTING( "ringBufferUseNoOverwrite", g_ringBufferUseNoOverwrite );
-
 using namespace Tr2RenderContextEnum;
 
 Tr2DynamicRingBuffer::Tr2DynamicRingBuffer()
@@ -55,17 +52,6 @@ ALResult Tr2DynamicRingBuffer::PutData(
 	if( !IsValid() )
 	{
 		return E_INVALIDCALL;
-	}
-	if( !UseNoOverwriteRegions() )
-	{
-		RemoveRegions( m_regions.begin(), m_regions.end() );
-		if( size > m_bufferSize )
-		{
-			CR_RETURN_HR( CreateBuffer( size ) );
-			m_bufferSize = size;
-		}
-		bufferOffset = 0;
-		return UpdateBuffer( data, 0, size, Tr2LockType::SYNCHRONIZED, renderContext );
 	}
 
 	Tr2LockType::Type lockType;
@@ -283,28 +269,6 @@ void Tr2DynamicRingBuffer::RemoveRegions( RegionVector::iterator begin, RegionVe
 		DeallocateFence( it->fence );
 	}
 	m_regions.erase( begin, end );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Checks if the object should use a ring buffer pattern or fall back to the simple
-//   lock discard method. This depends on the platform and trinity setting.
-// Return value:
-//   true If the object should use ring buffer pattern
-//   false If the object should use simple discard locks
-// --------------------------------------------------------------------------------------
-bool Tr2DynamicRingBuffer::UseNoOverwriteRegions() const
-{
-#if !TRINITY_PLATFORM_SUPPORTS_NON_SYNCHRONIZED_LOCKS
-	return false;
-#else
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	if( !renderContext.GetCaps().SupportsNoOverwriteLock() )
-	{
-		return false;
-	}
-	return g_ringBufferUseNoOverwrite;
-#endif
 }
 
 // --------------------------------------------------------------------------------------

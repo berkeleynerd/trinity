@@ -59,6 +59,8 @@ void Tr2InteriorLightSet::Clear( void )
 // --------------------------------------------------------------------------------------
 void Tr2InteriorLightSet::PopulateLightData( Tr2InteriorPerObjectPSData* perObjectPSData )
 {
+	perObjectPSData->lightCount = GetNumOfActiveLights();
+
 	// set each pointlight data in target array
 	unsigned int i = 0;
 	std::list<InternalLightInstance>::const_iterator it = m_lightInstances.begin();

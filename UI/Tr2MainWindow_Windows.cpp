@@ -588,19 +588,10 @@ LRESULT Tr2MainWindow::WndProc( HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 		// use D3D or Windows cursor?
 		if( !useWindowsCursor )
 		{
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-			USE_MAIN_THREAD_RENDER_CONTEXT();
-			if( renderContext.m_d3dDevice9 )
-			{
-				SetCursor( NULL );
-				renderContext.m_d3dDevice9->ShowCursor( TRUE );
-			}
-#else
 			if( m_cursor )
 			{
 				m_cursor->Apply();
 			}
-#endif
 			return TRUE; // prevent Windows from setting cursor to window class cursor
 		}
 	}

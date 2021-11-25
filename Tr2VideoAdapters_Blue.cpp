@@ -109,26 +109,7 @@ const Be::ClassInfo* Tr2VideoAdapters::ExposeToBlue()
 			"\n"
 			"\n:param idx: Video adapter index"
 			"\n:param format: Render target format (member of trinity.PIXEL_FORMAT)"
-			"\n:param windowed: Boolean: if the device is running in windowed or fullscreen mode"
 			"\n:param msaaType: Number of MSAA samples" )
-		MAP_METHOD_AND_WRAP( 
-			"GetDepthStencilMsaaSupport", 
-			GetDepthStencilMsaaSupport, 
-			"Returns number of MSAA quality levels supported by video adapter for"
-			"\ngiven depth stencil format and number of MSAA samples (0 means MSAA is"
-			"\nnot supported for given combination)."
-			"\n"
-			"\n:param idx: Video adapter index"
-			"\n:param format: Depth stencil format (member of trinity.DEPTH_STENCIL_FORMAT)"
-			"\n:param windowed: Boolean: if the device is running in windowed or fullscreen mode"
-			"\n:param msaaType: Number of MSAA samples" )
-
-		MAP_METHOD_AND_WRAP( 
-			"GetShaderVersion", 
-			GetShaderVersion, 
-			"Returns maximum shader version supported by video adapter."
-			"\n"
-			"\n:param idx: Video adapter index")
 
 		MAP_METHOD_AND_WRAP( 
 			"SupportsBackBufferFormat", 
@@ -137,8 +118,7 @@ const Be::ClassInfo* Tr2VideoAdapters::ExposeToBlue()
 			"\nin fullscreen or windowed mode."
 			"\n"
 			"\n:param idx: Video adapter index"
-			"\n:param backBufferFormat: Back buffer format (member of trinity.PIXEL_FORMAT)"
-			"\n:param windowed: Boolean: if the device is running in windowed or fullscreen mode" )
+			"\n:param backBufferFormat: Back buffer format (member of trinity.PIXEL_FORMAT)" )
 		MAP_METHOD_AND_WRAP( 
 			"SupportsRenderTargetFormat", 
 			SupportsRenderTargetFormat, 
@@ -146,17 +126,7 @@ const Be::ClassInfo* Tr2VideoAdapters::ExposeToBlue()
 			"\nwith the given back buffer format."
 			"\n"
 			"\n:param idx: Video adapter index"
-			"\n:param backBufferFormat: Back buffer format (member of trinity.PIXEL_FORMAT)"
 			"\n:param format: Render target format (member of trinity.PIXEL_FORMAT)" )
-		MAP_METHOD_AND_WRAP( 
-			"SupportsDepthStencilFormat", 
-			SupportsDepthStencilFormat, 
-			"Returns if the video adapter supports given depth stencil format when running"
-			"\nwith the given back buffer format."
-			"\n"
-			"\n:param idx: Video adapter index"
-			"\n:param backBufferFormat: Back buffer format (member of trinity.PIXEL_FORMAT)"
-			"\n:param format: Depth stencil format (member of trinity.DEPTH_STENCIL_FORMAT)" )
 		MAP_METHOD_AND_WRAP( 
 			"GetMaxTextureSize", 
 			GetMaxTextureSize, 

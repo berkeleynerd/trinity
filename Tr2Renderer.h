@@ -49,7 +49,6 @@ public:
 
 	static void SetShaderModel( TR2SHADERMODEL sm );
 	static TR2SHADERMODEL GetShaderModel();
-	static TR2SHADERMODEL GetMaxShaderModelSupported();
 	static const char* GetShaderModelString( TR2SHADERMODEL sm );
 
 	// Get the default start registers for the currently set shader model

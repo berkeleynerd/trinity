@@ -6,7 +6,7 @@
 
 // Trinity headers
 #include "Utilities/BoundingSphere.h"
-#include "Tr2LitPerObjectData.h"
+#include "Tr2PerObjectData.h"
 #include "Wod/WodPlaceableRes.h"
 #include "Tr2Mesh.h"
 #include "Curves/TriCurveSet.h"
@@ -549,7 +549,7 @@ Tr2PerObjectData* Tr2InteriorPlaceable::GetPerObjectDataWithLightSet( ITriRender
 																	  Tr2InteriorLightSet* lightSet,
 																	  const Matrix& objectToWorldMatrix )
 {
-	Tr2LitPerObjectData* data = accumulator->Allocate<Tr2LitPerObjectData>();
+	Tr2PerObjectDataStandard* data = accumulator->Allocate<Tr2PerObjectDataStandard>();
 
 	if( !data )
 	{
@@ -572,7 +572,6 @@ Tr2PerObjectData* Tr2InteriorPlaceable::GetPerObjectDataWithLightSet( ITriRender
 	if( lightSet )
 	{
 		lightSet->PopulateLightData( &perObjectPSBuffer );
-		data->SetLightsActive( lightSet->GetNumOfActiveLights(), lightSet->GetNumOfActiveLights() );
 	}
 
 	// Do the copy

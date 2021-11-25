@@ -28,7 +28,6 @@
 
 #include "include/ITriDevice.h"
 #include "TriViewport.h"
-#include "TriDirect3D.h"
 
 BLUE_DECLARE_INTERFACE( ITr2Scene );
 BLUE_DECLARE_INTERFACE( ITr2Updateable );
@@ -39,14 +38,6 @@ BLUE_DECLARE( Tr2RenderJobs );
 BLUE_DECLARE( Tr2RenderTargetGrabber );
 
 extern const Be::VarChooser TriDeviceTypeChooser[];
-
-// Global pointer to device, guaranteed to be a valid device.
-// Any rendering code or resource creation code that needs access
-// to the device can get it through this variable and does _not_
-// need to check for validity.
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-extern bool g_usingEXDevice;
-#endif
 
 BLUE_CLASS( TriDevice ):
 	public ITriDevice,
@@ -97,7 +88,6 @@ public:
 
 	// Window handling	
 	bool SetPresentation( int adapter, const Tr2PresentParametersAL* d3dpp );
-	Tr2WindowHandle GetWindow();
 
 	//Transform screen (viewport) coordinates into projection coordinates (clip).
 	void ScreenToProjection(	int x,		int y,
@@ -116,8 +106,6 @@ public:
 		Vector3& rayWorld,		// Out: The ray in world coordinates
 		Vector3& startWorld		// Out: Starting point in world coordinates
 		);
-
-	void UpdateCursor();
 
 	bool ChangeDevice(
 		uint32_t adapter,
@@ -227,7 +215,6 @@ public:
 	void AddPostUpdateCallback( IBlueCallbackMan::CallbackFunc cb, void* context );
 
 	bool SupportsRenderTargetFormat( Tr2RenderContextEnum::PixelFormat format ) const;
-	bool SupportsDepthStencilFormat( Tr2RenderContextEnum::DepthStencilFormat format ) const;
 
 private:
 	bool InitD3DDevice();  //call when a new device has been set
@@ -252,7 +239,7 @@ private:
 	DeviceType m_deviceType;
 	
 	int mAdapter;	
-	PresentationParameters mPresentParam;
+	Tr2PresentParametersAL mPresentParam;
 
 	// We must use a container class that can survive insertions during iteration without invalidating
 	// the iterator.  std::set is such a container and offers fast insertion/removal.
@@ -293,14 +280,6 @@ private:
 	// to the lifetime of g_d3dDev, until we figure out what to do with this.
 	Tr2RenderJobsPtr	m_renderJobs;
 
-	struct DeviceResetContextManager
-	{
-		DeviceResetContextManager();
-		~DeviceResetContextManager();	
-	private:
-		bool m_originalSetting;
-	};
-
 	IBlueCallbackManPtr m_postUpdateCallbacks;
 
 
@@ -314,10 +293,7 @@ public:
 	PyObject* PyCreateFullScreenDevice ( PyObject* args );
 	PyObject* PyCreateWindowlessDevice ( PyObject* args );
 	
-	size_t PyGetWindow();
 	void PyRender();
-
-	PyObject* PyGetPresentParameters ( PyObject* args );
 
 	PyObject* PyRegisterResource ( PyObject* args );
 	PyObject* PyGetPickRayFromViewport ( PyObject* args );

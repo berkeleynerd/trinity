@@ -293,7 +293,6 @@ private:
 	// Create D3D mesh from data in m_pGrannyFile
 	bool CreateMeshesFromGrannyFile( granny_file_info* gi, Tr2PrimaryRenderContext& renderContext );
 	bool CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryResMeshData* pMesh, Tr2PrimaryRenderContext& renderContext, void* pVBOverride = NULL );
-	bool CreateD3DVertexBuffer( TriGeometryResMeshData* pMesh, int vtxCount, int bytesPerVtx, const granny_mesh* mesh, const void* pSrc, const granny_data_type_definition* grnVtxDecl, bool fullFloat, Tr2PrimaryRenderContext& renderContext );
 };
 
 TYPEDEF_BLUECLASS_WR_SHUTDOWN(TriGeometryRes);

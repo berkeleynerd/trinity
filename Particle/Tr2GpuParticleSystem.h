@@ -19,14 +19,6 @@ BLUE_DECLARE( TriTextureRes );
 BLUE_DECLARE( Tr2VariableStore );
 BLUE_DECLARE( Tr2RenderTarget );
 
-#define GPU_PARTICLES_TEXTURE_METHOD 1
-#define GPU_PARTICLES_BUFFER_METHOD 2
-
-#if TRINITY_PLATFORM_SUPPORTS_COMPUTE
-#define GPU_PARTICLES_METHOD GPU_PARTICLES_BUFFER_METHOD
-#else
-#define GPU_PARTICLES_METHOD GPU_PARTICLES_TEXTURE_METHOD
-#endif
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -127,10 +119,9 @@ private:
 	void RunSimulation( float dt, const Vector3& originShift, Tr2RenderContext& renderContext );
 	void UpdateGpuEmitterParams( Tr2RenderContext& renderContext );
 
-#if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
 	void Sort( Tr2RenderContext& renderContext );
 	bool SortIncremental( uint32_t presorted, Tr2RenderContext& renderContext );
-#endif
+
 	void SetMaxParticles( uint32_t maxParticles );
 	void ExpireEmitterParams( float dt );
 	void UpdateEmitterParams( Tr2RenderContext& renderContext );
@@ -154,7 +145,6 @@ private:
 		uint32_t emitterSeed;
 	};
 
-#if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
 	// buffer to store per-particle data (see ParticleData)
 	Tr2GpuStructuredBufferPtr m_particleData;
 	// list of indicies to dead particles in m_particleData buffer (re-populated during
@@ -168,22 +158,6 @@ private:
 	// buffer with persistent emitter data (see EmitterParams)
 	Tr2GpuStructuredBufferPtr m_emitterParamsBuffer;
 	Tr2GpuBufferPtr m_counters;
-#else
-	// current target index in ping-pong game
-	uint32_t m_targetIndex;
-	// current index into particle m_positions/m_velocities pixel for
-	// emitting new data
-	CcpAtomic<uint32_t> m_emitIndex;
-	// particle positions and ages (see ParticleData)
-	Tr2RenderTargetPtr m_positions[2];
-	// particle velocities and emitter params indexes (see ParticleData)
-	Tr2RenderTargetPtr m_velocities[2];
-	// texture with persistent emitter data (see EmitterParams)
-	TriTextureResPtr m_emitterParamsTexture;
-	Tr2BufferAL m_vb;
-	Tr2BufferAL m_ib;
-	unsigned m_decl;
-#endif
 
 	// shader that is supposed to emit new particles
 	Tr2EffectPtr m_emit;
@@ -204,7 +178,6 @@ private:
 	// shader that does incremental sort (merge phase)
 	Tr2EffectPtr m_sortInner;
 
-#if GPU_PARTICLES_METHOD == GPU_PARTICLES_BUFFER_METHOD
 	typedef Emitter EmitterGpu;
 	struct EmitterParamsGpu
 	{
@@ -227,51 +200,6 @@ private:
 		float attractorStrength;
 		float velocityStretchRotation;
 	};
-#else
-	// ----------------------------------------------------------------------------------
-	// Description:
-	//   Per-emitter data as sent to GPU. On DX9 it is quite different from Emitter
-	//   because of the lack of integer support
-	// ----------------------------------------------------------------------------------
-	struct EmitterGpu
-	{
-		Vector4 positionCount;
-		Vector4 positionPreviousRadius;
-		Vector4 directionAngle;
-		Vector4 directionPreviousEmitter;
-		Vector4 offsetSeed;
-		Vector4 velocityMinSpeed;
-		Vector4 velocityPreviousMaxSpeed;
-		Vector4 innerAngleUnused;
-	};
-
-	// ----------------------------------------------------------------------------------
-	// Description:
-	//   Persistent emitter parameters stored on GPU. On DX9 it is quite different from 
-	//   EmitterParams because of the lack of integer support
-	// ----------------------------------------------------------------------------------
-	struct EmitterParamsGpu
-	{
-		EmitterParamsGpu() {}
-		explicit EmitterParamsGpu( const EmitterParams& params );
-
-		Color colors[4];
-		Vector4 sizes;
-
-		float textureIndex;
-		float minLifeTime;
-		float maxLifeTime;
-		float velocityStretchRotation;
-
-		float drag;
-		float turbulenceAmplitude;
-		float turbulenceFrequency;
-		float gravity;
-
-		Vector3 attractorPosition;
-		float attractorStrength;
-	};
-#endif
 
 	// ----------------------------------------------------------------------------------
 	// Description:

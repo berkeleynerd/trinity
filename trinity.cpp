@@ -29,7 +29,6 @@ BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
 #include "Tr2TextureAtlasMan.h"
 #include "Font/Tr2FontManager.h"
 
-#include "TriError.h"
 #include "TriSettingsRegistrar.h"
 
 #include "Eve/IEveSpaceObject2.h"
@@ -77,9 +76,6 @@ const char* InitializeForPython()
 	PyObject* module = Py_InitModule( CCP_STRINGIZE( CCP_CONCATENATE( TRINITYNAME, CCP_BUILD_FLAVOR ) ), (PyMethodDef*)dummyMethods);
 	PyObject* dict = PyModule_GetDict(module);
 
-	// Initialize trinity exceptions
-	TriError::CreateExceptionObjects(dict);
-
 	// constants
 	AddTriConstants(dict);
 
@@ -112,8 +108,6 @@ const char* InitializeForPython()
 }
 #endif
 
-extern bool g_isR10G10B10FormatInverted;
-extern bool g_convertA8L8FormatToB8G8R8A8;
 extern bool g_requestDeviceDebugLayer;
 extern bool g_requestDebugMarkers;
 extern bool g_gpuTimersEnabled;
@@ -128,18 +122,6 @@ void InitializeTrinity()
 	GlobalStore().RegisterVariable( "BlitOriginal", static_cast<ITr2TextureProvider*>( nullptr ) );
 	GlobalStore().RegisterVariable( "BlitCurrent", static_cast<ITr2TextureProvider*>( nullptr ) );
 	GlobalStore().RegisterVariable( "g_texelSize", Vector4() );
-
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-	g_isR10G10B10FormatInverted = true;
-#else
-	g_isR10G10B10FormatInverted = false;
-#endif
-#if( TRINITY_PLATFORM!=TRINITY_DIRECTX9 )
-	g_convertA8L8FormatToB8G8R8A8 = true;
-#else
-	g_convertA8L8FormatToB8G8R8A8 = false;
-#endif
-
 
 #if TRINITY_PLATFORM == TRINITY_METAL
 	bool isUsingMetalValidation = false;
@@ -347,7 +329,6 @@ MAP_FUNCTION_AND_WRAP(
 BLUE_DEFINE_INTERFACE( IWorldPosition );
 BLUE_DEFINE_INTERFACE( ITr2AnimationUpdater );
 BLUE_DEFINE_INTERFACE( ITr2WorldTransformUpdater );
-BLUE_DEFINE_INTERFACE( ITr2PhysicsUpdater );
 BLUE_DEFINE_INTERFACE( ITr2BoundingBox );
 
 BLUE_DEFINE_INTERFACE( ITriDevice );
@@ -356,12 +337,6 @@ BLUE_DEFINE_INTERFACE( ITriColor );
 BLUE_DEFINE_INTERFACE( ITriVector );
 BLUE_DEFINE_INTERFACE( ITriQuaternion );
 BLUE_DEFINE_INTERFACE( ITriMatrix );
-BLUE_DEFINE_INTERFACE( ITriPlane );
-BLUE_DEFINE_INTERFACE( ITriRect );
-BLUE_DEFINE_INTERFACE( ITriVertexElement );
-BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix3 );
-BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix5 );
-BLUE_DEFINE_INTERFACE( ITriConvolutionMatrix7 );
 
 BLUE_DEFINE_INTERFACE( ITriFunction );
 BLUE_DEFINE_INTERFACE( ITriDuration );
@@ -372,80 +347,21 @@ BLUE_DEFINE_INTERFACE( ITriQuaternionFunction );
 BLUE_DEFINE_INTERFACE( ITriVectorFunction );
 BLUE_DEFINE_INTERFACE( ITriColorFunction );
 
-BLUE_DEFINE_INTERFACE( ITriScalarRenderFunc );
-
-
-BLUE_DEFINE_INTERFACE( ITriScalarCurve );
-BLUE_DEFINE_INTERFACE( ITriRotationCurve );
-BLUE_DEFINE_INTERFACE( ITriVectorCurve );
-BLUE_DEFINE_INTERFACE( ITriColorCurve );
-
-BLUE_DEFINE_INTERFACE( ITriEffect );
-BLUE_DEFINE_INTERFACE( ITriEffectRes );
-BLUE_DEFINE_INTERFACE( ITriGeometryRes );
-
-
-BLUE_DEFINE_INTERFACE( ITriShader );
-BLUE_DEFINE_INTERFACE( ITriArea );
-BLUE_DEFINE_INTERFACE( ITriAreaInfo );
-BLUE_DEFINE_INTERFACE( ITriRenderObject );
-BLUE_DEFINE_INTERFACE( ITriRenderObjectList );
-BLUE_DEFINE_INTERFACE( ITriFStretch );
-BLUE_DEFINE_INTERFACE( ITriSplTransform );
-BLUE_DEFINE_INTERFACE( ITriTransform );
-BLUE_DEFINE_INTERFACE( ITriCplTransform );
-BLUE_DEFINE_INTERFACE( ITriLODGroup );
-BLUE_DEFINE_INTERFACE( ITriDirect3D );
-BLUE_DEFINE_INTERFACE( ITriDirect3D10 );
-BLUE_DEFINE_INTERFACE( ITriLight );
-BLUE_DEFINE_INTERFACE( ITriMaterial );
-BLUE_DEFINE_INTERFACE( ITriModel );
-BLUE_DEFINE_INTERFACE( ITriParticleCloud );
-BLUE_DEFINE_INTERFACE( ITriParticleEmitter );
-BLUE_DEFINE_INTERFACE( ITriTexture );
-BLUE_DEFINE_INTERFACE( ITriTextureStage );
-BLUE_DEFINE_INTERFACE( ITriPass );
 BLUE_DEFINE_INTERFACE( ITriTextureRes );
-BLUE_DEFINE_INTERFACE( ITriVertexRes );
-BLUE_DEFINE_INTERFACE( ITriVertexResIter );
 
-BLUE_DEFINE_INTERFACE( ITriVertexBuffer );
-
-BLUE_DEFINE_INTERFACE( ITriIndexBuffer );
-BLUE_DEFINE_INTERFACE( ITriSurface );
-
-BLUE_DEFINE_INTERFACE( ITriPostProcess );
-BLUE_DEFINE_INTERFACE( ITriPostProcessStage );
 BLUE_DEFINE_INTERFACE( ITriEffectParameter );
 BLUE_DEFINE_INTERFACE( ITriEffectResourceParameter );
 
-
-BLUE_DEFINE_INTERFACE( ITriPickable );
 BLUE_DEFINE_INTERFACE( ITriTargetable );
 
 BLUE_DEFINE_INTERFACE( ITr2Renderable );
 BLUE_DEFINE_INTERFACE( ITr2Updateable );
 BLUE_DEFINE_INTERFACE( ITr2Pickable );
-BLUE_DEFINE_INTERFACE( IWodDynamicallyLit );
-
-// IME
-BLUE_DEFINE_INTERFACE( ITriIME );
-
-
-BLUE_DEFINE_INTERFACE( ITriSortable );
 
 BLUE_DEFINE_INTERFACE( ITr2Scene );
-BLUE_DEFINE_INTERFACE( ITr2VisibilityQueryable );
 
 BLUE_DEFINE_INTERFACE( ITr2VisualizationModeRenderer );
 
 BLUE_DEFINE_INTERFACE( ITr2MultiPassScene );
 
 BLUE_DEFINE_INTERFACE( ITr2DebugRenderer );
-BLUE_DEFINE_INTERFACE( ITr2ShaderMaterial );
-BLUE_DEFINE_INTERFACE( ITr2ShaderState );
-
-BLUE_DEFINE_INTERFACE( ITr2ClothMesh );
-BLUE_DEFINE_INTERFACE( IPhysXSdk );
-
-BLUE_DEFINE_INTERFACE( ID3DTexture );

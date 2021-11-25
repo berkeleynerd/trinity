@@ -4,7 +4,7 @@
 
 #include "Utilities/BoundingSphere.h"
 #include "TriSettingsRegistrar.h"
-#include "Tr2LitPerObjectData.h"
+#include "Tr2PerObjectData.h"
 #include "Resources/TriGeometryRes.h"
 #include "Resources/TriTextureRes.h"
 #include "Shader/Tr2Effect.h"
@@ -341,7 +341,7 @@ Tr2PerObjectData* Tr2IntSkinnedObject::GetPerObjectDataGpuSkinning(
 {
 	UpdatePerObjectData();
 
-	Tr2LitPerObjectDataSkinned* data = accumulator->Allocate<Tr2LitPerObjectDataSkinned>();
+	Tr2PerObjectDataSkinned* data = accumulator->Allocate<Tr2PerObjectDataSkinned>();
 
 	if( !data )
 	{
@@ -364,7 +364,6 @@ Tr2PerObjectData* Tr2IntSkinnedObject::GetPerObjectDataGpuSkinning(
 	if( lightSet )
 	{
 		lightSet->PopulateLightData( &perObjectPSBuffer );
-		data->SetLightsActive( lightSet->GetNumOfActiveLights(), lightSet->GetNumOfActiveLights() );
 	}
 
 	// Do the copy

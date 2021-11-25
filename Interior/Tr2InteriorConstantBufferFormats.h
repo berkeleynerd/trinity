@@ -34,7 +34,9 @@ struct Tr2InteriorPerObjectLightData
 
 struct Tr2InteriorPerObjectPSData
 {
-	
+	int32_t lightCount;
+	int32_t padding[3];
+
 	Tr2InteriorPerObjectLightData pointLights[MAX_INTERIOR_LIGHTS_PER_OBJECT];
 	// data on the shadow casting point lights: [x,y,z] = position, [w] = radius
 	Vector4 shadowCaster0;

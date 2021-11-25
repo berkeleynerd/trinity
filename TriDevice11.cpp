@@ -3,7 +3,6 @@
 #if( TRINITY_PLATFORM==TRINITY_DIRECTX11 )
 
 #include "TriDevice.h"
-#include "TriError.h"
 #include "RenderJob/Tr2RenderJobs.h"
 
 
@@ -15,8 +14,6 @@ TRI_REGISTER_SETTING( "fixFullscreenBehaviorForOldWindows", g_fixFullscreenBehav
 
 CCP_STATS_DECLARED_ELSEWHERE( presentTime );
 
-
-void TriDevice::UpdateCursor() {}
 
 void TriDevice::HandleRenderTick(  Be::Time realTime, Be::Time simTime )
 {
@@ -130,7 +127,7 @@ void TriDevice::HandleRenderTick(  Be::Time realTime, Be::Time simTime )
 		
 	if( !Render() )
 	{
-		REPORTERROR( "Failed to render a frame" );
+		CCP_LOGERR( "Failed to render a frame" );
 	}
 }
 

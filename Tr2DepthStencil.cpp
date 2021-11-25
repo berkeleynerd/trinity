@@ -36,14 +36,7 @@ void Tr2DepthStencil::py__init__(
 long Tr2DepthStencil::Create( unsigned width, unsigned height, DepthStencilFormat dsFormat, unsigned msaaType, unsigned msaaQuality, Tr2RenderContextEnum::ExFlag flags )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
-	auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL;
-	if( dsFormat == Tr2RenderContextEnum::DSFMT_READABLE )
-	{
-		gpuUsage |= Tr2GpuUsage::SHADER_RESOURCE;
-	}
-#if TRINITY_PLATFORM_SUPPORTS_MSAA_SAMPLE
-	gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
-#endif
+	auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL | Tr2GpuUsage::SHADER_RESOURCE;
 	if( ( flags & Tr2RenderContextEnum::EX_CREATE_SHARED ) != 0 )
 	{
 		gpuUsage |= Tr2GpuUsage::SHARED;
@@ -173,14 +166,7 @@ bool Tr2DepthStencil::OnPrepareResources()
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
-		auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL;
-		if( m_format == Tr2RenderContextEnum::DSFMT_READABLE )
-		{
-			gpuUsage |= Tr2GpuUsage::SHADER_RESOURCE;
-		}
-#if TRINITY_PLATFORM_SUPPORTS_MSAA_SAMPLE
-		gpuUsage = gpuUsage | Tr2GpuUsage::SHADER_RESOURCE;
-#endif
+		auto gpuUsage = Tr2GpuUsage::DEPTH_STENCIL | Tr2GpuUsage::SHADER_RESOURCE;
 		if( ( m_flags & Tr2RenderContextEnum::EX_CREATE_SHARED ) != 0 )
 		{
 			gpuUsage |= Tr2GpuUsage::SHARED;

@@ -17,7 +17,7 @@ BLUE_DECLARE_VECTOR( Tr2MouseCursor );
 //   Tr2MouseCursor encapsulates mouse cursor image management. There is a considerable
 //   difference in how mouse cursors are handled in DX9 and DX11/GL.
 // --------------------------------------------------------------------------------------
-class Tr2MouseCursor: public IRoot, public Tr2DeviceResource
+class Tr2MouseCursor: public IRoot
 {
 public:
     EXPOSE_TO_BLUE();
@@ -31,18 +31,7 @@ public:
 	bool Create( Tr2HostBitmap* bitmap, int hotspotX, int hotspotY, const std::vector<Tr2HostBitmap*>& representations );
 	void Apply();
 
-	void ReleaseResources( TriStorage s );
-private:
-	virtual bool OnPrepareResources();
-
-#if TRINITY_PLATFORM == TRINITY_DIRECTX9
-	// Cursor as a surface
-	CComPtr<IDirect3DSurface9> m_cursor;
-	// Hotspot coordinates
-	int m_hotspotX;
-	int m_hotspotY;
-#elif _WIN32
-	// WinApi cursor (for DX11/GL)
+#if _WIN32
 	HCURSOR m_cursor;
 #elif __APPLE__
 	struct Representation

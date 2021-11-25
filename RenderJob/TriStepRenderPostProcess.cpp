@@ -177,10 +177,8 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 			godrays = postProcess->GetGodRays();
 			filmGrain = postProcess->GetFilmGrain();
 			fog = postProcess->GetFog();
-#if TRINITY_PLATFORM_SUPPORTS_COMPUTE
 			dynamicExposure = postProcess->GetDynamicExposure();
 			fidelity = postProcess->GetFidelityFX();
-#endif
 		case MEDIUM:
 			bloom = postProcess->GetBloom();
 			desaturate = postProcess->GetDesaturate();
@@ -192,12 +190,10 @@ TriStepResult TriStepRenderPostProcess::Execute(Be::Time realTime, Be::Time simT
 		default:
 			break;
 		}
-#if TRINITY_SUPPORTS_TAA
 		if (Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH)
 		{
 			taa = postProcess->GetTaa();
 		}
-#endif
 	}
 	renderContext.m_esm.ApplyStandardStates(Tr2EffectStateManager::RM_FULLSCREEN);
 
@@ -516,7 +512,6 @@ void TriStepRenderPostProcess::RenderSignalLoss(Tr2RenderContext& renderContext,
 
 bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderContext, Tr2PPDynamicExposureEffect* dynamicExposure, Tr2PPBloomEffect* bloom)
 {
-#if TRINITY_PLATFORM_SUPPORTS_COMPUTE
 	if( !m_exposure || !m_exposure->IsValid() )
 	{
 		m_exposure = nullptr;
@@ -525,7 +520,6 @@ bool TriStepRenderPostProcess::ProcessDynamicExposure( Tr2RenderContext &renderC
 		const float clearValue[] = { 0.0f, 0.0f, 0.0f, 1.0f };
 		renderContext.ClearUav( *m_exposure, clearValue);
 	}
-#endif	
 	if (dynamicExposure && dynamicExposure->IsActive())
 	{
 		if (m_dynamicExposureCreateHistogramShader == nullptr || m_dynamicExposureMergeHistogramShader == nullptr || m_dynamicExposureMeasureExposureShader == nullptr)

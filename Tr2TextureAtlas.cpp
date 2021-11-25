@@ -2,7 +2,6 @@
 #include "Tr2TextureAtlas.h"
 #include "Tr2AtlasTexture.h"
 #include "Tr2Renderer.h"
-#include "TriError.h"
 #include "Tr2ImageIOHelpers.h"
 
 
@@ -1295,7 +1294,7 @@ bool Tr2TextureAtlas::EjectTextureHelper( Tr2AtlasTexture *tex )
 
 	if( !Tr2Renderer::IsResourceCreationAllowed() )
 	{
-		TriError::ReportError( E_DEVICELOST, Clsid(), "EjectTexture: There is no AL device available" );
+		CCP_LOGERR( "EjectTexture: There is no AL device available" );
 		return false;
 	}
 

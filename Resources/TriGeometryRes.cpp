@@ -15,10 +15,6 @@ using namespace Tr2RenderContextEnum;
 
 CCP_STATS_DECLARE( geometryResBytes, "Trinity/geometryResBytes", false, CST_MEMORY, "Size of memory occupied by geometry resources." );
 
-bool g_useManagedDX9Buffers = true;
-
-TRI_REGISTER_SETTING( "useManagedDX9Buffers",	g_useManagedDX9Buffers );
-
 //////////////////////////////////////////////////////////////////////////
 //
 // Structures used for pulling bounds information out of extended data
@@ -1510,30 +1506,6 @@ bool TriGeometryRes::RenderAsOneArea( unsigned int meshIx )
 	return true;
 }
 
-
-
-static bool ForceFullFloat( granny_data_type_definition* grannyVertexDecl, granny_data_type_definition* fullFloatVertexDecl, int vertexDeclSize )
-{
-	int componentIx = 0;
-	do {
-		granny_data_type_definition& src = grannyVertexDecl[componentIx];
-		granny_data_type_definition& dst = fullFloatVertexDecl[componentIx];
-
-		dst = src;
-		if( dst.Type == GrannyReal16Member )
-		{
-			dst.Type = GrannyReal32Member;
-		}
-		if( componentIx + 1 == vertexDeclSize )
-		{
-			return false;
-		}
-	}	
-	while( grannyVertexDecl[componentIx++].Type != GrannyEndMember );
-
-	return true;
-}
-
 bool TriGeometryRes::CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryResMeshData* pMesh, Tr2PrimaryRenderContext& renderContext, void* pVBOverride )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
@@ -1546,29 +1518,6 @@ bool TriGeometryRes::CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryR
 	const int kVertexComponentMaxCount = 13;
 	
 	granny_data_type_definition* grannyVertexDecl = myMesh->PrimaryVertexData->VertexType;
-	granny_data_type_definition fullFloatVertexDecl[kVertexComponentMaxCount];
-
-	bool forceFullFloat = false;
-	if( !renderContext.GetCaps().SupportsFloat16() )
-	{
-		// Device does not support half-precision floats
-		forceFullFloat = true;
-	}
-
-	if( forceFullFloat )
-	{
-		// If needed, change any references to half precision float to full precision floats.
-		// Doing this here, on the granny vertex declaration before anything else happens,
-		// ensures the D3D vertex buffer is created in the proper format and size.
-		// Granny also has a function to copy vertex data with conversions as needed.
-		// We pass in this (converted) vertex format - it gives us back the vertex data
-		// in the format it prescribes.
-		if( !ForceFullFloat( grannyVertexDecl, fullFloatVertexDecl, kVertexComponentMaxCount ) )
-		{
-			return false;
-		}
-		grannyVertexDecl = fullFloatVertexDecl;
-	}
 
 	Tr2VertexDefinition vertexDefinition = BuildFromGrannyVertexDecl( grannyVertexDecl );
 	const unsigned bytesPerVertex = vertexDefinition.m_nextOffset[0];
@@ -1586,19 +1535,8 @@ bool TriGeometryRes::CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryR
 
 	if( myMesh->Name && strncmp( myMesh->Name, "gpuraw_", 7 ) == 0 )
 	{
-		if( forceFullFloat )
-		{
-			TrackableStdVector<char> tempBuffer( "TriGeometryRes/tempBuffer", vertexCount * bytesPerVertex );
-			granny_data_type_definition* pSrcFmt = GrannyGetMeshVertexType( myMesh );
-			GrannyConvertVertexLayouts( vertexCount, pSrcFmt, pSrc, grannyVertexDecl, &tempBuffer[0] );
-			USE_MAIN_THREAD_RENDER_CONTEXT();
-			CR_RETURN_VAL( pMesh->m_shaderResourceBuffer.Create( bytesPerVertex, vertexCount, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, &tempBuffer[0], renderContext ), false );
-		}
-		else
-		{
-			USE_MAIN_THREAD_RENDER_CONTEXT();
-			CR_RETURN_VAL( pMesh->m_shaderResourceBuffer.Create( bytesPerVertex, vertexCount, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, pSrc, renderContext ), false );
-		}
+		USE_MAIN_THREAD_RENDER_CONTEXT();
+		CR_RETURN_VAL( pMesh->m_shaderResourceBuffer.Create( bytesPerVertex, vertexCount, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, pSrc, renderContext ), false );
 
 		pMesh->m_bytesPerVertex = bytesPerVertex;
 		pMesh->m_vertexCount = vertexCount;
@@ -1629,10 +1567,7 @@ bool TriGeometryRes::CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryR
 		}
 	}
 
-	if( !CreateD3DVertexBuffer( pMesh, vertexCount, bytesPerVertex, myMesh, pSrc, grannyVertexDecl, forceFullFloat, renderContext ) )
-	{
-		return false;
-	}
+	CR_RETURN_VAL( pMesh->m_vertexBuffer.Create( bytesPerVertex, vertexCount, Tr2GpuUsage::VERTEX_BUFFER, Tr2CpuUsage::READ | Tr2CpuUsage::WRITE, pSrc, renderContext ), false );
 	
 	// create d3d index buffer, this one is shared, either for dynamic or static geometry
 	Tr2BufferAL d3dIB;
@@ -1675,40 +1610,6 @@ bool TriGeometryRes::CreateMeshesFromGrannyFile( granny_file_info* gi, Tr2Primar
 		CreateMeshFromGrannyMesh( myMesh, pMesh, renderContext );
 	}
 	CCP_STATS_ADD( geometryResBytes, m_memoryUse );
-
-	return true;
-}
-
-// ----------------------------------------------------------------------------------------------------------------------------
-bool TriGeometryRes::CreateD3DVertexBuffer(
-	TriGeometryResMeshData* pMesh,
-	int vtxCount,
-	int bytesPerVtx,
-	const granny_mesh* mesh,
-	const void* pSrc,
-	const granny_data_type_definition* grnVtxDecl,
-	bool fullFloat, 
-	Tr2PrimaryRenderContext& renderContext )
-{
-	CCP_STATS_ZONE( __FUNCTION__ );
-
-	if( pMesh == NULL )
-	{
-		return false;
-	}
-
-	auto& vb = pMesh->m_vertexBuffer;
-	if( fullFloat )
-	{
-		std::unique_ptr<uint8_t[]> dst( new uint8_t[vtxCount * bytesPerVtx] );
-		granny_data_type_definition* pSrcFmt = GrannyGetMeshVertexType( mesh );
-		GrannyConvertVertexLayouts( vtxCount, pSrcFmt, pSrc, grnVtxDecl, dst.get() );
-		CR_RETURN_VAL( vb.Create( bytesPerVtx, vtxCount, Tr2GpuUsage::VERTEX_BUFFER, Tr2CpuUsage::READ | Tr2CpuUsage::WRITE, dst.get(), renderContext ), false );
-	}
-	else
-	{
-		CR_RETURN_VAL( vb.Create( bytesPerVtx, vtxCount, Tr2GpuUsage::VERTEX_BUFFER, Tr2CpuUsage::READ | Tr2CpuUsage::WRITE, pSrc, renderContext ), false );
-	}
 
 	return true;
 }

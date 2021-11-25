@@ -243,9 +243,7 @@ protected:
 		Matrix ShadowViewMat;
 		Matrix ShadowViewProjectionMat;
 		Matrix EnvMapRotationMat;
-#if TRINITY_SUPPORTS_TAA
 		Matrix ViewProjectionLast;
-#endif
 
 		// pass sun data to vertexshader, so certain lighting-calculations can be done per-vertex and not per-pixel
 		SunData Sun;
@@ -489,8 +487,6 @@ private:
 
 	Tr2PickBuffer m_pickBuffer;
 	EveStarfieldPtr m_starfield;
-
-	bool m_hasDepthPass;
 
 	struct VisualizerEffect
 	{

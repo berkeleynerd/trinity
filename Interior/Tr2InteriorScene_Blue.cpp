@@ -419,7 +419,6 @@ const Be::ClassInfo* Tr2InteriorScene::ExposeToBlue()
 		MAP_ATTRIBUTE( "backgroundEffect", m_backgroundEffect, "The effect used to render the background behind any objects", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "backgroundCubemapPath", m_backgroundCubeMapPath, "The path used to load the background environment map", Be::READWRITE | Be::PERSIST | Be::NOTIFY, TriTextureChooser )
 		MAP_ATTRIBUTE( "backgroundCubemapRes", m_backgroundCubeMapRes, "The background environment map", Be::READ )
-        MAP_ATTRIBUTE( "ragdollScene", m_ragdollScene, "ITr2PhysicsUpdater object which simulates ragdoll during the animation update.", Be::READWRITE | Be::PERSIST )
 		
 		MAP_ATTRIBUTE_WITH_CHOOSER( "visualizeMethod", m_visualizeMethod, "Changes rendering to a visualizing method instead of normal rendering", Be::READWRITE | Be::ENUM | Be::NOTIFY, VisualizerChooser )
 

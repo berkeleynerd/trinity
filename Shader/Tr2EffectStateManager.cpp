@@ -309,7 +309,6 @@ uint32_t Tr2EffectStateManager::RegisterRenderStateSetup( const Tr2RenderStateSe
 uint32_t Tr2EffectStateManager::RegisterShader( 
 	ShaderType type, 
 	const Tr2ShaderBytecodeAL& bytecode,
-	const Tr2ShaderBytecodeAL& patchedBytecode,
 	const Tr2ShaderSignatureAL& signature )
 {
 	for( size_t i = 0; i != s_shaders.size(); ++i )
@@ -342,7 +341,6 @@ uint32_t Tr2EffectStateManager::RegisterShader(
 	CR_RETURN_VAL(	shader->Create(  
 								type, 
 								bytecode, 
-								patchedBytecode, 
 								signature,
 								renderContext )
 				, UNKNOWN );
@@ -487,13 +485,6 @@ void Tr2EffectStateManager::BeginManagedRendering()
 	{
 		return;
 	}
-
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-	for( int i = 0; i < MAX_TEXTURESTAGES; ++i )
-	{
-		m_renderContext.m_d3dDevice9->SetTextureStageState(i, D3DTSS_TEXCOORDINDEX, i);
-	}
-#endif
 }
 
 void Tr2EffectStateManager::EndManagedRendering()
@@ -769,11 +760,6 @@ void Tr2EffectStateManager::ReleaseDeviceResources( TriStorage s )
 				m_renderContext.SetStreamSource( i, Tr2BufferAL(), 0, 0 );
 			}
 			m_renderContext.SetIndices( Tr2BufferAL() );
-
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-			// ... ehm.. what about the other platforms
-			m_renderContext.m_d3dDevice9->SetVertexDeclaration( nullptr );
-#endif
 		}
 		m_currentValues.Reset();
 

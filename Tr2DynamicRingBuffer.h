@@ -49,7 +49,6 @@ protected:
 	virtual ALResult CreateBuffer( uint32_t size ) = 0;
 	virtual ALResult UpdateBuffer( const void* data, uint32_t offset, uint32_t size, Tr2LockType::Type lockType, Tr2RenderContext& renderContext ) = 0;
 	virtual bool OnPrepareResources();
-	bool UseNoOverwriteRegions() const;
 
 	// Size of buffer in bytes
 	uint32_t m_bufferSize;

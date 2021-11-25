@@ -230,8 +230,6 @@ bool Tr2EffectDescription::Read( const void* data,
 
 				uint32_t shaderSize;
 				const void* shaderCode;
-				uint32_t shadowShaderSize;
-				const void* shadowShaderCode;
 
 				if( version < 5 )
 				{
@@ -244,13 +242,13 @@ bool Tr2EffectDescription::Read( const void* data,
 					shaderCode = buffer;
 					buffer += shaderSize;
 
+					uint32_t shadowShaderSize;
 					READ( uint32_t, uint32_t, shadowShaderSize );
 					if( buffer + shadowShaderSize > bufferEnd )
 					{
 						CCP_LOGERR( "Shader binary is too large in effect \"%s\". Corrupt file?", effectName );
 						return false;
 					}
-					shadowShaderCode = buffer;
 					buffer += shadowShaderSize;
 				}
 				else
@@ -264,15 +262,17 @@ bool Tr2EffectDescription::Read( const void* data,
 						return false;
 					}
 					shaderCode = stringTable + offset;
-
-					READ( uint32_t, uint32_t, shadowShaderSize );
-					READ( uint32_t, uint32_t, offset );
-					if( shadowShaderSize > 0 && offset + shadowShaderSize > stringTableSize )
+					if( version < 12 )
 					{
-						CCP_LOGERR( "Shader binary is too large in effect \"%s\". Corrupt file?", effectName );
-						return false;
+						uint32_t shadowShaderSize;
+						READ( uint32_t, uint32_t, shadowShaderSize );
+						READ( uint32_t, uint32_t, offset );
+						if( shadowShaderSize > 0 && offset + shadowShaderSize > stringTableSize )
+						{
+							CCP_LOGERR( "Shader binary is too large in effect \"%s\". Corrupt file?", effectName );
+							return false;
+						}
 					}
-					shadowShaderCode = stringTable + offset;
 				}
 
 				pass.stageInputs[type].signature.threadGroupSize = Tr2ShaderThreadGroupSizeAL();
@@ -528,7 +528,6 @@ bool Tr2EffectDescription::Read( const void* data,
 				pass.stageInputs[type].m_shader = Tr2EffectStateManager::RegisterShader(
 					type,
 					Tr2ShaderBytecodeAL( shaderCode, shaderSize ),
-					Tr2ShaderBytecodeAL( shadowShaderCode, shadowShaderSize ),
 					pass.stageInputs[type].signature );
 				shaderHandles[stageIx] = pass.stageInputs[type].m_shader;
 

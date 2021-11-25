@@ -5,7 +5,6 @@
 #include "Tr2Variable.h"
 #include "TriDevice.h"
 #include "TriLineSet.h"
-#include "TriError.h"
 #include "TriSettingsRegistrar.h"
 #include "TriPoolAllocator.h"
 
@@ -32,54 +31,13 @@ namespace
 	TR2SHADERMODEL s_shaderModel = TR2SM_3_0_HI;
 	TR2SHADERMODEL s_prevShaderModel = TR2SM_3_0_HI;
 
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-	unsigned int s_perFrameVSStartRegister = 220;
-	unsigned int s_perFramePSStartRegister = 200;
-	unsigned int s_perObjectVSStartRegister = 16;
-	unsigned int s_perObjectPSStartRegister = 40;
-	unsigned int s_perObjectVSGUIStartRegister = 5;
-#elif( TRINITY_PLATFORM == TRINITY_DIRECTX11 || TRINITY_PLATFORM == TRINITY_DIRECTX12 )
 	// these are actually constant buffer indices
 	unsigned int s_perFrameVSStartRegister  = 1;
 	unsigned int s_perFramePSStartRegister  = 2;
 	unsigned int s_perObjectVSStartRegister = 3;
 	unsigned int s_perObjectPSStartRegister = 4;
 	unsigned int s_perObjectVSGUIStartRegister = 6;
-#elif( TRINITY_PLATFORM==TRINITY_OPENGLES2 )
-	unsigned int s_perFrameVSStartRegister  = 1;
-	unsigned int s_perFramePSStartRegister  = 2;
-	unsigned int s_perObjectVSStartRegister = 3;
-	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSGUIStartRegister = 6;
-#elif( TRINITY_PLATFORM==TRINITY_ORBIS)
-	// these are actually constant buffer indices
-	unsigned int s_perFrameVSStartRegister  = 1;
-	unsigned int s_perFramePSStartRegister  = 2;
-	unsigned int s_perObjectVSStartRegister = 3;
-	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSGUIStartRegister = 6;
-#elif( TRINITY_PLATFORM==TRINITY_STUB)
-	// these are actually constant buffer indices
-	unsigned int s_perFrameVSStartRegister  = 1;
-	unsigned int s_perFramePSStartRegister  = 2;
-	unsigned int s_perObjectVSStartRegister = 3;
-	unsigned int s_perObjectPSStartRegister = 4;
-	unsigned int s_perObjectVSGUIStartRegister = 6;
-#elif( TRINITY_PLATFORM==TRINITY_OPENGL4 )
-    unsigned int s_perFrameVSStartRegister  = 1;
-    unsigned int s_perFramePSStartRegister  = 2;
-    unsigned int s_perObjectVSStartRegister = 3;
-    unsigned int s_perObjectPSStartRegister = 4;
-    unsigned int s_perObjectVSGUIStartRegister = 6;
-#elif( TRINITY_PLATFORM==TRINITY_METAL )
-    unsigned int s_perFrameVSStartRegister  = 1;
-    unsigned int s_perFramePSStartRegister  = 2;
-    unsigned int s_perObjectVSStartRegister = 3;
-    unsigned int s_perObjectPSStartRegister = 4;
-    unsigned int s_perObjectVSGUIStartRegister = 6;
-#else
-#	error "Missing platform"
-#endif
+
 
 	TriPoolAllocator* s_poolAllocator = NULL;
 	// keep an array of directories which are to exclude from texture-sizing
@@ -1104,36 +1062,6 @@ void Tr2Renderer::SetShaderModel( TR2SHADERMODEL sm )
 	s_prevShaderModel = s_shaderModel;
 	s_shaderModel = sm;
 
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )	//TODO GLES2 DX11 etc
-	switch( sm )
-	{
-		case TR2SM_1_1:
-			s_perFrameVSStartRegister = 80;
-			s_perFramePSStartRegister = 0;
-			s_perObjectVSStartRegister = 16;
-			s_perObjectPSStartRegister = 0;
-			break;
-
-		case TR2SM_2_0_LO:
-		case TR2SM_2_0_HI:
-			s_perFrameVSStartRegister = 220;
-			s_perFramePSStartRegister = 16;
-			s_perObjectVSStartRegister = 16;
-			s_perObjectPSStartRegister = 14;
-			break;
-
-		case TR2SM_3_0_LO:
-		case TR2SM_3_0_HI:
-		case TR2SM_3_0_DEPTH:
-		case TR2SM_AUTHORING:
-			s_perFrameVSStartRegister = 220;
-			s_perFramePSStartRegister = 200;
-			s_perObjectVSStartRegister = 16;
-			s_perObjectPSStartRegister = 40;
-			break;
-	}
-#endif	// else just leave it alone
-
 	// if changed, please perform a device reset, cause many things must be changed
 	if( changed )
 	{
@@ -1151,27 +1079,6 @@ void Tr2Renderer::SetShaderModel( TR2SHADERMODEL sm )
 TR2SHADERMODEL Tr2Renderer::GetShaderModel()
 {
 	return s_shaderModel;
-}
-
-TR2SHADERMODEL Tr2Renderer::GetMaxShaderModelSupported()
-{
-#if( TRINITY_PLATFORM==TRINITY_DIRECTX9 )
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	// if not yet initialized, return max
-	if( !renderContext.IsValid() )
-	{
-		return TR2SM_3_0_HI;
-	}
-	unsigned int psVer = renderContext.GetCaps().GetShaderVersion();
-	if(psVer >= 3)
-		return TR2SM_3_0_HI;
-	else if(psVer == 2)
-		return TR2SM_2_0_LO;
-	// problem!
-	return TR2SM_1_1;
-#else
-	return TR2SM_3_0_HI;
-#endif
 }
 
 const char* Tr2Renderer::GetShaderModelString( TR2SHADERMODEL sm )

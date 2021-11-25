@@ -57,12 +57,6 @@ BLUE_INTERFACE(ITriDevice) : public IRoot
 	// D3D rendering objects
 	
 	virtual float AspectRatio() = 0;
-	
-	// D3D handling
-
-	virtual Tr2WindowHandle GetWindow(
-		) = 0;
-		
 
 	virtual void ScreenToProjection(
 		int x,

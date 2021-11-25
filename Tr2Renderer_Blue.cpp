@@ -2,7 +2,6 @@
 
 #include "Tr2Renderer.h"
 
-#include "TriError.h"
 #include "TriPythonContext.h"
 
 static void SetViewTransform( const Matrix& m )
@@ -161,12 +160,6 @@ static const char* GetShaderModel()
 	return Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() );
 }
 MAP_FUNCTION_AND_WRAP( "GetShaderModel", GetShaderModel, "Gets the currently selected shader model (see SetShaderModel).\n" );
-
-static const char* GetMaxShaderModelSupported()
-{
-	return Tr2Renderer::GetShaderModelString( Tr2Renderer::GetMaxShaderModelSupported() );
-}
-MAP_FUNCTION_AND_WRAP( "GetMaxShaderModelSupported", GetMaxShaderModelSupported, "Gets the maximum hardware supported shader model.\n" );
 
 static uint64_t GetCurrentFrameCounter()
 {

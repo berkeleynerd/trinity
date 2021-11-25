@@ -98,7 +98,6 @@ public:
 	static uint32_t RegisterShader( 
 		Tr2RenderContextEnum::ShaderType type, 
 		const Tr2ShaderBytecodeAL& bytecode,
-		const Tr2ShaderBytecodeAL& patchedBytecode,
 		const Tr2ShaderSignatureAL& signature );
 	static uint32_t RegisterShaderProgram( uint32_t* shaders, size_t count );
 	static uint32_t RegisterShaderProgramOverride( uint32_t originalProgram, uint32_t overrideProgram );
