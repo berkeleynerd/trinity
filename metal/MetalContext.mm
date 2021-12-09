@@ -15,6 +15,7 @@ namespace TrinityALImpl
 	MetalContext::MetalContext()
 		: m_recordingFrameNumber( 1 )
 		, m_renderedFrameNumber( 0 )
+        , m_parallelEncodersCount( 0 )
 		, m_gpuTimerRate( 1 )
 		, m_beginCpuTime( 0 )
 		, m_beginGpuTime( 0 )

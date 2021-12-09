@@ -15,6 +15,7 @@ namespace TrinityALImpl
 
 	class MetalContext;
     class Tr2PipelineStatsQueryAL;
+    class Tr2VertexLayoutAL;
 	
 	// Values below must be synchronized with (propagated to) ShaderCompiler/EffectCompilerMetal.cpp
 	// and TrinityALTest/Shaders.metal/MetalDefines.h (CBUFFER, SRV, UAV, UAVT).
@@ -343,6 +344,9 @@ namespace TrinityALImpl
         void PipelineQueryStarted( Tr2PipelineStatsQueryAL* query );
         void PipelineQueryEnded( Tr2PipelineStatsQueryAL* query );
 
+        MTLVertexDescriptor* GetCachedVertexDescriptor( Tr2VertexLayoutAL* layout, size_t inputHash, uint8_t& streamMask, bool& needsDummyStream ) const;
+        void CacheVertexDescriptor( Tr2VertexLayoutAL* layout, size_t inputHash, MTLVertexDescriptor* descriptor, uint8_t streamMask, bool needsDummyStream );
+        void FlushCachedVertexDescriptors();
 	private:
 		void CreateClearFunctions();
 		void ResetWorkQueue();
@@ -490,6 +494,16 @@ namespace TrinityALImpl
 		uint64_t                      m_visibilityQueriesInThisEncoder;
         
         std::vector<Tr2PipelineStatsQueryAL*> m_pipelineQueriesInProgress;
+        
+        struct CachedVertexLayout
+        {
+            Tr2VertexLayoutAL* layout;
+            size_t inputHash;
+            MTLVertexDescriptor* descriptor;
+            uint8_t streamMask;
+            bool needsDummyStream;
+        };
+        std::vector<CachedVertexLayout> m_cachedVertexLayouts;
 	};
 
 } // namespace TrinityALImpl
