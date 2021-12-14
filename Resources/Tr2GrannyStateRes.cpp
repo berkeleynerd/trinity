@@ -71,8 +71,6 @@ BlueAsyncRes::LoadingResult Tr2GrannyStateRes::DoLoad()
 		return LR_FAILED;
 	}
 
-	LoadAnimResources();
-
 	return LR_SUCCESS;
 }
 
@@ -163,7 +161,8 @@ bool Tr2GrannyStateRes::IsAllAnimGood()
 
 bool Tr2GrannyStateRes::DoPrepare()
 {
-	return m_anim_bound;
+	LoadAnimResources();
+	return true;
 }
 
 bool Tr2GrannyStateRes::IsFullyLoaded() const
