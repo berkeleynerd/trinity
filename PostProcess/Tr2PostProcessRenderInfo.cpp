@@ -96,7 +96,7 @@ Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetBlackTexture()
 	return Texture( this, m_black );
 }
 
-Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetTempTexture( float sizeFactor, Tr2RenderContextEnum::ExFlag exFlag )
+Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetTempTexture( float sizeFactor, Tr2RenderContextEnum::ExFlag exFlag, Tr2RenderContextEnum::PixelFormat pixelFormat )
 {
 	CCP_ASSERT( sizeFactor > 0 );
 	if( !m_sourceBuffer )
@@ -104,9 +104,14 @@ Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetTempTexture( floa
 		return Texture();
 	}
 
+	if( pixelFormat == Tr2RenderContextEnum::PIXEL_FORMAT_UNKNOWN )
+	{
+		pixelFormat = m_sourceBuffer->GetFormat();
+	}
+
 	for( auto& tempTexture : m_tempTextures )
 	{
-		if( tempTexture.sizeFactor == sizeFactor && tempTexture.exFlag == exFlag && tempTexture.lockCount == 0 )
+		if( tempTexture.sizeFactor == sizeFactor && tempTexture.exFlag == exFlag && tempTexture.pixelFormat == pixelFormat && tempTexture.lockCount == 0 )
 		{
 			++tempTexture.lockCount;
 			return Texture( this, tempTexture.texture );
@@ -117,16 +122,16 @@ Tr2PostProcessRenderInfo::Texture Tr2PostProcessRenderInfo::GetTempTexture( floa
 	tempTexture.sizeFactor = sizeFactor;
 	tempTexture.exFlag = exFlag;
 	tempTexture.lockCount = 1;
+	tempTexture.pixelFormat = pixelFormat;
 	tempTexture.texture.CreateInstance();
-	tempTexture.texture->Create( 
-		std::max( unsigned( m_sourceBuffer->GetWidth() * sizeFactor ), 1u ), 
-		std::max( unsigned( m_sourceBuffer->GetHeight() * sizeFactor ), 1u ), 
-		1, 
-		m_sourceBuffer->GetFormat(),
+	tempTexture.texture->Create(
+		std::max( unsigned( m_sourceBuffer->GetWidth() * sizeFactor ), 1u ),
+		std::max( unsigned( m_sourceBuffer->GetHeight() * sizeFactor ), 1u ),
+		1,
+		pixelFormat,
 		1,
 		0,
-		exFlag
-	);
+		exFlag );
 	m_tempTextures.push_back( tempTexture );
 	return Texture( this, tempTexture.texture );
 }

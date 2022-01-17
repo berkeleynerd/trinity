@@ -12,8 +12,10 @@
 #include "Eve/EveSpaceScene.h"
 #include "Tr2RenderTarget.h"
 #include "PostProcess/Tr2PostProcessRenderInfo.h"
+#include "Shader/Tr2Effect.h"
 
 BLUE_DECLARE( Tr2PPFidelityFXEffect );
+BLUE_DECLARE( Tr2Effect );
 
 
 // -------------------------------------------------------------
@@ -78,6 +80,17 @@ private:
 	Tr2EffectPtr m_dynamicExposureCreateHistogramShader;
 	Tr2EffectPtr m_dynamicExposureMergeHistogramShader;
 	Tr2EffectPtr m_dynamicExposureMeasureExposureShader;
+
+	// depth of field
+	bool ProcessDepthOfField( Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* fx );
+	void RenderDepthOfField( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* depthOfField );
+	Tr2EffectPtr m_depthOfFieldCoCShader;
+	Tr2EffectPtr m_depthOfFieldBokehForegroundBlurShader;
+	Tr2EffectPtr m_depthOfFieldBokehBackgroundBlurShader;
+	Tr2EffectPtr m_depthOfFieldBokehFillShader;
+	Tr2EffectPtr m_depthOfFieldBokehBlendShader;
+	Tr2EffectPtr m_depthOfFieldDepthDownsampleShader; 
+
 
 	// fidelityFX
 	bool ProcessFidelityFX( Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx );

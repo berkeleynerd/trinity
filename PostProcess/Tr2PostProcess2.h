@@ -21,6 +21,7 @@
 #include "Effects/Tr2PPVignetteEffect.h"
 #include "Effects/Tr2PPFogEffect.h"
 #include "Effects/Tr2PPTaaEffect.h"
+#include "Effects/Tr2PPDepthOfFieldEffect.h"
 
 BLUE_DECLARE( Tr2Effect );
 BLUE_DECLARE( Tr2PPSignalLossEffect );
@@ -35,6 +36,7 @@ BLUE_DECLARE( Tr2PPLutEffect );
 BLUE_DECLARE( Tr2PPVignetteEffect );
 BLUE_DECLARE( Tr2PPFogEffect );
 BLUE_DECLARE( Tr2PPTaaEffect );
+BLUE_DECLARE( Tr2PPDepthOfFieldEffect );
 
 BLUE_CLASS( Tr2PostProcess2 ) :
 	public IRoot
@@ -57,6 +59,7 @@ public:
 	Tr2PPVignetteEffectPtr GetVignette() { return m_vignette; }
 	Tr2PPFogEffectPtr GetFog() { return m_fog; }
 	Tr2PPTaaEffectPtr GetTaa() { return m_taa; }
+	Tr2PPDepthOfFieldEffectPtr GetDepthOfField() { return m_depthOfField; }
 
 private:
 	Tr2PPSignalLossEffectPtr m_signalLoss;
@@ -71,6 +74,7 @@ private:
 	Tr2PPVignetteEffectPtr m_vignette;
 	Tr2PPFogEffectPtr m_fog;
 	Tr2PPTaaEffectPtr m_taa;
+	Tr2PPDepthOfFieldEffectPtr m_depthOfField;
 };
 TYPEDEF_BLUECLASS( Tr2PostProcess2 );
 
