@@ -337,6 +337,7 @@ protected:
 
 	void UpdateSceneFromScript( Be::Time time );
 	void ReregisterEntities();
+	void ClearComponentRegistry();
 
 protected:
 	bool m_display;

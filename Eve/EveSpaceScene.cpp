@@ -261,7 +261,7 @@ EveSpaceScene::~EveSpaceScene()
 		CCP_DELETE( it->second );
 	}
 
-	m_componentRegistry->Clear();
+	ClearComponentRegistry();
 }
 
 void EveSpaceScene::ReleaseResources( TriStorage s )
@@ -3145,8 +3145,20 @@ void EveSpaceScene::ReregisterEntities()
 	{
 		if( EveEntityPtr entity = BlueCastPtr( *it ) )
 		{
-			entity->UnRegister( m_componentRegistry );
-			entity->Register( m_componentRegistry );
+			m_componentRegistry->ReRegister( entity );
 		}
 	}
+}
+
+
+void EveSpaceScene::ClearComponentRegistry()
+{
+	for( auto it = begin( m_objects ); it != end( m_objects ); ++it )
+	{
+		if( EveEntityPtr entity = BlueCastPtr( *it ) )
+		{
+			entity->UnRegister( m_componentRegistry );
+		}
+	}
+	m_componentRegistry = nullptr;
 }
