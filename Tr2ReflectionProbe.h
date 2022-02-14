@@ -23,7 +23,7 @@ BLUE_CLASS( Tr2ReflectionProbe ) :
 public:
 	EXPOSE_TO_BLUE();
 
-	enum ReflectionProbeFrequency
+	enum ReflectionProbeRenderFrequency
 	{
 		ONE_SIDE_PER_FRAME,
 		ALL_SIDES_PER_FRAME
@@ -80,7 +80,7 @@ private:
 
 	bool m_prevCullInversion;
 	bool m_hdrOutput;
-	ReflectionProbeFrequency m_renderFrequency;
+	ReflectionProbeRenderFrequency m_renderFrequency;
 	uint8_t m_currentFrame;
 	bool m_onePassDone;
 

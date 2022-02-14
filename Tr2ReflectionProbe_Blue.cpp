@@ -10,10 +10,12 @@
 BLUE_DEFINE( Tr2ReflectionProbe );
 
 const Be::VarChooser RenderFrequencyChooser[] = {
-	{ "One Side Per Frame", BeCast( Tr2ReflectionProbe::ONE_SIDE_PER_FRAME ), "One side per frame" },
-	{ "All Sides Per Frame", BeCast( Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ), "All sides per frame" },
+	{ "OneSidePerFrame", BeCast( Tr2ReflectionProbe::ONE_SIDE_PER_FRAME ), "One side per frame" },
+	{ "AllSidesPerFrame", BeCast( Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ), "All sides per frame" },
 	{ 0 }
 };
+
+BLUE_REGISTER_ENUM_EX( "ReflectionProbeRenderFrequency", Tr2ReflectionProbe::ReflectionProbeRenderFrequency, RenderFrequencyChooser, ENUM_REG_ENUM_OBJECT_ON_MODULE );
 
 const Be::ClassInfo* Tr2ReflectionProbe::ExposeToBlue()
 {

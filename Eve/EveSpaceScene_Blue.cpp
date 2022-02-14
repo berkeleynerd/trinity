@@ -713,6 +713,7 @@ const Be::ClassInfo* EveSpaceScene::ExposeToBlue()
 			"Are reflections enabled for selected dynamic objects\n"
 			":jessica-group: Lighting\n",
 			Be::READWRITE )	
+			
 
 		MAP_ATTRIBUTE
 		( 

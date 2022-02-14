@@ -174,7 +174,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_reflectionIntensity( 1.35f ),
 	m_reflectionBackLightingContrast( 8.0f ),
 	m_reflectionBackLightingColor( 2.0f, 2.0f, 2.0f, 2.0f ),
-	m_dynamicObjectReflectionEnabled( false ),
+	m_dynamicObjectReflectionEnabled( true ),
 	m_msaaSamples( 0 ),
 	m_hasBackgroundDistortionBatches( false ),
 	m_hasForegroundDistortionBatches( false ),
@@ -1687,6 +1687,30 @@ void EveSpaceScene::RenderReflectionPass( Tr2RenderContext& renderContext )
 		// get the background reflection renderables from the component registry
 		RenderBackgroundPassObjects( renderContext, BackgroundRenderingReason::BACKGROUND_RENDER_REFLECTION);
 
+		if( !m_lensflares.empty() && g_eveReflectionMode == EntityComponents::REFLECTION_SETTING_HIGHEST )
+		{
+			TriFrustum currentFrustum = m_reflectionProbe->GetFrustum( i, renderContext );
+
+			GPU_REGION( renderContext, "Lens Flares in reflections" );
+			std::vector<ITr2Renderable*> visible;
+
+			// lensflares
+			for( auto it = m_lensflares.cbegin(); it != m_lensflares.cend(); ++it )
+			{
+				( *it )->GetRenderables( currentFrustum, visible );
+			}
+
+			if( !visible.empty() )
+			{
+				renderContext.SetReadOnlyDepth( true );
+				RenderRenderables( visible,
+									m_secondaryBatches[TRIBATCHTYPE_ADDITIVE],
+									TRIBATCHTYPE_ADDITIVE,
+									Tr2EffectStateManager::RM_ALPHA_ADDITIVE,
+									renderContext, Tr2RenderReason::TR2RENDERREASON_REFLECTION );
+				renderContext.SetReadOnlyDepth( false );
+			}
+		}
 
 		if( m_dynamicObjectReflectionEnabled )
 		{
