@@ -22,7 +22,7 @@ void Tr2CurveEulerRotation::UpdateValue( double time )
 	float yaw = m_yaw.Update( time );
 	float pitch = m_pitch.Update( time );
 	float roll = m_roll.Update( time );
-	m_currentValue = Quaternion( XMQuaternionRotationRollPitchYaw( pitch, yaw, roll ) );
+    m_currentValue = RotationQuaternion( yaw, pitch, roll );
 }
 
 float Tr2CurveEulerRotation::Length()
@@ -35,7 +35,7 @@ Quaternion Tr2CurveEulerRotation::GetValue( double time ) const
 	float yaw = m_yaw.GetValue( time );
 	float pitch = m_pitch.GetValue( time );
 	float roll = m_roll.GetValue( time );
-	return Quaternion( XMQuaternionRotationRollPitchYaw( pitch, yaw, roll ) );
+    return RotationQuaternion( yaw, pitch, roll );
 }
 
 // --------------------------------------------------------------------------------

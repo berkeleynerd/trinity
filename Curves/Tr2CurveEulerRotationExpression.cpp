@@ -167,8 +167,7 @@ Quaternion Tr2CurveEulerRotationExpression::GetValue( double time ) const
 		}
 		s_currentCurve.pop_back();
 	}
-	return Quaternion( XMQuaternionRotationRollPitchYaw( result.y, result.x, result.z ) );
-
+    return RotationQuaternion( result.x, result.y, result.z );
 }
 
 // --------------------------------------------------------------------------------

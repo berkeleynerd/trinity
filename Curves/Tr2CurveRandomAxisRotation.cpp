@@ -93,7 +93,7 @@ Quaternion Tr2CurveRandomAxisRotation::GetValue( double time ) const
 	Quaternion result = m_postRotation;
 	if( m_period != 0 )
 	{
-		result *= Quaternion( XMQuaternionRotationRollPitchYaw( float( time / double( std::abs( m_period ) ) ) * XM_2PI, 0, 0 ) );
+		result *= RotationQuaternion( 0, float( time / double( std::abs( m_period ) ) ) * XM_2PI, 0 );
 	}
 	result *= m_preRotation;
 	return result;
@@ -134,6 +134,6 @@ void Tr2CurveRandomAxisRotation::SeedChanged()
 	{
 		engine.seed( std::default_random_engine::result_type( BeOS->GetActualTime() ) );
 	}
-	m_preRotation = XMQuaternionRotationRollPitchYaw( RandAngle( engine ), RandAngle( engine ), RandAngle( engine ) );
-	m_postRotation = XMQuaternionRotationRollPitchYaw( RandAngle( engine ), RandAngle( engine ), RandAngle( engine ) );
+	m_preRotation = RotationQuaternion( RandAngle( engine ), RandAngle( engine ), RandAngle( engine ) );
+	m_postRotation = RotationQuaternion( RandAngle( engine ), RandAngle( engine ), RandAngle( engine ) );
 }
