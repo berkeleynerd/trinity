@@ -373,8 +373,11 @@ NSPoint CursorClipper::AdjustMouseDeltas( const NSPoint& delta, NSTimeInterval t
 	{
 		if( rec.timestamp < timestamp )
 		{
-			deltaX -= rec.deltaX;
-			deltaY -= rec.deltaY;
+			auto modifiedX = deltaX - rec.deltaX;
+			auto modifiedY = deltaY - rec.deltaY;
+			// fence in the deltas so they don't change signs!
+			deltaX = deltaX == 0.0f || signbit(deltaX) != signbit(modifiedX) ? 0.0f : modifiedX;
+			deltaY = deltaY == 0.0f || signbit(deltaY) != signbit(modifiedY) ? 0.0f : modifiedY;
 			++consumed;
 		}
 		else
