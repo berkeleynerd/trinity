@@ -638,7 +638,7 @@ namespace
 		auto p = &vertices[0];
 		for( unsigned int i = 0; i < vertexCount; i += 4 )
 		{
-			float t = (float)i * XM_PI / 4.f;
+			float t = (float)i * XM_PI / 4.f / 4.f;
 			float x = cos( t ) * 0.5f;
 			float y = sin( t ) * 0.5f;
 			p->position = Vector3( -x, -y, 0.f );
