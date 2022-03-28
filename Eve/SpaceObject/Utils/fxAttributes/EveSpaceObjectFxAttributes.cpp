@@ -35,11 +35,6 @@ void EveSpaceObjectFxAttributes::UpdateAsyncronous( EveUpdateContext& updateCont
             rootParent->GetShapeEllipsoid(m_generatedShapeEllipsoidCenter, m_generatedShapeEllipsoidRadius );
         }
 
-        if ( EveShip2Ptr rootParent = BlueCastPtr( params.spaceObjectParent ) )
-        {
-            m_killCount = rootParent->GetKillCounterValue();
-        }
-
 		m_initialized = true;
 	}
 	
@@ -55,5 +50,10 @@ void EveSpaceObjectFxAttributes::UpdateAsyncronous( EveUpdateContext& updateCont
 	if( EveShip2Ptr rootParent = BlueCastPtr( params.spaceObjectParent ) )
 	{
 		m_activeTurretCount = float( rootParent->GetActiveTurretCount() );
+	}
+
+	if( EveShip2Ptr rootParent = BlueCastPtr( params.spaceObjectParent ) )
+	{
+		m_killCount = rootParent->GetKillCounterValue();
 	}
 }
