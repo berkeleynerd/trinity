@@ -20,8 +20,8 @@ Tr2RuntimeInstanceData::Tr2RuntimeInstanceData( IRoot* lockobj )
 	:m_count( 0 ),
 	m_stride( 0 ),
 	m_vertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
-	m_aabbMin( 0.f, 0.f, 0.f ),
-	m_aabbMax( 0.f, 0.f, 0.f )
+	m_aabb( Vector3( 0, 0, 0 ), Vector3( 0, 0, 0 ) ),
+	m_explicitBoundingBox( false )
 {
 }
 
@@ -172,15 +172,11 @@ bool Tr2RuntimeInstanceData::IsInstanceDataReady() const
 	return m_vertexDeclaration != Tr2EffectStateManager::UNINITIALIZED_DECLARATION && m_vb.IsValid();
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns number of instance buffers.
-// Return value:
-//   1 always
-// --------------------------------------------------------------------------------------
-unsigned int Tr2RuntimeInstanceData::GetInstanceBufferCount() const
+ITr2InstanceData::InstanceData Tr2RuntimeInstanceData::GetInstanceData( unsigned int bufferIndex, float screenSize ) const
 {
-	return 1;
+	return {
+		m_vb, m_stride, m_count
+	};
 }
 
 // --------------------------------------------------------------------------------------
@@ -197,39 +193,9 @@ unsigned int Tr2RuntimeInstanceData::GetInstanceBufferVertexDeclaration( unsigne
 	return m_vertexDeclaration;
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns number of instances in the instance 
-//   buffer.
-// Arguments:
-//   bufferIndex - (unused) instance buffer index
-// Return value:
-//   Nmber of instances
-// --------------------------------------------------------------------------------------
-unsigned int Tr2RuntimeInstanceData::GetInstanceBufferVertexCount( unsigned int bufferIndex ) const
+CcpMath::AxisAlignedBox Tr2RuntimeInstanceData::GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const
 {
-	return m_count;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns vertex buffer with instance data.
-// Arguments:
-//   bufferIndex - (unused) instance buffer index
-//   buffer - (out) vertex buffer containing instance data (can be null)
-//   stride - (out) vertex stride for the vertex buffer
-// --------------------------------------------------------------------------------------
-void Tr2RuntimeInstanceData::GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride )
-{
-	buffer = m_vb;
-	stride = m_stride;
-}
-
-bool Tr2RuntimeInstanceData::GetInstanceBufferBoundingBox( unsigned int, Vector3& minBounds, Vector3& maxBounds ) const
-{
-	minBounds = m_aabbMin;
-	maxBounds = m_aabbMax;
-	return true;
+	return m_aabb;
 }
 
 // --------------------------------------------------------------------------------------
@@ -433,6 +399,10 @@ void Tr2RuntimeInstanceData::UpdateData()
 // --------------------------------------------------------------------------------------
 void Tr2RuntimeInstanceData::UpdateBoundingBox()
 {
+	if( m_explicitBoundingBox )
+	{
+		return;
+	}
 	unsigned positionOffset = -1;
 	for( auto it = m_layout.m_items.begin(); it != m_layout.m_items.end(); ++it )
 	{
@@ -444,14 +414,14 @@ void Tr2RuntimeInstanceData::UpdateBoundingBox()
 			break;
 		}
 	}
-	BoundingBoxInitialize( m_aabbMin, m_aabbMax );
+	m_aabb = CcpMath::AxisAlignedBox();
 	if( positionOffset != -1 )
 	{
 		for( unsigned i = 0; i < m_count; ++i )
 		{
 			const Vector3* pos = 
 				reinterpret_cast<Vector3*>( m_data.get() + positionOffset + m_stride * i );
-			BoundingBoxUpdate( m_aabbMin, m_aabbMax, *pos );
+			m_aabb.Include( *pos );
 		}
 	}
 }
@@ -462,9 +432,15 @@ void Tr2RuntimeInstanceData::UpdateBoundingBox()
 // --------------------------------------------------------------------------------------
 bool Tr2RuntimeInstanceData::GetBoundingBox( Vector3& minAabb, Vector3& maxAabb ) const
 {
-	minAabb = m_aabbMin;
-	maxAabb = m_aabbMax;
+	minAabb = m_aabb.m_min;
+	maxAabb = m_aabb.m_max;
 	return true;
+}
+
+void Tr2RuntimeInstanceData::SetBoundingBox( const CcpMath::AxisAlignedBox& aabb )
+{
+	m_aabb = aabb;
+	m_explicitBoundingBox = true;
 }
 
 // --------------------------------------------------------------------------------------

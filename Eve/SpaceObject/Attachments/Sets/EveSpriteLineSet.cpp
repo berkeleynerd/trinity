@@ -74,53 +74,7 @@ void EveSpriteLineSet::Add( EveSpriteLineSetItemPtr newItem )
 void EveSpriteLineSet::Rebuild()
 {
 	ReallocateResources();
-	CreateBoundingBoxes();
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Create a bounding sphere around sprite lines. Then create a bounding box from 
-//	 the bounding sphere.
-// --------------------------------------------------------------------------------------
-void EveSpriteLineSet::CreateBoundingBoxes()
-{
-	// Clear the list before we can rebuild it
-	m_boundingBoxes.clear();
-	m_aabb = AxisAlignedBoundingBox( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
-	Vector4 sphere( 0.0f, 0.0f, 0.0f, 0.0f );
-	for( auto it = m_spriteLines.begin(); it != m_spriteLines.end(); ++it )
-	{
-		auto spriteLine = *it;
-		size_t numOfSprites = size_t( spriteLine->m_scaling.x );
-
-		if( spriteLine->m_isCircle == false )
-		{
-			Matrix m = RotationMatrix( spriteLine->m_rotation );
-			Vector3 dir = TransformNormal( Vector3( 1.f, 0.f, 0.f ), m );
-
-			auto endPos = spriteLine->m_position + spriteLine->m_spacing * dir * float( numOfSprites );
-			BoundingSphereFromPoints( sphere, spriteLine->m_position, endPos );
-		}
-		else
-		{
-			auto pos = spriteLine->m_position;
-			// In this case the numOfSprites is the diameter of the circle
-			sphere = Vector4( pos.x, pos.y, pos.z, float( numOfSprites ) );
-		}
-
-		AxisAlignedBoundingBox aabb( sphere );
-
-		// Group together all animated items that are attached to the same bone
-		if( spriteLine->m_boneIndex >= 0 )
-		{
-			m_boundingBoxes.push_back( std::make_pair( spriteLine->m_boneIndex, aabb ) );
-		}
-		else
-		{
-			// Group together all static items not attached to any bone
-			m_aabb.IncludeBox( aabb );
-		}
-	}
+	CreateItemSetBoundingBoxes( m_aabb, m_boundingBoxes, m_skinned, begin( m_spriteLines ), end( m_spriteLines ) );
 }
 
 // --------------------------------------------------------------------------------
@@ -241,6 +195,10 @@ bool EveSpriteLineSet::ReallocateResources()
 bool EveSpriteLineSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
 	auto aabb = GetAabb( bones, boneCount );
+	if( !aabb.IsInitialized() )
+	{
+		return false;
+	}
 	aabb.Transform( parentTransform );
 
 	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
@@ -252,19 +210,7 @@ bool EveSpriteLineSet::UpdateVisibility( const TriFrustum& frustum, const Matrix
 // --------------------------------------------------------------------------------------
 AxisAlignedBoundingBox EveSpriteLineSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
 {
-	auto aabb = m_aabb;
-	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
-	{
-		if( box->first < int( boneCount ) )
-		{
-			Matrix boneTF = IdentityMatrix();
-			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
-			auto boxAabb = box->second;
-			boxAabb.Transform( boneTF );
-			aabb.IncludeBox( boxAabb );
-		}
-	}
-	return aabb;
+	return GetItemSetAabb( m_aabb, m_boundingBoxes, bones, m_skinned ? boneCount : 0 );
 }
 
 // --------------------------------------------------------------------------------

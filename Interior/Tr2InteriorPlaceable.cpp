@@ -341,9 +341,7 @@ void Tr2InteriorPlaceable::GetBatches( ITriRenderBatchAccumulator* batches,
 								}
 								else
 								{
-									Vector3 bbMin, bbMax;
-									mesh->GetAreaBoundingBox( area->GetIndex(), bbMin, bbMax );
-									center = 0.5f * ( bbMin + bbMax );
+									center = mesh->GetAreaBounds( area->GetIndex() ).Center();
 								}
 								center = TransformCoord( center, instanceToWorld );
 								center -= Tr2Renderer::GetViewPosition();

@@ -96,6 +96,7 @@ private:
 
 	// bounding box around static items
 	AxisAlignedBoundingBox m_aabb;
+	std::vector<std::pair<int, CcpMath::AxisAlignedBox>> m_boundingBoxes;
 
 	void CreateBoundingBox();
 };

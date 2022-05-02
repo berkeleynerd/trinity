@@ -741,3 +741,25 @@ void EveTurretFiringFX::StartControllers()
 		}
 	}
 }
+
+void EveTurretFiringFX::GetDebugOptions( Tr2DebugRendererOptions& options ) 
+{
+	for( auto stretch : m_stretch )
+	{
+		if( auto debugRenderable = dynamic_cast<ITr2DebugRenderable*>( stretch ) )
+		{
+			debugRenderable->GetDebugOptions( options );
+		}
+	}
+}
+
+void EveTurretFiringFX::RenderDebugInfo( ITr2DebugRenderer2& renderer ) 
+{
+	for( auto stretch : m_stretch )
+	{
+		if( auto debugRenderable = dynamic_cast<ITr2DebugRenderable*>( stretch ) )
+		{
+			debugRenderable->RenderDebugInfo( renderer );
+		}
+	}
+}

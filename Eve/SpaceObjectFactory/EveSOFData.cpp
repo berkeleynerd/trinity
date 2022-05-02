@@ -809,9 +809,45 @@ EveSOFDataHullDecalSetItem::EveSOFDataHullDecalSetItem( IRoot* lockobj ) :
 	m_logoType( EveSOFDataLogoSet::TYPE_PRIMARY ),
 	PARENTLOCK( m_textures ),
 	PARENTLOCK( m_parameters ),
-	PARENTLOCK( m_indexBuffer )
+	PARENTLOCK( m_indexBuffers )
 {
-	m_indexBuffer.SetStructureDefinition( s_eveSOFDecalIndexDef );
+}
+
+EveSOFDataDecalIndexBuffer::EveSOFDataDecalIndexBuffer( IRoot* lockobj )
+{
+}
+
+void EveSOFDataDecalIndexBuffer::AddIndex( uint32_t index )
+{
+	m_indexBuffer.push_back( index );
+}
+
+std::vector<uint32_t> EveSOFDataDecalIndexBuffer::GetIndices()
+{
+	return m_indexBuffer;
+}
+
+void EveSOFDataDecalIndexBuffer::GetWriteBufferAndSize( const char* propertyName, unsigned char** buffer, size_t* bufferSize )
+{
+	*buffer = reinterpret_cast<unsigned char*>( &m_indexBuffer[0] );
+	*bufferSize = m_indexBuffer.size() * sizeof( uint32_t );
+}
+
+void EveSOFDataDecalIndexBuffer::ReleaseWriteBuffer( unsigned char* buffer )
+{
+}
+
+void EveSOFDataDecalIndexBuffer::SetBufferAndSize( const char* propertyName, unsigned char* buffer, size_t bufferSize )
+{
+	// The set buffer will always be smaller than the allocated read buffer,
+	// so we can just trivially resize our indexBuffer to be smaller
+	m_indexBuffer.resize( bufferSize / sizeof( uint32_t ) );
+}
+
+unsigned char* EveSOFDataDecalIndexBuffer::AllocateReadBuffer( const char* memberName, size_t bufferSize )
+{
+	m_indexBuffer.resize( bufferSize / sizeof( uint32_t ) );
+	return reinterpret_cast<unsigned char*>( &m_indexBuffer[0] );
 }
 
 

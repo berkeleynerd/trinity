@@ -93,9 +93,19 @@ struct TriGeometryResMeshData
 	Vector3 m_minBounds;
 	Vector3 m_maxBounds;
 	Vector4 m_boundingSphere;
+	int32_t m_grannyMeshIndex;
 	bool m_hasPerMeshAreaBoneBindings;
+	bool m_isLodMesh;
 	TrackableStdVector<TriJointBinding> m_jointBindings;
 	TriGeometryResVertexData* m_pVertexData;
+	std::vector<float> m_uvDensities;
+
+	struct LodRef
+	{
+		size_t meshIndex;
+		float maxScreenSize;
+	};
+	std::vector<LodRef> m_lods;
 };
 
 struct TriGeometryResJointData
@@ -144,6 +154,9 @@ public:
 	Be::Result<std::string> GetMeshAreaCount( unsigned int ix, int& count ) const;
 	Be::Result<std::string> GetMeshAreaName( unsigned int meshIx, unsigned int areaIx, std::string& name ) const;
 	TriGeometryResMeshData* GetMeshData( unsigned int meshIx ) const;
+	TriGeometryResMeshData* GetMeshData( unsigned int meshIx, float screenSize ) const;
+	TriGeometryResMeshData* GetMeshDataLod( unsigned int meshIx, int lodIndex ) const;
+	int GetLodIndexForScreenSize( unsigned int meshIx, float screenSize ) const;
 
 	unsigned int GetSkeletonCount() const;
 	TriGeometryResSkeletonData* GetSkeletonData( unsigned int skelIx ) const;
@@ -162,10 +175,8 @@ public:
 	int GetVertexComponentOffset( const granny_mesh* myMesh, const char* componentName ) const;
 
 	// Render multiple consecutive areas, starting at 'areaIx'
-    bool RenderAreas( unsigned int meshIx, unsigned int areaIx, unsigned int areaCount, Tr2RenderContext& renderContext, bool reversed = false );
-	
-	// Render all areas in one draw call
-	bool RenderAsOneArea( unsigned int meshIx );
+	bool RenderAreas( unsigned int meshIx, unsigned int areaIx, unsigned int areaCount, Tr2RenderContext& renderContext, bool reversed = false );
+	bool RenderAreas( float screenSize, unsigned int meshIx, unsigned int areaIx, unsigned int areaCount, Tr2RenderContext& renderContext, bool reversed = false );
 
 	void RebuildCachedData();
 	
@@ -218,12 +229,10 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2InstanceData
-	bool IsInstanceDataReady() const;
-	unsigned int GetInstanceBufferCount() const;
-	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const;
-	unsigned int GetInstanceBufferVertexCount( unsigned int bufferIndex ) const;
-	void GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride );
-	bool GetInstanceBufferBoundingBox( unsigned int bufferIndex, Vector3& minBounds, Vector3& maxBounds ) const;
+	bool IsInstanceDataReady() const override;
+	InstanceData GetInstanceData( unsigned int bufferIndex, float screenSize ) const override;
+	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const override;
+	CcpMath::AxisAlignedBox GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2GpuBuffer
@@ -267,9 +276,10 @@ public:
 
 private:
 	unsigned int m_memoryUse;
-	TrackableStdVector<TriGeometryResMeshData*> m_meshes;
-	TrackableStdVector<TriGeometryResModelData*> m_models;
-	TrackableStdVector<TriGeometryResSkeletonData*> m_skeletons;
+	TrackableStdVector<std::unique_ptr<TriGeometryResMeshData>> m_meshes;
+	TrackableStdVector<std::unique_ptr<TriGeometryResMeshData>> m_meshLods;
+	TrackableStdVector<std::unique_ptr<TriGeometryResModelData>> m_models;
+	TrackableStdVector<std::unique_ptr<TriGeometryResSkeletonData>> m_skeletons;
 
 	granny_file* m_pGrannyFile;
 	granny_file_info* m_inMemoryInfo;
@@ -291,8 +301,8 @@ private:
 	void DetermineAreaBones( TriGeometryResAreaData& area, granny_mesh* myMesh, int bytesPerVertex );
 	
 	// Create D3D mesh from data in m_pGrannyFile
-	bool CreateMeshesFromGrannyFile( granny_file_info* gi, Tr2PrimaryRenderContext& renderContext );
-	bool CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryResMeshData* pMesh, Tr2PrimaryRenderContext& renderContext, void* pVBOverride = NULL );
+	bool CreateMeshesFromGrannyFile( granny_file_info * gi, Tr2CpuUsage::Type cpuUsage, Tr2PrimaryRenderContext & renderContext );
+	bool CreateMeshFromGrannyMesh( granny_mesh* myMesh, TriGeometryResMeshData* pMesh, Tr2CpuUsage::Type cpuUsage, Tr2PrimaryRenderContext& renderContext, void* pVBOverride = NULL );
 };
 
 TYPEDEF_BLUECLASS_WR_SHUTDOWN(TriGeometryRes);

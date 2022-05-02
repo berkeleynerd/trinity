@@ -12,6 +12,7 @@
 #include "ITr2Renderable.h"
 #include "TriRenderBatch.h"
 #include "Tr2DebugRenderer.h"
+#include "Utilities/Tr2MaterialBoundsAdjustment.h"
 
 
 BLUE_DECLARE( TriGeometryRes );
@@ -56,6 +57,7 @@ public:
 	virtual void GetBatches( ITriRenderBatchAccumulator* batches,
 		const Tr2MeshAreaVector* areas, 
 		const Tr2PerObjectData* data,
+		float screenSize = std::numeric_limits<float>::max(),
 		ITr2MeshBatchCallback* callback = nullptr ) const;
 
 	Tr2MeshAreaVector* GetAreas( TriBatchType areaType );
@@ -66,14 +68,12 @@ public:
 
 	int GetMeshIndex() const { return m_meshIndex; };
 
-	virtual float CalcMeshSortValue( const Matrix& worldTransform );
+	virtual CcpMath::AxisAlignedBox GetBounds( const Matrix* boneTransforms = nullptr ) const;
+	virtual CcpMath::AxisAlignedBox GetAreaBounds( unsigned int areaIx, const Matrix* boneTransforms = nullptr ) const;
 
-	virtual bool GetBoundingBox( Vector3& min, Vector3& max ) const;
-	virtual bool GetAreaBoundingBox( unsigned int areaIx, Vector3& min, Vector3& max ) const;
-	virtual bool GetBoundingSphere( Vector4& sphere );
+	bool GetBoundingBox( Vector3 & min, Vector3 & max ) const;
 
 	bool BindToRig( const std::string* boneList, const int numBones, TriGeometryResSkeletonData* renderRig, bool forceRebind = false );
-	bool GetDynamicBoundingBox( const Matrix* boneTransforms, Vector3& min, Vector3& max ) const;
 
 	virtual bool IsLoading() const = 0;
 
@@ -95,12 +95,19 @@ public:
 		const IList* theList
 		);
 
-	virtual void GetDebugOptions( Tr2DebugRendererOptions& options ) {}
-	virtual void RenderDebugInfo( const Matrix& worldTransform, ITr2DebugRenderer2& renderer ) {}
+	virtual void GetDebugOptions( Tr2DebugRendererOptions & options );
+	virtual void RenderDebugInfo( const Matrix& worldTransform, ITr2DebugRenderer2& renderer );
+
+	std::vector<Tr2MeshAreaPtr> GetAllAreas() const;
+
+	Tr2MaterialBoundsAdjustment GetMaterialBoundsAdjustment() const;
+	void SetMaterialBoundsAdjustment( const Tr2MaterialBoundsAdjustment& adjustment );
+
+	void UseWithScreenSize( float screenSize ) const;
 
 protected:
 	unsigned int FindJoint( const std::string* boneList, const int numBones, const char* name ) const;
-
+	void CacheBounds();
 
 protected:
 	std::string m_name;
@@ -124,8 +131,6 @@ protected:
 
 	PTr2MeshAreaVector* m_areaLookupArray[ TRIBATCHTYPE_COUNT_OF_BATCH_TYPES ];
 
-	bool m_areasChanged;
-
 	// skeleton/bone data
 	std::vector<unsigned int> m_jointMappingAnimRig;
 	const std::string *m_pBoneList;
@@ -134,14 +139,8 @@ protected:
 
 	bool	m_forcedRebind;
 
-	// Bounding information from the geometry resource. This is set on a callback
-	// once the geometry resource finishes loading, until then it is marked as
-	// invalid and the GetBoundingSphere and GetBoundingBox functions return false.
-	bool m_areBoundsValid;
-	Vector3 m_minBounds;
-	Vector3 m_maxBounds;
-	Vector4 m_boundingSphere;
-
+	CcpMath::AxisAlignedBox m_cachedBounds;
+	Tr2MaterialBoundsAdjustment m_boundsAdjustment;
 };
 
 TYPEDEF_BLUECLASS( Tr2MeshBase );

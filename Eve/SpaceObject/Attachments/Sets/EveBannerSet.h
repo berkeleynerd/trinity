@@ -16,6 +16,7 @@ BLUE_DECLARE( Tr2Effect );
 BLUE_DECLARE_VECTOR( Tr2LodResource );
 BLUE_DECLARE( Tr2Light );
 BLUE_DECLARE_VECTOR( Tr2Light );
+BLUE_DECLARE( TriTextureParameter );
 
 
 struct EveBannerItem
@@ -56,7 +57,7 @@ public:
 
 	void AddBanner( const EveBannerItem& banner );
 	void SetEffect( Tr2Effect* effect );
-	void AddLodResource( Tr2LodResource* resource );
+	void SetPrimaryTextureParameter( TriTextureParameter * primaryTextureParameter );
 	void AddLight( Tr2Light* light );
 	void SetKey( int32_t key );
 	void Rebuild();
@@ -91,6 +92,7 @@ private:
 	int32_t m_key;
 	Tr2EffectPtr m_effect;
 	PEveBannerItemStructureList m_banners;
+	TriTextureParameterPtr m_primaryTextureParameter;
 	PTr2LodResourceVector m_associatedResources;
 
 	Tr2BufferAL m_vertexBuffer;
@@ -100,7 +102,6 @@ private:
 	AxisAlignedBoundingBox m_aabb;
 	std::vector<std::pair<int32_t, AxisAlignedBoundingBox>> m_skinnedBoxes;
 
-	Tr2Lod m_lod;
 	float m_maxBannerRadius;
 
 	PTr2LightVector m_lights;

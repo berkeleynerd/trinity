@@ -49,12 +49,16 @@ public:
 
 	// Returns false if AABB is outside the frustum
 	bool IsBoxVisible( const Vector3& boundsMin, const Vector3& boundsMax ) const;
+	bool IsBoxVisible( const CcpMath::AxisAlignedBox& aabb ) const;
 
 	// Get the pixel coverage of a bounding sphere on screen
 	float GetPixelSizeAccross( const Vector4* sphere ) const;
 	float GetPixelSizeAccrossEst( const Vector4* sphere ) const;
 	float GetPixelSizeAccross( const Vector3& center, float radius ) const;
 	float GetPixelSizeAccrossEst( const Vector3& center, float radius ) const;
+
+	float GetPixelSizeAccross( const CcpMath::Sphere& sphere ) const;
+	float GetPixelSizeAccross( const CcpMath::AxisAlignedBox& box ) const;
 
 	void ExtractFrustum( const Matrix* proj );
 

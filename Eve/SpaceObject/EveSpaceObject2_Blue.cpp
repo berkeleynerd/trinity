@@ -200,8 +200,8 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 		MAP_ATTRIBUTE
 		(
 			"meshLod",
-			m_meshLod,
-			"Mesh with levels-of-detail for rendering space object",
+			m_mesh,
+			"Mesh with levels-of-detail for rendering space object\n:jessica-hidden: True",
 			Be::READWRITE | Be::PERSIST
 		)
 
@@ -639,6 +639,11 @@ const Be::ClassInfo* EveSpaceObject2::ExposeToBlue()
 			"Returns locator to object transform (taking bone bindings in account)\n"
 			":param locator: locator name belonging to this object"
 		)
+
+		MAP_METHOD_AND_WRAP(
+			"GetLastUsedMeshLod",
+			GetLastUsedMeshLod,
+			"Returns last used mesh LOD index. For debugging purposes" )
 
 #if BLUE_WITH_PYTHON
 		MAP_METHOD(

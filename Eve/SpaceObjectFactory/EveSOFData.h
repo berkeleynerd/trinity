@@ -1071,6 +1071,31 @@ BLUE_DECLARE_VECTOR( EveSOFDataHullAnimation );
 typedef uint32_t EveSOFDataDecalIndex;
 BLUE_DECLARE_STRUCTURE_LIST( EveSOFDataDecalIndex );
 
+BLUE_CLASS( EveSOFDataDecalIndexBuffer ) :
+	public ICustomPersist
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataDecalIndexBuffer( IRoot* lockobj = NULL );
+	~EveSOFDataDecalIndexBuffer()
+	{
+	}
+
+	void AddIndex( uint32_t index );
+
+	std::vector<uint32_t> GetIndices();
+
+	// ICustomPersist
+	void GetWriteBufferAndSize( const char* propertyName, unsigned char** buffer, size_t* bufferSize );
+	void ReleaseWriteBuffer( unsigned char* buffer );
+	void SetBufferAndSize( const char* propertyName, unsigned char* buffer, size_t bufferSize );
+	unsigned char* AllocateReadBuffer( const char* memberName, size_t bufferSize );
+
+	std::vector<uint32_t> m_indexBuffer;
+};
+TYPEDEF_BLUECLASS( EveSOFDataDecalIndexBuffer );
+BLUE_DECLARE_VECTOR( EveSOFDataDecalIndexBuffer );
+
 BLUE_CLASS( EveSOFDataHullDecalSetItem ) :
 	public IRoot
 {
@@ -1103,7 +1128,7 @@ public:
     SOFDataFactionColorChooser::ColorType m_glowColorType;
 	PEveSOFDataTextureVector m_textures;
 	PEveSOFDataParameterVector m_parameters;
-	PEveSOFDataDecalIndexStructureList m_indexBuffer;
+	PEveSOFDataDecalIndexBufferVector m_indexBuffers;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullDecalSetItem );
 BLUE_DECLARE_VECTOR( EveSOFDataHullDecalSetItem );

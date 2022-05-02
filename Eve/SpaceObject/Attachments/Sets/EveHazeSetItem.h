@@ -23,7 +23,9 @@ public:
 	EXPOSE_TO_BLUE();
 
 	EveHazeSetItem( IRoot* lockobj = NULL );
-	~EveHazeSetItem();
+
+	CcpMath::AxisAlignedBox GetBounds() const;
+	int32_t GetBoneIndex() const;
 
 	// name
 	BlueSharedString m_name;

@@ -15,11 +15,6 @@ EveSpriteSetItem::EveSpriteSetItem( IRoot* lockobj ) :
 {
 }
 
-EveSpriteSetItem::~EveSpriteSetItem()
-{
-
-}
-
 EveSpriteSetItem& EveSpriteSetItem::operator=( const EveSpriteSetItem& other )
 {
 	m_name = other.m_name;
@@ -33,4 +28,14 @@ EveSpriteSetItem& EveSpriteSetItem::operator=( const EveSpriteSetItem& other )
 	m_boneIndex = other.m_boneIndex;
 
 	return *this;
+}
+
+CcpMath::Sphere EveSpriteSetItem::GetBounds() const
+{
+	return CcpMath::Sphere( m_position, m_maxScale );
+}
+
+int32_t EveSpriteSetItem::GetBoneIndex() const
+{
+	return m_boneIndex;
 }

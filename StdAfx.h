@@ -33,6 +33,8 @@
 #include <string>
 #include <limits>
 #include <stack>
+#include <array>
+#include <optional>
 #include <float.h>
 #include <math.h>
 // TODO - remove using statements

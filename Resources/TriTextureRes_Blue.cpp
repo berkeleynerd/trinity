@@ -126,37 +126,6 @@ static PyObject* PySave( PyObject* self, PyObject* args )
 	return PythonSave( self, args, false );
 }
 
-#if PY_VERSION_HEX >= 0x02070000
-// This method relies on capsules, only available in Python 2.7 and later.
-static PyObject* PyUpdateSubresource( PyObject* self, PyObject* args )
-{
-	TriTextureRes* pThis = BluePythonCast<TriTextureRes*>( self );
-
-	int left, top, right, bottom, pitch;
-	PyObject* bufferObj;
-
-	if( !PyArg_ParseTuple( args, "(iiii)Oi", &left, &top, &right, &bottom, &bufferObj, &pitch ) )
-	{
-		return nullptr;
-	}
-
-	if( !PyCapsule_CheckExact( bufferObj ) )
-	{
-		PyErr_SetString( PyExc_TypeError, "Second argument should be a capsule" );
-		return nullptr;
-	}
-
-	void* buffer = PyCapsule_GetPointer( bufferObj, nullptr );
-	if( !buffer )
-	{
-		return nullptr;
-	}
-
-	pThis->UpdateSubresource( left, top, right, bottom, buffer, pitch );
-
-	Py_RETURN_NONE;
-}
-#endif
 #endif
 
 const Be::ClassInfo* TriTextureRes::ExposeToBlue()
@@ -242,6 +211,13 @@ const Be::ClassInfo* TriTextureRes::ExposeToBlue()
 			Be::READ
 		)
 
+		MAP_ATTRIBUTE( "lodEnabled", m_lodEnabled, "Is LOD enabled for this texture\n:jessica-group: LOD", Be::READ )
+		MAP_PROPERTY_READONLY( "hadLodRequests", HadLodRequests, "If the textued received any LOD requests\n:jessica-group: LOD" )
+		MAP_ATTRIBUTE( "originalResolution", m_originalResolution, "Max width or height of the original texture size\n:jessica-group: LOD", Be::READ )
+		MAP_ATTRIBUTE( "gpuMip", m_gpuMip, "Largest mip level loaded into GPU memory\n:jessica-group: LOD", Be::READ )
+		MAP_ATTRIBUTE( "cpuMip", m_cpuMip, "Largest mip level loaded into CPU memory\n:jessica-group: LOD", Be::READ )
+
+
 		MAP_METHOD
 		(
 			"SaveAsync", 
@@ -303,22 +279,10 @@ const Be::ClassInfo* TriTextureRes::ExposeToBlue()
 		MAP_METHOD_AND_WRAP
 		(
 			"CreateAndCopyFromRenderTarget",
-			CreateAndCopyFromRenderTargetPython,
+			CreateAndCopyFromRenderTarget,
 			"Create a new TriTextureRes with the dimensions and pixelFormat from the specified\n"
 			"renderTarget.  A copy of the contents is made.\n"
 			"\n:param rt: render target"
-		)
-
-		MAP_METHOD_AND_WRAP
-		(
-			"CreateAndCopyFromRenderTargetWithSize",
-			CreateAndCopyFromRenderTargetWithSizePython,
-			"Create a new TriTextureRes with given width and height, and \n"
-			"with pixelFormat from the specified renderTarget\n"
-			"A (cropped) copy of the contents is made.\n"
-			"\n:param rt: render target"
-			"\n:param width: destination width"
-			"\n:param height: destination height"
 		)
 
 		MAP_METHOD_AND_WRAP(
@@ -379,21 +343,7 @@ const Be::ClassInfo* TriTextureRes::ExposeToBlue()
 
 		MAP_METHOD_AND_WRAP( "GetPipeline", GetPipeline, "Returns pipeline associated with this texture if any" )
 
-#if PY_VERSION_HEX >= 0x02070000
-		MAP_METHOD
-		(
-			"UpdateSubresource",
-			PyUpdateSubresource,
-			"Uploads data to the texture\n"
-			":param rect: destination rectangle (left, top, right, bottom)\n"
-			":type rect: (int, int, int, int)\n"
-			":param data: data as a buffer\n"
-			":type data: buffer\n"
-			":param pitch: size of a single row in the data buffer in bytes\n"
-			":type pitch: int\n"
-			":rtype: None"
-		)
-#endif
+		MAP_METHOD_AND_WRAP( "GetOriginalMemoryUsage", GetOriginalMemoryUsage, "Returns memory size for the non-LODed texture (used for stats and tools)" )
 	EXPOSURE_CHAINTO( BlueAsyncRes )
 }
 

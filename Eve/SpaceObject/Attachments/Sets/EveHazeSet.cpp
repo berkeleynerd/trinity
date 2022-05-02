@@ -203,7 +203,11 @@ void EveHazeSet::SubmitGeometry( Tr2RenderContext& renderContext )
 // --------------------------------------------------------------------------------------
 bool EveHazeSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
-	auto aabb = m_aabb;
+	auto aabb = GetItemSetAabb( m_aabb, m_boundingBoxes, bones, boneCount );
+	if( !aabb.IsInitialized() )
+	{
+		return false;
+	}
 	aabb.Transform( parentTransform );
 	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
 }
@@ -214,14 +218,7 @@ bool EveHazeSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& pare
 // --------------------------------------------------------------------------------------
 void EveHazeSet::CreateBoundingBox()
 {
-	m_aabb = AxisAlignedBoundingBox();
-
-	for( auto it = m_hazes.begin(); it != m_hazes.end(); ++it )
-	{
-		AxisAlignedBoundingBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 5.0f ) );
-		aabb.Transform( TransformationMatrix( (*it)->m_scaling, (*it)->m_rotation, (*it)->m_position ) );
-		m_aabb.IncludeBox( aabb );
-	}
+	CreateItemSetBoundingBoxes( m_aabb, m_boundingBoxes, true, begin( m_hazes ), end( m_hazes ) );
 }
 
 // --------------------------------------------------------------------------------

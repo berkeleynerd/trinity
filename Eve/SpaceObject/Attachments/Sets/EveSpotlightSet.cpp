@@ -118,7 +118,11 @@ inline void EveSpotlightSet::RegisterQuadRendererGlow( Tr2QuadRenderer& quadRend
 // --------------------------------------------------------------------------------------
 bool EveSpotlightSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
-	auto aabb = GetAabb( bones, boneCount );
+	auto aabb = GetItemSetAabb( m_aabb, m_boundingBoxes, bones, m_skinned ? boneCount : 0 );
+	if( !aabb.IsInitialized() )
+	{
+		return false;
+	}
 	aabb.Transform( parentTransform );
 
 	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
@@ -130,19 +134,7 @@ bool EveSpotlightSet::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 // --------------------------------------------------------------------------------------
 AxisAlignedBoundingBox EveSpotlightSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
 {
-	auto aabb = m_aabb;
-	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
-	{
-		if( box->first < int( boneCount ) )
-		{
-			Matrix boneTF = IdentityMatrix();
-			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
-			auto boxAabb = box->second;
-			boxAabb.Transform( boneTF );
-			aabb.IncludeBox( boxAabb );
-		}
-	}
-	return aabb;
+	return GetItemSetAabb( m_aabb, m_boundingBoxes, bones, m_skinned ? boneCount : 0 );
 }
 
 // --------------------------------------------------------------------------------
@@ -275,37 +267,7 @@ void EveSpotlightSet::Rebuild()
 		vertex.m_scale[2] = Float_16( m_spotlightItems[i]->m_spriteScale.z );
 	}
 
-	CreateBoundingBoxes();
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Create bounding boxes around spot lights and group together those who have the same bone index
-// --------------------------------------------------------------------------------------
-void EveSpotlightSet::CreateBoundingBoxes()
-{
-	// Clear the list before we can rebuild it
-	m_boundingBoxes.clear();
-	m_aabb = AxisAlignedBoundingBox();
-
-	for( auto it = m_spotlightItems.begin(); it != m_spotlightItems.end(); ++it )
-	{
-		Vector3 min( -0.5f, -0.5f, -0.5f );
-		Vector3 max( 0.5f, 0.5f, 0.5f );
-		BoundingBoxTransform( min, max, ( *it )->m_transform );
-		AxisAlignedBoundingBox aabb( min, max );
-
-		// Group together all animated items that are attached to the same bone
-		if( ( *it )->m_boneIndex >= 0 )
-		{
-			m_boundingBoxes.push_back( std::make_pair( ( *it )->m_boneIndex, aabb ) );
-		}
-		else
-		{
-			// Group together all static items not attached to any bone
-			m_aabb.IncludeBox( aabb );
-		}
-	}
+	CreateItemSetBoundingBoxes( m_aabb, m_boundingBoxes, m_skinned, begin( m_spotlightItems ), end( m_spotlightItems ) );
 }
 
 // --------------------------------------------------------------------------------

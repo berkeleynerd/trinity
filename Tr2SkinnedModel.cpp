@@ -316,12 +316,10 @@ bool Tr2SkinnedModel::GetDynamicBoundingBox( const Matrix* boneTransforms, Vecto
 
 	for( auto it = begin( m_meshes ); it != end( m_meshes ); ++it )
 	{
-		Vector3 min, max;
-		if( !( *it )->GetDynamicBoundingBox( boneTransforms, min, max ) )
+		if( auto aabb = ( *it )->GetBounds( boneTransforms ) )
 		{
-			return false;
+			BoundingBoxUpdate( minBounds, maxBounds, aabb.m_min, aabb.m_max );
 		}
-		BoundingBoxUpdate( minBounds, maxBounds, min, max );
 	}
 	return true;
 }

@@ -106,6 +106,11 @@ const Be::ClassInfo* EveStretch2::ExposeToBlue()
 			"Observer at the destination position",
 			Be::READWRITE | Be::PERSIST
 		)
+		MAP_ATTRIBUTE(
+			"boundingRadius",
+			m_boundingRadius,
+			"Radius for the bounding cylinder used for frustum culling",
+			Be::READWRITE | Be::PERSIST )
 
 	EXPOSURE_END()
 }

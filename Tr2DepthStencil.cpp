@@ -15,6 +15,17 @@ Tr2DepthStencil::~Tr2DepthStencil()
 {
 }
 
+void Tr2DepthStencil::SetName( const char* name )
+{
+	m_name = name;
+	m_depthStencil.SetName( m_name.c_str() ).GetResult();
+}
+
+std::string Tr2DepthStencil::GetName() const
+{
+	return m_name;
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Blue-exposed initializer. 
@@ -50,6 +61,7 @@ long Tr2DepthStencil::Create( unsigned width, unsigned height, DepthStencilForma
 		m_format = dsFormat;
 		m_msaa = Tr2MsaaDesc( msaaType, msaaQuality );
 		m_flags = flags;
+		m_depthStencil.SetName( m_name.c_str() );
 	}
 	else
 	{

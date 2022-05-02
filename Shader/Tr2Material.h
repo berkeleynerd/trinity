@@ -9,6 +9,7 @@
 #include "Tr2EffectDescription.h"
 
 BLUE_DECLARE( Tr2Shader );
+BLUE_DECLARE_INTERFACE( ITriEffectTextureParameter );
 BLUE_DECLARE_INTERFACE( ITr2EffectValue );
 BLUE_DECLARE_INTERFACE( ITriReroutable );
 
@@ -155,11 +156,15 @@ public:
 	Tr2EffectPassParameters* GetPassDescription( uint32_t techniqueIndex, uint32_t passIndex );
 
 	void InvalidateResourceSets();
+
+	void UsedWithScreenSize( float screenSize, const std::vector<float>& uvDensities );
+
 protected:
 	bool ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const;
 
 	Tr2ShaderPtr m_shader;
 	Tr2EffectTechniqueParametersVector m_parametersForPasses;
+	std::vector<ITriEffectTextureParameterPtr> m_lodTextureParameters;
 	mutable uint32_t m_resourceSetHash;
 };
 

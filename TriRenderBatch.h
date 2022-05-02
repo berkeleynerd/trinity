@@ -165,9 +165,19 @@ public:
 							unsigned int areaCount,
 							bool reversed = false )
 	{
+		SetMeshParameters( meshIx, areaIx, areaCount, std::numeric_limits<float>::max(), reversed );
+	}
+
+	void SetMeshParameters( unsigned int meshIx,
+							unsigned int areaIx,
+							unsigned int areaCount,
+							float screenSize,
+							bool reversed = false )
+	{
 		m_meshIndex = meshIx;
 		m_areaIndex = areaIx;
 		m_areaCount = areaCount;
+		m_screenSize = screenSize;
 		m_reversed = reversed;
 		if( reversed )
 		{
@@ -220,6 +230,7 @@ protected:
     unsigned int m_meshIndex;
     unsigned int m_areaIndex;
     unsigned int m_areaCount;
+	float m_screenSize;
 	bool m_reversed;
 };
 

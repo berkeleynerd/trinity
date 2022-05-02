@@ -21,10 +21,10 @@ public:
 	Tr2Texture2dLodParameter( IRoot* lockobj = nullptr );
 	~Tr2Texture2dLodParameter();
 
+	bool Initialize() override;
+
 	Tr2LodResourcePtr GetLodResource() const;
 	void SetLodResource( Tr2LodResource* newLodResource );
-
-	virtual ITr2TextureProvider* GetResource() const;
 
 protected:
 	void OnAddedToMaterial( Tr2Material* material ) override;

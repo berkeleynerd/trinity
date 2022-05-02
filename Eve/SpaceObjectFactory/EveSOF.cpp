@@ -30,7 +30,7 @@
 #include "Eve/SpaceObject/Children/EveChildParticleSystem.h"
 #include "Eve/SpaceObject/Utils/EveLocator2.h"
 #include "Tr2InstancedMesh.h"
-#include "Tr2MeshLod.h"
+#include "Tr2Mesh.h"
 #include "Tr2MeshArea.h"
 #include "Tr2RuntimeInstanceData.h"
 #include "Shader/Tr2Effect.h"
@@ -155,14 +155,12 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	// set all easy consts
 	SetupConsts( newObj, dna );
 
-	InheritableTextures inheritableTextures;
-
 	// get us the base geometry
-	SetupMesh( newObj, dna, inheritableTextures );
+	SetupMesh( newObj, dna );
 	SetupCustomMask( newObj, dna );
 
 	// decals
-	SetupDecalSets( newObj, dna, inheritableTextures );
+	SetupDecalSets( newObj, dna );
 
 	// effects on ships
 	SetupSpriteSets( newObj, dna );
@@ -330,30 +328,16 @@ void EveSOF::SetupConsts( EveSpaceObject2Ptr ship, const EveSOFDNAPtr dna ) cons
 // Description:
 //   This is where it is all going to happen
 // --------------------------------------------------------------------------------
-void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, InheritableTextures& inheritableTextures ) const
+void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	// need a mesh
-	Tr2MeshLodPtr mesh;
+	Tr2MeshPtr mesh;
 	mesh.CreateInstance();
 
-	std::string highDetail = dna->GetHullGeometryResPath();
-	std::string mediumDetail = highDetail;
-	std::string lowDetail = highDetail;
-	StringInsertStubBefore( mediumDetail, ".gr2", "_mediumDetail" );
-	StringInsertStubBefore( lowDetail, ".gr2", "_lowDetail" );
-
-	Tr2LodResourcePtr lodResource;
-	lodResource.CreateInstance();
-	lodResource->SetName( BlueSharedString( "Geometry" ) );
-	lodResource->SetResourcePath( TR2_LOD_LOW, lowDetail.c_str() );
-	lodResource->SetResourcePath( TR2_LOD_MEDIUM, mediumDetail.c_str() );
-	lodResource->SetResourcePath( TR2_LOD_HIGH, highDetail.c_str() );
-	lodResource->SelectLod( TR2_LOD_LOW );
-
 	// gr2 res path
-	mesh->SetGeometryResource( lodResource );
+	mesh->SetMeshResPath( dna->GetHullGeometryResPath().c_str() );
 
 	// bounding sphere comes from data, is faster
 	obj->SetBoundingSphereInformation( dna->GetHullBoundingSphere() );
@@ -373,20 +357,17 @@ void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, Inherita
 		}
 	}
 
-	// setup mesh areas, try sharing as many Tr2LodResources as possible
-	std::map<std::string, Tr2LodResourcePtr> lodResPerTexture;
-
 	// multi-hull! so mesh index must be tracked
 	size_t meshIndexOffset = 0;
 	// cycle over all hulls in the multi-hull list
 	for( size_t hullIdx = 0; hullIdx < dna->GetMultiHullCount(); ++hullIdx )
 	{
 		size_t cntr = 0;
-		cntr += FillMeshAreaVector( lodResPerTexture, mesh->GetAreas( TRIBATCHTYPE_OPAQUE ), TRIBATCHTYPE_OPAQUE, dna, hullIdx, meshIndexOffset, &inheritableTextures );
-		cntr += FillMeshAreaVector( lodResPerTexture, mesh->GetAreas( TRIBATCHTYPE_OPAQUE ), TRIBATCHTYPE_DECAL, dna, hullIdx, meshIndexOffset, nullptr );
-		cntr += FillMeshAreaVector( lodResPerTexture, mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT ), TRIBATCHTYPE_TRANSPARENT, dna, hullIdx, meshIndexOffset, nullptr );
-		cntr += FillMeshAreaVector( lodResPerTexture, mesh->GetAreas( TRIBATCHTYPE_ADDITIVE ), TRIBATCHTYPE_ADDITIVE, dna, hullIdx, meshIndexOffset, nullptr );
-		cntr += FillMeshAreaVector( lodResPerTexture, mesh->GetAreas( TRIBATCHTYPE_DISTORTION ), TRIBATCHTYPE_DISTORTION, dna, hullIdx, meshIndexOffset, nullptr );
+		cntr += FillMeshAreaVector( mesh->GetAreas( TRIBATCHTYPE_OPAQUE ), TRIBATCHTYPE_OPAQUE, dna, hullIdx, meshIndexOffset );
+		cntr += FillMeshAreaVector( mesh->GetAreas( TRIBATCHTYPE_OPAQUE ), TRIBATCHTYPE_DECAL, dna, hullIdx, meshIndexOffset );
+		cntr += FillMeshAreaVector( mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT ), TRIBATCHTYPE_TRANSPARENT, dna, hullIdx, meshIndexOffset );
+		cntr += FillMeshAreaVector( mesh->GetAreas( TRIBATCHTYPE_ADDITIVE ), TRIBATCHTYPE_ADDITIVE, dna, hullIdx, meshIndexOffset );
+		cntr += FillMeshAreaVector( mesh->GetAreas( TRIBATCHTYPE_DISTORTION ), TRIBATCHTYPE_DISTORTION, dna, hullIdx, meshIndexOffset );
 
 		auto distortionAreas = mesh->GetAreas( TRIBATCHTYPE_DISTORTION );
 		for( auto ait = begin( *distortionAreas ); ait != end( *distortionAreas ); ++ait )
@@ -399,24 +380,15 @@ void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, Inherita
 	// some areas need an accompanying depth area
 	GenerateDepthFromAreaVector( mesh, mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT ), dna );
 
-	// register all used lodresource objects with the new mesh
-	for( auto it = lodResPerTexture.begin(); it != lodResPerTexture.end(); ++it )
-	{
-		mesh->AddAssociatedResource( it->second );
-	}
-
-	// preselect a lod
-	mesh->SelectLod( TR2_LOD_LOW );
-
 	// assign mesh to ship
-	obj->SetMeshLod( mesh );
+	obj->SetMesh( mesh );
 
 	// Set the reflectionMode based on the category
 	obj->SetReflectionMode( dna->GetReflectionMode() );
 }
 
 // --------------------------------------------------------------------------------
-void EveSOF::GenerateDepthFromAreaVector( Tr2MeshLodPtr mesh, const Tr2MeshAreaVector* meshAreaVector, const EveSOFDNAPtr dna ) const
+void EveSOF::GenerateDepthFromAreaVector( Tr2MeshBase* mesh, const Tr2MeshAreaVector* meshAreaVector, const EveSOFDNAPtr dna ) const
 {
 	Tr2MeshAreaVector* depthAreas = mesh->GetAreas( TRIBATCHTYPE_DEPTH );
 	if( depthAreas ) 
@@ -453,7 +425,7 @@ void EveSOF::GenerateDepthFromAreaVector( Tr2MeshLodPtr mesh, const Tr2MeshAreaV
 // Description:
 //   Fill up mesh area vector given the hull and faction area data provided.
 // --------------------------------------------------------------------------------
-size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodResCollector, Tr2MeshAreaVector* meshAreaVector, TriBatchType areaType, const EveSOFDNAPtr dna, size_t hullIdx, size_t meshIndexOffset, InheritableTextures* inheritableTextures ) const
+size_t EveSOF::FillMeshAreaVector( Tr2MeshAreaVector* meshAreaVector, TriBatchType areaType, const EveSOFDNAPtr dna, size_t hullIdx, size_t meshIndexOffset ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -515,48 +487,7 @@ size_t EveSOF::FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lod
 			dna->ModifyTextureResPath( highResPath );
 			// make three paths for the three LODs
 			std::string mediumResPath, lowResPath, ultraResPath;
-			if( GenerateLodResourcePaths( mediumResPath, lowResPath, ultraResPath, highResPath.c_str(), it->first.c_str() ) )
-			{
-				// now we need a lod resource object, maybe we already have one?
-				auto finder = lodResCollector.find( highResPath );
-				if( finder != lodResCollector.end() )
-				{
-					// yeah, we have one: use it!
-					newShader->AddResourceTexture2DLod( it->first, finder->second );
-				}
-				else
-				{
-					// not found, so we have to make a new one
-					Tr2LodResourcePtr lodResource;
-					lodResource.CreateInstance();
-
-					CCP_STATS_ZONE( "lodResource" );
-
-					lodResource->SetName( it->first );
-					lodResource->SetResourcePath( TR2_LOD_LOW, lowResPath.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_MEDIUM, mediumResPath.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_HIGH, highResPath.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_ULTRA, ultraResPath.c_str() );
-					newShader->AddResourceTexture2DLod( it->first, lodResource );
-					// also add it to the mesh for updating
-					lodResCollector[highResPath] = lodResource;
-
-
-					if( inheritableTextures )
-					{
-						InheritableTextureKey key;
-						key.hullIndex = hullIdx;
-						key.meshIndex = area->index;
-						key.name = it->first;
-
-						inheritableTextures->insert( std::make_pair( key, lodResource ) );
-					}
-				}
-			}
-			else
-			{
-				newShader->AddResourceTexture2D( it->first, highResPath.c_str() );
-			}
+			newShader->AddResourceTexture2D( it->first, highResPath.c_str() );
 		}
 
 		auto pattern = dna->GetPatternApplicationData();
@@ -627,7 +558,6 @@ bool EveSOF::GenerateLodResourcePaths( std::string& mediumResPath, std::string& 
 			ultraResPath = resPath;
 			StringInsertStubBefore( ultraResPath, ".dds", "_ultraDetail" );
 			mediumResPath = resPath;
-			StringInsertStubBefore( mediumResPath, ".dds", "_mediumDetail" );
 			lowResPath = resPath;
 			StringInsertStubBefore( lowResPath, ".dds", "_lowDetail" );
 			return true;
@@ -1165,10 +1095,12 @@ void EveSOF::SetupBanners( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 				effect->AddResourceTexture2D( tit->first, tit->second.resFilePath.c_str() );
 			}
 
-			Tr2LodResourcePtr imageMap;
+			TriTextureParameterPtr imageMap;
 			imageMap.CreateInstance();
-			effect->AddResourceTexture2DLod( BlueSharedString( "ImageMap" ), imageMap );
-			bannerSet->AddLodResource( imageMap );
+			imageMap->SetParameterName( BlueSharedString( "ImageMap" ) );
+			effect->AddResource( imageMap );
+
+			bannerSet->SetPrimaryTextureParameter( imageMap );
 
 			effect->EndUpdate();
 			bannerSet->SetEffect( effect );
@@ -1213,8 +1145,8 @@ void EveSOF::SetupBanners( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 			Tr2ExternalParameterPtr externalParameter;
 			externalParameter.CreateInstance();
 			externalParameter->SetName( externalParamName );
-			externalParameter->SetDestinationObject( imageMap );
-			externalParameter->SetDestinationAttribute( "highDetailResPath" );
+			externalParameter->SetDestinationObject( imageMap->GetRawRoot() );
+			externalParameter->SetDestinationAttribute( "resourcePath" );
 			externalParameter->Initialize();
 			obj->AddExternalParameter( externalParameter );
 		}
@@ -1315,10 +1247,12 @@ void EveSOF::SetupBannerSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) c
 					effect->AddResourceTexture2D( tit->first, tit->second.resFilePath.c_str() );
 				}
 
-				Tr2LodResourcePtr imageMap;
+				TriTextureParameterPtr imageMap;
 				imageMap.CreateInstance();
-				effect->AddResourceTexture2DLod( BlueSharedString( "ImageMap" ), imageMap );
-				bannerSet->AddLodResource( imageMap );
+				imageMap->SetParameterName( BlueSharedString( "ImageMap" ) );
+				effect->AddResource( imageMap );
+
+				bannerSet->SetPrimaryTextureParameter( imageMap );
 
 				effect->EndUpdate();
 				bannerSet->SetEffect( effect );
@@ -1363,8 +1297,8 @@ void EveSOF::SetupBannerSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) c
 				Tr2ExternalParameterPtr externalParameter;
 				externalParameter.CreateInstance();
 				externalParameter->SetName( externalParamName );
-				externalParameter->SetDestinationObject( imageMap );
-				externalParameter->SetDestinationAttribute( "highDetailResPath" );
+				externalParameter->SetDestinationObject( imageMap->GetRawRoot() );
+				externalParameter->SetDestinationAttribute( "resourcePath" );
 				externalParameter->Initialize();
 				obj->AddExternalParameter( externalParameter );
 			}
@@ -1768,6 +1702,19 @@ void EveSOF::SetupInstancedMeshes( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr
 		auto dest = instanceData->GetData( unsigned( him->instances.size() ) );
 		memcpy( dest, &him->instances[0], sizeof( him->instances[0] ) * him->instances.size() );
 		instanceData->UpdateData();
+		{
+			float maxScale = 0;
+			CcpMath::AxisAlignedBox aabb;
+			for( auto& instance : him->instances )
+			{
+				aabb.Include( Vector3( instance.transform0.w, instance.transform1.w, instance.transform2.w ) );
+				maxScale = std::max( maxScale, LengthSq( instance.transform0.GetXYZ() ) );
+				maxScale = std::max( maxScale, LengthSq( instance.transform1.GetXYZ() ) );
+				maxScale = std::max( maxScale, LengthSq( instance.transform2.GetXYZ() ) );
+			}
+			instanceData->SetBoundingBox( aabb );
+			mesh->SetDynamicScaledBounds( sqrt( maxScale ) );
+		}
 		mesh->SetInstanceGeometryRes( instanceData );
 
 		mesh->SetMeshResPath( him->geometryResPath.c_str() );
@@ -1912,7 +1859,7 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 			impactOverlay->SetDamageLocatorCount( dna->GetLocatorCount( "damage" ) );
 
 			// shield impact effect via Tr2Mesh with LOD
-			Tr2MeshLodPtr shieldMesh;
+			Tr2MeshPtr shieldMesh;
 
 			if( impactType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 			{
@@ -1935,34 +1882,24 @@ void EveSOF::SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) cons
 				meshArea.CreateInstance();
 				meshArea->SetMaterial( shieldShader );
 
+				shieldMesh.CreateInstance();
+				std::string geometryPath;
 				// what type of shield effect determines the geometry resource
-				Tr2LodResourcePtr lodResource;
-				lodResource.CreateInstance();
 				if( impactType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 				{
 					// only the ellpisoid geometry
-					lodResource->SetResourcePath( TR2_LOD_LOW, genericDamageData->shieldGeometryResFilePath.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_MEDIUM, genericDamageData->shieldGeometryResFilePath.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_HIGH, genericDamageData->shieldGeometryResFilePath.c_str() );
+					geometryPath = genericDamageData->shieldGeometryResFilePath;
 				}
 				else if( impactType == EveSOFDataHull::IMPACTEFFECT_HULL )
 				{
 					// use the ships main geometry incl LODs
-					std::string highDetail = dna->GetHullGeometryResPath();
-					std::string mediumDetail = highDetail;
-					std::string lowDetail = highDetail;
-					StringInsertStubBefore( mediumDetail, ".gr2", "_mediumDetail" );
-					StringInsertStubBefore( lowDetail, ".gr2", "_lowDetail" );
-					lodResource->SetResourcePath( TR2_LOD_LOW, lowDetail.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_MEDIUM, mediumDetail.c_str() );
-					lodResource->SetResourcePath( TR2_LOD_HIGH, highDetail.c_str() );
-
+					geometryPath = dna->GetHullGeometryResPath();
 					// adjust mesharea count to that from the mesh
 					meshArea->SetCount( 1 + dna->GetHighestMeshAreaIndex( TRIBATCHTYPE_OPAQUE ) );
 				}
 
-				shieldMesh.CreateInstance();
-				shieldMesh->SetGeometryResource( lodResource );
+				shieldMesh->SetMeshResPath( geometryPath.c_str() );
+
 				shieldMesh->GetAreas( TRIBATCHTYPE_ADDITIVE )->Append( meshArea );
 			}
 
@@ -2288,7 +2225,7 @@ void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 // Description:
 //   add the hull decals to the new ship based off the decal sets
 // --------------------------------------------------------------------------------
-void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const InheritableTextures& inheritableTextures ) const
+void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -2298,17 +2235,17 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, con
 	{
 		const std::vector<EveSOFDataMgr::HullDecalSetData>& hullDecalSets = dna->GetHullDecalSets( hullIdx );
 
-		for( auto hdsit = hullDecalSets.begin(); hdsit != hullDecalSets.end(); ++hdsit )
+		for( const auto &hullDecalSet : hullDecalSets )
 		{
-			if( !dna->IsInVisibilityData( hdsit->visibilityGroup ) )
+			if( !dna->IsInVisibilityData( hullDecalSet.visibilityGroup ) )
 			{
 				continue;
 			}
 
-			for( auto hdsiit = hdsit->items.begin(); hdsiit != hdsit->items.end(); ++hdsiit )
+			for( const auto& itemData : hullDecalSet.items )
 			{
 				// if we have a logo decal but the faction doesn't have a that logo in the logo set then we can skip this decal
-				if( hdsiit->usage == EveSOFDataHullDecalSetItem::USAGE_LOGO && !dna->HasLogoSet( hdsiit->logoType ) )
+				if( itemData.usage == EveSOFDataHullDecalSetItem::USAGE_LOGO && !dna->HasLogoSet( itemData.logoType ) )
 				{
 					continue;
 				}
@@ -2318,20 +2255,20 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, con
 				decal.CreateInstance();
 				
 				// set general datas
-				decal->SetPosition( hdsiit->position + hullOffset );
-				decal->SetRotation( hdsiit->rotation );
-				decal->SetScaling( hdsiit->scaling );
-				decal->SetBoneIndex( hdsiit->boneIndex );
+				decal->SetPosition( itemData.position + hullOffset );
+				decal->SetRotation( itemData.rotation );
+				decal->SetScaling( itemData.scaling );
+				decal->SetBoneIndex( itemData.boneIndex );
 				decal->SetMinScreenSize( MIN_DECAL_SCREEN_SIZE );
 
 				// pre-calculated index buffer is only valid for first multi-hull
-				if( hdsiit->indexBuffer.empty() || hullIdx != 0 )
+				if( itemData.indexBuffers.empty() || hullIdx != 0 )
 				{
-					decal->SetIndices( nullptr, 0 );
+					decal->SetIndices( {} );
 				}
 				else
 				{
-					decal->SetIndices( &hdsiit->indexBuffer[0], hdsiit->indexBuffer.size() );
+					decal->SetIndices( itemData.indexBuffers );
 				}
 
 				// the decal effect
@@ -2341,28 +2278,28 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, con
 
 
 				// construct shader path and set it on the Tr2Effect
-				std::string shaderPath = dna->GetDecalShaderLocationResPath() + std::string( "/" ) + dna->GetShaderPrefix( false ) + m_decalsEffectName[hdsiit->usage].c_str();
+				std::string shaderPath = dna->GetDecalShaderLocationResPath() + std::string( "/" ) + dna->GetShaderPrefix( false ) + m_decalsEffectName[itemData.usage].c_str();
 				shader->SetEffectPathName( shaderPath.c_str() );
 				
 				// Set the glow color based on the colors in the colorsetuS
-				if( hdsiit->usage != EveSOFDataHullDecalSetItem::USAGE_LOGO && hdsiit->usage != EveSOFDataHullDecalSetItem::USAGE_STANDARD )
+				if( itemData.usage != EveSOFDataHullDecalSetItem::USAGE_LOGO && itemData.usage != EveSOFDataHullDecalSetItem::USAGE_STANDARD )
 				{
-					Color decalGlowColor = dna->GetColorSet()[hdsiit->glowColorType];
+					Color decalGlowColor = dna->GetColorSet()[itemData.glowColorType];
 					shader->AddParameterColor( BlueSharedString( "DecalGlowColor" ), &decalGlowColor );
 				}
 
 				// always set hull parameters & textures for this decal
-				for( auto hdpit = hdsiit->parameters.begin(); hdpit != hdsiit->parameters.end(); ++hdpit )
+				for( auto hdpit = itemData.parameters.begin(); hdpit != itemData.parameters.end(); ++hdpit )
 				{
 					shader->AddParameterVector4( hdpit->first, &hdpit->second );
 				}
-				for( auto hdtit = hdsiit->textures.begin(); hdtit != hdsiit->textures.end(); ++hdtit )
+				for( auto hdtit = itemData.textures.begin(); hdtit != itemData.textures.end(); ++hdtit )
 				{
 					shader->AddResourceTexture2D( hdtit->first, hdtit->second.resFilePath.c_str() );
 				}
 
 				// find data on this shader from generics, we need it!
-				const EveSOFDataMgr::GenericDecalShaderData* shaderData = dna->GetGenericDecalShaderData( m_decalsEffectName[hdsiit->usage] );
+				const EveSOFDataMgr::GenericDecalShaderData* shaderData = dna->GetGenericDecalShaderData( m_decalsEffectName[itemData.usage] );
 				if( shaderData )
 				{
 					// default shader textures & parameters from the generic data
@@ -2374,35 +2311,24 @@ void EveSOF::SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, con
 					// parent hull textures
 					for( auto ptit = shaderData->parentTextures.begin(); ptit != shaderData->parentTextures.end(); ++ptit )
 					{
-						if( hdsiit->meshIndex != -1 )
+						if( itemData.meshIndex != -1 )
 						{
-							InheritableTextureKey key;
-							key.hullIndex = hullIdx;
-							key.meshIndex = hdsiit->meshIndex;
-							key.name = *ptit;
-							auto found = inheritableTextures.find( key );
-							if( found != inheritableTextures.end() )
+							// get the filepath from the hull
+							std::string resFilePath;
+							if( dna->GetHullTextureWithMeshIndex( resFilePath, *ptit, itemData.meshIndex, hullIdx ) )
 							{
-								shader->AddResourceTexture2DLod( *ptit, found->second );
-							}
-							else
-							{
-								// get the filepath from the hull
-								std::string resFilePath;
-								if( dna->GetHullTextureWithMeshIndex( resFilePath, *ptit, hdsiit->meshIndex, hullIdx ) )
-								{
-									shader->AddResourceTexture2D( *ptit, resFilePath.c_str() );
-								}
+								shader->AddResourceTexture2D( *ptit, resFilePath.c_str() );
 							}
 						}
 					}
 				}
 				
 				// Set the logo from the logoset
-				if( hdsiit->usage == EveSOFDataHullDecalSetItem::USAGE_LOGO )
+				if( itemData.usage == EveSOFDataHullDecalSetItem::USAGE_LOGO )
 				{
-					const EveSOFDataMgr::LogoData* logo = dna->GetLogo( hdsiit->logoType );
-					if( logo ) {
+					const EveSOFDataMgr::LogoData* logo = dna->GetLogo( itemData.logoType );
+					if( logo )
+					{
 						for( auto textureit = logo->textures.begin(); textureit != logo->textures.end(); ++textureit )
 						{
 							shader->AddResourceTexture2D( (*textureit).first, (*textureit).second.resFilePath.c_str() );

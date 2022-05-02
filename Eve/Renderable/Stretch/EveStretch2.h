@@ -10,6 +10,7 @@
 #include "ITr2Renderable.h"
 #include "ITr2GeometryProvider.h"
 #include "Tr2DeviceResource.h"
+#include "Tr2DebugRenderer.h"
 
 
 BLUE_DECLARE( Tr2Effect );
@@ -30,7 +31,8 @@ BLUE_CLASS( EveStretch2 )
 	public ITr2GeometryProvider,
 	public Tr2DeviceResource,
 	public IInitialize,
-	public INotify
+	public INotify,
+	public ITr2DebugRenderable
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -65,6 +67,11 @@ public:
 	virtual void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason = TR2RENDERREASON_NORMAL );
 	virtual bool HasTransparentBatches();
 	virtual float GetSortValue();
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// ITr2DebugRenderable
+	void GetDebugOptions( Tr2DebugRendererOptions & options ) override;
+	void RenderDebugInfo( ITr2DebugRenderer2 & renderer ) override;
 
 protected:
 	virtual void ReleaseResources( TriStorage s );
@@ -102,7 +109,13 @@ private:
 	unsigned int m_vertexDeclHandle;
 	float m_intensity;
 
+	float m_boundingRadius;
+
+	Matrix m_sourceTransform;
+	Matrix m_destinationTransform;
+
 	bool m_visible;
+	mutable bool m_isInFrustum;
 };
 
 TYPEDEF_BLUECLASS( EveStretch2 );

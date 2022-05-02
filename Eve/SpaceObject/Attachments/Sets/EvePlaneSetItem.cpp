@@ -25,10 +25,14 @@ EvePlaneSetItem::EvePlaneSetItem( IRoot* lockobj ) :
 {
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Cleanup
-// --------------------------------------------------------------------------------
-EvePlaneSetItem::~EvePlaneSetItem()
+CcpMath::AxisAlignedBox EvePlaneSetItem::GetBounds() const
 {
+	CcpMath::AxisAlignedBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
+	aabb.Transform( TransformationMatrix( m_scaling, m_rotation, m_position ) );
+	return aabb;
+}
+
+int32_t EvePlaneSetItem::GetBoneIndex() const
+{
+	return m_boneIndex;
 }

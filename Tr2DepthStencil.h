@@ -59,8 +59,10 @@ public:
 
 	operator Tr2TextureAL&() { return m_depthStencil; }	// avoid m_depthStencil->m_depthStencil all over the place
 	operator const Tr2TextureAL&() const { return m_depthStencil; }
+
+	void SetName( const char* name );
+	std::string GetName() const;
 	
-	std::string m_name;
 protected:
 	virtual void ReleaseResources( TriStorage s );
 	virtual bool OnPrepareResources();
@@ -72,6 +74,7 @@ private:
 	Tr2RenderContextEnum::DepthStencilFormat m_format;
 	Tr2MsaaDesc m_msaa;
 	Tr2RenderContextEnum::ExFlag m_flags;
+	std::string m_name;
 };
 
 TYPEDEF_BLUECLASS( Tr2DepthStencil );

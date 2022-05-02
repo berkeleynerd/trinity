@@ -20,11 +20,14 @@ EveHazeSetItem::EveHazeSetItem( IRoot* lockobj ) :
 {
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Cleanup
-// --------------------------------------------------------------------------------
-EveHazeSetItem::~EveHazeSetItem()
+CcpMath::AxisAlignedBox EveHazeSetItem::GetBounds() const
 {
+	CcpMath::AxisAlignedBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 5.0f ) );
+	aabb.Transform( TransformationMatrix( m_scaling, m_rotation, m_position ) );
+	return aabb;
 }
 
+int32_t EveHazeSetItem::GetBoneIndex() const
+{
+	return m_boneIndex;
+}

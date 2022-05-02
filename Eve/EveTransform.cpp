@@ -11,7 +11,7 @@
 #include "EveLODHelper.h"
 #include "Curves/TriCurveSet.h"
 #include "Tr2Mesh.h"
-#include "Tr2MeshLod.h"
+#include "Tr2MeshBase.h"
 
 extern float g_eveSpaceSceneLowDetailThreshold;
 extern float g_eveSpaceSceneMediumDetailThreshold;
@@ -38,10 +38,10 @@ EveTransform::EveTransform( IRoot* lockobj ) :
 
 bool EveTransform::Initialize()
 {
-	if( m_meshLod )
+	if( !m_mesh )
 	{
-		m_meshLod->SelectLod( TR2_LOD_LOW );
 		m_mesh = m_meshLod;
+		m_meshLod = nullptr;
 	}
 	return true;
 }
@@ -172,6 +172,11 @@ void EveTransform::GetDebugOptions( Tr2DebugRendererOptions& options )
 	{
 		( *it )->GetDebugOptions( options );
 	}
+
+	if( m_mesh )
+	{
+		m_mesh->GetDebugOptions( options );
+	}
 }
 
 void EveTransform::RenderDebugInfo( ITr2DebugRenderer2& renderer )
@@ -230,6 +235,11 @@ void EveTransform::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 		renderer.DrawText( TRI_DBG_FONT_SMALL, maxBounds, 0xffffffff, m_name.c_str() );
 	}
 
+	if( m_mesh )
+	{
+		m_mesh->RenderDebugInfo( m_worldTransform, renderer );
+	}
+
 
 	for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )
 	{
@@ -263,17 +273,9 @@ void EveTransform::GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr
 		(*it)->SortParticles();
 	}
 
-	if( m_mesh )
+	if( m_isVisible && m_mesh )
 	{
-		if( m_meshLod )
-		{
-			m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
-		}
-
-		if( m_isVisible )
-		{
-			renderables.push_back( this );
-		}
+		renderables.push_back( this );
 	}
 
 	for( IEveTransformVector::const_iterator it = m_children.begin(); it != m_children.end(); ++it )

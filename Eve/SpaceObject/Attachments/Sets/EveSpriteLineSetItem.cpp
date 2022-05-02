@@ -28,11 +28,24 @@ EveSpriteLineSetItem::EveSpriteLineSetItem( IRoot* lockobj ) :
 {
 }
 
-// --------------------------------------------------------------------------------
-// Description:
-//   Destructor
-// --------------------------------------------------------------------------------
-EveSpriteLineSetItem::~EveSpriteLineSetItem()
+CcpMath::Sphere EveSpriteLineSetItem::GetBounds() const
 {
+	if( m_isCircle == false )
+	{
+		Matrix m = RotationMatrix( m_rotation );
+		Vector3 dir = TransformNormal( Vector3( 1.f, 0.f, 0.f ), m );
+
+		size_t numOfSprites = size_t( m_scaling.x );
+		auto endPos = m_position + m_spacing * dir * float( numOfSprites );
+		return CcpMath::Sphere( ( m_position + endPos ) * 0.5f, numOfSprites * m_spacing * 0.5f );
+	}
+	else
+	{
+		return CcpMath::Sphere( m_position, std::max( m_scaling.x, m_scaling.y ) );
+	}
 }
 
+int32_t EveSpriteLineSetItem::GetBoneIndex() const
+{
+	return m_boneIndex;
+}

@@ -33,13 +33,14 @@ BLUE_INTERFACE( ITr2InstanceData ) : public IRoot
 	// --------------------------------------------------------------------------------------
 	virtual bool IsInstanceDataReady() const = 0;
 
-	// --------------------------------------------------------------------------------------
-	// Description:
-	//   Returns number of instance buffers available with this data.
-	// Return Value:
-	//   number of instance buffers for this object
-	// --------------------------------------------------------------------------------------
-	virtual unsigned int GetInstanceBufferCount() const = 0;
+	struct InstanceData
+	{
+		Tr2BufferAL buffer;
+		uint32_t stride;
+		uint32_t count;
+	};
+
+	virtual InstanceData GetInstanceData( unsigned int bufferIndex, float screenSize ) const = 0;
 
 	// --------------------------------------------------------------------------------------
 	// Description:
@@ -51,28 +52,7 @@ BLUE_INTERFACE( ITr2InstanceData ) : public IRoot
 	// --------------------------------------------------------------------------------------
 	virtual unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const = 0;
 
-	// --------------------------------------------------------------------------------------
-	// Description:
-	//   Returns number of vertexes in the given instance buffer.
-	// Arguments:
-	//   bufferIndex - instance buffer index
-	// Return Value:
-	//   number of vertexes in the mesh
-	// --------------------------------------------------------------------------------------
-	virtual unsigned int GetInstanceBufferVertexCount( unsigned int bufferIndex ) const = 0;
-
-	// --------------------------------------------------------------------------------------
-	// Description:
-	//   Returns vertex buffer with instance data.
-	// Arguments:
-	//   bufferIndex - instance buffer index
-	//   buffer - (out) vertex buffer containing instance data (can be null)
-	//   stride - (out) vertex stride for the vertex buffer
-	// --------------------------------------------------------------------------------------
-	virtual void GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride ) = 0;
-
-
-	virtual bool GetInstanceBufferBoundingBox( unsigned int bufferIndex, Vector3& minBounds, Vector3& maxBounds ) const = 0;
+	virtual CcpMath::AxisAlignedBox GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const = 0;
 };
 
 #endif // ITr2InstanceData_H

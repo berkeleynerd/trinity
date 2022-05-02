@@ -133,7 +133,6 @@ private:
 
 	// bounding box functions
 	AxisAlignedBoundingBox GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const;
-	void CreateBoundingBoxes();
 	// bounding boxes that are static
 	AxisAlignedBoundingBox m_aabb;
 	// bounding boxes are grouped together by bone index

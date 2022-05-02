@@ -1,18 +1,10 @@
 #include "StdAfx.h"
 #include "Tr2Mesh.h"
-#include "Shader/Tr2Effect.h"
 #include "Resources/TriGeometryRes.h"
-#include "Resources/Tr2LodResource.h"
 
-BLUE_DECLARE( Tr2Effect );
 
-Tr2Mesh::Tr2Mesh( IRoot* lockobj ) : 
-	PARENTLOCK( m_lodResources ),
-	m_deferGeometryLoad( false ),
-	m_isLoading( false ),
-	m_resourceLoadCbId( 0 ),
-	m_resourcePrepCbId( 0 ),
-	m_selectedLod( TR2_LOD_UNSPECIFIED )
+Tr2Mesh::Tr2Mesh( IRoot* lockobj ) :
+	m_deferGeometryLoad( false )
 {
 }
 
@@ -21,18 +13,6 @@ Tr2Mesh::~Tr2Mesh()
 	if( m_geometryResource )
 	{
 		m_geometryResource->RemoveNotifyTarget( this );
-	}
-
-	if( m_resourceLoadCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_BACKGROUND, m_resourceLoadCbId );
-		m_resourceLoadCbId = 0;
-	}
-
-	if( m_resourcePrepCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_MAIN, m_resourcePrepCbId );
-		m_resourcePrepCbId = 0;
 	}
 }
 
@@ -46,20 +26,6 @@ bool Tr2Mesh::Initialize()
 	}
 
 	return true;
-}
-
-void Tr2Mesh::StaticResourceLoadFinished( void* pContext )
-{
-	Tr2Mesh* pThis = static_cast<Tr2Mesh*>( pContext );
-	BeResMan->AddToQueue( BRMQ_MAIN, StaticResourcePrepFinished, pContext, 0, &pThis->m_resourcePrepCbId );
-	pThis->m_resourceLoadCbId = 0;
-}
-
-void Tr2Mesh::StaticResourcePrepFinished( void* pContext )
-{
-	Tr2Mesh* pThis = static_cast<Tr2Mesh*>( pContext );
-	pThis->m_resourcePrepCbId = 0;
-	pThis->m_isLoading = false;
 }
 
 // ---------------------------------------------------------------
@@ -96,6 +62,22 @@ void Tr2Mesh::SetGeometryRes( TriGeometryRes* res )
 	}
 }
 
+void Tr2Mesh::SetLowResGeometryRes( TriGeometryRes* res )
+{
+	// Remove existing callback setup if any, set new geometry resource and attach callback
+	if( m_lowResGeometryResource )
+	{
+		m_lowResGeometryResource->RemoveNotifyTarget( this );
+	}
+
+	m_lowResGeometryResource = res;
+
+	if( m_lowResGeometryResource )
+	{
+		m_lowResGeometryResource->AddNotifyTarget( this );
+	}
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Set a new geometry path from the outside. This will trigger an initialize of
@@ -113,52 +95,46 @@ void Tr2Mesh::SetMeshResPath( const char* path )
 
 void Tr2Mesh::InitializeGeometryResource()
 {
+	TriGeometryResPtr lowRes;
 	TriGeometryResPtr res;
 
-	if( !m_meshResPath.empty() )
+	bool loadingLowRes = false;
+
+	if( !m_meshResPath.empty() && !BePaths->FileExistsLocally( CA2W( m_meshResPath.c_str() ) ) )
 	{
-		BeResMan->GetResource( m_meshResPath.c_str(), m_geomResourceEx.c_str(), res );
-		m_isLoading = true;
-
-		if( m_resourceLoadCbId )
+		auto dot = m_meshResPath.rfind( '.' );
+		if( dot != std::string::npos )
 		{
-			BeResMan->CancelFromQueue( BRMQ_BACKGROUND, m_resourceLoadCbId );
-			m_resourceLoadCbId = 0;
+			auto lowResPath = m_meshResPath.substr( 0, dot ) + "_lowdetail" + m_meshResPath.substr( dot );
+			if( BePaths->FileExistsLocally( CA2W( lowResPath.c_str() ) ) )
+			{
+				BeResMan->GetResource( lowResPath.c_str(), m_geomResourceEx.c_str(), lowRes );
+				m_loadFence.Put();
+				BeResMan->GetResource( m_meshResPath.c_str(), m_geomResourceEx.c_str(), res );
+				loadingLowRes = true;
+			}
 		}
-		if( m_resourcePrepCbId )
-		{
-			BeResMan->CancelFromQueue( BRMQ_MAIN, m_resourcePrepCbId );
-			m_resourcePrepCbId = 0;
-		}
-
-		BeResMan->AddToQueue( BRMQ_BACKGROUND, StaticResourceLoadFinished, this, IBlueCallbackMan::BCBF_FENCE, &m_resourceLoadCbId );
 	}
 
+	if( !loadingLowRes )
+	{
+		BeResMan->GetResource( m_meshResPath.c_str(), m_geomResourceEx.c_str(), res );
+		m_loadFence.Put();
+	}
+
+	SetLowResGeometryRes( lowRes );
 	SetGeometryRes( res );
 }
 
 void Tr2Mesh::RebuildCachedData( BlueAsyncRes* p )
 {
+	if( p == m_geometryResource || p == m_lowResGeometryResource )
+	{
+		CacheBounds();
+	}
 	if( p == m_geometryResource )
 	{
-		m_areBoundsValid = true;
-
-		if( !m_geometryResource->GetBoundingBox( m_meshIndex, m_minBounds, m_maxBounds ) )
-		{
-			m_minBounds = Vector3( 0.0f, 0.0f, 0.0f );
-			m_maxBounds = Vector3( 0.0f, 0.0f, 0.0f );
-		}
-
-		// Todo: Geometry files should have this in them - do an offline process to calculate
-		// proper bounding spheres. Until then, approximate with a sphere around the bounding box
-		//if( !m_geometryResource->GetBoundingSphere( m_meshIndex, m_boundingSphereCenter, m_boundingSphereRadius ) )
-		//{
-		//	return;
-		//}
-		Vector3 d = m_maxBounds - m_minBounds;
-		m_boundingSphere = Vector4( ( m_minBounds + m_maxBounds ) * 0.5f, Length( d ) * 0.5f );
-
-		m_areBoundsValid = true;
+		SetLowResGeometryRes( nullptr );
 	}
 }
 
@@ -179,9 +155,14 @@ int Tr2Mesh::GetAreasCount() const
 
 TriGeometryRes* Tr2Mesh::GetGeometryResource() const
 {
-	return m_geometryResource;
+	if( m_geometryResource && m_geometryResource->IsGood() )
+	{
+		return m_geometryResource;
+	}
+	return m_lowResGeometryResource ? m_lowResGeometryResource : m_geometryResource;
 }
 
-
-
-
+bool Tr2Mesh::IsLoading() const
+{
+	return !m_loadFence.IsReached();
+}

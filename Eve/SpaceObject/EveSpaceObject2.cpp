@@ -16,7 +16,7 @@
 #include "Utils/EveLocator2.h"
 #include "Eve/SpaceObject/Attachments/Sets/IEveSpaceObjectAttachment.h"
 #include "Attachments/EveImpactOverlay.h"
-#include "Tr2MeshLod.h"
+#include "Tr2MeshBase.h"
 #include "Tr2GrannyAnimation.h"
 #include "Tr2BindingVector3.h"
 #include "Eve/EveUpdateContext.h"
@@ -45,11 +45,14 @@ TRI_REGISTER_SETTING( "secondaryLightingRadiusCutoffFactor", g_secondaryLighting
 
 const BlueSharedString DAMAGE_LOCATOR_SET_NAME( "damage" );
 
+extern float g_eveSpaceSceneLODFactor;
+
 
 void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas,
 										 ITriRenderBatchAccumulator* batches,
 										 const Tr2PerObjectData* perObjectData,
 										 const Tr2MeshBase* mesh,
+										 float screenSize,
 										 const Matrix* worldTransform )
 {
 	TriGeometryRes* geomRes = mesh->GetGeometryResource();
@@ -106,7 +109,7 @@ void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas,
 			batch->SetShaderMaterial( material );
 			batch->SetPerObjectData( perObjectData );
 			batch->SetGeometryResource( geomRes );
-			batch->SetMeshParameters( meshIx, area->GetIndex(), area->GetCount() );
+			batch->SetMeshParameters( meshIx, area->GetIndex(), area->GetCount(), screenSize );
 
 			batches->Commit( batch );
 		}
@@ -144,7 +147,6 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	PARENTLOCK( m_externalParameters ),
 	PARENTLOCK( m_customMasks ),
 	PARENTLOCK( m_controllers ),
-	m_wantsGeometryResFromMesh( true ),
 	m_impostorMode( false ),
 	m_display( true ),
 	m_update( true ),
@@ -219,18 +221,7 @@ EveSpaceObject2::~EveSpaceObject2()
 
 bool EveSpaceObject2::Initialize()
 {
-	// Disallow LOD selection until it's been established we have LODs.
-	m_allowLodSelection = false;
-
-	if( m_meshLod )
-	{
-		if( m_meshLod->GetSelectedLod() == TR2_LOD_UNSPECIFIED )
-		{
-			m_meshLod->SelectLod( TR2_LOD_LOW );
-		}
 		m_allowLodSelection = true;
-	}
-
 	if( m_mesh )
 	{
 		PrepareForAnimation();
@@ -360,11 +351,6 @@ void EveSpaceObject2::UpdateSyncronous( EveUpdateContext& updateContext )
 		return;
 	}
 
-	if( m_allowLodSelection )
-	{
-		UnloadLodIfNeeded( time );
-	}
-
 	// Particle Systems
 	// Get the reference position
 	Vector3d referencePosition( 0.0, 0.0, 0.0 );
@@ -441,16 +427,11 @@ void EveSpaceObject2::UpdateSyncronous( EveUpdateContext& updateContext )
 		m_impactOverlay->UpdateSyncronous( updateContext, this );
 	}
 
-	Tr2MeshBase* mesh = m_meshLod;
-	if( m_mesh )
-	{
-		mesh = m_mesh;
-	}
-	if( m_secondaryLightingSphereRadius <= 0 && mesh && mesh->GetGeometryResource() && mesh->GetGeometryResource()->IsGood() )
+	if( m_secondaryLightingSphereRadius <= 0 && m_mesh && m_mesh->GetGeometryResource() && m_mesh->GetGeometryResource()->IsGood() )
 	{
 		// to approximate space object as a secondary light emitter we take a sphere of the same volume as its bounding box
 		Vector3 aabbMin, aabbMax;
-		if( mesh->GetGeometryResource()->GetBoundingBox( mesh->GetMeshIndex(), aabbMin, aabbMax ) )
+		if( m_mesh->GetGeometryResource()->GetBoundingBox( m_mesh->GetMeshIndex(), aabbMin, aabbMax ) )
 		{
 			Vector3 aabbSize = aabbMax - aabbMin;
 			float boxVolume = aabbSize.x * aabbSize.y * aabbSize.z;
@@ -660,19 +641,19 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 
 	if( renderer.HasOption( GetRawRoot(), "Bounding Box" ) )
 	{
-		Vector3 minBounds( -0.5f, -0.5f, -0.5f );
-		Vector3 maxBounds( 0.5f, 0.5f, 0.5f );
+		CcpMath::AxisAlignedBox bounds( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
 		uint32_t color = 0xff0000ff;
 
 		if( m_mesh )
 		{
-			if( m_mesh->GetBoundingBox( minBounds, maxBounds ) )
+			if( auto b = m_mesh->GetBounds() )
 			{
+				bounds = b;
 				color = 0xffffffff;
 			}
 		}
 
-		renderer.DrawBox( this, m_worldTransform, minBounds, maxBounds, Tr2DebugRenderer::Wireframe, color );
+		renderer.DrawBox( this, m_worldTransform, bounds.m_min, bounds.m_max, Tr2DebugRenderer::Wireframe, color );
 	}
 
 	if( renderer.HasOption( GetRawRoot(), "Bounding Sphere" ) )
@@ -698,10 +679,9 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 		{
 			for( unsigned int a = 0; a < m_geometryResFromMesh->GetAreaCount( 0 ); ++a )
 			{
-				Vector3 minBounds, maxBounds;
-				if( m_mesh->GetAreaBoundingBox( a, minBounds, maxBounds ) )
+				if( auto areaBounds = m_mesh->GetAreaBounds( a ) )
 				{
-					renderer.DrawBox( this, m_worldTransform, minBounds, maxBounds, Tr2DebugRenderer::Wireframe, 0xff00ffff );
+					renderer.DrawBox( this, m_worldTransform, areaBounds.m_min, areaBounds.m_max, Tr2DebugRenderer::Wireframe, 0xff00ffff );
 				}
 			}
 		}
@@ -900,19 +880,12 @@ bool EveSpaceObject2::HasTransparentBatches()
 
 void EveSpaceObject2::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason )
 {
-	auto mesh = m_mesh;
-	if( reason == Tr2RenderReason::TR2RENDERREASON_REFLECTION && !mesh)
-	{
-		// when frustum culling we could get into a situation where m_mesh is nullptr so lets use the m_meshlod instead
-		mesh = m_meshLod;  
-	}
-	
-	if( !mesh )
+	if( !m_mesh )
 	{
 		return;
 	}
 
-	if( !mesh->GetDisplay() )
+	if( !m_mesh->GetDisplay() )
 	{
 		return;
 	}
@@ -925,29 +898,31 @@ void EveSpaceObject2::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchT
 		}																				
 	}
 
+	auto meshScreenSize = m_allowLodSelection ? m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor : std::numeric_limits<float>::max();
+
 	if( m_impactOverlay )
 	{
-		m_impactOverlay->GetBatches( batches, batchType, perObjectData );
+		m_impactOverlay->GetBatches( batches, batchType, perObjectData, meshScreenSize );
 	}
 
 	// Everything except for shadow batches
-	Tr2MeshAreaVector* areas = mesh->GetAreas( batchType );
+	Tr2MeshAreaVector* areas = m_mesh->GetAreas( batchType );
 	// Could be NULL if we're rendering a batch type that hasn't got a mesh area vector
 	if( areas )
 	{
 		// transparent needs sorted meshareas
 		if( batchType != TRIBATCHTYPE_TRANSPARENT )
 		{
-			mesh->GetBatches( batches, areas, perObjectData );
+			m_mesh->GetBatches( batches, areas, perObjectData, meshScreenSize );
 		}
 		else
 		{
-			GetSortedBatchesFromMeshAreaVector( areas, batches, perObjectData, mesh, &m_worldTransform );
+			GetSortedBatchesFromMeshAreaVector( areas, batches, perObjectData, m_mesh, meshScreenSize, &m_worldTransform );
 		}
 	}
 
 	// add overlay effect batches
-	GetBatchesFromOverlayVector( batches, perObjectData, batchType, mesh );
+	GetBatchesFromOverlayVector( batches, perObjectData, batchType, m_mesh );
 }
 
 
@@ -958,27 +933,17 @@ void EveSpaceObject2::GetShadowBatches( ITriRenderBatchAccumulator* batches, con
 		return;
 	}
 
-	Tr2MeshBase* mesh = NULL;
-	if( m_mesh )
-	{
-		mesh = m_mesh;
-	}
-	else
-	{
-		// Restore the mesh for the shadow
-		SelectMeshLevelOfDetail();
-		mesh = m_mesh;
-	}
-
-	if( !mesh || !mesh->GetDisplay() )
+	if( !m_mesh || !m_mesh->GetDisplay() )
 	{
 		return;
 	}
 
-	Tr2MeshAreaVector* areas = mesh->GetAreas( TRIBATCHTYPE_OPAQUE );
+	Tr2MeshAreaVector* areas = m_mesh->GetAreas( TRIBATCHTYPE_OPAQUE );
 
-	TriGeometryRes* geomRes = mesh->GetGeometryResource();
-	int meshIx = mesh->GetMeshIndex();
+	TriGeometryRes* geomRes = m_mesh->GetGeometryResource();
+	int meshIx = m_mesh->GetMeshIndex();
+
+	auto meshScreenSize = m_allowLodSelection ? m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor : std::numeric_limits<float>::max();
 
 	for( Tr2MeshAreaVector::iterator it = areas->begin(); it != areas->end(); ++it )
 	{
@@ -996,7 +961,7 @@ void EveSpaceObject2::GetShadowBatches( ITriRenderBatchAccumulator* batches, con
 			batch->SetShaderMaterial( m_shadowEffect );
 			batch->SetPerObjectData( perObjectData );
 			batch->SetGeometryResource( geomRes );
-			batch->SetMeshParameters( meshIx, area->GetIndex(), area->GetCount() );
+			batch->SetMeshParameters( meshIx, area->GetIndex(), area->GetCount(), meshScreenSize );
 
 			batches->Commit( batch );
 		}
@@ -1026,6 +991,8 @@ void EveSpaceObject2::GetBatchesFromOverlayVector( ITriRenderBatchAccumulator* b
 
 	int meshIx = mesh->GetMeshIndex();
 
+	auto meshScreenSize = m_allowLodSelection ? m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor : std::numeric_limits<float>::max();
+
 	// first the damage overlays
 	if( m_impactOverlay )
 	{
@@ -1041,7 +1008,7 @@ void EveSpaceObject2::GetBatchesFromOverlayVector( ITriRenderBatchAccumulator* b
 					batch->SetShaderMaterial( effect );
 					batch->SetPerObjectData( perObjectData );
 					batch->SetGeometryResource( geomRes );
-					batch->SetMeshParameters( meshIx, areaBlock->m_startIndex, areaBlock->m_count );
+					batch->SetMeshParameters( meshIx, areaBlock->m_startIndex, areaBlock->m_count, meshScreenSize );
 					batches->Commit( batch );
 				}
 			}
@@ -1071,7 +1038,7 @@ void EveSpaceObject2::GetBatchesFromOverlayVector( ITriRenderBatchAccumulator* b
 						batch->SetShaderMaterial( effect );
 						batch->SetPerObjectData( perObjectData );
 						batch->SetGeometryResource( geomRes );
-						batch->SetMeshParameters( meshIx, areaBlock->m_startIndex, areaBlock->m_count );
+						batch->SetMeshParameters( meshIx, areaBlock->m_startIndex, areaBlock->m_count, meshScreenSize );
 						batches->Commit( batch );
 					}
 				}
@@ -1326,13 +1293,6 @@ void EveSpaceObject2::PushChildrenAndDecalRenderables( std::vector<ITr2Renderabl
 	// are decals visible?
 	if( DisplayDecals() && m_mesh && m_isMeshVisible )
 	{
-		bool hasHighLodGeometry = true;
-		if( m_meshLod )
-		{
-			hasHighLodGeometry = m_meshLod->IsGeometryUsingSelectedLod();
-		}
-		if( hasHighLodGeometry )
-		{
 			TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 			if( geometryRes )
 			{
@@ -1340,8 +1300,7 @@ void EveSpaceObject2::PushChildrenAndDecalRenderables( std::vector<ITr2Renderabl
 				for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 				{
 					// now prep to get the renderables
-					( *it )->GetRenderables( renderables, geometryRes );
-				}
+				( *it )->GetRenderables( renderables, geometryRes, m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor );
 			}
 		}
 	}
@@ -1467,8 +1426,14 @@ void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 			( *it )->UpdateVisibility( frustum, &pd );
 		}
 	}
+
+	if( m_mesh )
+	{
+		auto size = frustum.GetPixelSizeAccrossEst( m_boundingSphereWorldCenter, m_boundingSphereRadius );
+		m_mesh->UseWithScreenSize( size );
 }
-;
+}
+
 bool EveSpaceObject2::IsVisible( const TriFrustum& frustum ) const
 {
 	return frustum.IsSphereVisible( m_boundingSphereWorldCenter, m_boundingSphereWorldRadius ) && 
@@ -1482,7 +1447,10 @@ void EveSpaceObject2::GetRenderables( std::vector<ITr2Renderable*>& renderables,
 	{
 		if( m_allowLodSelection && m_isMeshVisible )
 		{
-			SelectMeshLevelOfDetail();
+			if( m_mesh )
+			{
+				m_mesh->GetBoundingBox( m_localAabbMin, m_localAabbMax );
+			}
 		}
 
 		if( m_impostorMode && impostors != nullptr )
@@ -1598,7 +1566,7 @@ bool EveSpaceObject2::GetRenderablesCastingShadow( bool isSelf, const TriFrustum
 void EveSpaceObject2::SetMesh( Tr2MeshBase* mesh )
 {
 	m_mesh = mesh;
-	m_allowLodSelection = false;
+	PrepareForAnimation();
 }
 
 // --------------------------------------------------------------------------------
@@ -1705,7 +1673,6 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 
 	if( !m_geometryResFromMesh || !m_geometryResFromMesh->IsGood() )
 	{
-		m_wantsGeometryResFromMesh = true;
 		return;
 	}
 
@@ -1717,10 +1684,6 @@ void EveSpaceObject2::RebuildCachedData( BlueAsyncRes* p )
 		if( m_mesh )
 		{
 			m_geometryResFromMesh->GetBoundingSphere( m_mesh->GetMeshIndex(), sphere );
-		}
-		else if( m_meshLod )
-		{
-			m_geometryResFromMesh->GetBoundingSphere( m_meshLod->GetMeshIndex(), sphere );
 		}
 		else
 		{
@@ -2260,40 +2223,6 @@ Quaternion EveSpaceObject2::GetWorldRotation()
 	return m_worldRotation;
 }
 
-void EveSpaceObject2::SelectMeshLevelOfDetail()
-{
-	if( m_meshLod )
-	{
-		m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
-		m_mesh = m_meshLod;
-	}
-	else
-	{
-		// still use the original mesh, which then acts as LOD_HIGH
-		m_lodLevel = TR2_LOD_HIGH;
-	}
-
-	// pass it down to the impact effects, they use LODing too!
-	if( m_impactOverlay )
-	{
-		m_impactOverlay->SelectLod( m_lodLevel );
-	}
-
-	if( m_mesh )
-	{
-		PrepareForAnimation();
-		m_mesh->GetBoundingBox( m_localAabbMin, m_localAabbMax );
-	}
-}
-
-void EveSpaceObject2::UnloadLodIfNeeded( Be::Time time )
-{
-	if( EveSpaceScene::IsMeshUnloadingEnabled() )
-	{
-		m_mesh = NULL;
-	}
-}
-
 void EveSpaceObject2::UpdateWorldTransform( Be::Time time )
 {
 	if( m_lastUpdateTransformTime == time )
@@ -2408,22 +2337,11 @@ void EveSpaceObject2::GetLocalToWorldTransform( Matrix& transform ) const
 
 void EveSpaceObject2::FreezeHighDetailMesh()
 {
-	if( m_meshLod )
-	{
-		m_mesh = m_meshLod;
-		m_meshLod->SelectLod( TR2_LOD_HIGH );
-
 		m_allowLodSelection = false;
-		m_lodLevel = TR2_LOD_HIGH;
-
-		PrepareForAnimation();
-	}
 }
 
 void EveSpaceObject2::PrepareForAnimation()
 {
-	if( m_wantsGeometryResFromMesh )
-	{
 		// If this is the first time we see a mesh we set up a callback on the geometry resource
 		// file load to check for possible animations. If the file has animations we set up
 		// the data structures for animation playback.
@@ -2439,7 +2357,6 @@ void EveSpaceObject2::PrepareForAnimation()
 				m_geometryResFromMesh->RemoveNotifyTarget( this );
 			}
 			m_geometryResFromMesh = geometryRes;
-			m_wantsGeometryResFromMesh = false;
 
 			m_animationUpdater->SetUseMeshBinding( true );
 			m_animationUpdater->SetSharedGeometryRes( m_geometryResFromMesh );
@@ -2447,7 +2364,6 @@ void EveSpaceObject2::PrepareForAnimation()
 			m_geometryResFromMesh->AddNotifyTarget( this );
 		}
 	}
-}
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -3112,12 +3028,6 @@ void EveSpaceObject2::AddExternalParameter( Tr2ExternalParameter* externalParame
 	m_externalParameters.Append( externalParameter->GetRawRoot() );
 }
 
-void EveSpaceObject2::SetMeshLod( Tr2MeshLod* mesh )
-{
-	m_meshLod = mesh;
-	m_mesh.Unlock();
-}
-
 void EveSpaceObject2::GetLights( Tr2LightManager& lightManager ) const
 {
 	if( !m_display )
@@ -3357,10 +3267,6 @@ void EveSpaceObject2::SetShaderOption( const BlueSharedString& name, const BlueS
 	{
 		m_mesh->SetShaderOption( name, value );
 	}
-	else if( nullptr != m_meshLod )
-	{
-		m_meshLod->SetShaderOption( name, value );
-	}
 
 	if( m_shadowEffect )
 	{
@@ -3456,4 +3362,17 @@ void EveSpaceObject2::SetReflectionMode( EntityComponents::ReflectionMode mode )
 {
 	m_reflectionMode = mode;
 	ReRegister();
+}
+int EveSpaceObject2::GetLastUsedMeshLod() const
+{
+	if( !m_mesh || !m_mesh->GetGeometryResource() )
+	{
+		return -1;
+	}
+	if( !m_allowLodSelection )
+	{
+		return 0;
+	}
+	auto meshScreenSize = m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor;
+	return m_mesh->GetGeometryResource()->GetLodIndexForScreenSize( unsigned( m_mesh->GetMeshIndex() ), meshScreenSize );
 }

@@ -47,6 +47,7 @@ public:
 
 	// access
 	void SetResourcePath( Tr2Lod lod, const char* resPath );
+	std::string GetResourcePath( Tr2Lod lod ) const;
 	IBlueResource* GetResource();
 
 	void SelectLod( Tr2Lod lod );

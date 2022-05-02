@@ -28,7 +28,9 @@ public:
 	EXPOSE_TO_BLUE();
 
 	EvePlaneSetItem( IRoot* lockobj = NULL );
-	~EvePlaneSetItem();
+
+	CcpMath::AxisAlignedBox GetBounds() const;
+	int32_t GetBoneIndex() const;
 	
 	// name
 	BlueSharedString m_name;

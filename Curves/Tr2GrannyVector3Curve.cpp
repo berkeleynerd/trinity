@@ -126,7 +126,8 @@ unsigned char* Tr2GrannyVector3Curve::AllocateReadBuffer( const char* memberName
 void Tr2GrannyVector3Curve::SetBufferAndSize( const char* memberName, unsigned char* buffer, size_t bufferSize )
 {
 	// The type has some pointers so we need to adjust the pointers relative to the base object loaded
-	m_grannyCurve = (granny_curve2*)Tr2GRNMemoryPersist::RebaseBuffer( GrannyCurve2Type, m_grannyCurve );
+	m_grannyCurve = (granny_curve2*)Tr2GRNMemoryPersist::RebaseBuffer( GrannyCurve2Type, buffer );
+	CCP_ALIGNED_FREE( buffer );
 }
 
 // --------------------------------------------------------------------------------------

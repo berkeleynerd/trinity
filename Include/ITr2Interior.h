@@ -12,7 +12,6 @@ struct Tr2InteriorPerObjectLightData;
 struct Tr2PerFrameVSData;
 struct ITr2InteriorLight;
 class Tr2RenderContext;
-struct AxisAlignedBoundingBox;
 
 enum CullResult
 {

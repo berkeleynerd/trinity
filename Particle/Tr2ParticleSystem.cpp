@@ -306,15 +306,9 @@ bool Tr2ParticleSystem::IsInstanceDataReady() const
 	return m_declaration != Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns number of instance buffers.
-// Return Value:
-//   1 always
-// --------------------------------------------------------------------------------------
-unsigned int Tr2ParticleSystem::GetInstanceBufferCount() const
+ITr2InstanceData::InstanceData Tr2ParticleSystem::GetInstanceData( unsigned int, float ) const
 {
-	return 1;
+	return { m_vertexBuffer, uint32_t( m_vertexSizes[Tr2ParticleElementData::GPU] * sizeof( float ) ), m_aliveCount };
 }
 
 // --------------------------------------------------------------------------------------
@@ -330,38 +324,13 @@ unsigned int Tr2ParticleSystem::GetInstanceBufferVertexDeclaration( unsigned int
 	return m_declaration;
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns number of instances.
-// Arguments:
-//   bufferIndex - Instance buffer index (unused)
-// Return Value:
-//   Number of alive particles
-// --------------------------------------------------------------------------------------
-unsigned int Tr2ParticleSystem::GetInstanceBufferVertexCount( unsigned int bufferIndex ) const
+CcpMath::AxisAlignedBox Tr2ParticleSystem::GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const
 {
-	return m_aliveCount;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Implements ITr2InstanceData interface. Returns vertex buffer with particle data.
-// Arguments:
-//   bufferIndex - instance buffer index
-//   buffer - (out) vertex buffer containing instance data (can be null)
-//   stride - (out) vertex stride for the vertex buffer
-// --------------------------------------------------------------------------------------
-void Tr2ParticleSystem::GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride )
-{
-	buffer = m_vertexBuffer;
-	stride = m_vertexSizes[Tr2ParticleElementData::GPU] * sizeof( float );
-}
-
-bool Tr2ParticleSystem::GetInstanceBufferBoundingBox( unsigned int, Vector3& minBounds, Vector3& maxBounds ) const
-{
-	minBounds = m_AabbMin;
-	maxBounds = m_AabbMax;
-	return m_aliveCount > 0;
+	if( m_aliveCount > 0 )
+	{
+		return CcpMath::AxisAlignedBox( m_AabbMin, m_AabbMax );
+	}
+	return CcpMath::AxisAlignedBox();
 }
 
 // --------------------------------------------------------------------------------------

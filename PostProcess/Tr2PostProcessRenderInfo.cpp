@@ -11,7 +11,7 @@
 Tr2PostProcessRenderInfo::Tr2PostProcessRenderInfo( IRoot* lockobj )
 {
 	m_black.CreateInstance();
-	m_black->m_name = "Black";
+	m_black->SetName( "Black" );
 }
 
 

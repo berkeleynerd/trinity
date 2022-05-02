@@ -3,12 +3,15 @@
 #include "ITr2TextureProvider.h"
 #include "Shader/Tr2Shader.h"
 #include "Tr2Renderer.h"
+#include "Resources/TriTextureRes.h"
+
 
 TriTextureParameter::TriTextureParameter(IRoot* lockobj):
-	m_isUsedByEffect( false ),
 	m_resourceType( Tr2EffectResource::TEXTURE_TYPELESS ),
-	m_uavMipLevel( 0 )
+	m_uavMipLevel( 0 ),
+	m_isUsedByEffect( false )
 {
+	std::fill( std::begin( m_uvDensityScale ), std::end( m_uvDensityScale ), 0.f );
 }
 
 
@@ -36,6 +39,25 @@ unsigned TriTextureParameter::GetHashValue( unsigned startingHash ) const
 	return CcpHashFNV1( &name, sizeof( name ), startingHash );
 }
 
+void TriTextureParameter::UsedWithScreenSize( float screenSize, const std::vector<float>& uvDensities )
+{
+	if( m_textureRes )
+	{
+		size_t i = 0;
+		float resolution = 0;
+		for( auto uv : uvDensities )
+		{
+			auto scale = m_uvDensityScale[i++];
+			auto density = uv * scale;
+			if( density > 0 )
+			{
+				resolution = std::max( resolution, screenSize / density );
+			}
+		}
+		m_textureRes->RequestResolution( resolution );
+	}
+}
+
 // -------------------------------------------------------------
 // Description:
 //   Returns the respath to the currently used texture. Might
@@ -57,9 +79,16 @@ void TriTextureParameter::SetResourcePath( const char* resourcePath )
 	OnModified( (Be::Var*)&m_resourcePath );
 }
 
+void TriTextureParameter::EnableTextureLoding( const std::array<float, UV_SET_MAX_COUNT>& uvDensityScale )
+{
+	std::copy( begin( uvDensityScale ), end( uvDensityScale ), begin( m_uvDensityScale ) );
+}
+
 bool TriTextureParameter::OnModified(	Be::Var* val )
 {
 	m_resource.Unlock();
+	m_lowResResource = nullptr;
+	m_textureRes = nullptr;
 
 	Initialize();
 
@@ -109,14 +138,28 @@ bool TriTextureParameter::ApplyUav(
 // ---------------------------------------------------------------
 bool TriTextureParameter::Initialize()
 {
+	m_resource = nullptr;
+	m_lowResResource = nullptr;
+	m_textureRes = nullptr;
+
 	if( !m_resourcePath.empty() )
 	{
-		m_resource = nullptr;
+		if( !BePaths->FileExistsLocally( CA2W( m_resourcePath.c_str() ) ) )
+		{
+			auto dot = m_resourcePath.rfind( '.' );
+			if( dot != std::string::npos )
+			{
+				auto lowResPath = m_resourcePath.substr( 0, dot ) + "_lowdetail" + m_resourcePath.substr( dot );
+				if( BePaths->FileExistsLocally( CA2W( lowResPath.c_str() ) ) )
+				{
+					BeResMan->GetResource( lowResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_lowResResource );
+				}
+			}
+		}
+
+
 		BeResMan->GetResource( m_resourcePath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_resource );
-	}
-	else
-	{
-		m_resource.Unlock();
+		m_textureRes = BlueCastPtr( m_resource );
 	}
 	return true;
 }
@@ -128,11 +171,24 @@ bool TriTextureParameter::Initialize()
 void TriTextureParameter::SetResource( ITr2TextureProvider* newRes )
 {
 	m_resource = newRes;
+	m_lowResResource = nullptr;
+	m_textureRes = BlueCastPtr( m_resource );
 	RebuildEffectHandles( m_cachedEffect );
 }
 
 ITr2TextureProvider* TriTextureParameter::GetResource() const
 {
+	if( m_lowResResource )
+	{
+		if( m_resource->GetTexture() )
+		{
+			m_lowResResource = nullptr;
+		}
+		else
+		{
+			return m_lowResResource;
+		}
+	}
 	return m_resource;
 }
 

@@ -53,7 +53,7 @@ public:
 	void SetBoosterIntensity( float intensity );
 	void SetShaderData( const EveSpaceObjectVSData& vsData, const EveSpaceObjectPSData& psData );
 	void InitDecals( const PEveSpaceObjectDecalVector &decals );
-	void PushDecals( std::vector<ITr2Renderable*>& renderables );
+	void PushDecals( std::vector<ITr2Renderable*>& renderables, float screensize );
 	void UpdateDecalVisibility( const TriFrustum& frustum, EveSpaceObjectDecal::ParentData &pd, Tr2GrannyAnimation* animationUpdater );
 
 	/////////////////////////////////////////////////////////////////////////////////////

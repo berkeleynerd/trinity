@@ -34,9 +34,11 @@ BLUE_DECLARE( Tr2Shader );
 BLUE_DECLARE_INTERFACE( ITr2TextureProvider );
 BLUE_DECLARE( TriTextureParameter );
 BLUE_CLASS_ALLOW_DELAYED_DELETE( TriTextureParameter );
+BLUE_DECLARE( TriTextureRes );
+
 
 BLUE_CLASS( TriTextureParameter ):
-	public ITriEffectResourceParameter,
+	public ITriEffectTextureParameter,
 	public IInitialize,
 	public INotify,
 	public ICopierCustomAssignment
@@ -54,7 +56,7 @@ public:
 	void RebuildEffectHandles( Tr2Shader* effectRes );
 
 	//////////////////////////////////////////////////////////////////////////
-	// ITriEffectResourceParameter
+	// ITriEffectTextureParameter
 	virtual bool CopyToResourceSet(
 		Tr2ResourceSetDescriptionAL& resourceDesc,
 		Tr2RenderContextEnum::ShaderType stage,
@@ -66,6 +68,9 @@ public:
 		uint32_t registerIndex,
 		uint32_t initialCount ) const;
 	unsigned GetHashValue( unsigned startingHash ) const;
+
+	void UsedWithScreenSize( float screenSize, const std::vector<float>& uvDensities ) override;
+	void EnableTextureLoding( const std::array<float, UV_SET_MAX_COUNT>& uvDensityScale ) override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// INotify
@@ -93,18 +98,25 @@ public:
 	void SetParameterName( const BlueSharedString& name );
 	const wchar_t* GetResourcePath() const;
 	void SetResourcePath( const char* resourcePath );
+
 private:
 	Tr2ShaderPtr m_cachedEffect;
 
 	BlueSharedString m_name;
-	std::string m_resourcePath;
 
 	ITr2TextureProviderPtr m_resource;
+	mutable ITr2TextureProviderPtr m_lowResResource;
+	TriTextureResPtr m_textureRes;
 	Tr2EffectResource::Type m_resourceType;
 
 	uint32_t m_uavMipLevel;
 
+	std::array<float, UV_SET_MAX_COUNT> m_uvDensityScale;
+
 	bool m_isUsedByEffect;
+
+protected:
+	std::string m_resourcePath;
 };
 
 TYPEDEF_BLUECLASS(TriTextureParameter);

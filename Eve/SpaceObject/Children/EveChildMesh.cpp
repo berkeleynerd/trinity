@@ -5,7 +5,6 @@
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveTransform.h"
 #include "Utilities/BoundingSphere.h"
-#include "Tr2MeshLod.h"
 #include "Tr2GrannyAnimation.h"
 
 
@@ -116,30 +115,20 @@ void EveChildMesh::RegisterComponents()
 void EveChildMesh::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, Tr2Lod parentLod )
 {
 	m_isVisible = false;
-	if( parentLod < m_lowestLodVisible )
-	{
-		return;
-	}
-	Vector4 boundingSphere;
+	m_currentScreenSize = -1;
 
-	if( GetBoundingSphere( boundingSphere ) )
+	if( m_mesh )
 	{
-		m_currentScreenSize = frustum.GetPixelSizeAccross( &boundingSphere );
-		m_isVisible = m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor;
+		auto bounds = m_mesh->GetBounds();
+		bounds.Transform( m_worldTransform );
+
+		m_currentScreenSize = frustum.GetPixelSizeAccross( bounds );
+		m_mesh->UseWithScreenSize( m_currentScreenSize );
+		if( frustum.IsBoxVisible( bounds ) )
+		{
+			m_isVisible = parentLod >= m_lowestLodVisible && m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor;
+		}
 	}
-	else
-	{
-		m_currentScreenSize = -1;
-	}
-}
-// --------------------------------------------------------------------------------
-// Description:
-//   Only used by planets because they use a custom frustum and UpdateVisibility fails at calculating m_currentScreenSize
-// --------------------------------------------------------------------------------
-void EveChildMesh::ForceCurrentScreenSize( float screenSize )
-{
-	m_currentScreenSize = screenSize;
-	m_isVisible = m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor;
 }
 
 void EveChildMesh::GetRenderables( std::vector<ITr2Renderable*>& renderables )
@@ -152,11 +141,15 @@ void EveChildMesh::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 
 bool EveChildMesh::GetBoundingSphere( Vector4& sphere, BoundingSphereQuery query ) const
 {
-
-	if( m_mesh && m_mesh->GetBoundingSphere( sphere ) )
+	if( m_mesh )
 	{
-		BoundingSphereTransform( m_worldTransform, sphere );
-		return true;
+		if( auto aabb = m_mesh->GetBounds() )
+		{
+			auto s = CcpMath::Sphere( aabb );
+			s.Transform( m_worldTransform );
+			sphere = Vector4( s.center, s.radius );
+			return true;
+		}
 	}
 
 	return false;
@@ -190,7 +183,7 @@ void EveChildMesh::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType
 {
 	if( m_display && m_mesh )
 	{
-		m_mesh->GetBatches( batches, m_mesh->GetAreas( batchType ), perObjectData );
+		m_mesh->GetBatches( batches, m_mesh->GetAreas( batchType ), perObjectData, m_currentScreenSize );
 	}
 }
 
@@ -335,16 +328,8 @@ void EveChildMesh::GetLocalToWorldTransform( Matrix& transform ) const
 	transform = m_worldTransform;
 }
 
-void EveChildMesh::ChangeLOD( Tr2Lod lod )
+void EveChildMesh::ChangeLOD( Tr2Lod )
 {
-	if( m_mesh == nullptr )
-	{
-		return;
-	}
-	if ( Tr2MeshLodPtr meshLod = BlueCastPtr( m_mesh ) )
-	{
-		meshLod->SelectLod( lod );
-	}
 }
 
 void EveChildMesh::SetMesh( Tr2MeshBase* mesh )

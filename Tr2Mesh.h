@@ -3,27 +3,8 @@
 #define Tr2Mesh_H
 
 #include "Tr2MeshBase.h"
-#include "Tr2MeshArea.h"
-#include "ITr2Renderable.h"
-#include "TriRenderBatch.h"
+#include "Resources/Tr2LoadPrepareFence.h"
 
-#include "blue/Include/IUnloadable.h"
-#include "Resources/Tr2LodResource.h"
-
-BLUE_DECLARE( Tr2Mesh );
-BLUE_DECLARE( TriGeometryRes );
-BLUE_DECLARE( Tr2VariableStore );
-BLUE_DECLARE_VECTOR( Tr2LodResource );
-
-struct TriGeometryResSkeletonData;
-class ITriRenderBatchAccumulator;
-class Tr2PerObjectData;
-class TriRenderBatch;
-
-namespace MR
-{
-	class Rig;
-}
 
 BLUE_CLASS( Tr2Mesh ):
 	public Tr2MeshBase,
@@ -39,19 +20,17 @@ public:
 
 	using IInitialize::Lock;
 	using IInitialize::Unlock;
-
-	void SetLowDetail( bool b ) { }
 	
 	const char* GetMeshResPath() const { return m_meshResPath.c_str(); }
 	void SetMeshResPath( const char* path );
 
-	virtual TriGeometryRes* GetGeometryResource() const;;
+	const char* GetLowResMeshResPath() const;
+	void SetLowResMeshResPath( const char* path );
+
+	TriGeometryRes* GetGeometryResource() const override;
 	void SetGeometryRes( TriGeometryRes* res );
 
-	bool DeferGeometryLoad() const { return m_deferGeometryLoad; }
-	void DeferGeometryLoad(bool val) { m_deferGeometryLoad = val; }
-
-	virtual bool IsLoading() const { return m_isLoading; }
+	bool IsLoading() const override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// INotify
@@ -68,24 +47,20 @@ public:
 private:
 	void InitializeGeometryResource();
 
-	static void StaticResourceLoadFinished( void* pContext );
-	static void StaticResourcePrepFinished( void* pContext );
-
 	void PySetGeometryRes( TriGeometryRes* geometryRes );
 	int GetAreasCount() const;
+	void SetLowResGeometryRes( TriGeometryRes * res );
 
-protected:
-	std::string m_meshResPath;
-	bool m_deferGeometryLoad;
+private:
 	TriGeometryResPtr m_geometryResource;
+	TriGeometryResPtr m_lowResGeometryResource;
+	std::string m_meshResPath;
 	std::string m_geomResourceEx;
 
-	bool m_isLoading;
-	CcpAtomic<uint32_t> m_resourceLoadCbId;
-	CcpAtomic<uint32_t> m_resourcePrepCbId;
+	Tr2LoadPrepareFence m_loadFence;
 
-	PTr2LodResourceVector m_lodResources;
-	Tr2Lod m_selectedLod;
+protected:
+	bool m_deferGeometryLoad;
 };
 
 TYPEDEF_BLUECLASS( Tr2Mesh );

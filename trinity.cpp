@@ -351,6 +351,7 @@ BLUE_DEFINE_INTERFACE( ITriTextureRes );
 
 BLUE_DEFINE_INTERFACE( ITriEffectParameter );
 BLUE_DEFINE_INTERFACE( ITriEffectResourceParameter );
+BLUE_DEFINE_INTERFACE( ITriEffectTextureParameter );
 
 BLUE_DEFINE_INTERFACE( ITriTargetable );
 

@@ -11,6 +11,7 @@
 #include "TriDevice.h"
 
 #include "TexturePipeline/Tr2TexturePipeline.h"
+#include "Tr2TextureLodManager.h"
 
 
 using namespace Tr2RenderContextEnum;
@@ -23,6 +24,10 @@ TRI_REGISTER_SETTING( "imageWarnLoadTime", g_imageWarnLoadTime );
 
 static bool s_generateMipsOnTextureLoad = true;
 TRI_REGISTER_SETTING( "generateMipsOnTextureLoad", s_generateMipsOnTextureLoad );
+
+static uint32_t s_diskLatencySimulation = 0;
+TRI_REGISTER_SETTING( "textureLodSimulateDiskLatency", s_diskLatencySimulation );
+
 
 namespace {
 
@@ -50,30 +55,90 @@ bool IsCtrPath( const wchar_t* name )
 	return length > 4 && wcscmp( name + length - 4, L".ctr" ) == 0;
 }
 
+const uint32_t INVALID_LOD = std::numeric_limits<uint32_t>::max();
+
+void CreateDescription( const ImageIO::HostBitmap& bitmap, uint32_t lod, Tr2BitmapDimensions& desc )
+{
+	uint32_t mipCount = bitmap.GetTrueMipCount();
+	uint32_t mip = std::min( lod, mipCount - 1 );
+	desc = Tr2BitmapDimensions(
+		bitmap.GetType(),
+		bitmap.GetFormat(),
+		bitmap.GetMipWidth( mip ),
+		bitmap.GetMipHeight( mip ),
+		bitmap.GetMipDepth( mip ),
+		mipCount - mip,
+		bitmap.GetArraySize() );
+}
+
+void CreateDescription( const ImageIO::HostBitmap& bitmap, uint32_t lod, Tr2BitmapDimensions& desc, std::vector<Tr2SubresourceData>& initialData )
+{
+	uint32_t mipCount = bitmap.GetTrueMipCount();
+	uint32_t mip = std::min( lod, mipCount - 1 );
+	desc = Tr2BitmapDimensions(
+		bitmap.GetType(),
+		bitmap.GetFormat(),
+		bitmap.GetMipWidth( mip ),
+		bitmap.GetMipHeight( mip ),
+		bitmap.GetMipDepth( mip ),
+		mipCount - mip,
+		bitmap.GetArraySize() );
+	initialData.reserve( desc.GetMipCount() * desc.GetArraySize() );
+	for( uint32_t arrayIndex = 0; arrayIndex != desc.GetArraySize(); ++arrayIndex )
+	{
+		for( uint32_t i = mip; i != mipCount; ++i )
+		{
+			Tr2SubresourceData srd;
+			srd.m_sysMem = const_cast<char*>( bitmap.GetMipRawData( i, arrayIndex ) );
+			srd.m_sysMemSlicePitch = bitmap.GetMipSize( i ) / std::max( bitmap.GetMipDepth( i ), 1u );
+			srd.m_sysMemPitch = bitmap.GetMipPitch( i );
+
+			initialData.push_back( srd );
+		}
+	}
+}
+
+void AtomicMinUpdate( std::atomic<uint32_t>& a, uint32_t b )
+{
+	uint32_t prev = a;
+	while( prev > b && !a.compare_exchange_weak( prev, b ) )
+	{
+	}
+}
+
 } // end of anonymous namespace
 
 
 
 TriTextureRes::TriTextureRes(): 
-	m_resourceRebuiltCounter( 0 ),
 	m_isTextureLoadDisabled( false ),
 	m_texture( nullptr ),
 	m_memoryUse( 0 ),
+	m_originalMemoryUse( 0 ),
 	m_cutoutX( 0.0f ),
 	m_cutoutY( 0.0f ),
 	m_cutoutWidth( 1.0f ),
 	m_cutoutHeight( 1.0f ),
 	m_mipLevelMaxCount( std::numeric_limits<uint32_t>::max() ),
 	m_isTextureResizable( true ),
-	m_resourceLoadCbId( 0 ),
-	m_resourcePrepCbId( 0 ),
+	m_lodEnabled( false ),
+	m_hadLodRequests( false ),
+	m_originalResolution( 0 ),
+	m_requestedMip( INVALID_LOD ),
+	m_maxMip( INVALID_LOD ),
+	m_cpuMip( INVALID_LOD ),
+	m_gpuMip( INVALID_LOD ),
+	m_requestedLoadMip( 0 ),
 	m_averageColor( 0.0, 0.0, 0.0, 0.0 )
-{}
+{
+	Tr2TextureLodManager::Instance().RegisterTexture( this );
+}
 
 TriTextureRes::~TriTextureRes()
 {
 	// Note: ReleaseResources now happens in Unlock due to threading issues.
 	// If a texture resource was deleted while it was still being loaded it would cause crash.
+	Tr2TextureLodManager::Instance().UnregisterTexture( this );
 }
 
 // --------------------------------------------------------------------------------------
@@ -97,16 +162,7 @@ unsigned TriTextureRes::ComputeMipSkipCount()
 
 void TriTextureRes::Initialize( const wchar_t* name, const wchar_t* ext )
 {
-	if( m_resourceLoadCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_BACKGROUND, m_resourceLoadCbId );
-		m_resourceLoadCbId = 0;
-	}
-	if( m_resourcePrepCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_MAIN, m_resourcePrepCbId );
-		m_resourcePrepCbId = 0;
-	}
+	m_pipelineFence.Cancel();
 	CancelPendingLoad();
 	CleanupAsyncSave(false);
 
@@ -132,7 +188,7 @@ void TriTextureRes::Initialize( const wchar_t* name, const wchar_t* ext )
 			m_path = name;
 			m_ext = ext;
 
-			BeResMan->AddToQueue( BRMQ_BACKGROUND, StaticResourceLoadFinished, this, IBlueCallbackMan::BCBF_FENCE, &m_resourceLoadCbId );
+			m_pipelineFence.Put( std::bind( &TriTextureRes::ResourcePrepFinished, this ) );
 			return;
 		}
 	}
@@ -144,18 +200,6 @@ void TriTextureRes::Initialize( const wchar_t* name, const wchar_t* ext )
 	m_isTextureLoadDisabled = Tr2Renderer::IsTextureLoadDisabled();
 
 	BlueAsyncRes::Initialize( name, ext );
-}
-
-void TriTextureRes::StaticResourceLoadFinished( void* pContext )
-{
-	static_cast<TriTextureRes*>( pContext )->m_resourceLoadCbId = 0;
-	BeResMan->AddToQueue( BRMQ_MAIN, StaticResourcePrepFinished, pContext, 0, &static_cast<TriTextureRes*>( pContext )->m_resourcePrepCbId );
-}
-
-void TriTextureRes::StaticResourcePrepFinished( void* pContext )
-{
-	static_cast<TriTextureRes*>( pContext )->m_resourcePrepCbId = 0;
-	static_cast<TriTextureRes*>( pContext )->ResourcePrepFinished();
 }
 
 void TriTextureRes::ResourcePrepFinished()
@@ -200,7 +244,6 @@ void TriTextureRes::ResourcePrepFinished()
 			}
 
 			SetTexture( m_ownTexture );
-			++m_resourceRebuiltCounter;
 		}
 		m_isGood = true;
 		NotifyRebuildCachedData();
@@ -214,23 +257,22 @@ Tr2TexturePipeline* TriTextureRes::GetPipeline() const
 
 void TriTextureRes::OnShutdown()
 {
-	if( m_resourceLoadCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_BACKGROUND, m_resourceLoadCbId );
-		m_resourceLoadCbId = 0;
-	}
-	if( m_resourcePrepCbId )
-	{
-		BeResMan->CancelFromQueue( BRMQ_MAIN, m_resourcePrepCbId );
-		m_resourcePrepCbId = 0;
-	}
+	m_pipelineFence.Cancel();
 	ReleaseResources( TRISTORAGE_ALL );
+	if( m_loadedBitmap && m_lodEnabled )
+	{
+		Tr2TextureLodManager::Instance().CpuTextureDestroyed( *m_loadedBitmap );
+	}
 }
 
 void TriTextureRes::ReleaseResources( TriStorage s )
 {
-	if( ( m_ownTexture.GetMemoryClass() & s ) != 0 )
+	if( m_ownTexture.IsValid() && ( m_ownTexture.GetMemoryClass() & s ) != 0 )
 	{
+		if( m_lodEnabled )
+		{
+			Tr2TextureLodManager::Instance().GpuTextureDestroyed( m_ownTexture.GetDesc() );
+		}
 		m_ownTexture = Tr2TextureAL();
 	}
 
@@ -243,6 +285,7 @@ void TriTextureRes::ReleaseResources( TriStorage s )
 	{
 		CCP_STATS_ADD( textureResBytes, -(int)m_memoryUse );
 		m_memoryUse = 0;
+		m_originalMemoryUse = 0;
 
 		CancelPendingLoad();
 		CleanupAsyncSave(false);
@@ -306,8 +349,6 @@ void TriTextureRes::CleanupLoadData()
 		m_cutoutWidth	= m_metadata.cutout.width;
 		m_cutoutHeight	= m_metadata.cutout.height;
 	}
-
-	m_loadedBitmap.reset();
 }
 
 bool TriTextureRes::OnPrepareResources()
@@ -436,6 +477,8 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 
 	BeTimer t;
 
+	m_originalMemoryUse = 0;
+
 	if( m_isTextureLoadDisabled )
 	{
 		return LR_FAILED;
@@ -455,11 +498,19 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 		m_type = TEX_TYPE_2D;
 	}
 
+	if( m_loadedBitmap && m_lodEnabled )
+	{
+		Tr2TextureLodManager::Instance().CpuTextureDestroyed( *m_loadedBitmap );
+	}
+
+	CcpThreadSleep( s_diskLatencySimulation );
+
 	m_loadedBitmap.reset( CCP_NEW( "TriTextureRes::m_loadedBitmap" ) ImageIO::HostBitmap );
 	CCP_ASSERT( m_loadedBitmap != nullptr );
 
 	ImageIO::Result result;
-	ImageIO::LoadParameters params( m_path.c_str(), ComputeMipSkipCount(), m_mipLevelMaxCount );
+	auto mipSkip = m_requestedLoadMip + ComputeMipSkipCount();
+	ImageIO::LoadParameters params( m_path.c_str(), mipSkip, m_mipLevelMaxCount );
 	result = ImageIO::ReadImage( *m_dataStream, params, *m_loadedBitmap, &m_metadata );
 
 	if( !result )
@@ -486,6 +537,26 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 		CCP_LOGWARN( "TriTextureRes - image read '%S' took %f seconds", GetPath(), secs );
 	}
 
+	if( m_loadedBitmap )
+	{
+		m_originalMemoryUse = m_loadedBitmap->GetRawDataSize();
+
+		m_originalResolution = std::min( m_loadedBitmap->GetWidth(), m_loadedBitmap->GetHeight() );
+		m_originalResolution = m_originalResolution << m_requestedLoadMip;
+		m_cpuMip = m_requestedLoadMip;
+		m_maxMip = m_loadedBitmap->GetTrueMipCount();
+		if( m_maxMip > 4 )
+		{
+			m_maxMip -= 4;
+		}
+		else if( m_maxMip > 0 )
+		{
+			--m_maxMip;
+		}
+		m_lodEnabled = true;
+		Tr2TextureLodManager::Instance().CpuTextureCreated( *m_loadedBitmap );
+	}
+
 	return m_loadedBitmap ? LR_SUCCESS : LR_FAILED;
 }
 
@@ -493,6 +564,14 @@ BlueAsyncRes::LoadingResult TriTextureRes::DoLoad()
 bool TriTextureRes::DoPrepare()
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+
+	if( m_lodEnabled )
+	{
+		if( m_ownTexture.IsValid() )
+		{
+			Tr2TextureLodManager::Instance().GpuTextureDestroyed( m_ownTexture.GetDesc() );
+		}
+	}
 
 	m_ownTexture = Tr2TextureAL();
 	SetTexture( m_ownTexture );
@@ -519,15 +598,167 @@ bool TriTextureRes::DoPrepare()
 			CCP_LOGWARN( "Tr2ImageHandler failed to create texture '%S'", GetPath() );
 			return false;
 		}
+		if( m_lodEnabled )
+		{
+			Tr2TextureLodManager::Instance().GpuTextureCreated( m_ownTexture.GetDesc() );
+			m_gpuMip = m_cpuMip;
+		}
+
+		m_ownTexture.SetName( CW2A( GetPath() ) );
 		
 		isOK = true;
 		SetTexture( m_ownTexture );
-		++m_resourceRebuiltCounter; 
 	}
 
 
 	return isOK;
 }
+
+void TriTextureRes::RequestResolution( float resolutionFraction )
+{
+	if( m_originalResolution == 0 )
+	{
+		return;
+	}
+	m_hadLodRequests = true;
+	uint32_t requestedLod = 0;
+	if( resolutionFraction < float( m_originalResolution ) )
+	{
+		auto requestedResolution = std::max( uint32_t( std::max( 1.f, resolutionFraction ) ), 1u );
+		while( requestedResolution * 2 <= m_originalResolution )
+		{
+			requestedResolution *= 2;
+			++requestedLod;
+		}
+	}
+	AtomicMinUpdate( m_requestedMip, requestedLod );
+}
+
+void TriTextureRes::UpdateLods( Tr2TextureLodManager& manager )
+{
+	ON_BLOCK_EXIT( [&] { m_requestedMip = INVALID_LOD; } );
+
+	if( !IsGood() || !m_lodEnabled || m_originalResolution == 0 )
+	{
+		return;
+	}
+
+	if( m_requestedMip == INVALID_LOD && !m_ownTexture.IsValid() )
+	{
+		// We don't have any GPU texture created and nobody asked for a specific MIP, so let's create a largest one
+		m_requestedMip = m_cpuMip;
+	}
+
+	if( m_requestedMip == INVALID_LOD )
+	{
+		if( manager.NeedToTrimCpuTexture() )
+		{
+			TrimLods( m_maxMip, manager );
+		}
+		return;
+	}
+
+	AtomicMinUpdate( m_requestedMip, m_maxMip );
+
+	if( m_gpuMip == m_requestedMip )
+	{
+		if( manager.NeedToTrimCpuTexture() )
+		{
+			if( m_cpuMip + 1 < m_requestedMip )
+			{
+				TrimLods( m_requestedMip - 1, manager );
+			}
+			else
+			{
+				TrimLods( m_maxMip, manager );
+			}
+		}
+		return;
+	}
+
+	if( m_cpuMip <= m_requestedMip )
+	{
+		USE_MAIN_THREAD_RENDER_CONTEXT();
+
+		Tr2BitmapDimensions desc;
+		std::vector<Tr2SubresourceData> initialData;
+		CreateDescription( *m_loadedBitmap, m_requestedMip - m_cpuMip, desc, initialData );
+
+		if( m_requestedMip < m_gpuMip || manager.NeedToTrimGpuTexture() && manager.CanUploadToGpu( desc ) )
+		{
+			Tr2TextureAL newTexture;
+			if( SUCCEEDED( newTexture.Create( desc, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, &initialData[0], renderContext ) ) )
+			{
+				manager.GpuTextureCreated( desc );
+
+				if( m_ownTexture.IsValid() )
+				{
+					manager.GpuTextureDestroyed( m_ownTexture.GetDesc() );
+				}
+
+				m_ownTexture = newTexture;
+				m_ownTexture.SetName( CW2A( GetPath() ) );
+				SetTexture( m_ownTexture );
+				NotifyRebuildCachedData();
+				m_gpuMip = m_requestedMip;
+
+				if( manager.NeedToTrimCpuTexture() )
+				{
+					if( m_cpuMip + 1 < m_requestedMip )
+					{
+						TrimLods( m_requestedMip - 1, manager );
+					}
+					else
+					{
+						TrimLods( m_maxMip, manager );
+					}
+				}
+			}
+			else
+			{
+				CCP_LOGERR( "Failed to create %ux%u texture %S", desc.GetWidth(), desc.GetHeight(), GetPath() );
+			}
+		}
+	}
+	else
+	{
+		AtomicMinUpdate( m_requestedMip, m_maxMip );
+		Initialize( GetFilePath().c_str(), GetExt() );
+	}
+}
+
+uint32_t TriTextureRes::GetOriginalResolution() const
+{
+	return m_originalResolution;
+}
+
+void TriTextureRes::TrimLods( uint32_t startLod, Tr2TextureLodManager& manager )
+{
+	if( !m_loadedBitmap )
+	{
+		return;
+	}
+	startLod = std::min( startLod, m_maxMip );
+	if( startLod <= m_cpuMip )
+	{
+		return;
+	}
+
+	Tr2BitmapDimensions desc;
+	CreateDescription( *m_loadedBitmap, startLod - m_cpuMip, desc );
+	std::unique_ptr<ImageIO::HostBitmap> bitmap( new ImageIO::HostBitmap() );
+	if( bitmap->CreateFromBitmapDimensions( desc ) )
+	{
+		memcpy( bitmap->GetRawData(), m_loadedBitmap->GetMipRawData( startLod - m_cpuMip ), bitmap->GetRawDataSize() );
+
+		manager.CpuTextureDestroyed( *m_loadedBitmap );
+		manager.CpuTextureCreated( *bitmap );
+
+		std::swap( bitmap, m_loadedBitmap );
+		m_cpuMip = startLod;
+	}
+}
+
 
 long TriTextureRes::UpdateSubresource( unsigned left, unsigned top, unsigned right, unsigned bottom, const void* source, unsigned sourcePitch )
 {
@@ -550,8 +781,7 @@ void TriTextureRes::SetAverageColor( float red, float green, float blue, float a
 
 bool TriTextureRes::SetTextureFromRT( Tr2RenderTarget* renderTarget )
 {
-	m_ownTexture = Tr2TextureAL();
-	SetTexture( m_ownTexture );
+	DestroyOwnTexture();
 	m_wrappedRenderTarget = renderTarget;
 
 	if( renderTarget && renderTarget->IsValid() )
@@ -563,12 +793,13 @@ bool TriTextureRes::SetTextureFromRT( Tr2RenderTarget* renderTarget )
 	return true;
 }
 
-bool TriTextureRes::CreateFromRT( Tr2RenderTarget* renderTarget, unsigned width, unsigned height )
+bool TriTextureRes::CreateAndCopyFromRenderTarget( Tr2RenderTarget* renderTarget )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
-	m_ownTexture = Tr2TextureAL();
-	ON_BLOCK_EXIT( [&]{ SetTexture( m_ownTexture ); } );
+	DestroyOwnTexture();
+
+	ON_BLOCK_EXIT( [&] { SetTexture( m_ownTexture ); } );
 
 	if( !renderTarget || !renderTarget->IsValid() )
 	{
@@ -577,14 +808,8 @@ bool TriTextureRes::CreateFromRT( Tr2RenderTarget* renderTarget, unsigned width,
 
 	auto& rt = renderTarget->GetRenderTarget();
 
-	if( !width ) 
-	{
-		width = rt.GetWidth();
-	}
-	if( !height )
-	{
-		height = rt.GetHeight();
-	}
+	auto width = rt.GetWidth();
+	auto height = rt.GetHeight();
 	
 	// With mipmaps there may be staging resources involved, so just defer the problem to Tr2TextureAL::CopySubresourcRegion
 	if( rt.GetMipCount() != 1 )
@@ -636,8 +861,7 @@ bool TriTextureRes::CreateFromHostBitmap( Tr2HostBitmap* bitmap )
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
-	m_ownTexture = Tr2TextureAL();
-	SetTexture( m_ownTexture );
+	DestroyOwnTexture();
 
 	if( !bitmap || !bitmap->IsValid() || !Tr2Renderer::IsResourceCreationAllowed() )
 	{
@@ -663,6 +887,8 @@ bool TriTextureRes::CreateEmptyTexture( uint32_t width, uint32_t height, uint32_
 		return false;
 	}
 
+	DestroyOwnTexture();
+
 	Tr2BitmapDimensions bmp( width, height, mipCount, format );
 
 	auto trueMipLevelCount = bmp.GetTrueMipCount();
@@ -682,9 +908,6 @@ bool TriTextureRes::CreateEmptyTexture( uint32_t width, uint32_t height, uint32_
 		memoryUse += srd.m_sysMemSlicePitch;
 	}
 
-	m_ownTexture = Tr2TextureAL();
-	SetTexture( m_ownTexture );
-
 	CR_RETURN_VAL( m_ownTexture.Create(
 					   bmp,
 					   Tr2GpuUsage::SHADER_RESOURCE,
@@ -696,6 +919,7 @@ bool TriTextureRes::CreateEmptyTexture( uint32_t width, uint32_t height, uint32_
 	*static_cast<Tr2BitmapDimensions*>( this ) = m_ownTexture.GetDesc();
 
 	m_memoryUse = memoryUse;
+	m_originalMemoryUse = memoryUse;
 
 	CCP_STATS_ADD( textureResBytes, m_memoryUse );
 	SetTexture( m_ownTexture );
@@ -719,11 +943,9 @@ BlueStdResult TriTextureRes::CreateFromTexture( TriTextureRes* texture )
 		return BlueStdResult( BLUE_STD_RESULT_RUNTIME_ERROR, "resource creation is not allowed at this time" );
 	}
 
+	DestroyOwnTexture();
+
 	auto& other = *texture->GetTexture();
-
-	m_ownTexture = Tr2TextureAL();
-	ON_BLOCK_EXIT( [&]{ SetTexture( m_ownTexture ); } );
-
 	auto width = other.GetWidth();
 	auto height = other.GetHeight();
 
@@ -752,9 +974,7 @@ bool TriTextureRes::Create(	uint32_t width,
 							BufferUsageFlags usage,
 							Tr2PrimaryRenderContext& renderContext )
 {
-	m_ownTexture = Tr2TextureAL();
-	SetTexture( m_ownTexture );
-
+	DestroyOwnTexture();
 
 	auto gpuUsage = Tr2GpuUsage::SHADER_RESOURCE;
 	auto cpuUsage = Tr2CpuUsage::NONE;
@@ -799,6 +1019,7 @@ bool TriTextureRes::Create(	uint32_t width,
 		m_memoryUse += GetMipSize( i );
 	}
 	m_memoryUse *= std::max( 1u, GetArraySize() );
+	m_originalMemoryUse = m_memoryUse;
 
 	CCP_STATS_ADD( textureResBytes, m_memoryUse );
 	SetTexture( m_ownTexture );
@@ -809,8 +1030,7 @@ bool TriTextureRes::Create(	uint32_t width,
 
 ALResult TriTextureRes::OpenShared( uintptr_t handle )
 {
-	m_ownTexture = Tr2TextureAL();
-	SetTexture( m_ownTexture );
+	DestroyOwnTexture();
 
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 
@@ -825,6 +1045,7 @@ ALResult TriTextureRes::OpenShared( uintptr_t handle )
 		m_memoryUse += GetMipSize( i );
 	}
 	m_memoryUse *= std::max( 1u, GetArraySize() );
+	m_originalMemoryUse = m_memoryUse;
 
 	CCP_STATS_ADD( textureResBytes, m_memoryUse );
 	SetTexture( m_ownTexture );
@@ -894,4 +1115,34 @@ uint32_t TriTextureRes::GetMsaaType() const
 uint32_t TriTextureRes::GetMsaaQuality() const
 {
 	return m_texture ? m_texture->GetMsaaDesc().quality : 0;
+}
+
+void TriTextureRes::DestroyOwnTexture()
+{
+	if( m_lodEnabled )
+	{
+		if( m_ownTexture.IsValid() )
+		{
+			Tr2TextureLodManager::Instance().GpuTextureDestroyed( m_ownTexture.GetDesc() );
+		}
+		if( m_loadedBitmap )
+		{
+			Tr2TextureLodManager::Instance().CpuTextureDestroyed( *m_loadedBitmap );
+			m_loadedBitmap = nullptr;
+		}
+		m_lodEnabled = false;
+		m_hadLodRequests = false;
+	}
+	m_ownTexture = Tr2TextureAL();
+	SetTexture( m_ownTexture );
+}
+
+bool TriTextureRes::HadLodRequests() const
+{
+	return m_hadLodRequests;
+}
+
+size_t TriTextureRes::GetOriginalMemoryUsage() const
+{
+	return m_originalMemoryUse;
 }

@@ -56,12 +56,11 @@ const Be::ClassInfo* Tr2Mesh::ExposeToBlue()
 			TriGR2Chooser
 		)
 		MAP_ATTRIBUTE( "deferGeometryLoad", m_deferGeometryLoad, "Defers geometry load when loading mesh objects", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
-		MAP_ATTRIBUTE
+		MAP_PROPERTY_READONLY
 		(
 			"isLoading", 
-			m_isLoading, 
-			"If set, mesh resources might still be loading",
-			Be::READ
+			IsLoading, 
+			"If set, mesh resources might still be loading"
 		)
 
 		MAP_METHOD_AND_WRAP( 

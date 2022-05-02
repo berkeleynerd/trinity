@@ -1195,7 +1195,7 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 
 			m_accumulationBuffer.CreateInstance();
 			m_accumulationBuffer->Create(source->GetWidth(), source->GetHeight(), 1, source->GetFormat());
-			m_accumulationBuffer->m_name = "AccumulationBuffer";
+			m_accumulationBuffer->SetName( "AccumulationBuffer" );
 
 			m_taaEffect.CreateInstance();
 			m_taaEffect->StartUpdate();
@@ -1204,7 +1204,7 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 			m_taaEffect->SetParameter(BlueSharedString("LastFrame"), m_accumulationBuffer);
 
 			m_velocityBuffer.CreateInstance();
-			m_velocityBuffer->m_name = "VelocityMap";
+			m_velocityBuffer->SetName( "VelocityMap" );
 			m_velocityBuffer->Create(source->GetWidth(), source->GetHeight(), 1, Tr2RenderContextEnum::PIXEL_FORMAT_R16G16_FLOAT, source->GetMsaaType(), 0);
 
 			if (source->GetMsaaType() > 1)

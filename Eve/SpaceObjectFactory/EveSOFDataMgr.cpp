@@ -765,19 +765,22 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 		decalSetData.visibilityGroup = GetVisibilityGroupHash( hullDecalSet->m_visibilityGroup );
 		decalSetData.items.clear();
 
-		for( auto hdsi = hullDecalSet->m_items.begin(); hdsi != hullDecalSet->m_items.end(); ++hdsi )
+		for( const auto& itemPtr : hullDecalSet->m_items )
 		{
-			EveSOFDataHullDecalSetItemPtr itemPtr = (*hdsi);
 			HullDecalSetItemData itemData;
 			itemData.boneIndex = itemPtr->m_boneIndex;
 			itemData.glowColorType = itemPtr->m_glowColorType;
-			itemData.indexBuffer.insert( itemData.indexBuffer.begin(), itemPtr->m_indexBuffer.begin(), itemPtr->m_indexBuffer.end() );
 			itemData.meshIndex = itemPtr->m_meshIndex;
 			itemData.position = itemPtr->m_position;
 			itemData.rotation = itemPtr->m_rotation;
 			itemData.scaling = itemPtr->m_scaling;
 			itemData.usage = itemPtr->m_usage;
 			itemData.logoType = itemPtr->m_logoType;
+			
+			for( const auto buffer : itemPtr->m_indexBuffers )
+			{
+				itemData.indexBuffers.push_back( buffer->m_indexBuffer );
+			}
 
 			for( auto hdtit = itemPtr->m_textures.begin(); hdtit != itemPtr->m_textures.end(); ++hdtit )
 			{

@@ -55,6 +55,11 @@ void Tr2LodResource::SetResourcePath( Tr2Lod lod, const char* resPath )
 	m_resPath[ lod ] = resPath;
 }
 
+std::string Tr2LodResource::GetResourcePath( Tr2Lod lod ) const
+{
+	return m_resPath[lod];
+}
+
 IBlueResource* Tr2LodResource::GetResource()
 {
 	if( m_active )

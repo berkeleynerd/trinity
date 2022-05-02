@@ -232,6 +232,10 @@ void EvePlaneSet::SubmitGeometry( Tr2RenderContext& renderContext )
 bool EvePlaneSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
 	auto aabb = GetAabb( bones, boneCount );
+	if( !aabb.IsInitialized() )
+	{
+		return false;
+	}
 	aabb.Transform( parentTransform );
 
 	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
@@ -243,19 +247,7 @@ bool EvePlaneSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& par
 // --------------------------------------------------------------------------------------
 AxisAlignedBoundingBox EvePlaneSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
 {
-	auto aabb = m_aabb;
-	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
-	{
-		if( box->first < int( boneCount ) )
-		{
-			Matrix boneTransform = IdentityMatrix();
-			TriMatrixCopyFrom3x4( &boneTransform, &bones[box->first] );
-			auto boxAabb = box->second;
-			boxAabb.Transform( boneTransform );
-			aabb.IncludeBox( boxAabb );
-		}
-	}
-	return aabb;
+	return GetItemSetAabb( m_aabb, m_boundingBoxes, bones, boneCount );
 }
 
 // --------------------------------------------------------------------------------
@@ -340,26 +332,7 @@ void EvePlaneSet::Rebuild()
 // --------------------------------------------------------------------------------------
 void EvePlaneSet::CreateBoundingBoxes()
 {
-	// Clear the list before we can rebuild it
-	m_boundingBoxes.clear();
-	m_aabb = AxisAlignedBoundingBox( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
-
-	for( auto it = m_planes.begin(); it != m_planes.end(); ++it )
-	{
-		AxisAlignedBoundingBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
-		aabb.Transform( TransformationMatrix( ( *it )->m_scaling, ( *it )->m_rotation, ( *it )->m_position ) );
-
-		// Group together all animated items that are attached to the same bone
-		if( ( *it )->m_boneIndex >= 0 )
-		{
-			m_boundingBoxes.push_back( std::make_pair( ( *it )->m_boneIndex, aabb ) );
-		}
-		else
-		{
-			// Group together all static items not attached to any bone
-			m_aabb.IncludeBox( aabb );
-		}
-	}
+	CreateItemSetBoundingBoxes( m_aabb, m_boundingBoxes, true, begin( m_planes ), end( m_planes ) );
 }
 
 // --------------------------------------------------------------------------------

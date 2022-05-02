@@ -15,7 +15,10 @@
 BLUE_DECLARE_VECTOR( Tr2LodResource );
 
 BLUE_CLASS( Tr2MeshLod ):
-	public Tr2MeshBase
+	public Tr2MeshBase,
+	public IInitialize,
+	public ITr2LodResourceListener,
+	public IBlueAsyncResNotifyTarget
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -23,11 +26,14 @@ public:
 	Tr2MeshLod( IRoot* lockobj = NULL );
 	~Tr2MeshLod();
 
+	bool Initialize() override;
+
 	virtual bool IsLoading() const { return false; }
 
 	void GetBatches( ITriRenderBatchAccumulator* batches,
 		const Tr2MeshAreaVector* areas,
 		const Tr2PerObjectData* data,
+		float screenSize = std::numeric_limits<float>::max(),
 		ITr2MeshBatchCallback* callback = nullptr ) const override;
 
 	// Selects the given level of detail for the mesh
@@ -46,19 +52,25 @@ public:
 	void ClearAssociatedResources();
 
 	virtual TriGeometryRes* GetGeometryResource() const;
+	Tr2LodResourcePtr GetGeometryLodResource() const;
 	void SetGeometryResource( Tr2LodResource* lodResource );
-
-	virtual bool GetBoundingBox( Vector3& min, Vector3& max ) const;
-	virtual bool GetBoundingSphere( Vector4& sphere );
 	
 	bool IsGeometryUsingSelectedLod() const;
 
 protected:
+	void ReleaseCachedData( BlueAsyncRes * p ) override;
+	void RebuildCachedData( BlueAsyncRes * p ) override;
+
+	void OnLodResourceChanged( Tr2LodResource * resource ) override;
+
 	Tr2LodResourcePtr m_geometryRes;
 	mutable Tr2LodResourceCache<TriGeometryRes> m_geometryCache;
+	TriGeometryResPtr m_lowResGeometryResource;
 
 	PTr2LodResourceVector m_associatedResources;
 	Tr2Lod m_selectedLod;
+
+	bool m_triedLoadingLowRes;
 };
 
 TYPEDEF_BLUECLASS( Tr2MeshLod );

@@ -11,7 +11,7 @@
 #include "include/TriMath.h"
 #include "Curves/Fader/Tr2ScalarFader.h"
 #include "Utilities/BoundingSphere.h"
-#include "Tr2MeshLod.h"
+#include "Tr2MeshBase.h"
 #include "Shader/Utils/Tr2DataTextureManager.h"
 #include "Eve/SpaceObject/EveSpaceObject2.h"
 #include "Eve/EveUpdateContext.h"
@@ -74,7 +74,7 @@ EveImpactOverlay::~EveImpactOverlay()
 // Description:
 //   Setup this overlay with data
 // --------------------------------------------------------------------------------
-void EveImpactOverlay::Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2GpuUniqueEmitterPtr hullImpactEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshLodPtr shieldImpactMesh, bool shieldIsEllipsoid )
+void EveImpactOverlay::Set( TriPerlinCurvePtr hullDamageFlickerCurve, Tr2GpuUniqueEmitterPtr armorDamageEmitter, Tr2GpuUniqueEmitterPtr hullImpactEmitter, Tr2EffectPtr armorDamageShader, Tr2MeshBase* shieldImpactMesh, bool shieldIsEllipsoid )
 {
 	m_shieldIsEllipsoid = shieldIsEllipsoid;
 	m_hullDamageFlickerCurve = hullDamageFlickerCurve;
@@ -365,7 +365,7 @@ Vector3 EveImpactOverlay::GetShieldImpactPosition( const Matrix& parentInverseWo
 // Description:
 //   Trinity's way of providing batches to render
 // --------------------------------------------------------------------------------
-void EveImpactOverlay::GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData )
+void EveImpactOverlay::GetBatches( ITriRenderBatchAccumulator* accumulator, TriBatchType batchType, const Tr2PerObjectData* perObjectData, float screenSize )
 {
 	if( !m_display )
 	{
@@ -384,7 +384,7 @@ void EveImpactOverlay::GetBatches( ITriRenderBatchAccumulator* accumulator, TriB
 	if( HasShieldActivity() )
 	{
 		const Tr2MeshAreaVector* areas = m_mesh->GetAreas( batchType );
-		m_mesh->GetBatches( accumulator, areas, perObjectData );
+		m_mesh->GetBatches( accumulator, areas, perObjectData, screenSize );
 	}
 }
 
@@ -548,18 +548,6 @@ void EveImpactOverlay::ToggleEffect( const std::string& name, bool on, float dur
 	else if( name == "hullrepair" )
 	{
 		m_hullRepairing->StartFade( on, duration / 4.f );
-	}
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Impact effects use the same LOD system as the parent object
-// --------------------------------------------------------------------------------
-void EveImpactOverlay::SelectLod( Tr2Lod lod )
-{
-	if( m_mesh )
-	{
-		m_mesh->SelectLod( lod );
 	}
 }
 

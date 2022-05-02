@@ -18,7 +18,6 @@ BLUE_DECLARE( EveSpaceObject2 );
 BLUE_DECLARE( EveShip2 );
 BLUE_DECLARE( EveSOF );
 BLUE_DECLARE( EveSOFDNA );
-BLUE_DECLARE( Tr2MeshLod );
 BLUE_DECLARE( Tr2MeshArea );
 BLUE_DECLARE_VECTOR( Tr2MeshArea );
 
@@ -78,11 +77,9 @@ private:
 		}
 	};
 
-	typedef std::unordered_map<InheritableTextureKey, Tr2LodResource*, InheritableTextureKey> InheritableTextures;
-
 	// all setup functions for the to-be-created space object
 	void SetupConsts( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
-	void SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, InheritableTextures& inheritableTextures ) const;
+	void SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupSpriteSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupSpotlightSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupPlaneSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
@@ -95,7 +92,7 @@ private:
 	void SetupControllers( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr dna ) const;
 	void SetupAudio( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr dna ) const;
 	void SetupInstancedMeshes( EveSpaceObject2Ptr newObj, EveSOFDNAPtr dna ) const;
-	void SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const InheritableTextures& inheritableTextures ) const;
+	void SetupDecalSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupModelCurves( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupLocators( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
@@ -109,9 +106,9 @@ private:
 	Tr2EffectPtr CreateBoosterEffect( const EveSOFDataMgr::RaceBoosterData* rdata, const BlueSharedString& lodOption ) const;
 
 	// helper functions
-	size_t FillMeshAreaVector( std::map<std::string, Tr2LodResourcePtr>& lodResCollector, Tr2MeshAreaVector* meshAreaVector, TriBatchType areaType, const EveSOFDNAPtr dna, size_t hullIdx, size_t meshIndexOffset, InheritableTextures* inheritableTextures ) const;
+	size_t FillMeshAreaVector( Tr2MeshAreaVector* meshAreaVector, TriBatchType areaType, const EveSOFDNAPtr dna, size_t hullIdx, size_t meshIndexOffset ) const;
 	bool GenerateLodResourcePaths( std::string& mediumResPath, std::string& lowResPath, std::string& ultraResPath, const char* resPath, const char* usage ) const;
-	void GenerateDepthFromAreaVector( Tr2MeshLodPtr mesh, const Tr2MeshAreaVector* meshAreaVector, const EveSOFDNAPtr dna ) const;
+	void GenerateDepthFromAreaVector( Tr2MeshBase* mesh, const Tr2MeshAreaVector* meshAreaVector, const EveSOFDNAPtr dna ) const;
 
 	// all the source data
 	PEveSOFDataMgr m_dataMgr;

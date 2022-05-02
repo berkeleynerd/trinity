@@ -1,5 +1,7 @@
 #include "StdAfx.h"
 #include "BoundingBox.h"
+#include "BoundingSphere.h"
+#include "MatrixUtils.h"
 
 #include "TriViewport.h"
 
@@ -25,112 +27,6 @@ static inline bool XMQuaternionIsUnit( FXMVECTOR Q )
     return XMVector4Less( XMVectorAbs( Difference ), g_UnitQuaternionEpsilon ) != 0;
 }
 
-
-AxisAlignedBoundingBox::AxisAlignedBoundingBox()
-{
-	BoundingBoxInitialize( m_min, m_max );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Constructs AABB from given min and max corner coordinates.  
-// Arguments:
-//   min - Coordinates of the "min" corner
-//   max - Coordinates of the "max" corner
-// --------------------------------------------------------------------------------------
-AxisAlignedBoundingBox::AxisAlignedBoundingBox( const Vector3& min, const Vector3& max )
-	:m_min( min ),
-	m_max( max )
-{
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Constructs AABB from a bounding sphere.  
-// Arguments:
-//   sphere - Bounding spere (w contains radius)
-// --------------------------------------------------------------------------------------
-AxisAlignedBoundingBox::AxisAlignedBoundingBox( const Vector4& sphere )
-{
-	BoundingBoxInitialize( sphere, m_min, m_max );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Enlarges box to contain a given point.
-// Arguments:
-//   pos - Point coordinates
-// --------------------------------------------------------------------------------------
-void AxisAlignedBoundingBox::IncludePoint( const Vector3& pos )
-{
-	BoundingBoxUpdate( m_min, m_max, pos );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Enlarges box to contain a given box.
-// Arguments:
-//   other - AABB
-// --------------------------------------------------------------------------------------
-void AxisAlignedBoundingBox::IncludeBox( const AxisAlignedBoundingBox& other )
-{
-	BoundingBoxUpdate( m_min, m_max, other.m_min, other.m_max );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Queries if the point is inside the bounding box.
-// Arguments:
-//   pos - Point coordinates
-// Return value:
-//   true if point is inside AABB
-//   false otherwise
-// --------------------------------------------------------------------------------------
-bool AxisAlignedBoundingBox::IsPointInside( const Vector3& pos ) const
-{
-	return BoundingBoxIsInside( m_min, m_max, pos );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Queries if the point is "approximately" inside the bounding box, i.e. test if the
-//   point is inside the box enlarged by epsilon on all sides.
-// Arguments:
-//   pos - Point coordinates
-//   epsilon - Error estimate value
-// Return value:
-//   true if point is inside AABB
-//   false otherwise
-// --------------------------------------------------------------------------------------
-bool AxisAlignedBoundingBox::IsPointInside( const Vector3& pos, float epsilon ) const
-{
-	return BoundingBoxIsInside( m_min, m_max, pos, epsilon );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Queries if the box intersects another AABB.
-// Arguments:
-//   other - The second AABB
-// Return value:
-//   true if boxes interect
-//   false otherwise
-// --------------------------------------------------------------------------------------
-bool AxisAlignedBoundingBox::Intersects( const AxisAlignedBoundingBox& other ) const
-{
-	return IntersectAxisAlignedBoxAxisAlignedBox( m_min, m_max, other.m_min, other.m_max );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Transforms the box by a given matrix. 
-// Arguments:
-//   transform - Transform matrix
-// --------------------------------------------------------------------------------------
-void AxisAlignedBoundingBox::Transform( const Matrix& transform )
-{
-	BoundingBoxTransform( m_min, m_max, transform );
-}
 
 // --------------------------------------------------------------------------------------
 // Description:
@@ -908,4 +804,25 @@ bool IsBoundingBoxEmpty( const Vector3& min, const Vector3& max )
     }
 
     return false;
+}
+
+CcpMath::AxisAlignedBox GetItemSetAabb( const CcpMath::AxisAlignedBox& staticBounds, const std::vector<std::pair<int, CcpMath::AxisAlignedBox>>& boneBounds, const granny_matrix_3x4* bones, size_t boneCount )
+{
+	auto aabb = staticBounds;
+	for( auto& box : boneBounds )
+	{
+		if( box.first < int( boneCount ) )
+		{
+			Matrix boneTF = IdentityMatrix();
+			TriMatrixCopyFrom3x4( &boneTF, &bones[box.first] );
+			auto boxAabb = box.second;
+			boxAabb.Transform( boneTF );
+			aabb.IncludeBox( boxAabb );
+		}
+		else
+		{
+			aabb.IncludeBox( box.second );
+		}
+	}
+	return aabb;
 }

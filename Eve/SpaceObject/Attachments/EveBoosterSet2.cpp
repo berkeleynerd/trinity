@@ -685,6 +685,7 @@ EveBoosterSet2::EveBoosterSet2( IRoot* lockobj ) :
 	m_haloScaleX( 1.f ),
 	m_haloScaleY( 1.f ),
 	m_flareLodEnabled( true ),
+	m_glowsVisible( true ),
 	m_trailsSmoothing( 10.f ),
 	m_lightOffset( 0.f ),
 	m_lightRadius( 0.f ),
@@ -1105,11 +1106,23 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 
 void EveBoosterSet2::UpdateVisibility( const TriFrustum& frustum )
 {
+	m_glowsVisible = false;
 	if( m_display )
 	{
 		for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
 		{
 			(*it)->UpdateVisibility( frustum );
+		}
+		if( m_glows )
+		{
+			for( auto& renderable : m_boosterRenderables )
+			{
+				if( m_glows->UpdateVisibility( frustum, renderable->m_parentTransform, nullptr, 0 ) )
+				{
+					m_glowsVisible = true;
+					break;
+				}
+			}
 		}
 	}
 }
@@ -1205,6 +1218,11 @@ void EveBoosterSet2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 
 		// trails box
 		renderer.DrawBox( this, (*it)->m_trailsBoundsMin, (*it)->m_trailsBoundsMax, ITr2DebugRenderer2::Wireframe, 0xff00ffff );
+
+		if( m_glows )
+		{
+			m_glows->RenderDebugInfo( renderer, ( *it )->m_parentTransform, nullptr, 0 );
+		}
 	}
 }
 
@@ -1247,7 +1265,7 @@ void EveBoosterSet2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
 // --------------------------------------------------------------------------------
 void EveBoosterSet2::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world )
 {
-	if( !m_glows )
+	if( !m_glows || !m_glowsVisible || !m_display )
 	{
 		return;
 	}

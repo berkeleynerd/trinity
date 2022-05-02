@@ -23,7 +23,9 @@ public:
 	EXPOSE_TO_BLUE();
 
 	EveSpriteLineSetItem( IRoot* lockobj = NULL );
-	~EveSpriteLineSetItem();
+
+	CcpMath::Sphere GetBounds() const;
+	int32_t GetBoneIndex() const;
 
 	// data
 	BlueSharedString m_name;

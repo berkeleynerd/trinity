@@ -26,7 +26,9 @@ public:
 	EXPOSE_TO_BLUE();
 
 	EveSpotlightSetItem( IRoot* lockobj = NULL );
-	~EveSpotlightSetItem();
+
+	CcpMath::AxisAlignedBox GetBounds() const;
+	int32_t GetBoneIndex() const;
 
 	// data
 	BlueSharedString m_name;

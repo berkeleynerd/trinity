@@ -1497,6 +1497,10 @@ void EveTurretSet::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 			debuggable->RenderDebugInfo( renderer );
 		}
 	}
+	if( m_firingEffect )
+	{
+		m_firingEffect->RenderDebugInfo( renderer );
+	}
 }
 
 void EveTurretSet::GetDebugOptions( Tr2DebugRendererOptions& options )
@@ -1510,6 +1514,11 @@ void EveTurretSet::GetDebugOptions( Tr2DebugRendererOptions& options )
 		{
 			debuggable->GetDebugOptions( options );
 		}
+	}
+
+	if( m_firingEffect )
+	{
+		m_firingEffect->GetDebugOptions( options );
 	}
 }
 

@@ -12,14 +12,22 @@ BLUE_DEFINE( Tr2MeshLod );
 
 const Be::ClassInfo* Tr2MeshLod::ExposeToBlue()
 {
-	EXPOSURE_BEGIN( Tr2MeshLod, "A mesh with levels of detail" )
+	EXPOSURE_BEGIN( Tr2MeshLod, "A mesh with levels of detail\n:jessica-deprecated:" )
+		MAP_INTERFACE( IInitialize )
+
 		MAP_ATTRIBUTE
 		(
 			"geometryRes",
 			m_geometryRes,
 			"Geometry LOD resource for this mesh",
-			Be::READWRITE | Be::PERSIST
+			Be::PERSISTONLY
 		)
+
+		MAP_PROPERTY(
+			"geometryRes",
+			GetGeometryLodResource,
+			SetGeometryResource,
+			"Geometry LOD resource for this mesh" )
 
 		MAP_PROPERTY_READONLY
 		(

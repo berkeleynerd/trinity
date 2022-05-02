@@ -21,7 +21,7 @@ Tr2RenderContextBase::Tr2RenderContextBase( Tr2RenderContext& renderContext )
 	m_esm.Initialize();
 #if !TRINITY_PLATFORM_HAS_PRIMARY_CONTEXT
 	m_backBuffer.CreateInstance();
-	m_backBuffer->m_name = "backbuffer";
+	m_backBuffer->SetName( "backbuffer" );
 #endif
 	m_objectIdVariable		= GlobalStore().RegisterVariable( "objectId",	0.0f );
 	m_areaIdVariable		= GlobalStore().RegisterVariable( "areaId",		0.0f );
@@ -175,7 +175,7 @@ Tr2PrimaryRenderContext::Tr2PrimaryRenderContext()
 	:Tr2RenderContextBase( *reinterpret_cast<Tr2RenderContext*>( this ) )
 {
 	m_backBuffer.CreateInstance();
-	m_backBuffer->m_name = "backbuffer";
+	m_backBuffer->SetName( "backbuffer" );
 
 	m_events = this;
 }

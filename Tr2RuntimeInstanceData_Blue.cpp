@@ -7,6 +7,7 @@
 #include "StdAfx.h"
 #include "Tr2RuntimeInstanceData.h"
 #include "Particle/Tr2ParticleElementDeclaration.h"
+#include "Utilities/BoundingBox.h"
 
 BLUE_DEFINE( Tr2RuntimeInstanceData );
 
@@ -514,6 +515,13 @@ const Be::ClassInfo* Tr2RuntimeInstanceData::ExposeToBlue()
 			"Updates bounding box after instance data was modified"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"SetBoundingBox",
+			SetBoundingBox,
+			"Assign a bounding box explicitely (in case instance data contains no positions, for example)\n"
+			":param box: axis aligned bounding box for instance data"
+		)
+
 		MAP_METHOD_AND_WRAP
 		(
 			"Spawn",
@@ -529,9 +537,9 @@ const Be::ClassInfo* Tr2RuntimeInstanceData::ExposeToBlue()
 			":param path: path to the granny file"
 		)
 
-		MAP_ATTRIBUTE( "aabbMin", m_aabbMin, "Minimum of the AABB", Be::READ )
+		MAP_ATTRIBUTE( "aabbMin", m_aabb.m_min, "Minimum of the AABB", Be::READ )
 
-		MAP_ATTRIBUTE( "aabbMax", m_aabbMax, "Maximum of the AABB", Be::READ )
+		MAP_ATTRIBUTE( "aabbMax", m_aabb.m_max, "Maximum of the AABB", Be::READ )
 
 	EXPOSURE_END()
 }

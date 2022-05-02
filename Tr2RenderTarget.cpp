@@ -39,6 +39,17 @@ Tr2RenderTarget::~Tr2RenderTarget()
 {
 }
 
+void Tr2RenderTarget::SetName( const char* name )
+{
+	m_name = name;
+	m_renderTarget.SetName( m_name.c_str() ).GetResult();
+}
+
+std::string Tr2RenderTarget::GetName() const
+{
+	return m_name;
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Blue-exposed initializer. 
@@ -103,6 +114,7 @@ long Tr2RenderTarget::Create(
 		m_type = type;
 		m_cpuUsage = cpuUsage;
 		m_gpuUsage = gpuUsage;
+		m_renderTarget.SetName( m_name.c_str() );
 	}
 	else
 	{
@@ -148,6 +160,7 @@ long Tr2RenderTarget::CreateManual(
 		m_type = type;
 		m_cpuUsage = cpuUsage;
 		m_gpuUsage = gpuUsage;
+		m_renderTarget.SetName( m_name.c_str() );
 	}
 	else
 	{

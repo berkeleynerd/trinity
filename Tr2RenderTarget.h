@@ -82,8 +82,10 @@ public:
 	operator const Tr2TextureAL&() const { return GetRenderTarget(); }
 
 	uintptr_t GetSharedHandle() const;
+
+	void SetName( const char* name );
+	std::string GetName() const;
 	
-	std::string m_name;
 protected:
 	virtual void ReleaseResources( TriStorage s );
 	virtual bool OnPrepareResources();
@@ -101,6 +103,7 @@ private:
 	Tr2RenderContextEnum::TextureType m_type;
 	Tr2CpuUsage::Type m_cpuUsage;
 	Tr2GpuUsage::Type m_gpuUsage;
+	std::string m_name;
 
 	bool HasALObject( int type, size_t object );
 };

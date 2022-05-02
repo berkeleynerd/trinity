@@ -17,8 +17,12 @@ BLUE_DECLARE( TriVariable );
 BLUE_DECLARE( TriFrustum );
 BLUE_DECLARE( Tr2DebugRenderer );
 
-typedef uint32_t EveSpaceObjectDecalIndex;
-BLUE_DECLARE_STRUCTURE_LIST( EveSpaceObjectDecalIndex );
+struct DecalIndexBuffer
+{
+	std::vector<uint32_t> m_indices;
+	Tr2BufferAL m_indexBuffer;
+	uint32_t m_primitiveCount{ 0 };
+};
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -115,7 +119,7 @@ public:
 
 	// access
 	void UpdateVisibility( const TriFrustum& frustum, const ParentData* parentData );
-	void GetRenderables( std::vector<ITr2Renderable*>& renderables, TriGeometryRes* geomRes );
+	void GetRenderables( std::vector<ITr2Renderable*>& renderables, TriGeometryRes* geomRes, float screensize );
 
 	// access position etc.
 	const Vector3& GetPosition() const;
@@ -126,7 +130,7 @@ public:
 	void SetScaling( const Vector3& sc );
 	int GetBoneIndex() const;
 	void SetBoneIndex( int idx );
-	void SetIndices( const uint32_t* indices, size_t count );
+	void SetIndices( std::vector<std::vector<uint32_t>> indices );
 	void SetMinScreenSize( float minScreenSize );
 
 	// edit helper
@@ -140,12 +144,14 @@ public:
 
 private:
 	// create
-	void CreateDecalIndexBuffer( TriGeometryResPtr geomRes );
+	void CreateDecalIndexBuffers( TriGeometryResPtr geomRes );
 	// update
 	void UpdateDecalMatrix();
-	void CreateStaticIndexBuffer();
-	bool HasStaticIndexBuffer() const;
-	std::vector<EveSpaceObjectDecalIndex> GetStaticIndexBuffer();
+	void CreateStaticIndexBuffers();
+
+	bool HasStaticIndexBuffers() const;
+	std::vector<std::vector<uint32_t>> GetStaticIndexBuffers() const;
+	std::vector<uint32_t> GetDecalPrimitiveCounts() const;
 
 	// name
 	std::string m_name;
@@ -174,16 +180,13 @@ private:
 
 	// base mesh geometry
 	TriGeometryResPtr m_baseGeometryResource;
+	int m_geometryLodIndex;
 
-	// new index buffer
-	Tr2BufferAL m_indexBuffer;
-	bool m_rebuildIndexBuffer;
+	// new index buffers
+	std::vector<DecalIndexBuffer> m_indexBuffers;
+	bool m_rebuildIndexBuffers;
 	float m_isVisible;
-	// num of primitives for this decal
-	unsigned int m_decalPrimitiveCount;
 	float m_minScreenSize;
-
-	PEveSpaceObjectDecalIndexStructureList m_indices;
 };
 
 TYPEDEF_BLUECLASS( EveSpaceObjectDecal );

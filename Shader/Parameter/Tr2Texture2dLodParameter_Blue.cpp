@@ -11,7 +11,7 @@ BLUE_DEFINE( Tr2Texture2dLodParameter );
 
 const Be::ClassInfo* Tr2Texture2dLodParameter::ExposeToBlue()
 {
-	EXPOSURE_BEGIN( Tr2Texture2dLodParameter, "Resource parameter for textures with levels of detail" )
+	EXPOSURE_BEGIN( Tr2Texture2dLodParameter, "Resource parameter for textures with levels of detail\n:jessica-deprecated:" )
 		MAP_ATTRIBUTE( "lodResource", m_lodResource, "Resource LOD wrapper for texture", Be::PERSISTONLY )
 		MAP_PROPERTY( "lodResource", GetLodResource, SetLodResource, "Resource LOD wrapper for texture" )
 	EXPOSURE_CHAINTO( TriTextureParameter )

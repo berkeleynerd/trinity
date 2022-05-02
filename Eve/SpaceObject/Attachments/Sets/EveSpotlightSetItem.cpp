@@ -23,12 +23,14 @@ EveSpotlightSetItem::EveSpotlightSetItem( IRoot* lockobj ) :
 {
 }
 
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Cleanup
-// --------------------------------------------------------------------------------
-EveSpotlightSetItem::~EveSpotlightSetItem()
+CcpMath::AxisAlignedBox EveSpotlightSetItem::GetBounds() const
 {
+	CcpMath::AxisAlignedBox aabb( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
+	aabb.Transform( m_transform );
+	return aabb;
 }
 
+int32_t EveSpotlightSetItem::GetBoneIndex() const
+{
+	return m_boneIndex;
+}

@@ -1,5 +1,6 @@
 #include "StdAfx.h"
 
+#include <muParser.h>
 
 #include "Tr2Effect.h"
 #include "Tr2Shader.h"
@@ -18,6 +19,7 @@
 #include "Shader/Parameter/Tr2Matrix4Parameter.h"
 
 BLUE_DEFINE_INTERFACE( ITr2EffectValue );
+BLUE_DEFINE_INTERFACE( ITr2ScreenSizeAwareValue );
 
 #define INVALID_PARAMETER_HASH (~0)
 
@@ -455,27 +457,6 @@ bool Tr2Effect::AddResourceTexture2D( const BlueSharedString& name, const char* 
 }
 
 // --------------------------------------------------------------------------------
-// Description:
-//   Manually adding a lod resource for textures. This can fail if the texture name already exists
-// --------------------------------------------------------------------------------
-bool Tr2Effect::AddResourceTexture2DLod( const BlueSharedString& name, Tr2LodResourcePtr lodResource )
-{
-	// check if we have that name already!
-	if( GetResourceByName( name.c_str() ) )
-	{
-		return false;
-	}
-	// alloc and init the texture lod parameter
-	Tr2Texture2dLodParameterPtr texture2d;
-	texture2d.CreateInstance();
-	texture2d->SetParameterName( name );
-	texture2d->SetLodResource( lodResource );
-	// add it to this effect's resources
-	m_resources.Append( texture2d->GetRawRoot() );
-	return true;
-}
-
-// --------------------------------------------------------------------------------
 bool Tr2Effect::AddResource( ITriEffectParameter* param )
 {
 	m_resources.Append( param );
@@ -705,6 +686,7 @@ void Tr2Effect::RebuildCachedDataInternal()
 	m_parameterHash = INVALID_PARAMETER_HASH;
 	auto bk = m_shader;
 	m_shader = nullptr;
+	m_lodTextureParameters.clear();
 
 	if( m_effectResource )
 	{		
@@ -828,6 +810,7 @@ void Tr2Effect::ReleaseCachedData( BlueAsyncRes* p )
 		{
 			m_resources[i]->RebuildEffectHandles( nullptr );
 		}
+		m_lodTextureParameters.clear();
 	}
 }
 
@@ -1188,6 +1171,167 @@ const Tr2ConstantEffectParameter* Tr2Effect::GetConstParameters( size_t& count )
 	}
 }
 
+namespace
+{
+
+struct VariableFactoryArguments
+{
+	const Tr2ConstantEffectParameterStructureList* constParams;
+	bool hasInvalidVariables;
+};
+
+float s_invalidVariable = 0;
+
+float* GetParserVariable( const char* name, void* ctx )
+{
+	auto arguments = static_cast<VariableFactoryArguments*>( ctx );
+	for( auto& param : *arguments->constParams )
+	{
+		auto len = strlen( param.name.c_str() );
+		if( strncmp( param.name.c_str(), name, len ) == 0 )
+		{
+			size_t swizzle = 0;
+			if( name[len] == '_' )
+			{
+				if( name[len + 1] != 0 && name[len + 2] == 0 )
+				{
+					switch( name[len + 1] )
+					{
+					case 'x':
+					case 'r':
+						swizzle = 0;
+						break;
+					case 'y':
+					case 'g':
+						swizzle = 1;
+						break;
+					case 'z':
+					case 'b':
+						swizzle = 2;
+						break;
+					case 'w':
+					case 'a':
+						swizzle = 3;
+						break;
+					default:
+						continue;
+					}
+				}
+			}
+			else if( name[len] != 0 )
+			{
+				continue;
+			}
+			return const_cast<float*>( ( &param.value.x ) + swizzle );
+		}
+	}
+	arguments->hasInvalidVariables = true;
+	return &s_invalidVariable;
+}
+
+std::optional<float> GetUvScaleFromAnnotation( const char* paramName, const Tr2EffectParameterAnnotation& annotation, const Tr2ConstantEffectParameterStructureList& constParams )
+{
+	if( annotation.type == Tr2EffectParameterAnnotation::FLOAT )
+	{
+		return { annotation.floatValue };
+	}
+	else if( annotation.type == Tr2EffectParameterAnnotation::STRING )
+	{
+		VariableFactoryArguments factoryArgs = { &constParams, false };
+		mu::Parser parser;
+		parser.SetVarFactory( &GetParserVariable, &factoryArgs );
+
+		std::string expr( annotation.stringValue );
+		for( size_t i = 0; i < expr.length(); ++i )
+		{
+			auto& c = expr[i];
+			if( c == '.' )
+			{
+				bool isId = false;
+				for( size_t j = i; j > 0; --j)
+				{
+					auto pc = expr[j - 1];
+					if( isdigit( pc ) )
+					{
+						continue;
+					}
+					if( isalpha( pc ) )
+					{
+						isId = true;
+						break;
+					}
+					break;
+				}
+				if( isId )
+				{
+					c = '_';
+				}
+			}
+		}
+
+		try
+		{
+			parser.SetExpr( expr );
+			auto result = parser.Eval();
+			if( factoryArgs.hasInvalidVariables )
+			{
+				return std::nullopt;
+			}
+			return result;
+		}
+		catch( const mu::Parser::exception_type& e )
+		{
+			CCP_LOGWARN( "Invalid LodUvScale annotation for effect parameter \"%s\": %s", paramName, e.GetMsg().c_str() );
+			return std::nullopt;
+		}
+	}
+	return std::nullopt;
+}
+
+bool ExtractLodingAnnotations( std::array<float, ITriEffectTextureParameter::UV_SET_MAX_COUNT>& densityScale, const char* name, const Tr2EffectAnnotationMap& effectAnnotations, const Tr2ConstantEffectParameterStructureList& constParams )
+{
+	std::fill( begin( densityScale ), end( densityScale ), 0.f );
+
+	auto annotations = effectAnnotations.find( name );
+	if( annotations == end( effectAnnotations ) )
+	{
+		return false;
+	}
+	bool enabled = false;
+	uint32_t uvSet = 0;
+	float scale = 1;
+	const char* prefix = "LodUvScale";
+	auto length = strlen( prefix );
+	for( auto& annotation : annotations->second )
+	{
+		if( strncmp( annotation.name, prefix, length ) == 0 )
+		{
+			char* strEnd;
+			auto uvIndex = strtol( annotation.name + length, &strEnd, 10 );
+			if( *strEnd != 0 || uvIndex < 0 || uvIndex >= ITriEffectTextureParameter::UV_SET_MAX_COUNT )
+			{
+				continue;
+			}
+			
+			if( auto paramScale = GetUvScaleFromAnnotation( name, annotation, constParams ) )
+			{
+				densityScale[uvIndex] = *paramScale;
+				if( *paramScale > 0 )
+				{
+					enabled = true;
+				}
+			}
+			else
+			{
+				return false;
+			}
+		}
+	}
+	return enabled;
+}
+
+}
+
 
 void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2EffectParamVector &pv )
 {
@@ -1204,6 +1348,20 @@ void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2Effe
 		if( ITriEffectParameter* p = GetResourceByName( name ) )
 		{
 			param.m_sourceValue = p;
+
+			if( ITriEffectTextureParameterPtr loddable = BlueCastPtr( p ) )
+			{
+				std::array<float, ITriEffectTextureParameter::UV_SET_MAX_COUNT> uvScale;
+				if( ExtractLodingAnnotations( uvScale, name, m_shader->GetEffectDescription().annotations, m_constParameters ) )
+				{
+					auto found = find( begin( m_lodTextureParameters ), end( m_lodTextureParameters ), loddable );
+					if( found == end( m_lodTextureParameters ) )
+					{
+						loddable->EnableTextureLoding( uvScale );
+						m_lodTextureParameters.push_back( loddable );
+					}
+				}
+			}
 		}
 		// Secondly search in effect parameter list
 		else if( ITriEffectParameter* p = FindParameterByName( name ) )

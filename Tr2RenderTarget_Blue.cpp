@@ -63,7 +63,8 @@ const Be::ClassInfo* Tr2RenderTarget::ExposeToBlue()
 			":param destination: Tr2RenderTarget"
 		)
 
-		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST );
+		MAP_ATTRIBUTE( "name", m_name, "", Be::PERSISTONLY );
+		MAP_PROPERTY( "name", GetName, SetName, "" )
 
 		MAP_PROPERTY_READONLY( "width", GetWidth, "" );
 		MAP_PROPERTY_READONLY( "height", GetHeight, "" );		

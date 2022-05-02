@@ -5,6 +5,8 @@
 #include "TriViewport.h"
 #include "pdm.h"
 
+CCP_STATS_DECLARED_ELSEWHERE( vertexCount );
+
 #ifdef _WIN32
 #include <ctime>
 
@@ -149,6 +151,7 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 
 	auto bitcount = "x" + std::to_string( CcpGetProcessBitCount() );
 	int dpCount = m_dpCount ? int( m_dpCount->GetValue() ) : 0;
+	int vertCount = static_cast<int>( CCP_STATS_GET( vertexCount ) );
 
 	std::string str =
 		"Build Date: %11s\n"
@@ -161,7 +164,8 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 		"     Frame: %11.0lld\n"
 		"       FPS: %11.2f\n"
 		"        MS: %11.2f\n"
-		"Draw Calls: %11.0d";
+		"Draw Calls: %11.0d\n"
+		"Vert Count: %11.0d";
 
 #if __APPLE__
     str += "\n   Rosetta: %11s";
@@ -197,6 +201,7 @@ TriStepResult TriStepRenderFps::Execute( Be::Time realTime, Be::Time simTime, Tr
 		m_averageFPS,
 		m_averageMSPerFrame,
 		dpCount,
+		vertCount,
 #if __APPLE__
         PDM::IsRosetta() ? "Yes" : "No",
 #endif

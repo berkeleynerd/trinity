@@ -60,10 +60,14 @@ EveStretch2::EveStretch2( IRoot* lockObj )
 	m_currentDestinationScale( 1.f ),
 	m_destinationScale( 1.f ),
 	m_visible( true ),
+	m_isInFrustum( true ),
 	m_quadCount( 0 ),
 	m_vertexDeclHandle( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_startTime( 0 ),
-	m_intensity( 1 )
+	m_intensity( 1 ),
+	m_boundingRadius( 100 ),
+	m_sourceTransform( IdentityMatrix() ),
+	m_destinationTransform( IdentityMatrix() )
 {
 	m_effectData[0] = Vector4( 0, 0, 0, float( rand() ) / RAND_MAX );
 	m_effectData[0] = Vector4( 1, 0, 0, 0 );
@@ -204,22 +208,21 @@ void EveStretch2::Update(EveUpdateContext& updateContext)
 		m_effectData[0].z = float( m_end->GetScaledTime() );
 	}
 
-	Matrix src, dest;
-	GetEndPointTransforms( src, dest );
+	GetEndPointTransforms( m_sourceTransform, m_destinationTransform );
 	if( m_sourceObserver )
 	{
-		m_sourceObserver->Update( src );
+		m_sourceObserver->Update( m_sourceTransform );
 	}
 	if( m_destinationObserver )
 	{
-		m_destinationObserver->Update( dest );
+		m_destinationObserver->Update( m_destinationTransform );
 	}
 	if( m_sourceEmitter )
 	{
 		ITr2GenericEmitter::UpdateArguments args(
 			updateContext.GetTime(),
 			updateContext.GetGpuParticleSystem(),
-			src,
+			m_sourceTransform,
 			updateContext.GetOriginShift() );
 		m_sourceEmitter->Update( args );
 	}
@@ -228,7 +231,7 @@ void EveStretch2::Update(EveUpdateContext& updateContext)
 		ITr2GenericEmitter::UpdateArguments args(
 			updateContext.GetTime(),
 			updateContext.GetGpuParticleSystem(),
-			dest,
+			m_destinationTransform,
 			updateContext.GetOriginShift() );
 		m_destinationEmitter->Update( args );
 	}
@@ -268,11 +271,22 @@ void EveStretch2::GetEndPointTransforms( Matrix& source, Matrix& destination ) c
 
 void EveStretch2::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform )
 {
+	if( m_visible && m_intensity > 0 )
+	{
+		CcpMath::AxisAlignedBox box( Vector3( -m_boundingRadius, -m_boundingRadius, -m_boundingRadius ), Vector3( m_boundingRadius, m_boundingRadius, Length( m_destination - m_source ) + m_boundingRadius ) );
+		box.Transform( m_sourceTransform );
+
+		m_isInFrustum = frustum.IsBoxVisible( box );
+	}
+	else
+	{
+		m_isInFrustum = false;
+	}
 }
 
 void EveStretch2::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 {
-	if( m_visible && m_intensity > 0 )
+	if( m_visible && m_intensity > 0 && m_isInFrustum )
 	{
 		renderables.push_back( this );
 	}
@@ -370,14 +384,29 @@ void EveStretch2::GetLights( Tr2LightManager& lightManager ) const
 	{
 		return;
 	}
-	Matrix source, destination;
-	GetEndPointTransforms( source, destination );
 	if( m_sourceLight )
 	{
-		m_sourceLight->AddLight( lightManager, source, 1.0f );
+		m_sourceLight->AddLight( lightManager, m_sourceTransform, 1.0f );
 	}
 	if( m_destinationLight )
 	{
-		m_destinationLight->AddLight( lightManager, destination, m_currentDestinationScale );
+		m_destinationLight->AddLight( lightManager, m_destinationTransform, m_currentDestinationScale );
+	}
+}
+
+void EveStretch2::GetDebugOptions( Tr2DebugRendererOptions& options ) 
+{
+	options.insert( "Stretch bounds" );
+}
+
+void EveStretch2::RenderDebugInfo( ITr2DebugRenderer2& renderer ) 
+{
+	if( renderer.HasOption( this, "Stretch bounds" ) )
+	{
+		CcpMath::AxisAlignedBox box( Vector3( -m_boundingRadius, -m_boundingRadius, -m_boundingRadius ), Vector3( m_boundingRadius, m_boundingRadius, Length( m_destination - m_source ) + m_boundingRadius ) );
+
+		renderer.DrawBox( this, m_sourceTransform, box.m_min, box.m_max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff00ffff, 0x2200ffff ) );
+		box.Transform( m_sourceTransform );
+		renderer.DrawBox( this, box.m_min, box.m_max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff00ffff, 0x2200ffff ) );
 	}
 }

@@ -24,6 +24,15 @@ Tr2Texture2dLodParameter::~Tr2Texture2dLodParameter()
 	}
 }
 
+bool Tr2Texture2dLodParameter::Initialize()
+{
+	if( m_lodResource )
+	{
+		m_resourcePath = m_lodResource->GetResourcePath( TR2_LOD_HIGH );
+	}
+	return TriTextureParameter::Initialize();
+}
+
 Tr2LodResourcePtr Tr2Texture2dLodParameter::GetLodResource() const
 {
 	return m_lodResource;
@@ -42,11 +51,6 @@ void Tr2Texture2dLodParameter::SetLodResource( Tr2LodResource* newLodResource )
 	}
 }
 
-ITr2TextureProvider* Tr2Texture2dLodParameter::GetResource() const
-{
-	return m_lodCache.GetResource( m_lodResource );
-}
-
 void Tr2Texture2dLodParameter::OnAddedToMaterial( Tr2Material* material )
 {
 	m_materials.push_back( material );
@@ -63,8 +67,4 @@ void Tr2Texture2dLodParameter::OnRemovedFromMaterial( Tr2Material* material )
 
 void Tr2Texture2dLodParameter::OnLodResourceChanged( Tr2LodResource* resource )
 {
-	for( auto it = begin( m_materials ); it != end( m_materials ); ++it )
-	{
-		( *it )->InvalidateResourceSets();
-	}
 }

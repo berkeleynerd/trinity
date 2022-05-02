@@ -84,7 +84,7 @@ const Be::ClassInfo* EveTransform::ExposeToBlue()
 		(
 			"meshLod",
 			m_meshLod,
-			"",
+			":jessica-hidden: True",
 			Be::READWRITE | Be::PERSIST
 		)
 

@@ -80,7 +80,6 @@ public:
 	void SetEffectPathName( const char* path );
 	bool AddResource( ITriEffectParameter* param );
 	bool AddResourceTexture2D( const BlueSharedString& name, const char* resPath );
-	bool AddResourceTexture2DLod( const BlueSharedString& name, Tr2LodResourcePtr lodResource );
 	bool AddSamplerOverride( const BlueSharedString& name, Tr2RenderContextEnum::TextureAddressMode addressModeU, Tr2RenderContextEnum::TextureAddressMode addressModeV );
 	bool AddParameterVector4( const BlueSharedString& name, const Vector4* value );
 	bool AddParameterFloat( const BlueSharedString& name, float value );

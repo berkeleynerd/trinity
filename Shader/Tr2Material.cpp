@@ -10,6 +10,7 @@
 #include "Tr2Shader.h"
 #include "ITr2EffectValue.h"
 #include "Tr2VariableStore.h"
+#include "Include/ITriEffectParameter.h"
 
 CCP_STATS_DECLARE( effectCBLocks, "Trinity/effectCBLocks", true, CST_COUNTER_LOW, "number of CB locks for effect parameters" );
 CCP_STATS_DECLARE( effectResourceSetCreated, "Trinity/effectResourceSetCreated", true, CST_COUNTER_LOW, "number of resource sets created" );
@@ -309,4 +310,12 @@ void Tr2Material::InvalidateResourceSets()
 		}
 	}
 	m_resourceSetHash = 0;
+}
+
+void Tr2Material::UsedWithScreenSize( float screenSize, const std::vector<float>& uvDensities )
+{
+	for( auto& value : m_lodTextureParameters )
+	{
+		value->UsedWithScreenSize( screenSize, uvDensities );
+	}
 }

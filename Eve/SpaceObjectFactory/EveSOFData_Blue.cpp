@@ -1028,7 +1028,7 @@ const Be::ClassInfo* EveSOFDataHullDecalSetItem::ExposeToBlue()
 		MAP_ATTRIBUTE_WITH_CHOOSER( "logoType", m_logoType, "", Be::READWRITE | Be::PERSIST | Be::ENUM, EveSOFDataLogoSetTypeChooser )
 		MAP_ATTRIBUTE( "parameters", m_parameters, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "textures", m_textures, "", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "indexBuffer", m_indexBuffer, "", Be::READ | Be::PERSIST )
+		MAP_ATTRIBUTE( "indexBuffers", m_indexBuffers, "", Be::READ | Be::PERSIST )
 		EXPOSURE_END()
 }
 
@@ -1042,6 +1042,20 @@ const Be::ClassInfo* EveSOFDataHullDecalSet::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "visibilityGroup", m_visibilityGroup, "Name for visibility group to toggle visibility for the whole set.\n:jessica-widget: visibilityGroup", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "items", m_items, "The items in this decalset", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
+}
+
+
+BLUE_DEFINE( EveSOFDataDecalIndexBuffer );
+const Be::ClassInfo* EveSOFDataDecalIndexBuffer::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataDecalIndexBuffer, "" )
+		MAP_INTERFACE( EveSOFDataDecalIndexBuffer )
+		MAP_INTERFACE( ICustomPersist )
+
+		MAP_METHOD_AND_WRAP( "GetIndices", GetIndices, "Gets the index buffer array" )
+		MAP_METHOD_AND_WRAP( "AddIndex", AddIndex, "Add an index to the index buffer" )
+		MAP_ATTRIBUTE_AS_CUSTOM_BINARY_BLOCK( "indexBuffer" )
 	EXPOSURE_END()
 }
 

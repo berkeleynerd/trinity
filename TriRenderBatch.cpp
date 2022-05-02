@@ -155,7 +155,7 @@ void TriGeometryBatch::SubmitGeometry( Tr2RenderContext& renderContext )
 {
 	if( m_geometryResource )
 	{
-		m_geometryResource->RenderAreas( m_meshIndex, m_areaIndex, m_areaCount, renderContext, m_reversed );
+		m_geometryResource->RenderAreas( m_screenSize, m_meshIndex, m_areaIndex, m_areaCount, renderContext, m_reversed );
 	}
 }
 

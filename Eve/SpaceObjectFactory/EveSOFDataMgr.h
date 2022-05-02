@@ -265,7 +265,7 @@ public:
 		EveSOFDataLogoSet::LogoType logoType;
 		std::map<BlueSharedString, TextureData> textures;
 		std::map<BlueSharedString, Vector4> parameters;
-		std::vector<uint32_t> indexBuffer;
+		std::vector<std::vector<uint32_t>> indexBuffers;
 	};
 
 	struct HullDecalSetData

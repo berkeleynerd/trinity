@@ -104,6 +104,10 @@ void EveSpriteSet::AddBoosterGlowToQuadRenderer( Tr2QuadRenderer& quadRenderer, 
 bool EveSpriteSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
 	auto aabb = GetAabb( bones, boneCount );
+	if( !aabb.IsInitialized() )
+	{
+		return false;
+	}
 	aabb.Transform( parentTransform );
 
 	return frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
@@ -111,19 +115,7 @@ bool EveSpriteSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& pa
 
 AxisAlignedBoundingBox EveSpriteSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
 {
-	auto aabb = m_aabb;
-	for( auto box = m_boundingBoxes.begin(); box != m_boundingBoxes.end(); ++box )
-	{
-		if( box->first < int( boneCount ) )
-		{
-			Matrix boneTF = IdentityMatrix();
-			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
-			auto boxAabb = box->second;
-			boxAabb.Transform( boneTF );
-			aabb.IncludeBox( boxAabb );
-		}
-	}
-	return aabb;
+	return GetItemSetAabb( m_aabb, m_boundingBoxes, bones, m_skinned ? boneCount : 0 );
 }
 
 void EveSpriteSet::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
@@ -295,32 +287,7 @@ void EveSpriteSet::Rebuild()
 		m_spriteData[i].boneIndex = m_sprites[i]->m_boneIndex;
 	}
 
-	CreateBoundingBoxes();
-}
-
-void EveSpriteSet::CreateBoundingBoxes()
-{
-	// Clear the list before we can rebuild it
-	m_boundingBoxes.clear();
-	m_aabb = AxisAlignedBoundingBox( Vector3( -0.5f, -0.5f, -0.5f ), Vector3( 0.5f, 0.5f, 0.5f ) );
-
-	for( auto it = m_sprites.begin(); it != m_sprites.end(); ++it )
-	{
-		auto aabb = AxisAlignedBoundingBox();
-		auto sprite = *it;
-		aabb.IncludePoint( sprite->m_position );
-
-		// Group together all animated items that are attached to the same bone
-		if( sprite->m_boneIndex >= 0 )
-		{
-			m_boundingBoxes.push_back( std::make_pair( sprite->m_boneIndex, aabb ) );
-		}
-		else
-		{
-			// Group together all static items not attached to any bone
-			m_aabb.IncludeBox( aabb );
-		}
-	}
+	CreateItemSetBoundingBoxes( m_aabb, m_boundingBoxes, m_skinned, begin( m_sprites ), end( m_sprites ) );
 }
 
 void EveSpriteSet::GetPickingBatches( ITriRenderBatchAccumulator* batches, uint16_t& areaIDOffset, const Tr2PerObjectData* perObjectData )

@@ -37,7 +37,7 @@ bool Tr2SwapChain::OnPrepareResources()
 		if( !m_backBuffer )
 		{
 			m_backBuffer.CreateInstance();
-			m_backBuffer->m_name = "swapchain backbuffer";
+			m_backBuffer->SetName( "swapchain backbuffer" );
 		}
 		m_backBuffer->Attach( m_swapChain.GetBackBuffer(), this );
 		return true;

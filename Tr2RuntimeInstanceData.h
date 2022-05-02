@@ -45,12 +45,10 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2InstanceData
-	bool IsInstanceDataReady() const;
-	unsigned int GetInstanceBufferCount() const;
-	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const;
-	unsigned int GetInstanceBufferVertexCount( unsigned int bufferIndex ) const;
-	void GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride );
-	bool GetInstanceBufferBoundingBox( unsigned int bufferIndex, Vector3& minBounds, Vector3& maxBounds ) const;
+	bool IsInstanceDataReady() const override;
+	InstanceData GetInstanceData( unsigned int bufferIndex, float screenSize ) const override;
+	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const override;
+	CcpMath::AxisAlignedBox GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2GpuBuffer
@@ -81,6 +79,7 @@ public:
 	void UpdateData();
 	void UpdateBoundingBox();
 	bool GetBoundingBox( Vector3& minAabb, Vector3& maxAabb ) const;
+	void SetBoundingBox( const CcpMath::AxisAlignedBox& aabb );
 	void DestroyData();
 	unsigned GetStride() const;
 	void Spawn();
@@ -104,10 +103,12 @@ private:
 	Tr2BufferAL m_vb;
 
 	// Bounding box
-	Vector3 m_aabbMin;
-	Vector3 m_aabbMax;
+	CcpMath::AxisAlignedBox m_aabb;
+
 	// System to emit particles to
 	Tr2ParticleSystemPtr m_particleSystem;
+
+	bool m_explicitBoundingBox;
 
 	void SaveToGranny( const char* ) const;
 };

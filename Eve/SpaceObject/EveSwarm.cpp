@@ -8,7 +8,6 @@
 #include "Eve/EveUpdateContext.h"
 #include "Tr2MeshArea.h"
 #include "Tr2MeshBase.h"
-#include "Tr2MeshLod.h"
 #include "TriFrustumOrtho.h"
 #include "Shader/Tr2Effect.h"
 
@@ -20,6 +19,8 @@
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpotlightSet.h"
 #include "Eve/Turret/EveTurretSet.h"
+
+extern float g_eveSpaceSceneLODFactor;
 
 EveSwarmRenderable::EveSwarmRenderable( IRoot* lockobj ) :
 PARENTLOCK( m_decals )
@@ -50,7 +51,7 @@ void EveSwarmRenderable::GetBatches( ITriRenderBatchAccumulator* batches, TriBat
 	}
 	else
 	{
-		GetSortedBatchesFromMeshAreaVector( areas, batches, perObjectData, m_mesh, &m_worldTransform );
+		GetSortedBatchesFromMeshAreaVector( areas, batches, perObjectData, m_mesh, std::numeric_limits<float>::max(), &m_worldTransform );
 	}
 }
 
@@ -199,7 +200,7 @@ void EveSwarmRenderable::InitDecals( const PEveSpaceObjectDecalVector &decals )
 	}
 }
 
-void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables )
+void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables, float screensize )
 {
 	TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 
@@ -209,7 +210,7 @@ void EveSwarmRenderable::PushDecals( std::vector<ITr2Renderable*>& renderables )
 		for (EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it)
 		{
 			// now prep to get the renderables
-			(*it)->GetRenderables( renderables, geometryRes );
+			( *it )->GetRenderables( renderables, geometryRes, screensize );
 		}
 	}
 }
@@ -339,7 +340,7 @@ void EveSwarm::RebuildCachedData( BlueAsyncRes* p )
 	EveShip2::RebuildCachedData( p );
 	for( auto it = m_renderables.begin(); it != m_renderables.end(); ++it )
 	{
-		(*it)->InitializeRenderable( this, m_meshLod, m_shadowEffect );
+		(*it)->InitializeRenderable( this, m_mesh, m_shadowEffect );
 	}
 }
 
@@ -716,7 +717,7 @@ void EveSwarm::PushRenderables( std::vector<ITr2Renderable*>& renderables )
 		for (auto it = m_renderables.begin(); it != m_renderables.end(); it++)
 		{
 			( *it )->UpdateDecalVisibility( m_frustum, pd, m_animationUpdater );
-			( *it )->PushDecals( renderables );
+			( *it )->PushDecals( renderables, m_estimatedPixelDiameter / g_eveSpaceSceneLODFactor );
 		}
 	}
 }
@@ -896,7 +897,7 @@ void EveSwarm::AddSwarmer()
 {
 	EveSwarmRenderablePtr renderable;
 	renderable.CreateInstance();
-	renderable->InitializeRenderable( this, m_meshLod, m_shadowEffect );
+	renderable->InitializeRenderable( this, m_mesh, m_shadowEffect );
 	renderable->InitDecals( m_decals );
 	m_renderables.Append( renderable->GetRawRoot() );
 	SwarmVehicle v;

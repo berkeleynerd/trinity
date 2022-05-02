@@ -75,12 +75,10 @@ public:
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2InstanceData
-	bool IsInstanceDataReady() const;
-	unsigned int GetInstanceBufferCount() const;
-	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const;
-	unsigned int GetInstanceBufferVertexCount( unsigned int bufferIndex ) const;
-	void GetVertexBuffer( unsigned int bufferIndex, Tr2BufferAL& buffer, unsigned& stride );
-	bool GetInstanceBufferBoundingBox( unsigned int bufferIndex, Vector3& minBounds, Vector3& maxBounds ) const override;
+	bool IsInstanceDataReady() const override;
+	InstanceData GetInstanceData( unsigned int bufferIndex, float screenSize ) const override;
+	unsigned int GetInstanceBufferVertexDeclaration( unsigned int bufferIndex ) const override;
+	CcpMath::AxisAlignedBox GetInstanceBufferBoundingBox( unsigned int bufferIndex ) const override;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2GpuBuffer

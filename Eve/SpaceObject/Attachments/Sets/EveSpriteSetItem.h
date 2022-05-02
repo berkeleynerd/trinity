@@ -13,9 +13,11 @@ public:
 	EXPOSE_TO_BLUE();
 
 	EveSpriteSetItem( IRoot* lockobj = NULL );
-	~EveSpriteSetItem();
 
 	EveSpriteSetItem& operator=( const EveSpriteSetItem& other );
+
+	CcpMath::Sphere GetBounds() const;
+	int32_t GetBoneIndex() const;
 
 	// data
 	BlueSharedString m_name;

@@ -1813,7 +1813,8 @@ void EveSpaceScene::RenderBackgroundPass( Tr2RenderContext& renderContext )
 
 	// Update planet LODs and render planets
 	TriFrustum frustum;
-	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &Tr2Renderer::GetProjectionTransform(), gTriDev->mViewport );
+	Matrix planetProjection = EveCamera::ModifyClipPlanes( Tr2Renderer::GetProjectionTransform(), 0.01f, 1e5f );
+	frustum.DeriveFrustum( &Tr2Renderer::GetViewTransform(), &Tr2Renderer::GetViewPosition(), &planetProjection, renderContext.m_esm.GetViewport() );
 
 	for ( auto it = m_planets.begin(); it != m_planets.end(); ++it )
 	{
@@ -2932,8 +2933,11 @@ void EveSpaceScene::GetPickingObjectsToRender( std::vector<ITr2Renderable*>& pic
 	Matrix proj           = Tr2Renderer::GetProjectionTransform();
 	const Matrix& view    = Tr2Renderer::GetViewTransform();
 
+	CTriViewport vp;
+	vp.width = vp.height = 1;
+
 	pickFrustum.DeriveFrustum(
-		&view, &camPos, &proj, gTriDev->mViewport
+		&view, &camPos, &proj, vp
 	);
 
 	for( IEveSpaceObject2Vector::const_iterator it = m_objects.begin(); it != m_objects.end(); ++it )

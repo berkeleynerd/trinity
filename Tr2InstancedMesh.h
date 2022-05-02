@@ -34,6 +34,7 @@ public:
 	{
 		STATIC,
 		DYNAMIC,
+		DYNAMIC_SCALED,
 	};
 
 	Tr2InstancedMesh( IRoot* lockobj = NULL );
@@ -77,21 +78,26 @@ public:
 	void GetBatches( ITriRenderBatchAccumulator* batches,
 					 const Tr2MeshAreaVector* areas, 
 					 const Tr2PerObjectData* data,
-					 ITr2MeshBatchCallback* callback = nullptr ) const;
-	float CalcMeshSortValue( const Matrix& worldTransform );
-	bool GetBoundingBox( Vector3& min, Vector3& max ) const;
+					 float screenSize = std::numeric_limits<float>::max(),
+					 ITr2MeshBatchCallback* callback = nullptr ) const override;
+
+
+	CcpMath::AxisAlignedBox GetBounds( const Matrix* boneTransforms = nullptr ) const override;
+	CcpMath::AxisAlignedBox GetAreaBounds( unsigned int areaIx, const Matrix* boneTransforms = nullptr ) const override;
+
 	void SetBoundingBox( const Vector3& min, const Vector3& max );
-	bool GetAreaBoundingBox( unsigned int areaIx, Vector3& min, Vector3& max ) const;
-	bool GetBoundingSphere( Vector4& sphere );
 	bool IsLoading() const;
 
 	void GetDebugOptions( Tr2DebugRendererOptions& options ) override;
 	void RenderDebugInfo( const Matrix& worldTransform, ITr2DebugRenderer2& renderer ) override;
 
+	void SetDynamicBounds( float maxInstanceSize );
+	void SetDynamicScaledBounds( float maxScale );
+
 protected:
 	class Batch;
 
-	void RenderAreas( unsigned int areaIx, unsigned int areaCount, bool reversed, Tr2RenderContext& renderContext );
+	void RenderAreas( unsigned int areaIx, unsigned int areaCount, float screenSize, bool reversed, Tr2RenderContext& renderContext );
 private:
 	// ----------------------------------------------------------------------------------
 	// Description:

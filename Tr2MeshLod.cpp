@@ -11,14 +11,32 @@
 
 Tr2MeshLod::Tr2MeshLod( IRoot* lockobj /*= NULL */ ) :
 	PARENTLOCK( m_associatedResources ),
-	m_selectedLod( TR2_LOD_UNSPECIFIED )
+	m_selectedLod( TR2_LOD_UNSPECIFIED ),
+	m_triedLoadingLowRes( false )
 {
 
 }
 
 Tr2MeshLod::~Tr2MeshLod()
 {
+	if( m_geometryRes )
+	{
+		m_geometryRes->RemoveNotifyTarget( this );
+	}
+	if( m_lowResGeometryResource )
+	{
+		m_lowResGeometryResource->RemoveNotifyTarget( this );
+	}
+}
 
+bool Tr2MeshLod::Initialize()
+{
+	if( m_geometryRes )
+	{
+		m_geometryRes->AddNotifyTarget( this );
+	}
+	SelectLod( TR2_LOD_HIGH );
+	return true;
 }
 
 void Tr2MeshLod::SelectLod( Tr2Lod lod )
@@ -28,7 +46,19 @@ void Tr2MeshLod::SelectLod( Tr2Lod lod )
 		return;
 	}
 
-	m_geometryRes->SelectLod( lod );
+	if( !m_triedLoadingLowRes )
+	{
+		m_triedLoadingLowRes = true;
+		auto lowResPath = m_geometryRes->GetResourcePath( TR2_LOD_LOW );
+		auto resPath = m_geometryRes->GetResourcePath( TR2_LOD_HIGH );
+		if( !lowResPath.empty() && BePaths->FileExistsLocally( CA2W( lowResPath.c_str() ) ) && !BePaths->FileExistsLocally( CA2W( resPath.c_str() ) ) )
+		{
+			BeResMan->GetResource( lowResPath, "", m_lowResGeometryResource );
+			m_lowResGeometryResource->AddNotifyTarget( this );
+		}
+	}
+
+	m_geometryRes->SelectLod( TR2_LOD_HIGH );
 	for( auto it = m_associatedResources.begin(); it != m_associatedResources.end(); ++it )
 	{
 		(*it)->SelectLod( lod );
@@ -57,37 +87,40 @@ void Tr2MeshLod::ClearAssociatedResources()
 
 TriGeometryRes* Tr2MeshLod::GetGeometryResource() const
 {
-	return m_geometryCache.GetResource( m_geometryRes );
+	auto res = m_geometryCache.GetResource( m_geometryRes );
+	if( res && res->IsGood() )
+	{
+		return res;
+	}
+	return m_lowResGeometryResource;
+}
+
+Tr2LodResourcePtr Tr2MeshLod::GetGeometryLodResource() const
+{
+	return m_geometryRes;
 }
 
 void Tr2MeshLod::SetGeometryResource( Tr2LodResource* lodResource )
 {
+	if( m_geometryRes == lodResource )
+	{
+		return;
+	}
+	if( m_geometryRes )
+	{
+		m_geometryRes->RemoveNotifyTarget( this );
+	}
 	m_geometryRes = lodResource;
-}
-
-bool Tr2MeshLod::GetBoundingBox( Vector3& min, Vector3& max ) const
-{
-	auto const geomRes = GetGeometryResource();
-	if( geomRes && geomRes->IsGood() )
+	if( m_geometryRes )
 	{
-		return geomRes->GetBoundingBox( m_meshIndex, min, max );
+		m_geometryRes->AddNotifyTarget( this );
 	}
-	return false;
-}
-
-bool Tr2MeshLod::GetBoundingSphere( Vector4& sphere )
-{
-	const auto geomRes = GetGeometryResource();
-	if ( geomRes && geomRes->IsGood() )
-	{
-		return geomRes->GetBoundingSphere( m_meshIndex, sphere );
-	}
-	return false;
 }
 
 void Tr2MeshLod::GetBatches( ITriRenderBatchAccumulator* batches,
 	const Tr2MeshAreaVector* areas,
 	const Tr2PerObjectData* data,
+	float screenSize,
 	ITr2MeshBatchCallback* callback ) const
 {
 	if( !GetDisplay() )
@@ -118,7 +151,7 @@ void Tr2MeshLod::GetBatches( ITriRenderBatchAccumulator* batches,
 			batch->SetShaderMaterial( shadMat );
 			batch->SetPerObjectData( data );
 			batch->SetGeometryResource( GetGeometryResource() );
-			batch->SetMeshParameters( m_meshIndex, area->GetIndex(), area->GetCount(), area->GetReversed() );
+			batch->SetMeshParameters( m_meshIndex, area->GetIndex(), area->GetCount(), screenSize, area->GetReversed() );
 
 			if( callback )
 			{
@@ -136,4 +169,23 @@ void Tr2MeshLod::GetBatches( ITriRenderBatchAccumulator* batches,
 bool Tr2MeshLod::IsGeometryUsingSelectedLod() const
 {
 	return m_geometryRes->IsUsingSelectedLod();
+}
+
+void Tr2MeshLod::ReleaseCachedData( BlueAsyncRes* )
+{
+}
+
+void Tr2MeshLod::RebuildCachedData( BlueAsyncRes* p ) 
+{
+	if( p == m_lowResGeometryResource && ( !m_geometryRes->GetResource() || !m_geometryRes->GetResource()->IsGood() ) )
+	{
+		CacheBounds();
+	}
+}
+
+void Tr2MeshLod::OnLodResourceChanged( Tr2LodResource* resource )
+{
+	CCP_ASSERT( resource == m_geometryRes );
+
+	CacheBounds();
 }

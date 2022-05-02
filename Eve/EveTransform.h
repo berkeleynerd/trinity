@@ -15,7 +15,6 @@
 #include "IEveTransform.h"
 #include "IWorldPosition.h"
 
-BLUE_DECLARE( Tr2MeshLod );
 BLUE_DECLARE( Tr2ParticleSystem );
 BLUE_DECLARE_VECTOR( Tr2ParticleSystem );
 BLUE_DECLARE( Tr2ParticleSystem );
@@ -120,7 +119,7 @@ protected:
 	Vector3 m_overrideBoundsMin;
 	Vector3 m_overrideBoundsMax;
 
-	Tr2MeshLodPtr m_meshLod;
+	Tr2MeshBasePtr m_meshLod;  // This thing is deprecated and should be removed once there are no references to it in branch/content
 	
 private:
 	using Tr2Transform::Update; // Silence warning about this hidden function

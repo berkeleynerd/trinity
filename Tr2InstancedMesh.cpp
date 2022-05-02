@@ -55,20 +55,14 @@ public:
 		m_mesh = mesh;
 	}
 
-	// --------------------------------------------------------------------------------------
-	// Description:
-	//   Assigns area data to the batch.
-	// Arguments:
-	//   areaIx - Area start index
-	//   areaCount - Number of geometry areas to render
-	//   reversed - If reversed index buffer is required
-	// --------------------------------------------------------------------------------------
 	void SetMeshParameters( unsigned int areaIx, 
 							unsigned int areaCount,
+							float screenSize,
 							bool reversed = false )
 	{
 		m_areaIndex = areaIx;
 		m_areaCount = areaCount;
+		m_screenSize = screenSize;
 		m_reversed = reversed;
 	}
 
@@ -78,7 +72,7 @@ public:
 	// --------------------------------------------------------------------------------------
     virtual void SubmitGeometry( Tr2RenderContext& renderContext )
 	{
-		m_mesh->RenderAreas( m_areaIndex, m_areaCount, m_reversed, renderContext );
+		m_mesh->RenderAreas( m_areaIndex, m_areaCount, m_screenSize, m_reversed, renderContext );
 	}
 
 	// --------------------------------------------------------------------------------------
@@ -99,6 +93,7 @@ private:
     unsigned int m_areaIndex;
 	// Number of geometry areas to render
     unsigned int m_areaCount;
+	float m_screenSize;
 	// If reversed index buffer is required
 	bool m_reversed;
 };
@@ -280,17 +275,19 @@ Tr2BufferAL Tr2InstancedMesh::GetIndirectBuffer( const AreaKey& key )
 	unsigned areaIx = key.index;
 	unsigned areaCount = key.count;
 
-	if( !m_geometryResource || !m_geometryResource->IsGood() )
+	auto geometryResource = GetGeometryResource();
+
+	if( !geometryResource || !geometryResource->IsGood() )
 	{
 		return Tr2BufferAL();
 	}
 
-	if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
+	if( m_meshIndex >= int( geometryResource->GetMeshCount() ) )
 	{
 		return Tr2BufferAL();
 	}
 
-	TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
+	TriGeometryResMeshData* pMesh = geometryResource->GetMeshData( m_meshIndex );
 	if( !pMesh )
 	{
 		return Tr2BufferAL();
@@ -417,6 +414,7 @@ void Tr2InstancedMesh::SetInstanceGeometryRes( ITr2InstanceData* res )
 void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 					const Tr2MeshAreaVector* areas, 
 					const Tr2PerObjectData* data,
+					float screenSize,
 					ITr2MeshBatchCallback* callback ) const
 {
 	if( !GetDisplay() || g_brokenMacOSNvidiaDrivers )
@@ -433,7 +431,7 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 	else
 	{
 		auto instanceGeometryResource = GetInstanceGeometryResource();
-		if( !instanceGeometryResource || !instanceGeometryResource->GetInstanceBufferVertexCount( m_instanceMeshIndex ) )
+		if( !instanceGeometryResource || !instanceGeometryResource->IsInstanceDataReady() )
 		{
 			return;
 		}
@@ -477,7 +475,7 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 		{
 			batch->SetPerObjectData( data );
 			batch->SetMesh( const_cast<Tr2InstancedMesh*>( this ) );
-			batch->SetMeshParameters( area->GetIndex(), area->GetCount(), area->GetReversed() );
+			batch->SetMeshParameters( area->GetIndex(), area->GetCount(), screenSize, area->GetReversed() );
 			batch->SetShaderMaterial( area->GetMaterialInterface() );
 
 			if( callback )
@@ -493,55 +491,50 @@ void Tr2InstancedMesh::GetBatches( ITriRenderBatchAccumulator* batches,
 	}
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Calculates mesh sorting value using explicit mesh bounds.
-// Arguments:
-//   worldTransform - Local to world space transform
-// Return value:
-//   Sorting value (based on distance from camera) for the mesh
-// --------------------------------------------------------------------------------------
-float Tr2InstancedMesh::CalcMeshSortValue( const Matrix& worldTransform )
+CcpMath::AxisAlignedBox Tr2InstancedMesh::GetBounds( const Matrix* boneTransforms ) const
 {
-	Vector3 center = TransformCoord( m_boundingSphere.GetXYZ(), worldTransform );
-	Vector3	d = center - Tr2Renderer::GetViewPosition();
-    float distSq = LengthSq( d );
-
-    return distSq;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Returns bounding box for this mesh.
-// Arguments:
-//   min - (out) Min bounds in local space
-//   max - (out) Max bounds in local space
-// Return value:
-//   true always
-// --------------------------------------------------------------------------------------
-bool Tr2InstancedMesh::GetBoundingBox( Vector3& min, Vector3& max ) const
-{
+	CcpMath::AxisAlignedBox aabb;
 	if( m_boundsMethod == STATIC )
 	{
-		min = m_minBounds;
-		max = m_maxBounds;
-		return true;
+		aabb.m_min = m_minBounds;
+		aabb.m_max = m_maxBounds;
+		return aabb;
 	}
 	else
 	{
-		if( !m_instanceGeometryResource )
+		auto instanceGeometryResource = GetInstanceGeometryResource();
+		if( !instanceGeometryResource )
 		{
-			return false;
+			return aabb;
 		}
-		if( !m_instanceGeometryResource->GetInstanceBufferBoundingBox( m_instanceMeshIndex, min, max ) )
+		aabb = instanceGeometryResource->GetInstanceBufferBoundingBox( m_instanceMeshIndex );
+		if( !aabb )
 		{
-			return false;
+			return aabb;
 		}
-		Vector3 margin( m_maxInstanceSize, m_maxInstanceSize, m_maxInstanceSize );
-		min -= margin;
-		max += margin;
-		return true;
+
+		auto instanceSize = m_maxInstanceSize;
+		if( m_boundsMethod == DYNAMIC_SCALED )
+		{
+			auto geometryResource = GetGeometryResource();
+			CcpMath::AxisAlignedBox instance;
+			if( geometryResource && geometryResource->GetBoundingBox( m_meshIndex, instance.m_min, instance.m_max ) )
+			{
+				float radius = 0;
+				instance.EnumerateVertices( [&radius]( const Vector3& vtx ) {
+					radius = std::max( radius, LengthSq( vtx ) );
+				} );
+				instanceSize *= sqrt( radius );
+			}
+		}
+		aabb.Grow( instanceSize );
+		return aabb;
 	}
+}
+
+CcpMath::AxisAlignedBox Tr2InstancedMesh::GetAreaBounds( unsigned int, const Matrix* boneTransforms ) const
+{
+	return GetBounds( boneTransforms );
 }
 
 // --------------------------------------------------------------------------------------
@@ -559,42 +552,6 @@ void Tr2InstancedMesh::SetBoundingBox( const Vector3& min, const Vector3& max )
 
 // --------------------------------------------------------------------------------------
 // Description:
-//   Returns area bounding box (equalt to explicit bounding box) for this mesh.
-// Arguments:
-//   areaIx - area index
-//   min - (out) Min bounds in local space
-//   max - (out) Max bounds in local space
-// Return value:
-//   true always
-// --------------------------------------------------------------------------------------
-bool Tr2InstancedMesh::GetAreaBoundingBox( unsigned int, Vector3& min, Vector3& max ) const
-{
-	return GetBoundingBox( min, max );
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
-//   Returns bounding sphere (based on explicit bounding box) for this mesh.
-// Arguments:
-//   sphere - (out) Bounding space
-// Return value:
-//   true always
-// --------------------------------------------------------------------------------------
-bool Tr2InstancedMesh::GetBoundingSphere( Vector4& sphere )
-{
-	Vector3 min, max;
-	if( !GetBoundingBox( min, max ) )
-	{
-		return false;
-	}
-	Vector3 center = ( min + max ) * 0.5f;
-	Vector3 extent( min - max );
-	sphere = Vector4( center.x, center.y, center.z, Length( extent ) * 0.5f );
-	return true;
-}
-
-// --------------------------------------------------------------------------------------
-// Description:
 //   Overrides Tr2Mesh method. Reports if the mesh geometry is still loading.
 // Return value:
 //   true If geometry or instance geometry is still loading
@@ -605,16 +562,9 @@ bool Tr2InstancedMesh::IsLoading() const
 	return Tr2Mesh::IsLoading() && GetInstanceGeometryResource() && !GetInstanceGeometryResource()->IsInstanceDataReady();
 }
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Renders specified geometry areas.
-// Arguments:
-//   areaIx - Area start index
-//   areaCount - Number of areas to render
-//   reversed - If reversed render order is required
-// --------------------------------------------------------------------------------------
 void Tr2InstancedMesh::RenderAreas( unsigned int areaIx, 
 									unsigned int areaCount, 
+									float screenSize,
 									bool reversed, 
 									Tr2RenderContext& renderContext )
 {
@@ -624,17 +574,18 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
     }
 	if( m_instanceCount )
 	{
-		if( !m_geometryResource || !m_geometryResource->IsGood() )
+		auto geometryResource = GetGeometryResource();
+		if( !geometryResource || !geometryResource->IsGood() )
 		{
 			return;
 		}
 
-		if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
+		if( m_meshIndex >= int( geometryResource->GetMeshCount() ) )
 		{
 			return;
 		}
 
-		TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
+		TriGeometryResMeshData* pMesh = geometryResource->GetMeshData( m_meshIndex );
 		if( !pMesh )
 		{
 			return;
@@ -661,7 +612,7 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 		renderContext.m_esm.ApplyStreamSource( 0, pMesh->m_vertexBuffer, 0, pMesh->m_bytesPerVertex );
 		if( reversed )
 		{
-			m_geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
+			geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
 			renderContext.m_esm.ApplyIndexBuffer( pMesh->m_reversedIndexBuffer );
 		}
 		else
@@ -681,7 +632,9 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			return;
 		}
 
-		if( !m_geometryResource || !m_geometryResource->IsGood() )
+		auto geometryResource = GetGeometryResource();
+
+		if( !geometryResource || !geometryResource->IsGood() )
 		{
 			return;
 		}
@@ -691,17 +644,14 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			return;
 		}
 
-		if( m_meshIndex >= int( m_geometryResource->GetMeshCount() ) )
+		if( m_meshIndex >= int( geometryResource->GetMeshCount() ) )
 		{
 			return;
 		}
 
-		if( m_instanceMeshIndex >= int( instanceGeometryResource->GetInstanceBufferCount() ) )
-		{
-			return;
-		}
-
-		TriGeometryResMeshData* pMesh = m_geometryResource->GetMeshData( m_meshIndex );
+		// In theory, we should be able to estimate LOD for instance geometry, but we lack context here do do that:
+		// we'd need frustum information.
+		TriGeometryResMeshData* pMesh = geometryResource->GetMeshData( m_meshIndex );
 		if( !pMesh )
 		{
 			return;
@@ -726,19 +676,16 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			primCount += curArea.m_primitiveCount;
 		}
 
-		const unsigned instanceCount = instanceGeometryResource->GetInstanceBufferVertexCount( m_instanceMeshIndex );
+		auto instanceData = instanceGeometryResource->GetInstanceData( m_instanceMeshIndex, screenSize );
 
-		if( primCount && instanceCount )
+		if( primCount && instanceData.count )
 		{
 			renderContext.m_esm.ApplyVertexDeclaration( m_vertexDeclaration );
 			renderContext.m_esm.ApplyStreamSource( 0, pMesh->m_vertexBuffer, 0, pMesh->m_bytesPerVertex );
-			Tr2BufferAL vb;
-			unsigned stride;
-			instanceGeometryResource->GetVertexBuffer( m_instanceMeshIndex, vb, stride );
-			renderContext.m_esm.ApplyStreamSource( 1, vb, 0, stride );
+			renderContext.m_esm.ApplyStreamSource( 1, instanceData.buffer, 0, instanceData.stride );
 			if( reversed )
 			{
-				m_geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
+				geometryResource->ReverseIndexBuffer( m_meshIndex, renderContext );
 				renderContext.m_esm.ApplyIndexBuffer( pMesh->m_reversedIndexBuffer );
 			}
 			else
@@ -749,13 +696,13 @@ void Tr2InstancedMesh::RenderAreas( unsigned int areaIx,
 			renderContext.SetTopology( Tr2RenderContextEnum::TOP_TRIANGLES );
 			if( reversed )
 			{
-				renderContext.DrawIndexedInstanced( pMesh->m_vertexCount, pMesh->m_primitiveCount * 3 - area.m_firstIndex - primCount * 3, primCount, instanceCount );
+				renderContext.DrawIndexedInstanced( pMesh->m_vertexCount, pMesh->m_primitiveCount * 3 - area.m_firstIndex - primCount * 3, primCount, instanceData.count );
 			}
 			else
 			{
-				renderContext.DrawIndexedInstanced( pMesh->m_vertexCount, area.m_firstIndex, primCount, instanceCount );
+				renderContext.DrawIndexedInstanced( pMesh->m_vertexCount, area.m_firstIndex, primCount, instanceData.count );
 			}
-			CCP_STATS_ADD( instancesRendered, instanceCount );
+			CCP_STATS_ADD( instancesRendered, instanceData.count );
 		}
 	}
 }
@@ -839,9 +786,10 @@ void Tr2InstancedMesh::CreateVertexDeclaration() const
 	
 	if( m_instanceCount )
 	{
-		if( m_geometryResource && m_geometryResource->IsGood() && m_geometryResource->GetMeshData( m_meshIndex ) )
+		auto geometryResource = GetGeometryResource();
+		if( geometryResource && geometryResource->IsGood() && geometryResource->GetMeshData( m_meshIndex ) )
 		{
-			m_vertexDeclaration = m_geometryResource->GetMeshData( m_meshIndex )->m_vertexDeclaration;
+			m_vertexDeclaration = geometryResource->GetMeshData( m_meshIndex )->m_vertexDeclaration;
 		}
 	}
 	else
@@ -864,7 +812,7 @@ void Tr2InstancedMesh::CreateVertexDeclaration() const
 			return;
 		}
 		Tr2VertexDefinition meshVD;
-		if( GetMeshVertexDeclaration( m_geometryResource, m_meshIndex, meshVD ) )
+		if( GetMeshVertexDeclaration( GetGeometryResource(), m_meshIndex, meshVD ) )
 		{
 			m_vertexDeclaration = MergeVertexDeclarations( meshVD, instanceVD );
 		}
@@ -886,15 +834,29 @@ void Tr2InstancedMesh::RenderDebugInfo( const Matrix& worldTransform, ITr2DebugR
 		}
 		else
 		{
-			Vector3 min, max;
-			if( m_instanceGeometryResource && m_instanceGeometryResource->GetInstanceBufferBoundingBox( m_instanceMeshIndex, min, max ) )
+			if( m_instanceGeometryResource )
 			{
-				renderer.DrawBox( this, worldTransform, min, max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff008888, 0x22008888 ) );
-				Vector3 margin( m_maxInstanceSize, m_maxInstanceSize, m_maxInstanceSize );
-				min -= margin;
-				max += margin;
-				renderer.DrawBox( this, worldTransform, min, max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff888888, 0x22888888 ) );
+				if( auto aabb = m_instanceGeometryResource->GetInstanceBufferBoundingBox( m_instanceMeshIndex ) )
+				{
+					renderer.DrawBox( this, worldTransform, aabb.m_min, aabb.m_max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff008888, 0x22008888 ) );
+				}
+			}
+			if( auto aabb = GetBounds() )
+			{
+				renderer.DrawBox( this, worldTransform, aabb.m_min, aabb.m_max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xff888888, 0x22888888 ) );
 			}
 		}
 	}
+}
+
+void Tr2InstancedMesh::SetDynamicBounds( float maxInstanceSize )
+{
+	m_boundsMethod = DYNAMIC;
+	m_maxInstanceSize = maxInstanceSize;
+}
+
+void Tr2InstancedMesh::SetDynamicScaledBounds( float maxScale )
+{
+	m_boundsMethod = DYNAMIC_SCALED;
+	m_maxInstanceSize = maxScale;
 }

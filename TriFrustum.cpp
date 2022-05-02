@@ -218,6 +218,15 @@ bool TriFrustum::IsBoxVisible( const Vector3& boundsMin, const Vector3& boundsMa
 	return true;
 }
 
+bool TriFrustum::IsBoxVisible( const CcpMath::AxisAlignedBox& aabb ) const
+{
+	if( !aabb )
+	{
+		return false;
+	}
+	return IsBoxVisible( aabb.m_min, aabb.m_max );
+}
+
 float TriFrustum::GetPixelSizeAccross( const Vector4* sphere ) const
 {
 	return GetPixelSizeAccross( *reinterpret_cast<const Vector3*>( sphere ), sphere->w );
@@ -265,6 +274,20 @@ float TriFrustum::GetPixelSizeAccrossEst( const Vector3& center, float radius ) 
 	float ratio = radius / distance;
 
 	return ( ratio * m_halfWidthProjection ) * 2.f;
+}
+
+float TriFrustum::GetPixelSizeAccross( const CcpMath::Sphere& sphere ) const
+{
+	return GetPixelSizeAccrossEst( sphere.center, sphere.radius );
+}
+
+float TriFrustum::GetPixelSizeAccross( const CcpMath::AxisAlignedBox& box ) const
+{
+	if( !box )
+	{
+		return 0;
+	}
+	return GetPixelSizeAccross( CcpMath::Sphere( box ) );
 }
 
 void TriFrustum::CacheTransformationData( const Matrix* view, const Vector3* campos, const Matrix* projection, const TriViewport& viewport )

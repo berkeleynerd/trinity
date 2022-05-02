@@ -4,28 +4,8 @@
 
 BLUE_DECLARE( TriViewport );
 
-// --------------------------------------------------------------------------------------
-// Description:
-//   Class that represents an axis-aligned bounding box in 3D space.
-// --------------------------------------------------------------------------------------
-struct AxisAlignedBoundingBox
-{
-	AxisAlignedBoundingBox();
-	AxisAlignedBoundingBox( const Vector3& min, const Vector3& max );
-	AxisAlignedBoundingBox( const Vector4& sphere );
 
-	void IncludePoint( const Vector3& pos );
-	void IncludeBox( const AxisAlignedBoundingBox& other );
-
-	bool IsPointInside( const Vector3& pos ) const;
-	bool IsPointInside( const Vector3& pos, float epsilon ) const;
-	bool Intersects( const AxisAlignedBoundingBox& other ) const;
-
-	void Transform( const Matrix& transform );
-
-	Vector3 m_min;
-	Vector3 m_max;
-};
+using AxisAlignedBoundingBox = CcpMath::AxisAlignedBox;
 
 bool BlueExtractArgumentImpl( BlueScriptArguments argument, AxisAlignedBoundingBox& result, unsigned int argID, std::false_type isBlueType );
 BlueScriptValue BlueWrapReturnValueImpl( BlueScriptArguments args, const AxisAlignedBoundingBox& val );
@@ -73,5 +53,43 @@ bool IntersectTriangleAABB( const Vector3* v0,
 							const Vector3& max );
 
 bool IsBoundingBoxEmpty( const Vector3& min, const Vector3& max );
+
+
+
+template <typename Iterator>
+void CreateItemSetBoundingBoxes( CcpMath::AxisAlignedBox& staticBounds, std::vector<std::pair<int, CcpMath::AxisAlignedBox>>& boneBounds, bool skinned, Iterator itemsBegin, Iterator itemsEnd )
+{
+	boneBounds.clear();
+	staticBounds = CcpMath::AxisAlignedBox();
+
+	std::map<int32_t, CcpMath::AxisAlignedBox> boxes;
+
+	for( auto it = itemsBegin; it != itemsEnd; ++it )
+	{
+		auto item = *it;
+		auto itemBounds = item->GetBounds();
+		auto boneIndex = item->GetBoneIndex();
+		if( skinned && boneIndex >= 0 )
+		{
+			auto found = boxes.find( boneIndex );
+			if( found != end( boxes ) )
+			{
+				found->second.Include( itemBounds );
+			}
+			else
+			{
+				boxes[boneIndex] = CcpMath::AxisAlignedBox( itemBounds );
+			}
+		}
+		else
+		{
+			// Group together all static items not attached to any bone
+			staticBounds.Include( itemBounds );
+		}
+	}
+	boneBounds.insert( end( boneBounds ), begin( boxes ), end( boxes ) );
+}
+
+CcpMath::AxisAlignedBox GetItemSetAabb( const CcpMath::AxisAlignedBox& staticBounds, const std::vector<std::pair<int, CcpMath::AxisAlignedBox>>& boneBounds, const granny_matrix_3x4* bones, size_t boneCount );
 
 #endif // BoundingBox_H

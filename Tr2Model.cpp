@@ -2,6 +2,8 @@
 #include "Tr2Model.h"
 #include "Tr2Mesh.h"
 #include "Utilities/BoundingBox.h"
+#include "Tr2Renderer.h"
+
 
 Tr2Model::Tr2Model( IRoot* lockobj ):
 	PARENTLOCK( m_meshes, IRoot )
@@ -46,6 +48,8 @@ void Tr2Model::GetBatches( ITriRenderBatchAccumulator* batches,
 	{
 		Tr2MeshItemList meshesToSort( "Tr2Model/GetBatches" );
 
+		const Vector3 viewPos = Tr2Renderer::GetViewPosition();
+
 		unsigned int meshCount = (unsigned int)m_meshes.size();
 		for( unsigned int meshIx = 0; meshIx < meshCount; ++meshIx )
 		{
@@ -54,7 +58,9 @@ void Tr2Model::GetBatches( ITriRenderBatchAccumulator* batches,
 			{
 				Tr2MeshItem item;
 				item.m_mesh = pMesh;
-				item.m_distance = pMesh->CalcMeshSortValue( m );
+
+				auto center = TransformCoord( pMesh->GetBounds().Center(), m );
+				item.m_distance = LengthSq( center - viewPos );
 				meshesToSort.push_back( item );
 			}
 		}
@@ -98,26 +104,24 @@ bool Tr2Model::GetBoundingBox( Vector3& min, Vector3& max )
 		return false;
 	}
 
-    Vector3 myMin, myMax;
-
-    BoundingBoxInitialize( myMin, myMax );
+    CcpMath::AxisAlignedBox aabb;
 
     for( Tr2MeshVector::iterator meshIt = m_meshes.begin(); meshIt != m_meshes.end(); ++meshIt )
     {
         Tr2Mesh* mesh = *meshIt;
 
-        Vector3 meshMin, meshMax;
+        auto meshAabb = mesh->GetBounds();
 
-        if( !mesh->GetBoundingBox( meshMin, meshMax ) )
+        if( !meshAabb )
         {
             return false;
         }
 
-        BoundingBoxUpdate( myMin, myMax, meshMin, meshMax );
+		aabb.Include( meshAabb );
     }
 
-    min = myMin;
-    max = myMax;
+    min = aabb.m_min;
+	max = aabb.m_max;
 
     return true;
 }
@@ -200,18 +204,15 @@ void Tr2Model::AddMesh( Tr2Mesh* mesh )
 Be::Result<std::string> Tr2Model::GetBoundingBoxInLocalSpace( std::pair<Vector3, Vector3>& result )
 {
 	bool bbFound = false;
-	Vector3 min(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-	Vector3 max(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+	CcpMath::AxisAlignedBox aabb;
 	for( unsigned int i = 0, count = GetNumOfMeshes(); i < count; ++i )
 	{
-		Vector3 min2;
-		Vector3 max2;
-		bool found = GetMesh(i)->GetBoundingBox( min2, max2 );
-		bbFound |= found;
+		auto meshAabb = GetMesh(i)->GetBounds();
 
-		if( found )
+		if( meshAabb )
 		{
-			BoundingBoxUpdate( min, max, min2, max2 );
+			bbFound = true;
+			aabb.Include( meshAabb );
 		}
 	}
 
@@ -220,6 +221,6 @@ Be::Result<std::string> Tr2Model::GetBoundingBoxInLocalSpace( std::pair<Vector3,
 		return Be::Result<std::string>( "No meshes, or meshes aren't loaded yet." );
 	}
 
-	result = std::make_pair( min, max );
+	result = std::make_pair( aabb.m_min, aabb.m_max );
 	return Be::Result<std::string>();
 }

@@ -43,7 +43,6 @@ BLUE_DECLARE( EveSpaceObject2 );
 BLUE_DECLARE_VECTOR( EveSpaceObject2 );
 BLUE_DECLARE( TriGeometryRes );
 BLUE_DECLARE( Tr2MeshBase );
-BLUE_DECLARE( Tr2MeshLod );
 BLUE_DECLARE( Tr2MeshArea );
 BLUE_DECLARE_VECTOR( Tr2MeshArea );
 BLUE_DECLARE( EveLocator2 );
@@ -134,6 +133,7 @@ void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas,
 										 ITriRenderBatchAccumulator* batches, 
 										 const Tr2PerObjectData* perObjectData,
 										 const Tr2MeshBase* mesh,
+										 float screenSize,
 										 const Matrix* worldTransform );
 
 // --------------------------------------------------------------------------------
@@ -188,8 +188,6 @@ public:
 	// Mesh accessors, used by the builder
 	Tr2MeshBase* GetMesh() const { return m_mesh; }
 	void SetMesh( Tr2MeshBase* mesh );
-
-	void SetMeshLod( Tr2MeshLod* meshLod );
 
 	void PlayAnimation( const char* animName, bool replace, int loopCount, float start, float speed );
 	void PlayAnimationOnce( const char* animName );
@@ -431,6 +429,8 @@ public:
 
 	void SetReflectionMode(EntityComponents::ReflectionMode mode);
 
+	int GetLastUsedMeshLod() const;
+
 protected:
 	// Activation-Strength
 	float m_activationStrength;
@@ -438,7 +438,6 @@ protected:
 	float m_maxSpeed;
 
 	// LODing
-	void UnloadLodIfNeeded( Be::Time time );
 	void FreezeHighDetailMesh();
 	virtual void EstimatePixelDiameter( const TriFrustum& frustum );
 	virtual void UpdateWorldBounds();
@@ -447,7 +446,6 @@ protected:
 	Vector3 GetTransformedDamageLocator( uint32_t index );
 
 	void PrepareForAnimation();
-	void SelectMeshLevelOfDetail();
 	void GetBatchesFromOverlayVector( ITriRenderBatchAccumulator * batches, const Tr2PerObjectData* perObjectData, TriBatchType batchType, Tr2MeshBase* mesh );
 
 	bool GetBoneList( const granny_matrix_3x4*& bones, size_t& boneCount ) const;
@@ -474,7 +472,6 @@ protected:
 	float m_modelScale;
 
 	Tr2MeshBasePtr m_mesh;
-	Tr2MeshLodPtr m_meshLod;
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// per-object data
@@ -497,7 +494,6 @@ protected:
 	float m_oldClipSphereFactor;
 	Vector3 m_clipSphereCenter;
 
-	bool m_wantsGeometryResFromMesh;
 	bool m_impostorMode;
 	// Set to true if the object is inside the frustum
 	bool m_isInFrustum;

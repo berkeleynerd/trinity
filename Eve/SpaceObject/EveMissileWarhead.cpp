@@ -12,7 +12,6 @@
 #include "Tr2Mesh.h"
 #include "include/TriMath.h"
 #include "TriFrustum.h"
-#include "Tr2MeshLod.h"
 
 #include "Particle/Tr2GpuSharedEmitter.h"
 
@@ -193,11 +192,6 @@ void EveMissileWarhead::GetRenderables( std::vector<ITr2Renderable*>& renderable
 	
 	if( m_mesh )
 	{
-		if( m_meshLod )
-		{
-			m_meshLod->SelectLod( static_cast<Tr2Lod>( m_lodLevel ) );
-		}
-
 		renderables.push_back( this );
 	}
 }

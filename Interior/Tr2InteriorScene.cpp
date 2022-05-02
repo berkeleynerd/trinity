@@ -633,7 +633,7 @@ void Tr2InteriorScene::SetupShadowMaps()
 	{
 		Tr2RenderTargetPtr rt;
 		rt.CreateInstance();
-		rt->m_name = "ShadowMap";
+		rt->SetName( "ShadowMap" );
 		rt->Create(m_shadowSize, m_shadowSize, 1, Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT, 1, 0);
 		m_lightRenderTargets.Append(rt);
 	}

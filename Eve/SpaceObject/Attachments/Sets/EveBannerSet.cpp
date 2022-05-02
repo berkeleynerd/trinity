@@ -15,6 +15,7 @@
 #include "Utilities/MatrixUtils.h"
 #include "Resources/TriTextureRes.h"
 #include "Lights/Tr2Light.h"
+#include "Shader/Parameter/TriTextureParameter.h"
 
 
 namespace
@@ -100,7 +101,6 @@ EveBannerSet::EveBannerSet( IRoot* lockobj )
 	PARENTLOCK( m_lights ),
 	m_key( 0 ),
 	m_vertexDeclaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
-	m_lod( TR2_LOD_UNSPECIFIED ),
 	m_maxBannerRadius( 0 ),
 	m_display( true ),
 	m_isPickable( false ),
@@ -123,16 +123,23 @@ bool EveBannerSet::Initialize()
 bool EveBannerSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& parentTransform, const granny_matrix_3x4* bones, size_t boneCount )
 {
 	auto aabb = GetAabb( bones, boneCount );
+	if( !aabb.IsInitialized() )
+	{
+		m_isVisible = false;
+		return false;
+	}
 	aabb.Transform( parentTransform );
 	m_isVisible = frustum.IsBoxVisible( aabb.m_min, aabb.m_max );
 
-	m_lod = TR2_LOD_LOW;
+	bool isLoddedOut = true;
+
+	float screenSize = std::numeric_limits<float>::max();
 
 	Vector4 sphere;
 	BoundingSphereFromBox( sphere, aabb.m_min, aabb.m_max );
 	if( BoundingSphereIsInside( sphere, frustum.m_viewPos ) )
 	{
-		m_lod = TR2_LOD_HIGH;
+		isLoddedOut = false;
 	}
 	else
 	{
@@ -141,14 +148,19 @@ bool EveBannerSet::UpdateVisibility( const TriFrustum& frustum, const Matrix& pa
 		auto closest = sphere.GetXYZ() + Normalize( frustum.m_viewPos - sphere.GetXYZ() ) * sphere.w;
 		Vector4 elementSphere( closest, m_maxBannerRadius );
 
-		auto size = frustum.GetPixelSizeAccrossEst( &elementSphere );
-		if( size > g_eveSpaceSceneVisibilityThreshold * 0.5f )
+		screenSize = frustum.GetPixelSizeAccrossEst( &elementSphere );
+		if( screenSize > g_eveSpaceSceneVisibilityThreshold * 0.5f )
 		{
-			m_lod = TR2_LOD_HIGH;
+			isLoddedOut = false;
 		}
 	}
 
-	if( m_lod == TR2_LOD_LOW )
+	if( m_effect )
+	{
+		m_effect->UsedWithScreenSize( screenSize, { 1.f } );
+	}
+
+	if( isLoddedOut )
 	{
 		m_isVisible = false;
 	}
@@ -161,13 +173,9 @@ void EveBannerSet::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType
 	{
 		return;
 	}
-	for( auto it = m_associatedResources.begin(); it != m_associatedResources.end(); ++it )
+	if( m_primaryTextureParameter && !m_primaryTextureParameter->GetResource() )
 	{
-		( *it )->SelectLod( m_lod );
-		if( !( *it )->GetResource() )
-		{
-			return;
-		}
+		return;
 	}
 	if( !m_isVisible )
 	{
@@ -288,9 +296,9 @@ void EveBannerSet::AddLight( Tr2Light* light )
 	m_lights.Append( light );
 }
 
-void EveBannerSet::AddLodResource( Tr2LodResource* resource )
+void EveBannerSet::SetPrimaryTextureParameter( TriTextureParameter* primaryTextureParameter )
 {
-	m_associatedResources.Append( resource );
+	m_primaryTextureParameter = primaryTextureParameter;
 }
 
 void EveBannerSet::Render( Tr2RenderContext& renderContext ) const
@@ -349,19 +357,7 @@ bool EveBannerSet::OnPrepareResources()
 
 AxisAlignedBoundingBox EveBannerSet::GetAabb( const granny_matrix_3x4* bones, size_t boneCount ) const
 {
-	auto aabb = m_aabb;
-	for( auto box = begin( m_skinnedBoxes ); box != end( m_skinnedBoxes ); ++box )
-	{
-		if( size_t( box->first ) < boneCount )
-		{
-			Matrix boneTF = IdentityMatrix();
-			TriMatrixCopyFrom3x4( &boneTF, &bones[box->first] );
-			auto boxAabb = box->second;
-			boxAabb.Transform( boneTF );
-			aabb.IncludeBox( boxAabb );
-		}
-	}
-	return aabb;
+	return GetItemSetAabb( m_aabb, m_skinnedBoxes, bones, boneCount );
 }
 
 void EveBannerSet::Rebuild()
@@ -370,12 +366,14 @@ void EveBannerSet::Rebuild()
 	m_vertexBuffer = Tr2BufferAL();
 	m_indexBuffer = Tr2BufferAL();
 	m_maxBannerRadius = 0;
+	m_skinnedBoxes.clear();
 
 	if( !m_effect )
 	{
 		return;
 	}
 
+	std::map<int32_t, CcpMath::AxisAlignedBox> boxes;
 	std::vector<Vertex> vertices;
 	std::vector<uint16_t> indices;
 
@@ -389,13 +387,14 @@ void EveBannerSet::Rebuild()
 
 		if( jt->bone >= 0 )
 		{
-			m_skinnedBoxes.push_back( std::make_pair( jt->bone, aabb ) );
+			boxes[jt->bone].Include( aabb );
 		}
 		else
 		{
 			m_aabb.IncludeBox( aabb );
 		}
 	}
+	m_skinnedBoxes.insert( end( m_skinnedBoxes ), begin( boxes ), end( boxes ) );
 
 	if( !vertices.empty() )
 	{
@@ -407,18 +406,17 @@ void EveBannerSet::Rebuild()
 
 Color EveBannerSet::GetSaturatedLightColor() const
 {
-	if( m_associatedResources.empty() )
+	if( !m_primaryTextureParameter )
 	{
 		return Color( 0.0, 0.0, 0.0, 0.0 );
 	}
 
-	Tr2LodResource* r = const_cast< Tr2LodResource* >( m_associatedResources[0] );
-	if( r->GetResource() == nullptr )
+	TriTextureRes* resource = dynamic_cast<TriTextureRes*>( m_primaryTextureParameter->GetResource() );
+
+	if( !resource )
 	{
 		return Color( 0.0, 0.0, 0.0, 0.0 );
 	}
-
-	TriTextureRes* resource = static_cast< TriTextureRes* >( r->GetResource() );
 
 	Color c = resource->GetAverageColor();
 

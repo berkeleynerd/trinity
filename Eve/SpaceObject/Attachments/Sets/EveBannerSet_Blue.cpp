@@ -18,7 +18,6 @@ const Be::ClassInfo* EveBannerSet::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "key", m_key, "Banner contents type", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "lod", m_lod, "", Be::READ )
 		MAP_ATTRIBUTE( "effect", m_effect, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "display", m_display, "", Be::READWRITE )
 		MAP_ATTRIBUTE( "isPickable", m_isPickable, "", Be::READWRITE | Be::PERSIST )

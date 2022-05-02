@@ -11,6 +11,7 @@
 #include "TriFrustum.h"
 #include "Controllers/ITr2ControllerOwner.h"
 #include "Eve/SpaceObject/Children/IEveEffectChildrenOwner.h"
+#include "Tr2DebugRenderer.h"
 
 // forwards
 BLUE_DECLARE_INTERFACE( IEveFiringEffectElement );
@@ -34,7 +35,8 @@ class Tr2LightManager;
 class EveTurretFiringFX :
 	public IInitialize,
 	public INotify,
-	public ITr2ControllerOwner
+	public ITr2ControllerOwner,
+	public ITr2DebugRenderable
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -60,7 +62,12 @@ public:
 	{
 		MUZZLECOUNT_MAX = 12
 	};
-	
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	// ITr2DebugRenderable
+	void GetDebugOptions( Tr2DebugRendererOptions& options ) override;
+	void RenderDebugInfo( ITr2DebugRenderer2& renderer ) override;
+
 public:
 	bool ReadyToFire() const;
 	// timing and worldspace positioning

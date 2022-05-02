@@ -18,6 +18,7 @@ namespace
 	{
 		{ "STATIC", BeCast( Tr2InstancedMesh::STATIC ), "Bounds are defined explicitely on the mesh" },
 		{ "DYNAMIC", BeCast( Tr2InstancedMesh::DYNAMIC ), "Bounds are defined by instance geometry and max instance size" },
+		{ "DYNAMIC_SCALED", BeCast( Tr2InstancedMesh::DYNAMIC_SCALED ), "Bounds are defined by instance geometry and max instance size; instance size is scaled by geometry size" },
 		{ 0 }
 	};
 }
@@ -42,10 +43,10 @@ const Be::ClassInfo* Tr2InstancedMesh::ExposeToBlue()
 		)
 		MAP_ATTRIBUTE( "instanceMeshIndex", m_instanceMeshIndex, "The index of the mesh within the instance granny file to use", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
-		MAP_ATTRIBUTE_WITH_CHOOSER( "boundsMethod", m_boundsMethod, "Method for measuring mesh bounding box", Be::READWRITE | Be::PERSIST | Be::ENUM, BoundsMethodChooser )
-		MAP_ATTRIBUTE( "minBounds", m_minBounds, "Min bounds in local space for EXPLICIT bounds", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "maxBounds", m_maxBounds, "Max bounds in local space for EXPLICIT bounds", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "maxInstanceSize", m_maxInstanceSize, "Max instance radius for FROM_INSTANCES bounds", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE_WITH_CHOOSER( "boundsMethod", m_boundsMethod, "Method for measuring mesh bounding box\n:jessica-group: Bounds", Be::READWRITE | Be::PERSIST | Be::ENUM, BoundsMethodChooser )
+		MAP_ATTRIBUTE( "minBounds", m_minBounds, "Min bounds in local space for EXPLICIT bounds\n:jessica-group: Bounds", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "maxBounds", m_maxBounds, "Max bounds in local space for EXPLICIT bounds\n:jessica-group: Bounds", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "maxInstanceSize", m_maxInstanceSize, "Max instance radius for FROM_INSTANCES bounds\n:jessica-group: Bounds", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "instanceCount", m_instanceCount, "Buffer containing instance count for indirect rendering", Be::READWRITE | Be::PERSIST | Be::NOTIFY )
 
 	EXPOSURE_CHAINTO( Tr2Mesh )

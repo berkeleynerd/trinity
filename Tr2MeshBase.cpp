@@ -7,7 +7,6 @@
 #include "StdAfx.h"
 #include "Tr2MeshBase.h"
 #include "Resources/TriGeometryRes.h"
-#include "Tr2Renderer.h"
 #include "Utilities/BoundingBox.h"
 
 
@@ -30,7 +29,6 @@ Tr2MeshBase::Tr2MeshBase( IRoot* lockobj ) :
 	PARENTLOCK( m_distortionAreas ),
 	m_display( true ),
 	m_meshIndex( 0 ),
-	m_areBoundsValid( false ),
     m_pBoneList(NULL),
     m_numBones(0)
 {
@@ -80,7 +78,6 @@ void Tr2MeshBase::OnListModified(
 	const IList* theList
 	)
 {
-	m_areasChanged = true;
 }
 
 
@@ -179,87 +176,86 @@ bool Tr2MeshBase::BindToRig( const std::string* boneList, const int numBones, Tr
 	return true;
 }
 
-bool Tr2MeshBase::GetDynamicBoundingBox( const Matrix* boneTransforms, Vector3& min, Vector3& max ) const
+CcpMath::AxisAlignedBox Tr2MeshBase::GetBounds( const Matrix* boneTransforms ) const
 {
-	if( !GetBoundingBox( min, max ) )
+	if( boneTransforms )
 	{
-		return false;
+		if( auto geometry = GetGeometryResource() )
+		{
+			TriGeometryResMeshData* meshData = geometry->GetMeshData( m_meshIndex );
+			if( meshData && !m_jointMappingAnimRig.empty() )
+			{
+				auto aabb = CcpMath::AxisAlignedBox();
+				for( size_t i = 0; i < m_jointMappingAnimRig.size(); ++i )
+				{
+					auto& joint = meshData->m_jointBindings[i];
+					auto& m = boneTransforms[m_jointMappingAnimRig[i]];
+
+					CcpMath::AxisAlignedBox( joint.m_obbMin, joint.m_obbMax ).EnumerateVertices( [&]( const Vector3& vtx ) {
+						aabb.IncludePoint( TransformCoord( vtx, m ) );
+					} );
+				}
+				return m_boundsAdjustment.AdjustBounds( aabb );
+			}
+		}
 	}
-
-	if( !GetGeometryResource() )
-	{
-		return false;
-	}
-
-	TriGeometryResMeshData* meshData = GetGeometryResource()->GetMeshData( m_meshIndex );
-	if( !meshData )
-	{
-		return false;
-	}
-
-	if( m_jointMappingAnimRig.empty() )
-	{
-		return false;
-	}
-
-	BoundingBoxInitialize( min, max );
-
-	for( size_t i = 0; i < m_jointMappingAnimRig.size(); ++i )
-	{
-		auto& joint = meshData->m_jointBindings[i];
-		const Matrix& m = boneTransforms[m_jointMappingAnimRig[i]];
-
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMin.x, joint.m_obbMin.y, joint.m_obbMin.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMin.x, joint.m_obbMin.y, joint.m_obbMax.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMin.x, joint.m_obbMax.y, joint.m_obbMin.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMin.x, joint.m_obbMax.y, joint.m_obbMax.z ), m ) );
-
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMax.x, joint.m_obbMin.y, joint.m_obbMin.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMax.x, joint.m_obbMin.y, joint.m_obbMax.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMax.x, joint.m_obbMax.y, joint.m_obbMin.z ), m ) );
-		BoundingBoxUpdate( min, max, TransformCoord( Vector3( joint.m_obbMax.x, joint.m_obbMax.y, joint.m_obbMax.z ), m ) );
-	}
-
-	return true;
+	return m_cachedBounds;
 }
 
-float Tr2MeshBase::CalcMeshSortValue( const Matrix& worldTransform )
+CcpMath::AxisAlignedBox Tr2MeshBase::GetAreaBounds( unsigned int areaIx, const Matrix* boneTransforms ) const
 {
-	if( !m_areBoundsValid )
+	CcpMath::AxisAlignedBox areaAabb;
+	auto geometry = GetGeometryResource();
+	if( !geometry || !geometry->GetAreaBoundingBox( m_meshIndex, areaIx, areaAabb.m_min, areaAabb.m_max ) )
 	{
-		return FLT_MAX;
+		return CcpMath::AxisAlignedBox();
 	}
 
-    Vector3 center = TransformCoord( m_boundingSphere.GetXYZ(), worldTransform );
+	if( boneTransforms )
+	{
+		TriGeometryResMeshData* meshData = geometry->GetMeshData( m_meshIndex );
+		if( meshData && !m_jointMappingAnimRig.empty() )
+		{
+			auto aabb = CcpMath::AxisAlignedBox();
+			for( size_t i = 0; i < m_jointMappingAnimRig.size(); ++i )
+			{
+				auto& joint = meshData->m_jointBindings[i];
+				auto& m = boneTransforms[m_jointMappingAnimRig[i]];
 
-	Vector3	d = center - Tr2Renderer::GetViewPosition();
-    float distSq = LengthSq( d );
+				if( auto box = Intersection( areaAabb, CcpMath::AxisAlignedBox( joint.m_obbMin, joint.m_obbMax ) ) )
+				{
+					box.EnumerateVertices( [&]( const Vector3& vtx ) {
+						aabb.IncludePoint( TransformCoord( vtx, m ) );
+					} );
+				}
+			}
+			areaAabb = aabb;
+		}
+	}
+	return m_boundsAdjustment.AdjustBounds( areaAabb );
+}
 
-    return distSq;
+void Tr2MeshBase::CacheBounds()
+{
+	auto geometry = GetGeometryResource();
+	if( !geometry || !geometry->GetBoundingBox( m_meshIndex, m_cachedBounds.m_min, m_cachedBounds.m_max ) )
+	{
+		m_cachedBounds = CcpMath::AxisAlignedBox();
+		return;
+	}
+
+	m_cachedBounds = m_boundsAdjustment.AdjustBounds( m_cachedBounds );
 }
 
 bool Tr2MeshBase::GetBoundingBox( Vector3& min, Vector3& max ) const
 {
-    if( !m_areBoundsValid )
-    {
-        return false;
-    }
-
-	min = m_minBounds;
-	max = m_maxBounds;
-	return true;
-}
-
-bool Tr2MeshBase::GetBoundingSphere( Vector4& sphere )
-{
-	if( !m_areBoundsValid )
+	if( auto aabb = GetBounds() )
 	{
-		return false;
+		min = aabb.m_min;
+		max = aabb.m_max;
+		return true;
 	}
-
-	sphere = m_boundingSphere;
-
-	return true;
+	return false;
 }
 
 // --------------------------------------------------------------------------------
@@ -268,21 +264,10 @@ bool Tr2MeshBase::GetDisplay() const
 	return m_display;
 }
 
-bool Tr2MeshBase::GetAreaBoundingBox( unsigned int areaIx, Vector3& min, Vector3& max ) const
-{
-	// Bail out if we don't have a geometry resource
-	if( !GetGeometryResource() )
-	{
-		return false;
-	}
-
-	// Get the bounding box from the geometry resource
-	return GetGeometryResource()->GetAreaBoundingBox( m_meshIndex, areaIx, min, max );
-}
-
 void Tr2MeshBase::GetBatches( ITriRenderBatchAccumulator* batches, 
 	const Tr2MeshAreaVector* areas, 
 	const Tr2PerObjectData* data,
+	float screenSize,
 	ITr2MeshBatchCallback* callback ) const
 {
 	if( !GetDisplay() )
@@ -312,7 +297,7 @@ void Tr2MeshBase::GetBatches( ITriRenderBatchAccumulator* batches,
 			batch->SetShaderMaterial( shadMat );
 			batch->SetPerObjectData( data );
 			batch->SetGeometryResource( GetGeometryResource() );
-			batch->SetMeshParameters( m_meshIndex, area->GetIndex(), area->GetCount(), area->GetReversed() );
+			batch->SetMeshParameters( m_meshIndex, area->GetIndex(), area->GetCount(), screenSize, area->GetReversed() );
 
 			if( callback )
 			{
@@ -404,6 +389,67 @@ void Tr2MeshBase::SetShaderOption( const BlueSharedString& name, const BlueShare
 			if ( nullptr != material )
 			{
 				material->SetOption( name, value );
+			}
+		}
+	}
+}
+
+void Tr2MeshBase::GetDebugOptions( Tr2DebugRendererOptions& options )
+{
+	options.insert( "Mesh Bounds" );
+}
+
+void Tr2MeshBase::RenderDebugInfo( const Matrix& worldTransform, ITr2DebugRenderer2& renderer )
+{
+	if( renderer.HasOption( this, "Mesh Bounds" ) )
+	{
+		auto bounds = GetBounds( nullptr );
+		renderer.DrawBox( this, worldTransform, bounds.m_min, bounds.m_max, Tr2DebugRenderer::Wireframe, Tr2DebugColor( 0xffaa8800, 0x22aa8800 ) );
+	}
+}
+
+std::vector<Tr2MeshAreaPtr> Tr2MeshBase::GetAllAreas() const
+{
+	std::vector<Tr2MeshAreaPtr> areas;
+	for( auto areaType : m_areaLookupArray )
+	{
+		if( areaType )
+		{
+			areas.insert( areas.end(), begin( *areaType ), end( *areaType ) );
+		}
+	}
+	return areas;
+}
+
+Tr2MaterialBoundsAdjustment Tr2MeshBase::GetMaterialBoundsAdjustment() const
+{
+	return m_boundsAdjustment;
+}
+
+void Tr2MeshBase::SetMaterialBoundsAdjustment( const Tr2MaterialBoundsAdjustment& adjustment )
+{
+	m_boundsAdjustment = adjustment;
+	CacheBounds();
+}
+
+void Tr2MeshBase::UseWithScreenSize( float screenSize ) const
+{
+	if (auto geometry = GetGeometryResource() )
+	{
+		if( auto mesh = geometry->GetMeshData( m_meshIndex ) )
+		{
+			for( auto areaType : m_areaLookupArray )
+			{
+				if( areaType )
+				{
+					for( auto& area : *areaType )
+					{
+						if( area && area->GetMaterialInterface() )
+						{
+							area->GetMaterialInterface()->UsedWithScreenSize( screenSize, mesh->m_uvDensities );
+						}
+					}
+				}
 			}
 		}
 	}

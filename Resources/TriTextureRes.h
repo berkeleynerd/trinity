@@ -29,9 +29,11 @@
 #include "ITr2TextureProvider.h"
 #include "Tr2AsyncSave.h"
 #include "Tr2DepthStencil.h"
+#include "Tr2LoadPrepareFence.h"
 
 class Tr2RenderTarget;
 class Tr2ImageHandler;
+class Tr2TextureLodManager;
 
 BLUE_DECLARE( Tr2RenderTarget );
 BLUE_DECLARE( Tr2HostBitmap );
@@ -58,10 +60,6 @@ public:
 	TriTextureRes();
 	~TriTextureRes();
 
-	unsigned m_resourceRebuiltCounter;
-
-	void RebuildCachedData();
-
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITriTextureRes
 	Tr2TextureAL* GetTexture();
@@ -81,7 +79,8 @@ public:
 	bool SetTextureFromRT( Tr2RenderTarget* renderTarget );
 	
 	// Make a TriTextureRes that takes a copy of the renderTarget contents and sticks with it (not a live view).
-	bool CreateFromRT( Tr2RenderTarget* renderTarget, unsigned width = 0, unsigned height = 0 );
+	bool CreateAndCopyFromRenderTarget( Tr2RenderTarget * renderTarget );
+
 
 	// Make an immutable TriTextureRes that takes a copy of the hostBitmap contents and sticks with it (not a live view).
 	bool CreateFromHostBitmap( Tr2HostBitmap* bitmap );
@@ -103,6 +102,11 @@ public:
 
 
 	Tr2TexturePipeline* GetPipeline() const;
+
+	void RequestResolution( float resolutionFraction );
+	void UpdateLods( Tr2TextureLodManager & manager );
+	uint32_t GetOriginalResolution() const;
+
 	
 	//////////////////////////////////////////////////////////////////////////
 	// IBlueResource
@@ -140,6 +144,9 @@ public:
 		return m_name.c_str();
 	}
 
+	bool HadLodRequests() const;
+	size_t GetOriginalMemoryUsage() const;
+
 private:
 	Tr2TextureAL *m_texture;
 	Tr2TextureAL m_ownTexture;
@@ -148,6 +155,7 @@ private:
 	unsigned ComputeMipSkipCount();
 
 	unsigned int m_memoryUse;
+	size_t m_originalMemoryUse; // Memory usage for non-LODed version (for stats)
 
 	float	m_cutoutX;
 	float	m_cutoutY;
@@ -161,12 +169,24 @@ private:
     unsigned	m_mipLevelMaxCount;
 	bool m_isTextureLoadDisabled		: 1;
 	bool m_isTextureResizable			: 1;	// do we listen to the global mipskip setting?
+
+	std::atomic<bool> m_hadLodRequests;
+	bool m_lodEnabled;
+
+	uint32_t m_originalResolution;
+	std::atomic<uint32_t> m_requestedMip;
+	uint32_t m_maxMip;
+	uint32_t m_cpuMip;
+	uint32_t m_gpuMip;
+	uint32_t m_requestedLoadMip;
+
 	Color m_averageColor; 
 	
 private:
 	bool SetTexture( Tr2TextureAL& texture );
-	bool Generate( const char *	);
 	bool HasALObject( int type, size_t object );
+
+	void TrimLods( uint32_t startLod, Tr2TextureLodManager& manager );
 
 protected:
 	// Provide the functions that do the actual work of loading and preparing.
@@ -182,27 +202,19 @@ private:
 	virtual bool DoExecuteAsyncSave();
 	virtual void DoCleanupAsyncSave();
 
+	void DestroyOwnTexture();
+
 	friend Tr2HostBitmap;
 
 	Tr2TexturePipelinePtr m_pipeline;
 	std::unordered_map<std::wstring, Tr2ImageResPtr> m_pipelineInputs;
-	CcpAtomic<uint32_t> m_resourceLoadCbId;
-	CcpAtomic<uint32_t> m_resourcePrepCbId;
 
-	static void StaticResourceLoadFinished( void* pContext );
-	static void StaticResourcePrepFinished( void* pContext );
 	void ResourcePrepFinished();
 
 	Tr2HostBitmapPtr	m_asyncSaveBitmap;
 	std::shared_ptr<Tr2ImageHandler> m_asyncSaveImage;
 
-	bool CreateAndCopyFromRenderTargetPython( Tr2RenderTarget* renderTarget ) { return CreateFromRT( renderTarget ); }
-	bool CreateAndCopyFromRenderTargetWithSizePython( Tr2RenderTarget* renderTarget, unsigned width, unsigned height )
-	{ return CreateFromRT( renderTarget, width, height ); }
-
-	// for python
-	bool CreateAndCopyFromRenderTarget( Tr2RenderTarget* renderTarget ) { return CreateFromRT( renderTarget ); }
-	bool CreateAndCopyFromRenderTargetWithSize( Tr2RenderTarget* renderTarget, unsigned width, unsigned height ) { return CreateFromRT( renderTarget, width, height ); }
+	Tr2LoadPrepareFence m_pipelineFence;
 
 public:
 	EXPOSE_TO_BLUE();
