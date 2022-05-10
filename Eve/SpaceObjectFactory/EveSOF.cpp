@@ -553,7 +553,14 @@ bool EveSOF::GenerateLodResourcePaths( std::string& mediumResPath, std::string& 
 	// only dds files will ever have lods
 	if( StringFind( resPath, ".dds" ) )
 	{
-		if( !strcmp( usage, "PmdgMap" ) || !strcmp( usage, "ArMap" ) || !strcmp( usage, "NoMap" ) )
+		if( !strcmp( usage, "AlbedoMap" ) ||
+			!strcmp( usage, "DirtMap" ) ||
+			!strcmp( usage, "GlowMap" ) ||
+			!strcmp( usage, "MaterialMap" ) ||
+			!strcmp( usage, "NormalMap" ) ||
+			!strcmp( usage, "AoMap" ) ||
+			!strcmp( usage, "PaintMaskMap" ) ||
+			!strcmp( usage, "RoughnessMap" ) )
 		{
 			ultraResPath = resPath;
 			StringInsertStubBefore( ultraResPath, ".dds", "_ultraDetail" );
