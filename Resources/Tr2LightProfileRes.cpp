@@ -33,6 +33,20 @@ void Eat( std::istringstream& is )
 	T t;
 	is >> t;
 }
+
+bool IsIesExtension( const wchar_t* path )
+{
+	auto len = wcslen( path );
+	if( len < 4 )
+	{
+		return false;
+	}
+	return path[len - 4] == '.' &&
+		( path[len - 3] == 'i' || path[len - 3] == 'I' ) &&
+		( path[len - 2] == 'e' || path[len - 2] == 'E' ) &&
+		( path[len - 1] == 's' || path[len - 1] == 'S' );
+}
+
 }
 
 
@@ -61,13 +75,9 @@ Tr2LightProfileRes::LoadingResult Tr2LightProfileRes::DoLoad()
 	{
 		return LR_FAILED;
 	}
-	auto found = m_path.rfind( '.' );
-	if( found != std::wstring::npos )
+	if( IsIesExtension( m_path.c_str() ) )
 	{
-		if( _wcsicmp( m_path.substr(found).c_str(), L".ies" ) == 0 )
-		{
-			return ParseIes() ? LR_SUCCESS : LR_FAILED;
-		}
+		return ParseIes() ? LR_SUCCESS : LR_FAILED;
 	}
 
 	auto result = ImageIO::ReadImage( *m_dataStream, ImageIO::LoadParameters( m_path.c_str() ), m_bitmap );
@@ -119,7 +129,7 @@ bool Tr2LightProfileRes::ParseIes( const std::string& contents, ImageIO::HostBit
 		tiltType = tiltType.substr( 0, end + 1 );
 	}
 	if( tiltType != "NONE" )
-	{	
+	{
 		return false;
 	}
 
@@ -214,8 +224,7 @@ BlueStdResult Tr2LightProfileRes::BakeLightProfile( const wchar_t* path, Tr2Host
 {
 	output = nullptr;
 
-	auto found = wcsrchr( path, L'.' );
-	if( !found || _wcsicmp( found, L".ies" ) != 0 )
+	if( !IsIesExtension( path ) )
 	{
 		return BlueStdResult( BLUE_STD_RESULT_VALUE_ERROR, "This function expects an .ies path" );
 	}
@@ -254,8 +263,7 @@ BlueStdResult Tr2LightProfileRes::GetThumbnail( uint32_t width, uint32_t height,
 
 	ImageIO::HostBitmap lightmap;
 
-	auto found = m_path.rfind( '.' );
-	if( found != std::wstring::npos &&  _wcsicmp( m_path.substr( found ).c_str(), L".ies" ) == 0 )
+	if( IsIesExtension( m_path.c_str() ) )
 	{
 		std::string contents;
 		contents.resize( stream->GetSize() );
