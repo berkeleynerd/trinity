@@ -56,6 +56,8 @@ std::vector<Vector3> SpawnDrones::CalculateBehavior( std::vector<DroneAgent>& ag
 			group.m_spawnPosition.y = startPos.y;
 		}
 		m_initializeGridAdd = false;
+		// reset the spawn position to zero because otherwise it will offset every group on next spawn
+		group.m_spawnPosition = Vector3( 0, 0, 0 );
 
 		return noNeedToReturnForces;
 	}
