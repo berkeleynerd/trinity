@@ -296,9 +296,6 @@ const Be::VarChooser Tr2RenderContextEnum_PresentInterval_Chooser[] =
 {
 	{	"IMMEDIATE",	BeCast( PRESENT_INTERVAL_IMMEDIATE ),	"" },
 	{	"ONE",			BeCast( PRESENT_INTERVAL_ONE ),			"" },
-	{	"TWO",			BeCast( PRESENT_INTERVAL_TWO ),			"" },
-	{	"THREE",		BeCast( PRESENT_INTERVAL_THREE ),		"" },
-	{	"FOUR",			BeCast( PRESENT_INTERVAL_FOUR ),		"" },
 	{0}
 };
 

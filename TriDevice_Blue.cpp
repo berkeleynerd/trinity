@@ -294,5 +294,11 @@ const Be::ClassInfo* TriDevice::ExposeToBlue()
 			":param format: render target pixel format"
 		)
 
+		MAP_METHOD_AND_WRAP(
+			"IsVariableRefreshRateSupported",
+			IsVariableRefreshRateSupported,
+			"Returns True if the device support variable refresh rate (gsync, freesync)"
+		)
+
     EXPOSURE_END()
 }

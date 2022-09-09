@@ -38,7 +38,6 @@ namespace {
 		const uint32_t countBefore = ::GetProcessHeaps( 256, heapsBefore );	
 #endif
 	
-
 		const HRESULT hr = renderContext.CreateDevice( Adapter, hFocusWindow, pPresentationParameters );
 
 #if defined(__ANDROID__)
@@ -1104,4 +1103,10 @@ void TriDevice::SetThrottling( ThrottlingReason reason, bool on )
 bool TriDevice::GetThrottling( ThrottlingReason reason ) const
 {
 	return ( m_throttlingState & reason ) != 0;
+}
+
+bool TriDevice::IsVariableRefreshRateSupported() const
+{
+	USE_MAIN_THREAD_RENDER_CONTEXT();
+	return renderContext.GetCaps().SupportsVariableRefreshRate();
 }

@@ -216,6 +216,8 @@ public:
 
 	bool SupportsRenderTargetFormat( Tr2RenderContextEnum::PixelFormat format ) const;
 
+	bool IsVariableRefreshRateSupported() const;
+
 private:
 	bool InitD3DDevice();  //call when a new device has been set
 	void DestroyRenderContext();

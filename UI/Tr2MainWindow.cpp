@@ -106,12 +106,6 @@ namespace
 			return "immediate";
 		case Tr2RenderContextEnum::PRESENT_INTERVAL_ONE:
 			return "one";
-		case Tr2RenderContextEnum::PRESENT_INTERVAL_TWO:
-			return "two";
-		case Tr2RenderContextEnum::PRESENT_INTERVAL_THREE:
-			return "three";
-		case Tr2RenderContextEnum::PRESENT_INTERVAL_FOUR:
-			return "four";
 		default:
 			return "INVALID PRESENT INTERVAL";
 		}
@@ -283,6 +277,7 @@ ALResult Tr2MainWindow::SetState( bool adjustWindow, const Tr2MainWindowState::S
 		AdjustWindow( state );
 	}
 	CR_RETURN_HR( state.PopulatePresentParameters( presentParams ) );
+	presentParams.variableRefreshRateSupported = gTriDev->IsVariableRefreshRateSupported();
 	presentParams.outputWindow = GetOutputWindow();
 
 	gTriDev->SetThrottling( TriDevice::WINDOW_HIDDEN, state.showState == Tr2WindowShowState::MINIMIZED );
@@ -527,22 +522,11 @@ void Tr2MainWindow::SanitizeState( Tr2MainWindowState::State& state ) const
 	{
 		SanitizeWindowedResolution( state );
 	}
-	if( state.windowMode != Tr2WindowMode::FULL_SCREEN )
+	if( state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_IMMEDIATE && state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_ONE )
 	{
-		if( state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_IMMEDIATE && state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_ONE )
-		{
-			state.presentInterval = Tr2RenderContextEnum::PRESENT_INTERVAL_ONE;
-		}
+		state.presentInterval = Tr2RenderContextEnum::PRESENT_INTERVAL_ONE;
 	}
-	else
-	{
-		if( state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_IMMEDIATE && state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_ONE && 
-			state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_TWO && state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_THREE && 
-			state.presentInterval != Tr2RenderContextEnum::PRESENT_INTERVAL_FOUR )
-		{
-			state.presentInterval = Tr2RenderContextEnum::PRESENT_INTERVAL_ONE;
-		}
-	}
+
 	SanitizeWindowPosition( state );
 }
 
