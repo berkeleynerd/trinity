@@ -248,6 +248,8 @@ void Tr2StateMachineState::Start()
 	}
 	if( m_stateMachine )
 	{
+		CcpAutoMutex lock( g_controllerMutex );
+
 		for( auto it = begin( m_actions ); it != end( m_actions ); ++it )
 		{
 			( *it )->Start( *m_stateMachine->GetController() );
