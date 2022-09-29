@@ -93,9 +93,11 @@ void Tr2SSAO::SetInputBuffers( Tr2DepthStencilPtr depthBuffer, Tr2RenderTargetPt
 		ReleaseResources( {} );
 		OnPrepareResources();
 	}
-
-	m_ssaoEffect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( m_inputDepthBuffer->GetMsaaSamples() > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
-	m_ssaoLargeEffect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( m_inputDepthBuffer->GetMsaaSamples() > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
+	if( m_inputDepthBuffer )
+	{
+		m_ssaoEffect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( m_inputDepthBuffer->GetMsaaSamples() > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
+		m_ssaoLargeEffect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( m_inputDepthBuffer->GetMsaaSamples() > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
+	}
 }
 
 inline static uint32_t DispatchSize( uint32_t tileSize, uint32_t totalSize )
