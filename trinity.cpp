@@ -12,7 +12,7 @@ BLUE_DEFINE_INTERFACE( IBlueObjectProxy );
 
 #include "Tr2Renderer.h"
 
-
+#include "include/TriMath.h"
 
 // constants to add to Python
 #include "TriConstants.h"
@@ -193,6 +193,9 @@ void InitializeTrinity()
 	Tr2FontManager::Initialize();
 
 	Tr2Renderer::Initialize();
+
+	// Make sure noise table is initialized before we start calling noise functions from multiple threads
+	PerlinNoise1D( 0.0, 1.0, 1.0, 1 );
 }
 
 static void StartDLL()
