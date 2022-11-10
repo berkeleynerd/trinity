@@ -45,11 +45,12 @@ BlurContext CreateBlurContext( float outputSize )
 {
 	BlurContext context;
 
-	context.type = BlurType::Big;
-	context.channel = BlurChannel::rgba;
 	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_Off;
-	context.outputProcess = BlurOutputProcess::Average;
+
+	context.type = BlurType::BT_Big;
+	context.channel = BlurChannel::BC_rgba;
+	context.process = BlurProcess::BP_None;
+	context.finalize = BlurFinalize::BF_None;
 	return context;
 }
 
@@ -58,10 +59,11 @@ BlurContext CreateBlurContext( float outputSize, BlurType type )
 	BlurContext context;
 
 	context.type = type;
-	context.channel = BlurChannel::rgba;
 	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_Off;
-	context.outputProcess = BlurOutputProcess::Average;
+
+	context.channel = BlurChannel::BC_rgba;
+	context.process = BlurProcess::BP_None;
+	context.finalize = BlurFinalize::BF_None;
 	return context;
 }
 
@@ -71,85 +73,51 @@ BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputS
 	context.type = type;
 	context.channel = channel;
 	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_Off;
-	context.outputProcess = BlurOutputProcess::Average;
+
+	context.process = BlurProcess::BP_None;
+	context.finalize = BlurFinalize::BF_None;
 	return context;
 }
 
-BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize, Vector2 range )
+BlurContext CreateBlurContext( BlurType type, BlurChannel channel, BlurProcess process, float outputSize )
 {
 	BlurContext context;
 	context.type = type;
 	context.channel = channel;
 	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_On;
-	context.range = range;
-	context.outputProcess = BlurOutputProcess::Average;
+	context.process = process;
+
+	context.finalize = BlurFinalize::BF_None;
 	return context;
 }
 
-
-BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize, BlurOutputProcess process )
+BlurContext CreateBlurContext( BlurType type, BlurChannel channel, BlurProcess process, BlurFinalize finalize, float outputSize )
 {
 	BlurContext context;
 	context.type = type;
 	context.channel = channel;
 	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_Off;
-	context.outputProcess = process;
-	return context;
-}
+	context.process = process;
+	context.finalize = finalize;
 
-BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize, Vector2 range, BlurOutputProcess process )
-{
-	BlurContext context;
-	context.type = type;
-	context.channel = channel;
-	context.outputSize = outputSize;
-	context.rangeMode = BlurRange::Range_On;
-	context.range = range;
-	context.outputProcess = process;
 	return context;
 }
 
 
-BlueSharedString GetBlurRangeOptionValue( BlurRange range )
-{
-	if( range == BlurRange::Range_On )
-	{
-		return BlueSharedString( "BLUR_RANGE_ON" );
-	}
-	return BlueSharedString( "BLUR_RANGE_OFF" );
-}
-
-BlueSharedString GetBlurOutputProcessOptionValue( BlurOutputProcess process )
-{
-	switch( process )
-	{
-	case BlurOutputProcess::Average:
-		return BlueSharedString( "BLUR_OUTPUT_COLOR_AVERAGE" );
-	case BlurOutputProcess::Brighten:
-		return BlueSharedString( "BLUR_OUTPUT_COLOR_BRIGHTEN" );
-	case BlurOutputProcess::Darken:
-		return BlueSharedString( "BLUR_OUTPUT_COLOR_DARKEN" );
-	default:
-		return BlueSharedString( "BLUR_OUTPUT_COLOR_AVERAGE" );
-	}
-}
 
 BlueSharedString GetBlurChannelOptionValue( BlurChannel channel )
 {
 	switch( channel )
 	{
-	case BlurChannel::rgba:
+	case BlurChannel::BC_rgba:
 		return BlueSharedString( "BLUR_CHANNEL_RGBA" );
-	case BlurChannel::r:
+	case BlurChannel::BC_r:
 		return BlueSharedString( "BLUR_CHANNEL_R" );
-	case BlurChannel::g:
+	case BlurChannel::BC_g:
 		return BlueSharedString( "BLUR_CHANNEL_G" );
-	case BlurChannel::b:
+	case BlurChannel::BC_b:
 		return BlueSharedString( "BLUR_CHANNEL_B" );
-	case BlurChannel::a:
+	case BlurChannel::BC_a:
 		return BlueSharedString( "BLUR_CHANNEL_A" );
 	default:
 		return BlueSharedString( "BLUR_CHANNEL_RGBA" );
@@ -158,11 +126,33 @@ BlueSharedString GetBlurChannelOptionValue( BlurChannel channel )
 
 BlueSharedString GetBlurTypeOptionValue( BlurType type )
 {
-	if( type == BlurType::Big )
+	if( type == BlurType::BT_Big )
 	{
 		return BlueSharedString( "BLUR_TYPE_BIG" );
 	}
 	return BlueSharedString( "BLUR_TYPE_SMALL" );
+}
+
+BlueSharedString GetProcessTypeOptionValue( BlurProcess process)
+{
+	if( process == BlurProcess::BP_Maximum)
+	{
+		return BlueSharedString( "BLUR_PROCESS_TYPE_MAXIMUM" );
+	}
+	if( process == BlurProcess::BP_Minimum )
+	{
+		return BlueSharedString( "BLUR_PROCESS_TYPE_MINIMUM" );
+	}
+	return BlueSharedString( "BLUR_PROCESS_TYPE_NONE" );
+}
+
+BlueSharedString GetFinalizeTypeOptionValue( BlurFinalize finalize )
+{
+	if( finalize == BlurFinalize::BF_MaxOfAllChannels )
+	{
+		return BlueSharedString( "BLUR_FINALIZE_TYPE_MAX_OF_ALL_CHANNELS" );
+	}
+	return BlueSharedString( "BLUR_FINALIZE_TYPE_NONE" );
 }
 
 }
@@ -372,6 +362,11 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 		RenderGodRays( nonMsaaSource, renderContext, godrays );
 	}
 
+	if( ProcessDepthOfField( renderContext, dof ) )
+	{
+		RenderDepthOfField( nonMsaaSource, renderContext, dof );
+	}
+
 	if (ProcessTaa(taa))
 	{
 		RenderTaa( nonMsaaSource, renderContext, taa );
@@ -383,10 +378,6 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 	}
 
 	
-	if( ProcessDepthOfField( renderContext, dof ) )
-	{
-		RenderDepthOfField( nonMsaaSource, renderContext, dof );
-	}
 
 	// this needs to be after dynamic exposure, since bloom can be exposure dependent
 	Tr2PostProcessRenderInfo::Texture bloomTexture;
@@ -472,13 +463,12 @@ void TriStepRenderPostProcess::Blur( Tr2RenderTarget& dest, Tr2RenderTarget& src
 		effects.first->SetOption( BlueSharedString( "BLUR_CHANNEL" ), blurChannelOption );
 		effects.second->SetOption( BlueSharedString( "BLUR_CHANNEL" ), blurChannelOption );
 
-		BlueSharedString outputOption = PostProcessBlur::GetBlurOutputProcessOptionValue( blurContext.outputProcess );
-		effects.first->SetOption( BlueSharedString( "BLUR_OUTPUT_COLOR_METHOD" ), outputOption );
-		effects.second->SetOption( BlueSharedString( "BLUR_OUTPUT_COLOR_METHOD" ), outputOption );
+		BlueSharedString blurChannelProcessOption = PostProcessBlur::GetProcessTypeOptionValue( blurContext.process );
+		effects.first->SetOption( BlueSharedString( "BLUR_PROCESS_TYPE" ), blurChannelProcessOption );
+		effects.second->SetOption( BlueSharedString( "BLUR_PROCESS_TYPE" ), blurChannelProcessOption );
 
-		BlueSharedString rangeOption = PostProcessBlur::GetBlurRangeOptionValue( blurContext.rangeMode );
-		effects.first->SetOption( BlueSharedString( "BLUR_RANGE" ), rangeOption );
-		effects.second->SetOption( BlueSharedString( "BLUR_RANGE" ), rangeOption );
+		effects.first->SetOption( BlueSharedString( "BLUR_FINALIZE_TYPE" ), PostProcessBlur::GetFinalizeTypeOptionValue( PostProcessBlur::BF_None) );
+		effects.second->SetOption( BlueSharedString( "BLUR_FINALIZE_TYPE" ), PostProcessBlur::GetFinalizeTypeOptionValue( blurContext.finalize ) );
 
 		effects.first->EndUpdate();
 		effects.second->EndUpdate();
@@ -489,17 +479,11 @@ void TriStepRenderPostProcess::Blur( Tr2RenderTarget& dest, Tr2RenderTarget& src
 		effects = lookup->second;
 	}
 	
-
-	auto rt2 = m_renderInfo->GetTempTexture( blurContext.outputSize, Tr2RenderContextEnum::EX_NONE, dest.GetFormat() );
+	auto rt2 = m_renderInfo->GetTempTexture( blurContext.outputSize, Tr2RenderContextEnum::EX_NONE, src.GetFormat() );
+	
 	effects.first->SetParameter( BlueSharedString( "BlitCurrent" ), &src );
 	effects.second->SetParameter( BlueSharedString( "BlitCurrent" ), rt2 );
 
-	if( blurContext.rangeMode == PostProcessBlur::Range_On )
-	{
-		effects.first->SetParameter( BlueSharedString( "BlurRange" ), blurContext.range );
-		effects.second->SetParameter( BlueSharedString( "BlurRange" ), blurContext.range );
-	}
-	
 	DrawInto( *rt2, Tr2LoadAction::DONT_CARE, effects.first, renderContext );
 	DrawInto( dest, Tr2LoadAction::DONT_CARE, effects.second, renderContext );
 }
@@ -1398,6 +1382,7 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			m_depthOfFieldBokehBlurShader->StartUpdate();
 			m_depthOfFieldBokehBlurShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/Bokeh.fx" );
 			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "CoCMap" ), PLACEHOLDER );
+			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale, 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehBlurShader->SetOption( BlueSharedString( "BOKEH_PIXEL_METHOD" ), BlueSharedString( "BOKEH_PIXEL_AVERAGE" ) );
 			m_depthOfFieldBokehBlurShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
@@ -1407,6 +1392,7 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			m_depthOfFieldBokehFillShader->StartUpdate();
 			m_depthOfFieldBokehFillShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/Bokeh.fx" );
 			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), PLACEHOLDER );
+			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale, 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehFillShader->SetOption( BlueSharedString( "BOKEH_PIXEL_METHOD" ), BlueSharedString( "BOKEH_PIXEL_MAX" ) );
 			m_depthOfFieldBokehFillShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
@@ -1418,6 +1404,7 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			m_depthOfFieldCoCShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
 			m_depthOfFieldCoCShader->SetParameter( BlueSharedString( "FocalInfo" ), Vector4( fx->m_focalDistance, fx->m_focalLength, fx->m_scale, 0.0 ) );
 			m_depthOfFieldCoCShader->SetOption( BlueSharedString( "CoCMode" ), BlueSharedString( "CoCBack" ) );
+			m_depthOfFieldCoCShader->SetOption( BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT" ), fx->m_foregroundBlurNeeded ? BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT_2" ) : BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT_1" ) );
 			m_depthOfFieldCoCShader->EndUpdate();
 		}
 		else if( fx->IsDirty() )
@@ -1425,6 +1412,7 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			// we just changed the effect
 			m_depthOfFieldCoCShader->StartUpdate();
 			m_depthOfFieldCoCShader->SetParameter( BlueSharedString( "FocalInfo" ), Vector4( fx->m_focalDistance, fx->m_focalLength, fx->m_scale, 0.0 ) );
+			m_depthOfFieldCoCShader->SetOption( BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT" ), fx->m_foregroundBlurNeeded ? BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT_2" ) : BlueSharedString( "COC_OUTPUT_CHANNEL_COUNT_1" ) );
 			m_depthOfFieldCoCShader->EndUpdate();
 			
 			m_depthOfFieldBokehBlurShader->StartUpdate();
@@ -1459,28 +1447,63 @@ void TriStepRenderPostProcess::RenderDepthOfField( Tr2RenderTarget* dest, Tr2Ren
 	{
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
-		auto result = m_renderInfo->GetTempTexture( 1.0f );
 		{
-			auto coc = m_renderInfo->GetTempTexture( 1.0f, Tr2RenderContextEnum::EX_NONE, Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM );
-			auto blur = m_renderInfo->GetTempTexture( 1.0f, Tr2RenderContextEnum::EX_NONE, Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM );
+			auto coc = m_renderInfo->GetTempTexture( depthOfField->m_cocScale, Tr2RenderContextEnum::EX_NONE, Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM );
 
+			auto blur = m_renderInfo->GetTempTexture( );
+			
+			if( !depthOfField->m_foregroundBlurNeeded )
 			{
 				GPU_REGION( renderContext, "CoC" );
-				m_depthOfFieldCoCShader->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
 				DrawInto( *coc, Tr2LoadAction::DONT_CARE, m_depthOfFieldCoCShader, renderContext );
-			}
+				if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_CoC )
+				{
+					DrawInto( *dest, Tr2LoadAction::DONT_CARE, *coc, renderContext );
+					return;
+				}
+			} 
+			else 
 			{
-				auto blurContext = PostProcessBlur::CreateBlurContext( PostProcessBlur::Big, PostProcessBlur::a, 1.0f, Vector2( 0.0f, depthOfField->m_scale ), PostProcessBlur::Brighten );
-				Blur( *coc, *coc, renderContext, blurContext );
+				GPU_REGION( renderContext, "CoC" );
+				auto coc2 = m_renderInfo->GetTempTexture( depthOfField->m_cocScale, Tr2RenderContextEnum::EX_NONE, Tr2RenderContextEnum::PIXEL_FORMAT_R8G8_UNORM );
+
+				DrawInto( *coc2, Tr2LoadAction::DONT_CARE, m_depthOfFieldCoCShader, renderContext );
+				if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_CoC )
+				{
+					DrawInto( *dest, Tr2LoadAction::DONT_CARE, *coc2, renderContext );
+					return;
+				}
+				{
+					GPU_REGION( renderContext, "CoC Blur" );
+				
+					auto blurContext = PostProcessBlur::CreateBlurContext( PostProcessBlur::BT_Big, 
+						PostProcessBlur::BC_r, 
+						PostProcessBlur::BP_Maximum, 
+						PostProcessBlur::BF_MaxOfAllChannels, 
+						depthOfField->m_cocScale );
+					Blur( *coc, *coc2, renderContext, blurContext );
+					if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_CoCBlurred )
+					{
+						DrawInto( *dest, Tr2LoadAction::DONT_CARE, *coc, renderContext );
+						return;
+					}
+				}
 			}
 			{
 				GPU_REGION( renderContext, "Bokeh Blend" );
+				m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
 				m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
 				DrawInto( *blur, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehBlurShader, renderContext );
+				if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_BokehBlend)
+				{
+					DrawInto( *dest, Tr2LoadAction::DONT_CARE, *blur, renderContext );
+					return;
+				}
 			}
 			{
 				GPU_REGION( renderContext, "Bokeh Fill" );
-				m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), blur );
+				m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BlitCurrent" ), blur );
+				m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
 				DrawInto( *dest, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehFillShader, renderContext );
 			}
 		}

@@ -23,57 +23,56 @@ namespace PostProcessBlur
 	// Some blur helpers
 	enum BlurType
 	{
-		Big,
-		Small
+		BT_Big,
+		BT_Small
 	};
 
 	enum BlurChannel
 	{
-		r,
-		g,
-		b,
-		a,
-		rgba
+		BC_r,
+		BC_g,
+		BC_b,
+		BC_a,
+		BC_rgba
 	};
 
-	enum BlurOutputProcess
+	enum BlurProcess
 	{
-		Average,
-		Brighten,
-		Darken
+		BP_None,
+		BP_Minimum,
+		BP_Maximum
 	};
 
-	enum BlurRange
+	enum BlurFinalize
 	{
-		Range_Off,
-		Range_On
+		BF_None,
+		BF_MaxOfAllChannels
 	};
 
 	struct BlurContext
 	{
 		BlurType type;
 		BlurChannel channel;
-		BlurRange rangeMode;
-		BlurOutputProcess outputProcess;
 		float outputSize;
-		Vector2 range;
+		BlurProcess process;
+		BlurFinalize finalize;
 
 		uint32_t Hash()
 		{
-			return type * 1000 + channel * 100 + rangeMode * 10 + outputProcess;
+			return finalize * 1000 + process * 100 + type * 10 + channel;
 		}
 	};
 
 	BlurContext CreateBlurContext( float outputSize );
 	BlurContext CreateBlurContext( float outputSize, BlurType type );
 	BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize );
-	BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize, Vector2 range );
-	BlurContext CreateBlurContext( BlurType type, BlurChannel channel, float outputSize, Vector2 range, BlurOutputProcess process );
+	BlurContext CreateBlurContext( BlurType type, BlurChannel channel, BlurProcess process, float outputSize );
+	BlurContext CreateBlurContext( BlurType type, BlurChannel channel, BlurProcess process, BlurFinalize finalize, float outputSize );
 
-	BlueSharedString GetBlurRangeOptionValue( BlurRange range );
-	BlueSharedString GetBlurOutputProcessOptionValue( BlurOutputProcess process );
 	BlueSharedString GetBlurChannelOptionValue( BlurChannel channel );
 	BlueSharedString GetBlurTypeOptionValue( BlurType type );
+        BlueSharedString GetProcessTypeOptionValue( BlurProcess process);
+        BlueSharedString GetFinalizeTypeOptionValue( BlurFinalize finalize );
 }
 
 // -------------------------------------------------------------
@@ -200,7 +199,7 @@ private:
 	PostProcessingQuality m_quality;
 
 	// Common
-	void Blur( Tr2RenderTarget& dest, Tr2RenderTarget& src, Tr2RenderContext& renderContext, PostProcessBlur::BlurContext& blurContext);
+	void Blur( Tr2RenderTarget& dest, Tr2RenderTarget& src, Tr2RenderContext& renderContext, PostProcessBlur::BlurContext& blurContext );
 	void DownSampleDepth( Tr2RenderContext& renderContext, Tr2RenderTarget* destination );
 
 	Tr2EffectPtr m_downsampleDepthEffect;

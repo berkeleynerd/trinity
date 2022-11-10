@@ -12,6 +12,9 @@ Tr2PPDepthOfFieldEffect::Tr2PPDepthOfFieldEffect( IRoot* lockobj ) :
 	m_focalDistance( 0.0f ),
 	m_focalLength(0.0f),
 	m_scale( 0.0f ),
+	m_cocScale( 1.0f ),
+	m_foregroundBlurNeeded( true ),
+	m_debug( Tr2PPDepthOfFieldEffect::DofDebug_Off ),
 	m_bokehShape( Tr2Bokeh::Disk )
 {
 }
