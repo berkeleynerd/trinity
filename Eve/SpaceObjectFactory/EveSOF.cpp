@@ -2856,12 +2856,14 @@ void EveSOF::SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const 
 
 			if( locators.empty() )
 			{
+				placementIdx++;
 				continue;
 			}
 
 
 			if ( !ProcessLayoutDistributionConditions( placement, dna, locators, locatorSets[placement.locatorSetName]) )
 			{
+				placementIdx++;
 				continue;
 			}
 
