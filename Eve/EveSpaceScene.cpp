@@ -1717,6 +1717,12 @@ void EveSpaceScene::RenderReflectionPass( Tr2RenderContext& renderContext )
 	{
 		m_reflectionIntensity = min( 0.8f, 1.0f / ( m_reflectionIntensity * m_reflectionIntensity ) );
 	}
+	
+	// disable ssao 
+	if( m_ssao )
+	{
+		m_ssaoMapHandle->SetValue( m_ssao->GetBlankOutput() );
+	}
 
 	m_reflectionProbe->InitRenderPass( renderContext );
 	for( unsigned i = m_reflectionProbe->GetStartFace(); i < m_reflectionProbe->GetEndFace(); i++ )
@@ -1818,7 +1824,13 @@ void EveSpaceScene::RenderReflectionPass( Tr2RenderContext& renderContext )
 
 	m_reflectionProbe->EndRenderPass( renderContext );
 
-	// reset the reflection intensity
+	// reset ssao
+	if( m_ssao )
+	{
+		m_ssaoMapHandle->SetValue( m_ssao->GetOutput() );
+	}
+        
+        // reset the reflection intensity
 	m_reflectionIntensity = tmp;
 
 	PopulatePerFramePSData( m_perFramePS, renderContext );
