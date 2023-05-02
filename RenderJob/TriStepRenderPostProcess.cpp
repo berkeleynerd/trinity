@@ -1315,7 +1315,7 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 			m_taaCopyEffect->EndUpdate();
 
 
-			m_currentAccumulationBuffer = -1;
+			m_taaFrameCounter = 0;
 
 			taa->SetDirty( true );
 		}
@@ -1360,7 +1360,7 @@ bool TriStepRenderPostProcess::ProcessTaa(Tr2PPTaaEffect* taa)
 
 			m_taaEffect->EndUpdate();
 
-			m_currentAccumulationBuffer = -1;
+			m_taaFrameCounter = 0;
 
 			taa->SetDirty( false );
 		}
@@ -1399,31 +1399,25 @@ void TriStepRenderPostProcess::RenderTaa( Tr2RenderTarget* dest, Tr2RenderContex
 	Tr2RenderTarget* output;
 	bool inputValid = true;
 
-	if( m_currentAccumulationBuffer == 0 )
+	int frame_count = m_taaFrameCounter++;
+	if( ( frame_count & 1 ) == 0 )
 	{
 		input = m_accumulationBuffer0;
 		output = m_accumulationBuffer1;
-		m_currentAccumulationBuffer = 1;
 	}
-	else if( m_currentAccumulationBuffer == 1 )
+	else
 	{
 		input = m_accumulationBuffer1;
 		output = m_accumulationBuffer0;
-		m_currentAccumulationBuffer = 0;
-	}
-	else 
-	{
-		inputValid = false;
-		input = m_renderInfo->GetBlackTexture();
-		output = m_accumulationBuffer0;
-		m_currentAccumulationBuffer = 0;
 	}
 
 	m_taaEffect->SetParameter( BlueSharedString( "CurrentFrame" ), dest );
 	m_taaEffect->SetParameter( BlueSharedString( "CurrentFrameOpaque" ), m_opaqueColorBuffer );
 	m_taaEffect->SetParameter( BlueSharedString( "AccumulationBuffer" ), input );
 
-	//m_taaEffect2->SetParameter( BlueSharedString( "InputValid" ), (uint32_t)(inputValid ? 1 : 0)  );
+	float max_weight = 0.97f;
+	float weight = min( (float)frame_count / ( (float)frame_count + 1.0f ), max_weight );
+	m_taaEffect->SetParameter( BlueSharedString( "BlendWeight" ), weight );
 
 	DrawInto( *output, Tr2LoadAction::DONT_CARE, m_taaEffect, renderContext );
 

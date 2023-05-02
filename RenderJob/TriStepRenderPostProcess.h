@@ -164,7 +164,7 @@ private:
 	Tr2EffectPtr m_taaEffect, m_taaCopyEffect;
 	Tr2RenderTargetPtr m_accumulationBuffer0, m_accumulationBuffer1 ;
 	Tr2RenderTargetPtr m_opaqueColorBuffer;
-	int m_currentAccumulationBuffer;
+	int m_taaFrameCounter;
 
 	// film grain
 	bool ProcessFilmGrain( Tr2PPFilmGrainEffect* filmGrain );

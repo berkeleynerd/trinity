@@ -1009,29 +1009,54 @@ void EveSpaceScene::TAAOffset( Tr2RenderContext& renderContext )
 
 void EveSpaceScene::UpdatePostProcessPSData()
 {
-	double currentViewProjD[16];
 	Matrix currentProj;
 
 	currentProj = m_frameData.projection;
-	currentProj = EveCamera::AddCenterOffset( currentProj, -m_xProjOffset, -m_yProjOffset, Tr2Renderer::GetFrontClip(), Tr2Renderer::GetBackClip() );
+	currentProj = EveCamera::AddCenterOffset( currentProj, -m_xProjOffset, -m_yProjOffset, Tr2Renderer::GetBackClip(), Tr2Renderer::GetFrontClip() );
 
 	// Find the current inverse view projection
 	double viewTransform[16];
 	double currentProjection[16];
-	Matrix4dMultiply(
-		currentViewProjD,
-		Matrix4dFromMatrix( viewTransform, Tr2Renderer::GetViewTransform() ),
-		Matrix4dFromMatrix( currentProjection, currentProj ) );
-	double invViewProjD[16];
-	Matrix4dInvert( invViewProjD, currentViewProjD );
+	Matrix4dFromMatrix( viewTransform, Tr2Renderer::GetViewTransform() );
+	Matrix4dFromMatrix( currentProjection, currentProj );
 
-	// Now construct the reprojection matrix
-	double reprojection[16];
-	Matrix4dMultiply( reprojection, invViewProjD, m_viewProjectLastD );
-	Matrix repro = Matrix4dToMatrix( reprojection );
-	m_postProcessPSData.ReprojectionMatrix = Transpose( repro );
+	//Reprojection matrix for objects inside the view frustrum.
+	{
+		double currentViewProjD[16];
+		Matrix4dMultiply( currentViewProjD, viewTransform, currentProjection );
 
-	memcpy( m_viewProjectLastD, currentViewProjD, 128 );
+		double invViewProjD[16];
+		Matrix4dInvert( invViewProjD, currentViewProjD );
+
+		// Now construct the reprojection matrix
+		double reprojection[16];
+		Matrix4dMultiply( reprojection, invViewProjD, m_viewProjectLastD );
+		Matrix repro = Matrix4dToMatrix( reprojection );
+		m_postProcessPSData.ReprojectionMatrix = Transpose( repro );
+
+		memcpy( m_viewProjectLastD, currentViewProjD, 128 );
+	}
+
+	//Reprojection matrix for objects infinitely far away.
+	//This only takes the camera's rotation into account, completely ignoring any camera translation.
+	{
+		viewTransform[12] = viewTransform[13] = viewTransform[14] = 0.0; //Force translation component to (0, 0, 0)
+
+		double currentViewProjSkyBoxD[16];
+		Matrix4dMultiply( currentViewProjSkyBoxD, viewTransform, currentProjection );
+
+		double invViewProjSkyBoxD[16];
+		Matrix4dInvert( invViewProjSkyBoxD, currentViewProjSkyBoxD );
+
+		// Now construct the reprojection matrix
+		double reprojectionSkyBox[16];
+		Matrix4dMultiply( reprojectionSkyBox, invViewProjSkyBoxD, m_viewProjectLastSkyBoxD );
+		Matrix reproSkyBox = Matrix4dToMatrix( reprojectionSkyBox );
+		m_postProcessPSData.ReprojectionMatSkyBox = Transpose( reproSkyBox );
+
+		memcpy( m_viewProjectLastSkyBoxD, currentViewProjSkyBoxD, 128 );
+
+	}
 
 	m_postProcessPSData.DeltaT = m_updateContext.GetDeltaT();
 	m_postProcessPSData.OriginShift = m_updateContext.GetOriginShift();

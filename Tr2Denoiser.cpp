@@ -44,9 +44,6 @@ Tr2Denoiser::Tr2Denoiser() :
 
 namespace
 {
-const BlueSharedString MSAA_TYPE = BlueSharedString( "MSAA_TYPE" );
-const BlueSharedString MSAA_TYPE_MSAA = BlueSharedString( "MSAA_TYPE_MSAA" );
-const BlueSharedString MSAA_TYPE_NONE = BlueSharedString( "MSAA_TYPE_NONE" );
 const BlueSharedString NORMALS_INPUT = BlueSharedString( "NORMALS_INPUT" );
 const BlueSharedString NORMALS_INPUT_NORMALS = BlueSharedString( "NORMALS_INPUT_NORMALS" );
 const BlueSharedString NORMALS_INPUT_NONE = BlueSharedString( "NORMALS_INPUT_NONE" );
@@ -69,7 +66,8 @@ const BlueSharedString NORMAL_BUFFER = BlueSharedString( "NormalBuffer" );
 ALResult Tr2Denoiser::Apply( ITr2TextureProvider& source, ITr2TextureProvider& depth, ITr2TextureProvider* normals, const Matrix& projection, Tr2RenderContext& renderContext )
 {
 	auto src = source.GetTexture();
-	if( !src || !src->IsValid() )
+	auto depthMap = depth.GetTexture();
+	if( !src || !src->IsValid() || !depthMap || !depthMap->IsValid() )
 	{
 		return E_INVALIDARG;
 	}
@@ -83,21 +81,8 @@ ALResult Tr2Denoiser::Apply( ITr2TextureProvider& source, ITr2TextureProvider& d
 		}
 	}
 
-	BlueSharedString msaaOpt;
-	if( depth.GetTexture() && depth.GetTexture()->GetMsaaDesc().samples > 1 )
-	{
-		msaaOpt = MSAA_TYPE_MSAA;
-	}
-	else
-	{
-		msaaOpt = MSAA_TYPE_NONE;
-	}
-
-	m_denoiseVert->SetOption( MSAA_TYPE, msaaOpt );
-	m_denoiseHoriz->SetOption( MSAA_TYPE, msaaOpt );
 	m_denoiseVert->SetOption( NORMALS_INPUT, hasNormals ? NORMALS_INPUT_NORMALS : NORMALS_INPUT_NONE );
 	m_denoiseHoriz->SetOption( NORMALS_INPUT, hasNormals ? NORMALS_INPUT_NORMALS : NORMALS_INPUT_NONE );
-
 
 	if( !m_noiseEstimate->IsValid() || m_noiseEstimate->GetWidth() != src->GetWidth() || m_noiseEstimate->GetHeight() != src->GetHeight() )
 	{

@@ -254,6 +254,7 @@ protected:
 		Matrix ProjectionInverseMat;
 	};
 	double m_viewProjectLastD[16];
+	double m_viewProjectLastSkyBoxD[16];
 	Matrix m_viewProjectLast;
 
 	// Per-frame vertex constants for rendering scene
@@ -287,6 +288,7 @@ protected:
 	struct PostProcessPSData
 	{
 		Matrix ReprojectionMatrix;
+		Matrix ReprojectionMatSkyBox;
 		Vector3 OriginShift;
 		float DeltaT;
 	};
