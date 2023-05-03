@@ -139,10 +139,12 @@ private:
 
 	// depth of field
 	bool ProcessDepthOfField( Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* fx );
-	void RenderDepthOfField( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* depthOfField );	
+	void RenderDepthOfField( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* depthOfField, bool taa );	
 	Tr2EffectPtr m_depthOfFieldCoCShader;
 	Tr2EffectPtr m_depthOfFieldBokehBlurShader;
 	Tr2EffectPtr m_depthOfFieldBokehFillShader;
+	Tr2EffectPtr m_depthOfFieldBokehTAAShader;
+	uint32_t m_BokehFrameCounter;
 	
 	// fidelityFX
 	bool ProcessFidelityFX( Tr2RenderContext& renderContext, Tr2PPFidelityFXEffect* fx );

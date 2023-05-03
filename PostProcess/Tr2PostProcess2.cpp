@@ -28,7 +28,7 @@ float Tr2PostProcess2::GetMipLodBias() const
 	float taa_bias = 0.0f;
 	if( m_taa )
 	{
-		taa_bias = m_taa->m_applyMipBias ? -1.0f : 0.0f;
+		taa_bias = m_taa->IsActive() && m_taa->m_applyMipBias ? -1.0f : 0.0f;
 	}
 
 	float fsr_bias = 0.0f;

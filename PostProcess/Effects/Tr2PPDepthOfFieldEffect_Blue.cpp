@@ -38,6 +38,7 @@ const Be::ClassInfo* Tr2PPDepthOfFieldEffect::ExposeToBlue()
 		MAP_ATTRIBUTE( "foregroundBlurNeeded", m_foregroundBlurNeeded, "If foreground is always in focus, we can safely uncheck this", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		MAP_ATTRIBUTE_WITH_CHOOSER( "debug", m_debug, "A value that sets debug mode", Be::READWRITE | Be::ENUM, DoFDebugMode );
 		MAP_ATTRIBUTE_WITH_CHOOSER( "bokehShape", m_bokehShape, "What is the shape of the bokeh", Be::READWRITE | Be::PERSIST | Be::NOTIFY | Be::ENUM, BokehShapeChooser );
+		MAP_ATTRIBUTE( "useTAAFriendlyBokeh", m_useTAAFriendlyBokeh, "Enables a separate Bokeh shader when TAA is enabled that is optimized to reduce flickering", Be::READWRITE | Be::NOTIFY | Be::PERSIST )
 		
 	EXPOSURE_CHAINTO( Tr2PPEffect )
 }

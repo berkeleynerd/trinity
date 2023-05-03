@@ -49,5 +49,6 @@ public:
 	DofDebug m_debug;
 	float m_cocScale;
 	Tr2Bokeh::Shape m_bokehShape;
+	bool m_useTAAFriendlyBokeh;
 };
 TYPEDEF_BLUECLASS( Tr2PPDepthOfFieldEffect );

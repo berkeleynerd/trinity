@@ -3,6 +3,7 @@
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "PostProcess/Effects/Tr2PPFidelityFXEffect.h"
+#include "Include/TriMath.h"
 
 namespace
 {
@@ -369,7 +370,7 @@ TriStepResult TriStepRenderPostProcess::Execute( Be::Time realTime, Be::Time sim
 
 	if( ProcessDepthOfField( renderContext, dof ) )
 	{
-		RenderDepthOfField( nonMsaaSource, renderContext, dof );
+		RenderDepthOfField( nonMsaaSource, renderContext, dof, taa && taa->IsActive() );
 	}
 
 	if (ProcessTaa(taa))
@@ -1433,13 +1434,14 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 	{
 		if( !m_depthOfFieldBokehBlurShader || !m_depthOfFieldCoCShader || !m_depthOfFieldBokehFillShader )
 		{
+
+
 			// we just created the effect
 			m_depthOfFieldBokehBlurShader.CreateInstance();
 			m_depthOfFieldBokehBlurShader->StartUpdate();
 			m_depthOfFieldBokehBlurShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/Bokeh.fx" );
 			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "CoCMap" ), PLACEHOLDER );
 			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
-			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale, 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehBlurShader->SetOption( BlueSharedString( "BOKEH_PIXEL_METHOD" ), BlueSharedString( "BOKEH_PIXEL_AVERAGE" ) );
 			m_depthOfFieldBokehBlurShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
 			m_depthOfFieldBokehBlurShader->EndUpdate();
@@ -1449,10 +1451,16 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			m_depthOfFieldBokehFillShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/Bokeh.fx" );
 			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), PLACEHOLDER );
 			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
-			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale, 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehFillShader->SetOption( BlueSharedString( "BOKEH_PIXEL_METHOD" ), BlueSharedString( "BOKEH_PIXEL_MAX" ) );
 			m_depthOfFieldBokehFillShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
 			m_depthOfFieldBokehFillShader->EndUpdate();
+
+			m_depthOfFieldBokehTAAShader.CreateInstance();
+			m_depthOfFieldBokehTAAShader->StartUpdate();
+			m_depthOfFieldBokehTAAShader->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/PostProcess/BokehTAA.fx" );
+			m_depthOfFieldBokehTAAShader->SetParameter( BlueSharedString( "CoCMap" ), PLACEHOLDER );
+			m_depthOfFieldBokehTAAShader->SetParameter( BlueSharedString( "BlitCurrent" ), PLACEHOLDER );
+			m_depthOfFieldBokehTAAShader->EndUpdate();
 
 			m_depthOfFieldCoCShader.CreateInstance();
 			m_depthOfFieldCoCShader->StartUpdate();
@@ -1472,12 +1480,10 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 			m_depthOfFieldCoCShader->EndUpdate();
 			
 			m_depthOfFieldBokehBlurShader->StartUpdate();
-			m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale , 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehBlurShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
 			m_depthOfFieldBokehBlurShader->EndUpdate();
 
 			m_depthOfFieldBokehFillShader->StartUpdate();
-			m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( fx->m_scale, 0.0, 0.0, 0.0 ) );
 			m_depthOfFieldBokehFillShader->SetOption( BlueSharedString( "BOKEH_SHAPE" ), fx->GetBokehShapeString() );
 			m_depthOfFieldBokehFillShader->EndUpdate();
 		}
@@ -1486,18 +1492,19 @@ bool TriStepRenderPostProcess::ProcessDepthOfField( Tr2RenderContext& renderCont
 	}
 	else
 	{
-		if( m_depthOfFieldCoCShader || m_depthOfFieldBokehBlurShader || m_depthOfFieldBokehFillShader )
+		if( m_depthOfFieldCoCShader || m_depthOfFieldBokehBlurShader || m_depthOfFieldBokehFillShader || m_depthOfFieldBokehTAAShader )
 		{
 			// we have just deleted the effect
 			m_depthOfFieldCoCShader = nullptr;
 			m_depthOfFieldBokehBlurShader = nullptr;
 			m_depthOfFieldBokehFillShader = nullptr;
+			m_depthOfFieldBokehTAAShader = nullptr;
 		}
 	}
 	return fx && fx->IsActive();
 }
 
-void TriStepRenderPostProcess::RenderDepthOfField( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* depthOfField )
+void TriStepRenderPostProcess::RenderDepthOfField( Tr2RenderTarget* dest, Tr2RenderContext& renderContext, Tr2PPDepthOfFieldEffect* depthOfField, bool taa )
 {
 	GPU_REGION( renderContext, "DepthOfField" );
 	{
@@ -1545,22 +1552,51 @@ void TriStepRenderPostProcess::RenderDepthOfField( Tr2RenderTarget* dest, Tr2Ren
 					}
 				}
 			}
+
+			if( taa && depthOfField->m_useTAAFriendlyBokeh )
 			{
-				GPU_REGION( renderContext, "Bokeh Blend" );
-				m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
-				m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
-				DrawInto( *blur, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehBlurShader, renderContext );
-				if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_BokehBlend)
+
+				//Animate the bokeh to let TAA accumulate samples.
+				//m_BokehFrameCounter is only incremented when TAA is enabled.
+				int rotation = ( m_BokehFrameCounter++ * 4 ) % 9;
+
+				float angle = (float)rotation * TRI_2PI / 9.0f;
+
 				{
+					GPU_REGION( renderContext, "Bokeh" );
+					m_depthOfFieldBokehTAAShader->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
+					m_depthOfFieldBokehTAAShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
+					m_depthOfFieldBokehTAAShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( depthOfField->m_scale, cos( angle ), sin( angle ), 0.0 ) );
+					DrawInto( *blur, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehTAAShader, renderContext );
+				}
+				{
+
+					GPU_REGION( renderContext, "Copy back" );
 					DrawInto( *dest, Tr2LoadAction::DONT_CARE, *blur, renderContext );
-					return;
 				}
 			}
+			else
 			{
-				GPU_REGION( renderContext, "Bokeh Fill" );
-				m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BlitCurrent" ), blur );
-				m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
-				DrawInto( *dest, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehFillShader, renderContext );
+
+				{
+					GPU_REGION( renderContext, "Bokeh Blend" );
+					m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BlitCurrent" ), dest );
+					m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
+					m_depthOfFieldBokehBlurShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( depthOfField->m_scale, 0.0f, 0.0f, 0.0f ) );
+					DrawInto( *blur, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehBlurShader, renderContext );
+					if( depthOfField->m_debug == Tr2PPDepthOfFieldEffect::DofDebug_BokehBlend )
+					{
+						DrawInto( *dest, Tr2LoadAction::DONT_CARE, *blur, renderContext );
+						return;
+					}
+				}
+				{
+					GPU_REGION( renderContext, "Bokeh Fill" );
+					m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BlitCurrent" ), blur );
+					m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "CoCMap" ), coc );
+					m_depthOfFieldBokehFillShader->SetParameter( BlueSharedString( "BokehInfo" ), Vector4( depthOfField->m_scale, 0.0f, 0.0f, 0.0f ) );
+					DrawInto( *dest, Tr2LoadAction::DONT_CARE, m_depthOfFieldBokehFillShader, renderContext );
+				}
 			}
 		}
 	}
