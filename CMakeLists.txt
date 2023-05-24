@@ -1647,16 +1647,16 @@ FIXME currently the _stub platform does not build on macOS due to "unknown type 
 There are probably more issues because we haven't build the stub project on macOS so far IIRC
 ]]
 if(WIN32)
-ccp_add_library(trinity_stub SHARED)
-target_compile_definitions(trinity_stub
-    PRIVATE
-        TRINITY_PLATFORM=TRINITY_STUB
-        TRINITYNAME=_trinity_stub
-)
+    ccp_add_library(trinity_stub SHARED)
+    target_compile_definitions(trinity_stub
+        PRIVATE
+            TRINITY_PLATFORM=TRINITY_STUB
+            TRINITYNAME=_trinity_stub
+    )
 
-find_package(TrinityAL_stub REQUIRED NO_CMAKE_PATH)
-target_link_libraries(trinity_stub PRIVATE TrinityAL_stub)
-set_shared_trinity_properties(trinity_stub)
+    find_package(TrinityAL_stub REQUIRED NO_CMAKE_PATH)
+    target_link_libraries(trinity_stub PRIVATE TrinityAL_stub)
+    set_shared_trinity_properties(trinity_stub)
 endif()
 
 if(WIN32)
@@ -1699,6 +1699,7 @@ elseif(APPLE)
             "-framework GameController"
             "-framework Metal"
             "-framework IOKit"
+            "-framework QuartzCore"
     )
 
     #[[
