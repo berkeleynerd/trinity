@@ -356,6 +356,22 @@ void EveChildSocket::GetLocalToWorldTransform( Matrix& transform ) const
 	transform = m_worldTransform;
 }
 
+void EveChildSocket::PlayAllCurveSets()
+{
+	if( m_plug )
+	{
+		m_plug->PlayAllCurveSets();
+	}
+}
+
+void EveChildSocket::StopAllCurveSets()
+{
+	if( m_plug )
+	{
+		m_plug->StopAllCurveSets();
+	}
+}
+
 void EveChildSocket::PlayCurveSet( const std::string& name, const std::string& rangeName )
 {
 	if ( m_plug )

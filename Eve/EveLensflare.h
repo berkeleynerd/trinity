@@ -11,11 +11,10 @@
 #include "Tr2Variable.h"
 #include "Controllers/ITr2ControllerOwner.h"
 #include "ITr2CurveSetOwner.h"
+#include "EveOccluder.h"
 
 // forwards
 class TriFrustum;
-BLUE_DECLARE( EveOccluder );
-BLUE_DECLARE_VECTOR( EveOccluder );
 BLUE_DECLARE( EveTransform );
 BLUE_DECLARE_VECTOR( EveTransform );
 BLUE_DECLARE( TriVariable );
@@ -97,8 +96,6 @@ private:
 	bool m_display;
 	// toggle updates
 	bool m_update;
-	// toggle visibility queries
-	bool m_doOcclusionQueries;
 
 	// factor for pushing the sun away from the camera position
 	float m_cameraFactor;
@@ -134,17 +131,15 @@ private:
 	// background occluder modules for planets
 	PEveOccluderVector m_backgroundOccluders;
 
-	// the intensity based on occlusion results
-	float m_occlusionIntensity;
-    // the intensity based on background occlusion results
-	float m_backgroundOcclusionIntensity;
-
 	PTriCurveSetVector m_curveSets;
 	Tr2MeshPtr m_mesh;
 
 	// ITr2ControllerOwner
 	PITr2ControllerVector m_controllers;
 	TrackableStdUnorderedMap<std::string, float> m_controllerVariables;
+
+	Tr2OcclusionBuffer::Offset m_occlusionOffset;
+	Tr2OcclusionBuffer::Offset m_backgroundOcclusionOffset;
 };
 
 TYPEDEF_BLUECLASS( EveLensflare );

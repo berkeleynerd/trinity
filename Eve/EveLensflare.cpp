@@ -10,12 +10,44 @@
 #include "Include/ITriFunction.h"
 #include "TriFrustum.h"
 #include "Tr2VariableStore.h"
+#include "Tr2GpuBuffer.h"
 
 #include "EveOccluder.h"
 #include "EveTransform.h"
 #include "Curves/TriCurveSet.h"
 #include "Tr2Mesh.h"
 #include "Controllers/ITr2Controller.h"
+#include "Shader/Tr2Effect.h"
+
+
+
+class EveLensflarePerObjectData : public Tr2PerObjectData
+{
+public:
+	virtual void SetPerObjectDataToDevice( Tr2ConstantBufferAL** buffers, unsigned constantTypeMask, Tr2RenderContext& renderContext ) const
+	{
+		FillAndSetConstants( *buffers[Tr2RenderContextEnum::VERTEX_SHADER],
+							 &m_data,
+							 sizeof( Data ),
+							 Tr2RenderContextEnum::VERTEX_SHADER,
+							 Tr2Renderer::GetPerObjectVSStartRegister(),
+							 renderContext );
+		FillAndSetConstants( *buffers[Tr2RenderContextEnum::PIXEL_SHADER],
+							 &m_data,
+							 sizeof( Data ),
+							 Tr2RenderContextEnum::PIXEL_SHADER,
+							 Tr2Renderer::GetPerObjectPSStartRegister(),
+							 renderContext );
+	}
+
+	struct Data
+	{
+		Vector4 directionScale;
+		uint32_t indices[4];
+	};
+	Data m_data;
+};
+
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -36,10 +68,7 @@ EveLensflare::EveLensflare( IRoot* lockobj ) :
 	m_display( true ),
 	m_update( true ),
 	m_position( 0.0f, 0.0f, 0.0f ),
-	m_doOcclusionQueries( true ),
 	m_cameraFactor( 20.f ),	
-	m_occlusionIntensity( 1.f ),
-	m_backgroundOcclusionIntensity( 1.f ),
 	m_sunSize( 0.f ),
 	m_directionVar( "LensflareFxDirectionScale", Vector4( 0.f, 0.f, 0.f, 1.f ) ),
 	m_occScaleVar( "LensflareFxOccScale", Vector4( 1.f, 0.f, 0.f, 0.f ) ),
@@ -129,7 +158,9 @@ void EveLensflare::Update( Be::Time realTime, Be::Time simTime )
 	}
 
 	// pass important data to shader
-	m_occScaleVar = Vector4( m_occlusionIntensity, m_backgroundOcclusionIntensity, 0.f, 0.f );
+	uint32_t fg = m_occlusionOffset ? *m_occlusionOffset : 0;
+	uint32_t bg = m_backgroundOcclusionOffset ? *m_backgroundOcclusionOffset : 0;
+	m_occScaleVar = Vector4( *reinterpret_cast<float*>( &fg ), *reinterpret_cast<float*>( &bg ), 0.f, 0.f );
 
 	for( auto it = m_curveSets.begin(); it != m_curveSets.end(); ++it )
 	{
@@ -152,11 +183,6 @@ void EveLensflare::Update( Be::Time realTime, Be::Time simTime )
 // --------------------------------------------------------------------------------
 void EveLensflare::PrepareRender( const TriFrustum& frustum )
 {
-	// restore occlusion intensity here to full, subsequent calls to ::RunOcclusionQueries()
-	// will update this value
-	m_occlusionIntensity = 1.f;
-	m_backgroundOcclusionIntensity = 1.f;
-
 	// debug
 	if( !m_display )
 	{
@@ -187,10 +213,6 @@ void EveLensflare::PrepareRender( const TriFrustum& frustum )
 	m_transform._42 = cameraSpacePos.y;
 	m_transform._43 = cameraSpacePos.z;
 	m_transform._44 = 1.0f;	
-
-	// apply another scaling matrix to scale down for occlusion
-	Matrix scaleMat = ScalingMatrix( m_occlusionIntensity, m_occlusionIntensity, 1.f );
-	m_transform = scaleMat * m_transform;
     
 	// pass important data to shader
 	m_directionVar = Vector4( m_direction, m_sunSize );
@@ -290,18 +312,22 @@ void EveLensflare::RunOcclusionQueries( Tr2RenderContext& renderContext, const T
 	{
 		return;
 	}
-	if( !m_doOcclusionQueries )
+	if( !m_occlusionOffset )
 	{
-		return;
+		m_occlusionOffset = Tr2OcclusionBuffer::GetInstance().AllocateOffset();
+	}
+	if( !m_backgroundOcclusionOffset )
+	{
+		m_backgroundOcclusionOffset = Tr2OcclusionBuffer::GetInstance().AllocateOffset();
 	}
 
+	bool bufferCleared = false;
+
 	// pass to occlusion modules
-	for( EveOccluderVector::const_iterator it = m_occluders.begin(); it != m_occluders.end(); ++it )
+	uint32_t index = 0;
+	for( auto& occluder : m_occluders )
 	{
-		// render query sprites
-		(*it)->RunQuery( renderContext, frustum, m_transform );
-		// "collect" results, which mgith not be from this frame...
-		m_occlusionIntensity *= (*it)->GetValue();
+		occluder->RunQuery( renderContext, frustum, m_transform, Tr2OcclusionBuffer::GetOccluderOffset( m_occlusionOffset, index++ ), 1 );
 	}
 }
 
@@ -322,19 +348,18 @@ void EveLensflare::RunBackgroundOcclusionQueries( Tr2RenderContext& renderContex
 	{
 		return;
 	}
-	if( !m_doOcclusionQueries )
+	if( !m_backgroundOcclusionOffset )
 	{
-		return;
+		m_backgroundOcclusionOffset = Tr2OcclusionBuffer::GetInstance().AllocateOffset();
 	}
 
+	bool bufferCleared = true;
+
 	// pass to occlusion modules
-	for( EveOccluderVector::const_iterator it = m_backgroundOccluders.begin(); it != m_backgroundOccluders.end(); ++it )
+	uint32_t index = 0;
+	for( auto& occluder : m_backgroundOccluders )
 	{
-		// render query sprites
-		(*it)->RunQuery( renderContext, frustum, m_transform );
-		// "collect" results, which mgith not be from this frame...
-		m_occlusionIntensity *= (*it)->GetValue();
-		m_backgroundOcclusionIntensity *= (*it)->GetValue();
+		occluder->RunQuery( renderContext, frustum, m_transform, Tr2OcclusionBuffer::GetOccluderOffset( m_backgroundOcclusionOffset, index++ ), 0 );
 	}
 }
 
@@ -358,7 +383,14 @@ float EveLensflare::GetSortValue()
 
 Tr2PerObjectData* EveLensflare::GetPerObjectData( ITriRenderBatchAccumulator* accumulator )
 {
-	return nullptr;
+	auto data = accumulator->Allocate<EveLensflarePerObjectData>();
+	if( data )
+	{
+		data->m_data.directionScale = Vector4( m_direction, m_sunSize );
+		data->m_data.indices[0] = m_occlusionOffset ? *m_occlusionOffset : 0;
+		data->m_data.indices[1] = m_backgroundOcclusionOffset ? *m_backgroundOcclusionOffset : 0;
+	}
+	return data;
 }
 
 // -------------------------------CurveSets----------------------------------------------

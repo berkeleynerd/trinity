@@ -387,12 +387,15 @@ EveSOFDataHullLocator::EveSOFDataHullLocator( IRoot* lockobj )
 {
 }
 
+EveSOFDataHullLocatorSetGroup::EveSOFDataHullLocatorSetGroup( IRoot* lockobj ) :
+	PARENTLOCK( m_locatorSets )
+{
+}
 
 EveSOFDataHullLocatorSet::EveSOFDataHullLocatorSet( IRoot* lockobj ) :
 	PARENTLOCK( m_locators )
 {
 }
-
 
 EveSOFDataTransform::EveSOFDataTransform( IRoot* lockobj ) :
 	m_position( 0.f, 0.f, 0.f ),
@@ -964,7 +967,8 @@ EveSOFDataHullExtensionPlacement::EveSOFDataHullExtensionPlacement( IRoot*  lock
 	m_name( "" ),
 	m_locatorSetName( "" ),
 	m_offset( 0.f, 0.f, 0.f ),
-	m_isInstanced( true )
+	m_isInstanced( true ),
+	m_enabled( true )
 {
 	m_distribution.CreateInstance();
 	m_descriptor.CreateInstance();
@@ -974,7 +978,8 @@ EveSOFDataHullExtensionPlacementGroup::EveSOFDataHullExtensionPlacementGroup(IRo
 	PARENTLOCK( m_placements ),
 	PARENTLOCK( m_distributionConditions ),
 	PARENTLOCK( m_depletionCounters ),
-	m_name( "" )
+	m_name( "" ),
+	m_enabled( true )
 {
 }
 
@@ -986,8 +991,7 @@ EveSOFDataHullExtensionBucket::EveSOFDataHullExtensionBucket( IRoot* lockobj ) :
 {
 }
 
-EveSOFDataHullExtensionPlacementDistributionParentMatch::EveSOFDataHullExtensionPlacementDistributionParentMatch( IRoot* ) :
-	m_name( "" )
+EveSOFDataHullExtensionPlacementDistributionParentMatch::EveSOFDataHullExtensionPlacementDistributionParentMatch( IRoot* )
 {
 	m_parentDescriptor.CreateInstance();
 }
@@ -999,8 +1003,7 @@ EveSOFDataDistributionDepletionCounter::EveSOFDataDistributionDepletionCounter( 
 }
 
 EveSOFDataHullExtensionPlacementDistributionDepletionCounter::EveSOFDataHullExtensionPlacementDistributionDepletionCounter( IRoot* lockobj ) :
-	PARENTLOCK( m_depletionCounters ),
-	m_name( "" )
+	PARENTLOCK( m_depletionCounters )
 {
 }
 

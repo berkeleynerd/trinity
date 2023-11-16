@@ -12,6 +12,118 @@
 #include "EveTransform.h"
 #include "include/TriMath.h"
 
+#include "Tr2GpuBuffer.h"
+
+
+Tr2OcclusionBuffer::Tr2OcclusionBuffer()
+{
+	m_management.CreateInstance();
+	m_management->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/SpecialFX/Lensflares/OccluderManagement.fx" );
+
+	m_buffer.CreateInstance();
+	GlobalStore().RegisterVariable( "FlareOcclusionBuffer", m_buffer );
+}
+
+Tr2OcclusionBuffer::Offset Tr2OcclusionBuffer::AllocateOffset()
+{
+	if( m_free.empty() )
+	{
+		ResizeBuffer();
+	}
+	if( m_free.empty() )
+	{
+		return {};
+	}
+	auto offset = m_free.back();
+	m_free.pop_back();
+	auto handle = Offset( new uint32_t( offset ), &DestroyOffset );
+	m_clear.push_back( offset );
+	return handle;
+}
+
+void Tr2OcclusionBuffer::ProcessBuffer( Tr2RenderContext& renderContext )
+{
+	bool success = true;
+	for( auto clear : m_clear )
+	{
+		GlobalStore().RegisterVariable( "OcclusionBufferOffset", *reinterpret_cast<float*>( &clear ) );
+		success = Tr2Renderer::RunComputeShader( m_management, BlueSharedString( "Clear" ), 1, 1, 1, renderContext ) && success;
+	}
+	if( success )
+	{
+		m_clear.clear();
+	}
+	if( m_size > 0 )
+	{
+		Tr2Renderer::RunComputeShader( m_management, BlueSharedString( "CopyCounters" ), m_size / ELEMENT_SIZE, 1, 1, renderContext );
+	}
+}
+
+Tr2OcclusionBuffer& Tr2OcclusionBuffer::GetInstance()
+{
+	static Tr2OcclusionBuffer buffer;
+	return buffer;
+}
+
+uint32_t Tr2OcclusionBuffer::GetOccluderOffset( const Offset& offset, uint32_t index )
+{
+	return offset ? *offset + 5 + index * 2 : 0;
+}
+
+void Tr2OcclusionBuffer::DestroyOffset( uint32_t* offset )
+{
+	GetInstance().m_free.push_back( *offset );
+	delete offset;
+}
+
+bool Tr2OcclusionBuffer::OnPrepareResources()
+{
+	return true;
+}
+
+void Tr2OcclusionBuffer::ReleaseResources( TriStorage s )
+{
+	if( ( s & TRISTORAGE_MANAGEDMEMORY ) != 0 )
+	{
+		m_clear.clear();
+		for( uint32_t i = 0; i < m_size; i += ELEMENT_SIZE )
+	{
+			m_clear.push_back( i );
+	}
+	}
+}
+
+void Tr2OcclusionBuffer::ResizeBuffer()
+{
+	auto oldSize = m_size;
+	if( m_size )
+	{
+		m_size *= 2;
+	}
+	else
+	{
+		const uint32_t INITIAL_SIZE = 4;
+		m_size = INITIAL_SIZE * ELEMENT_SIZE;
+	}
+	Tr2BufferAL old;
+	if( auto buffer = m_buffer->GetGpuBuffer( 0 ) )
+	{
+		old = *buffer;
+	}
+	m_buffer->Create( m_size, Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, Tr2GpuBuffer::GPU_WRITABLE );
+	
+	if( old.IsValid() )
+	{
+		USE_MAIN_THREAD_RENDER_CONTEXT();
+		renderContext.CopySubBuffer( *m_buffer->GetGpuBuffer( 0 ), 0, old, 0, old.GetSize() );
+	}
+
+	for( auto i = oldSize; i < m_size; i += ELEMENT_SIZE )
+	{
+		m_free.push_back( i );
+	}
+}
+
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -21,76 +133,11 @@
 // --------------------------------------------------------------------------------
 EveOccluder::EveOccluder( IRoot* lockobj ) :
 	PARENTLOCK( m_sprites ),
-	m_display( true ),
-	m_totalNumOfPixels( 1 ),
-	m_actualNumOfPixels( 1 ),
-	m_value( 1.f ),
-	m_isTotalQueryIssued( false ),
-	m_isActualQueryIssued( false )
+	m_display( true )
 {
 	// create batch accumulator for rendering occlusion sprites
 	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
-	m_batches = CCP_NEW( "EveOccluder/m_batches" ) TriRenderBatchAccumulator<EffectKeyGenerator>( allocator );
-
-	PrepareResources();
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Cleanup
-// --------------------------------------------------------------------------------
-EveOccluder::~EveOccluder()
-{
-	CCP_DELETE m_batches;
-
-	ReleaseResources( TRISTORAGE_ALL );
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Release all d3d query objects.
-// Arguments:
-//   s - type of reset
-// --------------------------------------------------------------------------------
-void EveOccluder::ReleaseResources( TriStorage s )
-{
-	m_isTotalQueryIssued = false;
-	m_isActualQueryIssued = false;
-
-	m_totalQuery = Tr2OcclusionQueryAL();
-	m_actualQuery = Tr2OcclusionQueryAL();
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   create two d3d query objects: need two to calculate a ratio
-// --------------------------------------------------------------------------------
-bool EveOccluder::OnPrepareResources()
-{
-	USE_MAIN_THREAD_RENDER_CONTEXT();
-	// create the dx query objects
-	if( !m_totalQuery.IsValid() )
-	{
-		CR_RETURN_VAL( m_totalQuery.Create( renderContext ), false );
-		m_isTotalQueryIssued = false;
-	}
-
-	if( !m_actualQuery.IsValid() )
-	{
-		CR_RETURN_VAL( m_actualQuery.Create( renderContext ), false );
-		m_isActualQueryIssued = false;
-	}
-
-	return true;
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   just return the ratio value
-// --------------------------------------------------------------------------------
-float EveOccluder::GetValue() const
-{
-	return m_value;
+	m_batches = std::make_unique<TriRenderBatchAccumulator<EffectKeyGenerator>>( allocator );
 }
 
 // --------------------------------------------------------------------------------
@@ -103,7 +150,7 @@ float EveOccluder::GetValue() const
 //   frustum - the current view frustum of the current frame
 //   transform - parent transform of the lensflare to turn this into a 2d sprite
 // --------------------------------------------------------------------------------
-void EveOccluder::RunQuery( Tr2RenderContext& renderContext, const TriFrustum& frustum, const Matrix& transform )
+void EveOccluder::RunQuery( Tr2RenderContext& renderContext, const TriFrustum& frustum, const Matrix& transform, uint32_t bufferOffset, float fogWeight )
 {
 	// visible?
 	if( !m_display )
@@ -111,45 +158,8 @@ void EveOccluder::RunQuery( Tr2RenderContext& renderContext, const TriFrustum& f
 		return;
 	}
 
-	if( !m_totalQuery.IsValid() || !m_actualQuery.IsValid() )
-	{
-		return;
-	}
-
-	// Get the results from last frame
-	unsigned queryValue = 1;
-	if( m_isTotalQueryIssued )
-	{
-		HRESULT hr = m_totalQuery.GetPixelCount( renderContext, queryValue );
-		if( hr == S_OK )
-		{
-			m_isTotalQueryIssued = false;
-			m_totalNumOfPixels = queryValue;
-		}
-	}
-	if( m_isActualQueryIssued )
-	{
-		HRESULT hr = m_actualQuery.GetPixelCount( renderContext, queryValue );
-		if( hr == S_OK )
-		{
-			m_isActualQueryIssued = false;
-			m_actualNumOfPixels = queryValue;
-		}
-	}
-
-	// only update mValue when both queries have succesfully finished
-	if( !m_isTotalQueryIssued && !m_isActualQueryIssued )
-	{
-		// If mTotalSize is 0 then we are off screen and we retain the last mValue (whatever it was).
-		if( m_totalNumOfPixels )
-		{
-			m_value = (float)m_actualNumOfPixels / (float)m_totalNumOfPixels;
-			m_value = TriClamp( m_value, 0.0f, 1.0f );
-		}
-	}
-
-
-
+	GlobalStore().RegisterVariable( "OcclusionBufferOffset", *reinterpret_cast<float*>( &bufferOffset ) );
+	GlobalStore().RegisterVariable( "OcclusionFogWeight", fogWeight );
 
 	// prepare batches for rendering
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
@@ -157,52 +167,22 @@ void EveOccluder::RunQuery( Tr2RenderContext& renderContext, const TriFrustum& f
 	// all of the view update for us
 	std::vector<ITr2Renderable*> renderables;
 	EveUpdateContext dummyContext;
-	for( EveTransformVector::iterator it = m_sprites.begin(); it != m_sprites.end(); ++it )
+	for( auto& sprite : m_sprites )
 	{
-		(*it)->UpdateSyncronous( dummyContext );
-		(*it)->UpdateVisibility( frustum, transform );
-		(*it)->GetRenderables( renderables, nullptr );
+		sprite->UpdateSyncronous( dummyContext );
+		sprite->UpdateVisibility( frustum, transform );
+		sprite->GetRenderables( renderables, nullptr );
 	}
 	// collect batches from renderables (only from decal area, nothing else is important for
 	// occlusion queries)
-	for( std::vector<ITr2Renderable*>::iterator it = renderables.begin(); it != renderables.end(); ++it )
+	for( auto& renderable : renderables )
 	{
-		Tr2PerObjectData* objectData = (*it)->GetPerObjectData( m_batches );
-		(*it)->GetBatches( m_batches, TRIBATCHTYPE_OPAQUE, objectData );
+		Tr2PerObjectData* objectData = renderable->GetPerObjectData( m_batches.get() );
+		renderable->GetBatches( m_batches.get(), TRIBATCHTYPE_OPAQUE, objectData );
 	}
 	m_batches->Finalize();
 
-	bool issueQueries = !m_isTotalQueryIssued && !m_isActualQueryIssued;
-	if( issueQueries )
-	{
-		CR_RETURN( m_totalQuery.Begin( renderContext ) );
-		renderContext.RenderBatches( m_batches, BlueSharedString( "TotalQuery" ) );
-		CR_RETURN( m_totalQuery.End( renderContext ) );
-		m_isTotalQueryIssued = true;
-	}
-
-	if( issueQueries )
-	{
-		CR_RETURN( m_actualQuery.Begin( renderContext ) );
-		renderContext.RenderBatches( m_batches, BlueSharedString( "ActualQuery" ) );
-		CR_RETURN( m_actualQuery.End( renderContext ) );
-		m_isActualQueryIssued = true;
-	}
-
+	renderContext.RenderBatches( m_batches.get() );
 	// cleanup
 	m_batches->Clear();
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-

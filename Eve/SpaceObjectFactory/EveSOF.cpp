@@ -2783,7 +2783,7 @@ void EveSOF::SetupLocatorSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, c
 				EveLocatorSetsPtr locSets;
 				locSets.CreateInstance();
 
-				if( offsets.size() > 1 )
+				if( !offsets.empty() )
 				{
 					// add the distributed locators
 					// need to move the locators by the hullOffset
@@ -2800,18 +2800,13 @@ void EveSOF::SetupLocatorSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, c
 					}
 					locSets->Set( locatorSetName->c_str(), distributedLocators.data(), distributedLocators.size() );
 				}
-				else if( offsets.size() == 1 )
-				{
-					locSets->Set( locatorSetName->c_str(), locators->data(), locators->size() );
-					locSets->Translate( hullOffset + offsets.front().GetTranslation() );
-				}
 				obj->MergeToLocatorSet( *locSets );
 			}
 		}
 	}
 }
 
-void EveSOF::SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets )
+void EveSOF::SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets, uint32_t seedOverwrite )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -2846,15 +2841,16 @@ void EveSOF::SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const 
 		size_t placementIdx = 0;
 
 		uint32_t oldSeed = TriRandGetSeed();
-		uint32_t trinitySeed = layout->seed; 
+		uint32_t trinitySeed = layout->seed;
 
 		if( layout->scrambleSeed )
 		{
-			trinitySeed = uint32_t(BeOS->GetActualTime());
+			trinitySeed += uint32_t( BeOS->GetActualTime() );
 		}
 
-		TriSrand( trinitySeed );
+		trinitySeed += seedOverwrite;
 
+		TriSrand( trinitySeed );
 
 		// Go over all the placements (each layout can have multiple mesh attachments)
 		for( auto placement : layout->placements )
@@ -2864,7 +2860,7 @@ void EveSOF::SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const 
 		
 		if( layout->scrambleSeed )
 		{
-			TriSrand( oldSeed ); //restore seed if scrambled for parent proceduralness
+			TriSrand( oldSeed + seedOverwrite ); // restore seed if scrambled for parent proceduralness
 		}
 	}
 }
@@ -2879,6 +2875,12 @@ void EveSOF::ProcessPlacementDistributionOrGroup( EveSOFDataMgr::ExtensionPlacem
 {
 	if( placement.isAGroup )
 	{
+		if( !placement.enabled )
+		{
+			placementIdx += placement.placements.size();
+			return;
+		}
+
 		if( !ProcessLayoutDistributionConditions( placement, dna ) )
 		{
 			placementIdx += placement.placements.size();
@@ -2886,10 +2888,16 @@ void EveSOF::ProcessPlacementDistributionOrGroup( EveSOFDataMgr::ExtensionPlacem
 		}
 
 		// Go over all the placements (each layout can have multiple mesh attachments)
-		for( auto placement : placement.placements  )
+		for( auto& placement : placement.placements )
 		{
 			ProcessPlacementDistributionOrGroup( placement, obj, dna, managedLocatorSets, layoutIdx, placementIdx, offsets );
 		}
+		return;
+	}
+
+	if( !placement.enabled )
+	{
+		placementIdx++;
 		return;
 	}
 
@@ -2976,7 +2984,23 @@ void EveSOF::ProcessPlacementDistributionOrGroup( EveSOFDataMgr::ExtensionPlacem
 		placementDna->DisableAnimation();
 	}
 
+	if( !locators.empty() )
+	{
+		if( !placement.descriptor.layout.empty() )
+		{
+			// for sub-layouts to have their own random generation instead of sharing the same
+			std::vector<EveSOFDataMgr::LocatorDirectionData> singleLocator(1);
+			for( auto &locator : locators )
+			{
+				singleLocator[0] = locator;
+				CreatePlacement( obj, placementDna, placement, singleLocator, offsets );
+			}
+		}
+		else
+		{
 	CreatePlacement( obj, placementDna, placement, locators, offsets );
+		}
+	}
 
 	placementIdx++;
 }
@@ -3074,7 +3098,8 @@ void EveSOF::ProcessLayoutDistributionDistribute( EveSOFDataMgr::ExtensionPlacem
 										std::vector<EveSOFDataMgr::LocatorDirectionData>& managedLocatorSet )
 {
 	float preCount = float( placementSet.size() ) * ( 1.f - distributionData.completeness );
-	float remainder = fmod(preCount, 1.f);
+	float remainder = fmod( preCount, 1.f );
+
 	int32_t count = int( preCount ) + int( remainder + TriRand() );
 
 	if( distributionData.cap > 0 )
@@ -3082,66 +3107,63 @@ void EveSOF::ProcessLayoutDistributionDistribute( EveSOFDataMgr::ExtensionPlacem
 		count = max( count, int( placementSet.size() ) - distributionData.cap );
 	}
 
-	if( count <= 0 )
+	if( count > 0 )
 	{
-		return;
-	}
-
-	std::map<int, Vector4> rankedLocators; // uniqueID, sorted rankings where =Vector4(Xaxis, Yaxis, Zaxis, distFromCenter)
-	for( auto locator : placementSet )
-	{
-		rankedLocators.insert({locator.uniqueID, Vector4(0,0,0,0)});
-	}
-
-	if( distributionData.placementBias.x != 0.f )
-	{
-		std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.x < b.position.x; });
-		for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].x = float(i);
-	}
-	if( distributionData.placementBias.y != 0.f )
-	{
-		std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.y < b.position.y; });
-		for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].y = float(i);
-	}
-	if( distributionData.placementBias.z != 0.f )
-	{
-		std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.z < b.position.z; });
-		for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].z = float(i);
-	}
-	if( distributionData.centerBias != 0.f )
-	{
-		std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return LengthSq(a.position) < LengthSq(b.position); });
-		for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].w = float(i);
-	}
-
-	float biasAmmount = Length(distributionData.placementBias) + abs(distributionData.centerBias);
-	float randomFactor = max(1.f - biasAmmount, 0.f); // BiasAmmount -> [0-2]
-
-	for( auto& locator : placementSet )
-	{
-		uint32_t uID = locator.uniqueID;
-		float powerRank = rankedLocators[uID].x * distributionData.placementBias.x;
-		powerRank += rankedLocators[uID].y * distributionData.placementBias.y + rankedLocators[uID].z * distributionData.placementBias.z;
-		powerRank *= -1;
-		powerRank += float( placementSet.size() ) * TriRand() * randomFactor * 4.f;
-		float cb = distributionData.centerBias;
-		cb = cb < 0 ?  ( float(placementSet.size()) - rankedLocators[uID].w ) * abs(cb) : rankedLocators[uID].w * cb;
-		powerRank += cb;
-
-		// reuse the map vector for sorting as we no longer need it
-		//rankedLocators[placementSet[i].uniqueID].w =
-		rankedLocators[uID].x = powerRank;
-	}
-
-	struct {
-		bool operator()(EveSOFDataMgr::LocatorDirectionData &a,EveSOFDataMgr::LocatorDirectionData &b, std::map<int, Vector4> &priorityMap) const
+		std::map<int, Vector4> rankedLocators; // uniqueID, sorted rankings where =Vector4(Xaxis, Yaxis, Zaxis, distFromCenter)
+		for( auto locator : placementSet )
 		{
-			return priorityMap[a.uniqueID].x < priorityMap[b.uniqueID].x;
+			rankedLocators.insert({locator.uniqueID, Vector4(0,0,0,0)});
 		}
-	} prioritySort;
 
-	using namespace std::placeholders;
-	std::sort(placementSet.begin(), placementSet.end(), std::bind(prioritySort, _1, _2, rankedLocators ));
+		if( distributionData.placementBias.x != 0.f )
+		{
+			std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.x < b.position.x; });
+			for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].x = float(i);
+		}
+		if( distributionData.placementBias.y != 0.f )
+		{
+			std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.y < b.position.y; });
+			for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].y = float(i);
+		}
+		if( distributionData.placementBias.z != 0.f )
+		{
+			std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return a.position.z < b.position.z; });
+			for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].z = float(i);
+		}
+		if( distributionData.centerBias != 0.f )
+		{
+			std::sort(placementSet.begin(), placementSet.end(),[] (auto &a,auto &b) { return LengthSq(a.position) < LengthSq(b.position); });
+			for( size_t i = 0; i < placementSet.size(); i++) rankedLocators[placementSet[i].uniqueID].w = float(i);
+		}
+
+		float biasAmmount = Length(distributionData.placementBias) + abs(distributionData.centerBias);
+		float randomFactor = max(1.f - biasAmmount, 0.f); // BiasAmmount -> [0-2]
+
+		for( auto& locator : placementSet )
+		{
+			uint32_t uID = locator.uniqueID;
+			float powerRank = rankedLocators[uID].x * distributionData.placementBias.x;
+			powerRank += rankedLocators[uID].y * distributionData.placementBias.y + rankedLocators[uID].z * distributionData.placementBias.z;
+			powerRank *= -1;
+			powerRank += float( placementSet.size() ) * TriRand() * randomFactor * 4.f;
+			float cb = distributionData.centerBias;
+			cb = cb < 0 ?  ( float(placementSet.size()) - rankedLocators[uID].w ) * abs(cb) : rankedLocators[uID].w * cb;
+			powerRank += cb;
+
+			// reuse the map vector for sorting as we no longer need it
+			rankedLocators[uID].x = powerRank;
+		}
+
+		struct {
+			bool operator()(EveSOFDataMgr::LocatorDirectionData &a,EveSOFDataMgr::LocatorDirectionData &b, std::map<int, Vector4> &priorityMap) const
+			{
+				return priorityMap[a.uniqueID].x < priorityMap[b.uniqueID].x;
+			}
+		} prioritySort;
+
+		using namespace std::placeholders;
+		std::sort(placementSet.begin(), placementSet.end(), std::bind(prioritySort, _1, _2, rankedLocators ));
+	}
 
 	while( count > 0 )
 	{

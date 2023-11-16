@@ -170,11 +170,14 @@ bool EveShip2Builder::CombineHullGeometry()
 		// offset is in a locator set on the hull
 		for (auto it = sofHull->m_locatorSets.begin(); it != sofHull->m_locatorSets.end(); ++it)
 		{
-			if ((*it)->m_name == BlueSharedString("next_subsystem"))
+			if( EveSOFDataHullLocatorSetPtr locatorSet = BlueCastPtr( ( *it ) ) )
 			{
-				if (!(*it)->m_locators.empty())
+				if( locatorSet->m_name == BlueSharedString( "next_subsystem" ) )
 				{
-					offset += (*it)->m_locators[0]->m_position;
+					if( !locatorSet->m_locators.empty() )
+					{
+						offset += locatorSet->m_locators[0]->m_position;
+					}
 				}
 			}
 		}

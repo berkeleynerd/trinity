@@ -126,7 +126,7 @@ void EveChildMesh::UpdateVisibility( const TriFrustum& frustum, const Matrix& pa
 		bounds.Transform( m_worldTransform );
 
 		m_currentScreenSize = frustum.GetPixelSizeAccross( bounds );
-		m_mesh->UseWithScreenSize( m_currentScreenSize, CcpMath::Sphere( bounds ).radius );
+		m_mesh->UseWithScreenSize( m_currentScreenSize, CcpMath::Sphere(bounds).radius);
 		if( frustum.IsBoxVisible( bounds ) )
 		{
 			m_isVisible = parentLod >= m_lowestLodVisible && m_currentScreenSize >= m_minScreenSize * g_eveSpaceSceneLODFactor;
@@ -163,37 +163,34 @@ void EveChildMesh::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 	if( m_isVisible )
 	{
 		renderables.push_back( this );
-		if( DisplayDecals() )
+		if( Tr2InstancedMeshPtr instanced = BlueCastPtr( m_mesh ) ) 
 		{
-			if( Tr2InstancedMeshPtr instanced = BlueCastPtr( m_mesh ) ) 
-			{
-				TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
+			TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 
-				if( geometryRes )
+			if( geometryRes )
+			{
+				// runn over every decal and update it
+				for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 				{
-					// runn over every decal and update it
-					for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
-					{
-						// now prep to get the renderables
-						( *it )->GetInstancedRenderables( renderables, instanced );
-					}
+					// now prep to get the renderables
+					( *it )->GetInstancedRenderables( renderables, instanced );
 				}
 			}
-			else
-			{
-				TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
+		}
+		else
+		{
+			TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 
-				if( geometryRes )
+			if( geometryRes )
+			{
+				// runn over every decal and update it
+				for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 				{
-					// runn over every decal and update it
-					for( EveSpaceObjectDecalVector::const_iterator it = m_decals.begin(); it != m_decals.end(); ++it )
-					{
-						// now prep to get the renderables
-						( *it )->GetRenderables( renderables, geometryRes, m_currentScreenSize );
-					}
+					// now prep to get the renderables
+					( *it )->GetRenderables( renderables, geometryRes, m_currentScreenSize );
 				}
 			}
-		}		
+		}
 	}
 }
 
@@ -417,12 +414,6 @@ void EveChildMesh::ChangeLOD( Tr2Lod )
 {
 }
 
-bool EveChildMesh::DisplayDecals() const
-{
-	// TODO - add similar lod checks as in EveSpaceObject2
-	return true;
-}
-
 void EveChildMesh::SetMesh( Tr2MeshBase* mesh )
 {
 	m_mesh = mesh;
@@ -509,12 +500,9 @@ void EveChildMesh::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 
 	if( renderer.HasOption( GetRawRoot(), "Decals" ) )
 	{
-		if( DisplayDecals() )
+		for( EveSpaceObjectDecalVector::iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 		{
-			for( EveSpaceObjectDecalVector::iterator it = m_decals.begin(); it != m_decals.end(); ++it )
-			{
-				( *it )->RenderDebugInfo( renderer, m_worldTransform );
-			}
+			( *it )->RenderDebugInfo( renderer, m_worldTransform );
 		}
 	}
 

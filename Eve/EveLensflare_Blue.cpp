@@ -20,7 +20,6 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "display", m_display, "Toggle visibility", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "update", m_update, "Toggle updates", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "doOcclusionQueries", m_doOcclusionQueries, "Toggle occlusion queries", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "cameraFactor", m_cameraFactor, "na", Be::READWRITE | Be::PERSIST )
 
 		MAP_ATTRIBUTE("mesh", m_mesh, "A mesh that is rendered as a flare", Be::READWRITE | Be::PERSIST)
@@ -32,7 +31,6 @@ const Be::ClassInfo* EveLensflare::ExposeToBlue()
 
 		MAP_ATTRIBUTE( "occluders", m_occluders, "foreground (ships, stations, etc.) occluders module of this lensflare", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "backgroundOccluders", m_backgroundOccluders, "background (planets) occluders module of this lensflare", Be::READ | Be::PERSIST )
-		MAP_ATTRIBUTE( "occlusionIntensity", m_occlusionIntensity, "the sum-up of all attached occluders", Be::READ )
 		MAP_ATTRIBUTE( 
 			"distanceToEdgeCurves", 
 			m_distanceToEdgeCurves, 

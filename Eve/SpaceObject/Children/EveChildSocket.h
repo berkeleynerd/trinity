@@ -85,6 +85,8 @@ public:
 
 	void Setup( const Vector3* scale, const Quaternion* rotation, const Vector3* translation, Tr2Lod lowestLodVisible );
 
+	void PlayAllCurveSets();
+	void StopAllCurveSets();
 	void PlayCurveSet( const std::string& name, const std::string& rangeName );
 	void StopCurveSet( const std::string& name );
 	void UpdateCurveSet( const std::string& name, Be::Time time );

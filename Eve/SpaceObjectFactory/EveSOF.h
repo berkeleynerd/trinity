@@ -111,14 +111,14 @@ private:
 	void SetupLocatorSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets );
 	void SetupImpactEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupLights( ITr2LightOwnerPtr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets ) const;
-	void SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets );
+	void SetupLayout( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets, uint32_t seedOverwrite = 0 );
 
 
 	Tr2MeshPtr CreateMesh( const EveSOFDNAPtr dna ) const;
 	Tr2InstancedMeshPtr CreateInstancedMesh( std::vector<EveSOFDataMgr::HullMeshInstance> instances, std::string resPath ) const;
 	void SetupShaders( const EveSOFDNAPtr dna, Tr2MeshBase* mesh ) const;
 	
-	EveChildContainerPtr CreatePlacement( EveSpaceObject2Ptr parent, EveSOFDNAPtr extensionDna, EveSOFDataMgr::ExtensionPlacementData& placement, const std::vector<EveSOFDataMgr::LocatorDirectionData>& locators, const std::vector<Matrix>& nestedOffsets );
+	EveChildContainerPtr CreatePlacement( EveSpaceObject2Ptr parent, EveSOFDNAPtr extensionDna, EveSOFDataMgr::ExtensionPlacementData & placement, const std::vector<EveSOFDataMgr::LocatorDirectionData>& locators, const std::vector<Matrix>& nestedOffsets );
 
 	void SetupCustomMask( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 

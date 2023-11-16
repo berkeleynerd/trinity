@@ -709,7 +709,7 @@ void EveSwarm::PushRenderables( std::vector<ITr2Renderable*>& renderables )
 	}
 
 	// are decals visible?
-	if (DisplayDecals() && m_mesh && m_isMeshVisible)
+	if (m_mesh && m_isMeshVisible)
 	{
 		// put together parent data for the decals
 		IEveSpaceObject2::ParentData pd;

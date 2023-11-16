@@ -15,6 +15,41 @@
 class TriFrustum;
 BLUE_DECLARE( EveTransform );
 BLUE_DECLARE_VECTOR( EveTransform );
+BLUE_DECLARE( Tr2GpuBuffer );
+BLUE_DECLARE( Tr2Effect );
+
+
+class Tr2OcclusionBuffer : public Tr2DeviceResource
+{
+public:
+
+	using Offset = std::shared_ptr<uint32_t>; 
+
+	Tr2OcclusionBuffer();
+
+	Offset AllocateOffset();
+	void ProcessBuffer( Tr2RenderContext& renderContext );
+
+	static Tr2OcclusionBuffer& GetInstance();
+
+	static uint32_t GetOccluderOffset( const Offset& offset, uint32_t index );
+
+protected:
+	bool OnPrepareResources() override;
+	void ReleaseResources( TriStorage s ) override;
+
+private:
+	void ResizeBuffer();
+	static void DestroyOffset( uint32_t* offset );
+
+	static const uint32_t ELEMENT_SIZE = 13;
+
+	Tr2EffectPtr m_management;
+	Tr2GpuBufferPtr m_buffer;
+	std::vector<uint32_t> m_free;
+	std::vector<uint32_t> m_clear;
+	uint32_t m_size = 0;
+};
 
 
 // --------------------------------------------------------------------------------
@@ -28,30 +63,15 @@ BLUE_DECLARE_VECTOR( EveTransform );
 //   EveLensflare
 // --------------------------------------------------------------------------------
 class EveOccluder :
-	public IRoot,
-	public Tr2DeviceResource
+	public IRoot
 {
 public:
 	EXPOSE_TO_BLUE();
 
-	using IRoot::Lock;
-	using IRoot::Unlock;
-
 	EveOccluder(IRoot* lockobj = NULL);
-	~EveOccluder();
-
-    /////////////////////////////////////////////////////////////////////////////
-    // ITriDeviceResource
-private:
-	bool OnPrepareResources();
-public:
-    void ReleaseResources( TriStorage s );
 
 	// do the occlusion rendering/querying
-	void RunQuery( Tr2RenderContext& renderContext, const TriFrustum& frustum, const Matrix& transform );
-
-	// access result
-	float GetValue() const;
+	void RunQuery( Tr2RenderContext& renderContext, const TriFrustum& frustum, const Matrix& transform, uint32_t bufferOffset, float fogWeight );
 
 private:
 	// name
@@ -59,22 +79,11 @@ private:
 	// toggle display
 	bool m_display;
 
-	// current occlusion values
-	uint32_t m_totalNumOfPixels, m_actualNumOfPixels;
-	float m_value;
-
-	// states
-	bool m_isTotalQueryIssued, m_isActualQueryIssued;
-
-	// dx query objects
-	Tr2OcclusionQueryAL m_totalQuery;
-	Tr2OcclusionQueryAL m_actualQuery;
-
 	// a vector with all the sprites this occluder is using
 	PEveTransformVector m_sprites;
 
 	// we have our own accumulator
-	TriRenderBatchAccumulator<EffectKeyGenerator>* m_batches;
+	std::unique_ptr<TriRenderBatchAccumulator<EffectKeyGenerator>> m_batches;
 };
 
 TYPEDEF_BLUECLASS( EveOccluder );

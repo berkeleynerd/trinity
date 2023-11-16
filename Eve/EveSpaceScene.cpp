@@ -1767,10 +1767,12 @@ void EveSpaceScene::RenderBackgroundPassObjects( Tr2RenderContext& renderContext
 		// the z info we have so far
 		if( reason == BACKGROUND_RENDER_COLOR )
 		{
+			renderContext.SetReadOnlyDepth( true );
 			for( EveLensflareVector::const_iterator it = m_lensflares.begin(); it != m_lensflares.end(); ++it )
 			{
 				( *it )->RunBackgroundOcclusionQueries( renderContext, frustum );
 			}
+			renderContext.SetReadOnlyDepth( false );
 		}
 	}
 
@@ -2002,6 +2004,12 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext, CullMode cu
 		m_hasForegroundDistortionBatches = RenderDistortionBatches( m_primaryBatches, renderContext );
 	}
 
+	// at first, do all the occlusion queries
+	for( auto& lensflare : m_lensflares )
+	{
+		lensflare->RunOcclusionQueries( renderContext, m_frameData.frustum );
+	}
+
 	//GPU particles
 	if( GetGpuParticleSystem() )
 	{
@@ -2018,6 +2026,8 @@ void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext, CullMode cu
 	}
 	m_frameData.projection = proj;
 	Tr2Renderer::SetProjectionTransform( m_frameData.projection );
+
+	Tr2OcclusionBuffer::GetInstance().ProcessBuffer( renderContext );
 
 	renderContext.SetReadOnlyDepth( false );
 
@@ -2079,12 +2089,6 @@ void EveSpaceScene::EndRender( Tr2RenderContext& renderContext )
 	if( !m_lensflares.empty() )
 	{
 		GPU_REGION( renderContext, "Lens Flares" );
-
-		// at first, do all the occlusion queries
-		for( auto it = m_lensflares.cbegin(); it != m_lensflares.cend(); ++it )
-		{
-			( *it )->RunOcclusionQueries( renderContext, frustum );
-		}
 		// lensflares
 		for( auto it = m_lensflares.cbegin(); it != m_lensflares.cend(); ++it )
 		{

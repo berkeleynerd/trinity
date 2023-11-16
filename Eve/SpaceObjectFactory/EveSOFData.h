@@ -965,8 +965,15 @@ TYPEDEF_BLUECLASS( EveSOFDataHullLocator );
 BLUE_DECLARE_VECTOR( EveSOFDataHullLocator );
 
 
+BLUE_INTERFACE( IEveSOFDataHullLocatorSet ) :
+	public IRoot{};
+
+BLUE_DECLARE_INTERFACE( IEveSOFDataHullLocatorSet );
+BLUE_DECLARE_IVECTOR( IEveSOFDataHullLocatorSet );
+
+
 BLUE_CLASS( EveSOFDataHullLocatorSet ) :
-	public IRoot
+	public IEveSOFDataHullLocatorSet
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -979,6 +986,23 @@ public:
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullLocatorSet );
 BLUE_DECLARE_VECTOR( EveSOFDataHullLocatorSet );
+
+BLUE_CLASS( EveSOFDataHullLocatorSetGroup ) :
+	public IEveSOFDataHullLocatorSet
+{
+public:
+	EXPOSE_TO_BLUE();
+	EveSOFDataHullLocatorSetGroup( IRoot* lockobj = NULL );
+	~EveSOFDataHullLocatorSetGroup()
+	{
+	}
+
+	// data
+	BlueSharedString m_name;
+	PIEveSOFDataHullLocatorSetVector m_locatorSets;
+};
+TYPEDEF_BLUECLASS( EveSOFDataHullLocatorSetGroup );
+BLUE_DECLARE_VECTOR( EveSOFDataHullLocatorSetGroup );
 
 
 namespace EveSOFDataHullBuildFilter
@@ -1373,7 +1397,7 @@ public:
 
 	// locators
 	PEveSOFDataHullLocatorVector m_locatorTurrets;
-	PEveSOFDataHullLocatorSetVector m_locatorSets;
+	PIEveSOFDataHullLocatorSetVector m_locatorSets;
 
 	// children
 	PEveSOFDataHullChildVector m_children;
@@ -1690,6 +1714,7 @@ BLUE_DECLARE_VECTOR( EveSOFDNADescriptor );
 BLUE_INTERFACE( IEveSOFDataHullExtensionPlacementDistribution ) :
 	public IRoot
 {
+	std::string m_name;
 };
 
 BLUE_DECLARE_INTERFACE( IEveSOFDataHullExtensionPlacementDistribution );
@@ -1713,7 +1738,6 @@ public:
 	~EveSOFDataHullExtensionPlacementDistributionParentMatch()
 	{
 	}
-	std::string m_name;
 	EveSOFDNADescriptorPtr m_parentDescriptor;
 };
 
@@ -1741,7 +1765,6 @@ public:
 	EXPOSE_TO_BLUE();
 	EveSOFDataHullExtensionPlacementDistributionDepletionCounter( IRoot* lockobj = NULL );
 	~EveSOFDataHullExtensionPlacementDistributionDepletionCounter(){}
-	std::string m_name;
 	PEveSOFDataDistributionDepletionCounterVector m_depletionCounters;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullExtensionPlacementDistributionDepletionCounter );
@@ -1755,7 +1778,6 @@ public:
 	~EveSOFDataHullExtensionPlacementDistributionRandomChance()
 	{
 	}
-
 	float m_chanceOfUsage;
 };
 TYPEDEF_BLUECLASS( EveSOFDataHullExtensionPlacementDistributionRandomChance );
@@ -1822,6 +1844,7 @@ public:
 
 	std::string m_name;
 	std::string m_locatorSetName;
+	bool m_enabled;
 	bool m_isInstanced;
 	Vector3 m_offset;
 	EveSOFDataHullExtensionPlacementDistributionPlacementPtr m_distribution;
@@ -1842,6 +1865,7 @@ public:
 	}
 
 	std::string m_name;
+	bool m_enabled;
 	PEveSOFDataDistributionDepletionCounterVector m_depletionCounters;
 	PIEveSOFDataHullExtensionPlacementVector m_placements;
 	PIEveSOFDataHullExtensionPlacementDistributionVector m_distributionConditions;

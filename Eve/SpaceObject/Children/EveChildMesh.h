@@ -124,8 +124,6 @@ protected:
 	void InitializeAnimation();
 	bool ShouldReflect() const;
 
-	bool DisplayDecals() const;
-
 
 	// general data
 	BlueSharedString m_name;

@@ -752,14 +752,11 @@ void EveSpaceObject2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 	if( renderer.HasOption( GetRawRoot(), "Decals" ) )
 	{
 		// are decals visible?
-		if( DisplayDecals() )
-		{
 			for( EveSpaceObjectDecalVector::iterator it = m_decals.begin(); it != m_decals.end(); ++it )
 			{
 				( *it )->RenderDebugInfo( renderer, m_worldTransform );
 			}
 		}
-	}
 
 	if( renderer.HasOption( this, "Lights" ) )
 	{
@@ -1335,7 +1332,7 @@ void EveSpaceObject2::PushChildrenAndDecalRenderables( std::vector<ITr2Renderabl
 	}
 
 	// are decals visible?
-	if( DisplayDecals() && m_mesh && m_isMeshVisible )
+	if( m_mesh && m_isMeshVisible )
 	{
 		TriGeometryResPtr geometryRes = m_mesh->GetGeometryResource();
 		if( geometryRes )
@@ -1457,7 +1454,7 @@ void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 		( *ecIt )->UpdateVisibility( frustum, m_worldTransform, m_lodLevelWithChildren );
 	}
 
-	if( DisplayDecals() && m_isMeshVisible )
+	if( m_isMeshVisible )
 	{
 		IEveSpaceObject2::ParentData pd;
 		GetParentData( &pd );
@@ -1475,7 +1472,7 @@ void EveSpaceObject2::UpdateVisibility( const TriFrustum& frustum, const Matrix&
 	if( m_mesh )
 	{
 		auto size = frustum.GetPixelSizeAccrossEst( m_boundingSphereWorldCenter, m_boundingSphereWorldRadius );
-		m_mesh->UseWithScreenSize( size, m_boundingSphereWorldRadius );
+		m_mesh->UseWithScreenSize( size, m_boundingSphereWorldRadius);
 	}
 }
 
@@ -2461,21 +2458,6 @@ void EveSpaceObject2::PrepareForAnimation()
 
 		m_geometryResFromMesh->AddNotifyTarget( this );
 	}
-}
-
-// --------------------------------------------------------------------------------
-// Description:
-//   Determines if we render this object's decals or not. Usually we only
-//   render them when highest LODs are shown.
-// SeeAlso:
-//   EveSpaceObjectDecal
-// --------------------------------------------------------------------------------
-bool EveSpaceObject2::DisplayDecals() const
-{
-	// if LOD selection is deactivated, it's always highest so decals are on
-	if( !m_allowLodSelection )
-		return true;
-	return m_lodLevel >= TR2_LOD_HIGH;
 }
 
 // --------------------------------------------------------------------------------

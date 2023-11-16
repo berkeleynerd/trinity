@@ -733,15 +733,29 @@ const Be::ClassInfo* EveSOFDataHullLocator::ExposeToBlue()
     EXPOSURE_END()
 }
 
+BLUE_DEFINE_INTERFACE( IEveSOFDataHullLocatorSet );
 
 BLUE_DEFINE( EveSOFDataHullLocatorSet );
 const Be::ClassInfo* EveSOFDataHullLocatorSet::ExposeToBlue()
 {
 	EXPOSURE_BEGIN( EveSOFDataHullLocatorSet, "" )
 		MAP_INTERFACE( EveSOFDataHullLocatorSet )
+		MAP_INTERFACE( IEveSOFDataHullLocatorSet )
 
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "locators", m_locators, "", Be::READ | Be::PERSIST )
+	EXPOSURE_END()
+}
+
+BLUE_DEFINE( EveSOFDataHullLocatorSetGroup );
+const Be::ClassInfo* EveSOFDataHullLocatorSetGroup::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( EveSOFDataHullLocatorSetGroup, ":jessica-icon: far-folder-tree" )
+		MAP_INTERFACE( EveSOFDataHullLocatorSetGroup )
+		MAP_INTERFACE( IEveSOFDataHullLocatorSet )
+
+		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "locatorSets", m_locatorSets, "", Be::READ | Be::PERSIST )
 	EXPOSURE_END()
 }
 

@@ -953,20 +953,8 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 	hd.locatorSets.clear();
 	for( auto lsit = srcData->m_locatorSets.begin(); lsit != srcData->m_locatorSets.end(); ++lsit )
 	{
-		EveSOFDataHullLocatorSetPtr locatorSet = ( *lsit );
-
-		for( auto lit = locatorSet->m_locators.begin(); lit != locatorSet->m_locators.end(); ++lit )
-		{
-			EveSOFDataTransformPtr locatorData = ( *lit );
-
-			LocatorDirectionData ldd;
-			ldd.position = locatorData->m_position;
-			ldd.rotation = locatorData->m_rotation;
-			ldd.scaling = locatorData->m_scaling;
-			ldd.boneIndex = locatorData->m_boneIndex;
-			ldd.uniqueID = uniqueID++;
-			hd.locatorSets[locatorSet->m_name].push_back( ldd );
-		}
+		IEveSOFDataHullLocatorSetPtr locatorSetOrGroup = ( *lsit );
+		LoadLocatorData( hd, srcData, locatorSetOrGroup, uniqueID );
 	}
 
 	// children
@@ -1096,6 +1084,34 @@ void EveSOFDataMgr::GenerateHullData( HullData& hd, EveSOFDataHullPtr srcData ) 
 	hd.modelRotationCurvePath = srcData->m_modelRotationCurvePath;
 	hd.modelTranslationCurvePath = srcData->m_modelTranslationCurvePath;
 }
+
+
+void EveSOFDataMgr::LoadLocatorData( HullData& hd, EveSOFDataHullPtr srcData, IEveSOFDataHullLocatorSetPtr locatorSetOrGroup, uint32_t& uniqueID ) const
+{
+	if( EveSOFDataHullLocatorSetPtr locatorSet = BlueCastPtr( locatorSetOrGroup ) )
+	{
+		for( auto lit = locatorSet->m_locators.begin(); lit != locatorSet->m_locators.end(); ++lit )
+		{
+			EveSOFDataTransformPtr locatorData = ( *lit );
+
+			LocatorDirectionData ldd;
+			ldd.position = locatorData->m_position;
+			ldd.rotation = locatorData->m_rotation;
+			ldd.scaling = locatorData->m_scaling;
+			ldd.boneIndex = locatorData->m_boneIndex;
+			ldd.uniqueID = uniqueID++;
+			hd.locatorSets[locatorSet->m_name].push_back( ldd );
+		}
+	}
+	else if( EveSOFDataHullLocatorSetGroupPtr group = BlueCastPtr( locatorSetOrGroup ) )
+	{
+		for( auto setOrGroup = group->m_locatorSets.begin(); setOrGroup != group->m_locatorSets.end(); ++setOrGroup )
+		{
+			LoadLocatorData( hd, srcData, *setOrGroup, uniqueID );
+		}
+	}
+}
+
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -1491,6 +1507,7 @@ EveSOFDataMgr::ExtensionPlacementData EveSOFDataMgr::UnpackPlacementData( IEveSO
 	if (EveSOFDataHullExtensionPlacementPtr placement = BlueCastPtr( placementOrGroup ))
 	{
 		placementData.isAGroup = false;
+		placementData.enabled = placement->m_enabled;
 
 		if( placement->m_descriptor == nullptr )
 		{
@@ -1535,7 +1552,7 @@ EveSOFDataMgr::ExtensionPlacementData EveSOFDataMgr::UnpackPlacementData( IEveSO
 		placementData.isAGroup = true;
 		
 		placementData.name = BlueSharedString( placement->m_name );
-		
+		placementData.enabled = placement->m_enabled;
 
 		for( auto counter : placement->m_depletionCounters )
 		{

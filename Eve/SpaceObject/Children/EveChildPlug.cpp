@@ -281,6 +281,28 @@ void EveChildPlug::SetShaderOption( const BlueSharedString& name, const BlueShar
 	}
 }
 
+void EveChildPlug::PlayAllCurveSets()
+{
+	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
+	{
+		if( auto owner = dynamic_cast<ITr2CurveSetOwner*>( *it ) )
+		{
+			owner->PlayAllCurveSets();
+		}
+	}
+}
+
+void EveChildPlug::StopAllCurveSets()
+{
+	for( auto it = m_objects.begin(); it != m_objects.end(); it++ )
+	{
+		if( auto owner = dynamic_cast<ITr2CurveSetOwner*>( *it ) )
+		{
+			owner->StopAllCurveSets();
+		}
+	}
+}
+
 void EveChildPlug::PlayCurveSet( const std::string& name, const std::string& rangeName )
 {
 	for ( auto it = m_objects.begin(); it != m_objects.end(); it++ )

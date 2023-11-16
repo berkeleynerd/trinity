@@ -171,6 +171,7 @@ public:
 		DNADescriptorData descriptor;
 		bool isInstanced;
 		bool hasDistribution;
+		bool enabled;
 		ExtensionPlacementDistribution distribution;
 		std::vector<ExtensionPlacementDistributionCondition> placementConditions;
 
@@ -820,6 +821,7 @@ private:
 	void GenerateMaterialData( MaterialData& rd, EveSOFDataMaterialPtr srcData ) const;
 	void GeneratePatternData( PatternData& rd, EveSOFDataPatternPtr srcData ) const;
 	void GenerateLayoutData( LayoutData& ld, EveSOFDataLayoutPtr srcData ) const;
+	void LoadLocatorData( HullData & hd, EveSOFDataHullPtr srcData, IEveSOFDataHullLocatorSetPtr locatorSetOrGroup, uint32_t & uniqueID ) const;
 
 	
 	ExtensionPlacementData UnpackPlacementData( IEveSOFDataHullExtensionPlacementPtr placement ) const;
