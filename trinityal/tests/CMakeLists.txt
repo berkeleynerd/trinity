@@ -85,6 +85,12 @@ function(set_shared_trinityaltest_properties target)
             FOLDER Trinity/Tests
     )
 
+    add_custom_command(TARGET ${target} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_RUNTIME_DLLS:${target}> $<TARGET_FILE_DIR:${target}>
+        COMMAND_EXPAND_LISTS
+        VERBATIM
+    )
+
 endfunction()
 
 if(WIN32)
