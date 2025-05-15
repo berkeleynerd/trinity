@@ -22,9 +22,6 @@ CCP_STATS_DECLARE( controllerLinkCount, "Trinity/Controllers/LinkCount", false, 
 
 CcpMutex g_controllerMutex( "", "g_controllerMutex" );
 
-// SpaceObject distance from player when at minimum update frequency
-const float UPDATE_FREQUENCY_LOD_DISTANCE = 42000.f; 
-
 Tr2Controller::Tr2Controller( IRoot* lockobj )
 	:PARENTLOCK( m_stateMachines ),
 	PARENTLOCK( m_variables ),
@@ -34,8 +31,8 @@ Tr2Controller::Tr2Controller( IRoot* lockobj )
 	m_owner( nullptr ),
 	m_isActive( false ),
 	m_isShared( false ),
-	m_minUpdateFrequency( 1.f ),
-	m_maxUpdateFrequency( 20.f ),
+	m_minUpdateFrequency( 1 ),
+	m_maxUpdateFrequency( 20 ),
 	m_currentUpdateFrequency( 10.f ),
 	m_nextUpdateTS( 0 )
 {
@@ -238,7 +235,9 @@ void Tr2Controller::Stop()
 	m_isActive = false;
 }
 
-void Tr2Controller::Update( float distanceToPlayer )
+
+// param updateFrequency : normalized value [0:1] on how freqeuntly the controller should be updating
+void Tr2Controller::Update( float normalizedUpdateFrequency )
 {
 	if( !m_isActive )
 	{
@@ -253,7 +252,8 @@ void Tr2Controller::Update( float distanceToPlayer )
 		return;
 	}
 	
-	this->RecalculateUpdateFrequency( distanceToPlayer );
+	float updateFrequency = normalizedUpdateFrequency * ( m_maxUpdateFrequency - m_minUpdateFrequency ) + m_minUpdateFrequency;
+	m_currentUpdateFrequency = max( updateFrequency, 0.1f );  // floor: update every 10 minimum
 	m_nextUpdateTS = currentTime + TimeFromDouble( 1.0 / m_currentUpdateFrequency );
 
 	{
@@ -281,13 +281,6 @@ void Tr2Controller::Update( float distanceToPlayer )
 			}
 		}
 	}
-}
-
-void Tr2Controller::RecalculateUpdateFrequency( float distanceToParent )
-{
-	float lerpValue = max( 1.f - ( distanceToParent / UPDATE_FREQUENCY_LOD_DISTANCE ), 0.f );
-	float updateFrequency = m_minUpdateFrequency + lerpValue * ( m_maxUpdateFrequency - m_minUpdateFrequency );
-	m_currentUpdateFrequency = double( max( updateFrequency, 0.1f ) ); // floor: update every 10 sec at least to prevent weird issues
 }
 
 void Tr2Controller::SetVariable( const char* name, float value )

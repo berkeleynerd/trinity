@@ -73,11 +73,11 @@ void Tr2ControllerReference::Stop()
 	}
 }
 
-void Tr2ControllerReference::Update( float distanceToPlayer )
+void Tr2ControllerReference::Update( float normalizedUpdateFrequency )
 {
 	if( m_controller )
 	{
-		m_controller->Update( distanceToPlayer );
+		m_controller->Update( normalizedUpdateFrequency );
 	}
 }
 

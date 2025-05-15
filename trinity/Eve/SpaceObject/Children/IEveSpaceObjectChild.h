@@ -22,7 +22,8 @@ struct EveChildUpdateParams
 		ownerMaxSpeed( 0 ),
         activationStrength( 1 ),
 		isVisible( true ),
-		localToWorldTransform( IdentityMatrix() )
+		localToWorldTransform( IdentityMatrix() ),
+		controllerUpdateFrequency( 0.5f )  // normalized
 	{
 	}
 
@@ -32,6 +33,7 @@ struct EveChildUpdateParams
 	const granny_matrix_3x4* bones;
 	float ownerMaxSpeed;
     float activationStrength;
+	float controllerUpdateFrequency;
 	bool isVisible;
 	Matrix localToWorldTransform;
 };

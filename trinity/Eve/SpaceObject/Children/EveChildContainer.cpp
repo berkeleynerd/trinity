@@ -473,11 +473,10 @@ void EveChildContainer::DoUpdateAsyncronous( const EveUpdateContext& updateConte
 
 	auto boneCount = params.boneCount;
 	auto bones = params.bones;
-	float distanceFromSceneCenter = Length( localToWorldTransform.GetTranslation() );
 
 	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
 	{
-		( *it )->Update( distanceFromSceneCenter );
+		( *it )->Update( params.controllerUpdateFrequency );
 	}
 
 	if( m_animationOwner && m_animationOwner->GetAnimationController() )

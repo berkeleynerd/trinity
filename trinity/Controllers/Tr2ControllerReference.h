@@ -27,7 +27,7 @@ public:
 	bool IsLinked() const override;
 	virtual void Start();
 	virtual void Stop();
-	virtual void Update( float distanceToPlayer = 0.f );
+	virtual void Update( float normalizedUpdateFrequency );
 	virtual void SetVariable( const char* name, float value );
 	void HandleEvent( const char* eventName ) override;
 

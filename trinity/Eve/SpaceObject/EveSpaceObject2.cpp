@@ -50,7 +50,6 @@ TRI_REGISTER_SETTING( "secondaryLightingRadiusCutoffFactor", g_secondaryLighting
 
 const BlueSharedString DAMAGE_LOCATOR_SET_NAME( "damage" );
 
-
 void GetSortedBatchesFromMeshAreaVector( const Tr2MeshAreaVector* areas,
 										 ITriRenderBatchAccumulator* batches,
 										 const Tr2PerObjectData* perObjectData,
@@ -479,11 +478,20 @@ void EveSpaceObject2::UpdateAsyncronous( const EveUpdateContext& updateContext )
 		return;
 	}
 
-	float distanceFromSceneCenter = Length( m_worldTransform.GetTranslation() );
+	float controllerUpdateFrequency = 0.f;
+
+	if( m_isVisible )
+	{
+		float ht = updateContext.GetHighDetailThreshold();
+		if( ht > 0.f )
+		{
+			controllerUpdateFrequency = min( 1.f, m_estimatedPixelDiameter / updateContext.GetHighDetailThreshold() );
+		}
+	}
 
 	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
 	{
-		( *it )->Update( distanceFromSceneCenter );
+		( *it )->Update( controllerUpdateFrequency );
 	}
 
 	Be::Time time = updateContext.GetTime();
@@ -552,6 +560,7 @@ void EveSpaceObject2::UpdateAsyncronous( const EveUpdateContext& updateContext )
 		params.ownerMaxSpeed = m_maxSpeed;
 		params.activationStrength = m_activationStrength;
 		params.localToWorldTransform = worldTransform;
+		params.controllerUpdateFrequency = controllerUpdateFrequency;
 
 		Tr2GrannyAnimationUtils::GetBoneList( m_animationUpdater, params.bones, params.boneCount );
 

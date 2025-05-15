@@ -23,7 +23,7 @@ BLUE_INTERFACE( ITr2Controller ) : public IRoot
 	// Called when the controller needs to stop controlling the owner.
 	virtual void Stop() {}
 	// Called every frame between Start and Stop calls.
-	virtual void Update( float distanceToPlayer = 0.f ){}
+	virtual void Update( float normalizedUpdateFrequency ) {}
 
 	// Sets controller variable to a new value.
 	virtual void SetVariable( const char* name, float value ) {}
