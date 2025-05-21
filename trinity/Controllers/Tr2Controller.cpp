@@ -34,7 +34,8 @@ Tr2Controller::Tr2Controller( IRoot* lockobj )
 	m_minUpdateFrequency( 1 ),
 	m_maxUpdateFrequency( 20 ),
 	m_currentUpdateFrequency( 10.f ),
-	m_nextUpdateTS( 0 )
+	m_nextUpdateTS( 0 ),
+	m_updateThrottle( true )
 {
 	m_stateMachines.SetNotify( this );
 	m_variables.SetNotify( this );
@@ -246,15 +247,18 @@ void Tr2Controller::Update( float normalizedUpdateFrequency )
 
 	auto currentTime = BeOS->GetActualTime();
 
-	// skip updates based on the current distance related update frequency
-	if( currentTime < m_nextUpdateTS )
+	if( m_updateThrottle )
 	{
-		return;
+		// skip updates based on the current distance related update frequency
+		if( currentTime < m_nextUpdateTS )
+		{
+			return;
+		}
+
+		float updateFrequency = normalizedUpdateFrequency * ( m_maxUpdateFrequency - m_minUpdateFrequency ) + m_minUpdateFrequency;
+		m_currentUpdateFrequency = max( updateFrequency, 0.1f ); // floor: update every 10 minimum
+		m_nextUpdateTS = currentTime + TimeFromDouble( 1.0 / m_currentUpdateFrequency );
 	}
-	
-	float updateFrequency = normalizedUpdateFrequency * ( m_maxUpdateFrequency - m_minUpdateFrequency ) + m_minUpdateFrequency;
-	m_currentUpdateFrequency = max( updateFrequency, 0.1f );  // floor: update every 10 minimum
-	m_nextUpdateTS = currentTime + TimeFromDouble( 1.0 / m_currentUpdateFrequency );
 
 	{
 		CCP_STATS_INC( controllerUpdateCount );

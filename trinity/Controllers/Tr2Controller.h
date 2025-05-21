@@ -80,6 +80,7 @@ private:
 	bool m_isActive;
 	bool m_isShared;
 
+	bool m_updateThrottle;
 	uint32_t m_minUpdateFrequency;
 	uint32_t m_maxUpdateFrequency;
 	float m_currentUpdateFrequency;
