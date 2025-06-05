@@ -1890,11 +1890,13 @@ void Tr2BindlessResourcesAL::Add( const Tr2BufferAL& buffer )
 void Tr2BindlessResourcesAL::Add( const Tr2BindlessResourcesAL& resources )
 {
 	m_textures.insert( end( m_textures ), begin( resources.m_textures ), end( resources.m_textures ) );
+	m_buffers.insert( end( m_buffers ), begin( resources.m_buffers ), end( resources.m_buffers ) );
 }
 
 void Tr2BindlessResourcesAL::Clear()
 {
 	m_textures.clear();
+	m_buffers.clear();
 }
 
 #endif
