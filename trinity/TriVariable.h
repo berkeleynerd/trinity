@@ -145,19 +145,10 @@ private:
 	}
 
 	// Storing a texture res pointer 
-	void SetValueTextureRes( ITr2TextureProvider*& value  )
-	{
-		CCP_ASSERT( m_type == GetVariableType( value ) );
-		m_texture = value;
-		m_type = TRIVARIABLE_TEXTURE_RES;
-	}
+	void SetValueTextureRes( ITr2TextureProvider*& value );
+	void SetValueGpuBuffer( ITr2GpuBuffer*& value );
 
-	void SetValueGpuBuffer( ITr2GpuBuffer*& value  )
-	{
-		CCP_ASSERT( m_type == GetVariableType( value ) );
-		m_gpuBuffer = value;
-		m_type = TRIVARIABLE_GPUBUFFER;
-	}
+	void OnTextureOrBufferChanged();
 
 	// Variables contain their payload starting at 'value'[0].  No size is
 	// stored since 'type' is enough.
@@ -166,6 +157,8 @@ private:
 
 	ITr2TextureProviderPtr m_texture;
 	ITr2GpuBufferPtr m_gpuBuffer;
+
+	std::vector<BlueWeakRef<class Tr2Material>> m_materials;
 
 	// This variable must be at the end of the class, due to malloc magic in
 	// Tr2VariableStore::RegisterVariableType
@@ -230,6 +223,9 @@ public:
 		Tr2RenderContext &renderContext ) const;
 	//
 	/////////////////////////////////////////////
+
+	void OnAddedToMaterial( class Tr2Material* material );
+	void OnRemovedFromMaterial( class Tr2Material* material );
 
 	void SetValue( float value )						{ SetValue_( value ); }
 	void SetValue( int value )							{ SetValue_( value ); }

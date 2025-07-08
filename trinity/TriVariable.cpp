@@ -11,6 +11,8 @@
 #include "Tr2RenderTarget.h"
 #include "Tr2VariableStore.h"
 
+#include "Shader/Tr2Material.h"
+
 BLUE_DEFINE_NONEXPOSED( TriVariable );
 
 const Be::ClassInfo* TriVariable::ExposeToBlue()
@@ -156,4 +158,78 @@ void TriVariable::Clear()
 	m_gpuBuffer = nullptr;
 
 	memset( m_value, 0, GetTypeSize() );
+
+	OnTextureOrBufferChanged();
+}
+
+void TriVariable::OnAddedToMaterial( Tr2Material* material )
+{
+	m_materials.push_back( material );
+}
+
+void TriVariable::OnRemovedFromMaterial( Tr2Material* material )
+{
+	m_materials.erase( find( begin( m_materials ), end( m_materials ), material ), end( m_materials ) );
+}
+
+void TriVariable::SetValueTextureRes( ITr2TextureProvider*& value )
+{
+	CCP_ASSERT( m_type == GetVariableType( value ) );
+
+	if( m_texture != value )
+	{
+		if( m_texture )
+		{
+			m_texture->OnTextureChange().UnregisterListener( this );
+		}
+		m_texture = value;
+		if( m_texture )
+		{
+			m_texture->OnTextureChange().RegisterListener<TriVariable, &TriVariable::OnTextureOrBufferChanged>( this );
+		}
+	}
+
+	m_type = TRIVARIABLE_TEXTURE_RES;
+}
+
+void TriVariable::SetValueGpuBuffer( ITr2GpuBuffer*& value )
+{
+	CCP_ASSERT( m_type == GetVariableType( value ) );
+	
+	// TODO: intern, talk with Filipp! we probably need this as well! which means introducing OnBufferChange to GpuBuffer!
+	/*
+	if( m_gpuBuffer != value )
+	{
+		if( m_gpuBuffer )
+		{
+			m_gpuBuffer->OnBufferChange().UnregisterListener( this );
+		}
+		m_gpuBuffer = value;
+		if( m_gpuBuffer )
+		{
+			m_gpuBuffer->OnBufferChange().RegisterListener<TriVariable, &TriVariable::OnTextureOrBufferChanged>( this );
+		}
+	}
+	*/
+	m_gpuBuffer = value;
+
+	m_type = TRIVARIABLE_GPUBUFFER;
+}
+
+
+void TriVariable::OnTextureOrBufferChanged()
+{
+	for( auto it = begin( m_materials ); it != end( m_materials ); )
+	{
+		if( !!( *it ) )
+		{
+			( *it )->InvalidateResourceSets();
+			++it;
+		}
+		else
+		{
+			std::swap( *it, m_materials.back() );
+			m_materials.pop_back();
+		}
+	}
 }

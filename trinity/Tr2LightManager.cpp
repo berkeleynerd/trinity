@@ -158,7 +158,6 @@ Tr2LightManager::Tr2LightManager( const char* effectPath )
 	m_currentSpaceSceneShadowQuality = ShadowQuality::SHADOW_DISABLED;
 
 
-	m_ShadowMap.m_atlasVariable.Register( "ShadowMapAtlas", m_ShadowMap.m_atlasDepthStencil );
 
 	m_ShadowMap.m_qualityUsedByAtlas = ShadowQuality::SHADOW_DISABLED;
 
@@ -175,6 +174,10 @@ Tr2LightManager::Tr2LightManager( const char* effectPath )
 	m_Raytracing.m_effect->SetEffectPathName( "res:/graphics/effect/managed/space/system/raytracing/rtdynamicshadows.fx" );
 
 	m_Raytracing.m_whiteTexture.CreateInstance();
+
+	m_ShadowMap.m_atlasDepthStencil = Tr2DepthStencilPtr();
+	m_ShadowMap.m_atlasDepthStencil.CreateInstance();
+	m_ShadowMap.m_atlasVariable.Register( "ShadowMapAtlas", m_ShadowMap.m_atlasDepthStencil );
 
 	PrepareResources();
 }
@@ -316,9 +319,9 @@ void Tr2LightManager::UpdateShadowAtlasSize( ShadowQuality shadowQuality )
 {
 	if( m_ShadowMap.m_qualityUsedByAtlas != shadowQuality )
 	{
+		if( m_ShadowMap.m_atlasDepthStencil->IsValid() )
+			m_ShadowMap.m_atlasDepthStencil->Destroy();
 		// Setup depth stencil texture
-		m_ShadowMap.m_atlasDepthStencil = Tr2DepthStencilPtr();
-		m_ShadowMap.m_atlasDepthStencil.CreateInstance();
 		if ( shadowQuality != ShadowQuality::SHADOW_DISABLED )
 		{
 			Tr2LightManager::ShadowMapAtlasSettings settings = CalculateShadowMapAtlasSettings( shadowQuality );
@@ -330,7 +333,7 @@ void Tr2LightManager::UpdateShadowAtlasSize( ShadowQuality shadowQuality )
 
 void Tr2LightManager::UpdateRaytracingDestination( ShadowQuality shadowQuality )
 {
-	if( ( shadowQuality == ShadowQuality::SHADOW_DISABLED ) && m_Raytracing.m_destTex->IsValid() )
+	if( ( shadowQuality == ShadowQuality::SHADOW_DISABLED ) && m_Raytracing.m_destTex->IsValid() && m_Raytracing.m_destTex->GetWidth() != 4 )
 	{
 		// Setup depth stencil texture
 		m_Raytracing.m_destTex = Tr2RenderTargetPtr();

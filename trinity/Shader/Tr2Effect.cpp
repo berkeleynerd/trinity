@@ -296,6 +296,8 @@ Tr2Effect::~Tr2Effect()
 		( *it )->OnRemovedFromMaterial( this );
 	}
 
+	// TODO: intern, iterate over the used TriVariable from global store and remove this as listener!
+
 	if( m_effectResource )
 	{
 		ReleaseCachedData( m_effectResource );
@@ -1507,11 +1509,14 @@ void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2Effe
 				ss.isAutoregister )
 			{
 				param.m_sourceValue = v;
+				v->OnAddedToMaterial( this );
 			}
 		}
 		else if( ss.isAutoregister )
 		{
-			param.m_sourceValue = GetVariableStore().GetVariable( name );
+			TriVariable* v = GetVariableStore().GetVariable( name );
+			param.m_sourceValue = v;
+			v->OnAddedToMaterial( this );
 		}
 		
 		if( param.m_sourceValue )
