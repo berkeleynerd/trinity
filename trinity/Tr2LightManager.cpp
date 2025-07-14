@@ -337,7 +337,7 @@ void Tr2LightManager::UpdateShadowAtlasSize( ShadowQuality shadowQuality )
 		{
 			Tr2LightManager::ShadowMapAtlasSettings settings = CalculateShadowMapAtlasSettings( shadowQuality );
 			m_ShadowMap.m_atlasDepthStencil->Create( settings.size, settings.size, Tr2RenderContextEnum::DSFMT_D32F, 0, 0 );
-        }
+		}
 	}
 	m_ShadowMap.m_qualityUsedByAtlas = m_ShadowMap.m_atlasDepthStencil->IsValid() ? shadowQuality : ShadowQuality::SHADOW_DISABLED;
 }
