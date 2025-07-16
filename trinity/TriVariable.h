@@ -158,7 +158,7 @@ private:
 	ITr2TextureProviderPtr m_texture;
 	ITr2GpuBufferPtr m_gpuBuffer;
 
-	std::vector<BlueWeakRef<class Tr2Material>> m_materials;
+	std::vector<BlueWeakRef<class Tr2Effect>> m_materials;
 
 	// This variable must be at the end of the class, due to malloc magic in
 	// Tr2VariableStore::RegisterVariableType
@@ -172,6 +172,8 @@ protected:
 	{
 		m_value[0] = 0;
 	}
+
+	//virtual ~TriVariable();
 
 public:
 	TriVariableContentType GetType() const
@@ -224,8 +226,8 @@ public:
 	//
 	/////////////////////////////////////////////
 
-	void OnAddedToMaterial( class Tr2Material* material );
-	void OnRemovedFromMaterial( class Tr2Material* material );
+	void OnAddedToMaterial( class Tr2Effect* material );
+	void OnRemovedFromMaterial( class Tr2Effect* material );
 
 	void SetValue( float value )						{ SetValue_( value ); }
 	void SetValue( int value )							{ SetValue_( value ); }

@@ -147,6 +147,8 @@ public:
 	void SetVariableStore( Tr2VariableStore* variableStore );
 	Tr2VariableStore& GetVariableStore();
 
+	//void OnVariableDestruction( class TriVariable* variable );
+
 protected:
 	void RebuildCachedDataInternal();
 
@@ -179,6 +181,7 @@ private:
 	PTr2ShaderOptionStructureList m_options;
 	Tr2VariableStorePtr m_variableStore;
 
+	std::vector<BlueWeakRef<class TriVariable>> m_usedVariablesFromGlobalStore;
 
 #if TRINITYDEV
 	bool m_insideBegin;

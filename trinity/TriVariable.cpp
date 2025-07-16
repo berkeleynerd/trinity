@@ -12,6 +12,7 @@
 #include "Tr2VariableStore.h"
 
 #include "Shader/Tr2Material.h"
+#include <Shader/Tr2Effect.h>
 
 BLUE_DEFINE_NONEXPOSED( TriVariable );
 
@@ -21,6 +22,22 @@ const Be::ClassInfo* TriVariable::ExposeToBlue()
 		MAP_INTERFACE( IRoot )
 	EXPOSURE_END()
 }
+
+//TriVariable::~TriVariable()
+//{
+//	//for( auto it = begin( m_materials ); it != end( m_materials ); ++it )
+//	//{
+//	//	if( !!( *it ) )
+//	//	{
+//	//		( *it )->OnVariableDestruction( this );
+//	//	}
+//	//	//else
+//	//	//{
+//	//	//	std::swap( *it, m_materials.back() );
+//	//	//	m_materials.pop_back();
+//	//	//}
+//	//}
+//}
 
 bool TriVariable::CopyToResourceSet(
 	Tr2ResourceSetDescriptionAL& resourceDesc,
@@ -154,7 +171,16 @@ void TriVariable::Invalidate()
 
 void TriVariable::Clear()
 {
-	m_texture		= nullptr;	
+	if( m_texture )
+	{
+		m_texture->OnTextureChange().UnregisterListener( this );
+	}
+	//if( m_gpuBuffer )
+	//{
+	//	m_gpuBuffer->OnBufferChange().UnregisterListener( this );
+	//}
+
+	m_texture = nullptr;	
 	m_gpuBuffer = nullptr;
 
 	memset( m_value, 0, GetTypeSize() );
@@ -162,13 +188,25 @@ void TriVariable::Clear()
 	OnTextureOrBufferChanged();
 }
 
-void TriVariable::OnAddedToMaterial( Tr2Material* material )
+void TriVariable::OnAddedToMaterial( Tr2Effect* material )
 {
+	CCP_ASSERT_M( find( begin( m_materials ), end( m_materials ), material ) == end( m_materials ), "TriVariable already contains material!" );
 	m_materials.push_back( material );
 }
 
-void TriVariable::OnRemovedFromMaterial( Tr2Material* material )
+void TriVariable::OnRemovedFromMaterial( Tr2Effect* material )
 {
+	// after the device hung/lost, this also causes issues for some reason,
+	// with this variable claiming it has no entry for the material, which makes no sense...
+	
+	// TODO: intern, remove this! it's only here to be able to set a breakpoint, since the assert for some reason is not showing the callstack...
+	if ( find(begin(m_materials), end(m_materials), material) == end(m_materials) )
+	{
+		CCP_LOGERR( "WTF!!!! TriVariable::OnRemovedFromMaterial has no entry for the material!" );
+	}
+
+	CCP_ASSERT_M( find( begin( m_materials ), end( m_materials ), material ) != end( m_materials ), "TriVariable does not contain material!" );
+	// TODO: intern, swap and pop
 	m_materials.erase( find( begin( m_materials ), end( m_materials ), material ), end( m_materials ) );
 }
 
@@ -219,17 +257,31 @@ void TriVariable::SetValueGpuBuffer( ITr2GpuBuffer*& value )
 
 void TriVariable::OnTextureOrBufferChanged()
 {
-	for( auto it = begin( m_materials ); it != end( m_materials ); )
+	for( size_t i = 0; i < m_materials.size(); )
 	{
-		if( !!( *it ) )
+		if( !!m_materials[i] )
 		{
-			( *it )->InvalidateResourceSets();
-			++it;
+			m_materials[i]->InvalidateResourceSets();
+			++i;
 		}
 		else
 		{
-			std::swap( *it, m_materials.back() );
+			m_materials[i] = m_materials[m_materials.size() - 1];
 			m_materials.pop_back();
 		}
 	}
+
+	//for( auto it = begin( m_materials ); it != end( m_materials ); )
+	//{
+	//	if( !!( *it ) )
+	//	{
+	//		( *it )->InvalidateResourceSets();
+	//		++it;
+	//	}
+	//	else
+	//	{
+	//		std::swap( *it, m_materials.back() );
+	//		m_materials.pop_back();
+	//	}
+	//}
 }

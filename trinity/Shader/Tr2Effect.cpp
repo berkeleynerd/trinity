@@ -296,7 +296,13 @@ Tr2Effect::~Tr2Effect()
 		( *it )->OnRemovedFromMaterial( this );
 	}
 
-	// TODO: intern, iterate over the used TriVariable from global store and remove this as listener!
+	// TODO: intern, either remove this, or switch to raw pointers in TriVariable for materials!
+	// even with weak pointers in TriVariable for materials, we still need m_usedVariablesFromGlobalStore to unregister ourselves from events happening to TriVariable
+	//for( auto& variable : m_usedVariablesFromGlobalStore )
+	//{
+	//	if ( !!variable )
+	//		variable->OnRemovedFromMaterial( this );
+	//}
 
 	if( m_effectResource )
 	{
@@ -705,6 +711,15 @@ void Tr2Effect::RebuildCachedDataInternal()
 	m_shader = nullptr;
 	m_lodTextureParameters.clear();
 	m_compatibleWithGdr = true;
+
+	// after the device hung/lost, this also causes issues for some reason, 
+	// with the variable claiming it has no entry for this material, which makes no sense...
+	//for ( auto& variable : m_usedVariablesFromGlobalStore )
+	//{
+	//	if( !!variable )
+	//		variable->OnRemovedFromMaterial( this );
+	//}
+	//m_usedVariablesFromGlobalStore.clear();
 
 	if( m_effectResource )
 	{		
@@ -1509,14 +1524,24 @@ void Tr2Effect::MapPassResources( const Tr2EffectResourceMap& resources, Tr2Effe
 				ss.isAutoregister )
 			{
 				param.m_sourceValue = v;
-				v->OnAddedToMaterial( this );
+
+				if ( std::find( m_usedVariablesFromGlobalStore.begin(), m_usedVariablesFromGlobalStore.end(), v ) == m_usedVariablesFromGlobalStore.end() )
+				{
+					v->OnAddedToMaterial( this );
+					m_usedVariablesFromGlobalStore.push_back( v );
+				}
 			}
 		}
 		else if( ss.isAutoregister )
 		{
 			TriVariable* v = GetVariableStore().GetVariable( name );
 			param.m_sourceValue = v;
-			v->OnAddedToMaterial( this );
+
+			if( std::find( m_usedVariablesFromGlobalStore.begin(), m_usedVariablesFromGlobalStore.end(), v ) == m_usedVariablesFromGlobalStore.end() )
+			{
+				v->OnAddedToMaterial( this );
+				m_usedVariablesFromGlobalStore.push_back( v );
+			}
 		}
 		
 		if( param.m_sourceValue )
@@ -1826,12 +1851,26 @@ void Tr2Effect::MapPassParameters(
 			else if( TriVariable* v = variableStore.FindVariable( constantIx->name.c_str() ) )
 			{
 				paramAsEffectValue = v;
+
+				// TODO: intern, do we need this?
+				//if( std::find( m_usedVariablesFromGlobalStore.begin(), m_usedVariablesFromGlobalStore.end(), v ) == m_usedVariablesFromGlobalStore.end() )
+				//{
+				//	v->OnAddedToMaterial( this );
+				//	m_usedVariablesFromGlobalStore.push_back( v );
+				//}
 			}
 			else
 			{
 				if( constantIx->isAutoregister )
 				{
 					paramAsEffectValue = GlobalStore().GetVariable( constantIx->name.c_str() );
+					
+					// TODO: intern, do we need this?
+					//if( std::find( m_usedVariablesFromGlobalStore.begin(), m_usedVariablesFromGlobalStore.end(), v ) == m_usedVariablesFromGlobalStore.end() )
+					//{
+					//	v->OnAddedToMaterial( this );
+					//	m_usedVariablesFromGlobalStore.push_back( v );
+					//}
 				}
 			}
 			hasVariableParams |= paramAsEffectValue != nullptr;
@@ -2104,6 +2143,14 @@ Tr2VariableStore& Tr2Effect::GetVariableStore()
 	}
 	return GlobalStore();
 }
+
+//void Tr2Effect::OnVariableDestruction( class TriVariable* variable )
+//{
+//	auto entry = std::find( m_usedVariablesFromGlobalStore.begin(), m_usedVariablesFromGlobalStore.end(), variable );
+//	CCP_ASSERT_M( entry != end( m_usedVariablesFromGlobalStore ), "Tr2Material has not used variable!" );
+//	std::swap( *entry, m_usedVariablesFromGlobalStore.back() );
+//	m_usedVariablesFromGlobalStore.pop_back();
+//}
 
 // --------------------------------------------------------------------------------------
 void Tr2Effect::SetParameter( const BlueSharedString& name, ITr2GpuBuffer* buffer )

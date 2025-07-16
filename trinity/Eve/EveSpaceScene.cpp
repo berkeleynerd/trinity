@@ -2633,6 +2633,8 @@ void EveSpaceScene::FinishRenderingShadowMapForLights( Tr2RenderContext& renderC
 // --------------------------------------------------------------------------------------
 void EveSpaceScene::RenderMainPass( Tr2RenderContext& renderContext, CullMode cullmode )
 {
+	CCP_LOGERR( "Frame %" PRIu64, renderContext.GetPrimaryRenderContextPointer()->GetRecordingFrameNumber() );
+
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	m_hasForegroundDistortionBatches = false;
