@@ -457,6 +457,8 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 	m_updateContext.m_raytracingEnabled = m_shadowQuality == ShadowQuality::SHADOW_RAYTRACED && m_enableShadows;
 
 	{
+		CCP_STATS_ZONE( "UpdateBackgroundObjects" );
+		
 		for( auto it = m_backgroundObjects.begin(); it != m_backgroundObjects.end(); ++it )
 		{
 			( *it )->UpdateSyncronous( m_updateContext );
@@ -532,14 +534,20 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 
 		Tr2ParallelTaskGroup taskGroup = {};
 		m_updateContext.SetTaskGroup( &taskGroup );
+		
 		for( auto& object : m_objects )
 		{
-			taskGroup.run( [object, this] { object->UpdateAsyncronous( m_updateContext ); } );
+			taskGroup.run( [object, this] {
+				object->UpdateAsyncronous( m_updateContext ); 
+			} );
 		}
 		for( auto& object : m_uiObjects )
 		{
-			taskGroup.run( [object, this] { object->UpdateAsyncronous( m_updateContext ); } );
+			taskGroup.run( [object, this] {
+				object->UpdateAsyncronous( m_updateContext );
+			} );
 		}
+
 		taskGroup.wait();
 		m_updateContext.SetTaskGroup( nullptr );
 	}
@@ -651,6 +659,10 @@ void EveSpaceScene::SetupCascadedShadows( Tr2RenderReason renderReason, Tr2Shado
 		CCP_STATS_ZONE( "GetBatches" );
 		unsigned int shadowMapSize = shadowMap.GetShadowMapSize();
 		auto shadowCasters = m_componentRegistry->GetComponents<IEveShadowCaster>();
+		for( auto& vector : shadowCasterInfo )
+		{
+			vector.reserve( shadowCasters.size() );
+		}
 
 		{
 			CCP_STATS_ZONE( "Find shadow casters" );
@@ -2363,7 +2375,7 @@ void EveSpaceScene::RenderDepthPass( Tr2RenderContext& renderContext, const Blue
 		}
 	}
 	
-	if( m_mainPassRenderingEnabled && m_ssao )
+	if( m_mainPassRenderingEnabled && m_ssao && m_depthMap )
 	{
 		renderContext.SetReadOnlyDepth( true );
 
@@ -2605,9 +2617,20 @@ void EveSpaceScene::RenderShadowMapForLight( Tr2RenderContext& renderContext, co
 	else
 	{
 		// spotlight
-		float fov = 2.f * acos( float( lightData.outerAngle ) );
 		// we flip near and far plane for reverse z
-		auto projection = PerspectiveFovMatrix( fov, 1.f, lightData.radius, lightData.radius / 1000.f );
+		float zn = lightData.radius;
+		float zf = lightData.radius / 1000.f;
+		float aspect = 1.f;
+		float d = float( lightData.projectionPlaneDistance ); 
+
+		Matrix projection = IdentityMatrix();
+		projection.m[0][0] = d / aspect;
+		projection.m[1][1] = d;
+		projection.m[2][2] = zf / ( zn - zf );
+		projection.m[2][3] = -1.0f;
+		projection.m[3][2] = ( zf * zn ) / ( zn - zf );
+		projection.m[3][3] = 0.0f;
+
 		Vector3 up = abs( lightData.direction.y ) < .7f ? Vector3( 0.f, 1.f, 0.f ) : Vector3( 1.f, 0.f, 0.f );
 		Matrix view = LookAtMatrix( lightData.position, lightData.position - lightData.direction, up );
 		uint32_t shadowMapScale;

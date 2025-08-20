@@ -150,7 +150,7 @@ void Tr2VolumetricsRenderer::RenderVolumetrics(
 	bool raytracingEnabled,
 	Tr2RenderContext& renderContext )
 {
-	uint32_t slices = 4;
+	const uint32_t slices = 4;
 
 	auto originalWidth = sceneDepth.GetWidth();
 	auto originalHeight = sceneDepth.GetHeight();
@@ -168,8 +168,8 @@ void Tr2VolumetricsRenderer::RenderVolumetrics(
 		{
 			USE_MAIN_THREAD_RENDER_CONTEXT();
 			uint8_t black[4] = {};
-			Tr2SubresourceData initialData[4];
-			for( uint32_t i = 0; i < 4; ++i )
+			Tr2SubresourceData initialData[slices];
+			for( uint32_t i = 0; i < slices; ++i )
 			{
 				initialData[i].m_sysMem = black;
 				initialData[i].m_sysMemPitch = 4;
@@ -177,7 +177,7 @@ void Tr2VolumetricsRenderer::RenderVolumetrics(
 			}
 			volumeSlices.Create( Tr2BitmapDimensions(
 									 Tr2RenderContextEnum::TEX_TYPE_2D,
-									 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM,
+									 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM,
 									 1,
 									 1,
 									 1,
@@ -488,9 +488,9 @@ void Tr2VolumetricsRenderer::UpdateFogEnvironmentMap( Tr2RenderContext& renderCo
 		else
 		{
 			//Create dummy texture
-			Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_CUBE, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 1, 1, 1, 1, 6 );
+			Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_CUBE, Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, 1, 6 );
 
-			uint8_t black[6] = {};
+			uint8_t black[4] = {};
 			Tr2SubresourceData initialData[6];
 			for( uint32_t i = 0; i < 6; ++i )
 			{
@@ -836,7 +836,7 @@ void Tr2VolumetricsRenderer::UpdateTextures( FogViewDependentResources& resource
 		else
 		{
 			//Create dummy textures
-			Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_3D, Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM, 1, 1, 1, 1, 1 );
+			Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_3D, Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM, 1, 1, 1, 1, 1 );
 
 			uint8_t black[4] = {};
 			Tr2SubresourceData initialData;
