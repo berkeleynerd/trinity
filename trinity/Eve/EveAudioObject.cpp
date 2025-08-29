@@ -22,7 +22,6 @@ bool EveAudioObject::Initialize()
 		Vector3 front( 0, 1, 0 ), top( 0, 0, 1 );
 		m_audioEmitter->SetPosition( front, top, position );
 		
-		// Play the configured audio event if one is set
 		if( !m_audioEvent.empty() )
 		{
 			PlayAudioEvent( m_audioEvent );
@@ -136,6 +135,10 @@ unsigned int EveAudioObject::PlayAudioEvent( const std::wstring& eventName )
 void EveAudioObject::SetMute( bool mute )
 {
 	m_mute = mute;
+	if( m_audioEmitter )
+	{
+		mute ? m_audioEmitter->Mute() : m_audioEmitter->Unmute();
+	}
 }
 
 void EveAudioObject::UpdateWorldTransform( Be::Time time )
@@ -167,6 +170,11 @@ void EveAudioObject::UpdateWorldTransform( Be::Time time )
 void EveAudioObject::GetDebugOptions( Tr2DebugRendererOptions& options )
 {
 	options.insert( "Bounding Sphere" );
+
+	if( auto tmp = dynamic_cast<ITr2DebugRenderable*>( m_audioEmitter.p ) )
+	{
+		tmp->GetDebugOptions( options );
+	}
 }
 
 void EveAudioObject::RenderDebugInfo( ITr2DebugRenderer2& renderer )
@@ -179,13 +187,22 @@ void EveAudioObject::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 			renderer.DrawSphere( this, boundingSphere.GetXYZ(), boundingSphere.w, 8, Tr2DebugRenderer::Wireframe, 0xffff00ff );
 		}
 	}
+
+	auto tmp = dynamic_cast<ITr2DebugRenderable*>( m_audioEmitter.p );
+	if( tmp )
+	{
+		tmp->RenderDebugInfo( renderer );
+	}
 }
 
 bool EveAudioObject::OnModified( Be::Var* val )
 {
 	if( IsMatch( val, m_display ) )
 	{
-		// Handle display state changes if needed
+		if( m_audioEmitter )
+		{
+			m_display ? m_audioEmitter->Unmute() : m_audioEmitter->Mute();
+		}
 	}
 	else if( IsMatch( val, m_mute ) )
 	{
@@ -193,7 +210,6 @@ bool EveAudioObject::OnModified( Be::Var* val )
 	}
 	else if( IsMatch( val, m_audioEvent ) )
 	{
-		// Play the new audio event when it changes from GUI
 		if( m_audioEmitter && !m_audioEvent.empty() )
 		{
 			PlayAudioEvent( m_audioEvent );
