@@ -164,9 +164,14 @@ void Tr2TimelineContoller::Stop()
 	m_time = 0;
 }
 
-void Tr2TimelineContoller::Update()
+void Tr2TimelineContoller::Update( float normalizedUpdateFrequency )
 {
 	if( !m_isActive )
+	{
+		return;
+	}
+
+	if( EveThrottleable::ShouldSkipUpdate( normalizedUpdateFrequency ) )
 	{
 		return;
 	}

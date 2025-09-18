@@ -97,5 +97,5 @@ const Be::ClassInfo* Tr2TimelineContoller::ExposeToBlue()
 			RemoveAction,
 			"" )
 
-	EXPOSURE_END()
+	EXPOSURE_CHAINTO( EveThrottleable )
 }

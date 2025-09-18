@@ -29,11 +29,6 @@ const Be::ClassInfo* Tr2Controller::ExposeToBlue()
 		MAP_ATTRIBUTE( "eventHandlers", m_eventHandlers, "", Be::READ | Be::PERSIST )
 		MAP_ATTRIBUTE( "isPlaying", m_isActive, "", Be::READ )
 		MAP_PROPERTY_READONLY( "callbackCount", GetCallbackCount, "Returns the number of callbacks that are attached to this controller" )
-
-		MAP_ATTRIBUTE( "updateThrottle", m_updateThrottle, "enable/disable the frequency based update throttling \n:jessica-group: updateFrequency", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "minUpdateFrequency", m_minUpdateFrequency, "how often we process states when the object is very far away\n:jessica-group: updateFrequency", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "maxUpdateFrequency", m_maxUpdateFrequency, "how often we process states when the object is very close\n:jessica-group: updateFrequency", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "currentUpdateFrequency", m_currentUpdateFrequency, "approximately how many times per sec the controllers updates when throttling is enabled \n:jessica-group: updateFrequency", Be::READ )
 		
 		MAP_METHOD_AND_WRAP(
 			"Start", 
@@ -77,5 +72,5 @@ const Be::ClassInfo* Tr2Controller::ExposeToBlue()
 			ReLink,
 			"Re-links the controller with the assigned owner. Used by tools only." )
 
-	EXPOSURE_END()
+	EXPOSURE_CHAINTO( EveThrottleable )
 }
