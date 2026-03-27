@@ -225,7 +225,8 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 		if( mask & ( 1 << i ) )
 		{
 			auto& input = pp.m_stageInput[i];
-			descChanged |= ApplyShaderInputs( techniqueIndex, passIndex, Tr2RenderContextEnum::ShaderType( i ), renderContext );
+			//descChanged |= ApplyShaderInputs( techniqueIndex, passIndex, Tr2RenderContextEnum::ShaderType( i ), renderContext );
+			ApplyConstants( Tr2RenderContextEnum::ShaderType( i ), input, !pp.m_reroutedParameters.empty(), renderContext );
 			SetResources( Tr2RenderContextEnum::ShaderType( i ), input, renderContext );
 			mask &= ~( 1 << i );
 		}
@@ -243,7 +244,7 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 			return;
 		}
 		//pp.m_resourceSet.Create( pp.m_resourceSetDesc, *sp, renderContext );
-		pp.m_resourceSetHash = pp.m_resourceSetDesc.ComputeHash();
+		pp.m_resourceSetHash = 0;//pp.m_resourceSetDesc.ComputeHash();
 		pp.m_resourceSetDirty = false;
 
 		m_resourceSetHash = 0;
@@ -256,6 +257,54 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 			}
 		}
 	}
+
+	for( uint32_t i = 0; i < pp.m_resourceSetDesc.m_registerMap.srvCount; ++i )
+	{
+		auto& srv = pp.m_resourceSetDesc.m_srv[i];
+		if( srv.type == Tr2ResourceSetDescriptionAL::Resource::Type::BUFFER )
+		{
+			renderContext.SetSrv( (Tr2RenderContextEnum::ShaderType)srv.type, srv.registerIndex, srv.buffer );
+		}
+		else if( srv.type == Tr2ResourceSetDescriptionAL::Resource::Type::TEXTURE )
+		{
+			renderContext.SetSrv( (Tr2RenderContextEnum::ShaderType)srv.type, srv.registerIndex, srv.texture );
+		}
+		else if( srv.type == Tr2ResourceSetDescriptionAL::Sampler::Type::HEAP_VIEW )
+		{
+			renderContext.SetSrvHeapView( (Tr2RenderContextEnum::ShaderType)srv.type, srv.registerIndex );
+		}
+	}
+
+	for( uint32_t i = 0; i < pp.m_resourceSetDesc.m_registerMap.uavCount; ++i )
+	{
+		auto& uav = pp.m_resourceSetDesc.m_uav[i];
+		if( uav.type == Tr2ResourceSetDescriptionAL::Resource::Type::BUFFER )
+		{
+			renderContext.SetUav( (Tr2RenderContextEnum::ShaderType)uav.type, uav.registerIndex, uav.buffer );
+		}
+		else if( uav.type == Tr2ResourceSetDescriptionAL::Resource::Type::TEXTURE )
+		{
+			renderContext.SetUav( (Tr2RenderContextEnum::ShaderType)uav.type, uav.registerIndex, uav.texture );
+		}
+		else if( uav.type == Tr2ResourceSetDescriptionAL::Sampler::Type::HEAP_VIEW )
+		{
+			renderContext.SetUavHeapView( (Tr2RenderContextEnum::ShaderType)uav.type, uav.registerIndex );
+		}
+	}
+
+	for( uint32_t i = 0; i < pp.m_resourceSetDesc.m_registerMap.samplerCount; ++i )
+	{
+		auto& sampler = pp.m_resourceSetDesc.m_samplers[i];
+		if( sampler.type == Tr2ResourceSetDescriptionAL::Sampler::Type::SAMPLER )
+		{
+			renderContext.SetSampler( (Tr2RenderContextEnum::ShaderType)sampler.type, sampler.registerIndex, sampler.sampler );
+		}
+		else if( sampler.type == Tr2ResourceSetDescriptionAL::Sampler::Type::HEAP_VIEW )
+		{
+			renderContext.SetSamplerHeapView( (Tr2RenderContextEnum::ShaderType)sampler.type, sampler.registerIndex );
+		}
+	}
+
 	// TO DO JOHN. need to find a way of setting the SRVs dynamicly
 	//renderContext.SetResourceSet( pp.m_resourceSet );
 }
@@ -295,7 +344,7 @@ void Tr2Material::ApplyMaterialDataForPassWithOverride( uint32_t techniqueIndex,
 	pp.m_resourceSetDirty = true;
 }
 
-bool Tr2Material::ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const
+/*bool Tr2Material::ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const
 {
 	auto& pp = *m_parametersForPasses[techniqueIndex].passes[passIndex];
 	return ApplyShaderInputs( pp, shaderType, renderContext );
@@ -308,7 +357,7 @@ bool Tr2Material::ApplyShaderInputs( Tr2EffectPassParameters& pp, Tr2RenderConte
 	ApplyConstants( shaderType, input, !pp.m_reroutedParameters.empty(), renderContext );
 
 	return UpdateResourceSetDesc( shaderType, input, pp.m_resourceSetDesc );
-}
+}*/
 
 void Tr2Material::ApplyConstants( Tr2RenderContextEnum::ShaderType shaderType, Tr2MaterialStageInput& input, bool hasReroutables, Tr2RenderContext& renderContext) const
 {
@@ -407,7 +456,7 @@ void Tr2Material::InvalidateResourceSets()
 		{
 			auto params = pit->get();
 			//params->m_resourceSet = Tr2ResourceSetAL();
-			params->m_resourceSetDesc.ClearResources();
+			//params->m_resourceSetDesc.ClearResources();
 			params->m_resourceSetHash = 0;
 			params->m_resourceSetDirty = true;
 

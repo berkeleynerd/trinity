@@ -116,6 +116,11 @@ public:
 	ALResult SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, Tr2RenderContextEnum::ColorSpace colorSpace = Tr2RenderContextEnum::COLOR_SPACE_LINEAR ) throw();
 	ALResult SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2BufferAL& buffer ) throw();
 	ALResult SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, uint32_t mip = 0 ) throw();
+	ALResult SetSrvHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw();
+	ALResult SetUavHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw();
+	ALResult SetSamplerHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw();
+
+	ALResult SetSampler( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2SamplerStateAL& sampler ) throw();
 
 	ALResult SetResourceSet( const Tr2ResourceSetAL& resourceSet );
 	

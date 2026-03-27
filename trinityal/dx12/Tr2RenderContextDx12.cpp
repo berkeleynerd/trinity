@@ -104,6 +104,7 @@ Tr2RenderContextAL::Tr2RenderContextAL() throw( )
 	m_uavBarriersDisabledCounter(0)
 {
 	std::fill( std::begin( m_vertexBuffers ), std::end( m_vertexBuffers ), VB() );
+	ResetResourceBindings();
 }
 
 Tr2RenderContextAL::~Tr2RenderContextAL() throw( )
@@ -689,6 +690,96 @@ ALResult Tr2RenderContextAL::SetSampler( Tr2RenderContextEnum::ShaderType stage,
 	return S_OK;
 }
 
+ALResult Tr2RenderContextAL::SetSrvHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	/* if( m_registerMap.srvCount == 0 )
+	{
+		return false;
+	}
+	auto index = m_registerMap.srvs[stage][registerIndex];
+	if( index >= m_registerMap.srvCount )
+	{
+		return false;
+	}
+	auto& resource = m_srv[index];
+	if( resource.type == Resource::HEAP_VIEW )
+	{
+		return false;
+	}
+	resource.type = Resource::HEAP_VIEW;
+	return true;*/
+	if( m_renderedUsingSRVs )
+	{
+		m_renderedUsingSRVs = false;
+		ResetResourceBindings();
+	}
+	auto& resource = m_srv_PRE_RENDER[registerIndex];
+	resource.stage = stage;
+	resource.registerIndex = registerIndex;
+	resource.type = Resource::HEAP_VIEW;
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetUavHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	/*if( m_registerMap.uavCount == 0 )
+	{
+		return false;
+	}
+	auto index = m_registerMap.uavs[stage][registerIndex];
+	if( index >= m_registerMap.uavCount )
+	{
+		return false;
+	}
+	auto& resource = m_uav[index];
+	if( resource.type == Resource::HEAP_VIEW )
+	{
+		return false;
+	}
+	resource.type = Resource::HEAP_VIEW;
+	return true;*/
+	if( m_renderedUsingSRVs )
+	{
+		m_renderedUsingSRVs = false;
+		ResetResourceBindings();
+	}
+	auto& resource = m_uav_PRE_RENDER[registerIndex];
+	resource.stage = stage;
+	resource.registerIndex = registerIndex;
+	resource.type = Resource::HEAP_VIEW;
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSamplerHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	/*if( m_registerMap.samplerCount == 0 )
+	{
+		return false;
+	}
+	auto index = m_registerMap.samplers[stage][registerIndex];
+	if( index >= m_registerMap.samplerCount )
+	{
+		return false;
+	}
+	auto& resource = m_samplers[index];
+	if( resource.type == Sampler::HEAP_VIEW )
+	{
+		return false;
+	}
+	resource.type = Sampler::HEAP_VIEW;
+	return true;*/
+	if( m_renderedUsingSRVs )
+	{
+		m_renderedUsingSRVs = false;
+		ResetResourceBindings();
+	}
+	auto& resource = m_samplers_TEMP[registerIndex];
+	resource.stage = stage;
+	resource.registerIndex = registerIndex;
+	resource.type = Sampler::HEAP_VIEW;
+	return S_OK;
+}
+
 ALResult Tr2RenderContextAL::ResetResourceBindings() throw()
 {
 	std::fill( std::begin( m_srv_PRE_RENDER ), std::end( m_srv_PRE_RENDER ), Resource{} );
@@ -703,6 +794,10 @@ ALResult Tr2RenderContextAL::ResetResourceBindings() throw()
 	std::fill( std::begin( m_srv ), std::end( m_srv ), nullptr );
 	std::fill( std::begin( m_uav ), std::end( m_uav ), nullptr );
 	std::fill( std::begin( m_sampler ), std::end( m_sampler ), nullptr );
+
+	m_inTransitions = {};
+	m_outTransitions = {};
+	m_usedResources = {};
 
 	m_samplerCount = 0;
 	m_resourceCount = 0;

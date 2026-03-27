@@ -11,6 +11,7 @@ class Tr2ShaderProgramAL;
 class Tr2PrimaryRenderContextAL;
 class Tr2RtPipelineStateAL;
 struct Tr2ShaderSignatureAL;
+class Tr2Material;
 
 namespace TrinityALImpl
 {
@@ -123,6 +124,7 @@ private:
 
 	friend class TrinityALImpl::Tr2ResourceSetAL;
 	friend class TrinityALImpl::Tr2RtShaderTableAL;
+	friend class Tr2Material;
 };
 
 class Tr2ResourceSetAL

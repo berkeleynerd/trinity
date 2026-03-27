@@ -333,6 +333,27 @@ ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uin
 	return S_OK;
 }
 
+ALResult Tr2RenderContextAL::SetSrvHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetUavHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSamplerHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSampler( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2SamplerStateAL& sampler ) throw()
+{
+	return S_OK;
+}
+
 ALResult Tr2RenderContextAL::SetResourceSet( const Tr2ResourceSetAL& )
 {
 	return S_OK;
