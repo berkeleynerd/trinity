@@ -323,7 +323,6 @@ Tr2UpscalingAL::Result Tr2XessUpscalingContext::Dispatch( Tr2UpscalingAL::Dispat
 	auto& renderContext = m_params.renderContext;
 
 	// flush all barriers before changing the state of the textures
-	//renderContext.SetResourceSet( Tr2ResourceSetAL() );
 	renderContext.ResetResourceBindings();
 	renderContext.FlushBarriersDx12();
 

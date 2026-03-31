@@ -294,13 +294,7 @@ struct QuadRenderer
             0.0f ),
             *renderContext ) );
 
-        // This is what its doing under the hood for resource set description.... I hate this but its for testing for now
         m_texture = texture;
-        //Tr2ResourceSetDescriptionAL resourceSetDescription( m_shaderProgram );
-        //resourceSetDescription.SetSrv( Tr2RenderContextEnum::PIXEL_SHADER, 0, texture );
-        //resourceSetDescription.SetSampler( Tr2RenderContextEnum::PIXEL_SHADER, 0, sampl );
-
-        //CR_RETURN_HR( m_resourceSet.Create( resourceSetDescription, m_shaderProgram, *renderContext ) );
         return S_OK;
     }
 
@@ -315,8 +309,6 @@ struct QuadRenderer
 		CR_RETURN_HR( renderContext->SetShaderProgram( m_shaderProgram ) );
 		CR_RETURN_HR( renderContext->SetSrv( Tr2RenderContextEnum::PIXEL_SHADER, 0, m_texture ) );
 		CR_RETURN_HR( renderContext->SetSampler( Tr2RenderContextEnum::PIXEL_SHADER, 0, m_sampl ) );
-		//CR_RETURN_HR( renderContext->SetResourceSet( m_resourceSet ) );
-		//CR_RETURN_HR( renderContext->UseResourceBindings() );
         CR_RETURN_HR( renderContext->DrawPrimitive( 0, 2 ) );
         return S_OK;
     }
@@ -348,7 +340,6 @@ struct QuadRenderer
     }
 
     Tr2ShaderProgramAL m_shaderProgram;
-	Tr2ResourceSetAL m_resourceSet;
 	Tr2TextureAL m_texture;
 	Tr2SamplerStateAL m_sampl;
     Tr2BufferAL m_quadVb;
@@ -461,14 +452,6 @@ TEST_F( Raytracing, TraceRays )
     auto shaderType = Tr2RenderContextEnum::COMPUTE_SHADER;
     Tr2RegisterMapAL registerMap = Tr2RegisterMapAL( &shaderType, &signature, 1 );
 
-    // We need to insert a UAV barrier before using the acceleration structures in a raytracing
-    //Tr2ResourceSetDescriptionAL rsDesc( registerMap );
-    //rsDesc.SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() ); // accelerationStructure
-    //rsDesc.SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, resultTex ); // RTOutput
-
-    //Tr2ResourceSetAL rs;
-    //rs.Create( rsDesc, state, *renderContext );
-
     QuadRenderer quadRenderer;
     ASSERT_HRESULT_SUCCEEDED( quadRenderer.Create( resultTex, renderContext ) );
 
@@ -503,8 +486,6 @@ TEST_F( Raytracing, TraceRays )
         ASSERT_HRESULT_SUCCEEDED( renderContext->SetConstants( cb, Tr2RenderContextEnum::COMPUTE_SHADER, 0 ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() ) ); // accelerationStructure
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, resultTex ) ); // RTOutput
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->SetResourceSet( rs ) );
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->UseResourceBindings() );
             
         // mac specific
         renderContext->UseAccelerationStructure( tlas );
@@ -590,14 +571,6 @@ TEST_F( Raytracing, CanUpdateBlas )
     auto shaderType = Tr2RenderContextEnum::COMPUTE_SHADER;
     Tr2RegisterMapAL registerMap = Tr2RegisterMapAL( &shaderType, &signature, 1 );
 
-    // We need to insert a UAV barrier before using the acceleration structures in a raytracing
-    //Tr2ResourceSetDescriptionAL rsDesc( registerMap );
-    //rsDesc.SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() ); // accelerationStructure
-    //rsDesc.SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, resultTex ); // RTOutput
-
-    //Tr2ResourceSetAL rs;
-    //rs.Create( rsDesc, state, *renderContext );
-
     QuadRenderer quadRenderer;
     ASSERT_HRESULT_SUCCEEDED( quadRenderer.Create( resultTex, renderContext ) );
 
@@ -649,8 +622,6 @@ TEST_F( Raytracing, CanUpdateBlas )
         ASSERT_HRESULT_SUCCEEDED( renderContext->SetConstants( cb, Tr2RenderContextEnum::COMPUTE_SHADER, 0 ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() ) ); // accelerationStructure
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, resultTex ) ); // RTOutput
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->SetResourceSet( rs ) );
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->UseResourceBindings() );
             
         // mac specific
         renderContext->UseAccelerationStructure( tlas );
@@ -769,13 +740,6 @@ TEST_F( Raytracing, CanUseLocalConstants )
     auto shaderType = Tr2RenderContextEnum::COMPUTE_SHADER;
     Tr2RegisterMapAL registerMap = Tr2RegisterMapAL( &shaderType, &globalSignature, 1 );
 
-    //Tr2ResourceSetDescriptionAL rsDesc(registerMap);
-    //rsDesc.SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() );
-    //rsDesc.SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, result );
-
-    //Tr2ResourceSetAL rs;
-    //rs.Create( rsDesc, state, *renderContext );
-
     QuadRenderer quadRenderer;
     ASSERT_HRESULT_SUCCEEDED( quadRenderer.Create( result, renderContext ) );
 
@@ -813,8 +777,6 @@ TEST_F( Raytracing, CanUseLocalConstants )
         ASSERT_HRESULT_SUCCEEDED( renderContext->SetConstants( cb, Tr2RenderContextEnum::COMPUTE_SHADER, 0 ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetSrv( Tr2RenderContextEnum::COMPUTE_SHADER, 1, tlas.GetBuffer() ) );
 		ASSERT_HRESULT_SUCCEEDED( renderContext->SetUav( Tr2RenderContextEnum::COMPUTE_SHADER, 0, result ) );
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->SetResourceSet( rs ) );
-		//ASSERT_HRESULT_SUCCEEDED( renderContext->UseResourceBindings() );
         
         renderContext->UseAccelerationStructure( tlas );
         

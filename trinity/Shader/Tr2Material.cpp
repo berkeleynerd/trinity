@@ -225,14 +225,13 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 		if( mask & ( 1 << i ) )
 		{
 			auto& input = pp.m_stageInput[i];
-			//descChanged |= ApplyShaderInputs( techniqueIndex, passIndex, Tr2RenderContextEnum::ShaderType( i ), renderContext );
 			ApplyConstants( Tr2RenderContextEnum::ShaderType( i ), input, !pp.m_reroutedParameters.empty(), renderContext );
 			descChanged |= SetResources( Tr2RenderContextEnum::ShaderType( i ), input, renderContext );
 			mask &= ~( 1 << i );
 		}
 	}
 
-	if( descChanged /*|| !pp.m_resourceSet.IsValid()*/ )
+	if( descChanged )
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
 
@@ -331,10 +330,6 @@ void Tr2Material::ApplyMaterialDataForPass( uint32_t techniqueIndex, unsigned in
 			}
 		}
 	}
-
-
-	// TO DO JOHN. need to find a way of setting the SRVs dynamicly
-	//renderContext.SetResourceSet( pp.m_resourceSet );
 }
 
 void Tr2Material::ApplyMaterialDataForPassWithOverride( uint32_t techniqueIndex, unsigned int passIndex, uint32_t overrideProgram, Tr2RenderContext& renderContext ) const
@@ -365,27 +360,8 @@ void Tr2Material::ApplyMaterialDataForPassWithOverride( uint32_t techniqueIndex,
 
 	CCP_STATS_INC( effectResourceSetCreated );
 
-	//Tr2ResourceSetAL resourceSet;
-	//resourceSet.Create( resourceSetDesc, *sp, renderContext.GetPrimaryRenderContext() );
-	//renderContext.SetResourceSet( resourceSet );
-
 	pp.m_resourceSetDirty = true;
 }
-
-/*bool Tr2Material::ApplyShaderInputs( uint32_t techniqueIndex, unsigned int passIndex, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const
-{
-	auto& pp = *m_parametersForPasses[techniqueIndex].passes[passIndex];
-	return ApplyShaderInputs( pp, shaderType, renderContext );
-}
-
-bool Tr2Material::ApplyShaderInputs( Tr2EffectPassParameters& pp, Tr2RenderContextEnum::ShaderType shaderType, Tr2RenderContext& renderContext ) const
-{
-	auto& input = pp.m_stageInput[shaderType];
-
-	ApplyConstants( shaderType, input, !pp.m_reroutedParameters.empty(), renderContext );
-
-	return UpdateResourceSetDesc( shaderType, input, pp.m_resourceSetDesc );
-}*/
 
 void Tr2Material::ApplyConstants( Tr2RenderContextEnum::ShaderType shaderType, Tr2MaterialStageInput& input, bool hasReroutables, Tr2RenderContext& renderContext) const
 {
@@ -674,17 +650,7 @@ void Tr2Material::ApplyMaterialDataForRtState( uint32_t techniqueIndex, const Tr
 	ApplyConstants( Tr2RenderContextEnum::COMPUTE_SHADER, pp.m_globalInput, !pp.m_reroutedParameters.empty(), renderContext );
 
 	bool descChanged = pp.m_globalResourceSetDirty;
-	//descChanged |= UpdateResourceSetDesc( Tr2RenderContextEnum::COMPUTE_SHADER, pp.m_globalInput, pp.m_globalResourceSetDesc );
 	descChanged |= SetResources( Tr2RenderContextEnum::COMPUTE_SHADER, pp.m_globalInput, renderContext );
-
-	//if( descChanged || !pp.m_globalResourceSet.IsValid() )
-	//{
-		//USE_MAIN_THREAD_RENDER_CONTEXT();
-		//pp.m_globalResourceSet.Create( pp.m_globalResourceSetDesc, rtPipelineState, renderContext );
-		//pp.m_globalResourceSetDirty = false;
-	//}
-
-	//renderContext.SetResourceSet( pp.m_globalResourceSet );
 }
 
 void Tr2Material::ApplyMaterialDataForRtMaterial( uint32_t techniqueIndex, Tr2RtLocalMaterialDescriptionAL& localMaterial, Tr2RenderContext& renderContext ) const

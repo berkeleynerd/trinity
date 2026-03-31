@@ -98,8 +98,6 @@ public:
 	ALResult SetVertexLayout( const Tr2VertexLayoutAL& layout ) throw( );
 	ALResult SetShaderProgram( const Tr2ShaderProgramAL& shader ) throw( );
 
-	//ALResult SetResourceSet( const Tr2ResourceSetAL& resourceSet ) throw( );
-
 	ALResult SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2BufferAL& buffer ) throw();
 	ALResult SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, Tr2RenderContextEnum::ColorSpace colorSpace = Tr2RenderContextEnum::COLOR_SPACE_LINEAR ) throw();
 	ALResult SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2BufferAL& buffer ) throw();
