@@ -268,7 +268,7 @@ ALResult Tr2RenderContextAL::SetSrv( Tr2RenderContextEnum::ShaderType stage, uin
 	return S_OK;
 }
 
-ALResult Tr2RenderContextAL::SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, Tr2RenderContextEnum::ColorSpace colorSpace = Tr2RenderContextEnum::COLOR_SPACE_LINEAR ) throw()
+ALResult Tr2RenderContextAL::SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, Tr2RenderContextEnum::ColorSpace colorSpace ) throw()
 {
 	return S_OK;
 }
@@ -278,7 +278,7 @@ ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uin
 	return S_OK;
 }
 
-ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, uint32_t mip = 0 ) throw()
+ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, uint32_t mip ) throw()
 {
 	return S_OK;
 }
