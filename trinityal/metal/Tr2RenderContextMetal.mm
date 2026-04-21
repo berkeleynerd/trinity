@@ -263,6 +263,86 @@ ALResult Tr2RenderContextAL::ClearUav( const Tr2TextureAL& texture, uint32_t mip
 	return S_OK;
 }
 
+ALResult Tr2RenderContextAL::SetIndices( const Tr2BufferAL& buffer ) throw( )
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetIndices( const Tr2BufferAL& buffer, int stride ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::ClearUav( const Tr2BufferAL& buffer, const float values[4] ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::ClearUav( const Tr2BufferAL& buffer, const uint32_t values[4] ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::ClearUav( const Tr2TextureAL& texture, uint32_t mipLevel, const float values[4] ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::ClearUav( const Tr2TextureAL& texture, uint32_t mipLevel, const uint32_t values[4] ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2BufferAL& buffer ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSrv( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, Tr2RenderContextEnum::ColorSpace colorSpace = Tr2RenderContextEnum::COLOR_SPACE_LINEAR ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2BufferAL& buffer ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetUav( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2TextureAL& texture, uint32_t mip = 0 ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSrvHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetUavHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSamplerHeapView( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SetSampler( Tr2RenderContextEnum::ShaderType stage, uint32_t registerIndex, const Tr2SamplerStateAL& sampler ) throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::ResetResourceBindings() throw()
+{
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::UseResourceBindings() throw()
+{
+	return S_OK;
+}
+
 ALResult Tr2RenderContextAL::CopySubBuffer( Tr2BufferAL& dest, uint32_t destOffset, Tr2BufferAL& src, uint32_t srcOffset, uint32_t length )
 {
     if( !dest.IsValid() || !src.IsValid() )
