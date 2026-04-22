@@ -695,8 +695,8 @@ ALResult Tr2RenderContextAL::BeginScene() throw()
 
 		}
 	}
-	m_currentResourceSet = Tr2ResourceSetAL();
 
+	ResetResourceBindings();
 
 	return S_OK; 
 }
@@ -750,6 +750,7 @@ ALResult Tr2RenderContextAL::DrawIndexedPrimitive(
 	uint32_t primitiveCount, 
 	uint32_t baseVertexLocation ) throw()
 {
+	UseResourceBindings();
 	auto vc = ComputeVertexCount( primitiveCount );
 	
 	CCP_STATS_ADD( primitiveCount, primitiveCount );
@@ -773,6 +774,7 @@ ALResult Tr2RenderContextAL::DrawIndexedInstanced(
 	uint32_t primitiveCount, 
 	uint32_t numInstances ) throw()
 {
+	UseResourceBindings();
 	auto vc = ComputeVertexCount( primitiveCount );
 
 	CCP_STATS_ADD( primitiveCount, primitiveCount * numInstances );
@@ -797,6 +799,7 @@ ALResult Tr2RenderContextAL::DrawIndexedInstanced(
 	int32_t baseVertexLocation,
 	uint32_t startInstanceLocation ) throw()
 {
+	UseResourceBindings();
 	CCP_STATS_ADD( primitiveCount, indexCountPerInstance * instanceCount / 3 );
 	CCP_STATS_ADD( vertexCount, indexCountPerInstance * instanceCount );
 	CCP_STATS_INC( sceneDrawcallCount );
@@ -818,6 +821,7 @@ ALResult Tr2RenderContextAL::DrawInstanced(
 	uint32_t startVertexLocation,
 	uint32_t startInstanceLocation ) throw( )
 {
+	UseResourceBindings();
 	CCP_STATS_ADD( primitiveCount, vertexCountPerInstance * instanceCount / 3 );
 	CCP_STATS_ADD( vertexCount, vertexCountPerInstance * instanceCount );
 	CCP_STATS_INC( sceneDrawcallCount );
@@ -836,6 +840,7 @@ ALResult Tr2RenderContextAL::DrawInstanced(
 
 ALResult Tr2RenderContextAL::DrawIndexedInstancedIndirect( Tr2BufferAL& params, uint32_t offset ) throw()
 {
+	UseResourceBindings();
 	if( !params.IsValid() )
 	{
 		return E_FAIL;
@@ -853,6 +858,7 @@ ALResult Tr2RenderContextAL::DrawIndexedInstancedIndirect( Tr2BufferAL& params, 
 
 ALResult Tr2RenderContextAL::DrawInstancedIndirect( Tr2BufferAL& params, uint32_t offset ) throw()
 {
+	UseResourceBindings();
 	if( !params.IsValid() )
 	{
 		return E_FAIL;
@@ -870,6 +876,7 @@ ALResult Tr2RenderContextAL::DrawInstancedIndirect( Tr2BufferAL& params, uint32_
 
 ALResult Tr2RenderContextAL::DrawPrimitive( uint32_t startVertex, uint32_t primitiveCount ) throw()
 {
+	UseResourceBindings();
 	auto vc = ComputeVertexCount( primitiveCount );
 
 	CCP_STATS_ADD( primitiveCount, primitiveCount );
@@ -892,6 +899,7 @@ ALResult Tr2RenderContextAL::DrawPrimitiveUP(
 	const void* vertexStreamZeroData, 
 	uint32_t vertexStreamZeroStride ) throw()
 {
+	UseResourceBindings();
 	return m_drawUP.DrawPrimitiveUP( m_topology, primitiveCount, vertexStreamZeroData, vertexStreamZeroStride, *this, GetPrimaryRenderContext() );
 }
 
@@ -902,6 +910,7 @@ ALResult Tr2RenderContextAL::DrawIndexedPrimitiveUP(
 	const void* vertexStreamZeroData,
 	uint32_t vertexStreamZeroStride) throw()
 {
+	UseResourceBindings();
 	return m_drawUP.DrawIndexedPrimitiveUP( m_topology, numVertices, primitiveCount, indexData, vertexStreamZeroData, vertexStreamZeroStride, *this, GetPrimaryRenderContext() );
 }
 
@@ -912,6 +921,7 @@ ALResult Tr2RenderContextAL::DrawIndexedPrimitiveUP(
 	const void* vertexStreamZeroData,
 	uint32_t vertexStreamZeroStride) throw()
 {
+	UseResourceBindings();
 	return m_drawUP.DrawIndexedPrimitiveUP( m_topology, numVertices, primitiveCount, indexData, vertexStreamZeroData, vertexStreamZeroStride, *this, GetPrimaryRenderContext() );
 }
 
@@ -925,6 +935,7 @@ ALResult Tr2RenderContextAL::DrawIndexedPrimitiveUP(
 // --------------------------------------------------------------------------------------
 ALResult Tr2RenderContextAL::RunComputeShader( unsigned groupDimX, unsigned groupDimY, unsigned groupDimZ ) throw()
 {
+	UseResourceBindings();
 	if( !m_context )
 	{
 		return E_FAIL;
@@ -935,6 +946,7 @@ ALResult Tr2RenderContextAL::RunComputeShader( unsigned groupDimX, unsigned grou
 
 ALResult Tr2RenderContextAL::RunComputeShaderIndirect( Tr2BufferAL& indirectParams, unsigned offset ) throw( )
 {
+	UseResourceBindings();
 	if( !indirectParams.IsValid() )
 	{
 		return E_FAIL;
@@ -1097,7 +1109,8 @@ ALResult Tr2RenderContextAL::Clear(
 
 ALResult Tr2RenderContextAL::SetRtDsToDevice( uint32_t changedSlot ) throw()
 {
-	m_currentResourceSet = Tr2ResourceSetAL();
+	ResetResourceBindings();
+
 	std::fill( std::begin( m_samplerHashes ), std::end( m_samplerHashes ), 0 );
 	std::fill( std::begin( m_resourceHashes ), std::end( m_resourceHashes ), 0 );
 	decltype( &ID3D11DeviceContext::VSSetShaderResources ) setResources[] = {
@@ -2043,10 +2056,15 @@ ALResult Tr2RenderContextAL::UseResourceBindings() throw()
 
 ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2ShaderProgramAL& shaderProgram ) throw()
 {
-	Tr2PrimaryRenderContextAL& renderContext = GetPrimaryRenderContext();
-
 	auto& registerMap = shaderProgram.m_registerMap;
 
+	if( m_renderedUsingSRVs )
+	{
+		return S_OK;
+	}
+
+	// Load into the working buffers the various shader resources we require for the render.
+	// This takes the temporary buffers we have generated and sort them into the correct indexes based on the registerMap.
 	if( registerMap.srvCount != 0 )
 	{
 		for( uint32_t i = 0; i < m_pendingSRVs.size(); ++i )
@@ -2109,37 +2127,28 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 
 	// Tr2ResourceSetAL::Create
 
-	/*for( auto it = std::begin( m_stages ); it != std::end( m_stages ); ++it )
-	{
-		it->resourceOffset = MAX_RESOURCES;
-		it->samplerOffset = MAX_RESOURCES;
-	}*/
-
 	struct StageInput
 	{
-
 		CComPtr<ID3D11ShaderResourceView> resources[Tr2ResourceSetDescriptionAL::MAX_RESOURCES_IN_STAGE];
 		CComPtr<ID3D11SamplerState> samplers[Tr2ResourceSetDescriptionAL::MAX_RESOURCES_IN_STAGE];
 
-		uint32_t resourceCount;
-		uint32_t resourceOffset;
-		uint32_t samplerCount;
-		uint32_t samplerOffset;
-		uint32_t resourceHash;
-		uint32_t samplerHash;
+		uint32_t resourceCount = 0;
+		uint32_t resourceOffset = 0;
+		uint32_t samplerCount = 0;
+		uint32_t samplerOffset = 0;
+		uint32_t resourceHash = 0;
+		uint32_t samplerHash = 0;
 	};
 
 	StageInput stages[Tr2RenderContextEnum::SHADER_TYPE_COUNT];
 
-	CComPtr<ID3D11UnorderedAccessView> m_uavs[Tr2ResourceSetDescriptionAL::MAX_RESOURCES_IN_STAGE];
-	uint32_t m_uavOffset = Tr2RenderContextEnum::SHADER_TYPE_COUNT;
-	uint32_t m_uavCount = 0;
-	bool m_csUavs = false;
-	bool m_empty = false;
+	CComPtr<ID3D11UnorderedAccessView> uavs[Tr2ResourceSetDescriptionAL::MAX_RESOURCES_IN_STAGE];
+	uint32_t uavOffset = Tr2RenderContextEnum::SHADER_TYPE_COUNT;
+	uint32_t uavCount = 0;
+	bool csUavs = false;
+	bool empty = false;
 
 	bool hasPsUavs = false;
-
-	m_uavOffset = Tr2RenderContextEnum::SHADER_TYPE_COUNT;
 
 	for( uint32_t stageIndex = 0; stageIndex < SHADER_TYPE_COUNT; ++stageIndex )
 	{
@@ -2207,38 +2216,77 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 			switch( desc.type )
 			{
 			case Tr2RenderContextAL::Resource::BUFFER:
-				m_uavs[registerIndex] = desc.buffer.m_buffer->m_uav;
-				m_uavCount = registerIndex + 1;
-				m_uavOffset = std::min( m_uavOffset, registerIndex );
+				uavs[registerIndex] = desc.buffer.m_buffer->m_uav;
+				uavCount = registerIndex + 1;
+				uavOffset = std::min( uavOffset, registerIndex );
 				break;
 			case Tr2RenderContextAL::Resource::TEXTURE:
 				if( desc.mip < desc.texture.m_texture->m_uav.size() )
 				{
-					m_uavs[registerIndex] = desc.texture.m_texture->m_uav[desc.mip];
+					uavs[registerIndex] = desc.texture.m_texture->m_uav[desc.mip];
 				}
 				else
 				{
-					m_uavs[registerIndex] = nullptr;
+					uavs[registerIndex] = nullptr;
 				}
-				m_uavCount = registerIndex + 1;
-				m_uavOffset = std::min( m_uavOffset, registerIndex );
+				uavCount = registerIndex + 1;
+				uavOffset = std::min( uavOffset, registerIndex );
 				break;
 			default:
 				return E_INVALIDARG;
 			}
-			m_csUavs = stageIndex == COMPUTE_SHADER;
+			csUavs = stageIndex == COMPUTE_SHADER;
 		}
 	}
 
+	if( uavCount )
+	{
+		empty = false;
+		uavCount -= uavOffset;
+	}
+	else
+	{
+		empty = true;
+		uavOffset = 0;
+	}
 
-
-
-
-
+	for( auto it = std::begin( stages ); it != std::end( stages ); ++it )
+	{
+		if( it->resourceCount > it->resourceOffset )
+		{
+			it->resourceHash = 0;
+			for( uint32_t i = it->resourceOffset; i != it->resourceCount; ++i )
+			{
+				it->resourceHash ^= uint32_t( reinterpret_cast<uintptr_t>( it->resources[i].p ) & 0xffffffff ) << i;
+			}
+			it->resourceCount -= it->resourceOffset;
+			empty = false;
+		}
+		else
+		{
+			it->resourceCount = 0;
+			it->resourceHash = 0;
+		}
+		if( it->samplerCount > it->samplerOffset )
+		{
+			it->samplerHash = 0;
+			for( uint32_t i = it->samplerOffset; i != it->samplerCount; ++i )
+			{
+				it->samplerHash ^= uint32_t( reinterpret_cast<uintptr_t>( it->samplers[i].p ) & 0xffffffff ) << i;
+			}
+			it->samplerCount -= it->samplerOffset;
+			empty = false;
+		}
+		else
+		{
+			it->samplerCount = 0;
+			it->samplerHash = 0;
+		}
+	}
 	
 	// Tr2RenderContextAL::SetResourceSet
 
-	if( ( m_empty || !m_uavCount ) && m_assignedUavCount )
+	if( ( empty || !uavCount ) && m_assignedUavCount )
 	{
 		ID3D11UnorderedAccessView* nullUAVs[TrinityALImpl::Tr2ResourceSetAL::MAX_RESOURCES] = {};
 		if( m_assignedPsUavs )
@@ -2258,18 +2306,8 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 		}
 		m_assignedUavCount = 0;
 	}
-	if( m_uavCount )
-	{
-		m_empty = false;
-		m_uavCount -= m_uavOffset;
-	}
-	else
-	{
-		m_empty = true;
-		m_uavOffset = 0;
-	}
 
-	if( m_empty )
+	if( empty )
 	{
 		return S_OK;
 	}
@@ -2292,7 +2330,7 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 		&ID3D11DeviceContext::DSSetSamplers,
 	};
 
-	if( m_uavCount )
+	if( uavCount )
 	{
 		for( uint32_t i = 0; i < SHADER_TYPE_COUNT; ++i )
 		{
@@ -2307,7 +2345,7 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 			}
 		}
 
-		if( m_csUavs )
+		if( csUavs )
 		{
 			if( m_assignedUavCount && m_assignedPsUavs )
 			{
@@ -2325,21 +2363,21 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 			uint32_t begin, end;
 			if( m_assignedUavCount )
 			{
-				begin = std::min( m_uavOffset, m_assignedUavOffset );
-				end = std::max( m_uavOffset + m_uavCount, m_assignedUavOffset + m_assignedUavCount );
+				begin = std::min( uavOffset, m_assignedUavOffset );
+				end = std::max( uavOffset + uavCount, m_assignedUavOffset + m_assignedUavCount );
 			}
 			else
 			{
-				begin = m_uavOffset;
-				end = m_uavOffset + m_uavCount;
+				begin = uavOffset;
+				end = uavOffset + uavCount;
 			}
 			m_context->CSSetUnorderedAccessViews(
 				begin,
 				end - begin,
-				reinterpret_cast<ID3D11UnorderedAccessView**>( m_uavs + begin ),
+				reinterpret_cast<ID3D11UnorderedAccessView**>( uavs + begin ),
 				nullptr );
-			m_assignedUavCount = m_uavCount;
-			m_assignedUavOffset = m_uavOffset;
+			m_assignedUavCount = uavCount;
+			m_assignedUavOffset = uavOffset;
 			m_assignedPsUavs = false;
 		}
 		else
@@ -2353,13 +2391,13 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 			uint32_t begin, end;
 			if( m_assignedUavCount )
 			{
-				begin = std::min( m_uavOffset, m_assignedUavOffset );
-				end = std::max( m_uavOffset + m_uavCount, m_assignedUavOffset + m_assignedUavCount );
+				begin = std::min( uavOffset, m_assignedUavOffset );
+				end = std::max( uavOffset + uavCount, m_assignedUavOffset + m_assignedUavCount );
 			}
 			else
 			{
-				begin = m_uavOffset;
-				end = m_uavOffset + m_uavCount;
+				begin = uavOffset;
+				end = uavOffset + uavCount;
 			}
 
 			m_context->OMSetRenderTargetsAndUnorderedAccessViews(
@@ -2368,10 +2406,10 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 				nullptr,
 				begin,
 				end - begin,
-				reinterpret_cast<ID3D11UnorderedAccessView**>( m_uavs + begin ),
+				reinterpret_cast<ID3D11UnorderedAccessView**>( uavs + begin ),
 				nullptr );
-			m_assignedUavCount = m_uavCount;
-			m_assignedUavOffset = m_uavOffset;
+			m_assignedUavCount = uavCount;
+			m_assignedUavOffset = uavOffset;
 			m_assignedPsUavs = true;
 		}
 	}
@@ -2397,12 +2435,21 @@ ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2Shader
 		}
 	}
 
+	m_renderedUsingSRVs = true;
+
 	return S_OK;
 }
 
 
 ALResult Tr2RenderContextAL::ResetResourceBindings() throw()
 {
+	m_pendingSRVs.clear();
+	m_pendingUAVs.clear();
+	m_pendingSamplers.clear();
+
+	std::fill( std::begin( m_sortedSRVs ), std::end( m_sortedSRVs ), Resource{} );
+	std::fill( std::begin( m_sortedUAVs ), std::end( m_sortedUAVs ), Resource{} );
+	std::fill( std::begin( m_sortedSamplers ), std::end( m_sortedSamplers ), Sampler{} );
 
 	return S_OK;
 }

@@ -6,7 +6,7 @@
 #include "../Tr2RenderContextEnum.h"
 #include "../Tr2DrawUPHelper.h"
 #include "../include/Tr2ConstantBufferAL.h"
-#include "../include/Tr2ResourceSetAL.h"
+//#include "../include/Tr2ResourceSetAL.h"
 #include "../include/Tr2TextureAL.h"
 #include "../include/Tr2ShaderAL.h"
 #include "../include/Tr2ShaderProgramAL.h"
@@ -389,7 +389,7 @@ private:
 private:
 	uint32_t m_resourceHashes[Tr2RenderContextEnum::SHADER_TYPE_COUNT];
 	uint32_t m_samplerHashes[Tr2RenderContextEnum::SHADER_TYPE_COUNT];
-	Tr2ResourceSetAL m_currentResourceSet;
+	//Tr2ResourceSetAL m_currentResourceSet;
 
 	friend class Tr2PrimaryRenderContextAL;
 	typedef	TrackableStdStack<Tr2TextureAL>	TextureStack;

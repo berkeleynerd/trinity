@@ -886,6 +886,11 @@ ALResult Tr2RenderContextAL::UseResourceBindings() throw()
 ALResult Tr2RenderContextAL::UseResourceBindings( const TrinityALImpl::Tr2RootSignatureAL& rootSignature ) throw()
 {
 	Tr2PrimaryRenderContextAL& renderContext = GetPrimaryRenderContext();
+
+	if( m_renderedUsingSRVs )
+	{
+		return S_OK;
+	}
 	
 	auto& registerMap = rootSignature.m_registerMap;
 
