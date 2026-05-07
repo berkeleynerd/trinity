@@ -14,7 +14,8 @@ BLUE_DECLARE_VECTOR( EveBoosterSetItem );
 // SeeAlso:
 //   EveBoosterSet2
 // --------------------------------------------------------------------------------
-BLUE_CLASS( EveBoosterSetItem )
+BLUE_CLASS( EveBoosterSetItem ) :
+	public IRoot
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -32,4 +33,5 @@ public:
 TYPEDEF_BLUECLASS( EveBoosterSetItem );
 
 #endif // EveBoosterSetItem_H
+
 
