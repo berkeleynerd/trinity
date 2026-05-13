@@ -297,8 +297,6 @@ set(_SOURCES
     Eve/SpaceObject/Attachments/EveBoosterSet2.cpp
     Eve/SpaceObject/Attachments/EveBoosterSet2.h
     Eve/SpaceObject/Attachments/EveBoosterSet2_Blue.cpp
-    Eve/SpaceObject/Attachments/EveBoosterSetItem.h
-    Eve/SpaceObject/Attachments/EveBoosterSetItem_Blue.cpp
     Eve/SpaceObject/Attachments/EveImpactOverlay.cpp
     Eve/SpaceObject/Attachments/EveImpactOverlay.h
     Eve/SpaceObject/Attachments/EveImpactOverlay_Blue.cpp

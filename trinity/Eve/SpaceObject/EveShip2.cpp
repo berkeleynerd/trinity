@@ -237,7 +237,7 @@ void EveShip2::RebuildBoosterSet()
 	}
 
 	// Snapshot the currently persisted booster data before clearing
-	PEveBoosterSetItemVector snapshot = m_boosters->GetPersistedItems();
+	std::vector<EveBoosterItem> snapshot = m_boosters->SnapshotPersistedItems();
 
 	// Clear only the booster items while preserving effects, glows, trails, and visual settings
 	m_boosters->RebuildPreservingSettings();
@@ -263,9 +263,9 @@ void EveShip2::RebuildBoosterSet()
 
 			if( boosterIndex < snapshot.size() )
 			{
-				const auto& saved = snapshot[boosterIndex];
+				const EveBoosterItem& saved = snapshot[boosterIndex];
 				functionality = saved.functionality;
-				hasTrail = saved.hasTrail;
+				hasTrail = saved.hasTrail != 0;
 				atlasIndex0 = saved.atlasIndex0;
 				atlasIndex1 = saved.atlasIndex1;
 				lightScale = saved.lightScale;

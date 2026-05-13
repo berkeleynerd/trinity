@@ -1,6 +1,5 @@
 #include "StdAfx.h"
 #include "EveBoosterSet2.h"
-#include "EveBoosterSetItem.h"
 
 #include "Utilities/BoundingSphere.h"
 #include "Utilities/BoundingBox.h"
@@ -45,7 +44,38 @@ float g_lightNoise[g_lightNoiseSize];
 bool g_lightNoiseInitialized = false;
 
 
-EveBoosterSet2Renderable::EveBoosterSet2Renderable( IRoot* lockobj ) : 
+namespace
+{
+	BlueStructureDefinition s_boosterItemStructureDef[] =
+	{
+		{ "transformRow0", Be::FLOAT32_4,        offsetof( EveBoosterItem, transform ) +  0 },
+		{ "transformRow1", Be::FLOAT32_4,        offsetof( EveBoosterItem, transform ) + 16 },
+		{ "transformRow2", Be::FLOAT32_4,        offsetof( EveBoosterItem, transform ) + 32 },
+		{ "transformRow3", Be::FLOAT32_4,        offsetof( EveBoosterItem, transform ) + 48 },
+		{ "functionality", Be::FLOAT32_4,        offsetof( EveBoosterItem, functionality ) },
+		{ "atlasIndex0",   Be::UINT32_1,         offsetof( EveBoosterItem, atlasIndex0 )   },
+		{ "atlasIndex1",   Be::UINT32_1,         offsetof( EveBoosterItem, atlasIndex1 )   },
+		{ "hasTrail",      Be::INT32_1,          offsetof( EveBoosterItem, hasTrail )      },
+		{ "lightScale",    Be::FLOAT32_1,        offsetof( EveBoosterItem, lightScale )    },
+		{ 0 }
+	};
+
+	EveBoosterItem s_defaultBoosterItem;
+}
+
+
+EveBoosterItem::EveBoosterItem()
+	: transform( IdentityMatrix() ),
+	functionality( 0.f, 1.f, 1.f, 1.f ),
+	atlasIndex0( 0 ),
+	atlasIndex1( 0 ),
+	hasTrail( 1 ),
+	lightScale( 1.f )
+{
+}
+
+
+EveBoosterSet2Renderable::EveBoosterSet2Renderable( IRoot* lockobj ) :
 	m_isVisible( false ),
 	m_parentRotation( 0.f, 0.f, 0.f, 1.f ),
 	m_parentSpeed( 0.f ),
@@ -214,7 +244,7 @@ void EveBoosterSet2Renderable::GetBatches( ITriRenderBatchAccumulator* batches, 
 
 		batch.SetDrawIndexedInstanced(
 			3 * 2 * EVE_BOOSTER_PLANES_COUNT[shape],
-			uint32_t( m_boosterSet->m_singleBoosters.size() ),
+			uint32_t( m_boosterSet->m_boosters.Size() ),
 			indexBuffer.GetStartIndex() ,
 			vb.GetOffset() / vb.GetStride(),
 			m_boosterSet->m_instanceBuffer.GetOffset() / m_boosterSet->m_instanceBuffer.GetStride() );
@@ -689,6 +719,10 @@ EveBoosterSet2::EveBoosterSet2( IRoot* lockobj ) :
 	m_lightWarpColor( 0.f, 0.f, 0.f, 0.f ),
 	m_vertexBuffer( BlueSharedString( "BoosterBoxVB" ), GetBoxVB )
 {
+	m_boosters.SetStructureDefinition( s_boosterItemStructureDef );
+	m_boosters.SetDefaultValue( &s_defaultBoosterItem );
+	m_boosters.SetNotify( this );
+
 	BoundingSphereInitialize( m_boosterBoundingSphere );
 	
 	for( unsigned int i = 0; i < EVE_MAX_CONTROL_POINT_COUNT; ++i )
@@ -743,15 +777,9 @@ EveBoosterSet2::~EveBoosterSet2()
 // --------------------------------------------------------------------------------
 bool EveBoosterSet2::Initialize()
 {
-	if( !m_persistedItems.empty() )
+	if( m_boosters.Size() > 0 )
 	{
-		m_singleBoosters.clear();
-		for( unsigned int i = 0; i < m_persistedItems.size(); ++i )
-		{
-			const EveBoosterSetItem* item = m_persistedItems[i];
-			Add( &item->transform, &item->functionality, item->hasTrail, item->atlasIndex0, item->atlasIndex1, item->lightScale );
-		}
-		FinalizeRebuild();
+		RebuildRuntimeFromPersistedItems();
 	}
 	PrepareResources();
 	return true;
@@ -766,9 +794,9 @@ bool EveBoosterSet2::OnModified( Be::Var* value )
 			IsMatch( value, m_glowColor ) || IsMatch( value, m_warpGlowColor ) || IsMatch( value, m_haloColor ) || IsMatch( value, m_warpHaloColor ) )
 		{
 			m_glows->Clear();
-			for( auto it = m_singleBoosters.begin(); it != m_singleBoosters.end(); ++it )
+			for( size_t i = 0; i < m_boosters.Size(); ++i )
 			{
-				CreateFlares( *it );
+				CreateFlares( m_boosters[i] );
 			}
 			m_glows->Rebuild();
 		}
@@ -843,7 +871,8 @@ void EveBoosterSet2::UpdateTrails( float deltaT, Be::Time t )
 void EveBoosterSet2::Clear()
 {
 	// clear everything
-	m_singleBoosters.clear();
+	m_boosters.Clear();
+	m_runtimeLights.clear();
 	if( m_glows )
 	{
 		m_glows->Clear();
@@ -869,8 +898,8 @@ void EveBoosterSet2::Clear()
 void EveBoosterSet2::RebuildPreservingSettings()
 {
 	// Clear only the booster items, not the effects/glows/trails
-	m_singleBoosters.clear();
-	m_persistedItems.Clear();
+	m_boosters.Clear();
+	m_runtimeLights.clear();
 	if( m_glows )
 	{
 		m_glows->Clear();
@@ -903,34 +932,27 @@ void EveBoosterSet2::FinalizeRebuild()
 // --------------------------------------------------------------------------------
 void EveBoosterSet2::Add( const Matrix* localMatrix, const Vector4* functionality, bool hasTrail, uint32_t atlasIndex0, uint32_t atlasIndex1, float lightScale )
 {
-	// keep source data for persistence and rebuild
-	SingleBoosterData sbd;
-	sbd.transform = *localMatrix;
-	sbd.functionality = *functionality;
-	Vector3 lightOffset( 0.f, 0.f, -m_lightOffset );
-	sbd.lightPosition = TransformCoord( lightOffset, *localMatrix );
-	sbd.lightRadius = std::max( Length( localMatrix->GetX() ), Length( localMatrix->GetY() ) ) * lightScale;
-	sbd.lightPhase = float( g_lightNoiseSize ) * float( rand() ) / float( RAND_MAX );
-	sbd.atlasIndex0 = atlasIndex0;
-	sbd.atlasIndex1 = atlasIndex1;
-	m_singleBoosters.push_back( sbd );
+	// keep source data for persistence
+	EveBoosterItem item;
+	item.transform     = *localMatrix;
+	item.functionality = *functionality;
+	item.atlasIndex0   = atlasIndex0;
+	item.atlasIndex1   = atlasIndex1;
+	item.hasTrail      = hasTrail ? 1 : 0;
+	item.lightScale    = lightScale;
 
-	EveBoosterSetItemPtr item;
-	item.CreateInstance();
-	item->transform     = *localMatrix;
-	item->functionality = *functionality;
-	item->atlasIndex0   = atlasIndex0;
-	item->atlasIndex1   = atlasIndex1;
-	item->hasTrail      = hasTrail;
-	item->lightScale    = lightScale;
-	m_persistedItems.Append( item->GetRawRoot() );
+	RuntimeLightData rt;
+	ComputeRuntimeLightData( item, rt );
+
+	m_boosters.Append( item );
+	m_runtimeLights.push_back( rt );
 
 	Vector3 pos( localMatrix->_41, localMatrix->_42, localMatrix->_43 );
 	float scale = std::max( Length( localMatrix->GetX() ), Length( localMatrix->GetY() ) );
 
 	if( m_glows )
 	{
-		CreateFlares( sbd );
+		CreateFlares( item );
 	}
 
 	// also add it to the trails
@@ -958,9 +980,78 @@ void EveBoosterSet2::Add( const Matrix* localMatrix, const Vector4* functionalit
 	}
 }
 
-void EveBoosterSet2::CreateFlares( SingleBoosterData& boosterData )
+void EveBoosterSet2::ComputeRuntimeLightData( const EveBoosterItem& item, RuntimeLightData& out ) const
 {
-	auto localMatrix = boosterData.transform;
+	Vector3 lightOffset( 0.f, 0.f, -m_lightOffset );
+	out.position = TransformCoord( lightOffset, item.transform );
+	out.radius   = std::max( Length( item.transform.GetX() ), Length( item.transform.GetY() ) ) * item.lightScale;
+	out.phase    = float( g_lightNoiseSize ) * float( rand() ) / float( RAND_MAX );
+}
+
+void EveBoosterSet2::RebuildRuntimeFromPersistedItems()
+{
+	m_runtimeLights.clear();
+	m_runtimeLights.resize( m_boosters.Size() );
+	for( size_t i = 0; i < m_boosters.Size(); ++i )
+	{
+		const EveBoosterItem& item = m_boosters[i];
+		ComputeRuntimeLightData( item, m_runtimeLights[i] );
+
+		Vector3 pos( item.transform._41, item.transform._42, item.transform._43 );
+		float scale = std::max( Length( item.transform.GetX() ), Length( item.transform.GetY() ) );
+
+		if( m_glows )
+		{
+			CreateFlares( item );
+		}
+
+		if( m_trails && item.hasTrail )
+		{
+			Matrix offset = item.transform;
+			offset.GetTranslation() -= offset.GetZ() * 0.5f;
+			m_trails->Add( &offset, scale );
+		}
+
+		BoundingSphereUpdate( pos, m_boosterBoundingSphere );
+
+		if( scale > m_maxSize )
+		{
+			m_maxSize = scale;
+		}
+	}
+
+	FinalizeRebuild();
+}
+
+std::vector<EveBoosterItem> EveBoosterSet2::SnapshotPersistedItems() const
+{
+	std::vector<EveBoosterItem> out;
+	out.reserve( m_boosters.Size() );
+	for( size_t i = 0; i < m_boosters.Size(); ++i )
+	{
+		out.push_back( m_boosters[i] );
+	}
+	return out;
+}
+
+void EveBoosterSet2::OnStructureListModified( Event /*event*/, const void* /*item*/, size_t /*index*/, IBlueStructureList* /*list*/ )
+{
+	// External edit to m_boosters (e.g. Jessica). Mirror runtime light data so
+	// rendering/lighting stay in sync.
+	const size_t count = m_boosters.Size();
+	if( m_runtimeLights.size() != count )
+	{
+		m_runtimeLights.resize( count );
+	}
+	for( size_t i = 0; i < count; ++i )
+	{
+		ComputeRuntimeLightData( m_boosters[i], m_runtimeLights[i] );
+	}
+}
+
+void EveBoosterSet2::CreateFlares( const EveBoosterItem& item )
+{
+	const Matrix& localMatrix = item.transform;
 	// grab pos/dir/scale from the local transform matrix
 	Vector3 pos( localMatrix._41, localMatrix._42, localMatrix._43 );
 	Vector3 dir( localMatrix._31, localMatrix._32, localMatrix._33 );
@@ -1131,23 +1222,24 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 	g_sharedBuffer.Free( m_instanceBuffer );
 
 	// something there?
-	if( m_singleBoosters.empty() )
+	if( m_boosters.Size() == 0 )
 	{
 		return;
 	}
 
 	// how many indiviual boosters are in this set?
-	unsigned int boosterCount = (unsigned int)m_singleBoosters.size();
+	unsigned int boosterCount = (unsigned int)m_boosters.Size();
 
 	// create and fill with star-shape's position and some random-value
 	std::vector<InstanceVertex> vertices( boosterCount );
 	for( unsigned int i = 0; i < boosterCount ; ++i )
 	{
-		vertices[i].transform = m_singleBoosters[i].transform;
+		const EveBoosterItem& item = m_boosters[i];
+		vertices[i].transform = item.transform;
 		vertices[i].wavePhase = (float)rand() / (float)RAND_MAX;
-		vertices[i].functionality = m_singleBoosters[i].functionality;
-		vertices[i].atlasIndex0 = float( m_singleBoosters[i].atlasIndex0 );
-		vertices[i].atlasIndex1 = float( m_singleBoosters[i].atlasIndex1 );
+		vertices[i].functionality = item.functionality;
+		vertices[i].atlasIndex0 = float( item.atlasIndex0 );
+		vertices[i].atlasIndex1 = float( item.atlasIndex1 );
 	}
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	CR_RETURN( g_sharedBuffer.Allocate( sizeof( InstanceVertex ),
@@ -1256,10 +1348,10 @@ void EveBoosterSet2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 {
 	for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
 	{
-		for( uint32_t j = 0; j < m_singleBoosters.size(); ++j )
+		for( uint32_t j = 0; j < m_boosters.Size(); ++j )
 		{
-			Matrix transform = m_singleBoosters[j].transform * ( *it )->m_parentTransform;
-			renderer.DrawCylinder( 
+			Matrix transform = m_boosters[j].transform * ( *it )->m_parentTransform;
+			renderer.DrawCylinder(
 				Tr2DebugObjectReference( this, j ), 
 				transform, 
 				Vector3( 0, 0, 0 ), 
@@ -1368,16 +1460,16 @@ void EveBoosterSet2::GetLights( Tr2LightManager& lightManager ) const
 		radiusFactor *= (*dit)->m_overallIntensity;
 		Color color = m_lightColor * ( 1.f - warpIntensity ) + m_lightWarpColor * warpIntensity;
 		XMMATRIX transform = (*dit)->m_parentTransform;
-		for( auto it = std::begin( m_singleBoosters ); it != std::end( m_singleBoosters ); ++it )
+		for( const RuntimeLightData& light : m_runtimeLights )
 		{
-			float phase = ( it->lightPhase + Tr2Renderer::GetAnimationTime() ) * m_lightFlickerFrequency;
+			float phase = ( light.phase + Tr2Renderer::GetAnimationTime() ) * m_lightFlickerFrequency;
 			float p0 = g_lightNoise[int( phase ) % g_lightNoiseSize];
 			float p1 = g_lightNoise[( int( phase ) + 1 ) % g_lightNoiseSize];
 			float t = phase - std::floor( phase );
 			float flicker = 1 + m_lightFlickerAmplitude * 2.0f * ( p0 * ( 1.0f - t ) + p1 * t ) - m_lightFlickerAmplitude;
 			lightManager.AddPointLight( 
-				Vector3( XMVector3TransformCoord( it->lightPosition, transform ) ), 
-				it->lightRadius * radiusFactor,
+				Vector3( XMVector3TransformCoord( light.position, transform ) ),
+				light.radius * radiusFactor,
 				color * flicker );
 
 		}

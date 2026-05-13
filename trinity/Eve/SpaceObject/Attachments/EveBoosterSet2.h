@@ -13,7 +13,6 @@
 #include "Eve/EveUpdateContext.h"
 #include "Eve/EveEntity.h"
 #include "Lights/ITr2LightOwner.h"
-#include "EveBoosterSetItem.h"
 
 // forwards
 class ITriRenderBatchAccumulator;
@@ -29,6 +28,27 @@ BLUE_DECLARE( TriColor );
 BLUE_DECLARE_INTERFACE( ITriVectorFunction );
 BLUE_DECLARE_INTERFACE( ITriQuaternionFunction );
 BLUE_DECLARE( Tr2DebugRenderer );
+
+// --------------------------------------------------------------------------------
+// Description:
+//   Persisted per-booster source data. POD record exposed to Blue via a
+//   BLUE_DECLARE_STRUCTURE_LIST. Runtime-derived fields (light position,
+//   radius, phase) are NOT stored here — they live in EveBoosterSet2's
+//   m_runtimeLights vector, parallel to the persisted m_boosters list.
+// --------------------------------------------------------------------------------
+struct EveBoosterItem
+{
+	EveBoosterItem();
+
+	Matrix      transform;
+	Vector4     functionality;
+	uint32_t    atlasIndex0;
+	uint32_t    atlasIndex1;
+	int32_t     hasTrail;
+	float       lightScale;
+};
+
+BLUE_DECLARE_STRUCTURE_LIST( EveBoosterItem );
 
 // constants
 // maximum number of spline control points per trail
@@ -238,21 +258,13 @@ public:
 	void RebuildPreservingSettings();
 	void FinalizeRebuild();
 
-	// Runtime per-booster data used for rendering, lighting, and debug.
-	// transform, functionality, atlasIndex0, and atlasIndex1 mirror the
-	// corresponding fields in EveBoosterSetItem (m_persistedItems), which
-	// is the Blue-serialized source of truth for save/load cycles.
-	// lightPosition, lightRadius, and lightPhase are derived in Add() and
-	// are never persisted.
-	struct SingleBoosterData
+	// Per-booster runtime light data, computed from EveBoosterItem entries by Add().
+	// Parallel to m_boosters: same index, same count. Never persisted.
+	struct RuntimeLightData
 	{
-		Matrix      transform;
-		Vector4     functionality;
-		uint32_t    atlasIndex0;
-		uint32_t    atlasIndex1;
-		Vector3     lightPosition;
-		float       lightRadius;
-		float       lightPhase;
+		Vector3 position;
+		float   radius;
+		float   phase;
 	};
 
 	void Add( const Matrix* localMatrix, const Vector4* functionality, bool hasTrail, uint32_t atlasIndex0, uint32_t atlasIndex1, float lightScale = 1 );
@@ -289,16 +301,30 @@ public:
 	// ITr2LightOwner
 	void GetLights( Tr2LightManager& lightManager ) const override;
 
-	const PEveBoosterSetItemVector& GetPersistedItems() const { return m_persistedItems; }
+	//////////////////////////////////////////////////////////////////////////////////////
+	// IBlueStructureListNotify
+	void OnStructureListModified( Event event, const void* item, size_t index, IBlueStructureList* list ) override;
+
+	// Returns a defensive copy of the persisted booster items. Used by code that
+	// needs to snapshot data before clearing/rebuilding the structure list.
+	std::vector<EveBoosterItem> SnapshotPersistedItems() const;
 
 private:
-	std::vector<SingleBoosterData> m_singleBoosters;
-	PEveBoosterSetItemVector m_persistedItems;
+	PEveBoosterItemStructureList m_boosters;
+	std::vector<RuntimeLightData> m_runtimeLights;
 	// re-alloc and init the instance vertex buffers
 	void RebuildInstanceData( Tr2RenderContext& renderContext );
 
+	// derive runtime light data for one booster from its persisted entry
+	void ComputeRuntimeLightData( const EveBoosterItem& item, RuntimeLightData& out ) const;
+
+	// rebuild m_runtimeLights (and resources that depend on items) from the
+	// currently persisted m_boosters entries. Used on .red load and on
+	// structure-list edits.
+	void RebuildRuntimeFromPersistedItems();
+
 	// function to create the flares from boosterdata
-	void CreateFlares( SingleBoosterData& boosterData );
+	void CreateFlares( const EveBoosterItem& item );
 
 	// toggle display
 	bool m_display;
@@ -366,4 +392,6 @@ private:
 TYPEDEF_BLUECLASS( EveBoosterSet2 );
 
 #endif // EveBoosterSet2_H
+
+
 

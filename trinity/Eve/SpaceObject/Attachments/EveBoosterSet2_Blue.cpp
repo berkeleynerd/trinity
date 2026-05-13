@@ -166,7 +166,7 @@ const Be::ClassInfo* EveBoosterSet2::ExposeToBlue()
 		MAP_ATTRIBUTE( "effectFar", m_effectFar, "Effect to use to render the boosters at a distance", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "glows", m_glows, "Sprite set to use to render the glows on the boosters", Be::READWRITE | Be::PERSIST )
 		MAP_ATTRIBUTE( "trails", m_trails, "Trails set used to render the trails of this booster", Be::READWRITE | Be::PERSIST )
-		MAP_ATTRIBUTE( "singleBoosters", m_singleBoosters, "Per-booster source data (transform, atlas indices, etc.)", Be::READWRITE | Be::PERSIST )
+		MAP_ATTRIBUTE( "boosters", m_boosters, "Per-booster source data (transform, atlas indices, etc.)", Be::READ | Be::PERSIST )
 
 
 	EXPOSURE_END()
