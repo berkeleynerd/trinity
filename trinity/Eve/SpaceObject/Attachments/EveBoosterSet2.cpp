@@ -244,7 +244,7 @@ void EveBoosterSet2Renderable::GetBatches( ITriRenderBatchAccumulator* batches, 
 
 		batch.SetDrawIndexedInstanced(
 			3 * 2 * EVE_BOOSTER_PLANES_COUNT[shape],
-			uint32_t( m_boosterSet->m_boosters.Size() ),
+			uint32_t( m_boosterSet->m_boosters.GetSize() ),
 			indexBuffer.GetStartIndex() ,
 			vb.GetOffset() / vb.GetStride(),
 			m_boosterSet->m_instanceBuffer.GetOffset() / m_boosterSet->m_instanceBuffer.GetStride() );
@@ -689,6 +689,7 @@ namespace
 // --------------------------------------------------------------------------------
 EveBoosterSet2::EveBoosterSet2( IRoot* lockobj ) :
 	PARENTLOCK( m_boosterRenderables ),
+	PARENTLOCK( m_boosters ),
 	m_glowColor( 0.0f, 0.0f, 0.0f, 0.0f ),
 	m_haloColor( 0.0f, 0.0f, 0.0f, 0.0f ),
 	m_warpGlowColor( 0.0f, 0.0f, 0.0f, 0.0f ),
@@ -777,7 +778,7 @@ EveBoosterSet2::~EveBoosterSet2()
 // --------------------------------------------------------------------------------
 bool EveBoosterSet2::Initialize()
 {
-	if( m_boosters.Size() > 0 )
+	if( m_boosters.GetSize() > 0 )
 	{
 		RebuildRuntimeFromPersistedItems();
 	}
@@ -794,7 +795,7 @@ bool EveBoosterSet2::OnModified( Be::Var* value )
 			IsMatch( value, m_glowColor ) || IsMatch( value, m_warpGlowColor ) || IsMatch( value, m_haloColor ) || IsMatch( value, m_warpHaloColor ) )
 		{
 			m_glows->Clear();
-			for( size_t i = 0; i < m_boosters.Size(); ++i )
+			for( size_t i = 0; i < m_boosters.GetSize(); ++i )
 			{
 				CreateFlares( m_boosters[i] );
 			}
@@ -944,7 +945,7 @@ void EveBoosterSet2::Add( const Matrix* localMatrix, const Vector4* functionalit
 	RuntimeLightData rt;
 	ComputeRuntimeLightData( item, rt );
 
-	m_boosters.Append( item );
+	m_boosters.Append( &item );
 	m_runtimeLights.push_back( rt );
 
 	Vector3 pos( localMatrix->_41, localMatrix->_42, localMatrix->_43 );
@@ -991,8 +992,8 @@ void EveBoosterSet2::ComputeRuntimeLightData( const EveBoosterItem& item, Runtim
 void EveBoosterSet2::RebuildRuntimeFromPersistedItems()
 {
 	m_runtimeLights.clear();
-	m_runtimeLights.resize( m_boosters.Size() );
-	for( size_t i = 0; i < m_boosters.Size(); ++i )
+	m_runtimeLights.resize( m_boosters.GetSize() );
+	for( size_t i = 0; i < m_boosters.GetSize(); ++i )
 	{
 		const EveBoosterItem& item = m_boosters[i];
 		ComputeRuntimeLightData( item, m_runtimeLights[i] );
@@ -1023,11 +1024,11 @@ void EveBoosterSet2::RebuildRuntimeFromPersistedItems()
 	FinalizeRebuild();
 }
 
-std::vector<EveBoosterItem> EveBoosterSet2::SnapshotPersistedItems() const
+std::vector<EveBoosterItem> EveBoosterSet2::SnapshotPersistedItems()
 {
 	std::vector<EveBoosterItem> out;
-	out.reserve( m_boosters.Size() );
-	for( size_t i = 0; i < m_boosters.Size(); ++i )
+	out.reserve( m_boosters.GetSize() );
+	for( size_t i = 0; i < m_boosters.GetSize(); ++i )
 	{
 		out.push_back( m_boosters[i] );
 	}
@@ -1038,7 +1039,7 @@ void EveBoosterSet2::OnStructureListModified( Event /*event*/, const void* /*ite
 {
 	// External edit to m_boosters (e.g. Jessica). Mirror runtime light data so
 	// rendering/lighting stay in sync.
-	const size_t count = m_boosters.Size();
+	const size_t count = m_boosters.GetSize();
 	if( m_runtimeLights.size() != count )
 	{
 		m_runtimeLights.resize( count );
@@ -1222,13 +1223,13 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 	g_sharedBuffer.Free( m_instanceBuffer );
 
 	// something there?
-	if( m_boosters.Size() == 0 )
+	if( m_boosters.GetSize() == 0 )
 	{
 		return;
 	}
 
 	// how many indiviual boosters are in this set?
-	unsigned int boosterCount = (unsigned int)m_boosters.Size();
+	unsigned int boosterCount = (unsigned int)m_boosters.GetSize();
 
 	// create and fill with star-shape's position and some random-value
 	std::vector<InstanceVertex> vertices( boosterCount );
@@ -1348,7 +1349,7 @@ void EveBoosterSet2::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 {
 	for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
 	{
-		for( uint32_t j = 0; j < m_boosters.Size(); ++j )
+		for( uint32_t j = 0; j < m_boosters.GetSize(); ++j )
 		{
 			Matrix transform = m_boosters[j].transform * ( *it )->m_parentTransform;
 			renderer.DrawCylinder(

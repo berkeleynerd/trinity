@@ -192,6 +192,7 @@ BLUE_CLASS( EveBoosterSet2 ):
 	public INotify,
 	public Tr2DeviceResource,
 	public ITr2LightOwner,
+	public IBlueStructureListNotify,
 	public EveEntity
 {
 public:
@@ -307,7 +308,7 @@ public:
 
 	// Returns a defensive copy of the persisted booster items. Used by code that
 	// needs to snapshot data before clearing/rebuilding the structure list.
-	std::vector<EveBoosterItem> SnapshotPersistedItems() const;
+	std::vector<EveBoosterItem> SnapshotPersistedItems();
 
 private:
 	PEveBoosterItemStructureList m_boosters;
