@@ -1869,7 +1869,9 @@ function(set_shared_trinity_properties target package_name)
 			GPUOpen::VulkanMemoryAllocator
             CarbonMesh
     )
-
+    set_target_properties(${target} PROPERTIES
+        COMPILE_WARNING_AS_ERROR ON
+    )
     target_sources(${target} PRIVATE ${_SOURCES})
     if(WITH_GRANNY)
         target_link_libraries(${target} PRIVATE RadGameTools::Granny)
