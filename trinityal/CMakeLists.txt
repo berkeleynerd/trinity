@@ -342,6 +342,9 @@ function(set_shared_trinityal_properties targetSuffix)
         PRIVATE
             TRINITY_AL_WITH_BLUE_EXPOSURE=0
     )
+    set_target_properties(${target} PROPERTIES
+        COMPILE_WARNING_AS_ERROR ON
+    )
 
     target_include_directories(${target}
         PUBLIC

@@ -199,6 +199,9 @@ function(configure_shader_compiler target)
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${GENERATED_SOURCES_DIR}
     )
+    set_target_properties(${target} PROPERTIES
+        COMPILE_WARNING_AS_ERROR ON
+    )
 
 
     if (WIN32)
