@@ -37,11 +37,13 @@ set(_ENGINE_SOURCES_UNDER_TEST
     ../Eve/EveEntity.cpp
     ../Eve/EveComponentRegistry_Blue.cpp
     ../Eve/EveEntity_Blue.cpp
+    ../ContinueOnMainThread.cpp
 )
 
 set(_SOURCES
     TrinityEngineTest.cpp
     EveComponentRegistryTest.cpp
+    ContinueOnMainThreadTest.cpp
     ${_ENGINE_SOURCES_UNDER_TEST}
 )
 
