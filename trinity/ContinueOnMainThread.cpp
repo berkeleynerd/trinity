@@ -2,6 +2,7 @@
 
 #include "StdAfx.h"
 #include "ContinueOnMainThread.h"
+#include <ScopedBlockTrap.h>
 
 namespace
 {
@@ -39,9 +40,12 @@ void ExecuteMainThreadActions()
 			std::lock_guard<std::mutex> lock( mainThreadActionsMutex );
 			actionsToProcess.swap( mainThreadActions );
 		}
-		for( auto& action : actionsToProcess )
 		{
-			action();
+			ScopedBlockTrap blockTrap;
+			for( auto& action : actionsToProcess )
+			{
+				action();
+			}
 		}
 		actionsToProcess.clear();
 		invocations--;
