@@ -48,7 +48,18 @@ else()
 
 endif()
 
-project(carbon-trinity VERSION 1.0.0)
+if(APPLE AND BUILD_METAL)
+    project(carbon-trinity VERSION 1.0.0 LANGUAGES C CXX OBJCXX)
+else()
+    project(carbon-trinity VERSION 1.0.0)
+endif()
+
+if(APPLE AND BUILD_METAL)
+    set(BUILD_HELLO_TRIANGLE_DEFAULT ON)
+else()
+    set(BUILD_HELLO_TRIANGLE_DEFAULT OFF)
+endif()
+option(BUILD_HELLO_TRIANGLE "Build the macOS TrinityAL hello triangle sample." ${BUILD_HELLO_TRIANGLE_DEFAULT})
 
 if (BUILD_FOR_PYTHON_2)
     if(NOT DEFINED ENV{CCP_EVE_PERFORCE_BRANCH_PATH})
@@ -93,4 +104,7 @@ if (BUILD_SHADER_COMPILER OR BUILD_FOR_PYTHON_2)
 endif ()
 
 add_subdirectory(trinityal)
+if(BUILD_HELLO_TRIANGLE)
+    add_subdirectory(samples/hello_triangle)
+endif()
 add_subdirectory(trinity)
