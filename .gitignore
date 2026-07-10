@@ -22,6 +22,8 @@ carbon/autobuild/**
 
 # Compiled Dynamic libraries
 binaryCache/
+buildtrees/
+regcache/
 *.so
 *.dylib
 *.dll

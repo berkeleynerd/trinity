@@ -42,7 +42,7 @@ struct GradientTextureConstructor : public IBlueDynamicResourceConstructor
 		return tex.Detach();
 	}
 };
-GradientTextureConstructor s_gradientTextureConstructor;
+[[maybe_unused]] GradientTextureConstructor* s_gradientTextureConstructor = new GradientTextureConstructor();
 
 
 bool IsGradientTexturePath( const std::string_view& path )

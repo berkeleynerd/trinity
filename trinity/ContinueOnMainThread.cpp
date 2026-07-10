@@ -41,7 +41,15 @@ void ExecuteMainThreadActions()
 			actionsToProcess.swap( mainThreadActions );
 		}
 		{
+		#if BLUE_WITH_PYTHON
+			std::unique_ptr<ScopedBlockTrap> blockTrap;
+			if( PyOS )
+			{
+				blockTrap = std::make_unique<ScopedBlockTrap>();
+			}
+		#else
 			ScopedBlockTrap blockTrap;
+		#endif
 			for( auto& action : actionsToProcess )
 			{
 				action();

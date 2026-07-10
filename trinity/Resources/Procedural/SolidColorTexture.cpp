@@ -29,7 +29,7 @@ struct SolidColorTextureConstructor : public IBlueDynamicResourceConstructor
 	}
 };
 
-SolidColorTextureConstructor s_solidColorTextureConstructor;
+[[maybe_unused]] SolidColorTextureConstructor* s_solidColorTextureConstructor = new SolidColorTextureConstructor();
 
 std::optional<Color> ParseColor( const std::string_view& query )
 {

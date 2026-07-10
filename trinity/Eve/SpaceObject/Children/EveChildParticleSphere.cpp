@@ -360,7 +360,7 @@ void EveChildParticleSphere::ApplyConstraint( const Vector3& previousReferencePo
 void EveChildParticleSphere::FillParticleData( float** particle, const Vector3& previousReferencePosition, const Vector3& velocityDirection )
 {
 	auto randf = []() {
-		return float( rand() ) / RAND_MAX;
+		return float( rand() ) / float( RAND_MAX );
 	};
 
 	if( m_positionElement.m_bufferType != Tr2ParticleElementData::COUNT )
@@ -422,7 +422,7 @@ void EveChildParticleSphere::AddParticles( const Vector3& previousReferencePosit
 	}
 
 	auto randf = []() {
-		return float( rand() ) / RAND_MAX;
+		return float( rand() ) / float( RAND_MAX );
 	};
 
 	float* particle[Tr2ParticleElementData::COUNT];

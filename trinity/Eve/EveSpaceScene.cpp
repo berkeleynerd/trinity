@@ -557,7 +557,15 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 	}
 	{
 		CCP_STATS_ZONE( "UpdateAsyncronous" );
+	#if BLUE_WITH_PYTHON
+		std::unique_ptr<ScopedBlockTrap> blockTrap;
+		if( PyOS )
+		{
+			blockTrap = std::make_unique<ScopedBlockTrap>();
+		}
+	#else
 		ScopedBlockTrap blockTrap;
+	#endif
 
 		Tr2ParallelTaskGroup taskGroup = {};
 		m_updateContext.SetTaskGroup( &taskGroup );

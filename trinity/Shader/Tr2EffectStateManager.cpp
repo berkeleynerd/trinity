@@ -985,13 +985,19 @@ void Tr2EffectStateManager::ReleaseDeviceResources( TriStorage s )
 
 	if( ( s & TRISTORAGE_ALL ) == TRISTORAGE_ALL )
 	{
-		if( renderContext.IsValid() )
+		if( renderContext.IsValid() && m_renderContext.IsValid() )
 		{
 			for( uint32_t i = 0; i < VERTEX_STREAM_MAX_COUNT; ++i )
 			{
-				m_renderContext.SetStreamSource( i, Tr2BufferAL(), 0, 0 );
+			#if TRINITY_PLATFORM == TRINITY_METAL
+				if( i == 3 )
+				{
+					continue; // Reserved by Metal for synthesized vertex attributes.
+				}
+			#endif
+				CR( m_renderContext.SetStreamSource( i, Tr2BufferAL(), 0, 0 ) );
 			}
-			m_renderContext.SetIndices( Tr2BufferAL() );
+			CR( m_renderContext.SetIndices( Tr2BufferAL() ) );
 		}
 		m_currentValues.Reset();
 
