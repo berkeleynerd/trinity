@@ -17,10 +17,10 @@
 #include <string>
 
 extern "C" bool TrinityStandaloneProbeStartup( int argc, const char* const* argv, const char* executableDirectory );
-extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight );
+extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight, int shaderTier );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
-extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource );
+extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime );
 
 namespace
@@ -82,6 +82,20 @@ enum class LightingView
 	Combined,
 	Direct,
 	Sh,
+	Local,
+};
+
+enum class LocalLights
+{
+	Off,
+	Authored,
+	Validation,
+};
+
+enum class ShaderTier
+{
+	Medium,
+	High,
 };
 
 enum class ShSource
@@ -104,11 +118,14 @@ struct Options
 	SceneFixture sceneFixture = SceneFixture::NewEden;
 	LightingView lightingView = LightingView::Combined;
 	ShSource shSource = ShSource::NewEdenPlanet;
+	LocalLights localLights = LocalLights::Off;
+	ShaderTier shaderTier = ShaderTier::High;
 	int maxFrames = -1;
 	uint32_t windowWidth = kDefaultWindowWidth;
 	uint32_t windowHeight = kDefaultWindowHeight;
 	bool windowed = false;
 	bool materialModeExplicit = false;
+	bool localLightsExplicit = false;
 };
 
 std::string ToLower( std::string value );
@@ -180,6 +197,8 @@ std::string LightingViewName( LightingView view )
 		return "direct";
 	case LightingView::Sh:
 		return "sh";
+	case LightingView::Local:
+		return "local";
 	}
 	return "unknown";
 }
@@ -187,7 +206,7 @@ std::string LightingViewName( LightingView view )
 bool ParseLightingView( const std::string& value, LightingView& view )
 {
 	const std::string normalized = ToLower( value );
-	const LightingView values[] = { LightingView::Combined, LightingView::Direct, LightingView::Sh };
+	const LightingView values[] = { LightingView::Combined, LightingView::Direct, LightingView::Sh, LightingView::Local };
 	for( LightingView candidate : values )
 	{
 		if( normalized == LightingViewName( candidate ) )
@@ -195,6 +214,56 @@ bool ParseLightingView( const std::string& value, LightingView& view )
 			view = candidate;
 			return true;
 		}
+	}
+	return false;
+}
+
+std::string LocalLightsName( LocalLights mode )
+{
+	switch( mode )
+	{
+	case LocalLights::Off:
+		return "off";
+	case LocalLights::Authored:
+		return "authored";
+	case LocalLights::Validation:
+		return "validation";
+	}
+	return "unknown";
+}
+
+bool ParseLocalLights( const std::string& value, LocalLights& mode )
+{
+	const std::string normalized = ToLower( value );
+	const LocalLights values[] = { LocalLights::Off, LocalLights::Authored, LocalLights::Validation };
+	for( LocalLights candidate : values )
+	{
+		if( normalized == LocalLightsName( candidate ) )
+		{
+			mode = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string ShaderTierName( ShaderTier tier )
+{
+	return tier == ShaderTier::High ? "high" : "medium";
+}
+
+bool ParseShaderTier( const std::string& value, ShaderTier& tier )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "medium" || normalized == "hi" || normalized == "sm_3_0_hi" )
+	{
+		tier = ShaderTier::Medium;
+		return true;
+	}
+	if( normalized == "high" || normalized == "depth" || normalized == "sm_3_0_depth" )
+	{
+		tier = ShaderTier::High;
+		return true;
 	}
 	return false;
 }
@@ -474,7 +543,9 @@ void PrintUsage( const char* executable )
 		<< "       [--material-mode probe|eve-v5]\n"
 		<< "       [--area-view all|hull|booster|distortion]\n"
 		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
-		<< "       [--lighting-view combined|direct|sh] [--sh-source new-eden-planet|validation|none]\n"
+		<< "       [--lighting-view combined|direct|sh|local] [--sh-source new-eden-planet|validation|none]\n"
+		<< "       [--local-lights off|authored|validation]\n"
+		<< "       [--shader-tier medium|high]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
@@ -592,6 +663,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--local-lights" )
+		{
+			if( ++i >= argc || !ParseLocalLights( argv[i], options.localLights ) )
+			{
+				return false;
+			}
+			options.localLightsExplicit = true;
+		}
+		else if( arg == "--shader-tier" )
+		{
+			if( ++i >= argc || !ParseShaderTier( argv[i], options.shaderTier ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--inspect-client-assets" )
 		{
 			if( ++i >= argc )
@@ -613,6 +699,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( !options.materialModeExplicit && options.asset == "astero" )
 	{
 		options.materialMode = MaterialMode::EveV5;
+	}
+	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
+	{
+		options.localLights = LocalLights::Authored;
 	}
 
 	return true;
@@ -656,9 +746,10 @@ NSWindow* CreateWindow( const Options& options, NSView** outView )
 	}
 
 	NSWindow* window = [[NSWindow alloc] initWithContentRect:frame
-												   styleMask:styleMask
-													 backing:NSBackingStoreBuffered
-													   defer:NO];
+											   styleMask:styleMask
+												 backing:NSBackingStoreBuffered
+												   defer:NO];
+	[window setReleasedWhenClosed:NO];
 	[window setTitle:@"TrinityAL EVE Scene Probe"];
 	[window setBackgroundColor:[NSColor blackColor]];
 	[window setOpaque:YES];
@@ -780,7 +871,8 @@ bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t heig
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
-		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource );
+		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) +
+		"_local-" + LocalLightsName( options.localLights );
 	const std::string metadataPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".txt";
 	if( !EnsureParentDirectory( metadataPath ) )
 	{
@@ -802,6 +894,8 @@ bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t heig
 	metadata << "areaView=" << AreaViewName( options.areaView ) << "\n";
 	metadata << "lightingView=" << LightingViewName( options.lightingView ) << "\n";
 	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
+	metadata << "localLights=" << LocalLightsName( options.localLights ) << "\n";
+	metadata << "shaderTier=" << ShaderTierName( options.shaderTier ) << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
 	metadata << "frames=" << renderedFrames << "\n";
@@ -818,7 +912,8 @@ bool CaptureIfRequested( NSWindow* window, const Options& options, uint32_t widt
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
-		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource );
+		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) +
+		"_local-" + LocalLightsName( options.localLights );
 	const std::string pngPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".png";
 	return CaptureWindowPng( window, pngPath ) && WriteCaptureMetadata( options, width, height, renderedFrames );
 }
@@ -882,7 +977,7 @@ int main( int argc, char** argv )
 			metalLayer.drawableSize = CGSizeMake( renderWidth, renderHeight );
 		}
 
-		void* probe = TrinityStandaloneProbeCreateDevice( (__bridge void*)view, renderWidth, renderHeight );
+		void* probe = TrinityStandaloneProbeCreateDevice( (__bridge void*)view, renderWidth, renderHeight, static_cast<int>( options.shaderTier ) );
 		if( !probe )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateDevice failed\n";
@@ -892,8 +987,13 @@ int main( int argc, char** argv )
 
 		if( !options.inspectionReportPath.empty() )
 		{
-			if( !EnsureParentDirectory( options.inspectionReportPath ) ||
-				!TrinityStandaloneProbeInspectClientAssets( probe, options.inspectionReportPath.c_str() ) )
+			bool inspectionSucceeded = false;
+			@autoreleasepool
+			{
+				inspectionSucceeded = EnsureParentDirectory( options.inspectionReportPath ) &&
+					TrinityStandaloneProbeInspectClientAssets( probe, options.inspectionReportPath.c_str() );
+			}
+			if( !inspectionSucceeded )
 			{
 				std::cerr << "TrinityStandaloneProbeInspectClientAssets failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
@@ -918,7 +1018,8 @@ int main( int argc, char** argv )
 					SceneResourcePath( options.sceneFixture ),
 					SceneFixtureApiValue( options.sceneFixture ),
 					static_cast<int>( options.lightingView ),
-					static_cast<int>( options.shSource ) ) )
+					static_cast<int>( options.shSource ),
+					static_cast<int>( options.localLights ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

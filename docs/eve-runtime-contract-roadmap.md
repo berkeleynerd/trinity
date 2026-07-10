@@ -10,6 +10,10 @@ Capability evidence is retained even when a later fidelity gate is incomplete.
 No postprocess checkpoint can compensate for missing scene, object-lighting, or
 render-product inputs.
 
+External EVE payload provenance is maintained in
+[`eve-client-resource-ledger.md`](eve-client-resource-ledger.md); no listed
+client asset is committed to this repository.
+
 ## Status notation
 
 | Mark | Meaning |
@@ -32,7 +36,7 @@ This table is the authoritative implementation order.
 | RC-03 | Render the in-space background | Accepted | RC-02 | Scene-only and Astero captures show the authored A01 nebula and star map through `EveSpaceScene`; serialized effects and textures are synchronously validated before rendering. |
 | RC-04 | Validate scene per-frame lighting | Accepted | RC-03 | New Eden supplies an authored A01 environment plus star direction/color derived with the client algorithm at the Promised Land stargate. Ambient, environment rotation, reflection intensity, and bound resources are logged; the seeded sprite starfield renders. |
 | RC-05 | Complete the ship object/material-area contract | Accepted | RC-02 | Groups 0/1/2 remain distinct CMF sections. Hull and booster render through authored `quadv5`/`quadheatv5` batches; distortion geometry/effect/maps are validated and explicitly deferred to RC-12. `AsteroClientAssets.md` classifies every per-object default and absent area. |
-| RC-06 | Supply object SH and local/secondary lighting | Partial | RC-04, RC-05 | The bridge participates in `ITr2ShLightingReceiver`, and direct-only, SH-only, and combined modes are independently observable. New Eden's one real planet is below Trinity's contribution cutoff; a stress source proves coefficient generation but byte-identical combined captures show that the selected opaque V5 passes do not consume the physical coefficient payload. |
+| RC-06 | Supply object SH and local/secondary lighting | Partial | RC-04, RC-05 | The probe now defaults to the client's high `SM_3_0_DEPTH` tier. Synthetic SH/no-SH and local off/authored/validation captures are distinct, proving opaque V5 consumption. Six authored `primary`/`soe` haze/banner lights resolve and rotate with the ship. The named-system planet still contributes zero physical SH, and visible attachment geometry remains deferred. |
 | RC-07 | Validate depth and normal products | Partial | RC-05 | Direct captures prove depth range, handedness, normal encoding, tangent-space orientation, and background behavior. |
 | RC-08 | Add shadows and AO | Blocked | RC-06, RC-07 | Shadow-caster batches and AO consume validated products; stills show plausible contact/shape cues without geometry or lighting regression. |
 | RC-09 | Accept complete HDR scene composition | Blocked | RC-03, RC-04, RC-06, RC-08 | Model, background, direct/indirect lighting, reflection, depth/normal, shadows, and AO coexist in FP16 with stable frame pacing. |
@@ -57,8 +61,9 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-07 | Client dynamic exposure compute | Accepted as capability | `hdr-exposure` runs histogram, merge, measure, and tone passes for 180 frames. | Histogram currently sees a mostly black synthetic composition. |
 | CP-08 | Fitting-scene illumination transport | Accepted as capability | Authored fitting sun, ambient, reflection intensity, and cube reach per-frame V5 constants. | Fitting is not representative in-space lighting and supplies no secondary SH sources. |
 | CP-09 | Authored universe background | Accepted | A01 background effect, cube textures, star map, reflection cube, and low-quality resources load from a checksummed build manifest and survive model/HDR/exposure captures. | The fixture does not reconstruct a named system's sun object or seeded `EveStarfield`. |
-| CP-10 | New Eden named-system scene | Accepted | System `30005286` resolves to A01; exact installed-client star graphics drive the sun color interpolation, and 565 seeded sprite stars render from a separate checksummed manifest. | The visible sun model, lens flare/god rays, distant `universe.red` object, SH, and local lights remain omitted. |
-| CP-11 | Trinity object SH generation and upload | Accepted as capability | The scene owns a real `Tr2ShLightingManager`; the Astero bridge implements `ITr2ShLightingReceiver`, publishes all seven packed coefficients, and exposes direct/SH/combined captures. A labeled stress sphere produces `physicalMax=1.195372e+00`. | New Eden planet `40334264` is culled as negligible. Authentic-zero and stress-source combined PNGs are byte-identical, proving the selected opaque V5 passes do not use the physical coefficients; end-to-end SH consumption is not accepted. |
+| CP-10 | New Eden named-system scene | Accepted | System `30005286` resolves to A01; exact installed-client star graphics drive the sun color interpolation, and 565 seeded sprite stars render from a separate checksummed manifest. | The visible sun model, lens flare/god rays, distant `universe.red` object, and a nonzero authentic secondary SH source remain omitted. |
+| CP-11 | Trinity object SH generation, upload, and V5 consumption | Accepted as capability | The scene owns a real `Tr2ShLightingManager`; the Astero bridge publishes all seven packed coefficients. At the high shader tier, SH-none and the `physicalMax=1.195372e+00` stress source produce distinct images with coherent hull fill. | New Eden planet `40334264` is culled as negligible, so an authentic named-system indirect-light comparison is still missing. |
+| CP-12 | Trinity tiled object lights | Accepted as capability | High-tier `quadv5`/`quadheatv5` reflect `LightBuffer` and `LightIndexBuffer`. Local-off, six-light authored, and one-light validation captures are distinct after `ComputeLightLists` resolves an 80x60 grid. The client effects, black fallback, and SoE faction banner remain checksummed build-tree assets. | The faction banner substitutes for player-specific photo-service logos; local-light shadows and visible haze/banner geometry remain disabled. |
 
 ## Rung-model holes
 
@@ -72,13 +77,12 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Reconstruct the client object/local-light and area-selection inputs that
-   accompany a SOF ship, including which materials actually request SH versus
-   direct lighting.
-2. Validate those inputs independently against the accepted direct sun and the
-   zero-contribution New Eden planet control.
-3. Resume depth/normal product validation only after the composed scene remains
-   stable.
+1. Resume depth/normal product validation with the accepted high-tier combined
+   direct, SH, and authored-local scene.
+2. Reconstruct one authentic named-system secondary SH source and compare it
+   against the accepted synthetic transport control.
+3. Reconstruct visible SOF attachment geometry separately, preserving the
+   accepted light-only control.
 
 Bloom, film grain, distortion, volumetrics, velocity, and TAA are not in the
 active queue. Their capability work remains useful, but they may not advance

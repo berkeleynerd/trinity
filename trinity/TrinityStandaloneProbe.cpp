@@ -6,16 +6,31 @@
 
 #include "Eve/EveSpaceScene.h"
 #include "Eve/EveSpaceSceneRenderDriver.h"
+#include "Eve/EveEntity.h"
 #include "Eve/EveStarfield.h"
 #include "Eve/IEveSpaceObject2.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
+#include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveBannerSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveHazeSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EvePlaneSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpotlightSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSetItem.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
 #include "ITr2Renderable.h"
+#include "Lights/ITr2LightOwner.h"
+#include "Lights/Tr2Light.h"
+#include "Lights/Tr2PointLight.h"
+#include "Lights/Tr2SpotLight.h"
+#include "Lights/Tr2TexturedPointLight.h"
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Tr2ProfileTimer.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
 #include "Tr2ShLightingManager.h"
 #include "Resources/TriTextureRes.h"
+#include "Resources/Tr2LightProfileRes.h"
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "Shader/Tr2Shader.h"
@@ -41,6 +56,8 @@
 
 extern "C" void TrinityStandaloneStartup();
 extern "C" bool BlueInitializeResourceLoading();
+extern bool g_eveSpaceSceneDynamicLighting;
+extern bool g_useDynamicLightsShadows;
 
 #ifndef IRootReader_H
 #define IRootReader_H
@@ -65,6 +82,8 @@ BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 namespace
 {
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::string& error );
+std::string ToNarrowPath( const wchar_t* path );
+bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -107,7 +126,9 @@ public:
 BLUE_CLASS( TrinityStandaloneRenderable ) :
 	public IEveSpaceObject2,
 	public ITr2Renderable,
-	public ITr2ShLightingReceiver
+	public ITr2ShLightingReceiver,
+	public ITr2LightOwner,
+	public EveEntity
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -120,6 +141,311 @@ public:
 	{
 		m_aspect = aspect;
 		return m_model.Load( path, error );
+	}
+
+	bool ConfigureLocalLights( int mode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
+	{
+		m_localLightMode = mode;
+		if( mode == 0 )
+		{
+			std::fprintf( stderr, "Astero local lights disabled\n" );
+			return true;
+		}
+		if( mode == 2 )
+		{
+			LightData data;
+			data.position = Vector3( 0.35f, 0.55f, -1.25f );
+			data.radius = 3.5f;
+			data.innerRadius = 0.15f;
+			data.color = Color( 15.0f, 2.4f, 0.6f, 1.0f );
+			data.brightness = 6.0f;
+			Tr2PointLightPtr light;
+			light.CreateInstance();
+			light->SetLightData( data );
+			AddDirectLight( light, LIGHT_FAMILY_VALIDATION );
+			m_lightStats[LIGHT_FAMILY_VALIDATION].declared = 1;
+			m_lightStats[LIGHT_FAMILY_VALIDATION].constructed = 1;
+			std::fprintf( stderr, "Synthetic local-light validation point enabled: position=(0.35,0.55,-1.25) radius=3.5\n" );
+			return true;
+		}
+		if( mode != 1 || !faction.m_colorSet || !faction.m_visibilityGroupSet )
+		{
+			error = mode != 1 ? "Invalid local-light mode" : "Astero faction is missing color or visibility data";
+			return false;
+		}
+
+		std::set<std::string> visibilityGroups;
+		for( const auto& value : faction.m_visibilityGroupSet->m_visibilityGroups )
+		{
+			visibilityGroups.insert( value->m_str );
+		}
+		std::fprintf( stderr, "Astero active SOF visibility groups:" );
+		for( const auto& value : visibilityGroups )
+		{
+			std::fprintf( stderr, " %s", value.c_str() );
+		}
+		std::fprintf( stderr, "\n" );
+
+		auto isActive = [&]( const BlueSharedString& group ) {
+			return visibilityGroups.count( group.c_str() ) != 0;
+		};
+		auto colorFor = [&]( SOFDataFactionColorChooser::ColorType type, Color& color ) {
+			const int index = static_cast<int>( type );
+			if( index < 0 || index >= SOFDataFactionColorChooser::TYPE_MAX )
+			{
+				error = "Astero local light has invalid faction color index " + std::to_string( index );
+				return false;
+			}
+			color = faction.m_colorSet->m_colors[index];
+			return true;
+		};
+
+		uint32_t index = 0;
+		for( const auto& setData : hull.m_spriteSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EveSpriteSetPtr set;
+			for( const auto& item : setData->m_items )
+			{
+				if( !item->m_light ) continue;
+				DeclareLight( LIGHT_FAMILY_SPRITE, active );
+				if( !active ) continue;
+				Color color;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				color = Saturate( item->m_intensity * color, item->m_saturation * item->m_light->m_saturation );
+				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
+				LightData data = attachment.AsLightData( color, 1.0f );
+				data.position += item->m_position;
+				data.boneIndex = item->m_boneIndex;
+				NormalizeAuthoredLight( data );
+				if( !set ) set.CreateInstance();
+				set->AddLightFromSOF( EveSpriteLight( data, item->m_blinkPhase, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
+				ConstructLight( LIGHT_FAMILY_SPRITE, data.boneIndex );
+			}
+			if( set ) m_spriteLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_spriteLineSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EveSpriteLineSetPtr set;
+			for( const auto& item : setData->m_items )
+			{
+				if( !item->m_light ) continue;
+				EveSpriteLineSetItemPtr runtimeItem;
+				runtimeItem.CreateInstance();
+				runtimeItem->m_position = item->m_position;
+				runtimeItem->m_rotation = item->m_rotation;
+				runtimeItem->m_scaling = item->m_scaling;
+				runtimeItem->m_spacing = item->m_spacing;
+				runtimeItem->m_isCircle = item->m_isCircle;
+				const auto positions = runtimeItem->GetPositions();
+				for( size_t positionIndex = 0; positionIndex < positions.size(); ++positionIndex ) DeclareLight( LIGHT_FAMILY_SPRITE_LINE, active );
+				if( !active ) continue;
+				Color color;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				color = Saturate( item->m_intensity * color, item->m_saturation * item->m_light->m_saturation );
+				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
+				LightData data = attachment.AsLightData( color, 1.0f );
+				data.boneIndex = item->m_boneIndex;
+				uint32_t positionIndex = 0;
+				for( const Vector3& position : positions )
+				{
+					LightData positioned = data;
+					positioned.position = item->m_light->m_translation + position + item->m_position;
+					positioned.rotation = Normalize( positioned.rotation * item->m_rotation );
+					NormalizeAuthoredLight( positioned );
+					if( !set ) set.CreateInstance();
+					set->AddLightFromSOF( EveSpriteLight( positioned, item->m_blinkPhase + item->m_blinkPhaseShift * positionIndex++, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
+					ConstructLight( LIGHT_FAMILY_SPRITE_LINE, positioned.boneIndex );
+				}
+			}
+			if( set ) m_spriteLineLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_spotlightSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EveSpotlightSetPtr set;
+			for( const auto& item : setData->m_items )
+			{
+				if( !item->m_light ) continue;
+				DeclareLight( LIGHT_FAMILY_SPOTLIGHT, active );
+				if( !active ) continue;
+				Color color;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				Vector3 scale, position;
+				Quaternion rotation;
+				Decompose( scale, rotation, position, item->m_transform );
+				scale = Vector3( std::abs( scale.x ), std::abs( scale.y ), std::abs( scale.z ) );
+				const float angle = scale.z > 0.0f ? std::atan( std::max( scale.x, scale.y ) / ( 2.0f * scale.z ) ) * 180.0f / 3.1415926535f : 0.0f;
+				color = Saturate( color, item->m_saturation * item->m_light->m_saturation );
+				EveSOFDataMgr::SpotLightAttachment attachment( *item->m_light );
+				LightData data = attachment.AsLightData( color, scale.z, angle, angle );
+				data.position = ( TranslationMatrix( data.position ) * RotationMatrix( rotation ) * TranslationMatrix( position ) ).GetTranslation();
+				data.rotation = rotation;
+				data.brightness *= item->m_coneIntensity;
+				data.boneIndex = item->m_boneIndex;
+				NormalizeAuthoredLight( data );
+				if( !set ) set.CreateInstance();
+				set->AddLightFromSOF( EveSpotlightLight( data, index++, item->m_light->m_lightProfilePath, item->m_boosterGainInfluence ) );
+				ConstructLight( LIGHT_FAMILY_SPOTLIGHT, data.boneIndex );
+			}
+			if( set ) m_spotlightLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_planeSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EvePlaneSetPtr set;
+			for( const auto& item : setData->m_items )
+			{
+				for( const auto& rawLight : item->m_lights )
+				{
+					DeclareLight( LIGHT_FAMILY_PLANE, active );
+					if( !active ) continue;
+					Color color;
+					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) ) return false;
+					color = Saturate( item->m_intensity * color, item->m_saturation * rawLight->m_saturation );
+					EveSOFDataMgr::PointLightAttachment attachment( *rawLight );
+					const float scale = std::max( item->m_scaling.x, std::max( item->m_scaling.y, item->m_scaling.z ) );
+					LightData data = attachment.AsLightData( color, scale );
+					data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
+					data.rotation = Normalize( data.rotation * item->m_rotation );
+					data.boneIndex = item->m_boneIndex;
+					NormalizeAuthoredLight( data );
+					if( !set ) set.CreateInstance();
+					set->AddLightFromSOF( EvePlaneLight( data, rawLight->m_saturation, index++, rawLight->m_lightProfilePath, static_cast<EveSpaceObjectAttachmentUtils::FadeType>( item->m_blinkMode ), item->m_phase, item->m_rate ) );
+					ConstructLight( LIGHT_FAMILY_PLANE, data.boneIndex );
+				}
+			}
+			if( set ) m_planeLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_hazeSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EveHazeSetPtr set;
+			for( const auto& item : setData->m_items )
+			{
+				for( const auto& rawLight : item->m_lights )
+				{
+					DeclareLight( LIGHT_FAMILY_HAZE, active );
+					if( !active ) continue;
+					Color color;
+					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) ) return false;
+					color = Saturate( color, rawLight->m_saturation );
+					EveSOFDataMgr::PointLightAttachment attachment( *rawLight );
+					const float scale = std::max( item->m_scaling.x, std::max( item->m_scaling.y, item->m_scaling.z ) );
+					LightData data = attachment.AsLightData( color, scale );
+					data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
+					data.rotation = Normalize( data.rotation * item->m_rotation );
+					data.boneIndex = item->m_boneIndex;
+					NormalizeAuthoredLight( data );
+					if( !set ) set.CreateInstance();
+					set->AddLightFromSOF( EveHazeSetLight( data, index++, rawLight->m_lightProfilePath, item->m_boosterGainInfluence ) );
+					ConstructLight( LIGHT_FAMILY_HAZE, data.boneIndex );
+				}
+			}
+			if( set ) m_hazeLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_bannerSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			EveBannerSetPtr set;
+			TriTextureParameterPtr imageMap;
+			for( const auto& item : setData->m_banners )
+			{
+				if( !item->m_light ) continue;
+				DeclareLight( LIGHT_FAMILY_BANNER, active );
+				std::fprintf( stderr, "Astero banner descriptor: name=%s usage=%d visibility=%s active=%s\n",
+					item->m_name.c_str(), static_cast<int>( item->m_usage ), setData->m_visibilityGroup.c_str(), active ? "yes" : "no" );
+				if( !active ) continue;
+				if( !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				if( !set )
+				{
+					const char* bannerPath = "res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds";
+					if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE banner", error ) ) return false;
+					set.CreateInstance();
+					imageMap.CreateInstance();
+					imageMap->SetParameterName( BlueSharedString( "ImageMap" ) );
+					imageMap->SetResourcePath( bannerPath );
+					set->SetPrimaryTextureParameter( imageMap );
+					std::fprintf( stderr, "Astero dynamic banner texture: deterministic SoE fixture=%s client-no-identity-fallback=res:/texture/global/black.dds\n", bannerPath );
+				}
+				Color color( 0.0f, 0.0f, 0.0f, 0.0f );
+				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
+				const float scale = std::max( item->m_scaling.x, std::max( item->m_scaling.y, item->m_scaling.z ) );
+				LightData data = attachment.AsLightData( color, scale );
+				data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
+				data.rotation = Normalize( data.rotation * item->m_rotation );
+				data.boneIndex = item->m_boneIndex;
+				NormalizeAuthoredLight( data );
+				set->AddLightFromSOF( EveBannerLight( data, item->m_light->m_saturation, index++, item->m_light->m_lightProfilePath ) );
+				ConstructLight( LIGHT_FAMILY_BANNER, data.boneIndex );
+			}
+			if( set ) m_bannerLightSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_lightSets )
+		{
+			const bool active = isActive( setData->m_visibilityGroup );
+			for( const auto& item : setData->m_items )
+			{
+				DeclareLight( LIGHT_FAMILY_EXPLICIT, active );
+				if( !active ) continue;
+				const auto& source = item->m_data;
+				Color color;
+				if( !colorFor( source.lightColor, color ) ) return false;
+				LightData data;
+				data.position = source.position;
+				data.rotation = source.rotation;
+				data.radius = source.radius;
+				data.innerRadius = source.innerRadius;
+				data.color = color;
+				data.brightness = source.brightness;
+				data.noiseAmplitude = source.noiseAmplitude;
+				data.noiseFrequency = source.noiseFrequency;
+				data.noiseOctaves = source.noiseOctaves;
+				data.innerAngle = source.innerAngle;
+				data.outerAngle = source.outerAngle;
+				data.texturePath = source.texturePath;
+				data.boneIndex = source.boneIndex;
+				data.flags = source.flags;
+				NormalizeAuthoredLight( data );
+				Tr2LightPtr light;
+				if( source.type == EveSOFDataHullLightSetItem::POINT_LIGHT )
+				{
+					Tr2PointLightPtr point; point.CreateInstance(); light = point;
+				}
+				else if( source.type == EveSOFDataHullLightSetItem::TEXTURED_POINT_LIGHT )
+				{
+					if( !PrepareTextureResourceWithoutYield( ToNarrowPath( source.texturePath.c_str() ), "Astero textured local light", error ) ) return false;
+					Tr2TexturedPointLightPtr point; point.CreateInstance(); light = point;
+				}
+				else if( source.type == EveSOFDataHullLightSetItem::SPOT_LIGHT )
+				{
+					Tr2SpotLightPtr spot; spot.CreateInstance(); light = spot;
+				}
+				else
+				{
+					error = "Unsupported Astero explicit light type " + std::to_string( static_cast<int>( source.type ) );
+					return false;
+				}
+				light->SetLightData( data );
+				AddDirectLight( light, LIGHT_FAMILY_EXPLICIT );
+				ConstructLight( LIGHT_FAMILY_EXPLICIT, data.boneIndex );
+			}
+		}
+
+		ReportLightStats( "constructed" );
+		if( TotalConstructedLights() == 0 )
+		{
+			error = "Astero authored-light reconstruction produced zero active lights";
+			return false;
+		}
+		return true;
 	}
 
 	bool InitializeGpu( Tr2PrimaryRenderContext& renderContext, int materialView, int materialMode, int areaView )
@@ -257,6 +583,7 @@ public:
 	{
 		m_time = updateContext.GetTime();
 		UpdateEffectParameters();
+		UpdateAttachmentLights();
 	}
 
 	void UpdateAsyncronous( const EveUpdateContext& ) override
@@ -432,7 +759,167 @@ public:
 			sizeof( m_eveV5PerObjectData.m_psData.shLightingCoefficients ) );
 	}
 
+	void GetLights( Tr2LightManager& lightManager ) const override
+	{
+		auto addFamily = [&]( LightFamily family, const auto& lightSet ) {
+			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
+			lightSet->GetLights( lightManager );
+			m_lightStats[family].frustumAccepted += static_cast<uint32_t>( lightManager.GetCurrentThreadPendingLightCount() - before );
+		};
+		for( const auto& set : m_spriteLightSets ) addFamily( LIGHT_FAMILY_SPRITE, set );
+		for( const auto& set : m_spriteLineLightSets ) addFamily( LIGHT_FAMILY_SPRITE_LINE, set );
+		for( const auto& set : m_spotlightLightSets ) addFamily( LIGHT_FAMILY_SPOTLIGHT, set );
+		for( const auto& set : m_planeLightSets ) addFamily( LIGHT_FAMILY_PLANE, set );
+		for( const auto& set : m_hazeLightSets ) addFamily( LIGHT_FAMILY_HAZE, set );
+		for( const auto& set : m_bannerLightSets ) addFamily( LIGHT_FAMILY_BANNER, set );
+		for( const DirectLight& direct : m_directLights )
+		{
+			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
+			direct.light->AddLight( lightManager, m_worldTransform, 1.0f );
+			m_lightStats[direct.family].frustumAccepted += static_cast<uint32_t>( lightManager.GetCurrentThreadPendingLightCount() - before );
+		}
+		if( !m_reportedAcceptedLights )
+		{
+			ReportLightStats( "frustum-gather" );
+			m_reportedAcceptedLights = true;
+		}
+	}
+
 private:
+	enum LightFamily
+	{
+		LIGHT_FAMILY_EXPLICIT,
+		LIGHT_FAMILY_SPRITE,
+		LIGHT_FAMILY_SPRITE_LINE,
+		LIGHT_FAMILY_SPOTLIGHT,
+		LIGHT_FAMILY_PLANE,
+		LIGHT_FAMILY_HAZE,
+		LIGHT_FAMILY_BANNER,
+		LIGHT_FAMILY_VALIDATION,
+		LIGHT_FAMILY_COUNT,
+	};
+
+	struct LightStats
+	{
+		uint32_t declared = 0;
+		uint32_t visibilityExcluded = 0;
+		uint32_t constructed = 0;
+		mutable uint32_t frustumAccepted = 0;
+	};
+
+	struct DirectLight
+	{
+		Tr2LightPtr light;
+		LightFamily family;
+	};
+
+	static const char* LightFamilyName( LightFamily family )
+	{
+		static const char* names[] = { "explicit", "sprite", "sprite-line", "spotlight", "plane", "haze", "banner", "validation" };
+		return names[family];
+	}
+
+	void DeclareLight( LightFamily family, bool active )
+	{
+		++m_lightStats[family].declared;
+		if( !active ) ++m_lightStats[family].visibilityExcluded;
+	}
+
+	void ConstructLight( LightFamily family, int32_t boneIndex )
+	{
+		++m_lightStats[family].constructed;
+		if( boneIndex >= 0 )
+		{
+			std::fprintf( stderr, "Astero authored local light uses static identity bone delta: family=%s bone=%d\n", LightFamilyName( family ), boneIndex );
+		}
+	}
+
+	void AddDirectLight( Tr2Light* light, LightFamily family )
+	{
+		m_directLights.push_back( DirectLight{ light, family } );
+	}
+
+	uint32_t TotalConstructedLights() const
+	{
+		uint32_t count = 0;
+		for( const LightStats& stats : m_lightStats ) count += stats.constructed;
+		return count;
+	}
+
+	void ReportLightStats( const char* phase ) const
+	{
+		uint32_t declared = 0, excluded = 0, constructed = 0, accepted = 0;
+		std::fprintf( stderr, "Astero local-light counts (%s):\n", phase );
+		for( int family = 0; family < LIGHT_FAMILY_COUNT; ++family )
+		{
+			const LightStats& stats = m_lightStats[family];
+			declared += stats.declared;
+			excluded += stats.visibilityExcluded;
+			constructed += stats.constructed;
+			accepted += stats.frustumAccepted;
+			std::fprintf( stderr, "  %-11s declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n",
+				LightFamilyName( static_cast<LightFamily>( family ) ), stats.declared, stats.visibilityExcluded, stats.constructed, stats.frustumAccepted );
+		}
+		std::fprintf( stderr, "  total       declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n",
+			declared, excluded, constructed, accepted );
+	}
+
+	bool ValidateLightProfile( const std::wstring& path, std::string& error )
+	{
+		if( path.empty() ) return true;
+		const std::string logicalPath = ToNarrowPath( path.c_str() );
+		if( !BePaths->FileExistsLocally( path.c_str() ) )
+		{
+			error = "Missing authored Astero light profile: " + logicalPath;
+			return false;
+		}
+		Tr2LightProfileResPtr profile;
+		BeResMan->GetResource( path, L"lp", profile );
+		if( profile )
+		{
+			profile->ForceSynchronousLoad();
+			profile->Reload();
+		}
+		if( !profile || !profile->IsGood() )
+		{
+			error = "Failed to prepare authored Astero light profile: " + logicalPath;
+			return false;
+		}
+		std::fprintf( stderr, "Astero authored light profile ready: %s\n", logicalPath.c_str() );
+		return true;
+	}
+
+	void NormalizeAuthoredLight( LightData& data ) const
+	{
+		float centerScale[4];
+		m_model.GetCenterAndScale( centerScale );
+		data.position = ( data.position - Vector3( centerScale[0], centerScale[1], centerScale[2] ) ) * centerScale[3];
+		data.radius *= centerScale[3];
+		data.innerRadius *= centerScale[3];
+		data.castsShadows = PerLightShadowSetting::DISABLED;
+		data.isVolumetric = false;
+		data.flags &= ~Tr2LightManager::FLAG_CASTS_SHADOWS;
+		data.flags &= ~Tr2LightManager::FLAG_IS_VOLUMETRIC;
+	}
+
+	void UpdateAttachmentLights()
+	{
+		for( const auto& set : m_spriteLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_spriteLineLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_spotlightLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_planeLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_hazeLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_bannerLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+	}
+
+	void RegisterComponents() override
+	{
+		if( GetComponentRegistry() && TotalConstructedLights() > 0 )
+		{
+			GetComponentRegistry()->RegisterComponent<ITr2LightOwner>( this );
+		}
+	}
+
 	bool ValidateEffect( Tr2Effect& effect, const char* label, bool requireDepth )
 	{
 		Tr2EffectRes* resource = effect.GetEffectRes();
@@ -456,6 +943,15 @@ private:
 			std::fprintf( stderr, "Astero %s effect is missing its required techniques\n", label );
 			return false;
 		}
+		if( requireDepth && m_localLightMode != 0 )
+		{
+			std::fprintf( stderr,
+				"Astero %s local-light shader contract: LightBuffer=%s LightIndexBuffer=%s consumption-gate=%s\n",
+				label,
+				shader->GetResource( "LightBuffer" ) ? "present" : "absent",
+				shader->GetResource( "LightIndexBuffer" ) ? "present" : "absent",
+				shader->GetResource( "LightBuffer" ) && shader->GetResource( "LightIndexBuffer" ) ? "open" : "blocked" );
+		}
 		std::fprintf( stderr, "Astero %s effect ready: Main=%u Depth=%s\n", label, mainTechnique, requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a" );
 		return true;
 	}
@@ -466,7 +962,6 @@ private:
 		effect->StartUpdate();
 		if( requireDepth )
 		{
-			effect->SetOption( BlueSharedString( "BINDLESS_RENDERING" ), BlueSharedString( "BINDLESS_RENDERING_DISABLED" ) );
 			effect->SetOption( BlueSharedString( "SPACE_OBJECT_CLIPPING" ), BlueSharedString( "SOC_DISABLED" ) );
 			effect->SetOption( BlueSharedString( "SPACE_OBJECT_PPT_ENABLED" ), BlueSharedString( "SOPPT_DISABLED" ) );
 			effect->SetOption( BlueSharedString( "SPACE_OBJECT_TRANSPARENCY" ), BlueSharedString( "SOT_OPAQUE" ) );
@@ -595,6 +1090,8 @@ private:
 	bool m_useEveV5Material = false;
 	bool m_shLightingEnabled = true;
 	bool m_reportedShLighting = false;
+	mutable bool m_reportedAcceptedLights = false;
+	int m_localLightMode = 0;
 	uint32_t m_shUpdateCount = 0;
 	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
@@ -617,6 +1114,14 @@ private:
 	Tr2TextureAL m_dirtTexture;
 	Tr2TextureAL m_maskTexture;
 	Tr2TextureAL m_paintMaskTexture;
+	std::array<LightStats, LIGHT_FAMILY_COUNT> m_lightStats = {};
+	std::vector<EveSpriteSetPtr> m_spriteLightSets;
+	std::vector<EveSpriteLineSetPtr> m_spriteLineLightSets;
+	std::vector<EveSpotlightSetPtr> m_spotlightLightSets;
+	std::vector<EvePlaneSetPtr> m_planeLightSets;
+	std::vector<EveHazeSetPtr> m_hazeLightSets;
+	std::vector<EveBannerSetPtr> m_bannerLightSets;
+	std::vector<DirectLight> m_directLights;
 };
 
 TYPEDEF_BLUECLASS( TrinityStandaloneRenderable );
@@ -628,6 +1133,8 @@ const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue()
 		MAP_INTERFACE( IEveSpaceObject2 )
 		MAP_INTERFACE( ITr2Renderable )
 		MAP_INTERFACE( ITr2ShLightingReceiver )
+		MAP_INTERFACE( ITr2LightOwner )
+		MAP_INTERFACE( EveEntity )
 	EXPOSURE_END()
 }
 
@@ -722,6 +1229,14 @@ enum StandaloneLightingView
 	STANDALONE_LIGHTING_COMBINED = 0,
 	STANDALONE_LIGHTING_DIRECT = 1,
 	STANDALONE_LIGHTING_SH = 2,
+	STANDALONE_LIGHTING_LOCAL = 3,
+};
+
+enum StandaloneLocalLights
+{
+	STANDALONE_LOCAL_LIGHTS_OFF = 0,
+	STANDALONE_LOCAL_LIGHTS_AUTHORED = 1,
+	STANDALONE_LOCAL_LIGHTS_VALIDATION = 2,
 };
 
 enum StandaloneShSource
@@ -744,6 +1259,9 @@ struct StandaloneProbe
 			renderable.Unlock();
 			secondaryLight.Unlock();
 			shLightingManager.Unlock();
+		g_eveSpaceSceneDynamicLighting = false;
+		g_useDynamicLightsShadows = false;
+		Tr2LightManager::DeleteInstance();
 		view.Unlock();
 		projection.Unlock();
 		renderContext = nullptr;
@@ -775,6 +1293,8 @@ struct StandaloneProbe
 	TriProjectionPtr projection;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
+	int localLights = STANDALONE_LOCAL_LIGHTS_OFF;
+	bool reportedResolvedLights = false;
 };
 
 std::wstring ToWide( const char* value )
@@ -1282,7 +1802,7 @@ bool ConfigureShLighting(
 	int sceneFixture,
 	std::string& error )
 {
-	if( lightingView < STANDALONE_LIGHTING_COMBINED || lightingView > STANDALONE_LIGHTING_SH )
+	if( lightingView < STANDALONE_LIGHTING_COMBINED || lightingView > STANDALONE_LIGHTING_LOCAL )
 	{
 		error = "Invalid standalone lighting view";
 		return false;
@@ -1293,11 +1813,12 @@ bool ConfigureShLighting(
 		return false;
 	}
 
-	if( lightingView == STANDALONE_LIGHTING_SH )
+	if( lightingView == STANDALONE_LIGHTING_SH || lightingView == STANDALONE_LIGHTING_LOCAL )
 	{
 		const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
 		probe.scene->SetSunLighting( lighting.sunDirection, Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-		std::fprintf( stderr, "Lighting isolation: SH only; direct scene sun color is zero\n" );
+		std::fprintf( stderr, "Lighting isolation: %s only; direct scene sun color is zero\n",
+			lightingView == STANDALONE_LIGHTING_SH ? "SH" : "local" );
 	}
 	else
 	{
@@ -1305,7 +1826,7 @@ bool ConfigureShLighting(
 			lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH" );
 	}
 
-	if( lightingView == STANDALONE_LIGHTING_DIRECT || shSource == STANDALONE_SH_SOURCE_NONE )
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_LOCAL || shSource == STANDALONE_SH_SOURCE_NONE )
 	{
 		std::fprintf( stderr, "Trinity SH manager disabled for this comparison\n" );
 		return true;
@@ -1675,7 +2196,10 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 
 	output << "## Authored `quadv5` Effect\n\n";
 	output << "- Logical source path: `" << effectPath << "`\n";
-	output << "- Compiled path: `res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_hi`\n";
+	const char* shaderSuffix = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? "sm_depth" :
+		( Tr2Renderer::GetShaderModel() == TR2SM_3_0_HI ? "sm_hi" : "sm_lo" );
+	output << "- Shader model: `" << Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ) << "`\n";
+	output << "- Compiled path: `res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5." << shaderSuffix << "`\n";
 	output << "- Runtime load: " << ( effectLoaded ? "success" : "FAILED" ) << "\n";
 	if( !effectLoaded )
 	{
@@ -1770,6 +2294,13 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	WriteNames( "Automatic Trinity constants", automaticConstants );
 	WriteNames( "Explicit resources", explicitResources );
 	WriteNames( "Automatic Trinity resources", automaticResources );
+	const bool hasLightBuffer = shader->GetResource( "LightBuffer" ) != nullptr;
+	const bool hasLightIndexBuffer = shader->GetResource( "LightIndexBuffer" ) != nullptr;
+	output << "\n### Tiled-light shader inputs\n\n";
+	output << "- `LightBuffer`: " << ( hasLightBuffer ? "present" : "ABSENT" ) << "\n";
+	output << "- `LightIndexBuffer`: " << ( hasLightIndexBuffer ? "present" : "ABSENT" ) << "\n";
+	output << "- Opaque local-light consumption: "
+		   << ( hasLightBuffer && hasLightIndexBuffer ? "eligible for visual A/B validation" : "not accepted for this Metal payload" ) << "\n";
 
 	output << "\n## Existing Bridge Compatibility\n\n";
 	output << "The V5 bridge provides `POSITION0`, `BLENDINDICES0`, `TANGENT0`, and `TEXCOORD0`. "
@@ -1797,7 +2328,24 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| 1 | `area_hull` | Opaque | `quad/quadv5.fx` | Rendered as an independent indexed batch. |\n";
 	output << "| 2 | `area_booster` | Opaque | `quad/quadheatv5.fx` | Rendered independently with four authored heat parameter sets and booster glow color. |\n\n";
 	output << "The hull declares no decal, transparent, or additive mesh areas. The root-object shader options explicitly disable clipping, projected-pattern textures, and instanced-attachment mode. "
-		"The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. Their dynamic lights remain RC-06, while visual attachment sets remain separately observable follow-up work.\n\n";
+		"The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. "
+		"The standalone bridge now reconstructs their active light descriptors through `ITr2LightOwner` and Trinity's tiled light manager without submitting attachment geometry. "
+		"Visible sprites, cones, planes, haze, and banners remain separately observable follow-up work.\n\n";
+	output << "## RC-06 Dynamic-Light Contract\n\n";
+	output << "The current `soebase` payload enables `primary` and `soe`; the Capsuleer Day explicit light strip is outside those groups and is excluded. "
+		"Active point and spotlight attachments retain Trinity blink, fade, noise, profile, and cone conversion through the native attachment-light wrappers. "
+		"The static CMF bridge uses identity rest-pose bone deltas and applies the same model center/fit normalization as its vertices. "
+		"Banner lights use native `EveBannerSet` average-color sampling from the staged Sisters of EVE faction banner fixture. The installed client `LogoLoader` would normally replace these alliance/corporation slots from its photo cache and otherwise uses `res:/texture/global/black.dds`. ";
+	if( hasLightBuffer && hasLightIndexBuffer )
+	{
+		output << "The selected Metal V5 payload declares both tiled-light buffers, so opaque consumption is eligible for visual A/B acceptance. ";
+	}
+	else
+	{
+		output << "The selected Metal V5 payload does not declare both tiled-light buffers, so manager/list generation remains capability-only evidence. ";
+	}
+	output <<
+		"Local shadows, volumetrics, AO, and all visible attachment geometry remain disabled.\n\n";
 
 	output << "## Per-Object Field Contract\n\n";
 	output << "| Field family | Probe value | Classification |\n";
@@ -1808,6 +2356,9 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| Shape ellipsoid | `(-1, -1, -1, 0)` | Matches the unconfigured `EveSpaceObject2` sentinel. |\n";
 	output << "| Bone and morph offsets | Zero | Static bind-pose bridge; no runtime animation or morph targets. |\n";
 	output << "| SH coefficients | Scene manager or zero by isolation mode | RC-06 proves generation/upload; the selected opaque V5 passes do not consume the physical payload. |\n";
+	output << "| Tiled local lights | Authored, validation, or disabled by isolation mode | Real `Tr2LightManager` buffers and `ComputeLightLists`; "
+		   << ( hasLightBuffer && hasLightIndexBuffer ? "selected Metal V5 bindings present; visual A/B required for acceptance." : "selected Metal V5 bindings incomplete; opaque consumption unaccepted." )
+		   << " |\n";
 	output << "| Screen/custom/impact data | Zero | Neutral for the selected opaque permutations and absent impact/custom systems. |\n";
 
 	return materialsLoaded;
@@ -1868,8 +2419,59 @@ bool DrawDriverFrame( Tr2RenderContext& renderContext, EveSpaceSceneRenderDriver
 	return CheckHresult( renderContext.Present(), "Present" );
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights )
 {
+	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
+	{
+		CCP_LOGERR( "Invalid standalone local-light mode" );
+		return false;
+	}
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH )
+	{
+		localLights = STANDALONE_LOCAL_LIGHTS_OFF;
+	}
+	probe.localLights = localLights;
+	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+	{
+		const wchar_t* compiledPath = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH
+			? L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth"
+			: L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi";
+		const char* effectPath = "res:/graphics/effect/managed/space/system/computelightlists.fx";
+		if( !BePaths->FileExistsLocally( compiledPath ) )
+		{
+			CCP_LOGERR( "Local lights require compiled effect: %S", compiledPath );
+			return false;
+		}
+		Tr2EffectPtr effect;
+		effect.CreateInstance();
+		effect->SetEffectPathName( effectPath );
+		Tr2EffectRes* resource = effect->GetEffectRes();
+		if( resource )
+		{
+			resource->ForceSynchronousLoad();
+			resource->Reload();
+		}
+		Tr2Shader* shader = effect->GetShaderStateInterface();
+		if( !resource || !resource->IsGood() || !shader || shader->GetPassCount( 0 ) == 0 )
+		{
+			CCP_LOGERR( "Local-light compute effect failed to prepare: %s", effectPath );
+			return false;
+		}
+		g_eveSpaceSceneDynamicLighting = true;
+		g_useDynamicLightsShadows = false;
+		Tr2LightManager::DeleteInstance();
+		if( !Tr2LightManager::GetOrCreateInstance( effectPath ) )
+		{
+			CCP_LOGERR( "Failed to create Tr2LightManager" );
+			return false;
+		}
+		std::fprintf( stderr, "Trinity tiled local-light path ready: effect=%s passes=%u shadows=disabled\n", effectPath, shader->GetPassCount( 0 ) );
+	}
+	else
+	{
+		g_eveSpaceSceneDynamicLighting = false;
+		Tr2LightManager::DeleteInstance();
+	}
 	if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_BLIT )
 	{
 		struct RequiredEffect
@@ -1878,9 +2480,9 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			const wchar_t* compiledPath;
 		};
 		const RequiredEffect requiredEffects[] = {
-			{ "res:/Graphics/Effect/Managed/Space/PostProcess/ToneMapping.fx", L"res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_hi" },
-			{ "res:/Graphics/Effect/Managed/Space/System/Blit.fx", L"res:/graphics/effect.metal/managed/space/system/blit.sm_hi" },
-			{ "res:/Graphics/Effect/Managed/Space/System/BlitFiltered.fx", L"res:/graphics/effect.metal/managed/space/system/blitfiltered.sm_hi" },
+			{ "res:/Graphics/Effect/Managed/Space/PostProcess/ToneMapping.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_hi" },
+			{ "res:/Graphics/Effect/Managed/Space/System/Blit.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/system/blit.sm_depth" : L"res:/graphics/effect.metal/managed/space/system/blit.sm_hi" },
+			{ "res:/Graphics/Effect/Managed/Space/System/BlitFiltered.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/system/blitfiltered.sm_depth" : L"res:/graphics/effect.metal/managed/space/system/blitfiltered.sm_hi" },
 		};
 		for( const RequiredEffect& required : requiredEffects )
 		{
@@ -1913,9 +2515,9 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE )
 		{
 			const RequiredEffect exposureEffects[] = {
-				{ "res:/Graphics/Effect/Managed/Space/PostProcess/CreateHistograms.fx", L"res:/graphics/effect.metal/managed/space/postprocess/createhistograms.sm_hi" },
-				{ "res:/Graphics/Effect/Managed/Space/PostProcess/MergeHistograms.fx", L"res:/graphics/effect.metal/managed/space/postprocess/mergehistograms.sm_hi" },
-				{ "res:/Graphics/Effect/Managed/Space/PostProcess/MeasureExposure.fx", L"res:/graphics/effect.metal/managed/space/postprocess/measureexposure.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/CreateHistograms.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/createhistograms.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/createhistograms.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/MergeHistograms.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/mergehistograms.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/mergehistograms.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/MeasureExposure.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/measureexposure.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/measureexposure.sm_hi" },
 			};
 			for( const RequiredEffect& required : exposureEffects )
 			{
@@ -2084,19 +2686,31 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		std::string loadError;
-		if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
+			if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
 		{
 			std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
 			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
-			return false;
-		}
+				return false;
+			}
+			if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+			{
+				auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
+					"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
+				auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>(
+					"res:/dx9/model/spaceobjectfactory/factions/soebase.black", loadError );
+				if( !hull || !faction || !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
+				{
+					std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
+					return false;
+				}
+			}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
 		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode, areaView ) )
 		{
 			CCP_LOGERR( "Failed to initialize the standalone EVE renderable GPU resources" );
 			return false;
 		}
-		probe.renderable->SetShLightingEnabled( lightingView != STANDALONE_LIGHTING_DIRECT );
+			probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
 	return true;
@@ -2174,8 +2788,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeStartup( int argc, const ch
 	return true;
 }
 
-TRINITY_STANDALONE_EXPORT void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight )
+TRINITY_STANDALONE_EXPORT void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight, int shaderTier )
 {
+	if( shaderTier < 0 || shaderTier > 1 )
+	{
+		CCP_LOGERR( "Invalid standalone shader tier" );
+		return nullptr;
+	}
+	Tr2Renderer::SetShaderModel( shaderTier == 1 ? TR2SM_3_0_DEPTH : TR2SM_3_0_HI );
+	std::fprintf( stderr, "Trinity standalone shader model: %s (%s client tier)\n",
+		Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ), shaderTier == 1 ? "high" : "medium" );
+
 	auto* probe = CCP_NEW( "TrinityStandaloneProbe" ) StandaloneProbe();
 	probe->renderWidth = renderWidth;
 	probe->renderHeight = renderHeight;
@@ -2222,14 +2845,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime )
@@ -2251,5 +2874,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	}
 	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
 	const bool rendered = DrawDriverFrame( *probe->renderContext, *probe->driver, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ) );
+	if( rendered && probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+	{
+		Tr2LightManager* manager = Tr2LightManager::GetInstance();
+		if( !manager || FAILED( manager->GetLastUpdateResult() ) )
+		{
+			CCP_LOGERR( "Trinity tiled local-light list generation failed" );
+			return false;
+		}
+		const size_t resolved = manager->GetResolvedLightCount();
+		if( probe->localLights == STANDALONE_LOCAL_LIGHTS_VALIDATION && resolved == 0 )
+		{
+			CCP_LOGERR( "Synthetic validation light resolved to zero tiled lights" );
+			return false;
+		}
+		if( !probe->reportedResolvedLights )
+		{
+			const uint32_t tilesX = ( probe->renderWidth + 15 ) / 16;
+			const uint32_t tilesY = ( probe->renderHeight + 15 ) / 16;
+			std::fprintf( stderr, "Trinity tiled local-light result: resolved=%zu tile-grid=%ux%u tile-count=%u update=success\n",
+				resolved, tilesX, tilesY, tilesX * tilesY );
+			probe->reportedResolvedLights = true;
+		}
+	}
 	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );
 }

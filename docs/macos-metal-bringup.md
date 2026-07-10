@@ -20,7 +20,7 @@ The following paths build and run on this host:
 | Standalone CMF renderer | `TrinityALAnimatedModel_metal` | Renders the synthetic box and the animated Khronos Fox through TrinityAL. |
 | EVE driver shell | `TrinityALEveSceneProbe_metal --quality-rung shell` | Creates a Trinity device and clears/presents through the low-level context. |
 | EVE scene fixture | `TrinityALEveSceneProbe_metal --quality-rung scene` | Runs the real driver with the New Eden specialization of the authored A01 universe by default; `--scene-fixture empty` preserves the empty control. |
-| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections and submits independent authored hull and booster batches. The distortion area is resource-complete and explicitly deferred to its compositor gate. Trinity SH generation/upload is observable; opaque V5 consumption and the client local-light graph remain incomplete. |
+| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections and submits independent authored hull and booster batches. The high client shader tier consumes Trinity SH and tiled local lights; distortion and visible attachment geometry remain deferred. |
 | EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Capability checkpoint: renders through the driver's FP16 target, resolves, executes the extracted client Metal tone-mapping container, and presents through client `Blit`. The scene composition is incomplete. |
 | EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Capability checkpoint: executes client histogram, histogram-merge, exposure-measure, and Uncharted 2 tone passes. It is not a fidelity milestone until a representative in-space background and lighting composition feed the histogram. |
 
@@ -28,14 +28,19 @@ The accepted EVE model rung defaults to the Sisters of EVE Astero geometry and
 its full-detail maps from the local EVE SharedCache. The comparison mode still
 uses a sample-owned effect, while `eve-v5` loads the client `quadv5`,
 `quadheatv5`, and `fxdistortionv5` containers under their logical resource
-paths. This validates the native material-area contract without claiming that
-the still-missing client local-light, auxiliary-effect, or distortion-
-composition contracts are complete.
+paths. This validates the native material-area and object-light transport
+contracts without claiming that the still-missing auxiliary-effect or
+distortion-composition contracts are complete.
+
+The complete external-client provenance is recorded in
+[`eve-client-resource-ledger.md`](eve-client-resource-ledger.md). It lists all
+67 logical resource paths, this host's absolute SharedCache and index paths,
+and the build manifests that record each exact hashed source file and checksum.
 
 Rung 4 reads the client's macOS-specific resource index and copies selected
-version-15 Metal effect containers into the build tree. The extracted
-`ToneMapping.sm_hi`, `Blit.sm_hi`, and `BlitFiltered.sm_hi` all load and
-execute through this checkout's `Tr2EffectRes` path.
+version-15 Metal effect containers into the build tree. Matching `.sm_depth`
+and `.sm_hi` tone-mapping and blit effects support the default high tier and
+the explicit medium control through this checkout's `Tr2EffectRes` path.
 
 The main implementation entry points are:
 
@@ -452,10 +457,12 @@ The SOE base faction assigns the primary material channels to
 `glass_soe`. The material Black files provide exact diffuse, dust, Fresnel, and
 gloss values, replacing the need to infer those values from screenshots.
 
-The current `quadv5.sm_hi` is also compatible with Trinity's effect container
-reader. It is format version 15, has seven permutation dimensions, and exposes
+The current `quadv5.sm_depth` and `quadv5.sm_hi` are compatible with Trinity's
+effect container reader. They are format version 15, have seven permutation
+dimensions, and expose
 `Main`, `Depth`, `Picking`, `Shadow`, `RtShadow`, and `DynamicLightShadow`
-techniques. Its default vertex contract requires `POSITION0`, `TANGENT0`,
+techniques. The high `.sm_depth` tier additionally exposes the SH and tiled-
+light consumption path. The default vertex contract requires `POSITION0`, `TANGENT0`,
 `TEXCOORD0`, `TEXCOORD1`, and `BLENDINDICES0`. The authored A/B path now
 transports CMF `PackedTangent` values. The static bind-pose bridge supplies zero
 blend indices and does not claim runtime skinning. Metal supplies a constant
@@ -604,7 +611,7 @@ Granny. Compatibility-named source files may still compile when
 | Postprocess bypass | `Settings::bypassPostProcessing` renders scene color directly to the destination. | The rung-3 machinery checkpoint works without tone mapping and blit effects, but it is neither HDR/postprocessed output nor a complete scene composition. |
 | Neutral tone-map configuration | The extracted EVE tone effect runs without scene-authored exposure, grading, bloom, grime, or LUT inputs. | The shader is authentic, but its output is not the complete EVE look-development configuration. |
 | Standalone texture transport | The first base-color image is emitted as raw RGBA plus text dimensions. | It is easy to inspect but is not a production CMF texture/material package. |
-| Lighting | The probe shader owns a small light model; V5 uses authored scene sun, ambient color, reflection intensity, and reflection cube. The bridge now receives Trinity SH. | New Eden's real planet contributes zero at the observer, while a labeled synthetic source proves transport. The client object/local-light graph remains absent. |
+| Lighting | The probe shader owns a small light model; high-tier V5 uses authored scene sun, ambient/reflection inputs, Trinity SH, and tiled local lights. | Synthetic controls prove transport, but New Eden's real planet contributes zero at the observer and visible light attachments remain absent. |
 | Camera and per-object data | V5 consumes the driver's camera constants and modern `EveSpaceObjectVSData`/`EveSpaceObjectPSData`; the static bridge reports zero active bones. | Object transforms are native, but animated bone uploads and previous-frame velocity are not yet supplied. |
 | Depth/normal participation | The effect supplies a `Depth` technique and the driver allocates its normal target. | The pass is native, but a direct debug capture of the normal product is still needed before AO is accepted. |
 | External ship source | The GLB remains in `~/Downloads` and generated files remain under the build tree. | The sample is reproducible on this host without committing an asset whose repository has no explicit license. |
@@ -778,26 +785,63 @@ this planet below its secondary-source contribution cutoff, producing physical
 coefficient magnitude zero. This is the correct result for that source, not a
 missing receiver update.
 
-For capability validation only, a deliberately extreme sphere eight scene
-units toward the sun, radius seven, and albedo `(4, 3, 2)` produces packed
-coefficient `physicalMax=1.195372e+00`. This proves source registration, manager
-update, receiver update, and per-object upload. It also establishes a sharper
-boundary: the stress-source combined PNG is byte-identical to the authentic
-zero-source combined PNG. The selected opaque `quadv5`/`quadheatv5` passes do
-not consume the physical coefficient payload, so end-to-end SH lighting is not
-accepted. The nonblack SH-only image comes from the remaining environment/glow
-terms and is not SH evidence.
+For capability validation, a deliberately extreme sphere eight scene units
+toward the sun, radius seven, and albedo `(4, 3, 2)` produces packed coefficient
+`physicalMax=1.195372e+00`. The initial A/B was byte-identical because the probe
+selected `SM_3_0_HI`. Client SOF code classifies that as the medium setting;
+the misleadingly named `SM_3_0_DEPTH` is its highest shader tier. The probe now
+defaults to that tier and exposes `--shader-tier medium|high` as a control.
+At high tier, SH-none and stress-source captures are visibly distinct and the
+stress source supplies coherent hull fill, proving source registration,
+manager update, per-object upload, and opaque V5 consumption end to end.
 
-The harsh contrast therefore is not an enabled shadow map or AO pass: both
-remain disabled. It is evidence that the client object construction, area
-selection, local-light, and broader indirect-lighting contract is incomplete.
-The next authored inputs are already identified in `soef1_t1.black`: ten decal
-sets, four sprite sets, two spotlight sets, four plane sets, and one explicit
-light set. `EveSOF::SetupLights` converts the latter into `Tr2PointLight`,
-`Tr2TexturedPointLight`, or `Tr2SpotLight` instances and registers their owner
-with `EveSpaceScene`'s component registry. The standalone bridge currently does
-neither, and the compute-light-list Metal resource graph has not yet been staged.
-That is the next RC-06 unit; it is a direct client path, not an ambient boost.
+The same tier distinction explained the tiled-light result. Medium-tier
+`quadv5` and `quadheatv5` reflect neither `LightBuffer` nor `LightIndexBuffer`;
+their authored and validation captures are byte-identical. The high-tier
+containers reflect both buffers. The standalone `EveEntity`/`ITr2LightOwner`
+submits active SOF descriptors, `ComputeLightLists` runs after the depth pass,
+and high-tier local-off, authored, and validation captures are all distinct.
+The dark hull was therefore missing shader-tier lighting inputs rather than
+being darkened by an enabled shadow map or AO pass; both remain disabled.
+
+Runtime inspection corrected an earlier assumption about the base faction:
+the installed `soebase.black` visibility set contains both `primary` and `soe`.
+The Astero declares 24 light-bearing descriptors. Ten Capsuleer Day explicit
+lights, four sprite lights, and four plane lights are outside the active set and
+are excluded. Two haze lights and four banner lights are constructed, remain
+attached through the rotating object transform, survive frustum filtering, and
+resolve into the tiled lists. No active descriptor references a light profile,
+so the staged profile set is empty; any future non-empty profile is a fatal
+logical-path validation failure rather than a silent substitute.
+
+The light bridge reuses Trinity's sprite, sprite-line, spotlight, plane, haze,
+and banner wrappers for authored blink, fade, noise, saturation, cone, profile,
+and banner average-color behavior. The CMF model is static, so nonnegative
+authored bone indices are logged and use identity rest-pose deltas. Positions
+and radii receive the same center/fit normalization as the imported vertices
+before the rotating world transform. Visible sprites, cones, planes, haze, and
+banners are not submitted.
+
+Reverse engineering the installed `code.ccp` recovered the missing banner
+producer. `EveSOF::SetupBannerSets` exposes `AllianceLogoResPath` and
+`CorpLogoResPath`; Python `evegraphics.logoLoader` fills them from the photo-
+service cache for the ship owner's alliance and corporation. With no identity,
+the exact client fallback is `res:/texture/global/black.dds`. This host has no
+cached alliance/corporation logos. For a deterministic, visually useful SoE
+fixture, the probe instead binds the installed client faction banner
+`res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds`, selected
+explicitly for this sample. Both it and the black fallback are checksummed in
+the local-light manifest. Native `EveBannerSet::GetAverageColor` now derives the
+four banner lights; no sample color constant substitutes for that texture.
+
+`--local-lights off|authored|validation` and `--lighting-view local` isolate the
+new path. At high tier, the labeled validation point resolves one light over an
+80 by 60 tile grid at 1280 by 960 backing resolution, authored mode resolves
+six, and both differ from the local-off control and from each other. This
+accepts manager/list generation and opaque V5 consumption. RC-06 remains
+partial because the authentic New Eden planet contributes zero secondary SH,
+and local-light shadows, AO, volumetrics, and visible attachment rendering
+remain disabled.
 
 The client-wide default postprocess Black activates Uncharted 2 tone mapping,
 histogram-based dynamic exposure, bloom, and film grain. `hdr-exposure` loads
@@ -829,7 +873,7 @@ make those prerequisites explicit.
 | 3A | Geometry, topology, UVs, and textures | Accepted | Astero silhouette and material-view captures remain coherent. |
 | 3B | Authored material and per-object contract | Accepted | Three CMF sections map to the authored hull, booster, and distortion SOF areas; opaque batches and every retained/defaulted field have direct evidence. |
 | 3C | Representative in-space scene and background | Accepted | A01 renders through `EveSpaceScene`; its explicit resource manifest, scene-only capture, and Astero capture pass. |
-| 3D | Object lighting contract | Partial | Trinity SH generation/upload and isolation controls are accepted as capability; opaque V5 consumption is disproven by A/B. Reconstruct client area/object/local-light inputs before fidelity acceptance. |
+| 3D | Object lighting contract | Partial | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Six authored lights resolve and remain attached while the ship rotates. An authentic nonzero named-system secondary SH source, local shadows, and visible attachments remain missing. |
 | 4A | Depth and normal products | Partial | Capture both products directly and validate conventions. |
 | 4B | Shadows and AO | Missing | Feed validated products and shadow-caster batches; accept against captures. |
 | 4C | Complete HDR scene composition | Missing | Model, background, lighting, and generated products coexist without regression. |
@@ -889,12 +933,20 @@ The following checks passed on the host snapshot above:
   565 seeded sprite stars, and status 0;
 - a settled 180-frame New Eden `hdr-exposure` capture with the named-system
   composition intact;
-- direct-only, authentic New Eden combined, synthetic SH-only, and synthetic
-  combined RC-06 captures; the authentic planet reports zero physical SH after
-  Trinity cutoff while the stress source reports `1.195372e+00`; authentic and
-  stress-source combined PNGs are byte-identical;
-- capture-owned Cocoa objects drained before Trinity device destruction, fixing
-  the long-run window-snapshot shutdown fault;
+- medium/high shader-tier inspection proving that `SM_3_0_HI` omits the SH and
+  tiled-light consumption contract while the client-high `SM_3_0_DEPTH` payload
+  exposes it; high is now the default and medium remains an explicit control;
+- high-tier SH-none and synthetic SH captures; the authentic planet reports
+  zero physical SH after Trinity cutoff while the stress source reports
+  `1.195372e+00` and visibly fills the hull;
+- checksummed staging of client `computelightlists.sm_hi/.lo/.depth`, black logo
+  fallback, and SoE faction banner; synthetic validation resolves one surface
+  light over 4,800 tiles, while authored mode excludes 18 of 24 descriptors and
+  resolves six; high-tier off/authored/validation captures are all distinct;
+- capture- and inspection-owned Cocoa objects drain before Trinity device
+  destruction, and the ARC-managed window disables AppKit's legacy
+  release-on-close behavior; finite, long-run, and inspection shutdowns are
+  clean;
 - missing-model input returns status 1 before Blue startup;
 - clean shutdown without the earlier Blue lock-count assertion;
 - `git diff --check`;
@@ -904,12 +956,10 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Complete the object's lighting contract by reconstructing the client
-   object/area/local-light graph, now that `ITr2ShLightingReceiver` generation
-   and packed `EveSpaceObjectPSData` upload are directly validated but opaque
-   V5 consumption is disproven.
-2. Capture and validate depth and normal products; only then enable shadows and
-   AO to reach complete HDR composition.
+1. Capture and validate depth and normal products with high-tier combined
+   direct, SH, and authored-local lighting.
+2. Reconstruct one authentic named-system secondary SH source and visible SOF
+   attachment geometry as separate controls; only then enable shadows and AO.
 3. Reaccept dynamic exposure and tone mapping against that composition.
 4. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.

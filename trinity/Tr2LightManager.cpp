@@ -626,7 +626,8 @@ ALResult Tr2LightManager::UpdateLists( const Tr2TextureAL& depthMap, Tr2RenderCo
 
 	if( m_lightData.empty() )
 	{
-		return ClearLightIndices( renderContext );
+		m_lastUpdateResult = ClearLightIndices( renderContext );
+		return m_lastUpdateResult;
 	}
 
 	auto hr = DoUpdateLists( depthMap, renderContext );
@@ -635,7 +636,23 @@ ALResult Tr2LightManager::UpdateLists( const Tr2TextureAL& depthMap, Tr2RenderCo
 		ClearLightIndices( renderContext );
 	}
 
-	return hr;
+	m_lastUpdateResult = hr;
+	return m_lastUpdateResult;
+}
+
+size_t Tr2LightManager::GetResolvedLightCount() const
+{
+	return m_lightData.size();
+}
+
+size_t Tr2LightManager::GetCurrentThreadPendingLightCount()
+{
+	return m_tlsLightData.local().size();
+}
+
+ALResult Tr2LightManager::GetLastUpdateResult() const
+{
+	return m_lastUpdateResult;
 }
 
 void Tr2LightManager::ReleaseResources( TriStorage s )

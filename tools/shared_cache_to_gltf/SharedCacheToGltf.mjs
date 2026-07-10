@@ -362,7 +362,9 @@ function main()
             return {
                 logicalPath,
                 sourceIndex: path.relative( cacheRoot, source.indexPath ),
+                sourceIndexPath: path.resolve( source.indexPath ),
                 hashedSource: path.relative( cacheRoot, source.physicalPath ),
+                sourceFilePath: path.resolve( source.physicalPath ),
                 byteSize: bytes.length,
                 sha256: crypto.createHash( "sha256" ).update( bytes ).digest( "hex" ),
                 stagedDestination: destinations.get( logicalPath ),

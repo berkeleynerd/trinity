@@ -110,6 +110,9 @@ public:
 	void AddLight( PerLightData& data );
 	void ResolveLightData();
 	ALResult UpdateLists( const Tr2TextureAL& depthMap, Tr2RenderContext& renderContext );
+	size_t GetResolvedLightCount() const;
+	size_t GetCurrentThreadPendingLightCount();
+	ALResult GetLastUpdateResult() const;
 	void SetVariableStore();
 	void AdjustLightCutoff( float lodFactor );
 
@@ -190,6 +193,7 @@ private:
 	Tr2Variable m_lightBufferVariable;
 	Tr2Variable m_indexBufferVariable;
 	TriFrustum m_frustum;
+	ALResult m_lastUpdateResult = S_OK;
 
 	float m_adjustedCutoff;
 
