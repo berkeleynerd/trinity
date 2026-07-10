@@ -1,0 +1,19 @@
+// Copyright (c) 2026 CCP Games
+
+#include <metal_stdlib>
+using namespace metal;
+
+struct VS_OUTPUT
+{
+	float4 position [[position]];
+	float4 color;
+	float2 texcoord;
+};
+
+fragment float4 mainPS(
+	VS_OUTPUT input [[stage_in]],
+	texture2d<float> baseColorTexture [[texture(0)]],
+	sampler baseColorSampler [[sampler(0)]] )
+{
+	return baseColorTexture.sample( baseColorSampler, input.texcoord ) * input.color;
+}

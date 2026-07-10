@@ -180,6 +180,25 @@
           "version>=": "2.12.0.14"
         }
       ]
+    },
+    "gltf-importer": {
+      "description": "Include glTF import support",
+      "dependencies": [
+        {
+          "name": "cgltf",
+          "version>=": "1.15"
+        },
+        {
+          "name": "draco",
+          "version>=": "1.5.7"
+        },
+        {
+          "name": "stb"
+        },
+        {
+          "name": "libwebp"
+        }
+      ]
     }
   },
   "overrides": [
