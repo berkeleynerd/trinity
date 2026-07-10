@@ -28,6 +28,10 @@ regcache/
 *.dylib
 *.dll
 
+# EVE client resources are resolved from SharedCache and staged in build trees.
+/SharedCache/
+/samples/eve_scene_probe/Assets/
+
 ### Python ###
 # Byte-compiled / optimized / DLL files
 __pycache__/
