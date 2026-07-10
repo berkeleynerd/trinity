@@ -31,6 +31,14 @@ struct TrinityStandaloneCmfTexture
 	std::vector<uint8_t> rgba = { 255, 255, 255, 255 };
 };
 
+struct TrinityStandaloneCmfSection
+{
+	std::string name;
+	uint32_t sourceGroup = UINT32_MAX;
+	uint32_t firstIndex = 0;
+	uint32_t indexCount = 0;
+};
+
 class TrinityStandaloneCmfModel
 {
 public:
@@ -43,6 +51,7 @@ public:
 	const std::vector<TrinityStandaloneCmfVertex>& Vertices() const;
 	const std::vector<TrinityStandaloneEveV5Vertex>& EveV5Vertices() const;
 	const std::vector<uint32_t>& Indices() const;
+	const std::vector<TrinityStandaloneCmfSection>& Sections() const;
 	void GetCenterAndScale( float output[4] ) const;
 	const TrinityStandaloneCmfTexture& BaseColorTexture() const;
 	const TrinityStandaloneCmfTexture& NormalTexture() const;

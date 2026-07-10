@@ -202,22 +202,10 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const normals = new Float32Array( mesh.vertex.normal );
     const texcoords = new Float32Array( mesh.vertex.texcoord0 );
     const selectedGroups = includeGroups ?? mesh.indices.map( ( _, index ) => index );
-    if( selectedGroups.some( index => index >= mesh.indices.length ) )
+    if( selectedGroups.some( index => index < 0 || index >= mesh.indices.length ) )
     {
         throw new Error( `GR2 mesh '${mesh.name}' has ${mesh.indices.length} index groups, but group ${Math.max( ...selectedGroups )} was requested` );
     }
-    const flatIndices = selectedGroups.flatMap( index => mesh.indices[index].faces );
-    if( flatIndices.length === 0 || flatIndices.length % 3 !== 0 )
-    {
-        throw new Error( `GR2 mesh '${mesh.name}' does not contain triangle indices` );
-    }
-    const maximumIndex = Math.max( ...flatIndices );
-    if( maximumIndex >= vertexCount )
-    {
-        throw new Error( `GR2 mesh '${mesh.name}' contains an out-of-range index` );
-    }
-    const IndexArray = maximumIndex <= 0xffff ? Uint16Array : Uint32Array;
-    const indices = new IndexArray( flatIndices );
 
     const chunks = [];
     const bufferViews = [];
@@ -238,7 +226,25 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const positionView = append( positions, 34962 );
     const normalView = append( normals, 34962 );
     const texcoordView = append( texcoords, 34962 );
-    const indexView = append( indices, 34963 );
+    const groupData = selectedGroups.map( sourceGroup => {
+        const faces = mesh.indices[sourceGroup].faces;
+        if( faces.length === 0 || faces.length % 3 !== 0 )
+        {
+            throw new Error( `GR2 mesh '${mesh.name}' group ${sourceGroup} does not contain triangle indices` );
+        }
+        const maximumIndex = Math.max( ...faces );
+        if( maximumIndex >= vertexCount )
+        {
+            throw new Error( `GR2 mesh '${mesh.name}' group ${sourceGroup} contains an out-of-range index` );
+        }
+        const IndexArray = maximumIndex <= 0xffff ? Uint16Array : Uint32Array;
+        const indices = new IndexArray( faces );
+        return {
+            sourceGroup,
+            indices,
+            indexView: append( indices, 34963 ),
+        };
+    } );
     const binary = Buffer.concat( chunks );
     const bounds = positionBounds( positions );
     const binaryName = `${path.basename( outputPath, path.extname( outputPath ) )}.bin`;
@@ -255,25 +261,41 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
             { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
             { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
             { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" },
-            { bufferView: indexView, componentType: indices.BYTES_PER_ELEMENT === 2 ? 5123 : 5125, count: indices.length, type: "SCALAR" },
+            ...groupData.map( group => ( {
+                bufferView: group.indexView,
+                componentType: group.indices.BYTES_PER_ELEMENT === 2 ? 5123 : 5125,
+                count: group.indices.length,
+                type: "SCALAR",
+            } ) ),
         ],
-        meshes: [ {
-            name: mesh.name,
+        meshes: groupData.map( ( group, groupIndex ) => ( {
+            name: `${mesh.name}_group_${group.sourceGroup}`,
+            extras: { sourceGroup: group.sourceGroup },
             primitives: [ {
                 attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
-                indices: 3,
+                indices: 3 + groupIndex,
                 mode: 4,
+                extras: { sourceGroup: group.sourceGroup },
             } ],
-        } ],
-        nodes: [ { name: "Astero", mesh: 0 } ],
-        scenes: [ { name: "Astero", nodes: [ 0 ] } ],
+        } ) ),
+        nodes: groupData.map( ( group, groupIndex ) => ( {
+            name: `Astero_group_${group.sourceGroup}`,
+            mesh: groupIndex,
+        } ) ),
+        scenes: [ { name: "Astero", nodes: groupData.map( ( _, groupIndex ) => groupIndex ) } ],
         scene: 0,
     };
 
     fs.mkdirSync( path.dirname( outputPath ), { recursive: true } );
     fs.writeFileSync( outputPath, `${JSON.stringify( gltf, null, 2 )}\n` );
     fs.writeFileSync( path.join( path.dirname( outputPath ), binaryName ), binary );
-    return { vertexCount, indexCount: indices.length, selectedGroups, binaryPath: path.join( path.dirname( outputPath ), binaryName ) };
+    return {
+        vertexCount,
+        indexCount: groupData.reduce( ( total, group ) => total + group.indices.length, 0 ),
+        selectedGroups,
+        groupData,
+        binaryPath: path.join( path.dirname( outputPath ), binaryName ),
+    };
 }
 
 function main()
@@ -358,6 +380,10 @@ function main()
             console.log( `Mesh: ${mesh.name}` );
             console.log( `Vertices: ${result.vertexCount}` );
             console.log( `Groups: ${result.selectedGroups.join( "," )}` );
+            for( const group of result.groupData )
+            {
+                console.log( `Group ${group.sourceGroup}: ${group.indices.length / 3} triangles` );
+            }
             console.log( `Triangles: ${result.indexCount / 3}` );
             console.log( `glTF: ${path.resolve( options.output )}` );
         }

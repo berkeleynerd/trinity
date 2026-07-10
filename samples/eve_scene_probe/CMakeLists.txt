@@ -85,6 +85,13 @@ set(EVE_SCENE_PROBE_ASTERO_MATERIAL_RESOURCES
 set(EVE_SCENE_PROBE_QUADV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_hi")
 set(EVE_SCENE_PROBE_QUADV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_lo")
 set(EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_depth")
+set(EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_hi")
+set(EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_lo")
+set(EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_depth")
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_hi")
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_lo")
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_depth")
+set(EVE_SCENE_PROBE_WARP_DISTORTION_RESOURCE "res:/texture/sprite/warptunnel4_n.dds")
 set(EVE_SCENE_PROBE_FITTING_SCENE_RESOURCE "res:/dx9/scene/fitting/fitting.black")
 set(EVE_SCENE_PROBE_FITTING_CUBE_RESOURCE "res:/dx9/scene/fitting/fitting_cube.dds")
 set(EVE_SCENE_PROBE_FITTING_CUBE_BLUR_RESOURCE "res:/dx9/scene/fitting/fitting_cube_blur.dds")
@@ -112,6 +119,8 @@ set(EVE_SCENE_PROBE_CLIENT_HULL_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spac
 set(EVE_SCENE_PROBE_CLIENT_FACTION_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/factions)
 set(EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/materials)
 set(EVE_SCENE_PROBE_CLIENT_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/v5/quad)
+set(EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/v5/fx)
+set(EVE_SCENE_PROBE_CLIENT_SPRITE_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite)
 set(EVE_SCENE_PROBE_CLIENT_FITTING_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/fitting)
 set(EVE_SCENE_PROBE_ASTERO_HULL_BLACK ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}/soef1_t1.black)
 set(EVE_SCENE_PROBE_ASTERO_FACTION_BLACK ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}/soebase.black)
@@ -123,6 +132,13 @@ set(EVE_SCENE_PROBE_GLASS_MATERIAL_BLACK ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}/
 set(EVE_SCENE_PROBE_QUADV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_hi)
 set(EVE_SCENE_PROBE_QUADV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_lo)
 set(EVE_SCENE_PROBE_QUADV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_depth)
+set(EVE_SCENE_PROBE_QUADHEATV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_hi)
+set(EVE_SCENE_PROBE_QUADHEATV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_lo)
+set(EVE_SCENE_PROBE_QUADHEATV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_depth)
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_HI ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_hi)
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_LO ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_lo)
+set(EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_depth)
+set(EVE_SCENE_PROBE_WARP_DISTORTION ${EVE_SCENE_PROBE_CLIENT_SPRITE_TEXTURE_DIR}/warptunnel4_n.dds)
 set(EVE_SCENE_PROBE_FITTING_SCENE ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}/fitting.black)
 set(EVE_SCENE_PROBE_FITTING_CUBE ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}/fitting_cube.dds)
 set(EVE_SCENE_PROBE_FITTING_CUBE_BLUR ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}/fitting_cube_blur.dds)
@@ -243,6 +259,13 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_QUADV5_HI}
             ${EVE_SCENE_PROBE_QUADV5_LO}
             ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            ${EVE_SCENE_PROBE_QUADHEATV5_HI}
+            ${EVE_SCENE_PROBE_QUADHEATV5_LO}
+            ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            ${EVE_SCENE_PROBE_WARP_DISTORTION}
             ${EVE_SCENE_PROBE_FITTING_SCENE}
             ${EVE_SCENE_PROBE_FITTING_CUBE}
             ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR}
@@ -252,6 +275,8 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_SPRITE_TEXTURE_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/default
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
@@ -266,6 +291,13 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_HI_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_HI}
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_LO_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_LO}
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_HI}
+            --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_LO}
+            --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
+            --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
+            --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_WARP_DISTORTION_RESOURCE} ${EVE_SCENE_PROBE_WARP_DISTORTION}
             --copy-resource ${EVE_SCENE_PROBE_FITTING_SCENE_RESOURCE} ${EVE_SCENE_PROBE_FITTING_SCENE}
             --copy-resource ${EVE_SCENE_PROBE_FITTING_CUBE_RESOURCE} ${EVE_SCENE_PROBE_FITTING_CUBE}
             --copy-resource ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR_RESOURCE} ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR}
@@ -290,6 +322,13 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_QUADV5_HI}
             ${EVE_SCENE_PROBE_QUADV5_LO}
             ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            ${EVE_SCENE_PROBE_QUADHEATV5_HI}
+            ${EVE_SCENE_PROBE_QUADHEATV5_LO}
+            ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
+            ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            ${EVE_SCENE_PROBE_WARP_DISTORTION}
             ${EVE_SCENE_PROBE_FITTING_SCENE}
             ${EVE_SCENE_PROBE_FITTING_CUBE}
             ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR}
@@ -437,7 +476,7 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}")
             --output ${EVE_SCENE_PROBE_ASTERO_GLTF}
             --base-color ${EVE_SCENE_PROBE_ASTERO_BASE_COLOR}
             --base-color-output ${EVE_SCENE_PROBE_ASTERO_DDS}
-            --include-groups 1,2
+            --include-groups 0,1,2
             --copy-resource ${EVE_SCENE_PROBE_ASTERO_NORMAL} ${EVE_SCENE_PROBE_ASTERO_NORMAL_DDS}
             --copy-resource ${EVE_SCENE_PROBE_ASTERO_ROUGHNESS} ${EVE_SCENE_PROBE_ASTERO_ROUGHNESS_DDS}
             --copy-resource ${EVE_SCENE_PROBE_ASTERO_MATERIAL} ${EVE_SCENE_PROBE_ASTERO_MATERIAL_DDS}
@@ -578,6 +617,13 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         ${EVE_SCENE_PROBE_QUADV5_HI}
         ${EVE_SCENE_PROBE_QUADV5_LO}
         ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+        ${EVE_SCENE_PROBE_QUADHEATV5_HI}
+        ${EVE_SCENE_PROBE_QUADHEATV5_LO}
+        ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+        ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
+        ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
+        ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+        ${EVE_SCENE_PROBE_WARP_DISTORTION}
         ${EVE_SCENE_PROBE_FITTING_SCENE}
         ${EVE_SCENE_PROBE_FITTING_CUBE}
         ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR}
@@ -591,6 +637,8 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/factions
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/materials
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/sprite
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/default
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/hulls/soef1_t1.black
@@ -603,6 +651,13 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_hi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_lo
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_hi
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_lo
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_hi
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_lo
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_WARP_DISTORTION} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/sprite/warptunnel4_n.dds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FITTING_SCENE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting/fitting.black
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FITTING_CUBE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting/fitting_cube.dds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FITTING_CUBE_BLUR} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting/fitting_cube_blur.dds
@@ -747,6 +802,7 @@ if(TARGET TrinityEveSceneProbeAsteroAsset)
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_MATERIAL_DDS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_m.dds
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_GLOW_DDS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_g.dds
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_DETAIL_DDS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_d.dds
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_MASK_DDS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_mask.dds
 		COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_PAINT_DDS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_p3.dds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_RGBA} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/Astero.cmf.basecolor.rgba
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_METADATA} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/Astero.cmf.basecolor.txt
@@ -784,7 +840,7 @@ add_custom_target(TrinityEveSceneProbeRuntimeAssets
 )
 
 add_custom_target(run_TrinityALEveSceneProbe_metal
-    COMMAND $<TARGET_FILE:TrinityALEveSceneProbe_metal> --windowed 640x480 --frames 180 --quality-rung model --asset astero
+	COMMAND $<TARGET_FILE:TrinityALEveSceneProbe_metal> --windowed 640x480 --frames 180 --quality-rung model --asset astero --material-mode eve-v5
     DEPENDS TrinityEveSceneProbeRuntimeAssets
     WORKING_DIRECTORY $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>
     USES_TERMINAL

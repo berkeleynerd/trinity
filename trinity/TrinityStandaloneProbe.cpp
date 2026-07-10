@@ -14,6 +14,7 @@
 #include "Tr2ProfileTimer.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
+#include "Tr2ShLightingManager.h"
 #include "Resources/TriTextureRes.h"
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/TriTextureParameter.h"
@@ -30,6 +31,7 @@
 
 #include <cstdio>
 #include <cstdint>
+#include <array>
 #include <cmath>
 #include <fstream>
 #include <iomanip>
@@ -62,7 +64,7 @@ BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 
 namespace
 {
-bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, std::string& error );
+bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::string& error );
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -104,7 +106,8 @@ public:
 
 BLUE_CLASS( TrinityStandaloneRenderable ) :
 	public IEveSpaceObject2,
-	public ITr2Renderable
+	public ITr2Renderable,
+	public ITr2ShLightingReceiver
 {
 public:
 	EXPOSE_TO_BLUE();
@@ -119,10 +122,15 @@ public:
 		return m_model.Load( path, error );
 	}
 
-	bool InitializeGpu( Tr2PrimaryRenderContext& renderContext, int materialView, int materialMode )
+	bool InitializeGpu( Tr2PrimaryRenderContext& renderContext, int materialView, int materialMode, int areaView )
 	{
 		using namespace Tr2RenderContextEnum;
 		m_useEveV5Material = materialMode != 0;
+		m_areaView = areaView;
+		for( size_t maskIndex = 0; maskIndex < EVE_SPACEOBJECT_CUSTOWMASK_MAX; ++maskIndex )
+		{
+			m_eveV5PerObjectData.m_vsData.customMaskMatrix[maskIndex] = IdentityMatrix();
+		}
 		if( !m_useEveV5Material &&
 			( !CreateTexture( m_model.BaseColorTexture(), m_baseColorTexture, renderContext ) ||
 			!CreateTexture( m_model.NormalTexture(), m_normalTexture, renderContext ) ||
@@ -182,32 +190,44 @@ public:
 			return false;
 		}
 
-		m_effect.CreateInstance();
-		m_effect->StartUpdate();
 		if( m_useEveV5Material )
 		{
-			m_effect->SetOption( BlueSharedString( "SPACE_OBJECT_TRANSPARENCY" ), BlueSharedString( "SOT_OPAQUE" ) );
-			m_effect->SetOption( BlueSharedString( "SPACE_OBJECT_PPT_ENABLED" ), BlueSharedString( "SOPPT_DISABLED" ) );
-			m_effect->SetEffectPathName( "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadv5.fx" );
-			std::string materialError;
-			if( !ConfigureAsteroEveV5Effect( *m_effect, materialError ) )
+			for( const TrinityStandaloneCmfSection& section : m_model.Sections() )
 			{
-				std::fprintf( stderr, "Failed to configure authored Astero material: %s\n", materialError.c_str() );
+				if( section.sourceGroup < m_sectionsByGroup.size() )
+				{
+					m_sectionsByGroup[section.sourceGroup] = &section;
+				}
+				std::fprintf( stderr, "CMF area section: name=%s group=%u firstIndex=%u indexCount=%u\n",
+					section.name.c_str(), section.sourceGroup, section.firstIndex, section.indexCount );
+			}
+			for( uint32_t group = 0; group < m_sectionsByGroup.size(); ++group )
+			{
+				if( !m_sectionsByGroup[group] )
+				{
+					std::fprintf( stderr, "Astero CMF is missing authored GR2 group %u\n", group );
+					return false;
+				}
+			}
+
+			if( !InitializeAsteroEffect( m_distortionEffect, 0, "res:/graphics/effect/managed/space/spaceobject/v5/fx/fxdistortionv5.fx", false ) ||
+				!InitializeAsteroEffect( m_hullEffect, 1, "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadv5.fx", true ) ||
+				!InitializeAsteroEffect( m_boosterEffect, 2, "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadheatv5.fx", true ) )
+			{
 				return false;
 			}
 		}
 		else
 		{
+			m_effect.CreateInstance();
+			m_effect->StartUpdate();
 			m_effect->SetEffectPathName( "res:/graphics/effect/managed/space/spaceobject/probe/asteropbr.fx" );
-		}
-		Tr2EffectRes* effectResource = m_effect->GetEffectRes();
-		if( effectResource )
-		{
-			effectResource->ForceSynchronousLoad();
-			effectResource->Reload();
-		}
-		if( !m_useEveV5Material )
-		{
+			Tr2EffectRes* effectResource = m_effect->GetEffectRes();
+			if( effectResource )
+			{
+				effectResource->ForceSynchronousLoad();
+				effectResource->Reload();
+			}
 			m_effect->SetParameter( BlueSharedString( "BaseColorMap" ), m_baseColorTexture );
 			m_effect->SetParameter( BlueSharedString( "NormalMap" ), m_normalTexture );
 			m_effect->SetParameter( BlueSharedString( "RoughnessMap" ), m_roughnessTexture );
@@ -220,78 +240,16 @@ public:
 			float centerScale[4];
 			m_model.GetCenterAndScale( centerScale );
 			m_effect->SetParameter( BlueSharedString( "ModelCenterScale" ), Vector4( centerScale[0], centerScale[1], centerScale[2], centerScale[3] ) );
-		}
-		UpdateEffectParameters();
-		m_effect->EndUpdate();
-		if( m_useEveV5Material )
-		{
-			const char* textureNames[] = {
-				"AlbedoMap", "NormalMap", "RoughnessMap", "MaterialMap", "GlowMap", "DirtMap", "PaintMaskMap", "DustNoiseMap"
-			};
-			for( const char* textureName : textureNames )
+			m_effect->EndUpdate();
+			if( !ValidateEffect( *m_effect, "probe", true ) )
 			{
-				TriTextureParameterPtr parameter = BlueCastPtr( m_effect->GetResourceByName( textureName ) );
-				TriTextureResPtr texture;
-				if( parameter )
-				{
-					texture = BlueCastPtr( parameter->GetResource() );
-				}
-				if( texture )
-				{
-					texture->ForceSynchronousLoad();
-					texture->Reload();
-				}
-				std::fprintf(
-					stderr,
-					"Authored texture %s: parameter=%s resource=%s good=%s path=%ls\n",
-					textureName,
-					parameter ? "yes" : "no",
-					texture ? "yes" : "no",
-					texture && texture->IsGood() ? "yes" : "no",
-					texture ? texture->GetPath() : L"" );
+				return false;
 			}
 		}
 
-		if( !effectResource || !effectResource->IsGood() )
-		{
-			if( effectResource )
-			{
-				std::fprintf(
-					stderr,
-					"Standalone material effect failed: path=%ls file=%ls loading=%d prepared=%d\n",
-					effectResource->GetPath(),
-					effectResource->GetFilePath().c_str(),
-					effectResource->IsLoading() ? 1 : 0,
-					effectResource->IsPrepared() ? 1 : 0 );
-			}
-			else
-			{
-			std::fprintf( stderr, "Standalone material effect resource was not created\n" );
-			}
-			return false;
-		}
-		Tr2Shader* shader = m_effect->GetShaderStateInterface();
-		if( !shader )
-		{
-			std::fprintf( stderr, "Standalone material effect did not create a shader state interface\n" );
-			return false;
-		}
-		uint32_t mainTechnique = 0;
-		uint32_t depthTechnique = 0;
-		if( !shader->GetTechniqueIndex( BlueSharedString( "Main" ), mainTechnique ) ||
-			!shader->GetTechniqueIndex( BlueSharedString( "Depth" ), depthTechnique ) )
-		{
-			std::fprintf( stderr, "Standalone material effect is missing the Main or Depth technique\n" );
-			return false;
-		}
-		std::fprintf(
-			stderr,
-			"Standalone material effect ready: mode=%s Main=%u Depth=%u vertices=%u indices=%u\n",
-			m_useEveV5Material ? "eve-v5" : "probe",
-			mainTechnique,
-			depthTechnique,
-			m_model.VertexCount(),
-			m_model.IndexCount() );
+		UpdateEffectParameters();
+		std::fprintf( stderr, "Standalone material contract ready: mode=%s vertices=%u indices=%u sections=%zu areaView=%d\n",
+			m_useEveV5Material ? "eve-v5" : "probe", m_model.VertexCount(), m_model.IndexCount(), m_model.Sections().size(), m_areaView );
 		return true;
 	}
 
@@ -344,11 +302,21 @@ public:
 
 	void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData*, Tr2RenderReason ) override
 	{
-		if( batchType != TRIBATCHTYPE_OPAQUE )
+		if( m_useEveV5Material )
 		{
+			if( batchType == TRIBATCHTYPE_OPAQUE )
+			{
+				CommitAreaBatch( batches, 1, m_hullEffect, Tr2EffectStateManager::RM_OPAQUE );
+				CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+			}
+			else if( batchType == TRIBATCHTYPE_DISTORTION )
+			{
+				CommitAreaBatch( batches, 0, m_distortionEffect, Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
+			}
 			return;
 		}
-		if( !m_effect || !m_effect->GetShaderStateInterface() )
+
+		if( batchType != TRIBATCHTYPE_OPAQUE || !m_effect || !m_effect->GetShaderStateInterface() )
 		{
 			return;
 		}
@@ -360,11 +328,21 @@ public:
 			m_useEveV5Material ? sizeof( TrinityStandaloneEveV5Vertex ) : sizeof( TrinityStandaloneCmfVertex ),
 			m_indexBuffer,
 			sizeof( uint32_t ) );
-		if( m_useEveV5Material )
+		uint32_t firstIndex = 0;
+		uint32_t indexCount = m_model.IndexCount();
+		if( m_areaView != 0 )
 		{
-			batch.SetPerObjectData( &m_eveV5PerObjectData );
+			const uint32_t requestedGroup = static_cast<uint32_t>( m_areaView - 1 );
+			const auto section = std::find_if( m_model.Sections().begin(), m_model.Sections().end(),
+				[requestedGroup]( const TrinityStandaloneCmfSection& candidate ) { return candidate.sourceGroup == requestedGroup; } );
+			if( section == m_model.Sections().end() )
+			{
+				return;
+			}
+			firstIndex = section->firstIndex;
+			indexCount = section->indexCount;
 		}
-		batch.SetDrawIndexedInstanced( m_model.IndexCount(), 1, 0, 0, 0 );
+		batch.SetDrawIndexedInstanced( indexCount, 1, firstIndex, 0, 0 );
 		batch.SetRenderingMode( Tr2EffectStateManager::RM_OPAQUE );
 		batches->Commit( batch );
 		if( !m_reportedBatch )
@@ -394,7 +372,169 @@ public:
 		return m_drawFailed;
 	}
 
+	void SetShLightingEnabled( bool enabled )
+	{
+		m_shLightingEnabled = enabled;
+		if( !enabled )
+		{
+			ClearShLighting();
+		}
+	}
+
+	void UpdateShLighting( Tr2ShLightingManager& manager, const EveUpdateContext& ) override
+	{
+		ClearShLighting();
+		if( !m_shLightingEnabled || !m_useEveV5Material )
+		{
+			return;
+		}
+
+		manager.GetLighting(
+			Vector3( 0.0f, 0.0f, 0.0f ),
+			1.0f,
+			0.6f,
+			m_eveV5PerObjectData.m_psData.shLightingCoefficients );
+
+		float maximumMagnitude = 0.0f;
+		for( size_t index = 0; index < Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT; ++index )
+		{
+			const Vector4& coefficient = m_eveV5PerObjectData.m_psData.shLightingCoefficients[index];
+			maximumMagnitude = std::max( maximumMagnitude, std::abs( coefficient.x ) );
+			maximumMagnitude = std::max( maximumMagnitude, std::abs( coefficient.y ) );
+			maximumMagnitude = std::max( maximumMagnitude, std::abs( coefficient.z ) );
+			if( index != Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT - 1 )
+			{
+				maximumMagnitude = std::max( maximumMagnitude, std::abs( coefficient.w ) );
+			}
+		}
+		++m_shUpdateCount;
+		if( !m_reportedShLighting && ( maximumMagnitude > 0.0f || m_shUpdateCount >= 2 ) )
+		{
+			std::fprintf( stderr, "Trinity SH receiver coefficients: physicalMax=%e sentinelW=%g status=%s\n",
+				maximumMagnitude,
+				m_eveV5PerObjectData.m_psData.shLightingCoefficients[Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT - 1].w,
+				maximumMagnitude > 0.0f ? "contributing" : "zero-or-culled" );
+			for( size_t index = 0; index < Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT; ++index )
+			{
+				const Vector4& coefficient = m_eveV5PerObjectData.m_psData.shLightingCoefficients[index];
+				std::fprintf( stderr, "  sh[%zu]=(%e, %e, %e, %e)\n", index,
+					coefficient.x, coefficient.y, coefficient.z, coefficient.w );
+			}
+			m_reportedShLighting = true;
+		}
+	}
+
+	void ClearShLighting() override
+	{
+		std::memset(
+			m_eveV5PerObjectData.m_psData.shLightingCoefficients,
+			0,
+			sizeof( m_eveV5PerObjectData.m_psData.shLightingCoefficients ) );
+	}
+
 private:
+	bool ValidateEffect( Tr2Effect& effect, const char* label, bool requireDepth )
+	{
+		Tr2EffectRes* resource = effect.GetEffectRes();
+		if( resource )
+		{
+			resource->ForceSynchronousLoad();
+			resource->Reload();
+		}
+		if( !resource || !resource->IsGood() )
+		{
+			std::fprintf( stderr, "Astero %s effect resource failed\n", label );
+			return false;
+		}
+
+		Tr2Shader* shader = effect.GetShaderStateInterface();
+		uint32_t mainTechnique = 0;
+		uint32_t depthTechnique = 0;
+		if( !shader || !shader->GetTechniqueIndex( BlueSharedString( "Main" ), mainTechnique ) ||
+			( requireDepth && !shader->GetTechniqueIndex( BlueSharedString( "Depth" ), depthTechnique ) ) )
+		{
+			std::fprintf( stderr, "Astero %s effect is missing its required techniques\n", label );
+			return false;
+		}
+		std::fprintf( stderr, "Astero %s effect ready: Main=%u Depth=%s\n", label, mainTechnique, requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a" );
+		return true;
+	}
+
+	bool InitializeAsteroEffect( Tr2EffectPtr& effect, uint32_t sourceGroup, const char* effectPath, bool requireDepth )
+	{
+		effect.CreateInstance();
+		effect->StartUpdate();
+		if( requireDepth )
+		{
+			effect->SetOption( BlueSharedString( "BINDLESS_RENDERING" ), BlueSharedString( "BINDLESS_RENDERING_DISABLED" ) );
+			effect->SetOption( BlueSharedString( "SPACE_OBJECT_CLIPPING" ), BlueSharedString( "SOC_DISABLED" ) );
+			effect->SetOption( BlueSharedString( "SPACE_OBJECT_PPT_ENABLED" ), BlueSharedString( "SOPPT_DISABLED" ) );
+			effect->SetOption( BlueSharedString( "SPACE_OBJECT_TRANSPARENCY" ), BlueSharedString( "SOT_OPAQUE" ) );
+			effect->SetOption( BlueSharedString( "SPACE_OBJECT_INSTANCED_ATTACHMENT" ), BlueSharedString( "SOIA_DISABLED" ) );
+		}
+		effect->SetEffectPathName( effectPath );
+		std::string error;
+		if( !ConfigureAsteroEveV5Effect( *effect, sourceGroup, error ) )
+		{
+			std::fprintf( stderr, "Failed to configure Astero group %u: %s\n", sourceGroup, error.c_str() );
+			return false;
+		}
+		effect->EndUpdate();
+
+		const char* opaqueTextures[] = {
+			"AlbedoMap", "NormalMap", "RoughnessMap", "MaterialMap", "GlowMap", "DirtMap", "PaintMaskMap", "DustNoiseMap"
+		};
+		const char* distortionTextures[] = { "DistortionMap", "Layer2Map" };
+		const char** textureNames = requireDepth ? opaqueTextures : distortionTextures;
+		const size_t textureCount = requireDepth ? std::size( opaqueTextures ) : std::size( distortionTextures );
+		for( size_t textureIndex = 0; textureIndex < textureCount; ++textureIndex )
+		{
+			const char* textureName = textureNames[textureIndex];
+			TriTextureParameterPtr parameter = BlueCastPtr( effect->GetResourceByName( textureName ) );
+			TriTextureResPtr texture;
+			if( parameter )
+			{
+				texture = BlueCastPtr( parameter->GetResource() );
+			}
+			if( texture )
+			{
+				texture->ForceSynchronousLoad();
+				texture->Reload();
+			}
+			std::fprintf( stderr, "Astero group %u texture %s: %s path=%ls\n", sourceGroup, textureName,
+				texture && texture->IsGood() ? "ready" : "FAILED", texture ? texture->GetPath() : L"" );
+			if( !texture || !texture->IsGood() )
+			{
+				return false;
+			}
+		}
+		return ValidateEffect( *effect, sourceGroup == 0 ? "distortion" : ( sourceGroup == 1 ? "hull" : "booster" ), requireDepth );
+	}
+
+	void CommitAreaBatch( ITriRenderBatchAccumulator* batches, uint32_t sourceGroup, Tr2Effect* effect, Tr2EffectStateManager::RenderingMode renderMode )
+	{
+		if( sourceGroup >= m_sectionsByGroup.size() || !m_sectionsByGroup[sourceGroup] ||
+			!effect || !effect->GetShaderStateInterface() || ( m_areaView != 0 && m_areaView != static_cast<int>( sourceGroup + 1 ) ) )
+		{
+			return;
+		}
+
+		const TrinityStandaloneCmfSection& section = *m_sectionsByGroup[sourceGroup];
+		Tr2RenderBatch batch;
+		batch.SetMaterial( effect );
+		batch.SetGeometry( m_vertexDeclaration, m_vertexBuffer, sizeof( TrinityStandaloneEveV5Vertex ), m_indexBuffer, sizeof( uint32_t ) );
+		batch.SetPerObjectData( &m_eveV5PerObjectData );
+		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
+		batch.SetRenderingMode( renderMode );
+		batches->Commit( batch );
+		if( !m_reportedAreaBatch[sourceGroup] )
+		{
+			std::fprintf( stderr, "Astero area batch committed: group=%u indices=%u batch=%s\n", sourceGroup, section.indexCount,
+				sourceGroup == 0 ? "distortion" : "opaque" );
+			m_reportedAreaBatch[sourceGroup] = true;
+		}
+	}
+
 	static bool CreateTexture( const TrinityStandaloneCmfTexture& source, Tr2TextureAL& texture, Tr2PrimaryRenderContext& renderContext )
 	{
 		Tr2SubresourceData data = {};
@@ -410,7 +550,7 @@ private:
 
 	void UpdateEffectParameters()
 	{
-		if( !m_effect )
+		if( !m_useEveV5Material && !m_effect )
 		{
 			return;
 		}
@@ -426,11 +566,20 @@ private:
 			m_eveV5PerObjectData.m_vsData.worldTransformLast = world;
 			m_eveV5PerObjectData.m_vsData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_vsData.shipData = Vector4( 1.0f, 1.0f, 0.0f, 2.0f );
+			m_eveV5PerObjectData.m_vsData.clipData = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidRadii = Vector4( -1.0f, -1.0f, -1.0f, 0.0f );
+			m_eveV5PerObjectData.m_vsData.ellpsoidCenter = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 			m_eveV5PerObjectData.m_psData.worldTransform = world;
 			m_eveV5PerObjectData.m_psData.worldTransformLast = world;
 			m_eveV5PerObjectData.m_psData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_psData.shipData = m_eveV5PerObjectData.m_vsData.shipData;
+			m_eveV5PerObjectData.m_psData.clipSphereCenter = Vector3( 0.0f, 0.0f, 0.0f );
+			m_eveV5PerObjectData.m_psData.clipRadiusSq = 0.0f;
+			m_eveV5PerObjectData.m_psData.clipRadius2Sq = 0.0f;
+			m_eveV5PerObjectData.m_psData.impactDataOffset = 0.0f;
+			m_eveV5PerObjectData.m_psData.clipSphereFactor2 = 0.0f;
+			m_eveV5PerObjectData.m_psData.clipSphereFactor = 0.0f;
+			m_eveV5PerObjectData.m_psData.screenSize = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 		}
 		else
 		{
@@ -444,13 +593,22 @@ private:
 	bool m_drawFailed = false;
 	bool m_reportedBatch = false;
 	bool m_useEveV5Material = false;
+	bool m_shLightingEnabled = true;
+	bool m_reportedShLighting = false;
+	uint32_t m_shUpdateCount = 0;
+	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
 	TrinityStandaloneCmfModel m_model;
+	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
+	std::array<bool, 3> m_reportedAreaBatch = {};
 	StandaloneEveV5PerObjectData m_eveV5PerObjectData;
 	Tr2BufferAL m_vertexBuffer;
 	Tr2BufferAL m_indexBuffer;
 	uint32_t m_vertexDeclaration = Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 	Tr2EffectPtr m_effect;
+	Tr2EffectPtr m_hullEffect;
+	Tr2EffectPtr m_boosterEffect;
+	Tr2EffectPtr m_distortionEffect;
 	Tr2TextureAL m_baseColorTexture;
 	Tr2TextureAL m_normalTexture;
 	Tr2TextureAL m_roughnessTexture;
@@ -469,6 +627,80 @@ const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue()
 	EXPOSURE_BEGIN( TrinityStandaloneRenderable, "" )
 		MAP_INTERFACE( IEveSpaceObject2 )
 		MAP_INTERFACE( ITr2Renderable )
+		MAP_INTERFACE( ITr2ShLightingReceiver )
+	EXPOSURE_END()
+}
+
+BLUE_CLASS( TrinityStandaloneSecondaryLight ) :
+	public IEveSpaceObject2,
+	public ITr2SecondaryLightSource
+{
+public:
+	EXPOSE_TO_BLUE();
+
+	TrinityStandaloneSecondaryLight( IRoot* lockobj = nullptr )
+	{
+	}
+
+	void Configure( const Vector3& position, float radius, const Color& albedo, const Color& emissive )
+	{
+		m_position = position;
+		m_radius = radius;
+		m_albedo = albedo;
+		m_emissive = emissive;
+	}
+
+	void UpdateSyncronous( const EveUpdateContext& ) override {}
+	void UpdateAsyncronous( const EveUpdateContext& ) override {}
+	void UpdateVisibility( const EveUpdateContext&, const Matrix& ) override {}
+	void GetRenderables( std::vector<ITr2Renderable*>&, Tr2ImpostorManager* ) override {}
+
+	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery ) const override
+	{
+		sphere = Vector4( m_position.x, m_position.y, m_position.z, m_radius );
+		return true;
+	}
+
+	void UpdateModelCenterWorldPosition( Vector3& position, Be::Time ) override { position = m_position; }
+	void GetModelCenterWorldPosition( Vector3& position ) const override { position = m_position; }
+
+	bool GetLocalBoundingBox( Vector3& minimum, Vector3& maximum ) override
+	{
+		minimum = Vector3( -m_radius, -m_radius, -m_radius );
+		maximum = Vector3( m_radius, m_radius, m_radius );
+		return true;
+	}
+
+	void GetLocalToWorldTransform( Matrix& transform ) const override
+	{
+		transform = TranslationMatrix( m_position );
+	}
+
+	void RegisterSecondaryLightSource( Tr2ShLightingManager& manager ) override
+	{
+		manager.RegisterSecondaryLightSource( &m_position, &m_radius, &m_albedo, &m_emissive );
+	}
+
+	void UnregisterSecondaryLightSource( Tr2ShLightingManager& manager ) override
+	{
+		manager.UnregisterSecondaryLightSource( &m_position );
+	}
+
+private:
+	Vector3 m_position = Vector3( 0.0f, 0.0f, 0.0f );
+	float m_radius = 0.0f;
+	Color m_albedo = Color( 0.0f, 0.0f, 0.0f, 1.0f );
+	Color m_emissive = Color( 0.0f, 0.0f, 0.0f, 1.0f );
+};
+
+TYPEDEF_BLUECLASS( TrinityStandaloneSecondaryLight );
+BLUE_DEFINE_NONEXPOSED( TrinityStandaloneSecondaryLight );
+
+const Be::ClassInfo* TrinityStandaloneSecondaryLight::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( TrinityStandaloneSecondaryLight, "" )
+		MAP_INTERFACE( IEveSpaceObject2 )
+		MAP_INTERFACE( ITr2SecondaryLightSource )
 	EXPOSURE_END()
 }
 
@@ -485,13 +717,33 @@ enum StandaloneProbeRung
 	STANDALONE_PROBE_RUNG_HDR_EXPOSURE = 6,
 };
 
+enum StandaloneLightingView
+{
+	STANDALONE_LIGHTING_COMBINED = 0,
+	STANDALONE_LIGHTING_DIRECT = 1,
+	STANDALONE_LIGHTING_SH = 2,
+};
+
+enum StandaloneShSource
+{
+	STANDALONE_SH_SOURCE_NEW_EDEN_PLANET = 0,
+	STANDALONE_SH_SOURCE_VALIDATION = 1,
+	STANDALONE_SH_SOURCE_NONE = 2,
+};
+
 struct StandaloneProbe
 {
 	~StandaloneProbe()
-	{
-		driver.Unlock();
-		scene.Unlock();
-		renderable.Unlock();
+		{
+			if( scene )
+			{
+				scene->SetShLightingManager( nullptr );
+			}
+			driver.Unlock();
+			scene.Unlock();
+			renderable.Unlock();
+			secondaryLight.Unlock();
+			shLightingManager.Unlock();
 		view.Unlock();
 		projection.Unlock();
 		renderContext = nullptr;
@@ -516,7 +768,9 @@ struct StandaloneProbe
 	Tr2RenderContext* renderContext = nullptr;
 	EveSpaceScenePtr scene;
 	EveSpaceSceneRenderDriverPtr driver;
-	BluePtr<TrinityStandaloneRenderable> renderable;
+		BluePtr<TrinityStandaloneRenderable> renderable;
+		BluePtr<TrinityStandaloneSecondaryLight> secondaryLight;
+		Tr2ShLightingManagerPtr shLightingManager;
 	TriViewPtr view;
 	TriProjectionPtr projection;
 	uint32_t renderWidth = 0;
@@ -1021,7 +1275,93 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
 	return true;
 }
 
-bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, std::string& error )
+bool ConfigureShLighting(
+	StandaloneProbe& probe,
+	int lightingView,
+	int shSource,
+	int sceneFixture,
+	std::string& error )
+{
+	if( lightingView < STANDALONE_LIGHTING_COMBINED || lightingView > STANDALONE_LIGHTING_SH )
+	{
+		error = "Invalid standalone lighting view";
+		return false;
+	}
+	if( shSource < STANDALONE_SH_SOURCE_NEW_EDEN_PLANET || shSource > STANDALONE_SH_SOURCE_NONE )
+	{
+		error = "Invalid standalone SH source";
+		return false;
+	}
+
+	if( lightingView == STANDALONE_LIGHTING_SH )
+	{
+		const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
+		probe.scene->SetSunLighting( lighting.sunDirection, Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		std::fprintf( stderr, "Lighting isolation: SH only; direct scene sun color is zero\n" );
+	}
+	else
+	{
+		std::fprintf( stderr, "Lighting isolation: %s\n",
+			lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH" );
+	}
+
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || shSource == STANDALONE_SH_SOURCE_NONE )
+	{
+		std::fprintf( stderr, "Trinity SH manager disabled for this comparison\n" );
+		return true;
+	}
+
+	if( !probe.shLightingManager.CreateInstance() )
+	{
+		error = "Failed to create Tr2ShLightingManager";
+		return false;
+	}
+	probe.scene->SetShLightingManager( probe.shLightingManager );
+
+	if( !probe.secondaryLight.CreateInstance() )
+	{
+		error = "Failed to create standalone SH secondary source";
+		return false;
+	}
+
+	if( shSource == STANDALONE_SH_SOURCE_NEW_EDEN_PLANET )
+	{
+		if( sceneFixture != 3 )
+		{
+			std::fprintf( stderr, "Trinity SH source skipped: New Eden planet is not part of the selected scene fixture\n" );
+			probe.secondaryLight.Unlock();
+			return true;
+		}
+
+		// mapObjects.db supplies the observer-relative position and radius. The
+		// client-side barren-planet albedo is not present in the static table.
+		probe.secondaryLight->Configure(
+			Vector3( 1083758.787326f, -205372.890997f, -787280.443197f ),
+			2.63f,
+			Color( 0.22f, 0.18f, 0.14f, 1.0f ),
+			Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		std::fprintf(
+			stderr,
+			"Trinity SH source: New Eden planet 40334264, mapObjects.db geometry, approximate barren albedo; expected contribution is below runtime cutoff\n" );
+	}
+	else
+	{
+		const Vector3 sunDirection = Normalize( probe.scene->GetLightingSetup().sunDirection );
+		probe.secondaryLight->Configure(
+			sunDirection * 8.0f,
+			7.0f,
+			Color( 4.0f, 3.0f, 2.0f, 1.0f ),
+			Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		std::fprintf(
+			stderr,
+			"Trinity SH source: synthetic stress sphere, distance=8 radius=7 albedo=(4,3,2); capability evidence only\n" );
+	}
+
+	probe.scene->Objects().Insert( -1, probe.secondaryLight->GetRawRoot() );
+	return true;
+}
+
+bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::string& error )
 {
 	const char* materialNames[] = {
 		"chrome_metallic", "grey_steel_brushed", "white_ghost_matt", "red_crimson_enamel"
@@ -1052,81 +1392,128 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, std::string& error )
 		return false;
 	}
 
-	Vector4 patternMaterialValues[2][3] = {};
-	for( size_t materialIndex = 0; materialIndex < 4; ++materialIndex )
+	EveSOFDataHullAreaPtr selectedArea;
+	for( const auto& area : hull->m_opaqueAreas )
 	{
-		auto material = LoadBlackObjectWithoutYield<EveSOFDataMaterial>( materialPaths[materialIndex], error );
-		if( !material )
+		if( area->m_index == sourceGroup )
 		{
-			return false;
+			selectedArea = area;
+			break;
 		}
-
-		const std::string prefix = "Mtl" + std::to_string( materialIndex + 1 );
-		for( const auto& parameter : material->m_parameters )
+	}
+	if( !selectedArea )
+	{
+		for( const auto& area : hull->m_distortionAreas )
 		{
-			const std::string parameterName = prefix + parameter->m_name.c_str();
-			effect.AddParameterVector4( BlueSharedString( parameterName ), &parameter->m_value );
-
-			if( materialIndex < 2 )
+			if( area->m_index == sourceGroup )
 			{
-				const char* suffix = parameter->m_name.c_str();
-				const size_t patternIndex = materialIndex;
-				if( std::strcmp( suffix, "DiffuseColor" ) == 0 )
-				{
-					patternMaterialValues[patternIndex][0] = parameter->m_value;
-				}
-				else if( std::strcmp( suffix, "FresnelColor" ) == 0 )
-				{
-					patternMaterialValues[patternIndex][1] = parameter->m_value;
-				}
-				else if( std::strcmp( suffix, "Gloss" ) == 0 )
-				{
-					patternMaterialValues[patternIndex][2] = parameter->m_value;
-				}
+				selectedArea = area;
+				break;
 			}
 		}
-		const Vector4 noHeatGlow( 0.0f, 0.0f, 0.0f, 0.0f );
-		effect.AddParameterVector4( BlueSharedString( prefix + "HeatGlowData" ), &noHeatGlow );
-		std::fprintf( stderr, "Authored material Mtl%zu: %s\n", materialIndex + 1, materialNames[materialIndex] );
+	}
+	if( !selectedArea )
+	{
+		error = "Astero SOF has no area for GR2 group " + std::to_string( sourceGroup );
+		return false;
 	}
 
-	const char* patternSuffixes[] = { "DiffuseColor", "FresnelColor", "Gloss" };
-	for( size_t materialIndex = 0; materialIndex < 2; ++materialIndex )
+	const bool opaqueArea = sourceGroup == 1 || sourceGroup == 2;
+	Vector4 patternMaterialValues[2][3] = {};
+	if( opaqueArea )
 	{
-		for( size_t parameterIndex = 0; parameterIndex < 3; ++parameterIndex )
+		for( size_t materialIndex = 0; materialIndex < 4; ++materialIndex )
 		{
-			const std::string name = "PMtl" + std::to_string( materialIndex + 1 ) + patternSuffixes[parameterIndex];
-			effect.AddParameterVector4( BlueSharedString( name ), &patternMaterialValues[materialIndex][parameterIndex] );
+			auto material = LoadBlackObjectWithoutYield<EveSOFDataMaterial>( materialPaths[materialIndex], error );
+			if( !material )
+			{
+				return false;
+			}
+
+			const std::string prefix = "Mtl" + std::to_string( materialIndex + 1 );
+			for( const auto& parameter : material->m_parameters )
+			{
+				const std::string parameterName = prefix + parameter->m_name.c_str();
+				effect.AddParameterVector4( BlueSharedString( parameterName ), &parameter->m_value );
+
+				if( materialIndex < 2 )
+				{
+					const char* suffix = parameter->m_name.c_str();
+					if( std::strcmp( suffix, "DiffuseColor" ) == 0 )
+					{
+						patternMaterialValues[materialIndex][0] = parameter->m_value;
+					}
+					else if( std::strcmp( suffix, "FresnelColor" ) == 0 )
+					{
+						patternMaterialValues[materialIndex][1] = parameter->m_value;
+					}
+					else if( std::strcmp( suffix, "Gloss" ) == 0 )
+					{
+						patternMaterialValues[materialIndex][2] = parameter->m_value;
+					}
+				}
+			}
+			std::fprintf( stderr, "Authored material Mtl%zu: %s\n", materialIndex + 1, materialNames[materialIndex] );
+		}
+
+		const char* patternSuffixes[] = { "DiffuseColor", "FresnelColor", "Gloss" };
+		for( size_t materialIndex = 0; materialIndex < 2; ++materialIndex )
+		{
+			for( size_t parameterIndex = 0; parameterIndex < 3; ++parameterIndex )
+			{
+				const std::string name = "PMtl" + std::to_string( materialIndex + 1 ) + patternSuffixes[parameterIndex];
+				effect.AddParameterVector4( BlueSharedString( name ), &patternMaterialValues[materialIndex][parameterIndex] );
+			}
 		}
 	}
 
-	if( hull->m_opaqueAreas.empty() )
-	{
-		error = "Astero hull has no opaque SOF areas";
-		return false;
-	}
-	const EveSOFDataHullAreaPtr& hullArea = hull->m_opaqueAreas.front();
-	for( const auto& parameter : hullArea->m_parameters )
+	for( const auto& parameter : selectedArea->m_parameters )
 	{
 		effect.AddParameterVector4( parameter->m_name, &parameter->m_value );
 	}
+	if( opaqueArea )
+	{
+		const Vector4 noHeatGlow( 0.0f, 0.0f, 0.0f, 0.0f );
+		for( size_t materialIndex = 0; materialIndex < 4; ++materialIndex )
+		{
+			const std::string heatName = "Mtl" + std::to_string( materialIndex + 1 ) + "HeatGlowData";
+			bool hasAuthoredHeat = false;
+			for( const auto& parameter : selectedArea->m_parameters )
+			{
+				hasAuthoredHeat = hasAuthoredHeat || std::strcmp( parameter->m_name.c_str(), heatName.c_str() ) == 0;
+			}
+			if( !hasAuthoredHeat )
+			{
+				effect.AddParameterVector4( BlueSharedString( heatName ), &noHeatGlow );
+			}
+		}
+	}
 
-	const Color& glow = faction->m_colorSet->m_colors[SOFDataFactionColorChooser::TYPE_HULL];
+	const auto glowType = sourceGroup == 2
+		? SOFDataFactionColorChooser::TYPE_BOOSTER
+		: SOFDataFactionColorChooser::TYPE_HULL;
+	const Color& glow = faction->m_colorSet->m_colors[glowType];
 	const Vector4 glowValue( glow.r, glow.g, glow.b, glow.a );
 	effect.AddParameterVector4( BlueSharedString( "GeneralGlowColor" ), &glowValue );
-	effect.SetParameter( BlueSharedString( "areaId" ), uint32_t( 0 ) );
+	effect.SetParameter( BlueSharedString( "areaId" ), sourceGroup );
 	effect.SetParameter( BlueSharedString( "objectId" ), uint32_t( 0 ) );
 
-	for( const auto& texture : hullArea->m_textures )
+	for( const auto& texture : selectedArea->m_textures )
 	{
 		effect.AddResourceTexture2D( texture->m_name, texture->m_resFilePath.c_str() );
 	}
-	effect.AddResourceTexture2D( BlueSharedString( "DustNoiseMap" ), "res:/texture/global/black.dds" );
+	if( opaqueArea )
+	{
+		effect.AddResourceTexture2D( BlueSharedString( "DustNoiseMap" ), "res:/texture/global/black.dds" );
+	}
 
 	std::fprintf(
 		stderr,
-		"Authored Astero SOF material configured: shader=quad/quadv5.fx textures=%zu glow=(%.3f, %.3f, %.3f)\n",
-		hullArea->m_textures.size(),
+		"Authored Astero area configured: group=%u name=%s shader=%s textures=%zu glow=(%.3f, %.3f, %.3f)\n",
+		sourceGroup,
+		selectedArea->m_name.c_str(),
+		selectedArea->m_shader.c_str(),
+		selectedArea->m_textures.size(),
 		glow.r,
 		glow.g,
 		glow.b );
@@ -1318,10 +1705,9 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 
 	const std::set<std::pair<int, int>> bridgeVertexInputs = {
 		{ Tr2VertexDefinition::POSITION, 0 },
-		{ Tr2VertexDefinition::NORMAL, 0 },
+		{ Tr2VertexDefinition::BLENDINDICES, 0 },
 		{ Tr2VertexDefinition::TANGENT, 0 },
 		{ Tr2VertexDefinition::TEXCOORD, 0 },
-		{ Tr2VertexDefinition::COLOR, 0 },
 	};
 	std::set<std::pair<int, int>> effectVertexInputs;
 	std::set<std::string> explicitConstants;
@@ -1386,20 +1772,43 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	WriteNames( "Automatic Trinity resources", automaticResources );
 
 	output << "\n## Existing Bridge Compatibility\n\n";
-	output << "The current bridge provides `POSITION0`, `NORMAL0`, `TANGENT0`, `TEXCOORD0`, and `COLOR0`.\n\n";
+	output << "The V5 bridge provides `POSITION0`, `BLENDINDICES0`, `TANGENT0`, and `TEXCOORD0`. "
+		"The Astero GR2 has no authored `TEXCOORD1` stream, so TrinityAL supplies its missing-attribute zero value.\n\n";
 	bool missingVertexInputs = false;
 	for( const auto& input : effectVertexInputs )
 	{
 		const auto usage = static_cast<Tr2VertexDefinition::UsageCode>( input.first );
 		const bool available = bridgeVertexInputs.count( input ) != 0;
-		output << "- `" << VertexUsageName( usage ) << input.second << "`: " << ( available ? "available" : "MISSING" ) << "\n";
-		missingVertexInputs = missingVertexInputs || !available;
+		const bool synthesizedNeutral = usage == Tr2VertexDefinition::TEXCOORD && input.second == 1;
+		output << "- `" << VertexUsageName( usage ) << input.second << "`: "
+			   << ( available ? "available" : ( synthesizedNeutral ? "synthesized zero (authored stream absent)" : "MISSING" ) ) << "\n";
+		missingVertexInputs = missingVertexInputs || ( !available && !synthesizedNeutral );
 	}
 	output << "\n- Typed Black/SOF decode: compatible\n";
 	output << "- Compiled Metal effect container: compatible\n";
 	output << "- Extracted material Black files: " << ( materialsLoaded ? "compatible" : "incomplete" ) << "\n";
 	output << "- Existing bridge vertex declaration: " << ( missingVertexInputs ? "requires expansion" : "compatible with default permutation" ) << "\n";
-	output << "- Material/global bindings: require the explicit and automatic inputs inventoried above\n";
+	output << "- Material/global bindings: all opaque-area explicit resources are synchronously validated at startup\n";
+
+	output << "\n## RC-05 Runtime Area Contract\n\n";
+	output << "| GR2 group | SOF area | Batch | Authored effect | Runtime status |\n";
+	output << "|---:|---|---|---|---|\n";
+	output << "| 0 | `area_fx_distortion` | Distortion | `fx/fxdistortionv5.fx` | Geometry, effect, `DistortionMap`, and `Layer2Map` validated; submission deferred until the separately gated distortion compositor. |\n";
+	output << "| 1 | `area_hull` | Opaque | `quad/quadv5.fx` | Rendered as an independent indexed batch. |\n";
+	output << "| 2 | `area_booster` | Opaque | `quad/quadheatv5.fx` | Rendered independently with four authored heat parameter sets and booster glow color. |\n\n";
+	output << "The hull declares no decal, transparent, or additive mesh areas. The root-object shader options explicitly disable clipping, projected-pattern textures, and instanced-attachment mode. "
+		"The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. Their dynamic lights remain RC-06, while visual attachment sets remain separately observable follow-up work.\n\n";
+
+	output << "## Per-Object Field Contract\n\n";
+	output << "| Field family | Probe value | Classification |\n";
+	output << "|---|---|---|\n";
+	output << "| World/inverse/previous transforms | Rotating root transform | Derived each frame; previous equals current until velocity/TAA work. |\n";
+	output << "| `shipData` | `(1, 1, 0, 2)` | Root scale, activation, authored default dirt, fitted radius. |\n";
+	output << "| Clip sphere and custom masks | Disabled/zero; custom-mask matrices identity | Neutral because clipping and PPT permutations are disabled. |\n";
+	output << "| Shape ellipsoid | `(-1, -1, -1, 0)` | Matches the unconfigured `EveSpaceObject2` sentinel. |\n";
+	output << "| Bone and morph offsets | Zero | Static bind-pose bridge; no runtime animation or morph targets. |\n";
+	output << "| SH coefficients | Scene manager or zero by isolation mode | RC-06 proves generation/upload; the selected opaque V5 passes do not consume the physical payload. |\n";
+	output << "| Screen/custom/impact data | Zero | Neutral for the selected opaque permutations and absent impact/custom systems. |\n";
 
 	return materialsLoaded;
 }
@@ -1459,7 +1868,7 @@ bool DrawDriverFrame( Tr2RenderContext& renderContext, EveSpaceSceneRenderDriver
 	return CheckHresult( renderContext.Present(), "Present" );
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, const char* sceneResourcePath, int sceneFixture )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource )
 {
 	if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_BLIT )
 	{
@@ -1612,6 +2021,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to initialize EveSpaceScene" );
 		return false;
 	}
+	std::string shLightingError;
+	if( !ConfigureShLighting( probe, lightingView, shSource, sceneFixture, shLightingError ) )
+	{
+		std::fprintf( stderr, "Failed to configure Trinity SH lighting: %s\n", shLightingError.c_str() );
+		return false;
+	}
 	if( !probe.driver.CreateInstance() )
 	{
 		CCP_LOGERR( "Failed to create EveSpaceSceneRenderDriver" );
@@ -1646,6 +2061,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.forceNormalMap = qualityRung >= STANDALONE_PROBE_RUNG_MODEL;
 	settings.forceOpaqueBuffer = false;
 	settings.forceVelocityMap = false;
+	if( materialMode != 0 )
+	{
+		std::fprintf( stderr, "EVE distortion compositor disabled: Astero group 0 is validated but not submitted until RC-12\n" );
+	}
 
 	probe.driver->SetSettings( settings );
 	probe.driver->SetScene( probe.scene );
@@ -1672,11 +2091,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
-		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode ) )
+		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode, areaView ) )
 		{
 			CCP_LOGERR( "Failed to initialize the standalone EVE renderable GPU resources" );
 			return false;
 		}
+		probe.renderable->SetShLightingEnabled( lightingView != STANDALONE_LIGHTING_DIRECT );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
 	return true;
@@ -1802,14 +2222,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, const char* sceneResourcePath, int sceneFixture )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, sceneResourcePath, sceneFixture );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime )

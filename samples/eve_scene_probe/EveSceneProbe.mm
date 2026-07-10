@@ -20,7 +20,7 @@ extern "C" bool TrinityStandaloneProbeStartup( int argc, const char* const* argv
 extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
-extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, const char* sceneResourcePath, int sceneFixture );
+extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime );
 
 namespace
@@ -61,12 +61,34 @@ enum class MaterialMode
 	EveV5,
 };
 
+enum class AreaView
+{
+	All,
+	Distortion,
+	Hull,
+	Booster,
+};
+
 enum class SceneFixture
 {
 	Empty,
 	Fitting,
 	A01,
 	NewEden,
+};
+
+enum class LightingView
+{
+	Combined,
+	Direct,
+	Sh,
+};
+
+enum class ShSource
+{
+	NewEdenPlanet,
+	Validation,
+	None,
 };
 
 struct Options
@@ -78,14 +100,49 @@ struct Options
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
+	AreaView areaView = AreaView::All;
 	SceneFixture sceneFixture = SceneFixture::NewEden;
+	LightingView lightingView = LightingView::Combined;
+	ShSource shSource = ShSource::NewEdenPlanet;
 	int maxFrames = -1;
 	uint32_t windowWidth = kDefaultWindowWidth;
 	uint32_t windowHeight = kDefaultWindowHeight;
 	bool windowed = false;
+	bool materialModeExplicit = false;
 };
 
 std::string ToLower( std::string value );
+
+std::string AreaViewName( AreaView view )
+{
+	switch( view )
+	{
+	case AreaView::All:
+		return "all";
+	case AreaView::Distortion:
+		return "distortion";
+	case AreaView::Hull:
+		return "hull";
+	case AreaView::Booster:
+		return "booster";
+	}
+	return "unknown";
+}
+
+bool ParseAreaView( const std::string& value, AreaView& view )
+{
+	const std::string normalized = ToLower( value );
+	const AreaView values[] = { AreaView::All, AreaView::Distortion, AreaView::Hull, AreaView::Booster };
+	for( AreaView candidate : values )
+	{
+		if( normalized == AreaViewName( candidate ) )
+		{
+			view = candidate;
+			return true;
+		}
+	}
+	return false;
+}
 
 bool ParseSceneFixture( const std::string& value, SceneFixture& fixture )
 {
@@ -109,6 +166,64 @@ bool ParseSceneFixture( const std::string& value, SceneFixture& fixture )
 	{
 		fixture = SceneFixture::NewEden;
 		return true;
+	}
+	return false;
+}
+
+std::string LightingViewName( LightingView view )
+{
+	switch( view )
+	{
+	case LightingView::Combined:
+		return "combined";
+	case LightingView::Direct:
+		return "direct";
+	case LightingView::Sh:
+		return "sh";
+	}
+	return "unknown";
+}
+
+bool ParseLightingView( const std::string& value, LightingView& view )
+{
+	const std::string normalized = ToLower( value );
+	const LightingView values[] = { LightingView::Combined, LightingView::Direct, LightingView::Sh };
+	for( LightingView candidate : values )
+	{
+		if( normalized == LightingViewName( candidate ) )
+		{
+			view = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string ShSourceName( ShSource source )
+{
+	switch( source )
+	{
+	case ShSource::NewEdenPlanet:
+		return "new-eden-planet";
+	case ShSource::Validation:
+		return "validation";
+	case ShSource::None:
+		return "none";
+	}
+	return "unknown";
+}
+
+bool ParseShSource( const std::string& value, ShSource& source )
+{
+	const std::string normalized = ToLower( value );
+	const ShSource values[] = { ShSource::NewEdenPlanet, ShSource::Validation, ShSource::None };
+	for( ShSource candidate : values )
+	{
+		if( normalized == ShSourceName( candidate ) )
+		{
+			source = candidate;
+			return true;
+		}
 	}
 	return false;
 }
@@ -357,7 +472,9 @@ void PrintUsage( const char* executable )
 		<< "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
 		<< "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
 		<< "       [--material-mode probe|eve-v5]\n"
+		<< "       [--area-view all|hull|booster|distortion]\n"
 		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
+		<< "       [--lighting-view combined|direct|sh] [--sh-source new-eden-planet|validation|none]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
@@ -445,10 +562,32 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			{
 				return false;
 			}
+			options.materialModeExplicit = true;
+		}
+		else if( arg == "--area-view" )
+		{
+			if( ++i >= argc || !ParseAreaView( argv[i], options.areaView ) )
+			{
+				return false;
+			}
 		}
 		else if( arg == "--scene-fixture" )
 		{
 			if( ++i >= argc || !ParseSceneFixture( argv[i], options.sceneFixture ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--lighting-view" )
+		{
+			if( ++i >= argc || !ParseLightingView( argv[i], options.lightingView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--sh-source" )
+		{
+			if( ++i >= argc || !ParseShSource( argv[i], options.shSource ) )
 			{
 				return false;
 			}
@@ -470,6 +609,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.inputPath.empty() )
 	{
 		options.inputPath = DefaultAssetPath( options );
+	}
+	if( !options.materialModeExplicit && options.asset == "astero" )
+	{
+		options.materialMode = MaterialMode::EveV5;
 	}
 
 	return true;
@@ -635,7 +778,9 @@ bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t heig
 	}
 
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
-		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) );
+		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
+		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
+		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource );
 	const std::string metadataPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".txt";
 	if( !EnsureParentDirectory( metadataPath ) )
 	{
@@ -654,6 +799,9 @@ bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t heig
 	metadata << "qualityRung=" << QualityRungName( options.qualityRung ) << "\n";
 	metadata << "materialView=" << MaterialViewName( options.materialView ) << "\n";
 	metadata << "materialMode=" << MaterialModeName( options.materialMode ) << "\n";
+	metadata << "areaView=" << AreaViewName( options.areaView ) << "\n";
+	metadata << "lightingView=" << LightingViewName( options.lightingView ) << "\n";
+	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
 	metadata << "frames=" << renderedFrames << "\n";
@@ -668,7 +816,9 @@ bool CaptureIfRequested( NSWindow* window, const Options& options, uint32_t widt
 	}
 
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
-		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) );
+		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
+		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
+		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource );
 	const std::string pngPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".png";
 	return CaptureWindowPng( window, pngPath ) && WriteCaptureMetadata( options, width, height, renderedFrames );
 }
@@ -764,8 +914,11 @@ int main( int argc, char** argv )
 					options.inputPath.c_str(),
 					static_cast<int>( options.materialView ),
 					static_cast<int>( options.materialMode ),
+					static_cast<int>( options.areaView ),
 					SceneResourcePath( options.sceneFixture ),
-					SceneFixtureApiValue( options.sceneFixture ) ) )
+					SceneFixtureApiValue( options.sceneFixture ),
+					static_cast<int>( options.lightingView ),
+					static_cast<int>( options.shSource ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

@@ -9,6 +9,7 @@
 #include <cstring>
 #include <fstream>
 #include <limits>
+#include <string_view>
 #include <utility>
 
 #include <cmf/bufferstreams.h>
@@ -21,6 +22,30 @@ namespace
 {
 
 constexpr uint8_t kNoSkeleton = 0xffu;
+
+uint32_t ParseSourceGroup( std::string_view name )
+{
+	constexpr std::string_view marker = "_group_";
+	const size_t markerPosition = name.rfind( marker );
+	if( markerPosition == std::string_view::npos )
+	{
+		return UINT32_MAX;
+	}
+
+	const std::string_view suffix = name.substr( markerPosition + marker.size() );
+	uint32_t value = 0;
+	bool foundDigit = false;
+	for( const char character : suffix )
+	{
+		if( character < '0' || character > '9' )
+		{
+			break;
+		}
+		foundDigit = true;
+		value = value * 10u + static_cast<uint32_t>( character - '0' );
+	}
+	return foundDigit ? value : UINT32_MAX;
+}
 
 struct SourceVertex
 {
@@ -204,6 +229,7 @@ public:
 		m_vertices.clear();
 		m_jointIndices.clear();
 		m_indices.clear();
+		m_sections.clear();
 		bool boundsInitialized = false;
 		for( const cmf::Mesh& mesh : data->meshes )
 		{
@@ -331,6 +357,12 @@ public:
 				}
 			}
 
+			TrinityStandaloneCmfSection section;
+			section.name = std::string( cmf::ToStdStringView( mesh.name ) );
+			section.sourceGroup = ParseSourceGroup( section.name );
+			section.firstIndex = static_cast<uint32_t>( m_indices.size() );
+			section.indexCount = indexCount;
+
 			m_indices.reserve( m_indices.size() + indexCount );
 			for( uint32_t i = 0; i < indexCount; ++i )
 			{
@@ -356,6 +388,7 @@ public:
 
 				m_indices.push_back( baseVertex + index );
 			}
+			m_sections.push_back( std::move( section ) );
 		}
 
 		if( m_vertices.empty() || !boundsInitialized )
@@ -471,6 +504,7 @@ public:
 	std::vector<std::array<uint16_t, 4>> m_jointIndices;
 	std::vector<TrinityStandaloneEveV5Vertex> m_eveV5Vertices;
 	std::vector<uint32_t> m_indices;
+	std::vector<TrinityStandaloneCmfSection> m_sections;
 	CcpMath::AxisAlignedBox m_bounds = {};
 	Vector3 m_center = {};
 	float m_fitScale = 1.0f;
@@ -519,6 +553,11 @@ const std::vector<TrinityStandaloneEveV5Vertex>& TrinityStandaloneCmfModel::EveV
 const std::vector<uint32_t>& TrinityStandaloneCmfModel::Indices() const
 {
 	return m_impl->m_indices;
+}
+
+const std::vector<TrinityStandaloneCmfSection>& TrinityStandaloneCmfModel::Sections() const
+{
+	return m_impl->m_sections;
 }
 
 void TrinityStandaloneCmfModel::GetCenterAndScale( float output[4] ) const
