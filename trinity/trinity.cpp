@@ -285,6 +285,23 @@ static void StartDLL()
 	InitializeTrinity();
 }
 
+extern "C"
+#ifdef _WIN32
+	__declspec( dllexport )
+#else
+	__attribute__( ( visibility( "default" ) ) )
+#endif
+	void TrinityStandaloneStartup()
+{
+	static bool started = false;
+	if( started )
+	{
+		return;
+	}
+	started = true;
+	StartDLL();
+}
+
 #if BLUE_WITH_PYTHON
 
 //--------------------------------------------------------------------

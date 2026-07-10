@@ -65,6 +65,8 @@ public:
 		bool forceNormalMap = false;
 		bool forceVelocityMap = false;
 		bool enableUpscaling = true;
+		bool bypassPostProcessing = false;
+		bool postProcessBlitOnly = false;
 		bool enableDistortion = true; // should be tied to shader quality
 		bool showFPS = false;
 		EveSpaceScene::EveVisualizeMethod visualizeMethod = EveSpaceScene::VM_NONE;
@@ -90,6 +92,8 @@ public:
 
 	EveSpaceScene* GetScene() const;
 	void SetScene( EveSpaceScene * scene );
+	void SetView( TriView* view );
+	void SetProjection( TriProjection* projection );
 
 	EXPOSE_TO_BLUE();
 

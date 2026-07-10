@@ -459,18 +459,19 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	Tr2Renderer::SetUpscalingContextID( m_upscalingContext ? m_upscalingContext->GetID() : Tr2UpscalingAL::INVALID_CONTEXT_ID );
 
 	auto customBackBuffer = m_gpuResourcePool.GetTempTexture( "customBackBuffer", renderSize, m_internalPixelFormat, Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
+	const Tr2TextureAL& sceneColorTarget = m_settings.bypassPostProcessing ? *destinations.data : customBackBuffer.Get();
 
 	if( m_background )
 	{
-		BeginRenderPass( renderContext, { customBackBuffer }, {} );
+		BeginRenderPass( renderContext, { sceneColorTarget }, {} );
 		renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, m_settings.clearColor, 0 );
 
-		m_background->Execute( { &customBackBuffer.Get(), 1 }, {}, realTime, simTime, rootTimer, renderContext );
+		m_background->Execute( { &sceneColorTarget, 1 }, {}, realTime, simTime, rootTimer, renderContext );
 	}
 
 	auto depthBuffer = m_gpuResourcePool.GetTempTexture( "depthBuffer", renderSize, ImageIO::PIXEL_FORMAT_D32_FLOAT, Tr2GpuUsage::DEPTH_STENCIL | Tr2GpuUsage::SHADER_RESOURCE );
 
-	BeginRenderPass( renderContext, { customBackBuffer }, depthBuffer );
+	BeginRenderPass( renderContext, { sceneColorTarget }, depthBuffer );
 	renderContext.Clear( m_background ? Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER : ( Tr2RenderContextEnum::CLEARFLAGS_TARGET | Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER ), m_settings.clearColor, 0 );
 
 	SetCameraToRenderer( renderContext );
@@ -552,7 +553,7 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		distortionMap = GetDistortionMapIfNeeded( renderSize );
 		{
 			TimeSection mainPassSection( m_timers.mainPass, "MainPass", rootTimer, renderContext );
-			hasDistortionBatches = m_scene->RenderMainPass( customBackBuffer, depthBuffer, distortionMap, velocityMap, opaqueBackBuffer, m_gpuResourcePool, renderContext );
+			hasDistortionBatches = m_scene->RenderMainPass( sceneColorTarget, depthBuffer, distortionMap, velocityMap, opaqueBackBuffer, m_gpuResourcePool, renderContext );
 		}
 		RegisterWithVariableStore( {}, m_gpuResourcePool );
 
@@ -584,7 +585,7 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	GlobalStore().RegisterVariable( "SpaceSceneNormalMap", Tr2TextureAL{} );
 	normalMap = {};
 
-	BeginRenderPass( renderContext, { customBackBuffer }, depthBuffer );
+	BeginRenderPass( renderContext, { sceneColorTarget }, depthBuffer );
 	{
 		renderContext.SetReadOnlyDepth( true );
 		m_scene->RunLensflareOcclusionQueries( depthBuffer, renderContext );
@@ -605,7 +606,27 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 
 	{
 		TimeSection postProcessSection( m_timers.postProcess, "PostProcess", rootTimer, renderContext );
-		m_postProcess->Execute( *destinations.data, std::move( customBackBuffer ), depthBuffer, std::move( velocityMap ), std::move( opaqueBackBuffer ), m_scene, m_upscalingContext, m_gpuResourcePool, renderContext );
+		if( m_settings.bypassPostProcessing )
+		{
+			// The scene rendered directly to the destination for asset-free probes.
+		}
+		else if( m_settings.postProcessBlitOnly )
+		{
+			auto resolvedBackBuffer = m_gpuResourcePool.GetTempTexture(
+				"postProcessBlitOnlyResolved",
+				renderSize,
+				m_internalPixelFormat,
+				Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
+			customBackBuffer->Resolve( resolvedBackBuffer, renderContext );
+			renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+			BeginRenderPass( renderContext, { *destinations.data }, {} );
+			renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
+			Tr2Renderer::DrawTexture( renderContext, resolvedBackBuffer );
+		}
+		else
+		{
+			m_postProcess->Execute( *destinations.data, std::move( customBackBuffer ), depthBuffer, std::move( velocityMap ), std::move( opaqueBackBuffer ), m_scene, m_upscalingContext, m_gpuResourcePool, renderContext );
+		}
 	}
 	SetCameraToRenderer( renderContext );
 	{
@@ -764,4 +785,14 @@ void EveSpaceSceneRenderDriver::SetScene( EveSpaceScene* scene )
 		return;
 	}
 	m_scene = scene;
+}
+
+void EveSpaceSceneRenderDriver::SetView( TriView* view )
+{
+	m_view = view;
+}
+
+void EveSpaceSceneRenderDriver::SetProjection( TriProjection* projection )
+{
+	m_projection = projection;
 }

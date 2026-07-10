@@ -1,0 +1,9 @@
+{
+  "name": "trinity-shared-cache-to-gltf",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@carbonenginejs/format-gr2": "0.1.2"
+  }
+}

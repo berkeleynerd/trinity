@@ -1740,6 +1740,9 @@ set(_SOURCES
     TriMatrix.cpp
     TriMatrix_Blue.cpp
     trinity.cpp
+    TrinityStandaloneCmfModel.cpp
+    TrinityStandaloneCmfModel.h
+    TrinityStandaloneProbe.cpp
     TriObserverLocal.cpp
     TriObserverLocal.h
     TriObserverLocal_Blue.cpp

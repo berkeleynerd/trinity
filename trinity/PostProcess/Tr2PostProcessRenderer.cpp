@@ -61,6 +61,25 @@ void DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effe
 	renderContext.m_esm.PopRenderTarget();
 }
 
+void DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, const Tr2TextureAL& src, Tr2RenderContext& renderContext )
+{
+	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
+	renderContext.m_esm.PushRenderTarget( dest );
+	Tr2Renderer::DrawTexture( renderContext, effect, src );
+	renderContext.m_esm.PopRenderTarget();
+}
+
+void PrepareFullScreenTarget( const Tr2TextureAL& destination, Tr2RenderContext& renderContext )
+{
+	renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+	renderContext.m_esm.SetRenderTarget( 0, destination );
+	renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+	renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+	renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+	renderContext.m_esm.SetDepthStencilBuffer( Tr2TextureAL{} );
+	renderContext.m_esm.SetFullScreenViewport();
+}
+
 ImageIO::PixelFormat GetUavCompatibleFormat( ImageIO::PixelFormat format )
 {
 	if( format == ImageIO::PIXEL_FORMAT_B8G8R8X8_UNORM || format == ImageIO::PIXEL_FORMAT_B8G8R8A8_UNORM )
@@ -405,10 +424,12 @@ void ApplyFade( const Tr2PPFadeEffect* fade, Tr2Effect* tonemappingEffect )
 	{
 		tonemappingEffect->SetParameter( MEMOIZED_STRING( "FadeColor" ), Vector4( fade->m_color ) );
 		tonemappingEffect->SetParameter( MEMOIZED_STRING( "FadeAmount" ), fade->m_intensity );
+		tonemappingEffect->SetOption( MEMOIZED_STRING( "FADE_TOGGLE" ), MEMOIZED_STRING( "FADE_ENABLED" ) );
 	}
 	else
 	{
 		tonemappingEffect->SetParameter( MEMOIZED_STRING( "FadeAmount" ), 0.0f );
+		tonemappingEffect->SetOption( MEMOIZED_STRING( "FADE_TOGGLE" ), MEMOIZED_STRING( "FADE_DISABLED" ) );
 	}
 }
 
@@ -678,7 +699,7 @@ void Tr2PostProcessRenderer::Execute(
 	const auto upscalingInfo = renderContext.GetPrimaryRenderContext().GetUpscalingInfo( upscalingContext ? upscalingContext->GetID() : Tr2UpscalingAL::INVALID_CONTEXT_ID );
 
 	auto upscalingEnabled = upscalingInfo.technique != Tr2UpscalingAL::NONE;
-	bool sharpeningRequired = !upscalingInfo.hasSharpening;
+	bool sharpeningRequired = upscalingEnabled && !upscalingInfo.hasSharpening;
 
 	Tr2GpuResourcePool::Texture output;
 	if( upscalingEnabled )
@@ -803,7 +824,7 @@ void Tr2PostProcessRenderer::Execute(
 		{
 			auto tonemappedOutput = gpuResourcePool.GetTempTexture( "Tonemapping Result", renderSize, destination.GetFormat(), RENDER_TARGET );
 
-			RenderTonemapping( tonemappedOutput, postProcess, renderContext );
+			RenderTonemapping( tonemappedOutput, upscaledSource, postProcess, renderContext );
 
 			output = RenderUpscaling( tonemappedOutput, depthMap, velocity, opaqueColor, scene->GetReprojectionMatrix(), gpuResourcePool, renderContext, upscalingContext, dynamicExposure );
 			depthMap = {};
@@ -815,10 +836,10 @@ void Tr2PostProcessRenderer::Execute(
 		}
 		else
 		{
-			RenderTonemapping( output, postProcess, renderContext );
+			RenderTonemapping( output, upscaledSource, postProcess, renderContext );
 		}
 
-		renderContext.m_esm.SetRenderTarget( 0, destination );
+		PrepareFullScreenTarget( destination, renderContext );
 		if( filmGrain != nullptr )
 		{
 			RenderFilmGrain( output, renderContext, filmGrain );
@@ -830,7 +851,8 @@ void Tr2PostProcessRenderer::Execute(
 	}
 	else
 	{
-		RenderTonemapping( output, postProcess, renderContext );
+		RenderTonemapping( output, upscaledSource, postProcess, renderContext );
+		PrepareFullScreenTarget( destination, renderContext );
 		Tr2Renderer::DrawTexture( renderContext, output );
 	}
 
@@ -1219,11 +1241,11 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 	m_dynamicExposureCreateHistogramShader->SetParameter( MEMOIZED_STRING( "MaxLuminance" ), log( dynamicExposure->m_maxLuminance ) );
 	m_dynamicExposureCreateHistogramShader->SetParameter( MEMOIZED_STRING( "MinBrightness" ), dynamicExposure->m_minBrightness );
 	m_dynamicExposureCreateHistogramShader->SetParameter( MEMOIZED_STRING( "MaxBrightness" ), dynamicExposure->m_maxBrightness );
-	Tr2Renderer::RunComputeShader( m_dynamicExposureCreateHistogramShader, tilesX, tilesY, 1, renderContext );
+	const bool createdHistogram = Tr2Renderer::RunComputeShader( m_dynamicExposureCreateHistogramShader, tilesX, tilesY, 1, renderContext );
 
 	// Merge histogram
 	uint32_t mergeHistogramXDim = tilesX * tilesY / NUM_TILES_PER_THREAD_GROUP + 1;
-	Tr2Renderer::RunComputeShader( m_dynamicExposureMergeHistogramShader, mergeHistogramXDim, 1, 1, renderContext );
+	const bool mergedHistogram = Tr2Renderer::RunComputeShader( m_dynamicExposureMergeHistogramShader, mergeHistogramXDim, 1, 1, renderContext );
 
 	// Measure histogram
 	m_dynamicExposureMeasureExposureShader->SetParameter( MEMOIZED_STRING( "MinLuminance" ), log( dynamicExposure->m_minLuminance ) );
@@ -1235,8 +1257,20 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 	m_dynamicExposureMeasureExposureShader->SetParameter( MEMOIZED_STRING( "MinExposure" ), dynamicExposure->m_minExposure );
 	m_dynamicExposureMeasureExposureShader->SetParameter( MEMOIZED_STRING( "MaxExposure" ), dynamicExposure->m_maxExposure );
 	TEMP_PARAM( m_dynamicExposureMeasureExposureShader, "Histogram", histogram );
-	TEMP_PARAM( m_dynamicExposureMeasureExposureShader, "Exposure", GetExposureBuffer( gpuResourcePool ) );
-	Tr2Renderer::RunComputeShader( m_dynamicExposureMeasureExposureShader, 1, 1, 1, renderContext );
+	auto exposureBuffer = GetExposureBuffer( gpuResourcePool );
+	TEMP_PARAM( m_dynamicExposureMeasureExposureShader, "Exposure", exposureBuffer );
+	const bool measuredExposure = Tr2Renderer::RunComputeShader( m_dynamicExposureMeasureExposureShader, 1, 1, 1, renderContext );
+	static bool reportedComputeFailure = false;
+	if( !reportedComputeFailure && ( !createdHistogram || !mergedHistogram || !measuredExposure ) )
+	{
+		reportedComputeFailure = true;
+		CCP_LOGERR(
+			"Dynamic exposure compute failed: create=%d merge=%d measure=%d buffer=%d",
+			createdHistogram ? 1 : 0,
+			mergedHistogram ? 1 : 0,
+			measuredExposure ? 1 : 0,
+			exposureBuffer.IsValid() ? 1 : 0 );
+	}
 	return histogram;
 }
 
@@ -1530,6 +1564,7 @@ void Tr2PostProcessRenderer::RenderTaa( const Tr2TextureAL& dest, const Tr2Textu
 
 void Tr2PostProcessRenderer::RenderTonemapping(
 	const Tr2TextureAL& dest,
+	const Tr2TextureAL& source,
 	Tr2PostProcess2* postprocess,
 	Tr2RenderContext& renderContext )
 {
@@ -1578,8 +1613,16 @@ void Tr2PostProcessRenderer::RenderTonemapping(
 		Tonemapping::ApplyNoTonemappingMethod( m_tonemappingEffect );
 	}
 
+	Tr2Shader* shader = m_tonemappingEffect->GetShaderStateInterface();
+	if( !shader || shader->GetPassCount( 0 ) == 0 )
+	{
+		CCP_LOGERR( "Tone mapping effect has no shader for the selected options" );
+		std::fprintf( stderr, "Tone mapping effect has no shader for the selected options\n" );
+		return;
+	}
+
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
-	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_tonemappingEffect, renderContext );
+	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_tonemappingEffect, source, renderContext );
 }
 
 void Tr2PostProcessRenderer::RenderGenericEffect( const Tr2TextureAL& dest, const Tr2TextureAL& src, Tr2RenderContext& renderContext, Tr2PPGenericEffectPtr genericEffect )

@@ -36,6 +36,8 @@ public:
 	~Tr2EffectRes();
 
 	Tr2ShaderPtr GetShader( const Tr2ShaderOption* options, size_t count );
+	uint32_t GetFormatVersion() const { return m_version; }
+	const TrackableStdVector<Tr2ShaderPermutation>& GetPermutations() const { return m_permutations; }
 
 
 	//////////////////////////////////////////////////////////////////////////

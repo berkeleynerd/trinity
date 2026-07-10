@@ -30,6 +30,7 @@ public:
 
 	Tr2Effect* GetEffect();
 	void SetEffect( Tr2Effect* effect );
+	void Configure( int32_t starCount, int32_t seed, float minDistance, float maxDistance );
 
 	void Update( Be::Time time );
 
@@ -80,6 +81,15 @@ inline Tr2Effect* EveStarfield::GetEffect()
 inline void EveStarfield::SetEffect( Tr2Effect* effect )
 {
 	m_effect = effect;
+}
+
+inline void EveStarfield::Configure( int32_t starCount, int32_t seed, float minDistance, float maxDistance )
+{
+	m_starCount = starCount;
+	m_seed = seed;
+	m_minDistance = minDistance;
+	m_maxDistance = maxDistance;
+	m_dirty = true;
 }
 
 

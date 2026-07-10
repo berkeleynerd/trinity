@@ -227,6 +227,7 @@ private:
 	bool m_vignetteEnabled;
 	void RenderTonemapping(
 		const Tr2TextureAL& dest,
+		const Tr2TextureAL& source,
 		Tr2PostProcess2* activePostProcess,
 		Tr2RenderContext& renderContext );
 

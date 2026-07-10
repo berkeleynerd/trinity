@@ -147,6 +147,10 @@ public:
 	{
 		return m_animationTime;
 	}
+	void SetAnimationTime( float animationTime )
+	{
+		m_animationTime = animationTime;
+	}
 	float GetAnimationTimeElapsed( float startTime );
 
 

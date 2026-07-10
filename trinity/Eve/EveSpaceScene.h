@@ -210,6 +210,51 @@ public:
 	{
 		return m_objects;
 	}
+	struct LightingSetup
+	{
+		Vector3 sunDirection;
+		Color sunColor;
+		Color ambientColor;
+		float nebulaIntensity;
+		float reflectionIntensity;
+		bool backgroundRenderingEnabled;
+		Quaternion environmentMapRotation;
+		std::string environmentMapPath;
+		std::string environmentMap1Path;
+		std::string environmentMap2Path;
+		std::string lowQualityNebulaPath;
+		std::string lowQualityNebulaMixPath;
+	};
+	LightingSetup GetLightingSetup() const
+	{
+		return {
+			m_sunData.DirWorld,
+			m_sunColor,
+			m_ambientColor,
+			m_nebulaIntensity,
+			m_reflectionIntensity,
+			m_backgroundRenderingEnabled,
+			m_envMapRotation,
+			m_envMapResPath,
+			m_envMap1ResPath,
+			m_envMap2ResPath,
+			m_lowQualityNebulaResPath,
+			m_lowQualityNebulaMixResPath,
+		};
+	}
+	Tr2EffectPtr GetBackgroundEffect() const
+	{
+		return m_backgroundEffect;
+	}
+	void SetSunLighting( const Vector3& direction, const Color& color )
+	{
+		m_sunData.DirWorld = direction;
+		m_sunColor = color;
+	}
+	void SetStarfield( EveStarfield* starfield )
+	{
+		m_starfield = starfield;
+	}
 	Tr2PostProcess2Ptr GetPostProcess();
 
 	Matrix GetReprojectionMatrix() const;
