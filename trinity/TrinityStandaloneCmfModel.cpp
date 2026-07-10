@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <cstring>
 #include <fstream>
 #include <limits>
@@ -47,10 +48,21 @@ uint32_t ParseSourceGroup( std::string_view name )
 	return foundDigit ? value : UINT32_MAX;
 }
 
+struct LegacySourceVertex
+{
+	float position[3];
+	float normal[3];
+	float texcoord[2];
+	float color[4];
+	uint16_t joints[4];
+	float weights[4];
+};
+
 struct SourceVertex
 {
 	float position[3];
 	float normal[3];
+	float tangent[4];
 	float texcoord[2];
 	float color[4];
 	uint16_t joints[4];
@@ -228,6 +240,7 @@ public:
 
 		m_vertices.clear();
 		m_jointIndices.clear();
+		m_hasAuthoredTangents.clear();
 		m_indices.clear();
 		m_sections.clear();
 		bool boundsInitialized = false;
@@ -274,17 +287,19 @@ public:
 			}
 
 			const cmf::MeshLod& lod = mesh.lods[0];
-			if( lod.vb.stride != sizeof( SourceVertex ) )
+			if( lod.vb.stride != sizeof( SourceVertex ) && lod.vb.stride != sizeof( LegacySourceVertex ) )
 			{
 				error = "EVE rung 3 expects the glTF importer vertex layout";
 				return false;
 			}
-			const auto* sourceVertices = static_cast<const SourceVertex*>( m_cmf.GetViewData( lod.vb, error ) );
+			const void* sourceVertexData = m_cmf.GetViewData( lod.vb, error );
 			const void* indexData = m_cmf.GetViewData( lod.ib, error );
-			if( !sourceVertices || !indexData )
+			if( !sourceVertexData || !indexData )
 			{
 				return false;
 			}
+			const bool hasAuthoredTangents = lod.vb.stride == sizeof( SourceVertex ) &&
+				cmf::FindElement( mesh.decl, cmf::Usage::Tangent ) != nullptr;
 
 			const uint32_t vertexCount = cmf::GetStreamElementCount( lod.vb );
 			const uint32_t indexCount = cmf::GetStreamElementCount( lod.ib );
@@ -298,15 +313,32 @@ public:
 			m_vertices.reserve( m_vertices.size() + vertexCount );
 			for( uint32_t i = 0; i < vertexCount; ++i )
 			{
-				const SourceVertex& source = sourceVertices[i];
+				SourceVertex source = {};
+				if( lod.vb.stride == sizeof( SourceVertex ) )
+				{
+					source = static_cast<const SourceVertex*>( sourceVertexData )[i];
+				}
+				else
+				{
+					const LegacySourceVertex& legacy = static_cast<const LegacySourceVertex*>( sourceVertexData )[i];
+					std::memcpy( source.position, legacy.position, sizeof( source.position ) );
+					std::memcpy( source.normal, legacy.normal, sizeof( source.normal ) );
+					std::memcpy( source.texcoord, legacy.texcoord, sizeof( source.texcoord ) );
+					std::memcpy( source.color, legacy.color, sizeof( source.color ) );
+					std::memcpy( source.joints, legacy.joints, sizeof( source.joints ) );
+					std::memcpy( source.weights, legacy.weights, sizeof( source.weights ) );
+				}
 				const Vector3 sourcePosition( source.position[0], source.position[1], source.position[2] );
 				const Vector3 sourceNormal( source.normal[0], source.normal[1], source.normal[2] );
+				const Vector3 sourceTangent( source.tangent[0], source.tangent[1], source.tangent[2] );
 				Vector3 position = sourcePosition;
 				Vector3 normal = Normalize( sourceNormal );
+				Vector3 tangent = hasAuthoredTangents ? Normalize( sourceTangent ) : Vector3( 0.0f, 0.0f, 0.0f );
 				if( skeleton && !meshBoneToSkeletonBone.empty() )
 				{
 					Vector3 skinnedPosition( 0.0f, 0.0f, 0.0f );
 					Vector3 skinnedNormal( 0.0f, 0.0f, 0.0f );
+					Vector3 skinnedTangent( 0.0f, 0.0f, 0.0f );
 					float totalWeight = 0.0f;
 					for( size_t influence = 0; influence < 4; ++influence )
 					{
@@ -323,12 +355,20 @@ public:
 						const Matrix skinMatrix = skeleton->invBindTransforms[skeletonBone] * worldTransforms[skeletonBone];
 						skinnedPosition += TransformCoord( sourcePosition, skinMatrix ) * weight;
 						skinnedNormal += TransformNormal( sourceNormal, skinMatrix ) * weight;
+						if( hasAuthoredTangents )
+						{
+							skinnedTangent += TransformNormal( sourceTangent, skinMatrix ) * weight;
+						}
 						totalWeight += weight;
 					}
 					if( totalWeight > 0.0f )
 					{
 						position = skinnedPosition / totalWeight;
 						normal = Normalize( skinnedNormal / totalWeight );
+						if( hasAuthoredTangents )
+						{
+							tangent = Normalize( skinnedTangent / totalWeight );
+						}
 					}
 				}
 				TrinityStandaloneCmfVertex vertex = {};
@@ -338,10 +378,18 @@ public:
 				vertex.normal[0] = normal.x;
 				vertex.normal[1] = normal.y;
 				vertex.normal[2] = normal.z;
+				if( hasAuthoredTangents )
+				{
+					vertex.tangent[0] = tangent.x;
+					vertex.tangent[1] = tangent.y;
+					vertex.tangent[2] = tangent.z;
+					vertex.tangent[3] = source.tangent[3] < 0.0f ? -1.0f : 1.0f;
+				}
 				vertex.texcoord[0] = source.texcoord[0];
 				vertex.texcoord[1] = source.texcoord[1];
 				std::memcpy( vertex.color, source.color, sizeof( vertex.color ) );
 				m_vertices.push_back( vertex );
+				m_hasAuthoredTangents.push_back( hasAuthoredTangents );
 				m_jointIndices.push_back( { source.joints[0], source.joints[1], source.joints[2], source.joints[3] } );
 
 				if( !boundsInitialized )
@@ -403,6 +451,12 @@ public:
 		m_fitScale = largestExtent > 0.0f ? 4.0f / largestExtent : 1.0f;
 		BuildTangents();
 		BuildEveV5Vertices();
+		const size_t authoredTangentCount = static_cast<size_t>( std::count( m_hasAuthoredTangents.begin(), m_hasAuthoredTangents.end(), true ) );
+		std::fprintf(
+			stderr,
+			"CMF tangent-frame contract: authored=%zu generated=%zu gpu-compression=PackedTangentLegacy\n",
+			authoredTangentCount,
+			m_hasAuthoredTangents.size() - authoredTangentCount );
 
 		return LoadTexture( path, "basecolor", { 255, 255, 255, 255 }, m_baseColorTexture, error ) &&
 			LoadTexture( path, "normal", { 128, 128, 255, 255 }, m_normalTexture, error ) &&
@@ -425,7 +479,7 @@ public:
 			const Vector3 tangent( source.tangent[0], source.tangent[1], source.tangent[2] );
 			const Vector3 bitangent = Cross( normal, tangent ) * source.tangent[3];
 			const Vector4 packed = cmf::PackTangents(
-				cmf::TangentCompression::PackedTangent,
+				cmf::TangentCompression::PackedTangentLegacy,
 				normal,
 				tangent,
 				bitangent );
@@ -485,6 +539,10 @@ public:
 		for( size_t i = 0; i < m_vertices.size(); ++i )
 		{
 			TrinityStandaloneCmfVertex& vertex = m_vertices[i];
+			if( m_hasAuthoredTangents[i] )
+			{
+				continue;
+			}
 			const Vector3 normal( vertex.normal[0], vertex.normal[1], vertex.normal[2] );
 			Vector3 tangent = tangents[i] - normal * Dot( normal, tangents[i] );
 			if( Length( tangent ) < 1.0e-6f )
@@ -502,6 +560,7 @@ public:
 	LoadedCmf m_cmf;
 	std::vector<TrinityStandaloneCmfVertex> m_vertices;
 	std::vector<std::array<uint16_t, 4>> m_jointIndices;
+	std::vector<bool> m_hasAuthoredTangents;
 	std::vector<TrinityStandaloneEveV5Vertex> m_eveV5Vertices;
 	std::vector<uint32_t> m_indices;
 	std::vector<TrinityStandaloneCmfSection> m_sections;

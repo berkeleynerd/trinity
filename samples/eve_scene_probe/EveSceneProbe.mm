@@ -6,6 +6,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <algorithm>
+#include <chrono>
 #include <cctype>
 #include <climits>
 #include <cmath>
@@ -15,13 +16,32 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <thread>
+#include <utility>
+#include <vector>
 
 extern "C" bool TrinityStandaloneProbeStartup( int argc, const char* const* argv, const char* executableDirectory );
 extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight, int shaderTier );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
-extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights );
-extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime );
+extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
+													  int qualityRung,
+													  const char* assetPath,
+													  int materialView,
+													  int materialMode,
+													  int areaView,
+													  const char* sceneResourcePath,
+													  int sceneFixture,
+													  int lightingView,
+													  int shSource,
+													  int localLights,
+													  int reflectionCorrection,
+													  int normalMapMode );
+extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
+												   int qualityRung,
+												   int64_t realTime,
+												   int64_t simTime,
+												   int captureProducts );
 
 namespace
 {
@@ -98,9 +118,35 @@ enum class ShaderTier
 	High,
 };
 
+enum class ReflectionCorrection
+{
+	Off,
+	Client,
+};
+
+enum class NormalMapMode
+{
+	Authored,
+	Flat,
+};
+
+enum class RenderProduct
+{
+	Window,
+	Color,
+	Depth,
+	Normal,
+	All,
+};
+
+constexpr int kCaptureColor = 1 << 0;
+constexpr int kCaptureDepth = 1 << 1;
+constexpr int kCaptureNormal = 1 << 2;
+constexpr int kCaptureFreezeScene = 1 << 8;
+
 enum class ShSource
 {
-	NewEdenPlanet,
+	NewEdenCelestials,
 	Validation,
 	None,
 };
@@ -117,9 +163,12 @@ struct Options
 	AreaView areaView = AreaView::All;
 	SceneFixture sceneFixture = SceneFixture::NewEden;
 	LightingView lightingView = LightingView::Combined;
-	ShSource shSource = ShSource::NewEdenPlanet;
+	ShSource shSource = ShSource::NewEdenCelestials;
 	LocalLights localLights = LocalLights::Off;
 	ShaderTier shaderTier = ShaderTier::High;
+	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
+	NormalMapMode normalMapMode = NormalMapMode::Authored;
+	RenderProduct renderProduct = RenderProduct::Window;
 	int maxFrames = -1;
 	uint32_t windowWidth = kDefaultWindowWidth;
 	uint32_t windowHeight = kDefaultWindowHeight;
@@ -268,12 +317,107 @@ bool ParseShaderTier( const std::string& value, ShaderTier& tier )
 	return false;
 }
 
+std::string ReflectionCorrectionName( ReflectionCorrection mode )
+{
+	return mode == ReflectionCorrection::Client ? "client" : "off";
+}
+
+bool ParseReflectionCorrection( const std::string& value, ReflectionCorrection& mode )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "off" )
+	{
+		mode = ReflectionCorrection::Off;
+		return true;
+	}
+	if( normalized == "client" || normalized == "on" )
+	{
+		mode = ReflectionCorrection::Client;
+		return true;
+	}
+	return false;
+}
+
+std::string NormalMapModeName( NormalMapMode mode )
+{
+	return mode == NormalMapMode::Flat ? "flat" : "authored";
+}
+
+bool ParseNormalMapMode( const std::string& value, NormalMapMode& mode )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "authored" )
+	{
+		mode = NormalMapMode::Authored;
+		return true;
+	}
+	if( normalized == "flat" )
+	{
+		mode = NormalMapMode::Flat;
+		return true;
+	}
+	return false;
+}
+
+std::string RenderProductName( RenderProduct product )
+{
+	switch( product )
+	{
+	case RenderProduct::Window:
+		return "window";
+	case RenderProduct::Color:
+		return "color";
+	case RenderProduct::Depth:
+		return "depth";
+	case RenderProduct::Normal:
+		return "normal";
+	case RenderProduct::All:
+		return "all";
+	}
+	return "unknown";
+}
+
+bool ParseRenderProduct( const std::string& value, RenderProduct& product )
+{
+	const std::string normalized = ToLower( value );
+	const RenderProduct values[] = {
+		RenderProduct::Window, RenderProduct::Color, RenderProduct::Depth, RenderProduct::Normal, RenderProduct::All
+	};
+	for( RenderProduct candidate : values )
+	{
+		if( normalized == RenderProductName( candidate ) )
+		{
+			product = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+int RenderProductApiValue( RenderProduct product )
+{
+	switch( product )
+	{
+	case RenderProduct::Color:
+		return kCaptureColor;
+	case RenderProduct::Depth:
+		return kCaptureDepth;
+	case RenderProduct::Normal:
+		return kCaptureNormal;
+	case RenderProduct::All:
+		return 0;
+	case RenderProduct::Window:
+		return 0;
+	}
+	return 0;
+}
+
 std::string ShSourceName( ShSource source )
 {
 	switch( source )
 	{
-	case ShSource::NewEdenPlanet:
-		return "new-eden-planet";
+	case ShSource::NewEdenCelestials:
+		return "new-eden-celestials";
 	case ShSource::Validation:
 		return "validation";
 	case ShSource::None:
@@ -285,7 +429,12 @@ std::string ShSourceName( ShSource source )
 bool ParseShSource( const std::string& value, ShSource& source )
 {
 	const std::string normalized = ToLower( value );
-	const ShSource values[] = { ShSource::NewEdenPlanet, ShSource::Validation, ShSource::None };
+	if( normalized == "new-eden-planet" )
+	{
+		source = ShSource::NewEdenCelestials;
+		return true;
+	}
+	const ShSource values[] = { ShSource::NewEdenCelestials, ShSource::Validation, ShSource::None };
 	for( ShSource candidate : values )
 	{
 		if( normalized == ShSourceName( candidate ) )
@@ -537,17 +686,19 @@ bool FileExists( const std::string& path )
 
 void PrintUsage( const char* executable )
 {
-	std::cerr
-		<< "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
-		<< "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
-		<< "       [--material-mode probe|eve-v5]\n"
-		<< "       [--area-view all|hull|booster|distortion]\n"
-		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
-		<< "       [--lighting-view combined|direct|sh|local] [--sh-source new-eden-planet|validation|none]\n"
-		<< "       [--local-lights off|authored|validation]\n"
-		<< "       [--shader-tier medium|high]\n"
-		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
-		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
+	std::cerr << "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
+			  << "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
+			  << "       [--material-mode probe|eve-v5]\n"
+			  << "       [--area-view all|hull|booster|distortion]\n"
+			  << "       [--scene-fixture empty|fitting|a01|new-eden]\n"
+			  << "       [--lighting-view combined|direct|sh|local] [--sh-source new-eden-celestials|validation|none]\n"
+			  << "       [--local-lights off|authored|validation]\n"
+			  << "       [--shader-tier medium|high]\n"
+			  << "       [--reflection-correction off|client]\n"
+			  << "       [--normal-map authored|flat]\n"
+			  << "       [--render-product window|color|depth|normal|all]\n"
+			  << "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
+			  << "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
 
 bool ParseArgs( int argc, char** argv, Options& options )
@@ -678,6 +829,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--reflection-correction" )
+		{
+			if( ++i >= argc || !ParseReflectionCorrection( argv[i], options.reflectionCorrection ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--normal-map" )
+		{
+			if( ++i >= argc || !ParseNormalMapMode( argv[i], options.normalMapMode ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--render-product" )
+		{
+			if( ++i >= argc || !ParseRenderProduct( argv[i], options.renderProduct ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--inspect-client-assets" )
 		{
 			if( ++i >= argc )
@@ -703,6 +875,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
 	{
 		options.localLights = LocalLights::Authored;
+	}
+	if( options.renderProduct != RenderProduct::Window &&
+		( options.capturePrefix.empty() || options.maxFrames <= 0 || options.qualityRung == QualityRung::Shell ) )
+	{
+		return false;
 	}
 
 	return true;
@@ -861,19 +1038,30 @@ bool CaptureWindowPng( NSWindow* window, const std::string& path )
 	return true;
 }
 
-bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t height, int renderedFrames )
+std::string CaptureBasePath( const Options& options )
+{
+	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
+		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
+		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lighting-" +
+		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_local-" +
+		LocalLightsName( options.localLights ) + "_reflcorr-" +
+		ReflectionCorrectionName( options.reflectionCorrection ) + "_normal-" +
+		NormalMapModeName( options.normalMapMode );
+	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix;
+}
+
+bool WriteCaptureMetadata( const Options& options,
+						   uint32_t width,
+						   uint32_t height,
+						   int renderedFrames,
+						   const std::vector<std::pair<std::string, std::string>>& productStats )
 {
 	if( options.capturePrefix.empty() )
 	{
 		return true;
 	}
 
-	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
-		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
-		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
-		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) +
-		"_local-" + LocalLightsName( options.localLights );
-	const std::string metadataPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".txt";
+	const std::string metadataPath = CaptureBasePath( options ) + ".txt";
 	if( !EnsureParentDirectory( metadataPath ) )
 	{
 		return false;
@@ -896,26 +1084,25 @@ bool WriteCaptureMetadata( const Options& options, uint32_t width, uint32_t heig
 	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
 	metadata << "localLights=" << LocalLightsName( options.localLights ) << "\n";
 	metadata << "shaderTier=" << ShaderTierName( options.shaderTier ) << "\n";
+	metadata << "reflectionCorrection=" << ReflectionCorrectionName( options.reflectionCorrection ) << "\n";
+	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
+	metadata << "renderProduct=" << RenderProductName( options.renderProduct ) << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
 	metadata << "frames=" << renderedFrames << "\n";
+	for( const auto& stats : productStats )
+	{
+		metadata << stats.first << "Stats=" << stats.second << "\n";
+	}
 	return true;
 }
 
-bool CaptureIfRequested( NSWindow* window, const Options& options, uint32_t width, uint32_t height, int renderedFrames )
+bool CapturePresentedProduct( NSWindow* window, const Options& options, RenderProduct product )
 {
-	if( options.capturePrefix.empty() )
-	{
-		return true;
-	}
-
-	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
-		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
-		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) +
-		"_lighting-" + LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) +
-		"_local-" + LocalLightsName( options.localLights );
-	const std::string pngPath = options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix + ".png";
-	return CaptureWindowPng( window, pngPath ) && WriteCaptureMetadata( options, width, height, renderedFrames );
+	const std::string basePath = CaptureBasePath( options );
+	const std::string suffix = product == RenderProduct::Window ? "" : "_" + RenderProductName( product );
+	std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
+	return CaptureWindowPng( window, basePath + suffix + ".png" );
 }
 
 }
@@ -1008,18 +1195,19 @@ int main( int argc, char** argv )
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
 		if( options.qualityRung != QualityRung::Shell &&
-			!TrinityStandaloneProbeCreateEveScene(
-				probe,
-				qualityRung,
-					options.inputPath.c_str(),
-					static_cast<int>( options.materialView ),
-					static_cast<int>( options.materialMode ),
-					static_cast<int>( options.areaView ),
-					SceneResourcePath( options.sceneFixture ),
-					SceneFixtureApiValue( options.sceneFixture ),
-					static_cast<int>( options.lightingView ),
-					static_cast<int>( options.shSource ),
-					static_cast<int>( options.localLights ) ) )
+			!TrinityStandaloneProbeCreateEveScene( probe,
+												   qualityRung,
+												   options.inputPath.c_str(),
+												   static_cast<int>( options.materialView ),
+												   static_cast<int>( options.materialMode ),
+												   static_cast<int>( options.areaView ),
+												   SceneResourcePath( options.sceneFixture ),
+												   SceneFixtureApiValue( options.sceneFixture ),
+												   static_cast<int>( options.lightingView ),
+												   static_cast<int>( options.shSource ),
+												   static_cast<int>( options.localLights ),
+												   static_cast<int>( options.reflectionCorrection ),
+												   static_cast<int>( options.normalMapMode ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -1040,7 +1228,10 @@ int main( int argc, char** argv )
 
 				const int64_t realTime = static_cast<int64_t>( renderedFrames ) * kFrameTime;
 				const int64_t simTime = realTime;
-				if( !TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime ) )
+				const int captureProducts = options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
+					RenderProductApiValue( options.renderProduct ) :
+					0;
+				if( !TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts ) )
 				{
 					std::cerr << "TrinityStandaloneProbeRenderFrame failed\n";
 					TrinityStandaloneProbeDestroyDevice( probe );
@@ -1051,10 +1242,59 @@ int main( int argc, char** argv )
 			}
 		}
 
-		bool captureSucceeded = false;
+		bool captureSucceeded = true;
 		@autoreleasepool
 		{
-			captureSucceeded = CaptureIfRequested( window, options, renderWidth, renderHeight, renderedFrames );
+			std::vector<std::pair<std::string, std::string>> productStats;
+			if( !options.capturePrefix.empty() )
+			{
+				ProcessEvents( window );
+				if( options.renderProduct == RenderProduct::All )
+				{
+					captureSucceeded = CapturePresentedProduct( window, options, RenderProduct::Color );
+					productStats.emplace_back( "color", "source=presented drawable gpuVisualization=false" );
+					const RenderProduct diagnosticProducts[] = { RenderProduct::Depth, RenderProduct::Normal };
+					for( RenderProduct product : diagnosticProducts )
+					{
+						const int64_t captureTime =
+							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+						if( !captureSucceeded ||
+							!TrinityStandaloneProbeRenderFrame( probe,
+																qualityRung,
+																captureTime,
+																captureTime,
+																RenderProductApiValue( product ) |
+																	kCaptureFreezeScene ) )
+						{
+							captureSucceeded = false;
+							break;
+						}
+						ProcessEvents( window );
+						captureSucceeded = CapturePresentedProduct( window, options, product );
+						productStats.emplace_back(
+							RenderProductName( product ),
+							product == RenderProduct::Depth ?
+								"source=DepthMap format=D32_FLOAT reverseZ=true clear=0 gpuVisualization=true" :
+								"source=NormalMap format=R10G10B10A2_UNORM clear=0 gpuVisualization=true" );
+					}
+				}
+				else
+				{
+					captureSucceeded = CapturePresentedProduct( window, options, options.renderProduct );
+					if( options.renderProduct != RenderProduct::Window )
+					{
+						productStats.emplace_back(
+							RenderProductName( options.renderProduct ),
+							options.renderProduct == RenderProduct::Depth ?
+								"source=DepthMap format=D32_FLOAT reverseZ=true clear=0 gpuVisualization=true" :
+								options.renderProduct == RenderProduct::Normal ?
+								"source=NormalMap format=R10G10B10A2_UNORM clear=0 gpuVisualization=true" :
+								"source=presented drawable gpuVisualization=false" );
+					}
+				}
+				captureSucceeded = captureSucceeded &&
+					WriteCaptureMetadata( options, renderWidth, renderHeight, renderedFrames, productStats );
+			}
 		}
 		if( !captureSucceeded )
 		{

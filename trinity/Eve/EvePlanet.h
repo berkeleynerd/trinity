@@ -49,6 +49,7 @@ public:
 
 	void UpdateLOD();
 	void SetRenderScale( float value );
+	void SetStandalonePlacement( const Vector3& position, float radius, const Color& albedo, const Color& emissive );
 
 	float GetEstimatedPixelDiameter();
 	ITriVectorFunctionPtr GetTranslationCurve();

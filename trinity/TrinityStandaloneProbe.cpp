@@ -26,6 +26,7 @@
 #include "Lights/Tr2TexturedPointLight.h"
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Tr2ProfileTimer.h"
+#include "Tr2MeshBase.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
 #include "Tr2ShLightingManager.h"
@@ -49,7 +50,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
-#include <iomanip>
+#include <sstream>
 #include <set>
 #include <string>
 #include <vector>
@@ -81,7 +82,7 @@ BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 
 namespace
 {
-bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::string& error );
+bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
 std::string ToNarrowPath( const wchar_t* path );
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
 
@@ -448,11 +449,12 @@ public:
 		return true;
 	}
 
-	bool InitializeGpu( Tr2PrimaryRenderContext& renderContext, int materialView, int materialMode, int areaView )
+	bool InitializeGpu( Tr2PrimaryRenderContext & renderContext, int materialView, int materialMode, int areaView, int normalMapMode )
 	{
 		using namespace Tr2RenderContextEnum;
 		m_useEveV5Material = materialMode != 0;
 		m_areaView = areaView;
+		m_normalMapMode = normalMapMode;
 		for( size_t maskIndex = 0; maskIndex < EVE_SPACEOBJECT_CUSTOWMASK_MAX; ++maskIndex )
 		{
 			m_eveV5PerObjectData.m_vsData.customMaskMatrix[maskIndex] = IdentityMatrix();
@@ -969,7 +971,7 @@ private:
 		}
 		effect->SetEffectPathName( effectPath );
 		std::string error;
-		if( !ConfigureAsteroEveV5Effect( *effect, sourceGroup, error ) )
+		if( !ConfigureAsteroEveV5Effect( *effect, sourceGroup, m_normalMapMode, error ) )
 		{
 			std::fprintf( stderr, "Failed to configure Astero group %u: %s\n", sourceGroup, error.c_str() );
 			return false;
@@ -1092,6 +1094,7 @@ private:
 	bool m_reportedShLighting = false;
 	mutable bool m_reportedAcceptedLights = false;
 	int m_localLightMode = 0;
+	int m_normalMapMode = 0;
 	uint32_t m_shUpdateCount = 0;
 	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
@@ -1241,24 +1244,45 @@ enum StandaloneLocalLights
 
 enum StandaloneShSource
 {
-	STANDALONE_SH_SOURCE_NEW_EDEN_PLANET = 0,
+	STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS = 0,
 	STANDALONE_SH_SOURCE_VALIDATION = 1,
 	STANDALONE_SH_SOURCE_NONE = 2,
+};
+
+enum StandaloneReflectionCorrection
+{
+	STANDALONE_REFLECTION_CORRECTION_OFF = 0,
+	STANDALONE_REFLECTION_CORRECTION_CLIENT = 1,
+};
+
+enum StandaloneNormalMapMode
+{
+	STANDALONE_NORMAL_MAP_AUTHORED = 0,
+	STANDALONE_NORMAL_MAP_FLAT = 1,
+};
+
+enum StandaloneCaptureProduct
+{
+	STANDALONE_CAPTURE_COLOR = 1 << 0,
+	STANDALONE_CAPTURE_DEPTH = 1 << 1,
+	STANDALONE_CAPTURE_NORMAL = 1 << 2,
+	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 8,
 };
 
 struct StandaloneProbe
 {
 	~StandaloneProbe()
+	{
+		if( scene )
 		{
-			if( scene )
-			{
-				scene->SetShLightingManager( nullptr );
-			}
-			driver.Unlock();
-			scene.Unlock();
-			renderable.Unlock();
-			secondaryLight.Unlock();
-			shLightingManager.Unlock();
+			scene->SetShLightingManager( nullptr );
+		}
+		renderProductVisualizer.Unlock();
+		driver.Unlock();
+		scene.Unlock();
+		renderable.Unlock();
+		secondaryLights.clear();
+		shLightingManager.Unlock();
 		g_eveSpaceSceneDynamicLighting = false;
 		g_useDynamicLightsShadows = false;
 		Tr2LightManager::DeleteInstance();
@@ -1286,15 +1310,18 @@ struct StandaloneProbe
 	Tr2RenderContext* renderContext = nullptr;
 	EveSpaceScenePtr scene;
 	EveSpaceSceneRenderDriverPtr driver;
-		BluePtr<TrinityStandaloneRenderable> renderable;
-		BluePtr<TrinityStandaloneSecondaryLight> secondaryLight;
-		Tr2ShLightingManagerPtr shLightingManager;
+	BluePtr<TrinityStandaloneRenderable> renderable;
+	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
+	Tr2ShLightingManagerPtr shLightingManager;
 	TriViewPtr view;
 	TriProjectionPtr projection;
+	Tr2EffectPtr renderProductVisualizer;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
 	int localLights = STANDALONE_LOCAL_LIGHTS_OFF;
 	bool reportedResolvedLights = false;
+	uint64_t renderedFrameCount = 0;
+	bool reportedCameraOrbit = false;
 };
 
 std::wstring ToWide( const char* value )
@@ -1774,6 +1801,78 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
 	}
 	scene.SetStarfield( starfield );
 
+	auto sun = LoadBlackObjectWithoutYield<EvePlanet>(
+		"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black",
+		error );
+	if( !sun )
+	{
+		return false;
+	}
+	auto planet = LoadBlackObjectWithoutYield<EvePlanet>(
+		"res:/dx9/model/worldobject/planet/sandstormplanet.black",
+		error );
+	if( !planet )
+	{
+		return false;
+	}
+	sun->SetStandalonePlacement(
+		Vector3( 1069486.940160f, -202669.301760f, -831868.968960f ),
+		158.4f,
+		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
+		Color( emissiveR, emissiveG, emissiveB, 1.0f ) );
+	planet->SetStandalonePlacement(
+		Vector3( 1083758.787326f, -205372.890997f, -787280.443197f ),
+		2.63f,
+		Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
+		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+	scene.Planets().Insert( -1, sun->GetRawRoot() );
+	scene.Planets().Insert( -1, planet->GetRawRoot() );
+	auto describeCelestial = []( const char* role, EvePlanet& celestial ) {
+		for( IEveSpaceObjectChild* child : celestial.GetChildren() )
+		{
+			EveChildMeshPtr meshChild = BlueCastPtr( child );
+			Tr2MeshBase* mesh = meshChild ? meshChild->GetMesh() : nullptr;
+			std::fprintf(
+				stderr,
+				"New Eden %s child: name=%s mesh=%s geometry=%s\n",
+				role,
+				child->GetName(),
+				mesh ? "yes" : "no",
+				mesh ? ToNarrowPath( mesh->GetGeometryResPath() ).c_str() : "" );
+			if( !mesh )
+			{
+				continue;
+			}
+			for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+			{
+				const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+				if( !areas )
+				{
+					continue;
+				}
+				for( Tr2MeshArea* area : *areas )
+				{
+					Tr2Effect* effect = area->GetMaterialInterface();
+					std::fprintf(
+						stderr,
+						"New Eden %s area: child=%s batch=%d area=%s effect=%s\n",
+						role,
+						child->GetName(),
+						batchType,
+						area->GetName().c_str(),
+						effect ? effect->GetEffectPathName() : "" );
+				}
+			}
+		}
+	};
+	describeCelestial( "sun", *sun );
+	describeCelestial( "planet", *planet );
+	std::fprintf(
+		stderr,
+		"New Eden visible celestials loaded: sunChildren=%zu planetChildren=%zu\n",
+		sun->GetChildren().size(),
+		planet->GetChildren().size() );
+
 	std::fprintf(
 		stderr,
 		"New Eden system active: system=%d constellation=%d security=%.6f observer=Promised Land stargate "
@@ -1807,7 +1906,7 @@ bool ConfigureShLighting(
 		error = "Invalid standalone lighting view";
 		return false;
 	}
-	if( shSource < STANDALONE_SH_SOURCE_NEW_EDEN_PLANET || shSource > STANDALONE_SH_SOURCE_NONE )
+	if( shSource < STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS || shSource > STANDALONE_SH_SOURCE_NONE )
 	{
 		error = "Invalid standalone SH source";
 		return false;
@@ -1839,50 +1938,67 @@ bool ConfigureShLighting(
 	}
 	probe.scene->SetShLightingManager( probe.shLightingManager );
 
-	if( !probe.secondaryLight.CreateInstance() )
-	{
-		error = "Failed to create standalone SH secondary source";
-		return false;
-	}
+	auto addSecondarySource = [&]( const Vector3& position, float radius, const Color& albedo, const Color& emissive ) {
+		BluePtr<TrinityStandaloneSecondaryLight> source;
+		if( !source.CreateInstance() )
+		{
+			error = "Failed to create standalone SH secondary source";
+			return false;
+		}
+		source->Configure( position, radius, albedo, emissive );
+		probe.scene->Objects().Insert( -1, source->GetRawRoot() );
+		probe.secondaryLights.push_back( source );
+		return true;
+	};
 
-	if( shSource == STANDALONE_SH_SOURCE_NEW_EDEN_PLANET )
+	if( shSource == STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS )
 	{
 		if( sceneFixture != 3 )
 		{
-			std::fprintf( stderr, "Trinity SH source skipped: New Eden planet is not part of the selected scene fixture\n" );
-			probe.secondaryLight.Unlock();
+			std::fprintf( stderr, "Trinity SH sources skipped: New Eden celestials are not part of the selected scene fixture\n" );
 			return true;
 		}
 
-		// mapObjects.db supplies the observer-relative position and radius. The
-		// client-side barren-planet albedo is not present in the static table.
-		probe.secondaryLight->Configure(
-			Vector3( 1083758.787326f, -205372.890997f, -787280.443197f ),
-			2.63f,
-			Color( 0.22f, 0.18f, 0.14f, 1.0f ),
-			Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		// The client adds both bodies to scene.planets. EvePlanet registers them
+		// with Tr2ShLightingManager after applying its 1,000,000:1 scene scale.
+		if( !addSecondarySource(
+				Vector3( 1069486.940160f, -202669.301760f, -831868.968960f ),
+				158.4f,
+				Color( 0.0f, 0.0f, 0.0f, 1.0f ),
+				Color( 5.0f, 4.274509906768799f, 2.3529412746429443f, 1.0f ) ) ||
+			!addSecondarySource(
+				Vector3( 1083758.787326f, -205372.890997f, -787280.443197f ),
+				2.63f,
+				Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
+				Color( 0.0f, 0.0f, 0.0f, 1.0f ) ) )
+		{
+			return false;
+		}
 		std::fprintf(
 			stderr,
-			"Trinity SH source: New Eden planet 40334264, mapObjects.db geometry, approximate barren albedo; expected contribution is below runtime cutoff\n" );
+			"Trinity SH sources: New Eden sun 40334263/type 45041/graphic 21480 and planet "
+			"40334264/type 2016/graphic 3837; exact client albedo/emissive, expected contribution below runtime cutoff\n" );
 	}
 	else
 	{
 		const Vector3 sunDirection = Normalize( probe.scene->GetLightingSetup().sunDirection );
-		probe.secondaryLight->Configure(
-			sunDirection * 8.0f,
-			7.0f,
-			Color( 4.0f, 3.0f, 2.0f, 1.0f ),
-			Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		if( !addSecondarySource(
+				sunDirection * 8.0f,
+				7.0f,
+				Color( 4.0f, 3.0f, 2.0f, 1.0f ),
+				Color( 0.0f, 0.0f, 0.0f, 1.0f ) ) )
+		{
+			return false;
+		}
 		std::fprintf(
 			stderr,
 			"Trinity SH source: synthetic stress sphere, distance=8 radius=7 albedo=(4,3,2); capability evidence only\n" );
 	}
 
-	probe.scene->Objects().Insert( -1, probe.secondaryLight->GetRawRoot() );
 	return true;
 }
 
-bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::string& error )
+bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error )
 {
 	const char* materialNames[] = {
 		"chrome_metallic", "grey_steel_brushed", "white_ghost_matt", "red_crimson_enamel"
@@ -2021,7 +2137,11 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, std::s
 
 	for( const auto& texture : selectedArea->m_textures )
 	{
-		effect.AddResourceTexture2D( texture->m_name, texture->m_resFilePath.c_str() );
+		const bool useFlatNormal = opaqueArea && normalMapMode == STANDALONE_NORMAL_MAP_FLAT &&
+			std::strcmp( texture->m_name.c_str(), "NormalMap" ) == 0;
+		effect.AddResourceTexture2D(
+			texture->m_name,
+			useFlatNormal ? "res:/texture/global/flatnormal.dds" : texture->m_resFilePath.c_str() );
 	}
 	if( opaqueArea )
 	{
@@ -2304,7 +2424,8 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 
 	output << "\n## Existing Bridge Compatibility\n\n";
 	output << "The V5 bridge provides `POSITION0`, `BLENDINDICES0`, `TANGENT0`, and `TEXCOORD0`. "
-		"The Astero GR2 has no authored `TEXCOORD1` stream, so TrinityAL supplies its missing-attribute zero value.\n\n";
+			  "The tangent stream preserves the authored GR2 frame with CMF `PackedTangentLegacy`. "
+			  "The Astero GR2 has no authored `TEXCOORD1` stream, so TrinityAL supplies its missing-attribute zero value.\n\n";
 	bool missingVertexInputs = false;
 	for( const auto& input : effectVertexInputs )
 	{
@@ -2386,13 +2507,61 @@ bool DrawShellFrame( Tr2RenderContext& renderContext )
 	return CheckHresult( renderContext.Present(), "Present" );
 }
 
-bool DrawDriverFrame( Tr2RenderContext& renderContext, EveSpaceSceneRenderDriver& driver, Be::Time realTime, Be::Time simTime )
+bool PrepareRenderProductVisualizer( StandaloneProbe& probe )
 {
+	if( probe.renderProductVisualizer )
+	{
+		return true;
+	}
+	probe.renderProductVisualizer.CreateInstance();
+	probe.renderProductVisualizer->StartUpdate();
+	probe.renderProductVisualizer->SetEffectPathName(
+		"res:/graphics/effect/managed/space/spaceobject/probe/renderproductvisualizer.fx" );
+	probe.renderProductVisualizer->SetParameter( BlueSharedString( "RenderProductMode" ), 1.0f );
+	probe.renderProductVisualizer->EndUpdate();
+	Tr2EffectRes* resource = probe.renderProductVisualizer->GetEffectRes();
+	if( resource )
+	{
+		resource->ForceSynchronousLoad();
+		resource->Reload();
+	}
+	Tr2Shader* shader = probe.renderProductVisualizer->GetShaderStateInterface();
+	uint32_t technique = 0;
+	if( !resource || !resource->IsGood() || !shader ||
+		!shader->GetTechniqueIndex( BlueSharedString( "Main" ), technique ) )
+	{
+		std::fprintf( stderr, "EVE render-product visualization effect is unavailable\n" );
+		probe.renderProductVisualizer.Unlock();
+		return false;
+	}
+	std::fprintf( stderr, "EVE render-product visualization effect ready: Main=%u\n", technique );
+	return true;
+}
+
+bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts )
+{
+	Tr2RenderContext& renderContext = *probe.renderContext;
+	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
+	std::array<BlueSharedString, 2> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 2> outputStorage;
+	size_t requestedCount = 0;
+	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "DepthMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_NORMAL )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "NormalMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
-	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = {};
+	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
 	if( !driver.Validate( destinationDimensionSpan, requestedOutputs, realTime, simTime ) )
 	{
 		CCP_LOGERR( "EveSpaceSceneRenderDriver::Validate failed" );
@@ -2405,25 +2574,100 @@ bool DrawDriverFrame( Tr2RenderContext& renderContext, EveSpaceSceneRenderDriver
 	{
 		const Tr2TextureAL* destinationTexture = &destination;
 		ITr2RenderNode::Span<const Tr2TextureAL> destinationSpan = { destinationTexture, 1 };
-		ITr2RenderNode::Span<ITr2RenderNode::TempOutput> outputSpan = {};
+		ITr2RenderNode::Span<ITr2RenderNode::TempOutput> outputSpan = { outputStorage.data(), requestedCount };
 		Tr2ProfileTimer rootTimer;
 		driver.Execute( destinationSpan, outputSpan, realTime, simTime, rootTimer, renderContext );
+
+		const char* selectedName = captureProducts == STANDALONE_CAPTURE_DEPTH ? "DepthMap" :
+																				 ( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" : nullptr );
+		if( selectedName )
+		{
+			const Tr2TextureAL* selectedTexture = nullptr;
+			for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+			{
+				if( outputStorage[outputIndex].name == BlueSharedString( selectedName ) && outputStorage[outputIndex].texture.IsValid() )
+				{
+					selectedTexture = &outputStorage[outputIndex].texture.Get();
+					break;
+				}
+			}
+			if( !selectedTexture )
+			{
+				std::fprintf( stderr, "Requested EVE render product '%s' was not produced\n", selectedName );
+				ok = false;
+			}
+			else
+			{
+				if( PrepareRenderProductVisualizer( probe ) )
+				{
+					probe.renderProductVisualizer->SetParameter(
+						BlueSharedString( "RenderProductMode" ),
+						captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f : 2.0f );
+					renderContext.m_esm.SetRenderTarget( 0, destination );
+					renderContext.m_esm.SetDepthStencilBuffer( {} );
+					renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+					renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
+					ok = Tr2Renderer::DrawTexture( renderContext, probe.renderProductVisualizer, *selectedTexture );
+				}
+				else
+				{
+					ok = false;
+				}
+				if( !ok )
+				{
+					std::fprintf( stderr, "Failed to visualize EVE render product '%s'\n", selectedName );
+				}
+			}
+		}
 		ok = CheckHresult( Tr2Renderer::EndRenderContext(), "Tr2Renderer::EndRenderContext" ) && ok;
 	}
 	Tr2Renderer::EndFrame();
-
 	if( !ok )
 	{
 		return false;
 	}
-	return CheckHresult( renderContext.Present(), "Present" );
+	return ok && CheckHresult( renderContext.Present(), "Present" );
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights )
+void UpdateProbeCamera( StandaloneProbe& probe )
+{
+	constexpr uint64_t kStaticCameraFrames = 180;
+	constexpr float kCameraRadius = 5.2f;
+	constexpr float kOrbitFrames = 900.0f;
+	if( !probe.view || !probe.renderable || probe.renderedFrameCount < kStaticCameraFrames )
+	{
+		return;
+	}
+
+	const float orbitFrame = static_cast<float>( probe.renderedFrameCount - kStaticCameraFrames + 1 );
+	const float angle = orbitFrame * ( 2.0f * 3.1415926535f / kOrbitFrames );
+	const Vector3 eye(
+		kCameraRadius * std::sin( angle ),
+		0.0f,
+		-kCameraRadius * std::cos( angle ) );
+	probe.view->SetLookAtPosition( eye, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
+	if( !probe.reportedCameraOrbit )
+	{
+		std::fprintf( stderr, "EVE probe camera orbit active after %llu static frames: radius=%.1f period=%.1f seconds\n", static_cast<unsigned long long>( kStaticCameraFrames ), kCameraRadius, kOrbitFrames / 60.0f );
+		probe.reportedCameraOrbit = true;
+	}
+}
+
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode )
 {
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
 		CCP_LOGERR( "Invalid standalone local-light mode" );
+		return false;
+	}
+	if( reflectionCorrection < STANDALONE_REFLECTION_CORRECTION_OFF || reflectionCorrection > STANDALONE_REFLECTION_CORRECTION_CLIENT )
+	{
+		CCP_LOGERR( "Invalid standalone reflection-correction mode" );
+		return false;
+	}
+	if( normalMapMode < STANDALONE_NORMAL_MAP_AUTHORED || normalMapMode > STANDALONE_NORMAL_MAP_FLAT )
+	{
+		CCP_LOGERR( "Invalid standalone normal-map mode" );
 		return false;
 	}
 	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH )
@@ -2634,6 +2878,19 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to create EveSpaceSceneRenderDriver" );
 		return false;
 	}
+	const bool reflectionCorrectionEnabled = reflectionCorrection == STANDALONE_REFLECTION_CORRECTION_CLIENT;
+	const std::string reflectionCorrectionPath = reflectionCorrectionEnabled ? "res:/texture/reflectioncorrection/128x128.dds" : "res:/texture/global/black.dds";
+	std::string reflectionCorrectionError;
+	if( !PrepareTextureResourceWithoutYield(
+			reflectionCorrectionPath,
+			reflectionCorrectionEnabled ? "client reflection correction" : "disabled reflection correction fallback",
+			reflectionCorrectionError ) )
+	{
+		std::fprintf( stderr, "Failed to prepare reflection correction: %s\n", reflectionCorrectionError.c_str() );
+		return false;
+	}
+	probe.driver->SetReflectionCorrectionEnabled( reflectionCorrectionEnabled );
+	std::fprintf( stderr, "EVE reflection correction: mode=%s path=%s\n", reflectionCorrectionEnabled ? "client" : "off", reflectionCorrectionPath.c_str() );
 	if( !probe.view.CreateInstance() )
 	{
 		CCP_LOGERR( "Failed to create TriView" );
@@ -2705,7 +2962,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				}
 			}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
-		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode, areaView ) )
+		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode, areaView, normalMapMode ) )
 		{
 			CCP_LOGERR( "Failed to initialize the standalone EVE renderable GPU resources" );
 			return false;
@@ -2845,21 +3102,29 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderContext )
 	{
+		return false;
+	}
+	const bool freezeScene = ( captureProducts & STANDALONE_CAPTURE_FREEZE_SCENE ) != 0;
+	const int captureProduct = captureProducts & ~STANDALONE_CAPTURE_FREEZE_SCENE;
+	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
+		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL )
+	{
+		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;
 	}
 
@@ -2872,8 +3137,16 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		CCP_LOGERR( "TrinityStandaloneProbeRenderFrame called without an EVE scene driver" );
 		return false;
 	}
+	if( !freezeScene )
+	{
+		UpdateProbeCamera( *probe );
+	}
 	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
-	const bool rendered = DrawDriverFrame( *probe->renderContext, *probe->driver, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ) );
+	const bool rendered = DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
+	if( rendered && !freezeScene )
+	{
+		++probe->renderedFrameCount;
+	}
 	if( rendered && probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF )
 	{
 		Tr2LightManager* manager = Tr2LightManager::GetInstance();

@@ -32,9 +32,15 @@ paths. This validates the native material-area and object-light transport
 contracts without claiming that the still-missing auxiliary-effect or
 distortion-composition contracts are complete.
 
+Model runs keep the original fixed camera for the first 180 successful frames,
+preserving established capture comparisons. Starting with frame 181, the probe
+orbits the camera around the model at radius `5.2`, completing one revolution
+every 900 frames (15 seconds at the fixed 60 Hz simulation clock). Scene-only
+and shell runs retain their fixed camera behavior.
+
 The complete external-client provenance is recorded in
 [`eve-client-resource-ledger.md`](eve-client-resource-ledger.md). It lists all
-67 logical resource paths, this host's absolute SharedCache and index paths,
+69 logical resource paths, this host's absolute SharedCache and index paths,
 and the build manifests that record each exact hashed source file and checksum.
 
 Rung 4 reads the client's macOS-specific resource index and copies selected
@@ -464,7 +470,7 @@ dimensions, and expose
 techniques. The high `.sm_depth` tier additionally exposes the SH and tiled-
 light consumption path. The default vertex contract requires `POSITION0`, `TANGENT0`,
 `TEXCOORD0`, `TEXCOORD1`, and `BLENDINDICES0`. The authored A/B path now
-transports CMF `PackedTangent` values. The static bind-pose bridge supplies zero
+transports CMF `PackedTangentLegacy` values. The static bind-pose bridge supplies zero
 blend indices and does not claim runtime skinning. Metal supplies a constant
 zero stream for the absent second UV set, matching this Astero source, which has
 no second UV channel.
@@ -675,9 +681,12 @@ satisfied by the full client host.
   by `boneOffsets`. Feeding the legacy layout made world-matrix reads consume
   bone rows and produced a radial burst. Publishing the modern structs with
   bone count zero is the correct static-object contract.
-- The V5 tangent input is CMF `PackedTangent`, not the conventional
-  tangent-plus-handedness vector used by the comparison shader. The bridge keeps
-  separate vertex streams so both paths remain valid.
+- The V5 tangent input uses EVE's legacy angle-packed frame, represented by CMF
+  `PackedTangentLegacy`, not a conventional tangent-plus-handedness vector or
+  CMF's newer quaternion `PackedTangent`. Feeding the newer encoding to the
+  unchanged V5 shader produced coherent geometry with severely incorrect dark
+  regions. The bridge now preserves authored GR2 frames through glTF/CMF and
+  packs the V5 stream with the legacy encoding.
 
 These changes make standalone probing possible, but they should be reviewed
 separately before treating them as the final lifecycle contract for an embedded
@@ -765,7 +774,45 @@ under their logical paths and recorded in `Reports/NewEdenSceneResources.json`.
 This accepts the direct scene-lighting contract, including the identity
 environment rotation. It does not instantiate the visible sun model, lens flare,
 god rays, distant `universe.red` object, or client ship-local lights. Those are
-tracked separately rather than approximated as part of the direct sun.
+tracked separately rather than approximated as part of the direct sun. The
+runtime roadmap now names visible New Eden sun and planet reconstruction as
+RC-04B, queued after depth/normal validation and required before final HDR scene
+composition acceptance.
+
+## RC-04B celestial resource reconnaissance
+
+The installed client FSD maps New Eden star graphic `21480` to
+`res:/dx9/model/celestial/sun/sun_yellow_small_01b.red` and planet graphic
+`3837` to `res:/dx9/model/worldobject/planet/SandStormPlanet.red`. Their current
+packaged Trinity resources use the equivalent `.black` paths. The source files
+on this host are:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/c3/c32359747c085f8c_827ccb5e71043cd646f907dc4f209d63
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/82/82eaa90bc8982cb9_457559d183263a533bc06ce261f8211c
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/93/93b769c4ef6215a9_a975d3503bd1fb51187a5d1e9102a878
+```
+
+The third file is `res:/staticdata/graphicids.fsdbinary`, used to recover the
+mapping and exact sun emissive value. The New Eden asset target now stages the
+two Black roots under their logical paths and includes their hashes in
+`Reports/NewEdenSceneResources.json`; no client payload enters source control.
+
+Both roots deserialize as `EvePlanet`, matching the native scene architecture:
+`EveSpaceScene::Planets()` owns them, applies the dedicated camera-relative
+planet pass, and preserves astronomical position through `EvePlanet::SCALE`.
+The probe supplies the exact observer-relative positions, radii, albedo, and
+emissive values recovered in the earlier RC-04/RC-06 audit. The sun root has
+three top-level quality/container children and the planet has one authored mesh
+child using `SandStormPlanet.fx`.
+
+This is discovery evidence, not RC-04B acceptance. Recursive Black
+initialization is still deliberately suppressed in the scheduler-free host,
+and the authored meshes resolve to GR2 geometry. The next step is to enumerate
+the selected high-quality child graph, stage every effect and texture, convert
+its GR2 geometry to CMF at build time, redirect the serialized `Tr2Mesh`
+resources before synchronous initialization, and then capture visible bodies.
+Lens flare, god rays, and low-quality socket branches remain separate gates.
 
 ## Object SH generation and upload
 
@@ -773,17 +820,18 @@ The standalone Astero bridge now implements `ITr2ShLightingReceiver`, and the
 scene owns a real `Tr2ShLightingManager`. The receiver writes Trinity's seven
 packed L2 coefficients directly into `EveSpaceObjectPSData`; the V5 effect and
 constant-buffer path are unchanged. `--lighting-view direct|sh|combined` and
-`--sh-source new-eden-planet|validation|none` make direct and secondary lighting
+`--sh-source new-eden-celestials|validation|none` make direct and secondary lighting
 independently observable. Capture metadata records both selections.
 
-The installed `mapObjects.db` identifies New Eden planet `40334264` at observer-
-relative scene position `(1083758.787326, -205372.890997, -787280.443197)` with
-radius `2.63`. Its geometry is authored static data; the barren-planet albedo
-`(0.22, 0.18, 0.14)` is an explicit probe approximation because that material
-value is not in the map table. At the Promised Land stargate, Trinity rejects
-this planet below its secondary-source contribution cutoff, producing physical
-coefficient magnitude zero. This is the correct result for that source, not a
-missing receiver update.
+The installed client data identifies New Eden sun `40334263` (type `45041`,
+graphic `21480`) and planet `40334264` (type `2016`, graphic `3837`). Client
+Python and FSD loaders provide the exact sun emissive color
+`(5.0, 4.274510, 2.352941)` and planet albedo
+`(1.0, 0.890196, 0.662745)`. Their observer-relative positions and radii are
+fed to the real secondary-light manager. At the Promised Land stargate Trinity
+rejects both below its contribution cutoff, producing physical coefficient
+magnitude zero. This is the correct authored result, not a missing receiver
+update or a reason to synthesize ambient fill.
 
 For capability validation, a deliberately extreme sphere eight scene units
 toward the sun, radius seven, and albedo `(4, 3, 2)` produces packed coefficient
@@ -838,10 +886,52 @@ four banner lights; no sample color constant substitutes for that texture.
 new path. At high tier, the labeled validation point resolves one light over an
 80 by 60 tile grid at 1280 by 960 backing resolution, authored mode resolves
 six, and both differ from the local-off control and from each other. This
-accepts manager/list generation and opaque V5 consumption. RC-06 remains
-partial because the authentic New Eden planet contributes zero secondary SH,
-and local-light shadows, AO, volumetrics, and visible attachment rendering
-remain disabled.
+accepts manager/list generation and opaque V5 consumption. Together with the
+exact zero-contribution New Eden celestial result, this accepts RC-06. Local-
+light shadows, AO, volumetrics, and visible attachment rendering remain later,
+separately gated contracts.
+
+## Indirect-light and tangent-frame audit
+
+The installed client's `code.ccp` and FSD loaders were inspected outside the
+repository to close the remaining New Eden lighting assumptions. The client
+adds its sun and planet as secondary-light sources, but the exact current data
+for both is below Trinity's SH cutoff at the selected stargate. Broad synthetic
+fill would therefore move the probe away from this named-system contract.
+
+`EveSpaceSceneRenderDriver` also binds
+`res:/texture/reflectioncorrection/128x128.dds`. The probe now stages and
+synchronously validates that lookup and exposes
+`--reflection-correction off|client`. Off/client captures are byte-identical for
+the selected opaque V5 permutation, whose reflected resources do not include
+the correction lookup, so it is not the source of the dark surfaces.
+
+The actionable defect was in mesh transport. The original GR2 vertex payload
+contains packed tangent frames. The open decoder expanded them to normal,
+tangent, and binormal vectors, but the initial glTF bridge discarded tangent
+data and regenerated it from triangles. After preserving the authored frame,
+the bridge first repacked it with CMF's newer quaternion format; the unchanged
+EVE V5 shader expects the legacy angle encoding, producing severe black
+regions. `PackedTangentLegacy` restores coherent authored normal-map response.
+Runtime logs now report authored/generated vertex counts and the GPU encoding.
+
+`--normal-map authored|flat` stages the client's
+`res:/texture/global/flatnormal.dds` as an RC-07 diagnostic. The large dark
+surfaces remain in both modes, so they are not painted into the Astero normal
+map. `--render-product color|depth|normal|all` requests the driver's named GPU
+outputs. A sample-owned fullscreen effect visualizes reverse-Z `D32_FLOAT`
+depth with a fourth-root display curve and displays packed
+`R10G10B10A2_UNORM` normals directly before normal Cocoa window capture. This
+replaced an invalid Metal CPU-map experiment that returned cleared or striped
+data even when the presented drawable was correct.
+
+The 180-frame accepted depth product has a clean Astero silhouette and coherent
+surface variation. Authored and flat-normal captures use the same final-frame
+simulation time and frozen camera. Their silhouettes match, while the authored
+capture contains the expected high-frequency panel response and the flat
+capture retains only interpolated geometry normals. This accepts RC-07; the
+previously reported background corruption was a readback artifact rather than
+a scene or flat-normal defect.
 
 The client-wide default postprocess Black activates Uncharted 2 tone mapping,
 histogram-based dynamic exposure, bloom, and film grain. `hdr-exposure` loads
@@ -873,8 +963,8 @@ make those prerequisites explicit.
 | 3A | Geometry, topology, UVs, and textures | Accepted | Astero silhouette and material-view captures remain coherent. |
 | 3B | Authored material and per-object contract | Accepted | Three CMF sections map to the authored hull, booster, and distortion SOF areas; opaque batches and every retained/defaulted field have direct evidence. |
 | 3C | Representative in-space scene and background | Accepted | A01 renders through `EveSpaceScene`; its explicit resource manifest, scene-only capture, and Astero capture pass. |
-| 3D | Object lighting contract | Partial | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Six authored lights resolve and remain attached while the ship rotates. An authentic nonzero named-system secondary SH source, local shadows, and visible attachments remain missing. |
-| 4A | Depth and normal products | Partial | Capture both products directly and validate conventions. |
+| 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
+| 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Missing | Feed validated products and shadow-caster batches; accept against captures. |
 | 4C | Complete HDR scene composition | Missing | Model, background, lighting, and generated products coexist without regression. |
 | 5 | Exposure and tone mapping | Machinery accepted, fidelity blocked | Re-run `hdr-exposure` against accepted rung 4C and compare settled captures. |
@@ -939,6 +1029,18 @@ The following checks passed on the host snapshot above:
 - high-tier SH-none and synthetic SH captures; the authentic planet reports
   zero physical SH after Trinity cutoff while the stress source reports
   `1.195372e+00` and visibly fills the hull;
+- installed-client inspection confirming exact New Eden sun and planet
+  secondary-light inputs both produce zero physical SH at the observer;
+- authored GR2 tangent preservation through glTF/CMF and a finite V5 capture
+  using the required `PackedTangentLegacy` encoding;
+- 180/181-frame boundary tests proving model captures remain fixed through
+  frame 180 and begin the 15-second camera orbit on the following frame;
+- reflection-correction off/client captures proving the staged client lookup is
+  not consumed by the selected opaque V5 permutation;
+- 180-frame RC-07 color/depth/normal captures from the driver's named products,
+  with a clean reverse-Z silhouette and coherent packed-normal variation;
+- a same-frame, frozen-camera flat-normal control that preserves the silhouette
+  while removing authored tangent-space surface detail;
 - checksummed staging of client `computelightlists.sm_hi/.lo/.depth`, black logo
   fallback, and SoE faction banner; synthetic validation resolves one surface
   light over 4,800 tiles, while authored mode excludes 18 of 24 descriptors and
@@ -956,14 +1058,16 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Capture and validate depth and normal products with high-tier combined
-   direct, SH, and authored-local lighting.
-2. Reconstruct one authentic named-system secondary SH source and visible SOF
-   attachment geometry as separate controls; only then enable shadows and AO.
-3. Reaccept dynamic exposure and tone mapping against that composition.
-4. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
+1. Reconstruct visible New Eden sun and planet resources under RC-04B, keeping
+   lens flare and god rays as separate acceptance gates.
+2. Reconstruct visible SOF attachment geometry as a separate control, then add
+   shadow-caster batches and enable shadows/AO against accepted products.
+3. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
+   captures as regression controls.
+4. Reaccept dynamic exposure and tone mapping against that composition.
+5. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
-5. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+6. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

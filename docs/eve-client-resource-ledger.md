@@ -75,6 +75,8 @@ res:/dx9/scene/starfield/spritestars.black
 res:/dx9/scene/starfield/staratlas.dds
 res:/dx9/scene/starfield/starcolors.dds
 res:/dx9/scene/starfield/stars01_tile2.dds
+res:/dx9/model/celestial/sun/sun_yellow_small_01b.black
+res:/dx9/model/worldobject/planet/sandstormplanet.black
 res:/dx9/scene/universe/a01_cube.black
 res:/dx9/scene/universe/a01_cube.dds
 res:/dx9/scene/universe/a01_cube_blur.dds
@@ -137,10 +139,19 @@ res:/graphics/effect.metal/managed/space/system/computelightlists.sm_lo
 
 ```text
 res:/texture/global/black.dds
+res:/texture/global/flatnormal.dds
 res:/texture/global/genericreflection_cube.dds
+res:/texture/reflectioncorrection/128x128.dds
 res:/texture/sprite/warptunnel4_n.dds
 res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds
 ```
+
+The flat normal and reflection-correction lookup are staged diagnostics. The
+former isolates authored normal-map response for accepted RC-07 captures; the
+latter proves the driver's client lookup is available even though the selected
+opaque V5 permutation does not reflect or consume it. The render-product
+visualization effect is built from repository source and does not add an EVE
+client resource to this ledger.
 
 The SoE banner is a deterministic faction fixture for the four active Astero
 banner-light descriptors. The installed client's identity-dependent alliance

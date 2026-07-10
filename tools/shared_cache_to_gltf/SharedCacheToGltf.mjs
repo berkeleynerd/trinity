@@ -168,6 +168,10 @@ function validateMesh( mesh )
     {
         throw new Error( `GR2 mesh '${mesh.name}' does not have one unpacked normal per vertex` );
     }
+    if( mesh.vertex.tangent.length !== vertexCount * 3 || mesh.vertex.binormal.length !== vertexCount * 3 )
+    {
+        throw new Error( `GR2 mesh '${mesh.name}' does not have one authored tangent frame per vertex` );
+    }
     if( mesh.vertex.texcoord0.length !== vertexCount * 2 )
     {
         throw new Error( `GR2 mesh '${mesh.name}' does not have one TEXCOORD_0 per vertex` );
@@ -200,6 +204,32 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const vertexCount = validateMesh( mesh );
     const positions = new Float32Array( mesh.vertex.position );
     const normals = new Float32Array( mesh.vertex.normal );
+    const tangents = new Float32Array( vertexCount * 4 );
+    for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+    {
+        const offset = vertexIndex * 3;
+        const nx = mesh.vertex.normal[offset + 0];
+        const ny = mesh.vertex.normal[offset + 1];
+        const nz = mesh.vertex.normal[offset + 2];
+        const tx = mesh.vertex.tangent[offset + 0];
+        const ty = mesh.vertex.tangent[offset + 1];
+        const tz = mesh.vertex.tangent[offset + 2];
+        const bx = mesh.vertex.binormal[offset + 0];
+        const by = mesh.vertex.binormal[offset + 1];
+        const bz = mesh.vertex.binormal[offset + 2];
+        const tangentLength = Math.hypot( tx, ty, tz );
+        if( tangentLength < 1.0e-8 )
+        {
+            throw new Error( `GR2 mesh '${mesh.name}' has a zero authored tangent at vertex ${vertexIndex}` );
+        }
+        tangents[vertexIndex * 4 + 0] = tx / tangentLength;
+        tangents[vertexIndex * 4 + 1] = ty / tangentLength;
+        tangents[vertexIndex * 4 + 2] = tz / tangentLength;
+        const crossX = ny * tz - nz * ty;
+        const crossY = nz * tx - nx * tz;
+        const crossZ = nx * ty - ny * tx;
+        tangents[vertexIndex * 4 + 3] = crossX * bx + crossY * by + crossZ * bz < 0 ? -1 : 1;
+    }
     const texcoords = new Float32Array( mesh.vertex.texcoord0 );
     const selectedGroups = includeGroups ?? mesh.indices.map( ( _, index ) => index );
     if( selectedGroups.some( index => index < 0 || index >= mesh.indices.length ) )
@@ -225,6 +255,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
 
     const positionView = append( positions, 34962 );
     const normalView = append( normals, 34962 );
+    const tangentView = append( tangents, 34962 );
     const texcoordView = append( texcoords, 34962 );
     const groupData = selectedGroups.map( sourceGroup => {
         const faces = mesh.indices[sourceGroup].faces;
@@ -260,6 +291,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         accessors: [
             { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
             { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
+            { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" },
             { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" },
             ...groupData.map( group => ( {
                 bufferView: group.indexView,
@@ -272,8 +304,8 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
             name: `${mesh.name}_group_${group.sourceGroup}`,
             extras: { sourceGroup: group.sourceGroup },
             primitives: [ {
-                attributes: { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
-                indices: 3 + groupIndex,
+                attributes: { POSITION: 0, NORMAL: 1, TANGENT: 2, TEXCOORD_0: 3 },
+                indices: 4 + groupIndex,
                 mode: 4,
                 extras: { sourceGroup: group.sourceGroup },
             } ],

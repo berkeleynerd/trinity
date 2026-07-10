@@ -60,9 +60,12 @@ set(EVE_SCENE_PROBE_ASTERO_MASK_METADATA ${EVE_SCENE_PROBE_ASTERO_CMF}.mask.txt)
 set(EVE_SCENE_PROBE_ASTERO_PAINT_RGBA ${EVE_SCENE_PROBE_ASTERO_CMF}.p3.rgba)
 set(EVE_SCENE_PROBE_ASTERO_PAINT_METADATA ${EVE_SCENE_PROBE_ASTERO_CMF}.p3.txt)
 set(EVE_SCENE_PROBE_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/AsteroPbr.fx)
+set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RenderProductVisualizer.fx)
 set(EVE_SCENE_PROBE_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/probe)
 set(EVE_SCENE_PROBE_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/asteropbr.sm_hi)
 set(EVE_SCENE_PROBE_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/asteropbr.sm_depth)
+set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/renderproductvisualizer.sm_hi)
+set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/renderproductvisualizer.sm_depth)
 set(EVE_SCENE_PROBE_POSTPROCESS_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/postprocess)
 set(EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/system)
 set(EVE_SCENE_PROBE_TONEMAPPING_EFFECT ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/tonemapping.sm_hi)
@@ -80,6 +83,10 @@ set(EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_D
 set(EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global)
 set(EVE_SCENE_PROBE_BLACK_TEXTURE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/black.dds)
 set(EVE_SCENE_PROBE_REFLECTION_TEXTURE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/genericreflection_cube.dds)
+set(EVE_SCENE_PROBE_FLAT_NORMAL_RESOURCE "res:/texture/global/flatnormal.dds")
+set(EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/flatnormal.dds)
+set(EVE_SCENE_PROBE_REFLECTION_CORRECTION_RESOURCE "res:/texture/reflectioncorrection/128x128.dds")
+set(EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/reflectioncorrection/128x128.dds)
 set(EVE_SCENE_PROBE_ASTERO_HULL_BLACK_RESOURCE "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black")
 set(EVE_SCENE_PROBE_ASTERO_FACTION_BLACK_RESOURCE "res:/dx9/model/spaceobjectfactory/factions/soebase.black")
 set(EVE_SCENE_PROBE_ASTERO_MATERIAL_RESOURCES
@@ -122,6 +129,8 @@ set(EVE_SCENE_PROBE_STAR_COLORS_RESOURCE "res:/dx9/scene/starfield/starcolors.dd
 set(EVE_SCENE_PROBE_STAR_SPRITES_HI_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_hi")
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_lo")
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_depth")
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE "res:/dx9/model/celestial/sun/sun_yellow_small_01b.black")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/sandstormplanet.black")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_lo")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth")
@@ -179,6 +188,8 @@ set(EVE_SCENE_PROBE_STAR_COLORS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfiel
 set(EVE_SCENE_PROBE_STAR_SPRITES_HI ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_hi)
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_lo)
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_depth)
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sun_yellow_small_01b.black)
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstormplanet.black)
 set(EVE_SCENE_PROBE_NEW_EDEN_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSceneResources.json)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_hi)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_lo)
@@ -209,10 +220,14 @@ add_custom_target(TrinityEveSceneProbeAssets
 )
 
 add_custom_command(
-    OUTPUT ${EVE_SCENE_PROBE_EFFECT} ${EVE_SCENE_PROBE_EFFECT_DEPTH}
+	OUTPUT
+		${EVE_SCENE_PROBE_EFFECT}
+		${EVE_SCENE_PROBE_EFFECT_DEPTH}
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_EFFECT_DIR}
-    COMMAND $<TARGET_FILE:ShaderCompiler>
-        /single /O3
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
         /define SHADERMODEL 4
         /define PLATFORM 10
         ${EVE_SCENE_PROBE_EFFECT_SOURCE}
@@ -221,12 +236,29 @@ add_custom_command(
         /single /O3
         /define SHADERMODEL 5
         /define PLATFORM 10
-        ${EVE_SCENE_PROBE_EFFECT_SOURCE}
-        ${EVE_SCENE_PROBE_EFFECT_DEPTH}
-    DEPENDS ShaderCompiler ${EVE_SCENE_PROBE_EFFECT_SOURCE}
-    VERBATIM
+		${EVE_SCENE_PROBE_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_EFFECT_DEPTH}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 4
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 5
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
+	DEPENDS ShaderCompiler ${EVE_SCENE_PROBE_EFFECT_SOURCE} ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
+	VERBATIM
 )
-add_custom_target(TrinityEveSceneProbeEffect DEPENDS ${EVE_SCENE_PROBE_EFFECT} ${EVE_SCENE_PROBE_EFFECT_DEPTH})
+add_custom_target(TrinityEveSceneProbeEffect DEPENDS
+	${EVE_SCENE_PROBE_EFFECT}
+	${EVE_SCENE_PROBE_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
+)
 add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeEffect)
 
 if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
@@ -280,10 +312,13 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             ${EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH}
             ${EVE_SCENE_PROBE_BLACK_TEXTURE}
             ${EVE_SCENE_PROBE_REFLECTION_TEXTURE}
+            ${EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE}
+            ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE}
             ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_POSTPROCESS_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/reflectioncorrection
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_hi ${EVE_SCENE_PROBE_TONEMAPPING_EFFECT}
@@ -300,6 +335,8 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             --copy-resource res:/graphics/effect.metal/managed/space/system/blitfiltered.sm_depth ${EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH}
             --copy-resource res:/texture/global/black.dds ${EVE_SCENE_PROBE_BLACK_TEXTURE}
             --copy-resource res:/texture/global/genericreflection_cube.dds ${EVE_SCENE_PROBE_REFLECTION_TEXTURE}
+            --copy-resource ${EVE_SCENE_PROBE_FLAT_NORMAL_RESOURCE} ${EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE}
+            --copy-resource ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_RESOURCE} ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE}
             --manifest ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
             --summary
         DEPENDS
@@ -323,6 +360,8 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             ${EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH}
             ${EVE_SCENE_PROBE_BLACK_TEXTURE}
             ${EVE_SCENE_PROBE_REFLECTION_TEXTURE}
+            ${EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE}
+            ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE}
             ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbePostProcessEffects)
@@ -390,6 +429,7 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             --summary
         DEPENDS
             TrinitySharedCacheToGltf
+            ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
             ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
         VERBATIM
@@ -489,6 +529,8 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             ${EVE_SCENE_PROBE_STAR_SPRITES_HI}
             ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
+            ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
@@ -498,6 +540,8 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             --copy-resource ${EVE_SCENE_PROBE_STAR_SPRITES_HI_RESOURCE} ${EVE_SCENE_PROBE_STAR_SPRITES_HI}
             --copy-resource ${EVE_SCENE_PROBE_STAR_SPRITES_LO_RESOURCE} ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             --copy-resource ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE} ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE} ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             --manifest ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
             --summary
         DEPENDS
@@ -515,6 +559,8 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             ${EVE_SCENE_PROBE_STAR_SPRITES_HI}
             ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
+            ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenAssets)
@@ -574,6 +620,7 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}")
             --summary
         DEPENDS
             TrinitySharedCacheToGltf
+            ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
         VERBATIM
     )
@@ -677,8 +724,10 @@ set_target_properties(TrinityALEveSceneProbe_metal
 )
 
 set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
-    ${EVE_SCENE_PROBE_EFFECT}
-    ${EVE_SCENE_PROBE_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_EFFECT}
+	${EVE_SCENE_PROBE_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
 )
 
 if(TARGET TrinityEveSceneProbePostProcessEffects)
@@ -697,6 +746,8 @@ if(TARGET TrinityEveSceneProbePostProcessEffects)
         ${EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH}
         ${EVE_SCENE_PROBE_BLACK_TEXTURE}
         ${EVE_SCENE_PROBE_REFLECTION_TEXTURE}
+        ${EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE}
+        ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE}
         ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
     )
 endif()
@@ -858,9 +909,11 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:trinity_metal> $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/$<TARGET_FILE_NAME:trinity_metal>
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_hi
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_depth
-    VERBATIM
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_hi
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_depth
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/renderproductvisualizer.sm_hi
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/renderproductvisualizer.sm_depth
+	VERBATIM
 )
 
 if(TARGET TrinityEveSceneProbePostProcessEffects)
@@ -884,6 +937,8 @@ if(TARGET TrinityEveSceneProbePostProcessEffects)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/system/blitfiltered.sm_depth
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_BLACK_TEXTURE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/global/black.dds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_REFLECTION_TEXTURE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/global/genericreflection_cube.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FLAT_NORMAL_TEXTURE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/global/flatnormal.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/reflectioncorrection/128x128.dds
         VERBATIM
     )
 endif()

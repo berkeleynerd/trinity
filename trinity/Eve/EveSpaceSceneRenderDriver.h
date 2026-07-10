@@ -94,6 +94,10 @@ public:
 	void SetScene( EveSpaceScene * scene );
 	void SetView( TriView* view );
 	void SetProjection( TriProjection* projection );
+	void SetReflectionCorrectionEnabled( bool enabled )
+	{
+		m_reflectionCorrectionEnabled = enabled;
+	}
 
 	EXPOSE_TO_BLUE();
 

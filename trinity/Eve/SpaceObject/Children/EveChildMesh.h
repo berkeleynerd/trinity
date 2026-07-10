@@ -162,6 +162,10 @@ public:
 
 	// access
 	void SetMesh( Tr2MeshBase * mesh );
+	Tr2MeshBase* GetMesh() const
+	{
+		return m_mesh;
+	}
 	void SetOrigin( Origin origin );
 	void SetReflectionMode( EntityComponents::ReflectionMode reflectionMode );
 	void SetCastShadow( bool castShadow );

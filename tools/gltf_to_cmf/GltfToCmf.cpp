@@ -37,6 +37,7 @@ struct ImportedVertex
 {
 	float position[3] = {};
 	float normal[3] = {};
+	float tangent[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
 	float texcoord[2] = {};
 	float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	uint16_t joints[4] = {};
@@ -57,6 +58,7 @@ struct PendingMesh
 	std::vector<uint32_t> indices;
 	std::vector<std::string> boneBindings;
 	uint32_t skeletonIndex = kNoSkeleton;
+	bool hasTangents = false;
 	CcpMath::AxisAlignedBox bounds = {};
 };
 
@@ -705,10 +707,12 @@ bool ImportPrimitive(
 
 	const cgltf_accessor* positionAccessor = positionAttribute->data;
 	const cgltf_attribute* normalAttribute = FindAttribute( primitive, cgltf_attribute_type_normal );
+	const cgltf_attribute* tangentAttribute = FindAttribute( primitive, cgltf_attribute_type_tangent );
 	const cgltf_attribute* texcoordAttribute = FindAttribute( primitive, cgltf_attribute_type_texcoord );
 	const cgltf_attribute* jointsAttribute = FindAttribute( primitive, cgltf_attribute_type_joints );
 	const cgltf_attribute* weightsAttribute = FindAttribute( primitive, cgltf_attribute_type_weights );
 	const bool hasNormals = normalAttribute && normalAttribute->data;
+	const bool hasTangents = tangentAttribute && tangentAttribute->data;
 	float baseColorFactor[4] = {};
 	cgltf_int baseColorTexcoordIndex = 0;
 	cgltf_size baseColorImageIndex = static_cast<cgltf_size>( -1 );
@@ -739,6 +743,7 @@ bool ImportPrimitive(
 	PendingMesh pending;
 	pending.name = MakeName( mesh.name, "mesh", context.meshes.size() ) + "_" + std::to_string( primitiveIndex );
 	pending.skeletonIndex = skeletonIndex;
+	pending.hasTangents = hasTangents;
 
 	std::unique_ptr<draco::Mesh> dracoMesh;
 	if( !DecodeDracoMesh( primitive, dracoMesh, error ) )
@@ -747,6 +752,7 @@ bool ImportPrimitive(
 	}
 	const draco::PointAttribute* dracoPosition = nullptr;
 	const draco::PointAttribute* dracoNormal = nullptr;
+	const draco::PointAttribute* dracoTangent = nullptr;
 	const draco::PointAttribute* dracoTexcoord = nullptr;
 	if( dracoMesh )
 	{
@@ -762,6 +768,15 @@ bool ImportPrimitive(
 			if( !dracoNormal )
 			{
 				error = error.empty() ? "Draco primitive is missing NORMAL" : error;
+				return false;
+			}
+		}
+		if( hasTangents )
+		{
+			dracoTangent = GetDracoAttribute( context, primitive, *dracoMesh, cgltf_attribute_type_tangent, 0, error );
+			if( !dracoTangent )
+			{
+				error = error.empty() ? "Draco primitive is missing TANGENT" : error;
 				return false;
 			}
 		}
@@ -825,6 +840,25 @@ bool ImportPrimitive(
 			vertex.normal[0] = normal.x;
 			vertex.normal[1] = normal.y;
 			vertex.normal[2] = normal.z;
+			if( hasTangents )
+			{
+				float tangentValues[4] = {};
+				if( dracoTangent ? !ReadDracoFloatAttribute( *dracoTangent, vertexIndex, tangentValues, 4, error ) :
+								   !ReadFloatAccessor( tangentAttribute->data, vertexIndex, tangentValues, 4, error ) )
+				{
+					return false;
+				}
+				Vector3 tangent( tangentValues[0], tangentValues[1], tangentValues[2] );
+				if( !skinned )
+				{
+					tangent = TransformNormal( tangent, nodeWorld );
+				}
+				tangent = Normalize( tangent );
+				vertex.tangent[0] = tangent.x;
+				vertex.tangent[1] = tangent.y;
+				vertex.tangent[2] = tangent.z;
+				vertex.tangent[3] = tangentValues[3] * ( !skinned && Determinant( nodeWorld ) < 0.0f ? -1.0f : 1.0f );
+			}
 			SetImportedColor( vertex, baseColorFactor );
 			if( texcoordAttribute && texcoordAttribute->data )
 			{
@@ -1141,17 +1175,22 @@ cmf::Span<uint8_t> CopyFloatBytes( cmf::MemoryAllocator& allocator, const std::v
 	return span;
 }
 
-cmf::Span<cmf::VertexElement> BuildVertexDecl( cmf::MemoryAllocator& allocator, bool includeSkinning )
+cmf::Span<cmf::VertexElement> BuildVertexDecl( cmf::MemoryAllocator& allocator, bool includeTangents, bool includeSkinning )
 {
-	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( includeSkinning ? 6 : 4 );
-	decl[0] = { cmf::Usage::Position, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, position ) };
-	decl[1] = { cmf::Usage::Normal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, normal ) };
-	decl[2] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 2, offsetof( ImportedVertex, texcoord ) };
-	decl[3] = { cmf::Usage::Color, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, color ) };
+	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( 4 + ( includeTangents ? 1 : 0 ) + ( includeSkinning ? 2 : 0 ) );
+	size_t index = 0;
+	decl[index++] = { cmf::Usage::Position, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, position ) };
+	decl[index++] = { cmf::Usage::Normal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, normal ) };
+	if( includeTangents )
+	{
+		decl[index++] = { cmf::Usage::Tangent, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, tangent ) };
+	}
+	decl[index++] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 2, offsetof( ImportedVertex, texcoord ) };
+	decl[index++] = { cmf::Usage::Color, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, color ) };
 	if( includeSkinning )
 	{
-		decl[4] = { cmf::Usage::BoneIndices, 0, cmf::ElementType::UInt16, 4, offsetof( ImportedVertex, joints ) };
-		decl[5] = { cmf::Usage::BoneWeights, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, weights ) };
+		decl[index++] = { cmf::Usage::BoneIndices, 0, cmf::ElementType::UInt16, 4, offsetof( ImportedVertex, joints ) };
+		decl[index++] = { cmf::Usage::BoneWeights, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, weights ) };
 	}
 	return decl;
 }
@@ -1210,7 +1249,7 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 		const PendingMesh& src = context.meshes[meshIndex];
 		cmf::Mesh& dst = data.meshes[meshIndex] = {};
 		dst.name = CopyString( allocator, src.name );
-		dst.decl = BuildVertexDecl( allocator, !src.boneBindings.empty() );
+		dst.decl = BuildVertexDecl( allocator, src.hasTangents, !src.boneBindings.empty() );
 		dst.lods = allocator.AllocateSpan<cmf::MeshLod>( 1 );
 		dst.areas = allocator.AllocateSpan<cmf::MeshArea>( 1 );
 		dst.boneBindings = allocator.AllocateSpan<cmf::BoneBinding>( src.boneBindings.size() );

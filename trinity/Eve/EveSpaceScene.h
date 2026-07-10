@@ -210,6 +210,10 @@ public:
 	{
 		return m_objects;
 	}
+	PEvePlanetVector& Planets()
+	{
+		return m_planets;
+	}
 	struct LightingSetup
 	{
 		Vector3 sunDirection;
