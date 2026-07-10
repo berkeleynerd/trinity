@@ -782,20 +782,32 @@ composition acceptance.
 ## RC-04B celestial resource reconnaissance
 
 The installed client FSD maps New Eden star graphic `21480` to
-`res:/dx9/model/celestial/sun/sun_yellow_small_01b.red` and planet graphic
-`3837` to `res:/dx9/model/worldobject/planet/SandStormPlanet.red`. Their current
-packaged Trinity resources use the equivalent `.black` paths. The source files
-on this host are:
+`res:/dx9/model/celestial/sun/sun_yellow_small_01b.red`. Planet graphic `3837`
+identifies the generic SandStorm family, but current solar-system content gives
+planet `40334264` an exact shader preset graphic `4321` plus height-map graphics
+`3843` and `3903`. Their current packaged Trinity resources resolve to:
+
+```text
+res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black
+res:/dx9/model/worldobject/planet/terrestrial/terrestrial04_h_hi.dds
+res:/dx9/model/worldobject/planet/moon/moon01_h.dds
+```
+
+The source files on this host are:
 
 ```text
 /Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/c3/c32359747c085f8c_827ccb5e71043cd646f907dc4f209d63
-/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/82/82eaa90bc8982cb9_457559d183263a533bc06ce261f8211c
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/75/7531b97d5958ed0e_33f7877d15637c73709e6bdb09018a05
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/56/56a78f905d0f1ef8_306c122bebc685ed9eb3ff06677195c4
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/79/792b9dbfbc713c75_eaeff712fae1d19a5cd3c4e1cf8a405c
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/33/33c83a8c56c485e6_17639b853a2f8a32747ceac966c5a7ff
 /Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/93/93b769c4ef6215a9_a975d3503bd1fb51187a5d1e9102a878
 ```
 
-The third file is `res:/staticdata/graphicids.fsdbinary`, used to recover the
-mapping and exact sun emissive value. The New Eden asset target now stages the
-two Black roots under their logical paths and includes their hashes in
+The final two files are `res:/staticdata/solarSystemContent.static` and
+`res:/staticdata/graphicids.fsdbinary`. They recover the per-planet attributes,
+logical resources, and exact sun emissive value. The New Eden asset target
+stages the selected Black roots under their logical paths and includes hashes in
 `Reports/NewEdenSceneResources.json`; no client payload enters source control.
 
 Both roots deserialize as `EvePlanet`, matching the native scene architecture:
@@ -806,13 +818,45 @@ emissive values recovered in the earlier RC-04/RC-06 audit. The sun root has
 three top-level quality/container children and the planet has one authored mesh
 child using `SandStormPlanet.fx`.
 
-This is discovery evidence, not RC-04B acceptance. Recursive Black
-initialization is still deliberately suppressed in the scheduler-free host,
-and the authored meshes resolve to GR2 geometry. The next step is to enumerate
-the selected high-quality child graph, stage every effect and texture, convert
-its GR2 geometry to CMF at build time, redirect the serialized `Tr2Mesh`
-resources before synchronous initialization, and then capture visible bodies.
-Lens flare, god rays, and low-quality socket branches remain separate gates.
+The probe now prepares the selected high-quality Black graphs synchronously,
+redirects the unit-sphere and planet-sphere GR2 resources to build-time CMF,
+and validates every retained Metal effect and texture. It mirrors
+`Planet.SetEffectParameters`: serialized `HeightMap` is removed,
+`NormalHeight1`/`NormalHeight2` are installed from graphics `3843`/`3903`, and
+`Random` is set to `40334264 % 100`, or `64`. The planet fixture deliberately
+retains only the surface mesh. Atmosphere, aurora, data-driven FX, Sandstorm
+cloud randomization, and scheduler-generated render targets remain explicit
+follow-up gates. Lens flare, god rays, whisps, particles, and low-quality sun
+socket branches are also still pruned.
+
+The installed client also resolved an important units error. Its
+`eveCfg.GetPlanetWarpInPoint` implementation is packaged in:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp
+```
+
+New Eden planet `40334264` has radius `2,630,000 m`. The client formula places
+its deterministic standard warp destination `28,615,000 m` above the surface,
+or `31,245,000 m` from the center; the planet subtends about `9.66 degrees`
+there. Destiny separately defines physical proximity as surface-to-surface
+distance. Tranquility type `33468` gives the Astero a gameplay radius of `35 m`,
+so its physical contact center distance is approximately `2,630,035 m`. The
+converted visual mesh reaches `54.56 m`, making `2,630,055 m` the conservative
+non-intersection distance for this renderer. The selectable warp ranges are
+`0, 10, 20, 30, 50, 70, 100 km` around the special destination, not altitudes
+above the planet. Entering warp itself requires `150 km` separation.
+
+`--composition system` retains exact observer-relative meter coordinates.
+`--composition cinematic` retains authored radii and puts the planet at its
+standard warp-in distance while moving the authored sun to a clearly labeled
+visible framing distance. `--background-capture` orders the Cocoa window behind
+other applications and captures it without stealing focus. The accepted
+placement control contains Astero, the planet, and the procedural sun in one
+frame. The exact preset changes the earlier generic blue-green planet to the
+authored brown sandstorm surface in both isolated and combined captures.
+Exact-system-scale composition and the deferred atmosphere/cloud branches
+remain RC-04B fidelity gates.
 
 ## Object SH generation and upload
 
@@ -1031,6 +1075,9 @@ The following checks passed on the host snapshot above:
   `1.195372e+00` and visibly fills the hull;
 - installed-client inspection confirming exact New Eden sun and planet
   secondary-light inputs both produce zero physical SH at the observer;
+- exact New Eden planet preset reconstruction from current client FSD: graphic
+  `4321`, height graphics `3843`/`3903`, client parameter mutation, checksummed
+  surface resources, and focus-safe isolated/combined captures;
 - authored GR2 tangent preservation through glTF/CMF and a finite V5 capture
   using the required `PackedTangentLegacy` encoding;
 - 180/181-frame boundary tests proving model captures remain fixed through
@@ -1058,8 +1105,8 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Reconstruct visible New Eden sun and planet resources under RC-04B, keeping
-   lens flare and god rays as separate acceptance gates.
+1. Complete New Eden planet atmosphere/cloud preprocessing and exact-system-
+   scale controls under RC-04B, keeping lens flare and god rays separate.
 2. Reconstruct visible SOF attachment geometry as a separate control, then add
    shadow-caster batches and enable shadows/AO against accepted products.
 3. Add shadows and AO one at a time under RC-08, retaining direct depth/normal

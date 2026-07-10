@@ -18,6 +18,12 @@
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
+#include "Eve/SpaceObject/Children/EveChildContainer.h"
+#include "Eve/SpaceObject/Children/EveChildLineSet.h"
+#include "Eve/SpaceObject/Children/EveChildParticleSystem.h"
+#include "Eve/SpaceObject/Children/EveChildQuad.h"
+#include "Eve/SpaceObject/Children/EveChildRef.h"
+#include "Eve/SpaceObject/Children/EveChildSocket.h"
 #include "ITr2Renderable.h"
 #include "Lights/ITr2LightOwner.h"
 #include "Lights/Tr2Light.h"
@@ -25,12 +31,14 @@
 #include "Lights/Tr2SpotLight.h"
 #include "Lights/Tr2TexturedPointLight.h"
 #include "PostProcess/Tr2PostProcess2.h"
+#include "Tr2Mesh.h"
 #include "Tr2ProfileTimer.h"
 #include "Tr2MeshBase.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
 #include "Tr2ShLightingManager.h"
 #include "Resources/TriTextureRes.h"
+#include "Resources/TriGeometryRes.h"
 #include "Resources/Tr2LightProfileRes.h"
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/TriTextureParameter.h"
@@ -50,6 +58,7 @@
 #include <array>
 #include <cmath>
 #include <fstream>
+#include <functional>
 #include <sstream>
 #include <set>
 #include <string>
@@ -1269,6 +1278,19 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 8,
 };
 
+enum StandaloneCameraView
+{
+	STANDALONE_CAMERA_MODEL = 0,
+	STANDALONE_CAMERA_CELESTIALS = 1,
+	STANDALONE_CAMERA_PLANET = 2,
+};
+
+enum StandaloneSceneComposition
+{
+	STANDALONE_COMPOSITION_SYSTEM = 0,
+	STANDALONE_COMPOSITION_CINEMATIC = 1,
+};
+
 struct StandaloneProbe
 {
 	~StandaloneProbe()
@@ -1322,6 +1344,7 @@ struct StandaloneProbe
 	bool reportedResolvedLights = false;
 	uint64_t renderedFrameCount = 0;
 	bool reportedCameraOrbit = false;
+	int cameraView = STANDALONE_CAMERA_MODEL;
 };
 
 std::wstring ToWide( const char* value )
@@ -1744,12 +1767,208 @@ bool PrepareSceneBackgroundWithoutYield( EveSpaceScene& scene, const char* scene
 	return true;
 }
 
-bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
+bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath, const char* role, std::string& error )
+{
+	Tr2MeshPtr mesh = BlueCastPtr( child.GetMesh() );
+	if( !mesh )
+	{
+		error = std::string( role ) + " does not contain a serialized Tr2Mesh";
+		return false;
+	}
+
+	mesh->SetMeshResPath( cmfPath );
+	TriGeometryRes* geometry = mesh->GetGeometryResource();
+	if( geometry )
+	{
+		geometry->ForceSynchronousLoad();
+		geometry->Reload();
+	}
+	std::fprintf(
+		stderr,
+		"New Eden %s geometry state: path=%s exists=%s loading=%s prepared=%s good=%s\n",
+		role,
+		cmfPath,
+		BePaths->FileExistsLocally( CA2W( cmfPath ) ) ? "yes" : "no",
+		geometry && geometry->IsLoading() ? "yes" : "no",
+		geometry && geometry->IsPrepared() ? "yes" : "no",
+		geometry && geometry->IsGood() ? "yes" : "no" );
+	if( !geometry || !geometry->IsGood() || !geometry->IsUsingCMF() )
+	{
+		error = std::string( role ) + " geometry failed to prepare: " + cmfPath;
+		return false;
+	}
+
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+		if( !areas )
+		{
+			continue;
+		}
+		for( Tr2MeshArea* area : *areas )
+		{
+			Tr2Effect* effect = area->GetMaterialInterface();
+			if( !effect )
+			{
+				error = std::string( role ) + " area has no effect: " + area->GetName();
+				return false;
+			}
+			if( !PrepareEffectResourcesWithoutYield( *effect, role, error ) )
+			{
+				return false;
+			}
+		}
+	}
+
+	if( !child.Initialize() )
+	{
+		error = std::string( role ) + " child failed to initialize";
+		return false;
+	}
+	std::fprintf( stderr, "New Eden %s ready: geometry=%s\n", role, cmfPath );
+	return true;
+}
+
+bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, std::string& error )
+{
+	EveChildContainerPtr sunBodyContainer;
+	PIEveSpaceObjectChildVector& sunChildren = sun.GetChildren();
+	for( IEveSpaceObjectChild* child : sunChildren )
+	{
+		if( std::strcmp( child->GetName(), "MediumAndHigh_Quality_SunHalfSizer" ) == 0 )
+		{
+			sunBodyContainer = BlueCastPtr( child );
+			break;
+		}
+	}
+	if( !sunBodyContainer )
+	{
+		error = "New Eden sun body container is missing";
+		return false;
+	}
+	for( ssize_t index = static_cast<ssize_t>( sunChildren.size() ) - 1; index >= 0; --index )
+	{
+		if( sunChildren[index] != sunBodyContainer->GetRawRoot() )
+		{
+			sunChildren.Remove( index );
+		}
+	}
+
+	EveChildMeshPtr sunBody;
+	for( IEveSpaceObjectChild* child : sunBodyContainer->m_objects )
+	{
+		if( std::strcmp( child->GetName(), "Sun" ) == 0 )
+		{
+			sunBody = BlueCastPtr( child );
+			break;
+		}
+	}
+	if( !sunBody )
+	{
+		error = "New Eden sun sphere child is missing";
+		return false;
+	}
+	for( ssize_t index = static_cast<ssize_t>( sunBodyContainer->m_objects.size() ) - 1; index >= 0; --index )
+	{
+		if( sunBodyContainer->m_objects[index] != sunBody->GetRawRoot() )
+		{
+			sunBodyContainer->m_objects.Remove( index );
+		}
+	}
+
+	PIEveSpaceObjectChildVector& planetChildren = planet.GetChildren();
+	EveChildMeshPtr planetBody;
+	for( IEveSpaceObjectChild* child : planetChildren )
+	{
+		if( std::strcmp( child->GetName(), "Planet" ) == 0 || std::strcmp( child->GetName(), "planet" ) == 0 )
+		{
+			planetBody = BlueCastPtr( child );
+			break;
+		}
+	}
+	if( !planetBody )
+	{
+		error = "New Eden planet sphere child is missing";
+		return false;
+	}
+	for( ssize_t index = static_cast<ssize_t>( planetChildren.size() ) - 1; index >= 0; --index )
+	{
+		if( planetChildren[index] != planetBody->GetRawRoot() )
+		{
+			planetChildren.Remove( index );
+		}
+	}
+
+	Tr2MeshPtr planetMesh = BlueCastPtr( planetBody->GetMesh() );
+	if( !planetMesh )
+	{
+		error = "New Eden planet surface does not contain a serialized Tr2Mesh";
+		return false;
+	}
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		const Tr2MeshAreaVector* areas = planetMesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+		if( !areas )
+		{
+			continue;
+		}
+		for( Tr2MeshArea* area : *areas )
+		{
+			Tr2Effect* effect = area->GetMaterialInterface();
+			if( !effect )
+			{
+				error = "New Eden planet surface area has no effect";
+				return false;
+			}
+			for( ssize_t index = static_cast<ssize_t>( effect->m_resources.size() ) - 1; index >= 0; --index )
+			{
+				if( std::strcmp( effect->m_resources[index]->GetParameterName(), "HeightMap" ) == 0 )
+				{
+					effect->m_resources.Remove( index );
+				}
+			}
+			if( !effect->AddResourceTexture2D(
+					BlueSharedString( "NormalHeight1" ),
+					"res:/dx9/model/worldobject/planet/terrestrial/terrestrial04_h_hi.dds" ) ||
+				!effect->AddResourceTexture2D(
+					BlueSharedString( "NormalHeight2" ),
+					"res:/dx9/model/worldobject/planet/moon/moon01_h.dds" ) ||
+				!effect->AddParameterFloat( BlueSharedString( "Random" ), 64.0f ) )
+			{
+				error = "New Eden planet surface parameter injection failed";
+				return false;
+			}
+			std::fprintf(
+				stderr,
+				"New Eden planet authored preset: graphic=4321 path=res:/dx9/model/worldobject/planet/"
+				"template_hi/sandstorm/p_sandstorm_11.black heightMap1=3843 heightMap2=3903 random=64 "
+				"surface-only=yes\n" );
+		}
+	}
+
+	return PrepareCelestialMeshWithoutYield(
+		*sunBody,
+		"res:/graphics/generic/unitsphere/unitsphere_4k_01a.cmf",
+		"sun body",
+		error ) &&
+		PrepareCelestialMeshWithoutYield(
+			*planetBody,
+			"res:/dx9/model/worldobject/planet/planetsphere.cmf",
+			"planet body",
+			error ) &&
+		sunBodyContainer->Initialize() && sun.Initialize() && planet.Initialize();
+}
+
+bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int composition, std::string& error )
 {
 	constexpr int32_t systemId = 30005286;
 	constexpr int32_t constellationId = 20000773;
 	constexpr float securityStatus = 0.2605538070201874f;
 	constexpr double starRadius = 158400000.0;
+	constexpr double planetRadius = 2630000.0;
+	constexpr double asteroCollisionRadius = 35.0;
+	constexpr double asteroMeshRadius = 54.55741723174651;
+	constexpr double metersPerSceneUnit = 1000000.0;
 	constexpr double observerX = -1069486940160.0;
 	constexpr double observerY = 202669301760.0;
 	constexpr double observerZ = 831868968960.0;
@@ -1759,7 +1978,7 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
 
 	const double observerDistance = std::sqrt(
 		observerX * observerX + observerY * observerY + observerZ * observerZ );
-	const Vector3 sunDirection(
+	Vector3 sunDirection(
 		static_cast<float>( observerX / observerDistance ),
 		static_cast<float>( observerY / observerDistance ),
 		static_cast<float>( observerZ / observerDistance ) );
@@ -1773,6 +1992,47 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
 		closeHsv.x,
 		farSaturation + ( closeHsv.y - farSaturation ) * distanceRatio,
 		farValue + ( closeHsv.z - farValue ) * distanceRatio );
+	Vector3 sunPosition( 1069486940160.0f, -202669301760.0f, -831868968960.0f );
+	Vector3 planetPosition( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	if( composition == STANDALONE_COMPOSITION_CINEMATIC )
+	{
+		// EVE applies the selectable warp range around a deterministic planet-specific
+		// destination. Reproduce eveCfg.GetPlanetWarpInPoint's radial distance here.
+		constexpr double factor = 20.0;
+		double warpScale = std::pow(
+			factor,
+			( 5.0 - std::log10( planetRadius / metersPerSceneUnit ) - 0.5 ) / factor ) * factor;
+		warpScale = std::min( 10.0, std::max( 0.0, warpScale ) ) + 0.5;
+		const double warpSurfaceClearance = metersPerSceneUnit + planetRadius * warpScale;
+		const double warpCenterDistance = planetRadius + warpSurfaceClearance;
+		const double contactCenterDistance = planetRadius + asteroCollisionRadius;
+		const double visualContactCenterDistance = planetRadius + asteroMeshRadius;
+		constexpr double cinematicSunCenterDistance = 1000000000.0;
+		sunPosition = Normalize( Vector3( -0.65f, 0.32f, 1.0f ) ) *
+			static_cast<float>( cinematicSunCenterDistance );
+		planetPosition = Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) *
+			static_cast<float>( warpCenterDistance );
+		sunDirection = -Normalize( sunPosition );
+		std::fprintf(
+			stderr,
+			"New Eden cinematic composition: authored bodies retained; standard planet warp-in "
+			"radius=%.3f km surfaceClearance=%.3f km centerDistance=%.3f km "
+			"contactCenterDistance=%.3f km visualContactCenterDistance=%.3f km\n",
+			planetRadius / 1000.0,
+			warpSurfaceClearance / 1000.0,
+			warpCenterDistance / 1000.0,
+			contactCenterDistance / 1000.0,
+			visualContactCenterDistance / 1000.0 );
+		std::fprintf(
+			stderr,
+			"New Eden cinematic placement: sun=(%.3f, %.3f, %.3f) planet=(%.3f, %.3f, %.3f)\n",
+			sunPosition.x,
+			sunPosition.y,
+			sunPosition.z,
+			planetPosition.x,
+			planetPosition.y,
+			planetPosition.z );
+	}
 	scene.SetSunLighting( sunDirection, sunColor );
 
 	const int32_t starCount = 500 + static_cast<int32_t>( 250.0f * securityStatus );
@@ -1809,60 +2069,119 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, std::string& error )
 		return false;
 	}
 	auto planet = LoadBlackObjectWithoutYield<EvePlanet>(
-		"res:/dx9/model/worldobject/planet/sandstormplanet.black",
+		"res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black",
 		error );
 	if( !planet )
 	{
 		return false;
 	}
 	sun->SetStandalonePlacement(
-		Vector3( 1069486.940160f, -202669.301760f, -831868.968960f ),
-		158.4f,
+		sunPosition,
+		static_cast<float>( starRadius ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
 		Color( emissiveR, emissiveG, emissiveB, 1.0f ) );
 	planet->SetStandalonePlacement(
-		Vector3( 1083758.787326f, -205372.890997f, -787280.443197f ),
-		2.63f,
+		planetPosition,
+		static_cast<float>( planetRadius ),
 		Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-	scene.Planets().Insert( -1, sun->GetRawRoot() );
+	if( !PrepareNewEdenCelestialsWithoutYield( *sun, *planet, error ) )
+	{
+		if( error.empty() )
+		{
+			error = "New Eden celestial graph failed to initialize";
+		}
+		return false;
+	}
+	if( cameraView != STANDALONE_CAMERA_PLANET )
+	{
+		scene.Planets().Insert( -1, sun->GetRawRoot() );
+	}
+	else
+	{
+		std::fprintf( stderr, "New Eden planet camera isolation: sun submission disabled\n" );
+	}
 	scene.Planets().Insert( -1, planet->GetRawRoot() );
 	auto describeCelestial = []( const char* role, EvePlanet& celestial ) {
-		for( IEveSpaceObjectChild* child : celestial.GetChildren() )
-		{
+		std::function<void( IEveSpaceObjectChild*, int )> describeChild;
+		describeChild = [&]( IEveSpaceObjectChild* child, int depth ) {
+			EveChildContainerPtr container = BlueCastPtr( child );
+			EveChildSocketPtr socket = BlueCastPtr( child );
+			EveChildRefPtr childRef = BlueCastPtr( child );
 			EveChildMeshPtr meshChild = BlueCastPtr( child );
-			Tr2MeshBase* mesh = meshChild ? meshChild->GetMesh() : nullptr;
+			EveChildLineSetPtr lineSet = BlueCastPtr( child );
+			EveChildQuadPtr quad = BlueCastPtr( child );
+			EveChildParticleSystemPtr particles = BlueCastPtr( child );
+			Tr2MeshBase* mesh = meshChild ? meshChild->GetMesh() : ( lineSet ? lineSet->GetMesh() : nullptr );
+			Tr2MeshPtr serializedMesh = BlueCastPtr( mesh );
+			const char* type = container ? "container" :
+				( socket ? "socket" :
+					( childRef ? "ref" :
+						( meshChild ? "mesh" :
+							( lineSet ? "line-set" :
+								( quad ? "quad" : ( particles ? "particles" : "other" ) ) ) ) ) );
 			std::fprintf(
 				stderr,
-				"New Eden %s child: name=%s mesh=%s geometry=%s\n",
+				"New Eden %s graph: depth=%d type=%s name=%s resource=%s mesh=%s\n",
 				role,
+				depth,
+				type,
 				child->GetName(),
-				mesh ? "yes" : "no",
-				mesh ? ToNarrowPath( mesh->GetGeometryResPath() ).c_str() : "" );
-			if( !mesh )
+				socket ? socket->GetPlugResPath() : ( childRef ? childRef->GetResPath() : "" ),
+				serializedMesh ? serializedMesh->GetMeshResPath() : "" );
+			if( mesh )
 			{
-				continue;
+				for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+				{
+					const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+					if( !areas )
+					{
+						continue;
+					}
+					for( Tr2MeshArea* area : *areas )
+					{
+						Tr2Effect* effect = area->GetMaterialInterface();
+						std::fprintf(
+							stderr,
+							"New Eden %s area: depth=%d child=%s batch=%d area=%s effect=%s\n",
+							role,
+							depth,
+							child->GetName(),
+							batchType,
+							area->GetName().c_str(),
+							effect ? effect->GetEffectPathName() : "" );
+						if( effect )
+						{
+							for( IRoot* resource : effect->m_resources )
+							{
+								TriTextureParameterPtr texture = BlueCastPtr( resource );
+								if( texture )
+								{
+									std::fprintf(
+										stderr,
+										"New Eden %s texture: child=%s area=%s parameter=%s path=%s\n",
+										role,
+										child->GetName(),
+										area->GetName().c_str(),
+										texture->GetParameterName(),
+										texture->GetAuthoredResourcePath() );
+								}
+							}
+						}
+					}
+				}
 			}
-			for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+			if( container )
 			{
-				const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
-				if( !areas )
+				for( IEveSpaceObjectChild* nested : container->m_objects )
 				{
-					continue;
-				}
-				for( Tr2MeshArea* area : *areas )
-				{
-					Tr2Effect* effect = area->GetMaterialInterface();
-					std::fprintf(
-						stderr,
-						"New Eden %s area: child=%s batch=%d area=%s effect=%s\n",
-						role,
-						child->GetName(),
-						batchType,
-						area->GetName().c_str(),
-						effect ? effect->GetEffectPathName() : "" );
+					describeChild( nested, depth + 1 );
 				}
 			}
+		};
+		for( IEveSpaceObjectChild* child : celestial.GetChildren() )
+		{
+			describeChild( child, 0 );
 		}
 	};
 	describeCelestial( "sun", *sun );
@@ -2634,7 +2953,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	constexpr uint64_t kStaticCameraFrames = 180;
 	constexpr float kCameraRadius = 5.2f;
 	constexpr float kOrbitFrames = 900.0f;
-	if( !probe.view || !probe.renderable || probe.renderedFrameCount < kStaticCameraFrames )
+	if( !probe.view || !probe.renderable || probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames )
 	{
 		return;
 	}
@@ -2653,7 +2972,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition )
 {
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
@@ -2670,6 +2989,17 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone normal-map mode" );
 		return false;
 	}
+	if( cameraView < STANDALONE_CAMERA_MODEL || cameraView > STANDALONE_CAMERA_PLANET )
+	{
+		CCP_LOGERR( "Invalid standalone camera view" );
+		return false;
+	}
+	if( composition < STANDALONE_COMPOSITION_SYSTEM || composition > STANDALONE_COMPOSITION_CINEMATIC )
+	{
+		CCP_LOGERR( "Invalid standalone scene composition" );
+		return false;
+	}
+	probe.cameraView = cameraView;
 	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH )
 	{
 		localLights = STANDALONE_LOCAL_LIGHTS_OFF;
@@ -2815,7 +3145,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			std::fprintf( stderr, "Failed to load EVE scene '%s': %s\n", sceneResourcePath, sceneError.c_str() );
 			return false;
 		}
-		if( sceneFixture == 3 && !ConfigureNewEdenSystem( *probe.scene, sceneError ) )
+		if( sceneFixture == 3 && !ConfigureNewEdenSystem( *probe.scene, cameraView, composition, sceneError ) )
 		{
 			std::fprintf( stderr, "Failed to configure New Eden system: %s\n", sceneError.c_str() );
 			return false;
@@ -2903,8 +3233,20 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 
 	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
-	probe.view->SetLookAtPosition( Vector3( 0.0f, 0.0f, -5.2f ), Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
-	probe.projection->PerspectiveFov( 60.0f * 3.1415926535f / 180.0f, aspect, 1.0f, 10000.0f );
+	constexpr float newEdenPlanetWarpCenterDistance = 31245000.0f;
+	const Vector3 planetPosition = composition == STANDALONE_COMPOSITION_CINEMATIC
+		? Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) * newEdenPlanetWarpCenterDistance
+		: Vector3( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	const Vector3 eye( 0.0f, 0.0f, -5.2f );
+	const Vector3 target = cameraView == STANDALONE_CAMERA_CELESTIALS
+		? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) )
+		: ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) );
+	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
+	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
+		( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
+	const float cameraFovDegrees = cameraView == STANDALONE_CAMERA_PLANET && composition == STANDALONE_COMPOSITION_SYSTEM ? 0.015f : 60.0f;
+	std::fprintf( stderr, "EVE camera view: %s fov=%.4f degrees\n", cameraName, cameraFovDegrees );
+	probe.projection->PerspectiveFov( cameraFovDegrees * 3.1415926535f / 180.0f, aspect, 1.0f, 10000.0f );
 
 	EveSpaceSceneRenderDriver::Settings settings;
 	settings.clearColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
@@ -3102,14 +3444,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )

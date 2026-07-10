@@ -290,6 +290,7 @@ void EvePlanet::SetRenderScale( float value )
 void EvePlanet::SetStandalonePlacement( const Vector3& position, float radius, const Color& albedo, const Color& emissive )
 {
 	m_translation = position;
+	m_scaling = Vector3( radius, radius, radius );
 	m_radius = radius;
 	m_albedoColor = albedo;
 	m_emissiveColor = emissive;

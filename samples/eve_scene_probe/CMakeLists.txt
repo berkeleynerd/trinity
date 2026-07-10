@@ -130,7 +130,9 @@ set(EVE_SCENE_PROBE_STAR_SPRITES_HI_RESOURCE "res:/graphics/effect.metal/managed
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_lo")
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_depth")
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE "res:/dx9/model/celestial/sun/sun_yellow_small_01b.black")
-set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/sandstormplanet.black")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black")
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN_GEOMETRY_RESOURCE "res:/graphics/generic/unitsphere/unitsphere_4k_01a.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetsphere.gr2")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_lo")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth")
@@ -189,8 +191,19 @@ set(EVE_SCENE_PROBE_STAR_SPRITES_HI ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/sta
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_lo)
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_depth)
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sun_yellow_small_01b.black)
-set(EVE_SCENE_PROBE_NEW_EDEN_PLANET ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstormplanet.black)
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black)
 set(EVE_SCENE_PROBE_NEW_EDEN_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSceneResources.json)
+set(EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/CelestialAssets)
+set(EVE_SCENE_PROBE_SUN_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Sun.gltf)
+set(EVE_SCENE_PROBE_SUN_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Sun.bin)
+set(EVE_SCENE_PROBE_SUN_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere/unitsphere_4k_01a.cmf)
+set(EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.gltf)
+set(EVE_SCENE_PROBE_PLANET_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.bin)
+set(EVE_SCENE_PROBE_PLANET_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/planetsphere.cmf)
+set(EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetGeometry.json)
+set(EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/planet)
+set(EVE_SCENE_PROBE_CELESTIAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenCelestialResources.json)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_hi)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_lo)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_depth)
@@ -566,6 +579,121 @@ if(TARGET TrinityEveSceneProbeA01Assets)
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenAssets)
 endif()
 
+if(TARGET TrinityEveSceneProbeNewEdenAssets)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_GLTF} ${EVE_SCENE_PROBE_SUN_BIN} ${EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_SUN_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_SUN_GLTF}
+            --manifest ${EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_SUN_GLTF}
+            --output ${EVE_SCENE_PROBE_SUN_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_SUN_GLTF} ${EVE_SCENE_PROBE_SUN_BIN}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_GLTF} ${EVE_SCENE_PROBE_PLANET_BIN} ${EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_PLANET_GLTF}
+            --manifest ${EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_PLANET_GLTF}
+            --output ${EVE_SCENE_PROBE_PLANET_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_PLANET_GLTF} ${EVE_SCENE_PROBE_PLANET_BIN}
+        VERBATIM
+    )
+
+    set(EVE_SCENE_PROBE_CELESTIAL_RESOURCE_OUTPUTS
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_depth
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_depth
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunramp_yellow_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunsurface_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/noise.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunsurfacepole_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/3d/3dfx_shield_generic_02a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/sunwaveramp_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunrampcorona_yellow_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/gradient01_m.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/sandstormdetail02_p.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/preset/sandstormscatterlight03_d.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/preset/sandstormscatterhue05_d.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/terrestrial/terrestrial04_h_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/moon/moon01_h.dds
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_CELESTIAL_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_CELESTIAL_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunsurface.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunsurface.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunsurface.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunsurface.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/suncorona.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/suncorona.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/suncorona.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/suncorona.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sandstormplanet.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sandstormplanet.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sandstormplanet.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sandstormplanet.sm_depth
+            --copy-resource res:/dx9/model/celestial/sun/sunramp_yellow_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunramp_yellow_01a.dds
+            --copy-resource res:/dx9/model/celestial/sun/sunsurface_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunsurface_01a.dds
+            --copy-resource res:/texture/global/noise.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/noise.dds
+            --copy-resource res:/dx9/model/celestial/sun/sunsurfacepole_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunsurfacepole_01a.dds
+            --copy-resource res:/texture/fx/3d/3dfx_shield_generic_02a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/3d/3dfx_shield_generic_02a.dds
+            --copy-resource res:/texture/fx/gradients/sunwaveramp_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/sunwaveramp_01a.dds
+            --copy-resource res:/dx9/model/celestial/sun/sunrampcorona_yellow_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sunrampcorona_yellow_01a.dds
+            --copy-resource res:/dx9/model/worldobject/planet/gradient01_m.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/gradient01_m.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/sandstormdetail02_p.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/sandstormdetail02_p.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust01_m.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap02_m.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m.dds
+            --copy-resource res:/dx9/model/worldobject/planet/preset/sandstormscatterlight03_d.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/preset/sandstormscatterlight03_d.dds
+            --copy-resource res:/dx9/model/worldobject/planet/preset/sandstormscatterhue05_d.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/preset/sandstormscatterhue05_d.dds
+            --copy-resource res:/dx9/model/worldobject/planet/terrestrial/terrestrial04_h_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/terrestrial/terrestrial04_h_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/moon/moon01_h.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/moon/moon01_h.dds
+            --manifest ${EVE_SCENE_PROBE_CELESTIAL_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeNewEdenCelestialAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_SUN_CMF}
+            ${EVE_SCENE_PROBE_PLANET_CMF}
+            ${EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_CELESTIAL_RESOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_CELESTIAL_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenCelestialAssets)
+endif()
+
 if(EXISTS "${EVE_SCENE_PROBE_SHIP_SOURCE}")
     add_custom_command(
         OUTPUT
@@ -907,6 +1035,7 @@ add_custom_command(
     TARGET TrinityALEveSceneProbe_metal
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory ${EVE_SCENE_PROBE_ASSETS_DIR} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe
     COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_FILE:trinity_metal> $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/$<TARGET_FILE_NAME:trinity_metal>
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_hi

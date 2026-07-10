@@ -36,7 +36,9 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int shSource,
 													  int localLights,
 													  int reflectionCorrection,
-													  int normalMapMode );
+													  int normalMapMode,
+													  int cameraView,
+													  int composition );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
 												   int qualityRung,
 												   int64_t realTime,
@@ -139,6 +141,19 @@ enum class RenderProduct
 	All,
 };
 
+enum class CameraView
+{
+	Model,
+	Celestials,
+	Planet,
+};
+
+enum class SceneComposition
+{
+	System,
+	Cinematic,
+};
+
 constexpr int kCaptureColor = 1 << 0;
 constexpr int kCaptureDepth = 1 << 1;
 constexpr int kCaptureNormal = 1 << 2;
@@ -169,12 +184,15 @@ struct Options
 	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
 	NormalMapMode normalMapMode = NormalMapMode::Authored;
 	RenderProduct renderProduct = RenderProduct::Window;
+	CameraView cameraView = CameraView::Model;
+	SceneComposition composition = SceneComposition::System;
 	int maxFrames = -1;
 	uint32_t windowWidth = kDefaultWindowWidth;
 	uint32_t windowHeight = kDefaultWindowHeight;
 	bool windowed = false;
 	bool materialModeExplicit = false;
 	bool localLightsExplicit = false;
+	bool backgroundCapture = false;
 };
 
 std::string ToLower( std::string value );
@@ -390,6 +408,62 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 			product = candidate;
 			return true;
 		}
+	}
+	return false;
+}
+
+std::string CameraViewName( CameraView view )
+{
+	switch( view )
+	{
+	case CameraView::Model:
+		return "model";
+	case CameraView::Celestials:
+		return "celestials";
+	case CameraView::Planet:
+		return "planet";
+	}
+	return "unknown";
+}
+
+bool ParseCameraView( const std::string& value, CameraView& view )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "model" )
+	{
+		view = CameraView::Model;
+		return true;
+	}
+	if( normalized == "celestials" )
+	{
+		view = CameraView::Celestials;
+		return true;
+	}
+	if( normalized == "planet" )
+	{
+		view = CameraView::Planet;
+		return true;
+	}
+	return false;
+}
+
+std::string SceneCompositionName( SceneComposition composition )
+{
+	return composition == SceneComposition::Cinematic ? "cinematic" : "system";
+}
+
+bool ParseSceneComposition( const std::string& value, SceneComposition& composition )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "system" )
+	{
+		composition = SceneComposition::System;
+		return true;
+	}
+	if( normalized == "cinematic" )
+	{
+		composition = SceneComposition::Cinematic;
+		return true;
 	}
 	return false;
 }
@@ -697,6 +771,8 @@ void PrintUsage( const char* executable )
 			  << "       [--reflection-correction off|client]\n"
 			  << "       [--normal-map authored|flat]\n"
 			  << "       [--render-product window|color|depth|normal|all]\n"
+			  << "       [--camera-view model|celestials|planet]\n"
+			  << "       [--composition system|cinematic] [--background-capture]\n"
 			  << "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 			  << "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
@@ -739,6 +815,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.maxFrames = static_cast<int>( parsed );
+		}
+		else if( arg == "--background-capture" )
+		{
+			options.backgroundCapture = true;
 		}
 		else if( arg == "--windowed" )
 		{
@@ -846,6 +926,20 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--render-product" )
 		{
 			if( ++i >= argc || !ParseRenderProduct( argv[i], options.renderProduct ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--camera-view" )
+		{
+			if( ++i >= argc || !ParseCameraView( argv[i], options.cameraView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--composition" )
+		{
+			if( ++i >= argc || !ParseSceneComposition( argv[i], options.composition ) )
 			{
 				return false;
 			}
@@ -1046,7 +1140,8 @@ std::string CaptureBasePath( const Options& options )
 		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_local-" +
 		LocalLightsName( options.localLights ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_normal-" +
-		NormalMapModeName( options.normalMapMode );
+		NormalMapModeName( options.normalMapMode ) + "_camera-" + CameraViewName( options.cameraView ) +
+		"_composition-" + SceneCompositionName( options.composition );
 	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix;
 }
 
@@ -1087,6 +1182,9 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "reflectionCorrection=" << ReflectionCorrectionName( options.reflectionCorrection ) << "\n";
 	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
 	metadata << "renderProduct=" << RenderProductName( options.renderProduct ) << "\n";
+	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
+	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
+	metadata << "backgroundCapture=" << ( options.backgroundCapture ? "true" : "false" ) << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
 	metadata << "frames=" << renderedFrames << "\n";
@@ -1150,8 +1248,15 @@ int main( int argc, char** argv )
 		NSWindow* window = CreateWindow( options, &view );
 		EveSceneProbeWindowDelegate* delegate = [[EveSceneProbeWindowDelegate alloc] init];
 		[window setDelegate:delegate];
-		[window makeKeyAndOrderFront:nil];
-		[NSApp activateIgnoringOtherApps:YES];
+		if( options.backgroundCapture )
+		{
+			[window orderBack:nil];
+		}
+		else
+		{
+			[window makeKeyAndOrderFront:nil];
+			[NSApp activateIgnoringOtherApps:YES];
+		}
 
 		const CGFloat backingScale = std::max( static_cast<CGFloat>( 1.0 ), [window backingScaleFactor] );
 		const NSSize viewSize = view.bounds.size;
@@ -1207,7 +1312,9 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.shSource ),
 												   static_cast<int>( options.localLights ),
 												   static_cast<int>( options.reflectionCorrection ),
-												   static_cast<int>( options.normalMapMode ) ) )
+												   static_cast<int>( options.normalMapMode ),
+												   static_cast<int>( options.cameraView ),
+												   static_cast<int>( options.composition ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

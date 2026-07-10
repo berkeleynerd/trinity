@@ -168,15 +168,18 @@ function validateMesh( mesh )
     {
         throw new Error( `GR2 mesh '${mesh.name}' does not have one unpacked normal per vertex` );
     }
-    if( mesh.vertex.tangent.length !== vertexCount * 3 || mesh.vertex.binormal.length !== vertexCount * 3 )
+    const tangentComponents = mesh.vertex.tangent.length / vertexCount;
+    const binormalComponents = mesh.vertex.binormal.length / vertexCount;
+    const hasTangents = tangentComponents !== 0 || binormalComponents !== 0;
+    if( hasTangents && ( tangentComponents !== binormalComponents || ( tangentComponents !== 3 && tangentComponents !== 4 ) ) )
     {
-        throw new Error( `GR2 mesh '${mesh.name}' does not have one authored tangent frame per vertex` );
+        throw new Error( `GR2 mesh '${mesh.name}' has an incomplete authored tangent frame` );
     }
     if( mesh.vertex.texcoord0.length !== vertexCount * 2 )
     {
         throw new Error( `GR2 mesh '${mesh.name}' does not have one TEXCOORD_0 per vertex` );
     }
-    return vertexCount;
+    return { vertexCount, tangentComponents };
 }
 
 function positionBounds( positions )
@@ -201,22 +204,24 @@ function align4( value )
 
 function buildGltf( mesh, sourcePath, outputPath, includeGroups )
 {
-    const vertexCount = validateMesh( mesh );
+    const { vertexCount, tangentComponents } = validateMesh( mesh );
+    const hasTangents = tangentComponents !== 0;
     const positions = new Float32Array( mesh.vertex.position );
     const normals = new Float32Array( mesh.vertex.normal );
-    const tangents = new Float32Array( vertexCount * 4 );
-    for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+    const tangents = hasTangents ? new Float32Array( vertexCount * 4 ) : null;
+    for( let vertexIndex = 0; hasTangents && vertexIndex < vertexCount; ++vertexIndex )
     {
-        const offset = vertexIndex * 3;
-        const nx = mesh.vertex.normal[offset + 0];
-        const ny = mesh.vertex.normal[offset + 1];
-        const nz = mesh.vertex.normal[offset + 2];
-        const tx = mesh.vertex.tangent[offset + 0];
-        const ty = mesh.vertex.tangent[offset + 1];
-        const tz = mesh.vertex.tangent[offset + 2];
-        const bx = mesh.vertex.binormal[offset + 0];
-        const by = mesh.vertex.binormal[offset + 1];
-        const bz = mesh.vertex.binormal[offset + 2];
+        const normalOffset = vertexIndex * 3;
+        const tangentOffset = vertexIndex * tangentComponents;
+        const nx = mesh.vertex.normal[normalOffset + 0];
+        const ny = mesh.vertex.normal[normalOffset + 1];
+        const nz = mesh.vertex.normal[normalOffset + 2];
+        const tx = mesh.vertex.tangent[tangentOffset + 0];
+        const ty = mesh.vertex.tangent[tangentOffset + 1];
+        const tz = mesh.vertex.tangent[tangentOffset + 2];
+        const bx = mesh.vertex.binormal[tangentOffset + 0];
+        const by = mesh.vertex.binormal[tangentOffset + 1];
+        const bz = mesh.vertex.binormal[tangentOffset + 2];
         const tangentLength = Math.hypot( tx, ty, tz );
         if( tangentLength < 1.0e-8 )
         {
@@ -255,7 +260,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
 
     const positionView = append( positions, 34962 );
     const normalView = append( normals, 34962 );
-    const tangentView = append( tangents, 34962 );
+    const tangentView = tangents ? append( tangents, 34962 ) : null;
     const texcoordView = append( texcoords, 34962 );
     const groupData = selectedGroups.map( sourceGroup => {
         const faces = mesh.indices[sourceGroup].faces;
@@ -291,7 +296,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         accessors: [
             { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
             { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
-            { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" },
+            ...( tangents ? [ { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" } ] : [] ),
             { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" },
             ...groupData.map( group => ( {
                 bufferView: group.indexView,
@@ -304,8 +309,10 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
             name: `${mesh.name}_group_${group.sourceGroup}`,
             extras: { sourceGroup: group.sourceGroup },
             primitives: [ {
-                attributes: { POSITION: 0, NORMAL: 1, TANGENT: 2, TEXCOORD_0: 3 },
-                indices: 4 + groupIndex,
+                attributes: tangents
+                    ? { POSITION: 0, NORMAL: 1, TANGENT: 2, TEXCOORD_0: 3 }
+                    : { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
+                indices: ( tangents ? 4 : 3 ) + groupIndex,
                 mode: 4,
                 extras: { sourceGroup: group.sourceGroup },
             } ],

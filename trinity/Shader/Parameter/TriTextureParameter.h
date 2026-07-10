@@ -83,6 +83,10 @@ public:
 	// access strings
 	void SetParameterName( const BlueSharedString& name );
 	const wchar_t* GetResourcePath() const;
+	const char* GetAuthoredResourcePath() const
+	{
+		return m_resourcePath.c_str();
+	}
 	void SetResourcePath( const char* resourcePath );
 
 private:
