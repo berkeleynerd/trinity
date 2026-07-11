@@ -14,12 +14,16 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <numeric>
 #include <sstream>
 #include <string>
 #include <thread>
 #include <utility>
 #include <vector>
+
+#include "TrinityStandaloneProbeApi.h"
 
 extern "C" bool TrinityStandaloneProbeStartup( int argc, const char* const* argv, const char* executableDirectory );
 extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle,
@@ -32,6 +36,26 @@ extern "C" bool TrinityStandaloneProbeGetCapturedProduct( void* opaqueProbe,
 														  uint32_t* width,
 														  uint32_t* height,
 														  uint32_t* pitch );
+extern "C" bool TrinityStandaloneProbeGetHdrCompositeDiagnostics( void* opaqueProbe,
+																  uint32_t* format,
+																  uint32_t* width,
+																  uint32_t* height,
+																  uint64_t* rawHash,
+																  uint64_t* finiteComponents,
+																  uint64_t* nanComponents,
+																  uint64_t* infComponents,
+																  uint64_t* negativeComponents,
+																  uint64_t* saturatedComponents,
+																  uint64_t* pixelsAboveOne,
+																  double* minimumLuminance,
+																  double* meanLuminance,
+																  double* maximumLuminance,
+																  double* p50Luminance,
+																  double* p95Luminance,
+																  double* p99Luminance,
+																  bool* validationPassed );
+extern "C" bool TrinityStandaloneProbeValidateComposition( void* opaqueProbe );
+extern "C" const char* TrinityStandaloneProbeGetCompositionValidationSummary( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetShadowDiagnostics( void* opaqueProbe,
 															uint32_t* casterTests,
 															uint32_t* acceptedCascades,
@@ -253,6 +277,8 @@ enum class RenderProduct
 	AmbientOcclusion,
 	BentNormal,
 	Reflection,
+	HdrComposite,
+	PostTonemap,
 	All,
 };
 
@@ -319,6 +345,23 @@ constexpr int kCaptureBentNormal = 1 << 6;
 constexpr int kCaptureReflection = 1 << 7;
 constexpr int kCaptureLocalShadowAtlas = 1 << 8;
 constexpr int kCaptureFreezeScene = 1 << 9;
+constexpr int kCaptureHdrComposite = 1 << 10;
+constexpr int kCapturePostTonemap = 1 << 11;
+constexpr int kCaptureToneContract = 1 << 12;
+
+enum class DynamicExposure
+{
+	Auto,
+	Off,
+	Client,
+};
+
+enum class ExposureSequence
+{
+	None,
+	DarkToBright,
+	BrightToDark,
+};
 
 enum class ShSource
 {
@@ -378,6 +421,14 @@ struct Options
 	bool localLightsExplicit = false;
 	bool localShadowsExplicit = false;
 	bool backgroundCapture = false;
+	bool validateComposition = false;
+	bool validateExposureTone = false;
+	bool framePacingCheck = false;
+	uint32_t timingWarmup = 180;
+	DynamicExposure dynamicExposure = DynamicExposure::Auto;
+	DynamicExposure resolvedDynamicExposure = DynamicExposure::Off;
+	ExposureSequence exposureSequence = ExposureSequence::None;
+	uint32_t exposureHold = 180;
 };
 
 std::string ToLower( std::string value );
@@ -788,6 +839,10 @@ std::string RenderProductName( RenderProduct product )
 		return "bent-normal";
 	case RenderProduct::Reflection:
 		return "reflection";
+	case RenderProduct::HdrComposite:
+		return "hdr-composite";
+	case RenderProduct::PostTonemap:
+		return "post-tonemap";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -807,12 +862,55 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::AmbientOcclusion,
 									 RenderProduct::BentNormal,
 									 RenderProduct::Reflection,
+									 RenderProduct::HdrComposite,
+									 RenderProduct::PostTonemap,
 									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
 		if( normalized == RenderProductName( candidate ) )
 		{
 			product = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string DynamicExposureName( DynamicExposure value )
+{
+	static const char* names[] = { "auto", "off", "client" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseDynamicExposure( const std::string& value, DynamicExposure& result )
+{
+	const std::string normalized = ToLower( value );
+	for( DynamicExposure candidate : { DynamicExposure::Auto, DynamicExposure::Off, DynamicExposure::Client } )
+	{
+		if( normalized == DynamicExposureName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string ExposureSequenceName( ExposureSequence value )
+{
+	static const char* names[] = { "none", "dark-to-bright", "bright-to-dark" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseExposureSequence( const std::string& value, ExposureSequence& result )
+{
+	const std::string normalized = ToLower( value );
+	for( ExposureSequence candidate :
+		 { ExposureSequence::None, ExposureSequence::DarkToBright, ExposureSequence::BrightToDark } )
+	{
+		if( normalized == ExposureSequenceName( candidate ) )
+		{
+			result = candidate;
 			return true;
 		}
 	}
@@ -1084,6 +1182,10 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureBentNormal;
 	case RenderProduct::Reflection:
 		return kCaptureReflection;
+	case RenderProduct::HdrComposite:
+		return kCaptureHdrComposite;
+	case RenderProduct::PostTonemap:
+		return kCapturePostTonemap;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -1150,6 +1252,10 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=SSAOMap format=R8G8B8A8_SNORM channel=rgb-remapped gpuVisualization=true";
 	case RenderProduct::Reflection:
 		return "source=EveSpaceSceneEnvMap type=cube layout=3x2 toneMapped=true gpuVisualization=true";
+	case RenderProduct::HdrComposite:
+		return "source=PreTonemapColor format=R16G16B16A16_FLOAT visualization=reinhard-plus-gamma diagnosticOnly=true gpuVisualization=true rawValidation=true";
+	case RenderProduct::PostTonemap:
+		return "source=PostTonemapColor format=destination-8-bit-unorm visualization=identity gpuVisualization=true rawValidation=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1442,15 +1548,69 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
 		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
+		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
+		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
+		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
+}
+
+bool ValidateCanonicalCompositionOptions( const Options& options )
+{
+	std::vector<std::string> mismatches;
+	auto require = [&]( bool condition, const char* requirement ) {
+		if( !condition )
+		{
+			mismatches.emplace_back( requirement );
+		}
+	};
+	require( options.qualityRung == QualityRung::HdrPost || options.qualityRung == QualityRung::HdrExposure,
+			 "--quality-rung hdr-post or hdr-exposure" );
+	require( options.asset == "astero", "--asset astero" );
+	require( options.sceneFixture == SceneFixture::NewEden, "--scene-fixture new-eden" );
+	require( options.cameraView == CameraView::Model, "--camera-view model" );
+	require( options.composition == SceneComposition::Cinematic, "--composition cinematic" );
+	require( options.cloudYear == 2026 && options.cloudMonth == 7 && options.cloudDay == 10,
+			 "--planet-cloud-date 2026-07-10" );
+	require( options.materialMode == MaterialMode::EveV5, "--material-mode eve-v5" );
+	require( options.materialView == MaterialView::Lit, "--material-view lit" );
+	require( options.areaView == AreaView::All, "--area-view all" );
+	require( options.shaderTier == ShaderTier::High, "--shader-tier high" );
+	require( options.normalMapMode == NormalMapMode::Authored, "--normal-map authored" );
+	require( options.resolvedAttachments == Attachments::Authored && options.attachmentView == AttachmentView::All,
+			 "--attachments authored --attachment-view all" );
+	require( options.resolvedDecals == Decals::Authored && options.decalView == DecalView::All,
+			 "--decals authored --decal-view all" );
+	require( options.killCount == 0, "--kill-count 0" );
+	require( options.lightingView == LightingView::Combined, "--lighting-view combined" );
+	require( options.shSource == ShSource::NewEdenCelestials, "--sh-source new-eden-celestials" );
+	require( options.localLights == LocalLights::Authored, "--local-lights authored" );
+	require( options.resolvedLocalShadows == LocalShadows::Off, "--local-shadows off (or client-parity auto)" );
+	require( options.resolvedReflectionSource == ReflectionSource::Dynamic, "--reflection-source dynamic" );
+	require( options.reflectionCorrection == ReflectionCorrection::Client, "--reflection-correction client" );
+	require( options.resolvedShadows == Shadows::High, "--shadows high" );
+	require( options.resolvedAmbientOcclusion == AmbientOcclusion::High && options.aoMethod == AoMethod::Cortao,
+			 "--ao high --ao-method cortao" );
+	require( options.planetLayers == PlanetLayers::All, "--planet-layers all" );
+	require( options.resolvedSunEffects == SunEffects::All, "--sun-effects all" );
+	if( mismatches.empty() )
+	{
+		return true;
+	}
+
+	std::cerr << "--validate-composition requires the canonical RC-09 profile without option substitution:\n";
+	for( const std::string& mismatch : mismatches )
+	{
+		std::cerr << "  " << mismatch << "\n";
+	}
+	return false;
 }
 
 bool ParseArgs( int argc, char** argv, Options& options )
@@ -1491,6 +1651,60 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.maxFrames = static_cast<int>( parsed );
+		}
+		else if( arg == "--timing-warmup" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const unsigned long parsed = std::strtoul( argv[i], &end, 10 );
+			if( !end || *end != '\0' || parsed > UINT32_MAX )
+			{
+				return false;
+			}
+			options.timingWarmup = static_cast<uint32_t>( parsed );
+		}
+		else if( arg == "--exposure-hold" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const unsigned long parsed = std::strtoul( argv[i], &end, 10 );
+			if( !end || *end != '\0' || parsed == 0 || parsed > UINT32_MAX )
+			{
+				return false;
+			}
+			options.exposureHold = static_cast<uint32_t>( parsed );
+		}
+		else if( arg == "--dynamic-exposure" )
+		{
+			if( ++i >= argc || !ParseDynamicExposure( argv[i], options.dynamicExposure ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--exposure-sequence" )
+		{
+			if( ++i >= argc || !ParseExposureSequence( argv[i], options.exposureSequence ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--validate-exposure-tone" )
+		{
+			options.validateExposureTone = true;
+		}
+		else if( arg == "--validate-composition" )
+		{
+			options.validateComposition = true;
+		}
+		else if( arg == "--frame-pacing-check" )
+		{
+			options.framePacingCheck = true;
 		}
 		else if( arg == "--background-capture" )
 		{
@@ -1901,6 +2115,84 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "God rays require --quality-rung hdr-post or hdr-exposure\n";
 		return false;
 	}
+	options.resolvedDynamicExposure = options.dynamicExposure == DynamicExposure::Auto ?
+		( options.qualityRung == QualityRung::HdrExposure ? DynamicExposure::Client : DynamicExposure::Off ) :
+		options.dynamicExposure;
+	if( options.resolvedDynamicExposure == DynamicExposure::Client && options.qualityRung != QualityRung::HdrExposure )
+	{
+		std::cerr << "Client dynamic exposure requires --quality-rung hdr-exposure\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::HdrComposite && options.qualityRung < QualityRung::HdrPost )
+	{
+		std::cerr << "The hdr-composite render product requires --quality-rung hdr-post or hdr-exposure\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::PostTonemap && options.qualityRung < QualityRung::HdrPost )
+	{
+		std::cerr << "The post-tonemap render product requires --quality-rung hdr-post or hdr-exposure\n";
+		return false;
+	}
+	if( options.exposureSequence != ExposureSequence::None &&
+		( options.resolvedDynamicExposure != DynamicExposure::Client || options.qualityRung != QualityRung::HdrExposure ) )
+	{
+		std::cerr << "Exposure camera sequences require client dynamic exposure at the hdr-exposure rung\n";
+		return false;
+	}
+	if( options.exposureSequence != ExposureSequence::None &&
+		( options.maxFrames <= 0 ||
+		  static_cast<uint64_t>( options.maxFrames ) < static_cast<uint64_t>( options.exposureHold ) * 2 ) )
+	{
+		std::cerr << "Exposure camera sequences require at least two --exposure-hold phases\n";
+		return false;
+	}
+	if( options.exposureSequence != ExposureSequence::None && options.capturePrefix.empty() )
+	{
+		std::cerr << "Exposure camera sequences require --capture-prefix for their CSV report\n";
+		return false;
+	}
+	if( options.validateExposureTone &&
+		( options.qualityRung != QualityRung::HdrExposure ||
+		  options.resolvedDynamicExposure != DynamicExposure::Client ) )
+	{
+		std::cerr << "--validate-exposure-tone requires --quality-rung hdr-exposure --dynamic-exposure client\n";
+		return false;
+	}
+	if( options.validateExposureTone && ( options.maxFrames <= 0 || options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-exposure-tone requires finite frames and --capture-prefix\n";
+		return false;
+	}
+	if( options.validateExposureTone && static_cast<uint32_t>( options.maxFrames ) < options.exposureHold )
+	{
+		std::cerr << "--validate-exposure-tone requires at least --exposure-hold frames for settling\n";
+		return false;
+	}
+	if( options.validateExposureTone && options.framePacingCheck )
+	{
+		std::cerr << "Run frame pacing separately from CPU-synchronized exposure diagnostics\n";
+		return false;
+	}
+	if( options.framePacingCheck &&
+		( options.maxFrames <= 0 || static_cast<uint32_t>( options.maxFrames ) <= options.timingWarmup ) )
+	{
+		std::cerr << "--frame-pacing-check requires a finite --frames count greater than --timing-warmup\n";
+		return false;
+	}
+	if( options.validateComposition && options.maxFrames >= 0 &&
+		static_cast<uint32_t>( options.maxFrames ) < std::max( options.timingWarmup, 2u ) )
+	{
+		std::cerr << "--validate-composition requires enough finite frames to reach the composition warm-up gate\n";
+		return false;
+	}
+	if( options.validateComposition && !ValidateCanonicalCompositionOptions( options ) )
+	{
+		return false;
+	}
+	if( options.validateExposureTone && !ValidateCanonicalCompositionOptions( options ) )
+	{
+		return false;
+	}
 	if( options.renderProduct != RenderProduct::Window &&
 		( options.capturePrefix.empty() || options.maxFrames <= 0 || options.qualityRung == QualityRung::Shell ) )
 	{
@@ -2225,6 +2517,14 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "sunEffectsRequested=" << SunEffectsName( options.sunEffects ) << "\n";
 	metadata << "sunEffectsResolved=" << SunEffectsName( options.resolvedSunEffects ) << "\n";
 	metadata << "backgroundCapture=" << ( options.backgroundCapture ? "true" : "false" ) << "\n";
+	metadata << "validateComposition=" << ( options.validateComposition ? "true" : "false" ) << "\n";
+	metadata << "dynamicExposureRequested=" << DynamicExposureName( options.dynamicExposure ) << "\n";
+	metadata << "dynamicExposureResolved=" << DynamicExposureName( options.resolvedDynamicExposure ) << "\n";
+	metadata << "validateExposureTone=" << ( options.validateExposureTone ? "true" : "false" ) << "\n";
+	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
+	metadata << "exposureHold=" << options.exposureHold << "\n";
+	metadata << "framePacingCheck=" << ( options.framePacingCheck ? "true" : "false" ) << "\n";
+	metadata << "timingWarmup=" << options.timingWarmup << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
 	metadata << "frames=" << renderedFrames << "\n";
@@ -2233,6 +2533,363 @@ bool WriteCaptureMetadata( const Options& options,
 		metadata << stats.first << "Stats=" << stats.second << "\n";
 	}
 	return true;
+}
+
+bool AppendHdrCompositeStats( void* probe, std::vector<std::pair<std::string, std::string>>& productStats )
+{
+	uint32_t format = 0;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint64_t rawHash = 0;
+	uint64_t finiteComponents = 0;
+	uint64_t nanComponents = 0;
+	uint64_t infComponents = 0;
+	uint64_t negativeComponents = 0;
+	uint64_t saturatedComponents = 0;
+	uint64_t pixelsAboveOne = 0;
+	double minimumLuminance = 0.0;
+	double meanLuminance = 0.0;
+	double maximumLuminance = 0.0;
+	double p50Luminance = 0.0;
+	double p95Luminance = 0.0;
+	double p99Luminance = 0.0;
+	bool validationPassed = false;
+	if( !TrinityStandaloneProbeGetHdrCompositeDiagnostics( probe,
+														   &format,
+														   &width,
+														   &height,
+														   &rawHash,
+														   &finiteComponents,
+														   &nanComponents,
+														   &infComponents,
+														   &negativeComponents,
+														   &saturatedComponents,
+														   &pixelsAboveOne,
+														   &minimumLuminance,
+														   &meanLuminance,
+														   &maximumLuminance,
+														   &p50Luminance,
+														   &p95Luminance,
+														   &p99Luminance,
+														   &validationPassed ) )
+	{
+		std::cerr << "No raw FP16 composite diagnostics are available\n";
+		return false;
+	}
+
+	std::ostringstream stats;
+	stats << "source=PreTonemapColor format=R16G16B16A16_FLOAT formatValue=" << format << " dimensions=" << width << "x"
+		  << height << " rawHash=" << std::hex << std::setw( 16 ) << std::setfill( '0' ) << rawHash << std::dec
+		  << " finite=" << finiteComponents << " nan=" << nanComponents << " inf=" << infComponents
+		  << " negative=" << negativeComponents << " saturated=" << saturatedComponents
+		  << " pixelsAboveOne=" << pixelsAboveOne << std::setprecision( 10 ) << " luminanceMin=" << minimumLuminance
+		  << " luminanceMean=" << meanLuminance << " luminanceMax=" << maximumLuminance
+		  << " luminanceP50=" << p50Luminance << " luminanceP95=" << p95Luminance << " luminanceP99=" << p99Luminance
+		  << " validation=" << ( validationPassed ? "pass" : "fail" );
+	productStats.emplace_back( "hdrCompositeRaw", stats.str() );
+	return validationPassed;
+}
+
+bool EvaluateFramePacing( const std::vector<double>& samples, std::string& result )
+{
+	if( samples.empty() )
+	{
+		result = "samples=0 validation=fail";
+		std::cerr << "Frame-pacing validation has no post-warm-up samples\n";
+		return false;
+	}
+	std::vector<double> sorted = samples;
+	std::sort( sorted.begin(), sorted.end() );
+	auto percentile = [&]( double fraction ) {
+		const size_t index = static_cast<size_t>( std::ceil( fraction * sorted.size() ) ) - 1;
+		return sorted[std::min( index, sorted.size() - 1 )];
+	};
+	const double median = percentile( 0.50 );
+	const double p95 = percentile( 0.95 );
+	const double p99 = percentile( 0.99 );
+	const double maximum = sorted.back();
+	double sum = 0.0;
+	uint64_t exceedingTwiceMedian = 0;
+	for( double sample : samples )
+	{
+		sum += sample;
+		if( sample > median * 2.0 )
+		{
+			++exceedingTwiceMedian;
+		}
+	}
+	const double mean = sum / static_cast<double>( samples.size() );
+	const double throughput = mean > 0.0 ? 1000.0 / mean : 0.0;
+	const double outlierFraction = static_cast<double>( exceedingTwiceMedian ) / samples.size();
+	const bool passed = median > 0.0 && p95 <= median * 1.75 && p99 <= median * 3.0 && maximum <= median * 5.0 &&
+		outlierFraction <= 0.02;
+
+	std::ostringstream stats;
+	stats << std::fixed << std::setprecision( 4 ) << "samples=" << samples.size() << " medianMs=" << median
+		  << " p95Ms=" << p95 << " p99Ms=" << p99 << " maximumMs=" << maximum << " meanThroughputFps=" << throughput
+		  << " overTwiceMedian=" << exceedingTwiceMedian << " overTwiceMedianPercent=" << outlierFraction * 100.0
+		  << " validation=" << ( passed ? "pass" : "fail" );
+	result = stats.str();
+	std::cerr << "EVE RC-09 frame pacing: " << result << "\n";
+	return passed;
+}
+
+double ExposureTarget( const TrinityStandalonePostProcessDiagnostics& sample )
+{
+	const double luminance = std::max( 0.0001, 0.5 * ( sample.exposure[5] + sample.exposure[6] ) );
+	const double compensation = std::clamp(
+		0.5 / luminance,
+		std::exp2( static_cast<double>( sample.minExposure ) ),
+		std::exp2( static_cast<double>( sample.maxExposure ) ) );
+	return 0.5 / compensation;
+}
+
+double Median( std::vector<double> values )
+{
+	if( values.empty() )
+	{
+		return 0.0;
+	}
+	std::sort( values.begin(), values.end() );
+	return values[values.size() / 2];
+}
+
+bool EvaluateExposureSamples(
+	const Options& options,
+	const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
+	std::string& summary )
+{
+	uint64_t invalidFrames = 0;
+	uint64_t histogramMismatches = 0;
+	uint64_t recurrenceMismatches = 0;
+	uint64_t overshoots = 0;
+	double maximumRecurrenceError = 0.0;
+	std::vector<double> increaseRates;
+	std::vector<double> decreaseRates;
+	auto near = []( float actual, float expected ) { return std::abs( actual - expected ) <= 0.000001f; };
+	for( const auto& sample : samples )
+	{
+		const uint64_t histogramTotal = std::accumulate(
+			std::begin( sample.histogram ), std::begin( sample.histogram ) + 64, uint64_t{ 0 } );
+		const uint64_t expectedPixels = static_cast<uint64_t>( sample.sourceWidth ) * sample.sourceHeight;
+		if( histogramTotal != expectedPixels )
+		{
+			++histogramMismatches;
+		}
+		const bool settingsValid = sample.tonemappingMethod == 0 && near( sample.minBrightness, 0.9f ) &&
+			near( sample.maxBrightness, 0.98f ) && near( sample.increaseSpeed, 2.0f ) &&
+			near( sample.decreaseSpeed, 1.5f ) && near( sample.minLuminance, 0.4649f ) &&
+			near( sample.maxLuminance, 10.0f ) && near( sample.exposureInfluence, 1.0f ) &&
+			near( sample.exposureMiddleValue, 0.55f ) && near( sample.exposureAdjustment, 0.0f ) &&
+			near( sample.minExposure, -3.7f ) && near( sample.maxExposure, 10.0f ) &&
+			near( sample.shoulderStrength, 0.125f ) && near( sample.linearStrength, 0.25f ) &&
+			near( sample.linearAngle, 0.1f ) && near( sample.toeStrength, 0.15f ) &&
+			near( sample.toeNumerator, 0.021f ) && near( sample.toeDenominator, 0.3f ) &&
+			near( sample.whiteScale, 2.5f ) && near( sample.outputGamma, 1.0f );
+		const bool stateValid = std::isfinite( sample.exposure[0] ) && sample.exposure[0] >= 0.0f &&
+			std::isfinite( sample.exposure[1] ) && std::isfinite( sample.exposure[3] ) &&
+			std::isfinite( sample.exposure[4] ) && std::isfinite( sample.exposure[5] ) &&
+			std::isfinite( sample.exposure[6] ) && sample.exposure[3] <= sample.exposure[4] &&
+			sample.exposure[5] <= sample.exposure[6];
+		if( !sample.dynamicExposureActive || !sample.histogramCreated || !sample.histogramMerged ||
+			!sample.exposureMeasured || !sample.tonemappingSucceeded || !settingsValid || !stateValid )
+		{
+			++invalidFrames;
+		}
+	}
+
+	for( size_t index = 1; index < samples.size(); ++index )
+	{
+		const auto& previous = samples[index - 1];
+		const auto& current = samples[index];
+		const double deltaTime = current.exposure[1] - previous.exposure[1];
+		if( deltaTime <= 0.0 || previous.exposure[0] <= 0.0f )
+		{
+			continue;
+		}
+		const double target = ExposureTarget( current );
+		const double speed = target > previous.exposure[0] ? current.increaseSpeed : current.decreaseSpeed;
+		const double alpha = std::clamp( 1.0 - std::exp( -deltaTime * speed ), 0.0, 1.0 );
+		const double expectedRoot = std::sqrt( previous.exposure[0] ) +
+			( std::sqrt( target ) - std::sqrt( previous.exposure[0] ) ) * alpha;
+		const double expected = expectedRoot * expectedRoot;
+		const double error = std::abs( current.exposure[0] - expected );
+		maximumRecurrenceError = std::max( maximumRecurrenceError, error );
+		const double tolerance = std::max( 0.0001, std::abs( expected ) * 0.001 );
+		if( error > tolerance )
+		{
+			++recurrenceMismatches;
+		}
+		const double low = std::min( static_cast<double>( previous.exposure[0] ), target ) - tolerance;
+		const double high = std::max( static_cast<double>( previous.exposure[0] ), target ) + tolerance;
+		if( current.exposure[0] < low || current.exposure[0] > high )
+		{
+			++overshoots;
+		}
+		const double denominator = std::sqrt( target ) - std::sqrt( previous.exposure[0] );
+		if( std::abs( denominator ) > 0.000001 )
+		{
+			const double observedAlpha = std::clamp(
+				( std::sqrt( current.exposure[0] ) - std::sqrt( previous.exposure[0] ) ) / denominator,
+				0.0,
+				0.999999 );
+			const double rate = -std::log( 1.0 - observedAlpha ) / deltaTime;
+			( target > previous.exposure[0] ? increaseRates : decreaseRates ).push_back( rate );
+		}
+	}
+
+	bool sequencePassed = true;
+	double stepFraction = 0.0;
+	double terminalTrackingError = 0.0;
+	double fittedRate = 0.0;
+	if( options.exposureSequence != ExposureSequence::None )
+	{
+		const size_t hold = options.exposureHold;
+		const size_t window = std::min<size_t>( 30, hold );
+		std::vector<double> firstTargets;
+		std::vector<double> secondTargets;
+		for( size_t index = hold - window; index < hold && index < samples.size(); ++index )
+			firstTargets.push_back( ExposureTarget( samples[index] ) );
+		for( size_t index = std::min( samples.size(), hold * 2 ) - window;
+			 index < std::min( samples.size(), hold * 2 ); ++index )
+			secondTargets.push_back( ExposureTarget( samples[index] ) );
+		const double firstTarget = Median( firstTargets );
+		const double secondTarget = Median( secondTargets );
+		stepFraction = firstTarget > 0.0 ? std::abs( secondTarget - firstTarget ) / firstTarget : 0.0;
+		terminalTrackingError = secondTarget > 0.0 ?
+			std::abs( samples[std::min( samples.size(), hold * 2 ) - 1].exposure[0] - secondTarget ) / secondTarget :
+			1.0;
+		const bool increasing = secondTarget > firstTarget;
+		fittedRate = Median( increasing ? increaseRates : decreaseRates );
+		const double expectedRate = increasing ? 2.0 : 1.5;
+		sequencePassed = stepFraction >= 0.20 && terminalTrackingError <= 0.05 && fittedRate > 0.0 &&
+			std::abs( fittedRate - expectedRate ) / expectedRate <= 0.05;
+	}
+
+	const bool passed = !samples.empty() && invalidFrames == 0 && histogramMismatches == 0 &&
+		recurrenceMismatches == 0 && overshoots == 0 && sequencePassed;
+	std::ostringstream out;
+	out << std::fixed << std::setprecision( 8 ) << "samples=" << samples.size()
+		<< " invalidFrames=" << invalidFrames << " histogramMismatches=" << histogramMismatches
+		<< " recurrenceMismatches=" << recurrenceMismatches << " maximumRecurrenceError=" << maximumRecurrenceError
+		<< " overshoots=" << overshoots << " increaseRate=" << Median( increaseRates )
+		<< " decreaseRate=" << Median( decreaseRates ) << " stepFraction=" << stepFraction
+		<< " fittedSequenceRate=" << fittedRate << " terminalTrackingError=" << terminalTrackingError
+		<< " validation=" << ( passed ? "pass" : "fail" );
+	summary = out.str();
+	std::cerr << "EVE RC-10 exposure validation: " << summary << "\n";
+	return passed;
+}
+
+bool WriteExposureCsv(
+	const std::string& path,
+	const std::vector<TrinityStandalonePostProcessDiagnostics>& samples )
+{
+	if( !EnsureParentDirectory( path ) )
+	{
+		return false;
+	}
+	std::ofstream output( path );
+	if( !output )
+	{
+		return false;
+	}
+	output << "frame,realTime,simTime,adaptedLuminance,sceneTime,reserved2,lowerBin,upperBin,lowerLuminance,upperLuminance,reserved7";
+	for( uint32_t bin = 0; bin < 65; ++bin )
+		output << ",histogram" << bin;
+	output << "\n";
+	for( size_t frame = 0; frame < samples.size(); ++frame )
+	{
+		const auto& sample = samples[frame];
+		output << frame << ',' << sample.realTime << ',' << sample.simTime;
+		for( uint32_t value = 0; value < 8; ++value )
+			output << ',' << std::setprecision( 10 ) << sample.exposure[value];
+		for( uint32_t bin : sample.histogram )
+			output << ',' << bin;
+		output << '\n';
+	}
+	return output.good();
+}
+
+bool WriteToneContractJson(
+	const Options& options,
+	const TrinityStandaloneToneValidation& tone,
+	const std::string& exposureSummary,
+	DynamicExposure mode,
+	const char* suffix )
+{
+	const std::string outputPath = CaptureBasePath( options ) + suffix;
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/PostProcessResources.json";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	if( !manifestInput || manifest.str().empty() )
+	{
+		std::cerr << "RC-10 could not read the postprocess resource manifest: " << manifestPath << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	output << "{\n"
+		   << "  \"profile\": \"RC-10\",\n"
+		   << "  \"toneMethod\": \"Uncharted2\",\n"
+		   << "  \"containerMethod\": \"baked\",\n"
+		   << "  \"acesActive\": false,\n"
+		   << "  \"outputGamma\": 1.0,\n"
+		   << "  \"dynamicExposure\": \"" << DynamicExposureName( mode ) << "\",\n"
+		   << "  \"exposureSequence\": \"" << ExposureSequenceName( options.exposureSequence ) << "\",\n"
+		   << "  \"preTonemapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+		   << tone.preTonemapHash << "\",\n"
+		   << "  \"postTonemapHash\": \"" << std::setw( 16 ) << tone.postTonemapHash << std::dec << "\",\n"
+		   << "  \"dimensions\": [" << tone.width << ", " << tone.height << "],\n"
+		   << "  \"fullyBlackPixels\": " << tone.fullyBlackPixels << ",\n"
+		   << "  \"fullyWhitePixels\": " << tone.fullyWhitePixels << ",\n"
+		   << "  \"anySaturatedChannelPixels\": " << tone.anySaturatedChannelPixels << ",\n"
+		   << "  \"luminance\": {\"p01\": " << tone.luminanceP01 << ", \"p50\": "
+		   << tone.luminanceP50 << ", \"p99\": " << tone.luminanceP99 << "},\n"
+		   << "  \"cpuReferenceError\": {\"mean\": " << tone.meanAbsoluteError << ", \"p999\": "
+		   << tone.p999AbsoluteError << ", \"maximum\": " << tone.maximumAbsoluteError << "},\n"
+		   << "  \"exposureValidation\": \"" << exposureSummary << "\",\n"
+		   << "  \"validationPassed\": " << ( tone.valid ? "true" : "false" ) << ",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Tone contract report: " << outputPath << "\n";
+	return output.good();
+}
+
+bool CompareToneValidations(
+	const TrinityStandaloneToneValidation& off,
+	const TrinityStandaloneToneValidation& client,
+	std::string& summary )
+{
+	const uint64_t pixelCount = static_cast<uint64_t>( client.width ) * client.height;
+	const bool sameInput = off.preTonemapHash == client.preTonemapHash;
+	const bool distinctOutput = off.postTonemapHash != client.postTonemapHash;
+	const bool reducedWhite = client.fullyWhitePixels < off.fullyWhitePixels;
+	const bool clippingValid = client.fullyWhitePixels <= pixelCount / 1000 &&
+		client.anySaturatedChannelPixels <= pixelCount * 3 / 100 &&
+		client.fullyBlackPixels <= pixelCount / 1000;
+	const bool lowEndRetained = client.luminanceP01 >= off.luminanceP01 * 0.75;
+	const bool passed = off.valid && client.valid && sameInput && distinctOutput && reducedWhite &&
+		clippingValid && lowEndRetained;
+	std::ostringstream out;
+	out << "sameInput=" << ( sameInput ? "true" : "false" )
+		<< " distinctOutput=" << ( distinctOutput ? "true" : "false" )
+		<< " offWhite=" << off.fullyWhitePixels << " clientWhite=" << client.fullyWhitePixels
+		<< " clientAnySaturated=" << client.anySaturatedChannelPixels
+		<< " offP01=" << off.luminanceP01 << " clientP01=" << client.luminanceP01
+		<< " validation=" << ( passed ? "pass" : "fail" );
+	summary = out.str();
+	std::cerr << "EVE RC-10 matched tone comparison: " << summary << "\n";
+	return passed;
 }
 
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
@@ -2384,8 +3041,45 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		const bool collectExposureDiagnostics = options.validateExposureTone ||
+			options.exposureSequence != ExposureSequence::None;
+		const bool captureToneSnapshot = options.qualityRung == QualityRung::HdrExposure &&
+			!options.capturePrefix.empty() &&
+			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
+			  options.renderProduct == RenderProduct::All );
+		if( options.qualityRung == QualityRung::HdrExposure &&
+			!TrinityStandaloneProbeConfigurePostProcess(
+				probe,
+				options.resolvedDynamicExposure == DynamicExposure::Client ? 1 : 0,
+				collectExposureDiagnostics || captureToneSnapshot ) )
+		{
+			std::cerr << "TrinityStandaloneProbeConfigurePostProcess failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 
 		int renderedFrames = 0;
+		bool compositionValidationAttempted = false;
+		bool compositionValidationSucceeded = true;
+		std::string compositionValidationStats;
+		auto validateCompositionAtTime = [&]( int64_t validationTime ) {
+			const bool passed =
+				TrinityStandaloneProbeRenderFrame( probe,
+												   qualityRung,
+												   validationTime,
+												   validationTime,
+												   kCaptureAmbientOcclusion | kCaptureFreezeScene ) &&
+				TrinityStandaloneProbeRenderFrame(
+					probe, qualityRung, validationTime, validationTime, kCaptureHdrComposite | kCaptureFreezeScene ) &&
+				TrinityStandaloneProbeValidateComposition( probe );
+			const char* summary = TrinityStandaloneProbeGetCompositionValidationSummary( probe );
+			compositionValidationStats = summary ? summary : "profile=RC-09 validation=fail summary=unavailable";
+			return passed && summary;
+		};
+		const uint32_t compositionWarmupFrames = std::max( options.timingWarmup, 2u );
+		std::vector<double> framePacingSamples;
+		std::vector<TrinityStandalonePostProcessDiagnostics> exposureSamples;
 		while( !g_shouldQuit && ( options.maxFrames < 0 || renderedFrames < options.maxFrames ) )
 		{
 			@autoreleasepool
@@ -2398,25 +3092,183 @@ int main( int argc, char** argv )
 
 				const int64_t realTime = static_cast<int64_t>( renderedFrames ) * kFrameTime;
 				const int64_t simTime = realTime;
+				if( options.exposureSequence != ExposureSequence::None )
+				{
+					const bool secondPhase = static_cast<uint32_t>( renderedFrames ) >= options.exposureHold;
+					const bool sunFacing = options.exposureSequence == ExposureSequence::DarkToBright ?
+						secondPhase : !secondPhase;
+					if( !TrinityStandaloneProbeSetExposureCameraPhase( probe, true, sunFacing ) )
+					{
+						std::cerr << "Failed to set the RC-10 exposure camera phase\n";
+						TrinityStandaloneProbeDestroyDevice( probe );
+						[window close];
+						return 1;
+					}
+				}
 				const int captureProducts = options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
 					RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
 																						 options.renderProduct ) :
 					0;
-				if( !TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts ) )
+				const auto frameStart = std::chrono::steady_clock::now();
+				const bool rendered =
+					TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts );
+				const auto frameEnd = std::chrono::steady_clock::now();
+				if( !rendered )
 				{
 					std::cerr << "TrinityStandaloneProbeRenderFrame failed\n";
 					TrinityStandaloneProbeDestroyDevice( probe );
 					[window close];
 					return 1;
 				}
+				if( collectExposureDiagnostics )
+				{
+					TrinityStandalonePostProcessDiagnostics diagnostics;
+					if( !TrinityStandaloneProbeGetPostProcessDiagnostics( probe, &diagnostics ) )
+					{
+						std::cerr << "Failed to read RC-10 exposure diagnostics\n";
+						TrinityStandaloneProbeDestroyDevice( probe );
+						[window close];
+						return 1;
+					}
+					exposureSamples.push_back( diagnostics );
+				}
+				if( options.framePacingCheck && static_cast<uint32_t>( renderedFrames ) >= options.timingWarmup &&
+					captureProducts == 0 )
+				{
+					framePacingSamples.push_back(
+						std::chrono::duration<double, std::milli>( frameEnd - frameStart ).count() );
+				}
 				++renderedFrames;
+				if( options.validateComposition && !compositionValidationAttempted &&
+					static_cast<uint32_t>( renderedFrames ) == compositionWarmupFrames )
+				{
+					compositionValidationAttempted = true;
+					compositionValidationSucceeded = validateCompositionAtTime( realTime );
+					if( !compositionValidationSucceeded )
+					{
+						break;
+					}
+				}
 			}
 		}
 
+		if( options.validateComposition && !compositionValidationAttempted )
+		{
+			const int64_t validationTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+			compositionValidationAttempted = true;
+			compositionValidationSucceeded = validateCompositionAtTime( validationTime );
+		}
+
+		std::string framePacingStats;
+		const bool framePacingSucceeded =
+			!options.framePacingCheck || EvaluateFramePacing( framePacingSamples, framePacingStats );
+		std::string exposureValidationStats = "not-requested";
+		const bool exposureValidationSucceeded = !collectExposureDiagnostics ||
+			EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
+		TrinityStandaloneToneValidation toneValidation;
+		TrinityStandaloneToneValidation offToneValidation;
+		bool toneValidationSucceeded = true;
+		std::string toneComparisonStats = "not-requested";
+		const bool runMatchedToneComparison = options.validateExposureTone &&
+			options.exposureSequence == ExposureSequence::None &&
+			static_cast<uint32_t>( renderedFrames ) == options.exposureHold;
+		if( captureToneSnapshot )
+		{
+			const int64_t captureTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+			toneValidationSucceeded = TrinityStandaloneProbeRenderFrame(
+				probe,
+				qualityRung,
+				captureTime,
+				captureTime,
+				kCaptureToneContract | kCaptureFreezeScene ) &&
+				TrinityStandaloneProbeGetToneValidation( probe, &toneValidation ) && toneValidation.valid;
+			if( toneValidationSucceeded && options.exposureSequence == ExposureSequence::None )
+			{
+				const uint64_t pixelCount = static_cast<uint64_t>( toneValidation.width ) * toneValidation.height;
+				toneValidationSucceeded = toneValidation.fullyWhitePixels <= pixelCount / 1000 &&
+					toneValidation.anySaturatedChannelPixels <= pixelCount * 3 / 100 &&
+					toneValidation.fullyBlackPixels <= pixelCount / 1000;
+			}
+			toneValidation.valid = toneValidationSucceeded;
+			if( toneValidationSucceeded && runMatchedToneComparison )
+			{
+				toneValidationSucceeded = TrinityStandaloneProbeConfigurePostProcess( probe, 0, true ) &&
+					TrinityStandaloneProbeRenderFrame(
+						probe,
+						qualityRung,
+						captureTime,
+						captureTime,
+						kCaptureToneContract | kCaptureFreezeScene ) &&
+					TrinityStandaloneProbeGetToneValidation( probe, &offToneValidation );
+				const bool restored = TrinityStandaloneProbeConfigurePostProcess( probe, 1, true );
+				if( toneValidationSucceeded )
+				{
+					toneValidationSucceeded = CompareToneValidations(
+						offToneValidation, toneValidation, toneComparisonStats );
+				}
+				toneValidationSucceeded = restored && toneValidationSucceeded;
+			}
+		}
+		bool exposureReportsSucceeded = true;
+		if( collectExposureDiagnostics )
+		{
+			exposureReportsSucceeded = WriteExposureCsv(
+				CaptureBasePath( options ) + "_exposure.csv", exposureSamples );
+		}
+		if( captureToneSnapshot )
+		{
+			exposureReportsSucceeded = WriteToneContractJson(
+				options,
+				toneValidation,
+				exposureValidationStats,
+				options.resolvedDynamicExposure,
+				"_tone-contract.json" ) &&
+				exposureReportsSucceeded;
+			if( runMatchedToneComparison )
+			{
+				exposureReportsSucceeded = WriteToneContractJson(
+					options,
+					offToneValidation,
+					"paired-control",
+					DynamicExposure::Off,
+					"_tone-contract-off.json" ) &&
+					exposureReportsSucceeded;
+			}
+		}
 		bool captureSucceeded = true;
 		@autoreleasepool
 		{
 			std::vector<std::pair<std::string, std::string>> productStats;
+			if( options.framePacingCheck )
+			{
+				productStats.emplace_back( "framePacing", framePacingStats );
+			}
+			if( options.validateComposition )
+			{
+				productStats.emplace_back( "compositionValidation", compositionValidationStats );
+			}
+			if( collectExposureDiagnostics )
+			{
+				productStats.emplace_back( "exposureValidation", exposureValidationStats );
+			}
+			if( captureToneSnapshot )
+			{
+				std::ostringstream stats;
+				stats << "preHash=" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+					  << toneValidation.preTonemapHash << " postHash=" << std::setw( 16 )
+					  << toneValidation.postTonemapHash << std::dec << " fullyBlack="
+					  << toneValidation.fullyBlackPixels << " fullyWhite=" << toneValidation.fullyWhitePixels
+					  << " anySaturated=" << toneValidation.anySaturatedChannelPixels
+					  << " errorMean=" << toneValidation.meanAbsoluteError
+					  << " errorP999=" << toneValidation.p999AbsoluteError
+					  << " errorMax=" << toneValidation.maximumAbsoluteError
+					  << " validation=" << ( toneValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "toneValidation", stats.str() );
+				if( runMatchedToneComparison )
+				{
+					productStats.emplace_back( "toneComparison", toneComparisonStats );
+				}
+			}
 			if( !options.capturePrefix.empty() )
 			{
 				ProcessEvents( window );
@@ -2427,6 +3279,14 @@ int main( int argc, char** argv )
 					std::vector<RenderProduct> diagnosticProducts = { RenderProduct::Depth,
 																	  RenderProduct::Normal,
 																	  RenderProduct::Reflection };
+					if( options.qualityRung >= QualityRung::HdrPost )
+					{
+						diagnosticProducts.push_back( RenderProduct::HdrComposite );
+					}
+					if( options.qualityRung == QualityRung::HdrExposure )
+					{
+						diagnosticProducts.push_back( RenderProduct::PostTonemap );
+					}
 					if( options.resolvedShadows != Shadows::Off )
 					{
 						diagnosticProducts.push_back( RenderProduct::Shadow );
@@ -2449,11 +3309,15 @@ int main( int argc, char** argv )
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
 						const int frozenProduct = RenderProductApiValue( product ) | kCaptureFreezeScene;
-						if( !captureSucceeded ||
-							!TrinityStandaloneProbeRenderFrame(
-								probe, qualityRung, captureTime, captureTime, frozenProduct ) ||
-							!TrinityStandaloneProbeRenderFrame(
-								probe, qualityRung, captureTime, captureTime, frozenProduct ) )
+						bool productRendered = captureSucceeded &&
+							TrinityStandaloneProbeRenderFrame(
+												   probe, qualityRung, captureTime, captureTime, frozenProduct );
+						if( productRendered && product != RenderProduct::HdrComposite )
+						{
+							productRendered = TrinityStandaloneProbeRenderFrame(
+								probe, qualityRung, captureTime, captureTime, frozenProduct );
+						}
+						if( !productRendered )
 						{
 							captureSucceeded = false;
 							break;
@@ -2466,8 +3330,10 @@ int main( int argc, char** argv )
 				}
 				else
 				{
+					const bool capturedHdrOnFinalFrame = options.renderProduct == RenderProduct::HdrComposite &&
+						options.maxFrames > 0 && renderedFrames == options.maxFrames;
 					if( options.renderProduct != RenderProduct::Window &&
-						options.renderProduct != RenderProduct::Color )
+						options.renderProduct != RenderProduct::Color && !capturedHdrOnFinalFrame )
 					{
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
@@ -2486,6 +3352,12 @@ int main( int argc, char** argv )
 						productStats.emplace_back( RenderProductName( options.renderProduct ),
 												   RenderProductStats( options, options.renderProduct ) );
 					}
+				}
+				if( captureSucceeded &&
+					( options.renderProduct == RenderProduct::HdrComposite ||
+					  ( options.renderProduct == RenderProduct::All && options.qualityRung >= QualityRung::HdrPost ) ) )
+				{
+					captureSucceeded = AppendHdrCompositeStats( probe, productStats );
 				}
 				if( options.resolvedShadows != Shadows::Off )
 				{
@@ -2608,6 +3480,8 @@ int main( int argc, char** argv )
 					WriteCaptureMetadata( options, renderWidth, renderHeight, renderedFrames, productStats );
 			}
 		}
+		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
+			exposureValidationSucceeded && toneValidationSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

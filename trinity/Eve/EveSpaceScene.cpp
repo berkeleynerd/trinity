@@ -641,6 +641,11 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 EveSpaceScene::ShadowResources EveSpaceScene::SetupCascadedShadows( Tr2RenderReason renderReason, Tr2ShadowMap& shadowMap, const TriFrustum& viewFrustum, const Tr2TextureAL& depthMap, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+	const bool primaryDirectionalPass = renderReason == TR2RENDERREASON_NORMAL;
+	if( primaryDirectionalPass )
+	{
+		m_directionalShadowDiagnostics = {};
+	}
 
 	if( !m_componentRegistry )
 	{
@@ -715,6 +720,17 @@ EveSpaceScene::ShadowResources EveSpaceScene::SetupCascadedShadows( Tr2RenderRea
 		CCP_STATS_ZONE( "GetBatches" );
 		unsigned int shadowMapSize = shadowMap.GetShadowMapSize();
 		auto shadowCasters = m_componentRegistry->GetComponents<IEveShadowCaster>();
+		if( primaryDirectionalPass )
+		{
+			m_directionalShadowDiagnostics.casterTests =
+				static_cast<uint32_t>( shadowCasters.size() * SHADOW_FRUSTUM_COUNT );
+			m_directionalShadowDiagnostics.casters.reserve( shadowCasters.size() );
+			for( IEveShadowCaster* caster : shadowCasters )
+			{
+				m_directionalShadowDiagnostics.casters.push_back(
+					{ caster, SHADOW_FRUSTUM_COUNT, 0, 0 } );
+			}
+		}
 		for( auto& vector : shadowCasterInfo )
 		{
 			vector.reserve( shadowCasters.size() );
@@ -758,9 +774,14 @@ EveSpaceScene::ShadowResources EveSpaceScene::SetupCascadedShadows( Tr2RenderRea
 		{
 			CCP_STATS_ZONE( "get batches" );
 			Tr2ParallelDo( begin( indices ), end( indices ), [&]( size_t frustumIndex ) {
-				for( const auto& info : shadowCasterInfo[frustumIndex] )
+				for( auto& info : shadowCasterInfo[frustumIndex] )
 				{
+					const uint32_t batchesBefore = static_cast<uint32_t>(
+						m_shadowBatches[frustumIndex]->GetBatchCount() );
 					info.caster->GetShadowBatches( m_shadowBatches[frustumIndex].get(), info.perObjectData, info.radius );
+					info.committedBatches = static_cast<uint32_t>(
+												m_shadowBatches[frustumIndex]->GetBatchCount() ) -
+						batchesBefore;
 				}
 			} );
 		}
@@ -769,6 +790,23 @@ EveSpaceScene::ShadowResources EveSpaceScene::SetupCascadedShadows( Tr2RenderRea
 		{
 			m_instancedMeshManager->GetShadowBatches( cameraFrustums[i], shadowFrustums[i], m_updateContext.GetInvLodFactor(), { { TRIBATCHTYPE_OPAQUE, *m_shadowBatches[i] } }, renderReason );
 			m_shadowBatches[i]->Finalize();
+			if( primaryDirectionalPass )
+			{
+				for( const auto& info : shadowCasterInfo[i] )
+				{
+					auto found = std::find_if(
+						m_directionalShadowDiagnostics.casters.begin(),
+						m_directionalShadowDiagnostics.casters.end(),
+						[&]( const auto& entry ) { return entry.caster == info.caster; } );
+					if( found != m_directionalShadowDiagnostics.casters.end() )
+					{
+						++found->acceptedCascades;
+						found->committedBatches += info.committedBatches;
+					}
+					++m_directionalShadowDiagnostics.acceptedCascades;
+					m_directionalShadowDiagnostics.committedBatches += info.committedBatches;
+				}
+			}
 		}
 	}
 
@@ -831,6 +869,16 @@ EveSpaceScene::ShadowResources EveSpaceScene::SetupCascadedShadows( Tr2RenderRea
 		}
 		return { result, cascadedShadowDepth };
 	}
+}
+
+const EveSpaceScene::DirectionalShadowDiagnostics::Caster*
+	EveSpaceScene::FindDirectionalShadowCasterDiagnostics( const IEveShadowCaster* caster ) const
+{
+	const auto found = std::find_if(
+		m_directionalShadowDiagnostics.casters.begin(),
+		m_directionalShadowDiagnostics.casters.end(),
+		[&]( const auto& entry ) { return entry.caster == caster; } );
+	return found != m_directionalShadowDiagnostics.casters.end() ? &*found : nullptr;
 }
 
 void EveSpaceScene::ApplyUpscalingToPerFrameData( uint32_t width, uint32_t height, Tr2RenderContext& renderContext )

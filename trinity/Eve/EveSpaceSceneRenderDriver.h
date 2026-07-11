@@ -85,6 +85,10 @@ public:
 	{
 		m_settings = settings;
 	}
+	const Settings& GetSettings() const
+	{
+		return m_settings;
+	}
 
 	void SetDebugMode( bool enable );
 	bool GetDebugMode() const;
@@ -107,6 +111,13 @@ public:
 	{
 		m_reflectionCorrectionEnabled = enabled;
 	}
+	bool GetReflectionCorrectionEnabled() const
+	{
+		return m_reflectionCorrectionEnabled;
+	}
+	void SetPostProcessDiagnosticsEnabled( bool enabled );
+	bool ReadPostProcessDiagnostics( Tr2RenderContext& renderContext, Tr2PostProcessRenderer::Diagnostics& diagnostics ) const;
+	bool GetLastPostProcessExecutionSucceeded() const;
 
 	EXPOSE_TO_BLUE();
 

@@ -56,6 +56,7 @@
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "Shader/Tr2Shader.h"
 #include "TrinityStandaloneCmfModel.h"
+#include "TrinityStandaloneProbeApi.h"
 #include "TriRenderBatch.h"
 #include "TriDevice.h"
 #include "TriProjection.h"
@@ -83,6 +84,7 @@
 extern "C" void TrinityStandaloneStartup();
 extern "C" bool BlueInitializeResourceLoading();
 extern bool g_eveSpaceSceneDynamicLighting;
+extern float g_eveSpaceSceneGammaBrightness;
 
 #ifndef IRootReader_H
 #define IRootReader_H
@@ -1611,6 +1613,41 @@ public:
 		return m_drawFailed;
 	}
 
+	uint32_t GetCommittedOpaqueBatchCount() const
+	{
+		return ( m_reportedAreaBatch[1] ? 1u : 0u ) + ( m_reportedAreaBatch[2] ? 1u : 0u );
+	}
+
+	uint32_t GetAttachmentActiveCount( uint32_t family ) const
+	{
+		return family < m_attachmentStats.size() ? m_attachmentStats[family].active : 0;
+	}
+
+	uint32_t GetSelectedDecalCount() const
+	{
+		return static_cast<uint32_t>( m_decalEntries.size() );
+	}
+
+	uint32_t GetSelectedDecalTriangleCount() const
+	{
+		uint32_t triangles = 0;
+		for( const DecalEntry& entry : m_decalEntries )
+		{
+			triangles += entry.lod0Triangles;
+		}
+		return triangles;
+	}
+
+	bool HaveDecalsCommitted() const
+	{
+		return m_reportedDecalSubmission && !m_reportedDecalFailure;
+	}
+
+	uint32_t GetConstructedLightCount() const
+	{
+		return TotalConstructedLights();
+	}
+
 	void SetShLightingEnabled( bool enabled )
 	{
 		m_shLightingEnabled = enabled;
@@ -2813,6 +2850,15 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_REFLECTION = 1 << 7,
 	STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS = 1 << 8,
 	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 9,
+	STANDALONE_CAPTURE_HDR_COMPOSITE = 1 << 10,
+	STANDALONE_CAPTURE_POST_TONEMAP = 1 << 11,
+	STANDALONE_CAPTURE_TONE_CONTRACT = 1 << 12,
+};
+
+enum StandaloneDynamicExposureMode
+{
+	STANDALONE_DYNAMIC_EXPOSURE_OFF = 0,
+	STANDALONE_DYNAMIC_EXPOSURE_CLIENT = 1,
 };
 
 enum StandaloneShadowMode
@@ -2900,6 +2946,27 @@ const char* SunEffectsName( int effects )
 
 struct StandaloneProbe
 {
+	struct HdrCompositeDiagnostics
+	{
+		bool valid = false;
+		uint32_t format = 0;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint64_t rawHash = 0;
+		uint64_t finiteComponents = 0;
+		uint64_t nanComponents = 0;
+		uint64_t infComponents = 0;
+		uint64_t negativeComponents = 0;
+		uint64_t saturatedComponents = 0;
+		uint64_t pixelsAboveOne = 0;
+		double minimumLuminance = 0.0;
+		double meanLuminance = 0.0;
+		double maximumLuminance = 0.0;
+		double p50Luminance = 0.0;
+		double p95Luminance = 0.0;
+		double p99Luminance = 0.0;
+	};
+
 	~StandaloneProbe()
 	{
 		if( scene )
@@ -2907,6 +2974,8 @@ struct StandaloneProbe
 			scene->SetShLightingManager( nullptr );
 		}
 		renderProductReadback = Tr2TextureAL{};
+		hdrCompositeReadback = Tr2TextureAL{};
+		postTonemapReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
 		dynamicLightShadowResolveEffect.Unlock();
@@ -2953,6 +3022,19 @@ struct StandaloneProbe
 	Tr2EffectPtr reflectionProductVisualizer;
 	Tr2EffectPtr dynamicLightShadowResolveEffect;
 	Tr2TextureAL renderProductReadback;
+	Tr2TextureAL hdrCompositeReadback;
+	Tr2TextureAL postTonemapReadback;
+	HdrCompositeDiagnostics hdrCompositeDiagnostics;
+	TrinityStandaloneToneValidation toneValidation;
+	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
+	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
+	Tr2PPTonemappingEffectPtr clientTonemapping;
+	Tr2PostProcess2Ptr clientPostProcess;
+	int dynamicExposureMode = STANDALONE_DYNAMIC_EXPOSURE_CLIENT;
+	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
+	bool postProcessDiagnosticsEnabled = false;
+	int64_t lastRealTime = 0;
+	int64_t lastSimTime = 0;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
 	int localLights = STANDALONE_LOCAL_LIGHTS_OFF;
@@ -2968,8 +3050,20 @@ struct StandaloneProbe
 	uint32_t capturedProductHeight = 0;
 	bool reportedResolvedLights = false;
 	bool reportedLocalShadowStats = false;
+	bool aoProductValidated = false;
+	bool backgroundPrepared = false;
+	bool newEdenSystemPrepared = false;
+	bool planetSurfacePrepared = false;
+	bool planetAtmospherePrepared = false;
+	bool planetCloudsPrepared = false;
+	bool sunGeometryPrepared = false;
+	bool authoredSunFlarePrepared = false;
+	bool lensFlarePrepared = false;
+	bool godRaysPrepared = false;
+	std::string compositionValidationSummary;
 	uint64_t renderedFrameCount = 0;
 	bool reportedCameraOrbit = false;
+	bool exposureSequenceActive = false;
 	int cameraView = STANDALONE_CAMERA_MODEL;
 	EvePlanet* celestialInspectionTarget = nullptr;
 	const char* celestialInspectionName = nullptr;
@@ -2978,6 +3072,7 @@ struct StandaloneProbe
 	float modelWorldScale = 1.0f;
 	float celestialInspectionScale = 1.0f;
 	Vector3 celestialInspectionDirection;
+	Vector3 cinematicSunDirection;
 	bool celestialInspectionValidated = false;
 };
 
@@ -4202,6 +4297,7 @@ bool ConfigureNewEdenSystem(
 			planetPosition.y,
 			planetPosition.z );
 	}
+	probe.cinematicSunDirection = Normalize( sunPosition );
 	scene.SetSunLighting( sunDirection, sunColor );
 
 	const int32_t starCount = 500 + static_cast<int32_t>( 250.0f * securityStatus );
@@ -4270,6 +4366,14 @@ bool ConfigureNewEdenSystem(
 		}
 		return false;
 	}
+	probe.planetSurfacePrepared = true;
+	probe.planetAtmospherePrepared =
+		planetLayers == STANDALONE_PLANET_ATMOSPHERE || planetLayers == STANDALONE_PLANET_ALL;
+	probe.planetCloudsPrepared =
+		planetLayers == STANDALONE_PLANET_CLOUDS || planetLayers == STANDALONE_PLANET_ALL;
+	probe.sunGeometryPrepared = true;
+	probe.authoredSunFlarePrepared =
+		sunEffects == STANDALONE_SUN_EFFECTS_FLARE || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
 	const bool enableLensFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
 	if( enableLensFlare && cameraView != STANDALONE_CAMERA_PLANET )
 	{
@@ -4286,6 +4390,7 @@ bool ConfigureNewEdenSystem(
 		}
 		lensFlare->SetTranslationCurve( sun->GetTranslationCurve() );
 		scene.Lensflares().Insert( -1, lensFlare->GetRawRoot() );
+		probe.lensFlarePrepared = true;
 	}
 	else if( enableLensFlare )
 	{
@@ -4452,6 +4557,7 @@ bool ConfigureNewEdenSystem(
 		sunColor.b,
 		starCount,
 		constellationId );
+	probe.newEdenSystemPrepared = true;
 	return true;
 }
 
@@ -5176,6 +5282,418 @@ bool EnsureRenderProductReadback( StandaloneProbe& probe, Tr2RenderContext& rend
 	return true;
 }
 
+bool EnsureHdrCompositeReadback( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	if( probe.hdrCompositeReadback.IsValid() &&
+		probe.hdrCompositeReadback.GetWidth() == probe.renderWidth &&
+		probe.hdrCompositeReadback.GetHeight() == probe.renderHeight )
+	{
+		return true;
+	}
+
+	probe.hdrCompositeReadback = Tr2TextureAL{};
+	const HRESULT result = probe.hdrCompositeReadback.Create(
+		Tr2BitmapDimensions(
+			probe.renderWidth,
+			probe.renderHeight,
+			1,
+			Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable FP16 composite target (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.hdrCompositeReadback.SetName( "StandaloneProbeHdrCompositeReadback" );
+	return true;
+}
+
+bool EnsurePostTonemapReadback(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext,
+	Tr2RenderContextEnum::PixelFormat format )
+{
+	if( probe.postTonemapReadback.IsValid() &&
+		probe.postTonemapReadback.GetWidth() == probe.renderWidth &&
+		probe.postTonemapReadback.GetHeight() == probe.renderHeight &&
+		probe.postTonemapReadback.GetFormat() == format )
+	{
+		return true;
+	}
+
+	probe.postTonemapReadback = Tr2TextureAL{};
+	const HRESULT result = probe.postTonemapReadback.Create(
+		Tr2BitmapDimensions( probe.renderWidth, probe.renderHeight, 1, format ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable post-tonemap target (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.postTonemapReadback.SetName( "StandaloneProbePostTonemapReadback" );
+	return true;
+}
+
+bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	Tr2PostProcessRenderer::Diagnostics source;
+	if( !probe.driver || !probe.driver->ReadPostProcessDiagnostics( renderContext, source ) )
+	{
+		return false;
+	}
+	auto& destination = probe.postProcessDiagnostics;
+	destination = {};
+	destination.realTime = probe.lastRealTime;
+	destination.simTime = probe.lastSimTime;
+	destination.dynamicExposureActive = source.dynamicExposureActive;
+	destination.histogramCreated = source.histogramCreated;
+	destination.histogramMerged = source.histogramMerged;
+	destination.exposureMeasured = source.exposureMeasured;
+	destination.tonemappingSucceeded = source.tonemappingSucceeded;
+	destination.sourceWidth = source.sourceWidth;
+	destination.sourceHeight = source.sourceHeight;
+	destination.sourceFormat = source.sourceFormat;
+	destination.postTonemapWidth = source.postTonemapWidth;
+	destination.postTonemapHeight = source.postTonemapHeight;
+	destination.postTonemapFormat = source.postTonemapFormat;
+	std::copy( source.histogram.begin(), source.histogram.end(), destination.histogram );
+	std::copy( source.exposure.begin(), source.exposure.end(), destination.exposure );
+	destination.minBrightness = source.minBrightness;
+	destination.maxBrightness = source.maxBrightness;
+	destination.increaseSpeed = source.increaseSpeed;
+	destination.decreaseSpeed = source.decreaseSpeed;
+	destination.minLuminance = source.minLuminance;
+	destination.maxLuminance = source.maxLuminance;
+	destination.exposureInfluence = source.exposureInfluence;
+	destination.exposureMiddleValue = source.exposureMiddleValue;
+	destination.exposureAdjustment = source.exposureAdjustment;
+	destination.minExposure = source.minExposure;
+	destination.maxExposure = source.maxExposure;
+	destination.shoulderStrength = source.shoulderStrength;
+	destination.linearStrength = source.linearStrength;
+	destination.linearAngle = source.linearAngle;
+	destination.toeStrength = source.toeStrength;
+	destination.toeNumerator = source.toeNumerator;
+	destination.toeDenominator = source.toeDenominator;
+	destination.whiteScale = source.whiteScale;
+	destination.outputGamma = source.outputGamma;
+	destination.tonemappingMethod = source.tonemappingMethod;
+	return true;
+}
+
+float DecodeSrgb( float value )
+{
+	return value <= 0.04045f ? value / 12.92f :
+		std::pow( ( value + 0.055f ) / 1.055f, 2.4f );
+}
+
+float EncodeSrgb( float value )
+{
+	value = std::max( value, 0.0f );
+	return value <= 0.0031308f ? value * 12.92f :
+		1.055f * std::pow( value, 1.0f / 2.4f ) - 0.055f;
+}
+
+float Uncharted2Curve( float value, const TrinityStandalonePostProcessDiagnostics& diagnostics )
+{
+	const float a = diagnostics.shoulderStrength;
+	const float b = diagnostics.linearStrength;
+	const float c = diagnostics.linearAngle;
+	const float d = diagnostics.toeStrength;
+	const float e = diagnostics.toeNumerator;
+	const float f = diagnostics.toeDenominator;
+	return ( value * ( a * value + c * b ) + d * e ) /
+			   ( value * ( a * value + b ) + d * f ) -
+		e / f;
+}
+
+bool ReadToneMappingContract( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	probe.toneValidation = {};
+	if( !ReadPostProcessDiagnostics( probe, renderContext ) )
+	{
+		std::fprintf( stderr, "Failed to read RC-10 postprocess diagnostics\n" );
+		return false;
+	}
+	const auto& diagnostics = probe.postProcessDiagnostics;
+	if( !diagnostics.tonemappingSucceeded ||
+		( diagnostics.dynamicExposureActive &&
+		  ( !diagnostics.histogramCreated || !diagnostics.histogramMerged || !diagnostics.exposureMeasured ) ) )
+	{
+		std::fprintf( stderr, "RC-10 exposure or tone pass did not complete\n" );
+		return false;
+	}
+
+	const void* preData = nullptr;
+	const void* postData = nullptr;
+	uint32_t prePitch = 0;
+	uint32_t postPitch = 0;
+	if( FAILED( probe.hdrCompositeReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, preData, prePitch, renderContext ) ) || !preData )
+	{
+		return false;
+	}
+	if( FAILED( probe.postTonemapReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, postData, postPitch, renderContext ) ) || !postData )
+	{
+		probe.hdrCompositeReadback.UnmapForReading( renderContext );
+		return false;
+	}
+
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	uint64_t preHash = fnvOffset;
+	uint64_t postHash = fnvOffset;
+	std::vector<float> errors;
+	std::vector<float> luminances;
+	errors.reserve( static_cast<size_t>( probe.renderWidth ) * probe.renderHeight * 3 );
+	luminances.reserve( static_cast<size_t>( probe.renderWidth ) * probe.renderHeight );
+	double errorSum = 0.0;
+	const bool bgra = probe.postTonemapReadback.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+		probe.postTonemapReadback.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
+	const float adaptedLuminance = diagnostics.exposure[0];
+	const float denominator = 0.5f +
+		( adaptedLuminance - 0.5f ) * diagnostics.exposureInfluence;
+	const float exposureMultiplier = diagnostics.dynamicExposureActive ?
+		std::pow( 2.0f, diagnostics.exposureAdjustment ) * diagnostics.exposureMiddleValue /
+			std::max( denominator, 0.000001f ) :
+		std::pow( 2.0f, diagnostics.exposureAdjustment );
+	const float white = Uncharted2Curve( diagnostics.whiteScale, diagnostics );
+
+	for( uint32_t y = 0; y < probe.renderHeight; ++y )
+	{
+		const uint8_t* preRow = static_cast<const uint8_t*>( preData ) + static_cast<size_t>( y ) * prePitch;
+		const uint8_t* postRow = static_cast<const uint8_t*>( postData ) + static_cast<size_t>( y ) * postPitch;
+		for( size_t byte = 0; byte < static_cast<size_t>( probe.renderWidth ) * sizeof( Float_16 ) * 4; ++byte )
+		{
+			preHash = ( preHash ^ preRow[byte] ) * fnvPrime;
+		}
+		for( size_t byte = 0; byte < static_cast<size_t>( probe.renderWidth ) * 4; ++byte )
+		{
+			postHash = ( postHash ^ postRow[byte] ) * fnvPrime;
+		}
+		const Float_16* prePixels = reinterpret_cast<const Float_16*>( preRow );
+		for( uint32_t x = 0; x < probe.renderWidth; ++x )
+		{
+			const uint8_t* output = postRow + x * 4;
+			const uint8_t actual[3] = { output[bgra ? 2 : 0], output[1], output[bgra ? 0 : 2] };
+			if( actual[0] == 0 && actual[1] == 0 && actual[2] == 0 )
+				++probe.toneValidation.fullyBlackPixels;
+			if( actual[0] == 255 && actual[1] == 255 && actual[2] == 255 )
+				++probe.toneValidation.fullyWhitePixels;
+			if( actual[0] == 255 || actual[1] == 255 || actual[2] == 255 )
+				++probe.toneValidation.anySaturatedChannelPixels;
+			luminances.push_back(
+				0.2126f * actual[0] + 0.7152f * actual[1] + 0.0722f * actual[2] );
+			for( uint32_t channel = 0; channel < 3; ++channel )
+			{
+				const float source = DecodeSrgb( static_cast<float>( prePixels[x * 4 + channel] ) );
+				const float mapped = Uncharted2Curve( 2.0f * source * exposureMultiplier, diagnostics ) /
+					std::max( white, 0.000001f );
+				const float encoded = std::pow( std::max( EncodeSrgb( mapped ), 0.0f ), diagnostics.outputGamma );
+				const float expected = std::min( std::max( encoded, 0.0f ), 1.0f ) * 255.0f;
+				const float error = std::abs( static_cast<float>( actual[channel] ) - expected );
+				errors.push_back( error );
+				errorSum += error;
+			}
+		}
+	}
+	probe.postTonemapReadback.UnmapForReading( renderContext );
+	probe.hdrCompositeReadback.UnmapForReading( renderContext );
+
+	std::sort( errors.begin(), errors.end() );
+	std::sort( luminances.begin(), luminances.end() );
+	auto percentile = []( const std::vector<float>& values, double fraction ) {
+		const size_t index = static_cast<size_t>( std::ceil( fraction * values.size() ) ) - 1;
+		return values[std::min( index, values.size() - 1 )];
+	};
+	auto& result = probe.toneValidation;
+	result.width = probe.renderWidth;
+	result.height = probe.renderHeight;
+	result.preTonemapFormat = probe.hdrCompositeReadback.GetFormat();
+	result.postTonemapFormat = probe.postTonemapReadback.GetFormat();
+	result.preTonemapHash = preHash;
+	result.postTonemapHash = postHash;
+	result.luminanceP01 = percentile( luminances, 0.01 );
+	result.luminanceP50 = percentile( luminances, 0.50 );
+	result.luminanceP99 = percentile( luminances, 0.99 );
+	result.meanAbsoluteError = errorSum / errors.size();
+	result.p999AbsoluteError = percentile( errors, 0.999 );
+	result.maximumAbsoluteError = errors.back();
+	result.valid = result.meanAbsoluteError <= 0.75 && result.p999AbsoluteError <= 2.0 &&
+		result.maximumAbsoluteError <= 4.0;
+	std::fprintf(
+		stderr,
+		"EVE RC-10 tone validation: pre=%016llx post=%016llx dimensions=%ux%u "
+		"black=%llu white=%llu saturated=%llu luminance=(%.4f,%.4f,%.4f) "
+		"error=(mean=%.4f p99.9=%.4f max=%.4f) validation=%s\n",
+		static_cast<unsigned long long>( result.preTonemapHash ),
+		static_cast<unsigned long long>( result.postTonemapHash ),
+		result.width,
+		result.height,
+		static_cast<unsigned long long>( result.fullyBlackPixels ),
+		static_cast<unsigned long long>( result.fullyWhitePixels ),
+		static_cast<unsigned long long>( result.anySaturatedChannelPixels ),
+		result.luminanceP01,
+		result.luminanceP50,
+		result.luminanceP99,
+		result.meanAbsoluteError,
+		result.p999AbsoluteError,
+		result.maximumAbsoluteError,
+		result.valid ? "pass" : "fail" );
+	return result.valid;
+}
+
+double HdrPercentile( const std::vector<float>& sorted, double percentile )
+{
+	if( sorted.empty() )
+	{
+		return 0.0;
+	}
+	const size_t index = static_cast<size_t>( std::ceil( percentile * sorted.size() ) ) - 1;
+	return sorted[std::min( index, sorted.size() - 1 )];
+}
+
+bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	auto& diagnostics = probe.hdrCompositeDiagnostics;
+	diagnostics = {};
+	diagnostics.format = static_cast<uint32_t>( probe.hdrCompositeReadback.GetFormat() );
+	diagnostics.width = probe.hdrCompositeReadback.GetWidth();
+	diagnostics.height = probe.hdrCompositeReadback.GetHeight();
+
+	const void* sourceData = nullptr;
+	uint32_t sourcePitch = 0;
+	if( FAILED( probe.hdrCompositeReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, sourceData, sourcePitch, renderContext ) ) ||
+		!sourceData )
+	{
+		std::fprintf( stderr, "Failed to read back the raw FP16 scene composite\n" );
+		return false;
+	}
+
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	constexpr float halfMaximum = 65504.0f;
+	const size_t rowBytes = static_cast<size_t>( diagnostics.width ) * sizeof( Float_16 ) * 4;
+	std::vector<float> luminances;
+	luminances.reserve( static_cast<size_t>( diagnostics.width ) * diagnostics.height );
+	uint64_t rawHash = fnvOffset;
+	double luminanceSum = 0.0;
+
+	for( uint32_t y = 0; y < diagnostics.height; ++y )
+	{
+		const uint8_t* sourceRow = static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+		for( size_t byte = 0; byte < rowBytes; ++byte )
+		{
+			rawHash ^= sourceRow[byte];
+			rawHash *= fnvPrime;
+		}
+
+		const Float_16* pixels = reinterpret_cast<const Float_16*>( sourceRow );
+		for( uint32_t x = 0; x < diagnostics.width; ++x )
+		{
+			float channels[4];
+			bool rgbFinite = true;
+			for( uint32_t channel = 0; channel < 4; ++channel )
+			{
+				const float value = static_cast<float>( pixels[x * 4 + channel] );
+				channels[channel] = value;
+				if( std::isnan( value ) )
+				{
+					++diagnostics.nanComponents;
+					rgbFinite = rgbFinite && channel >= 3;
+				}
+				else if( !std::isfinite( value ) )
+				{
+					++diagnostics.infComponents;
+					rgbFinite = rgbFinite && channel >= 3;
+				}
+				else
+				{
+					++diagnostics.finiteComponents;
+					if( value < -0.001f )
+						++diagnostics.negativeComponents;
+					if( std::abs( value ) >= halfMaximum )
+						++diagnostics.saturatedComponents;
+				}
+			}
+			if( rgbFinite )
+			{
+				const float luminance =
+					0.2126f * channels[0] + 0.7152f * channels[1] + 0.0722f * channels[2];
+				luminances.push_back( luminance );
+				luminanceSum += luminance;
+				if( luminance > 1.0f )
+					++diagnostics.pixelsAboveOne;
+			}
+		}
+	}
+	probe.hdrCompositeReadback.UnmapForReading( renderContext );
+
+	diagnostics.rawHash = rawHash;
+	if( !luminances.empty() )
+	{
+		std::sort( luminances.begin(), luminances.end() );
+		diagnostics.minimumLuminance = luminances.front();
+		diagnostics.meanLuminance = luminanceSum / static_cast<double>( luminances.size() );
+		diagnostics.maximumLuminance = luminances.back();
+		diagnostics.p50Luminance = HdrPercentile( luminances, 0.50 );
+		diagnostics.p95Luminance = HdrPercentile( luminances, 0.95 );
+		diagnostics.p99Luminance = HdrPercentile( luminances, 0.99 );
+	}
+
+	const bool dimensionsValid = diagnostics.width == probe.renderWidth && diagnostics.height == probe.renderHeight;
+	const bool formatValid = diagnostics.format == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT;
+	const bool finite = diagnostics.nanComponents == 0 && diagnostics.infComponents == 0;
+	const bool rangeValid = diagnostics.negativeComponents == 0 && diagnostics.saturatedComponents == 0;
+	const bool nonuniform = diagnostics.maximumLuminance - diagnostics.minimumLuminance > 0.000001;
+	const bool nonblack = diagnostics.maximumLuminance > 0.000001;
+	const bool hasHdrHeadroom = diagnostics.pixelsAboveOne != 0;
+	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack && hasHdrHeadroom;
+
+	std::fprintf(
+		stderr,
+		"EVE pre-tonemap FP16 composite: format=%u dimensions=%ux%u hash=%016llx "
+		"finite=%llu nan=%llu inf=%llu negative=%llu saturated=%llu above-one=%llu "
+		"luminance=[min=%.8f mean=%.8f max=%.8f p50=%.8f p95=%.8f p99=%.8f] validation=%s\n",
+		diagnostics.format,
+		diagnostics.width,
+		diagnostics.height,
+		static_cast<unsigned long long>( diagnostics.rawHash ),
+		static_cast<unsigned long long>( diagnostics.finiteComponents ),
+		static_cast<unsigned long long>( diagnostics.nanComponents ),
+		static_cast<unsigned long long>( diagnostics.infComponents ),
+		static_cast<unsigned long long>( diagnostics.negativeComponents ),
+		static_cast<unsigned long long>( diagnostics.saturatedComponents ),
+		static_cast<unsigned long long>( diagnostics.pixelsAboveOne ),
+		diagnostics.minimumLuminance,
+		diagnostics.meanLuminance,
+		diagnostics.maximumLuminance,
+		diagnostics.p50Luminance,
+		diagnostics.p95Luminance,
+		diagnostics.p99Luminance,
+		diagnostics.valid ? "pass" : "fail" );
+	if( !diagnostics.valid )
+	{
+		std::fprintf(
+			stderr,
+			"FP16 composition contract failed: format=%s dimensions=%s finite=%s range=%s nonuniform=%s nonblack=%s hdr-headroom=%s\n",
+			formatValid ? "valid" : "invalid",
+			dimensionsValid ? "valid" : "invalid",
+			finite ? "yes" : "no",
+			rangeValid ? "valid" : "invalid",
+			nonuniform ? "yes" : "no",
+			nonblack ? "yes" : "no",
+			hasHdrHeadroom ? "yes" : "no" );
+	}
+	return diagnostics.valid;
+}
+
 bool ReadVisualizedRenderProduct(
 	StandaloneProbe& probe,
 	int captureProduct,
@@ -5222,6 +5740,7 @@ bool ReadVisualizedRenderProduct(
 		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 		captureProduct == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
 		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL ||
+		captureProduct == STANDALONE_CAPTURE_HDR_COMPOSITE ||
 		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
@@ -5246,8 +5765,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
-	std::array<BlueSharedString, 7> requestedNames;
-	std::array<ITr2RenderNode::TempOutput, 7> outputStorage;
+	std::array<BlueSharedString, 8> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 8> outputStorage;
 	size_t requestedCount = 0;
 	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
 	{
@@ -5285,6 +5804,18 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
+	if( captureProducts & ( STANDALONE_CAPTURE_HDR_COMPOSITE | STANDALONE_CAPTURE_TONE_CONTRACT ) )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "PreTonemapColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & ( STANDALONE_CAPTURE_POST_TONEMAP | STANDALONE_CAPTURE_TONE_CONTRACT ) )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "PostTonemapColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
 	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
@@ -5304,9 +5835,72 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		ITr2RenderNode::Span<ITr2RenderNode::TempOutput> outputSpan = { outputStorage.data(), requestedCount };
 		Tr2ProfileTimer rootTimer;
 		driver.Execute( destinationSpan, outputSpan, realTime, simTime, rootTimer, renderContext );
+		if( !driver.GetLastPostProcessExecutionSucceeded() )
+		{
+			CCP_LOGERR( "EVE postprocess execution failed" );
+			ok = false;
+		}
 
 		const bool colorProduct = captureProducts == STANDALONE_CAPTURE_COLOR;
 		const bool reflectionProduct = captureProducts == STANDALONE_CAPTURE_REFLECTION;
+		const bool hdrCompositeProduct = captureProducts == STANDALONE_CAPTURE_HDR_COMPOSITE;
+		const bool postTonemapProduct = captureProducts == STANDALONE_CAPTURE_POST_TONEMAP;
+		const bool toneContractProduct = captureProducts == STANDALONE_CAPTURE_TONE_CONTRACT;
+		if( ok && toneContractProduct )
+		{
+			const Tr2TextureAL* preTonemap = nullptr;
+			const Tr2TextureAL* postTonemap = nullptr;
+			for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+			{
+				if( outputStorage[outputIndex].name == BlueSharedString( "PreTonemapColor" ) &&
+					outputStorage[outputIndex].texture.IsValid() )
+					preTonemap = &outputStorage[outputIndex].texture.Get();
+				if( outputStorage[outputIndex].name == BlueSharedString( "PostTonemapColor" ) &&
+					outputStorage[outputIndex].texture.IsValid() )
+					postTonemap = &outputStorage[outputIndex].texture.Get();
+			}
+			if( !preTonemap || !postTonemap || preTonemap->GetWidth() != probe.renderWidth ||
+				preTonemap->GetHeight() != probe.renderHeight || postTonemap->GetWidth() != probe.renderWidth ||
+				postTonemap->GetHeight() != probe.renderHeight ||
+				preTonemap->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT )
+			{
+				std::fprintf( stderr, "RC-10 atomic tone outputs are missing or invalid\n" );
+				ok = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End RC-10 tone source" );
+				renderContextOpen = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Begin RC-10 tone readback" );
+				renderContextOpen = ok;
+			}
+			if( ok && EnsureHdrCompositeReadback( probe, renderContext ) &&
+				EnsurePostTonemapReadback( probe, renderContext, postTonemap->GetFormat() ) )
+			{
+				ok = CheckHresult(
+						 preTonemap->Resolve( probe.hdrCompositeReadback, renderContext ),
+						 "Resolve RC-10 pre-tonemap color" ) &&
+					CheckHresult(
+						 postTonemap->Resolve( probe.postTonemapReadback, renderContext ),
+						 "Resolve RC-10 post-tonemap color" );
+			}
+			else if( ok )
+			{
+				ok = false;
+			}
+			if( renderContextOpen )
+			{
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End RC-10 tone readback" ) && ok;
+				renderContextOpen = false;
+			}
+			if( ok )
+			{
+				ok = ReadToneMappingContract( probe, renderContext );
+			}
+		}
 		const char* selectedName = nullptr;
 		if( colorProduct )
 			selectedName = "Color";
@@ -5324,6 +5918,10 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			selectedName = "DynamicLightShadowDepth";
 		else if( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL )
 			selectedName = "SSAOMap";
+		else if( hdrCompositeProduct )
+			selectedName = "PreTonemapColor";
+		else if( postTonemapProduct )
+			selectedName = "PostTonemapColor";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -5379,7 +5977,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					ok = false;
 				}
 				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
-					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL;
+					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ||
+					hdrCompositeProduct || postTonemapProduct;
 				if( fullResolutionProduct &&
 					( selectedTexture->GetWidth() != probe.renderWidth || selectedTexture->GetHeight() != probe.renderHeight ) )
 				{
@@ -5415,6 +6014,40 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						selectedTexture->GetHeight() );
 					ok = false;
 				}
+				if( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL )
+				{
+					const auto expectedFormat = probe.aoMethod == STANDALONE_AO_CORTAO ?
+						Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM :
+						Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM;
+					if( selectedTexture->GetFormat() != expectedFormat )
+					{
+						std::fprintf(
+							stderr,
+							"SSAO product has invalid format=%u; expected=%u\n",
+							static_cast<uint32_t>( selectedTexture->GetFormat() ),
+							static_cast<uint32_t>( expectedFormat ) );
+						ok = false;
+					}
+				}
+				if( hdrCompositeProduct &&
+					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT )
+				{
+					std::fprintf(
+						stderr,
+						"Pre-tonemap composite has invalid format=%u; expected R16G16B16A16_FLOAT\n",
+						static_cast<uint32_t>( selectedTexture->GetFormat() ) );
+					ok = false;
+				}
+				if( postTonemapProduct &&
+					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM &&
+					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
+				{
+					std::fprintf(
+						stderr,
+						"Post-tonemap color has invalid format=%u; expected an 8-bit UNORM target\n",
+						static_cast<uint32_t>( selectedTexture->GetFormat() ) );
+					ok = false;
+				}
 				const bool visualizerReady = reflectionProduct ?
 					PrepareReflectionProductVisualizer( probe ) :
 					PrepareRenderProductVisualizer( probe );
@@ -5422,18 +6055,28 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					probe.reflectionProductVisualizer :
 					probe.renderProductVisualizer;
 				if( ok && visualizerReady &&
-					EnsureRenderProductReadback( probe, renderContext ) )
+					EnsureRenderProductReadback( probe, renderContext ) &&
+					( !hdrCompositeProduct || EnsureHdrCompositeReadback( probe, renderContext ) ) )
 				{
+					if( hdrCompositeProduct )
+					{
+						ok = CheckHresult(
+								 selectedTexture->Resolve( probe.hdrCompositeReadback, renderContext ),
+								 "Resolve raw FP16 composition" ) &&
+							ok;
+					}
 					if( !reflectionProduct )
 					{
 						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
-						const float visualizationMode = colorProduct ? 2.0f :
-																	   ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
-																													   ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
-																																										( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-																																																						 ( depthAtlasProduct ? 4.0f :
-																																																											   ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+						const float visualizationMode = hdrCompositeProduct ? 7.0f :
+							postTonemapProduct                                ? 2.0f :
+							colorProduct                                    ? 2.0f :
+																			  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+																															  ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+																																											   ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+																																																								( depthAtlasProduct ? 4.0f :
+																																																													  ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "RenderProductMode" ),
 							visualizationMode );
@@ -5458,7 +6101,15 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					renderContextOpen = false;
 					if( ok )
 					{
-						ok = ReadVisualizedRenderProduct( probe, captureProducts, renderContext );
+						if( hdrCompositeProduct )
+						{
+							ok = ReadRawHdrComposite( probe, renderContext );
+						}
+						ok = ReadVisualizedRenderProduct( probe, captureProducts, renderContext ) && ok;
+						if( ok && captureProducts == STANDALONE_CAPTURE_AO )
+						{
+							probe.aoProductValidated = true;
+						}
 						if( ok && reflectionProduct && probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC )
 						{
 							probe.reportedReflectionStatus = true;
@@ -5572,12 +6223,249 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	return ok && CheckHresult( renderContext.Present(), "Present" );
 }
 
+bool ValidateRc09Composition( StandaloneProbe& probe )
+{
+	if( !probe.scene || !probe.driver || !probe.renderable )
+	{
+		CCP_LOGERR( "RC-09 composition validation requires a configured EVE model scene" );
+		return false;
+	}
+
+	std::vector<std::string> failures;
+	auto require = [&]( bool condition, const char* contract ) {
+		if( !condition )
+		{
+			failures.emplace_back( contract );
+		}
+	};
+
+	const uint32_t opaqueBatches = probe.renderable->GetCommittedOpaqueBatchCount();
+	std::array<uint32_t, 6> attachmentCounts = {};
+	for( uint32_t family = 0; family < attachmentCounts.size(); ++family )
+	{
+		attachmentCounts[family] = probe.renderable->GetAttachmentActiveCount( family );
+	}
+	const uint32_t decalCount = probe.renderable->GetSelectedDecalCount();
+	const uint32_t decalTriangles = probe.renderable->GetSelectedDecalTriangleCount();
+	Tr2LightManager* lightManager = Tr2LightManager::GetInstance();
+	const size_t resolvedLights = lightManager ? lightManager->GetResolvedLightCount() : 0;
+	const auto* directionalShadows = probe.scene->FindDirectionalShadowCasterDiagnostics(
+		static_cast<const IEveShadowCaster*>( probe.renderable.p ) );
+	const uint32_t acceptedCascades = directionalShadows ? directionalShadows->acceptedCascades : 0;
+	const uint32_t directionalShadowBatches = directionalShadows ? directionalShadows->committedBatches : 0;
+
+	require( probe.renderedFrameCount >= 2, "at least two scene warm-up frames" );
+	require( !probe.renderable->DrawFailed(), "renderable draw status" );
+	require( opaqueBatches == 2, "two committed opaque hull/booster batches" );
+	require( attachmentCounts[0] == 83, "83 active sprites" );
+	require( attachmentCounts[1] == 0, "zero active sprite lines" );
+	require( attachmentCounts[2] == 4, "four active spotlights" );
+	require( attachmentCounts[3] == 16, "16 active planes" );
+	require( attachmentCounts[4] == 2, "two active hazes" );
+	require( attachmentCounts[5] == 4, "four active banners" );
+	require( decalCount == 11 && decalTriangles == 28 && probe.renderable->HaveDecalsCommitted(),
+			 "11 committed decals containing 28 LOD0 triangles" );
+	require( probe.renderable->GetConstructedLightCount() == 6 && resolvedLights == 6,
+			 "six authored and resolved local lights" );
+	require( probe.localShadows == STANDALONE_LOCAL_SHADOWS_OFF,
+			 "client-parity local-light shadows disabled" );
+	require( acceptedCascades == 3 && directionalShadowBatches == 6,
+			 "three accepted directional cascades and six shadow batches" );
+	require( probe.aoProductValidated, "full-resolution high CORTAO product" );
+	require( probe.ssao && probe.ssao->GetCortaoEnabled() && probe.ssao->GetCortaoBentNormal(),
+			 "CORTAO bent-normal configuration" );
+	require( probe.hdrCompositeDiagnostics.valid, "finite nonuniform FP16 composite with HDR headroom" );
+
+	Tr2ReflectionProbePtr reflectionProbe = probe.scene->GetReflectionProbe();
+	require( probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC && reflectionProbe,
+			 "dynamic reflection probe" );
+	require( reflectionProbe && reflectionProbe->HasData() && reflectionProbe->LastFilterSucceeded(),
+			 "successful filtered reflection data" );
+	require( reflectionProbe && reflectionProbe->GetReflectionWidth() == 256 &&
+				 reflectionProbe->GetReflectionHeight() == 256 && reflectionProbe->GetReflectionMipCount() == 8,
+			 "256x256 eight-mip reflection cube" );
+	require( probe.scene->GetReflectionSetting() == EntityComponents::REFLECTION_SETTING_ULTRA,
+			 "ultra reflection quality" );
+	require( probe.driver->GetReflectionCorrectionEnabled(), "client reflection correction" );
+	require( probe.shLightingManager &&
+				 std::abs( probe.shLightingManager->GetPrimaryIntensity() - 3.14f ) < 0.001f &&
+				 std::abs( probe.shLightingManager->GetSecondaryIntensity() - 3.14f ) < 0.001f,
+			 "primary and secondary SH intensity 3.14" );
+
+	Tr2EffectPtr background = probe.scene->GetBackgroundEffect();
+	Tr2EffectRes* backgroundResource = background ? background->GetEffectRes() : nullptr;
+	require( probe.backgroundPrepared && backgroundResource && backgroundResource->IsGood(),
+			 "prepared authored New Eden background" );
+	require( probe.newEdenSystemPrepared && probe.scene->Planets().size() == 2,
+			 "prepared New Eden sun and planet" );
+	require( probe.planetSurfacePrepared && probe.planetAtmospherePrepared && probe.planetCloudsPrepared,
+			 "prepared planet surface, atmosphere, and clouds" );
+	require( probe.sunGeometryPrepared && probe.authoredSunFlarePrepared,
+			 "prepared sun geometry and authored flare geometry" );
+	require( probe.lensFlarePrepared && probe.scene->Lensflares().size() == 1,
+			 "prepared system lens flare with occlusion" );
+	Tr2PostProcess2Ptr postProcess = probe.scene->GetPostProcess();
+	require( probe.godRaysPrepared && postProcess && postProcess->GetGodRaysIfAvailable( PostProcess::HIGH ),
+			 "prepared depth-aware god rays" );
+	const bool expectsDynamicExposure = probe.qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE &&
+		probe.dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT;
+	require(
+		postProcess && static_cast<bool>( postProcess->GetDynamicExposureIfAvailable( PostProcess::HIGH ) ) ==
+			expectsDynamicExposure,
+		expectsDynamicExposure ? "client dynamic exposure enabled" : "dynamic exposure disabled" );
+	require( postProcess && !postProcess->GetBloomIfAvailable( PostProcess::HIGH ), "bloom disabled" );
+	require( postProcess && !postProcess->GetFilmGrainIfAvailable( PostProcess::HIGH ), "film grain disabled" );
+	require( postProcess && !postProcess->GetTaaIfAvailable( PostProcess::HIGH ), "TAA disabled" );
+	require( postProcess && !postProcess->GetDepthOfFieldIfAvailable( PostProcess::HIGH ),
+			 "depth of field disabled" );
+	require( postProcess && !postProcess->GetFogIfAvailable( PostProcess::HIGH ), "postprocess fog disabled" );
+	const size_t volumetricRenderableCount = probe.scene->m_componentRegistry ?
+		probe.scene->m_componentRegistry->ComponentCount<ITr2VolumetricRenderable>() :
+		0;
+	const bool froxelFogActive = probe.scene->m_volumetricsRenderer && probe.scene->m_volumetricsRenderer->HasFog();
+	require( volumetricRenderableCount == 0 && !froxelFogActive,
+			 "volumetric renderables and froxel fog disabled" );
+
+	const auto& settings = probe.driver->GetSettings();
+	require( !settings.bypassPostProcessing && !settings.postProcessBlitOnly,
+			 "full HDR postprocess path" );
+	require( settings.postProcessingQuality == PostProcess::HIGH, "high postprocess quality" );
+	require( settings.shadowQuality == ShadowQuality::SHADOW_HIGH && settings.enableDirectionalShadows,
+			 "high directional cascades" );
+	require( settings.aoQuality == EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High,
+			 "high ambient occlusion" );
+	require( !settings.enableDistortion && !settings.enableUpscaling &&
+				 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
+				 !settings.forceVelocityMap,
+			 "distortion, upscaling, TAA, and velocity disabled" );
+	require( settings.forceOpaqueBuffer && settings.forceNormalMap,
+			 "opaque and normal products retained" );
+
+	std::fprintf(
+		stderr,
+		"EVE RC-09 composition inventory: opaque=%u attachments=[sprites=%u sprite-lines=%u spotlights=%u "
+		"planes=%u hazes=%u banners=%u] decals=%u triangles=%u lights=%zu cascades=%u shadowBatches=%u "
+		"ao=%s reflection=%ux%u/%u hdr=%s failures=%zu\n",
+		opaqueBatches,
+		attachmentCounts[0],
+		attachmentCounts[1],
+		attachmentCounts[2],
+		attachmentCounts[3],
+		attachmentCounts[4],
+		attachmentCounts[5],
+		decalCount,
+		decalTriangles,
+		resolvedLights,
+		acceptedCascades,
+		directionalShadowBatches,
+		probe.aoProductValidated ? "valid" : "invalid",
+		reflectionProbe ? reflectionProbe->GetReflectionWidth() : 0,
+		reflectionProbe ? reflectionProbe->GetReflectionHeight() : 0,
+		reflectionProbe ? reflectionProbe->GetReflectionMipCount() : 0,
+		probe.hdrCompositeDiagnostics.valid ? "valid" : "invalid",
+		failures.size() );
+	std::ostringstream summary;
+	summary << "profile=RC-09 validation=" << ( failures.empty() ? "pass" : "fail" )
+			<< " frame=" << probe.renderedFrameCount << " opaque=" << opaqueBatches
+			<< " sprites=" << attachmentCounts[0] << " spriteLines=" << attachmentCounts[1]
+			<< " spotlights=" << attachmentCounts[2] << " planes=" << attachmentCounts[3]
+			<< " hazes=" << attachmentCounts[4] << " banners=" << attachmentCounts[5]
+			<< " decals=" << decalCount << " decalTriangles=" << decalTriangles
+			<< " localLights=" << resolvedLights << " acceptedCascades=" << acceptedCascades
+			<< " shadowBatches=" << directionalShadowBatches
+			<< " ao=" << ( probe.aoProductValidated ? "valid" : "invalid" )
+			<< " reflection=" << ( reflectionProbe ? reflectionProbe->GetReflectionWidth() : 0 ) << "x"
+			<< ( reflectionProbe ? reflectionProbe->GetReflectionHeight() : 0 ) << "/"
+			<< ( reflectionProbe ? reflectionProbe->GetReflectionMipCount() : 0 )
+			<< " hdr=" << ( probe.hdrCompositeDiagnostics.valid ? "valid" : "invalid" );
+	probe.compositionValidationSummary = summary.str();
+	for( const std::string& failure : failures )
+	{
+		std::fprintf( stderr, "  RC-09 FAILED: %s\n", failure.c_str() );
+	}
+	if( failures.empty() )
+	{
+		std::fprintf( stderr, "EVE RC-09 complete HDR composition validation accepted\n" );
+	}
+	return failures.empty();
+}
+
+bool ValidateClientPostProcessContract( StandaloneProbe& probe, Tr2PostProcess2& postProcess, std::string& error )
+{
+	auto exposure = postProcess.GetDynamicExposureIfAvailable( PostProcess::HIGH );
+	auto tonemapping = postProcess.GetTonemappingIfAvailable( PostProcess::HIGH );
+	if( !exposure || !tonemapping )
+	{
+		error = "The client postprocess does not contain dynamic exposure and tone mapping";
+		return false;
+	}
+	auto near = []( float actual, float expected ) { return std::abs( actual - expected ) <= 0.000001f; };
+	auto require = [&]( bool condition, const char* field ) {
+		if( !condition && error.empty() )
+		{
+			error = std::string( "Client postprocess contract mismatch: " ) + field;
+		}
+	};
+	require( tonemapping->m_method == Tr2PPTonemappingEffect::Uncharted2, "tone method is not Uncharted2" );
+	require( near( tonemapping->m_uncharted2.m_shoulderStrength, 0.125f ), "shoulderStrength" );
+	require( near( tonemapping->m_uncharted2.m_linearStrength, 0.25f ), "linearStrength" );
+	require( near( tonemapping->m_uncharted2.m_linearAngle, 0.1f ), "linearAngle" );
+	require( near( tonemapping->m_uncharted2.m_toeStrength, 0.15f ), "toeStrength" );
+	require( near( tonemapping->m_uncharted2.m_toeNumerator, 0.021f ), "toeNumerator" );
+	require( near( tonemapping->m_uncharted2.m_toeDenominator, 0.3f ), "toeDenominator" );
+	require( near( tonemapping->m_uncharted2.m_whiteScale, 2.5f ), "whiteScale" );
+	require( near( exposure->m_minBrightness, 0.9f ), "minBrightness" );
+	require( near( exposure->m_maxBrightness, 0.98f ), "maxBrightness" );
+	require( near( exposure->m_increaseSpeed, 2.0f ), "increaseSpeed" );
+	require( near( exposure->m_decreaseSpeed, 1.5f ), "decreaseSpeed" );
+	require( near( exposure->m_minLuminance, 0.4649f ), "minLuminance" );
+	require( near( exposure->m_maxLuminance, 10.0f ), "maxLuminance" );
+	require( near( exposure->m_influence, 1.0f ), "influence" );
+	require( near( exposure->m_middleValue, 0.55f ), "middleValue" );
+	require( near( exposure->m_adjustment, 0.0f ), "adjustment" );
+	require( near( exposure->m_minExposure, -3.7f ), "minExposure" );
+	require( near( exposure->m_maxExposure, 10.0f ), "maxExposure" );
+	require( near( postProcess.m_exposureAdjustment, 0.0f ), "postprocess exposureAdjustment" );
+	if( !error.empty() )
+	{
+		return false;
+	}
+	probe.clientDynamicExposure = exposure;
+	probe.clientTonemapping = tonemapping;
+	std::fprintf(
+		stderr,
+		"EVE RC-10 postprocess contract: method=Uncharted2 containerMethod=baked gamma=1.000000 "
+		"curve=(%.6f,%.6f,%.6f,%.6f,%.6f,%.6f,%.6f) "
+		"percentiles=(%.6f,%.6f) luminance=(%.6f,%.6f) speeds=(%.6f,%.6f) "
+		"middle=%.6f influence=%.6f adjustment=%.6f stops=(%.6f,%.6f)\n",
+		tonemapping->m_uncharted2.m_shoulderStrength,
+		tonemapping->m_uncharted2.m_linearStrength,
+		tonemapping->m_uncharted2.m_linearAngle,
+		tonemapping->m_uncharted2.m_toeStrength,
+		tonemapping->m_uncharted2.m_toeNumerator,
+		tonemapping->m_uncharted2.m_toeDenominator,
+		tonemapping->m_uncharted2.m_whiteScale,
+		exposure->m_minBrightness,
+		exposure->m_maxBrightness,
+		exposure->m_minLuminance,
+		exposure->m_maxLuminance,
+		exposure->m_increaseSpeed,
+		exposure->m_decreaseSpeed,
+		exposure->m_middleValue,
+		exposure->m_influence,
+		exposure->m_adjustment,
+		exposure->m_minExposure,
+		exposure->m_maxExposure );
+	return true;
+}
+
 void UpdateProbeCamera( StandaloneProbe& probe )
 {
 	constexpr uint64_t kStaticCameraFrames = 180;
 	constexpr float kCameraRadius = 5.2f;
 	constexpr float kOrbitFrames = 900.0f;
-	if( !probe.view || !probe.renderable || probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames )
+	if( probe.exposureSequenceActive || !probe.view || !probe.renderable ||
+		probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames )
 	{
 		return;
 	}
@@ -5598,6 +6486,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 
 bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
+	probe.qualityRung = qualityRung;
 	if( !std::isfinite( modelYawDegrees ) )
 	{
 		CCP_LOGERR( "Invalid standalone model yaw" );
@@ -6033,6 +6922,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			std::fprintf( stderr, "Failed to prepare EVE scene '%s': %s\n", sceneResourcePath, sceneError.c_str() );
 			return false;
 		}
+		probe.backgroundPrepared = true;
 
 		Tr2PostProcess2Ptr postProcess;
 		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE )
@@ -6049,12 +6939,27 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			postProcess->SetBloom( nullptr );
 			postProcess->SetFilmGrain( nullptr );
 			postProcess->SetTaa( nullptr );
+			postProcess->SetColorCorrection( nullptr );
+			postProcess->ClearLuts();
+			postProcess->SetVignette( nullptr );
+			postProcess->SetDesaturate( nullptr );
+			postProcess->SetFade( nullptr );
+			postProcess->SetDepthOfField( nullptr );
+			postProcess->SetFog( nullptr );
+			postProcess->SetGenericEffect( nullptr );
+			postProcess->SetSignalLoss( nullptr );
 			auto exposure = postProcess->GetDynamicExposureIfAvailable();
 			if( !exposure || !postProcess->GetTonemappingIfAvailable() )
 			{
 				CCP_LOGERR( "EVE default postprocess does not provide dynamic exposure and tone mapping" );
 				return false;
 			}
+			if( !ValidateClientPostProcessContract( probe, *postProcess, postProcessError ) )
+			{
+				std::fprintf( stderr, "EVE client postprocess contract failed: %s\n", postProcessError.c_str() );
+				return false;
+			}
+			probe.clientPostProcess = postProcess;
 			std::fprintf(
 				stderr,
 				"EVE dynamic exposure active: middle=%.4f influence=%.4f adjustment=%.4f range=[%.4f, %.4f]\n",
@@ -6081,6 +6986,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			godRays->m_intensity = 1.0f;
 			godRays->m_noiseTexturePath = BlueSharedString( "res:/texture/global/noise.dds" );
 			postProcess->SetGodRays( godRays );
+			probe.godRaysPrepared = true;
 			std::fprintf(
 				stderr,
 				"New Eden god rays active: graphicId=1247 color=(%.9f, %.9f, %.9f, %.1f) "
@@ -6425,6 +7331,69 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetHdrCompositeDiagnostics(
+	void* opaqueProbe,
+	uint32_t* format,
+	uint32_t* width,
+	uint32_t* height,
+	uint64_t* rawHash,
+	uint64_t* finiteComponents,
+	uint64_t* nanComponents,
+	uint64_t* infComponents,
+	uint64_t* negativeComponents,
+	uint64_t* saturatedComponents,
+	uint64_t* pixelsAboveOne,
+	double* minimumLuminance,
+	double* meanLuminance,
+	double* maximumLuminance,
+	double* p50Luminance,
+	double* p95Luminance,
+	double* p99Luminance,
+	bool* validationPassed )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !format || !width || !height || !rawHash || !finiteComponents || !nanComponents ||
+		!infComponents || !negativeComponents || !saturatedComponents || !pixelsAboveOne ||
+		!minimumLuminance || !meanLuminance || !maximumLuminance || !p50Luminance ||
+		!p95Luminance || !p99Luminance || !validationPassed || probe->hdrCompositeDiagnostics.width == 0 )
+	{
+		return false;
+	}
+	const auto& diagnostics = probe->hdrCompositeDiagnostics;
+	*format = diagnostics.format;
+	*width = diagnostics.width;
+	*height = diagnostics.height;
+	*rawHash = diagnostics.rawHash;
+	*finiteComponents = diagnostics.finiteComponents;
+	*nanComponents = diagnostics.nanComponents;
+	*infComponents = diagnostics.infComponents;
+	*negativeComponents = diagnostics.negativeComponents;
+	*saturatedComponents = diagnostics.saturatedComponents;
+	*pixelsAboveOne = diagnostics.pixelsAboveOne;
+	*minimumLuminance = diagnostics.minimumLuminance;
+	*meanLuminance = diagnostics.meanLuminance;
+	*maximumLuminance = diagnostics.maximumLuminance;
+	*p50Luminance = diagnostics.p50Luminance;
+	*p95Luminance = diagnostics.p95Luminance;
+	*p99Luminance = diagnostics.p99Luminance;
+	*validationPassed = diagnostics.valid;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateComposition( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	return probe && ValidateRc09Composition( *probe );
+}
+
+TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetCompositionValidationSummary( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	return probe && !probe->compositionValidationSummary.empty() ?
+		probe->compositionValidationSummary.c_str() :
+		nullptr;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	void* opaqueProbe,
 	uint32_t* casterTests,
@@ -6432,19 +7401,21 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	uint32_t* committedBatches )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
-	if( !probe || !probe->renderable || !casterTests || !acceptedCascades || !committedBatches )
+	if( !probe || !probe->scene || !casterTests || !acceptedCascades || !committedBatches )
 	{
 		return false;
 	}
-	*casterTests = probe->renderable->GetShadowCullTests();
-	*acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
-	const uint32_t allCommittedBatches = probe->renderable->GetShadowCommittedBatches();
-	const uint32_t localCommittedBatches = probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF && probe->scene ?
-		probe->scene->GetDynamicLightShadowDiagnostics().committedBatches :
-		0;
-	*committedBatches = allCommittedBatches >= localCommittedBatches ?
-		allCommittedBatches - localCommittedBatches :
-		0;
+	const auto* diagnostics = probe->renderable ?
+		probe->scene->FindDirectionalShadowCasterDiagnostics(
+			static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
+		nullptr;
+	if( !diagnostics )
+	{
+		return false;
+	}
+	*casterTests = diagnostics->tests;
+	*acceptedCascades = diagnostics->acceptedCascades;
+	*committedBatches = diagnostics->committedBatches;
 	return true;
 }
 
@@ -6539,6 +7510,96 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetReflectionDiagnostics(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
+	void* opaqueProbe,
+	int dynamicExposureMode,
+	bool diagnosticsEnabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || !probe->driver ||
+		( dynamicExposureMode != STANDALONE_DYNAMIC_EXPOSURE_OFF &&
+		  dynamicExposureMode != STANDALONE_DYNAMIC_EXPOSURE_CLIENT ) )
+	{
+		return false;
+	}
+	Tr2PostProcess2Ptr postProcess = probe->clientPostProcess;
+	if( !postProcess || !probe->clientTonemapping )
+	{
+		return false;
+	}
+	if( dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT && !probe->clientDynamicExposure )
+	{
+		return false;
+	}
+	postProcess->SetDynamicExposure(
+		dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT ?
+			probe->clientDynamicExposure :
+			Tr2PPDynamicExposureEffectPtr{} );
+	g_eveSpaceSceneGammaBrightness = 1.0f;
+	probe->dynamicExposureMode = dynamicExposureMode;
+	probe->postProcessDiagnosticsEnabled = diagnosticsEnabled;
+	probe->driver->SetPostProcessDiagnosticsEnabled( diagnosticsEnabled );
+	std::fprintf(
+		stderr,
+		"EVE RC-10 postprocess mode: dynamicExposure=%s diagnostics=%s outputGamma=1.000000\n",
+		dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT ? "client" : "off",
+		diagnosticsEnabled ? "enabled" : "disabled" );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetExposureCameraPhase(
+	void* opaqueProbe,
+	bool sequenceActive,
+	bool sunFacing )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->view || !probe->projection )
+	{
+		return false;
+	}
+	probe->exposureSequenceActive = sequenceActive;
+	if( !sequenceActive )
+	{
+		return true;
+	}
+	const Vector3 eye( 0.0f, 0.0f, -5.2f * probe->modelWorldScale );
+	const Vector3 target = sunFacing ? eye + probe->cinematicSunDirection : Vector3( 0.0f, 0.0f, 0.0f );
+	probe->view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
+	probe->projection->PerspectiveFov(
+		( sunFacing ? 20.0f : 60.0f ) * 3.1415926535f / 180.0f,
+		static_cast<float>( probe->renderWidth ) / std::max( 1.0f, static_cast<float>( probe->renderHeight ) ),
+		1.0f,
+		10000.0f );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetPostProcessDiagnostics(
+	void* opaqueProbe,
+	TrinityStandalonePostProcessDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !diagnostics || !probe->postProcessDiagnosticsEnabled ||
+		!ReadPostProcessDiagnostics( *probe, *probe->renderContext ) )
+	{
+		return false;
+	}
+	*diagnostics = probe->postProcessDiagnostics;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetToneValidation(
+	void* opaqueProbe,
+	TrinityStandaloneToneValidation* validation )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !validation || probe->toneValidation.width == 0 )
+	{
+		return false;
+	}
+	*validation = probe->toneValidation;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -6574,7 +7635,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
 		captureProduct != STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS &&
 		captureProduct != STANDALONE_CAPTURE_AO && captureProduct != STANDALONE_CAPTURE_BENT_NORMAL &&
-		captureProduct != STANDALONE_CAPTURE_REFLECTION )
+		captureProduct != STANDALONE_CAPTURE_REFLECTION &&
+		captureProduct != STANDALONE_CAPTURE_HDR_COMPOSITE &&
+		captureProduct != STANDALONE_CAPTURE_POST_TONEMAP &&
+		captureProduct != STANDALONE_CAPTURE_TONE_CONTRACT )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;
@@ -6594,6 +7658,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		UpdateProbeCamera( *probe );
 	}
 	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
+	probe->lastRealTime = realTime;
+	probe->lastSimTime = simTime;
 	const bool rendered = DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
 	if( rendered && !freezeScene )
 	{
@@ -6774,17 +7840,20 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->reportedLocalShadowStats = true;
 		}
 	}
-	if( rendered && !freezeScene && probe->shadows != STANDALONE_SHADOWS_OFF && probe->renderable )
+	if( rendered && !freezeScene && probe->shadows != STANDALONE_SHADOWS_OFF && probe->scene )
 	{
-		const uint32_t cullTests = probe->renderable->GetShadowCullTests();
-		const uint32_t acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
-		const uint32_t allCommittedBatches = probe->renderable->GetShadowCommittedBatches();
-		const uint32_t localCommittedBatches = probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF && probe->scene ?
-			probe->scene->GetDynamicLightShadowDiagnostics().committedBatches :
-			0;
-		const uint32_t committedBatches = allCommittedBatches >= localCommittedBatches ?
-			allCommittedBatches - localCommittedBatches :
-			0;
+		const auto* diagnostics = probe->renderable ?
+			probe->scene->FindDirectionalShadowCasterDiagnostics(
+				static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
+			nullptr;
+		if( !diagnostics )
+		{
+			CCP_LOGERR( "Astero directional shadow diagnostics are unavailable" );
+			return false;
+		}
+		const uint32_t cullTests = diagnostics->tests;
+		const uint32_t acceptedCascades = diagnostics->acceptedCascades;
+		const uint32_t committedBatches = diagnostics->committedBatches;
 		if( acceptedCascades == 0 || committedBatches != acceptedCascades * 2 )
 		{
 			CCP_LOGERR(

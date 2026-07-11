@@ -21,8 +21,8 @@ The following paths build and run on this host:
 | EVE driver shell | `TrinityALEveSceneProbe_metal --quality-rung shell` | Creates a Trinity device and clears/presents through the low-level context. |
 | EVE scene fixture | `TrinityALEveSceneProbe_metal --quality-rung scene` | Runs the real driver with the New Eden specialization of the authored A01 universe by default; `--scene-fixture empty` preserves the empty control. |
 | EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections, submits independent authored hull and booster batches, and renders active SOF attachments and indexed decals. The high client shader tier consumes Trinity SH and tiled local lights; distortion remains deferred. |
-| EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Capability checkpoint: renders through the driver's FP16 target, resolves, executes the extracted client Metal tone-mapping container, and presents through client `Blit`. The scene composition is incomplete. |
-| EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Capability checkpoint: executes client histogram, histogram-merge, exposure-measure, and Uncharted 2 tone passes. It is not a fidelity milestone until a representative in-space background and lighting composition feed the histogram. |
+| EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Accepted RC-09 path: complete New Eden composition remains observable in FP16 before exposure and tone mapping, with inventory, product, HDR-headroom, and pacing gates. |
+| EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Accepted RC-10 path: client histogram, exposure adaptation, baked Uncharted2 tone mapping, direct CPU parity, and complete-scene composition gates pass. |
 
 The accepted EVE model rung defaults to the Sisters of EVE Astero geometry and
 its full-detail maps from the local EVE SharedCache. The comparison mode still
@@ -1277,6 +1277,147 @@ light-shadow feature. RC-08B is therefore closed as unavailable in the current
 macOS reference client. `--local-shadows auto` now resolves off; explicit
 `authored` and `validation` modes preserve CP-21 for future payload audits.
 
+### Complete HDR scene composition (RC-09)
+
+The EVE driver now publishes `PreTonemapColor` after scene rendering, lens
+flares, and god rays, but before exposure, bloom, sharpening, and tone mapping.
+`Tr2PostProcessRenderer` retains that full-resolution
+`R16G16B16A16_FLOAT` pool texture without converting it. The probe exposes it
+as `--render-product hdr-composite`; its PNG uses a fixed sample-owned Reinhard
+plus gamma view solely for inspection, not as evidence for client tone-mapping
+fidelity.
+
+Capture-time FP16 readback hashes the raw row bytes and validates every
+component. Reports include finite, NaN, Inf, negative, half-saturation, and
+above-one counts plus luminance min/mean/max and p50/p95/p99. Validation fails
+on the wrong format or size, invalid or negative values, saturation, a
+black/uniform image, or missing HDR headroom. The 540-frame 2560x1440 windowed
+orbit ended with hash `941a3ee5caed9920`, no invalid components, 2,634 pixels
+above 1.0, and luminance `[0.00005073, 0.15092871, 2.46495390]`; p50/p95/p99
+were `0.15233245/0.29424176/0.55774057`.
+
+The integrated validator takes its acceptance snapshot after 180 static
+frames, before the camera orbit. It retained two opaque hull/booster batches;
+83 sprites, 4 spotlights, 16 planes, 2 hazes, and 4 banners; 11 decals and 28
+triangles; six resolved local lights; three Astero cascades and six batches;
+full-resolution CORTAO; and a filtered 256x256 eight-mip reflection cube. It
+also verifies every planet/sun/background layer and rejects exposure, bloom,
+film grain, distortion, postprocess fog, volumetric content, TAA, velocity,
+and upscaling. Directional
+diagnostics now belong to `EveSpaceScene` and are retained per caster. This
+separates the frame-180 Astero gate from Trinity's 16 available static splits:
+later orbit angles legitimately overlap six splits and commit 12 batches.
+
+Four 180-frame HDR controls produced distinct raw hashes and diagnostic PNGs:
+overlays off `c9a102db304d0bd5`, reduced lighting `78837573dea4d3a9`, reduced
+celestials `8d5964818f04d4ee`, and full composition `9353bba28f9619b0`.
+The canonical windowed run measured 359 orbit frames at 8.2620 ms median,
+9.2649 ms p95, 9.4617 ms p99, 9.8193 ms maximum, and 120.4064 mean FPS with
+no frames above twice the median. The native 4096x2304 run measured 9.8680 ms
+median, 11.9198 ms p95, 14.2665 ms p99, 24.7295 ms maximum, and 99.4773 mean
+FPS; one frame (0.2786%) exceeded twice the median. Both satisfy the relative
+pacing contract. Color, depth, normal, reflection, shadow, cascade-atlas, AO,
+bent-normal, and HDR diagnostics were visually inspected and remained
+coherent.
+
+The reproducible windowed acceptance command was:
+
+```sh
+TrinityALEveSceneProbe_metal_debug --windowed 1280x720 --background-capture \
+  --frames 540 --quality-rung hdr-post --asset astero \
+  --scene-fixture new-eden --composition cinematic \
+  --validate-composition --frame-pacing-check --render-product all \
+  --capture-prefix Captures/rc09/full
+```
+
+The generated PNGs and metadata remain under
+`.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc09/`; they are
+ignored and contain no source-controlled client payload.
+
+The exact-system regression still reports the authored 60-degree observer
+view, with expected sun and planet diameters of `0.19225092` and `0.00322693`
+pixels at 1280x960 backing resolution. RC-09 and CP-22 are accepted. Retained
+approximations remain explicit: build-time GR2-to-CMF conversion, cinematic
+celestial placement for composition, static attachment bone deltas, neutral
+kill count, deterministic SoE banner identity, no local-light shadows, and no
+deferred post effects. Exposure and final tone-mapping fidelity move to RC-10.
+
+### Client exposure and Uncharted2 tone mapping (RC-10)
+
+The installed client resolves `res:/dx9/default/postprocess.black` to
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/5c/5c95a2b26aafb800_ea51ae41a569af6e38353100daa0095d`
+(338 bytes, SHA-256
+`61e8a265b656f4186cc5dc316037f7dff0d66665884165af915e3ee1c84b7cb1`).
+Its method is Uncharted2, with curve values
+`0.125/0.25/0.1/0.15/0.021/0.3/2.5`. Dynamic exposure uses the 90th and 98th
+percentiles, luminance range `0.4649..10`, increase/decrease speeds `2.0/1.5`,
+middle value `0.55`, influence `1`, adjustment `0`, and exposure stops
+`-3.7..10`. The client brightness setting defaults to `1.0`.
+
+The active `tonemapping.sm_hi` comes from
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/d8/d81d936a4043c9a0_a7799fcdb8ee3fe29e9d95f218ab9470`
+(SHA-256
+`58517f44805f2c6c70e573034329b534df3b264aa461e6819079c4cdbbaa5bb5`).
+Unlike this checkout's source-level method selector, that current-client Metal
+container has no `TONE_MAPPING_METHOD` permutation: Uncharted2 is baked into
+the shader. Serialized ACES values are inactive and no ACES approximation is
+used for acceptance.
+
+`PostTonemapColor` now retains the full-resolution 8-bit output immediately
+after tone mapping. Diagnostic mode also reads the 65-entry histogram and the
+eight-float exposure state. Histogram create/merge/measure and tone-pass
+failures propagate to the sample. A frozen atomic capture requests
+`PreTonemapColor` and `PostTonemapColor` from the same driver execution, so
+CPU validation cannot compare different exposure states.
+
+The decoded CPU reference reproduces sRGB input decoding, the client exposure
+multiplier, the baked Uncharted2 curve with its doubled input and white-scale
+normalization, output encoding, gamma, and quantization. The settled
+1280x720-backing capture had mean RGB error `0.3314` code values, p99.9
+`0.9684`, and maximum `0.99996`. Exposure-off and client runs shared raw FP16
+hash `d9820474246b5b2c`; their post-tone hashes were
+`5dd9f029b05b43a4` and `6cc889e20a7cf998`. Client exposure reduced fully
+white pixels from 581 to 394 and any-channel saturation from 18,370 to 17,140
+while retaining 88.96% of exposure-off p01 luminance.
+
+Both 360-frame real-scene camera cuts pass. The 20-degree diagnostic sun view
+and ordinary 60-degree model view produce histogram steps of 62.94% and
+41.82%. Fitted rates are `2.00000136` and `1.49999527`, no recurrence differs
+by more than `2.3e-7`, no update overshoots, and terminal tracking errors remain
+below 1.3%. No synthetic luminance geometry is used.
+
+The integrated 540-frame 2560x1440 capture passes RC-09 inventory validation
+and all 540 exposure frames. Its final pre/post hashes are
+`e48318557e696c78` and `911418a3efde46d3`; CPU error remains below one code
+value. Color, HDR, post-tone, depth, normal, reflection, directional-shadow,
+cascade-atlas, AO, and bent-normal artifacts are under ignored
+`Captures/rc10/full` output.
+
+On this host, AppKit/WindowServer throttles an `orderBack:` CAMetalLayer and
+produces false present-time outliers. The separate visible-window pacing run
+passes with median/p95/p99/maximum
+`16.5894/16.8042/16.9136/17.1562 ms`, zero frames above twice the median, and
+60.26 mean FPS. Background captures remain focus-safe; pacing evidence must
+use a visible window. The exact-system regression still reports the authored
+60-degree sun and planet sizes `0.19225092` and `0.00322693` pixels.
+
+Reproducible settled validation:
+
+```sh
+TrinityALEveSceneProbe_metal_debug --windowed 1280x720 --background-capture \
+  --frames 540 --quality-rung hdr-exposure --asset astero \
+  --scene-fixture new-eden --composition cinematic \
+  --dynamic-exposure client --validate-composition \
+  --validate-exposure-tone --render-product all \
+  --capture-prefix Captures/rc10/full
+```
+
+`compare_tone_reports.py` checks matched exposure-off/client JSON reports for
+identical FP16 input, distinct final output, clipping reduction, and low-end
+retention. Reports embed the generated postprocess resource manifest with
+logical paths, absolute SharedCache sources, sizes, and checksums. RC-10 and
+CP-23 are accepted; bloom becomes the next direct-path unit under RC-11.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1298,15 +1439,15 @@ make those prerequisites explicit.
 | 3F | Indexed SOF decals | Accepted | Native standard, SoE logo, and kill-counter overlays preserve authored ordering, transforms, materials, and LOD0 indices without changing depth, normal, shadow, reflection, or AO products. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
-| 4C | Complete HDR scene composition | Active | Current macOS client parity disables local-light shadows. Preserve CP-21 explicit diagnostics and accept the complete FP16 composition without inventing an unavailable receiving material. |
-| 5 | Exposure and tone mapping | Machinery accepted, fidelity blocked | Re-run `hdr-exposure` against accepted rung 4C and compare settled captures. |
-| 6 | Bloom, film grain, distortion, and volumetrics | Blocked | Add one effect at a time only after rung 5 fidelity acceptance. |
+| 4C | Complete HDR scene composition | Accepted | The canonical New Eden composition passes direct FP16 validation, complete inventory checks, distinct controls, full product capture, and relative pacing at windowed and native resolutions. |
+| 5 | Exposure and tone mapping | Accepted | Client histogram exposure and baked Uncharted2 output pass direct CPU, temporal, A/B, integrated, and manual gates. |
+| 6 | Bloom, film grain, distortion, and volumetrics | Active at bloom | Add one effect at a time after the accepted rung 5 baseline. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
 
-`hdr-post` and `hdr-exposure` remain useful executable checkpoints. They prove
-effect loading, FP16 targets, compute dispatch, tone mapping, and presentation;
-they do not accept complete RC-09 HDR composition by themselves. Missing
-runtime assets still return nonzero rather than silently falling back.
+`hdr-post` now carries the accepted RC-09 composition contract.
+`hdr-exposure` now carries the accepted RC-10 exposure and tone-mapping
+contract. Missing runtime assets still return nonzero rather than silently
+falling back.
 
 Detailed task dependencies and artifact evidence live in
 [`eve-runtime-contract-roadmap.md`](eve-runtime-contract-roadmap.md). That
@@ -1443,6 +1584,35 @@ The following checks passed on the host snapshot above:
   dynamic-shadow binding, yielding 2,224 unique relevant metallibs, and every
   one compiles the argument `readnone`; installed Python bytecode contains no
   override for Trinity's default-off `useDynamicLightsShadows` feature flag;
+- direct `PreTonemapColor` observability as a full-resolution FP16 named
+  output, with deterministic raw hashes, component validation, luminance
+  percentiles, and a clearly diagnostic Reinhard-plus-gamma PNG;
+- four distinct 180-frame RC-09 control hashes, followed by a canonical
+  540-frame 2560x1440 orbit retaining the exact authored attachment, decal,
+  light, shadow, AO, reflection, celestial, and postprocess inventory;
+- relative frame-pacing acceptance for 359 measured orbit frames at both
+  2560x1440 windowed and 4096x2304 native resolution, with no absolute Debug
+  FPS requirement and all configured p95/p99/maximum/outlier gates passing;
+- per-caster primary-cascade diagnostics distinguishing the required
+  frame-180 three-cascade Astero snapshot from valid six-split overlap later
+  in the 16-split orbit;
+- an RC-09 exact-system regression preserving the authored 60-degree observer
+  view and subpixel celestial sizes;
+- exact current-client `postprocess.black` validation, including baked
+  Uncharted2 curve values, dynamic-exposure percentiles/ranges/speeds, and
+  output gamma `1.0`;
+- atomic full-resolution pre/post-tone observability, 65-bin histogram and
+  eight-float exposure reports, and a CPU shader reconstruction staying below
+  one 8-bit code value of the Metal result;
+- matched 180-frame exposure-off/client reports with identical FP16 input,
+  distinct final hashes, reduced clipping, and retained low-end luminance;
+- 360-frame dark-to-bright and bright-to-dark camera cuts with meaningful
+  histogram steps, exact `2.0/1.5` fitted rates, no overshoot, and clean exit;
+- a 540-frame integrated RC-10 orbit retaining the accepted RC-09 inventory,
+  all exposure recurrences, and every named render product;
+- visible-window render-plus-present pacing at 60.26 mean FPS with all relative
+  gates passing; hidden-window pacing is excluded because WindowServer
+  throttles fully occluded CAMetalLayer drawables;
 - capture- and inspection-owned Cocoa objects drain before Trinity device
   destruction, and the ARC-managed window disables AppKit's legacy
   release-on-close behavior; finite, long-run, and inspection shutdowns are
@@ -1456,12 +1626,11 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Accept complete HDR composition under RC-09 with current-client local-light
-   shadows disabled and CP-21 explicit diagnostics preserved.
-2. Reaccept dynamic exposure against the complete composition.
-3. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
+1. Add authored bloom under RC-11 and validate it independently before film
+   grain.
+2. Resume film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
-4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+3. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

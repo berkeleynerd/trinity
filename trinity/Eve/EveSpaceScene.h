@@ -150,12 +150,32 @@ public:
 		uint32_t receiverMaskHeight = 0;
 		bool receiverMaskResolved = false;
 	};
+	struct DirectionalShadowDiagnostics
+	{
+		struct Caster
+		{
+			const IEveShadowCaster* caster = nullptr;
+			uint32_t tests = 0;
+			uint32_t acceptedCascades = 0;
+			uint32_t committedBatches = 0;
+		};
+		uint32_t casterTests = 0;
+		uint32_t acceptedCascades = 0;
+		uint32_t committedBatches = 0;
+		std::vector<Caster> casters;
+	};
 
 	ShadowResources RenderShadows( const Tr2TextureAL& depthMap, const Tr2TextureAL& normalMap, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext );
 	const DynamicLightShadowDiagnostics& GetDynamicLightShadowDiagnostics() const
 	{
 		return m_dynamicLightShadowDiagnostics;
 	}
+	const DirectionalShadowDiagnostics& GetDirectionalShadowDiagnostics() const
+	{
+		return m_directionalShadowDiagnostics;
+	}
+	const DirectionalShadowDiagnostics::Caster* FindDirectionalShadowCasterDiagnostics(
+		const IEveShadowCaster* caster ) const;
 	void SetDynamicLightShadowResolveEffect( Tr2Effect * effect )
 	{
 		m_dynamicLightShadowResolveEffect = effect;
@@ -364,6 +384,7 @@ public:
 		float radius;
 		IEveShadowCaster* caster;
 		Tr2PerObjectData* perObjectData;
+		uint32_t committedBatches = 0;
 	};
 
 	// Per-frame pixel constants for rendering scene
@@ -814,6 +835,7 @@ public:
 	bool m_enableShadows;
 
 	ShadowQuality m_shadowQuality;
+	DirectionalShadowDiagnostics m_directionalShadowDiagnostics;
 	DynamicLightShadowDiagnostics m_dynamicLightShadowDiagnostics;
 	struct DynamicLightShadowFace
 	{

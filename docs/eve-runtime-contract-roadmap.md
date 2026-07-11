@@ -45,9 +45,9 @@ This table is the authoritative implementation order.
 | RC-08 | Add sun shadows and AO | Accepted | RC-06, RC-07, RC-08A | Native cascades and CORTAO consume the accepted depth/normal products. Three cascades commit six V5 batches, all named products remain nonuniform, and the dynamic environment probe preserves readable detail in fully sun-shadowed regions without shadow-lightness or synthetic ambient. |
 | RC-08A | Restore V5 indirect fill and reflection probes | Accepted | RC-03, RC-05, RC-07 | Ultra dynamic reflection capture renders all six faces per frame and checks every copy/filter stage. The resulting 256x256 eight-mip cube is nonblack and nonuniform; off/static/dynamic environment-only captures are distinct. High-tier V5 consumes all seven SH vectors and the environment cube with client SH intensities `3.14`. |
 | RC-08B | Determine authored local-light shadow contract | Closed: client-parity N/A | RC-05C, RC-08 | The current macOS client defaults `useDynamicLightsShadows=false`, contains no client override, and ships 2,224 unique Metal libraries exposing the dynamic-shadow binding with all 2,224 compiled `readnone`. Auto mode resolves off; explicit atlas modes remain CP-21 diagnostics. |
-| RC-09 | Accept complete HDR scene composition | Active | RC-08B | Model, background, visible celestials and sun effects, visible attachments and decals, direct/indirect lighting, reflection, depth/normal, directional shadows, and AO coexist in FP16 with stable frame pacing. |
-| RC-10 | Reaccept exposure and tone mapping | Blocked | RC-09 | Settled `hdr-exposure` captures use the complete scene histogram and improve dynamic range without clipping, pumping, or hiding material errors. |
-| RC-11 | Add bloom and film grain | Blocked | RC-10 | Bloom is accepted independently before film grain; each has an A/B capture and clean finite run. |
+| RC-09 | Accept complete HDR scene composition | Accepted | RC-08B | `PreTonemapColor` proves the complete canonical composition is finite, nonuniform, and retains HDR headroom. Four controls differ from full; exact inventory checks and 540-frame windowed/native relative-pacing gates pass. |
+| RC-10 | Reaccept exposure and tone mapping | Accepted | RC-09 | The installed client Black and baked Uncharted2 Metal container are validated directly. Every histogram, exposure recurrence, CPU tone reference, controlled camera cut, matched off/client A/B, and integrated 540-frame composition gate passes. |
+| RC-11 | Add bloom and film grain | Active | RC-10 | Bloom is accepted independently before film grain; each has an A/B capture and clean finite run. |
 | RC-12 | Add distortion and volumetrics | Blocked | RC-09 | Each effect has its authored geometry/resources and a separate visual gate. |
 | RC-13 | Add velocity and TAA | Blocked | RC-05, RC-07 | Current/previous camera and object transforms produce valid velocity; TAA is accepted only after direct velocity visualization. |
 
@@ -63,7 +63,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-03 | SharedCache Astero conversion | Accepted | All three GR2 groups retain independent index ranges; isolated hull, booster, and distortion-geometry captures are coherent. | Build-time conversion bypasses runtime GR2 loading. |
 | CP-04 | Native EVE render batch | Accepted | `Main` and `Depth` techniques submit through `ITr2Renderable`. | Bridge is not a complete SOF-built `EveSpaceObject2`. |
 | CP-05 | Authored V5 material | Accepted as capability | Client `quadv5` and `quadheatv5`, SOF material/heat constants, logical textures, and independent batches load successfully. | Distortion composition remains separately gated; indexed overlays are accepted under CP-20. |
-| CP-06 | FP16 resolve, tone mapping, and blit | Accepted as capability | `hdr-blit` and `hdr-post` complete finite captures. | Input scene composition is incomplete. |
+| CP-06 | FP16 resolve, tone mapping, and blit | Accepted as capability | `hdr-blit` and `hdr-post` complete finite captures. | This historical isolated checkpoint is superseded by CP-22 composition and CP-23 tone fidelity. |
 | CP-07 | Client dynamic exposure compute | Accepted as capability | `hdr-exposure` runs histogram, merge, measure, and tone passes for 180 frames. | Fidelity is reaccepted only after RC-09 closes decals and local-light shadows. |
 | CP-08 | Fitting-scene illumination transport | Accepted as capability | Authored fitting sun, ambient, reflection intensity, and cube reach per-frame V5 constants. | Fitting is not representative in-space lighting and supplies no secondary SH sources. |
 | CP-09 | Authored universe background | Accepted | A01 background effect, cube textures, star map, reflection cube, and low-quality resources load from a checksummed build manifest and survive model/HDR/exposure captures. | The fixture does not reconstruct a named system's sun object or seeded `EveStarfield`. |
@@ -79,6 +79,8 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-19 | Native ultra reflection capture and filtering | Accepted | Client prefilter, main filter, mip generation, and cube-copy stages are synchronously validated and checked at dispatch. A sample-owned six-face HDR visualizer proves the 256x256 eight-mip result is nonblack and nonuniform after two warm-up frames. `Reports/AsteroV5IndirectResources.json` records 18 external inputs. | Exact-system mode remains the authority for celestial placement; cinematic mode is the material-composition gate. |
 | CP-20 | Native indexed SOF decals | Accepted | `IEveSpaceObjectDecalOwner` retains authored set/item order, raw transforms, high-detail static index arrays, V5 decal materials, faction maps, and kill-count display data. All 11 renderables commit native decal batches; `Reports/AsteroDecalResources.json` records 37 external inputs. | The kill counter defaults to zero without live ship state; lower imported LOD geometry, dynamic projection, and decal shadow/depth products remain deferred. |
 | CP-21 | Native raster dynamic-light shadow atlas writer | Accepted as capability | Validation mode selects one point light and six faces. Authored mode selects six point lights (two haze and four banner), renders 36 faces into a valid 16384x16384 D32 atlas, and commits two hull/booster batches per accepted caster pass. A sample-owned resolver also emits a full-resolution R16_UINT light mask. | The current macOS client defaults the feature off and all 2,224 shipped receiving candidates compile the binding `readnone`. Explicit authored eligibility remains the `probe-all-active` approximation for future diagnostics. |
+| CP-22 | Direct complete FP16 composition observability | Accepted | `PreTonemapColor` retains full-resolution `R16G16B16A16_FLOAT` before exposure/tone mapping. Raw validation, four distinct controls, complete inventory checks, all named products, and windowed/native 540-frame pacing runs pass. | Reinhard-plus-gamma PNGs remain diagnostic only; CP-23 supplies the accepted client tone path. |
+| CP-23 | Client histogram exposure and baked Uncharted2 output | Accepted | `PostTonemapColor`, the 65-value histogram, and the eight-float exposure state are captured from one frame. The CPU reconstruction differs by at most one 8-bit code value; both temporal rates and matched exposure-off/client dynamic-range gates pass. | The current client container bakes Uncharted2 and exposes no runtime tone-method permutation. ACES fields remain serialized but inactive. |
 
 ## Rung-model holes
 
@@ -87,7 +89,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | Rung 3: model through EVE scene | Representative scene/background, complete object construction, SH/local lights, and effect areas | Split into 3A geometry, 3B object/material, 3C in-space scene, and 3D object lighting. |
 | Rung 3E: visible SOF attachments | Authored additive and quad geometry was absent from the light-only bridge | Require independent family controls and native lifecycle submission before HDR composition. |
 | Rung 3F: indexed SOF decals | Authored projected markings, faction logos, and kill state were absent | Require native indexed overlay batches and prove that all non-color products remain unchanged. |
-| Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | Treat `hdr-post` and `hdr-exposure` as capability checkpoints until RC-09. |
+| Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | RC-09 accepts the FP16 composition and RC-10 accepts client histogram exposure plus baked Uncharted2 output. |
 | Rung 5: depth/normal after post | Depth/normal are prerequisites for AO, shadows, and complete composition | Validate products before accepting postprocess fidelity. |
 | Rung 4B: shadows and AO | Native products require the client reflection/SH contract to compose correctly | RC-08A restores ultra dynamic reflections and client SH intensity before accepting RC-08; keep off/static controls and CP-18 products as regressions. |
 | Rung 4C: local-light shadows | A valid atlas and caster pass do not prove material consumption | Current macOS client parity disables the feature and ships no receiving material. Keep CP-21 explicit diagnostics, but do not block HDR composition on an unavailable reference-client capability. |
@@ -95,13 +97,10 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Accept complete HDR composition under RC-09 with client-parity local shadows
-   disabled and CP-21 explicit diagnostics preserved.
-2. Reaccept settled exposure against the complete composition under RC-10.
+1. Add and validate authored bloom under RC-11 before enabling film grain.
 
-Bloom, film grain, distortion, volumetrics, velocity, and TAA are not in the
-active queue. Their capability work remains useful, but they may not advance
-the fidelity status until their direct-path prerequisites are accepted.
+Bloom is active under RC-11. Film grain follows only after bloom is accepted;
+distortion, volumetrics, velocity, and TAA remain outside the active queue.
 
 ## Evidence policy
 

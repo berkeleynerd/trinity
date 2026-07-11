@@ -665,6 +665,57 @@ void Tr2PostProcessRenderer::SetPostProcessingQuality( PostProcess::Quality qual
 	m_quality = quality;
 }
 
+void Tr2PostProcessRenderer::SetDiagnosticsEnabled( bool enabled )
+{
+	m_diagnosticsEnabled = enabled;
+	if( !enabled )
+	{
+		m_lastHistogramBuffer = {};
+	}
+}
+
+bool Tr2PostProcessRenderer::GetDiagnosticsEnabled() const
+{
+	return m_diagnosticsEnabled;
+}
+
+bool Tr2PostProcessRenderer::GetLastExecutionSucceeded() const
+{
+	return m_lastExecutionSucceeded;
+}
+
+bool Tr2PostProcessRenderer::ReadDiagnostics(
+	Tr2GpuResourcePool& gpuResourcePool,
+	Tr2RenderContext& renderContext,
+	Diagnostics& diagnostics ) const
+{
+	if( !m_diagnosticsEnabled )
+	{
+		return false;
+	}
+	diagnostics = m_lastDiagnostics;
+	if( m_lastHistogramBuffer.IsValid() )
+	{
+		const uint32_t* histogram = nullptr;
+		if( FAILED( m_lastHistogramBuffer->MapForReading( histogram, renderContext ) ) || !histogram )
+		{
+			return false;
+		}
+		std::copy_n( histogram, diagnostics.histogram.size(), diagnostics.histogram.begin() );
+		m_lastHistogramBuffer->UnmapForReading( renderContext );
+	}
+
+	auto exposureBuffer = GetExposureBuffer( gpuResourcePool );
+	const float* exposure = nullptr;
+	if( !exposureBuffer.IsValid() || FAILED( exposureBuffer->MapForReading( exposure, renderContext ) ) || !exposure )
+	{
+		return false;
+	}
+	std::copy_n( exposure, diagnostics.exposure.size(), diagnostics.exposure.begin() );
+	exposureBuffer->UnmapForReading( renderContext );
+	return true;
+}
+
 
 void Tr2PostProcessRenderer::Execute(
 	const Tr2TextureAL& destination,
@@ -675,15 +726,24 @@ void Tr2PostProcessRenderer::Execute(
 	EveSpaceScene* scene,
 	Tr2UpscalingContextAL* upscalingContext,
 	Tr2GpuResourcePool& gpuResourcePool,
-	Tr2RenderContext& renderContext )
+	Tr2RenderContext& renderContext,
+	Tr2GpuResourcePool::Texture* preTonemapOutput,
+	Tr2GpuResourcePool::Texture* postTonemapOutput )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+	m_lastDiagnostics = {};
+	m_lastExecutionSucceeded = true;
+	m_lastHistogramBuffer = {};
 
 	if( !sourceBuffer.IsValid() )
 	{
 		CCP_LOGERR( "Tr2PostProcessRenderer::Execute: Source buffer is invalid!" );
+		m_lastExecutionSucceeded = false;
 		return;
 	}
+	m_lastDiagnostics.sourceWidth = sourceBuffer->GetWidth();
+	m_lastDiagnostics.sourceHeight = sourceBuffer->GetHeight();
+	m_lastDiagnostics.sourceFormat = static_cast<uint32_t>( sourceBuffer->GetFormat() );
 	const auto renderSize = TextureSize2D{ sourceBuffer->GetWidth(), sourceBuffer->GetHeight() };
 	auto displaySize = renderSize;
 
@@ -761,14 +821,24 @@ void Tr2PostProcessRenderer::Execute(
 			m_taaFrameCounter = 0;
 		}
 
+		if( preTonemapOutput )
+		{
+			*preTonemapOutput = nonMsaaSource;
+		}
+
 		if( dynamicExposure )
 		{
 			histogramBuffer = RenderDynamicExposure( nonMsaaSource, gpuResourcePool, renderContext, dynamicExposure );
+			m_lastHistogramBuffer = m_diagnosticsEnabled ? histogramBuffer : Tr2GpuResourcePool::Buffer{};
 			if( !dynamicExposure->m_debug )
 			{
 				histogramBuffer = {};
 			}
 		}
+	}
+	else if( preTonemapOutput )
+	{
+		*preTonemapOutput = nonMsaaSource;
 	}
 
 	Tr2GpuResourcePool::Texture upscaledSource;
@@ -824,7 +894,7 @@ void Tr2PostProcessRenderer::Execute(
 		{
 			auto tonemappedOutput = gpuResourcePool.GetTempTexture( "Tonemapping Result", renderSize, destination.GetFormat(), RENDER_TARGET );
 
-			RenderTonemapping( tonemappedOutput, upscaledSource, postProcess, renderContext );
+			m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( tonemappedOutput, upscaledSource, postProcess, renderContext );
 
 			output = RenderUpscaling( tonemappedOutput, depthMap, velocity, opaqueColor, scene->GetReprojectionMatrix(), gpuResourcePool, renderContext, upscalingContext, dynamicExposure );
 			depthMap = {};
@@ -836,7 +906,7 @@ void Tr2PostProcessRenderer::Execute(
 		}
 		else
 		{
-			RenderTonemapping( output, upscaledSource, postProcess, renderContext );
+			m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( output, upscaledSource, postProcess, renderContext );
 		}
 
 		PrepareFullScreenTarget( destination, renderContext );
@@ -851,10 +921,21 @@ void Tr2PostProcessRenderer::Execute(
 	}
 	else
 	{
-		RenderTonemapping( output, upscaledSource, postProcess, renderContext );
+		m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( output, upscaledSource, postProcess, renderContext );
 		PrepareFullScreenTarget( destination, renderContext );
 		Tr2Renderer::DrawTexture( renderContext, output );
 	}
+	if( postTonemapOutput )
+	{
+		*postTonemapOutput = output;
+	}
+	m_lastDiagnostics.postTonemapWidth = output.IsValid() ? output->GetWidth() : 0;
+	m_lastDiagnostics.postTonemapHeight = output.IsValid() ? output->GetHeight() : 0;
+	m_lastDiagnostics.postTonemapFormat = output.IsValid() ? static_cast<uint32_t>( output->GetFormat() ) : 0;
+	m_lastExecutionSucceeded = m_lastDiagnostics.tonemappingSucceeded &&
+		( !m_lastDiagnostics.dynamicExposureActive ||
+		  ( m_lastDiagnostics.histogramCreated && m_lastDiagnostics.histogramMerged &&
+			m_lastDiagnostics.exposureMeasured ) );
 
 	if( postProcess != nullptr )
 	{
@@ -1204,6 +1285,18 @@ void Tr2PostProcessRenderer::RenderSignalLoss( const Tr2TextureAL& dest, Tr2Rend
 Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPDynamicExposureEffect* dynamicExposure )
 {
 	GPU_REGION( renderContext, "Exposure" );
+	m_lastDiagnostics.dynamicExposureActive = true;
+	m_lastDiagnostics.minBrightness = dynamicExposure->m_minBrightness;
+	m_lastDiagnostics.maxBrightness = dynamicExposure->m_maxBrightness;
+	m_lastDiagnostics.increaseSpeed = dynamicExposure->m_increaseSpeed;
+	m_lastDiagnostics.decreaseSpeed = dynamicExposure->m_decreaseSpeed;
+	m_lastDiagnostics.minLuminance = dynamicExposure->m_minLuminance;
+	m_lastDiagnostics.maxLuminance = dynamicExposure->m_maxLuminance;
+	m_lastDiagnostics.exposureInfluence = dynamicExposure->m_influence;
+	m_lastDiagnostics.exposureMiddleValue = dynamicExposure->m_middleValue;
+	m_lastDiagnostics.exposureAdjustment = dynamicExposure->m_adjustment;
+	m_lastDiagnostics.minExposure = dynamicExposure->m_minExposure;
+	m_lastDiagnostics.maxExposure = dynamicExposure->m_maxExposure;
 
 	uint32_t tilesX = source.GetWidth() / HISTOGRAM_TILE_SIZE_X + 1;
 	uint32_t tilesY = source.GetHeight() / HISTOGRAM_TILE_SIZE_Y + 1;
@@ -1217,7 +1310,11 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 
 	auto histogram = gpuResourcePool.GetTempBuffer(
 		"Histogram",
-		Tr2BufferDescriptionAL( Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT, 65, Tr2GpuUsage::SHADER_RESOURCE | Tr2GpuUsage::UNORDERED_ACCESS, Tr2CpuUsage::NONE ) );
+		Tr2BufferDescriptionAL(
+			Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT,
+			65,
+			Tr2GpuUsage::SHADER_RESOURCE | Tr2GpuUsage::UNORDERED_ACCESS,
+			m_diagnosticsEnabled ? Tr2CpuUsage::READ : Tr2CpuUsage::NONE ) );
 
 
 	// we also need to update the tonemapping buffer
@@ -1260,6 +1357,9 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 	auto exposureBuffer = GetExposureBuffer( gpuResourcePool );
 	TEMP_PARAM( m_dynamicExposureMeasureExposureShader, "Exposure", exposureBuffer );
 	const bool measuredExposure = Tr2Renderer::RunComputeShader( m_dynamicExposureMeasureExposureShader, 1, 1, 1, renderContext );
+	m_lastDiagnostics.histogramCreated = createdHistogram;
+	m_lastDiagnostics.histogramMerged = mergedHistogram;
+	m_lastDiagnostics.exposureMeasured = measuredExposure && exposureBuffer.IsValid();
 	static bool reportedComputeFailure = false;
 	if( !reportedComputeFailure && ( !createdHistogram || !mergedHistogram || !measuredExposure ) )
 	{
@@ -1562,19 +1662,28 @@ void Tr2PostProcessRenderer::RenderTaa( const Tr2TextureAL& dest, const Tr2Textu
 	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_taaCopyEffect, renderContext );
 }
 
-void Tr2PostProcessRenderer::RenderTonemapping(
+bool Tr2PostProcessRenderer::RenderTonemapping(
 	const Tr2TextureAL& dest,
 	const Tr2TextureAL& source,
 	Tr2PostProcess2* postprocess,
 	Tr2RenderContext& renderContext )
 {
 	GPU_REGION( renderContext, "Tonemapping" );
+	m_lastDiagnostics.outputGamma = g_eveSpaceSceneGammaBrightness;
 
 	m_tonemappingEffect->SetParameter( MEMOIZED_STRING( "OutputGamma" ), g_eveSpaceSceneGammaBrightness );
 
 	Tonemapping::ApplyColorCorrection( postprocess ? postprocess->GetColorCorrectionIfAvailable( m_quality ) : nullptr, m_tonemappingEffect );
 	Tonemapping::ApplyBloom( postprocess ? postprocess->GetBloomIfAvailable( m_quality ) : nullptr, m_tonemappingEffect, m_useNewBloom, m_bloomDebugMode );
 	Tonemapping::ApplyDynamicExposure( postprocess ? postprocess->GetDynamicExposureIfAvailable( m_quality ) : nullptr, m_tonemappingEffect, postprocess ? postprocess->m_exposureAdjustment : 0.0f );
+	if( postprocess )
+	{
+		if( auto dynamicExposure = postprocess->GetDynamicExposureIfAvailable( m_quality ) )
+		{
+			m_lastDiagnostics.exposureAdjustment =
+				postprocess->m_exposureAdjustment + dynamicExposure->m_adjustment;
+		}
+	}
 	Tonemapping::ApplyVignette( postprocess ? postprocess->GetVignetteIfAvailable( m_quality ) : nullptr, m_tonemappingEffect );
 	Tonemapping::ApplyDesatureate( postprocess ? postprocess->GetDesaturateIfAvailable( m_quality ) : nullptr, m_tonemappingEffect );
 	Tonemapping::ApplyFade( postprocess ? postprocess->GetFadeIfAvailable( m_quality ) : nullptr, m_tonemappingEffect );
@@ -1590,6 +1699,14 @@ void Tr2PostProcessRenderer::RenderTonemapping(
 	{
 		if( auto tonemapping = postprocess->GetTonemappingIfAvailable() )
 		{
+			m_lastDiagnostics.tonemappingMethod = static_cast<int32_t>( tonemapping->m_method );
+			m_lastDiagnostics.shoulderStrength = tonemapping->m_uncharted2.m_shoulderStrength;
+			m_lastDiagnostics.linearStrength = tonemapping->m_uncharted2.m_linearStrength;
+			m_lastDiagnostics.linearAngle = tonemapping->m_uncharted2.m_linearAngle;
+			m_lastDiagnostics.toeStrength = tonemapping->m_uncharted2.m_toeStrength;
+			m_lastDiagnostics.toeNumerator = tonemapping->m_uncharted2.m_toeNumerator;
+			m_lastDiagnostics.toeDenominator = tonemapping->m_uncharted2.m_toeDenominator;
+			m_lastDiagnostics.whiteScale = tonemapping->m_uncharted2.m_whiteScale;
 			if( tonemapping->m_method == Tr2PPTonemappingEffect::Aces )
 			{
 				Tonemapping::ApplyAcesTonemappingMethod( tonemapping, m_tonemappingEffect );
@@ -1618,11 +1735,12 @@ void Tr2PostProcessRenderer::RenderTonemapping(
 	{
 		CCP_LOGERR( "Tone mapping effect has no shader for the selected options" );
 		std::fprintf( stderr, "Tone mapping effect has no shader for the selected options\n" );
-		return;
+		return false;
 	}
 
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_tonemappingEffect, source, renderContext );
+	return true;
 }
 
 void Tr2PostProcessRenderer::RenderGenericEffect( const Tr2TextureAL& dest, const Tr2TextureAL& src, Tr2RenderContext& renderContext, Tr2PPGenericEffectPtr genericEffect )

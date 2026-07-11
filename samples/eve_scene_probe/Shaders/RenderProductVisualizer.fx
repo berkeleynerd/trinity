@@ -52,9 +52,15 @@ float4 MainPS( VertexOutput input ) : SV_Target
 		float ao = AoUsesAlpha > 0.5 ? value.a * 0.5 + 0.5 : value.r;
 		return float4( ao, ao, ao, 1.0 );
 	}
-	if( RenderProductMode >= 5.5 )
+	if( RenderProductMode >= 5.5 && RenderProductMode < 6.5 )
 	{
 		return float4( value.rgb * 0.5 + 0.5, 1.0 );
+	}
+	if( RenderProductMode >= 6.5 )
+	{
+		float3 hdr = max( value.rgb, 0.0 );
+		float3 reinhard = hdr / ( 1.0 + hdr );
+		return float4( pow( reinhard, 1.0 / 2.2 ), 1.0 );
 	}
 	return float4( value.rgb, 1.0 );
 }

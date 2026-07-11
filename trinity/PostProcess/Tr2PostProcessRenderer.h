@@ -109,6 +109,43 @@ public:
 
 	Tr2PostProcessRenderer( IRoot* lockobj = 0 );
 
+	struct Diagnostics
+	{
+		bool dynamicExposureActive = false;
+		bool histogramCreated = false;
+		bool histogramMerged = false;
+		bool exposureMeasured = false;
+		bool tonemappingSucceeded = false;
+		uint32_t sourceWidth = 0;
+		uint32_t sourceHeight = 0;
+		uint32_t sourceFormat = 0;
+		uint32_t postTonemapWidth = 0;
+		uint32_t postTonemapHeight = 0;
+		uint32_t postTonemapFormat = 0;
+		std::array<uint32_t, 65> histogram = {};
+		std::array<float, 8> exposure = {};
+		float minBrightness = 0.0f;
+		float maxBrightness = 0.0f;
+		float increaseSpeed = 0.0f;
+		float decreaseSpeed = 0.0f;
+		float minLuminance = 0.0f;
+		float maxLuminance = 0.0f;
+		float exposureInfluence = 0.0f;
+		float exposureMiddleValue = 0.0f;
+		float exposureAdjustment = 0.0f;
+		float minExposure = 0.0f;
+		float maxExposure = 0.0f;
+		float shoulderStrength = 0.0f;
+		float linearStrength = 0.0f;
+		float linearAngle = 0.0f;
+		float toeStrength = 0.0f;
+		float toeNumerator = 0.0f;
+		float toeDenominator = 0.0f;
+		float whiteScale = 0.0f;
+		float outputGamma = 0.0f;
+		int32_t tonemappingMethod = -1;
+	};
+
 	enum class BloomDebugMode
 	{
 		BLOOM_DEBUG_NONE,
@@ -130,7 +167,14 @@ public:
 		EveSpaceScene* scene,
 		Tr2UpscalingContextAL* upscalingContext,
 		Tr2GpuResourcePool& gpuResourcePool,
-		Tr2RenderContext& renderContext );
+		Tr2RenderContext& renderContext,
+		Tr2GpuResourcePool::Texture* preTonemapOutput = nullptr,
+		Tr2GpuResourcePool::Texture* postTonemapOutput = nullptr );
+
+	void SetDiagnosticsEnabled( bool enabled );
+	bool GetDiagnosticsEnabled() const;
+	bool ReadDiagnostics( Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Diagnostics& diagnostics ) const;
+	bool GetLastExecutionSucceeded() const;
 
 	PostProcess::Quality GetPostProcessingQuality() const;
 	void SetPostProcessingQuality( PostProcess::Quality quality );
@@ -225,7 +269,7 @@ private:
 	Tr2EffectPtr m_tonemappingEffect;
 	uint8_t m_lutsEnabled;
 	bool m_vignetteEnabled;
-	void RenderTonemapping(
+	bool RenderTonemapping(
 		const Tr2TextureAL& dest,
 		const Tr2TextureAL& source,
 		Tr2PostProcess2* activePostProcess,
@@ -256,6 +300,10 @@ private:
 	Tr2EffectPtr m_fidelityFxCasShader;
 
 	Be::Time m_lastFrameTime;
+	bool m_diagnosticsEnabled = false;
+	bool m_lastExecutionSucceeded = true;
+	Diagnostics m_lastDiagnostics;
+	Tr2GpuResourcePool::Buffer m_lastHistogramBuffer;
 };
 
 TYPEDEF_BLUECLASS( Tr2PostProcessRenderer );

@@ -356,7 +356,9 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "ShadowMap" ) != 0 &&
 			strcmp( output.c_str(), "CascadedShadowDepth" ) != 0 &&
 			strcmp( output.c_str(), "DynamicLightShadowDepth" ) != 0 &&
-			strcmp( output.c_str(), "SSAOMap" ) != 0 )
+			strcmp( output.c_str(), "SSAOMap" ) != 0 &&
+			strcmp( output.c_str(), "PreTonemapColor" ) != 0 &&
+			strcmp( output.c_str(), "PostTonemapColor" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
 			return false;
@@ -637,7 +639,20 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		}
 		else
 		{
-			m_postProcess->Execute( *destinations.data, std::move( customBackBuffer ), depthBuffer, std::move( velocityMap ), std::move( opaqueBackBuffer ), m_scene, m_upscalingContext, m_gpuResourcePool, renderContext );
+			auto preTonemapOutput = FindNamedOutput( outputs, "PreTonemapColor" );
+			auto postTonemapOutput = FindNamedOutput( outputs, "PostTonemapColor" );
+			m_postProcess->Execute(
+				*destinations.data,
+				std::move( customBackBuffer ),
+				depthBuffer,
+				std::move( velocityMap ),
+				std::move( opaqueBackBuffer ),
+				m_scene,
+				m_upscalingContext,
+				m_gpuResourcePool,
+				renderContext,
+				preTonemapOutput ? &preTonemapOutput->texture : nullptr,
+				postTonemapOutput ? &postTonemapOutput->texture : nullptr );
 		}
 	}
 	SetCameraToRenderer( renderContext );
@@ -662,6 +677,27 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	{
 		m_fpsRenderer->Execute( realTime, simTime, renderContext );
 	}
+}
+
+void EveSpaceSceneRenderDriver::SetPostProcessDiagnosticsEnabled( bool enabled )
+{
+	if( m_postProcess )
+	{
+		m_postProcess->SetDiagnosticsEnabled( enabled );
+	}
+}
+
+bool EveSpaceSceneRenderDriver::ReadPostProcessDiagnostics(
+	Tr2RenderContext& renderContext,
+	Tr2PostProcessRenderer::Diagnostics& diagnostics ) const
+{
+	return m_postProcess && m_postProcess->ReadDiagnostics(
+		const_cast<Tr2GpuResourcePool&>( m_gpuResourcePool ), renderContext, diagnostics );
+}
+
+bool EveSpaceSceneRenderDriver::GetLastPostProcessExecutionSucceeded() const
+{
+	return m_postProcess && m_postProcess->GetLastExecutionSucceeded();
 }
 
 void EveSpaceSceneRenderDriver::UpdateGpuParticleSystem( Tr2RenderContext& renderContext )
