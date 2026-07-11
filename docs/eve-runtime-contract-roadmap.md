@@ -47,8 +47,8 @@ This table is the authoritative implementation order.
 | RC-08B | Determine authored local-light shadow contract | Closed: client-parity N/A | RC-05C, RC-08 | The current macOS client defaults `useDynamicLightsShadows=false`, contains no client override, and ships 2,224 unique Metal libraries exposing the dynamic-shadow binding with all 2,224 compiled `readnone`. Auto mode resolves off; explicit atlas modes remain CP-21 diagnostics. |
 | RC-09 | Accept complete HDR scene composition | Accepted | RC-08B | `PreTonemapColor` proves the complete canonical composition is finite, nonuniform, and retains HDR headroom. Four controls differ from full; exact inventory checks and 540-frame windowed/native relative-pacing gates pass. |
 | RC-10 | Reaccept exposure and tone mapping | Accepted | RC-09 | The installed client Black and baked Uncharted2 Metal container are validated directly. Every histogram, exposure recurrence, CPU tone reference, controlled camera cut, matched off/client A/B, and integrated 540-frame composition gate passes. |
-| RC-11 | Add bloom and film grain | Active | RC-10 | Bloom is accepted independently before film grain; each has an A/B capture and clean finite run. |
-| RC-12 | Add distortion and volumetrics | Blocked | RC-09 | Each effect has its authored geometry/resources and a separate visual gate. |
+| RC-11 | Add bloom and film grain | Accepted | RC-10 | Installed-client bytecode selects legacy high-pass/blur bloom (`newBloom=false`). Exact Black values, every native pass, atomic bloom/post-tone/final readback, isolated off/bloom/grain captures, and the complete 180-frame composition gate pass. |
+| RC-12 | Add distortion and volumetrics | Active | RC-11 | Each effect has its authored geometry/resources and a separate visual gate. |
 | RC-13 | Add velocity and TAA | Blocked | RC-05, RC-07 | Current/previous camera and object transforms produce valid velocity; TAA is accepted only after direct velocity visualization. |
 
 ## Capability evidence tracker
@@ -81,6 +81,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-21 | Native raster dynamic-light shadow atlas writer | Accepted as capability | Validation mode selects one point light and six faces. Authored mode selects six point lights (two haze and four banner), renders 36 faces into a valid 16384x16384 D32 atlas, and commits two hull/booster batches per accepted caster pass. A sample-owned resolver also emits a full-resolution R16_UINT light mask. | The current macOS client defaults the feature off and all 2,224 shipped receiving candidates compile the binding `readnone`. Explicit authored eligibility remains the `probe-all-active` approximation for future diagnostics. |
 | CP-22 | Direct complete FP16 composition observability | Accepted | `PreTonemapColor` retains full-resolution `R16G16B16A16_FLOAT` before exposure/tone mapping. Raw validation, four distinct controls, complete inventory checks, all named products, and windowed/native 540-frame pacing runs pass. | Reinhard-plus-gamma PNGs remain diagnostic only; CP-23 supplies the accepted client tone path. |
 | CP-23 | Client histogram exposure and baked Uncharted2 output | Accepted | `PostTonemapColor`, the 65-value histogram, and the eight-float exposure state are captured from one frame. The CPU reconstruction differs by at most one 8-bit code value; both temporal rates and matched exposure-off/client dynamic-range gates pass. | The current client container bakes Uncharted2 and exposes no runtime tone-method permutation. ACES fields remain serialized but inactive. |
+| CP-24 | Client legacy bloom and film grain | Accepted | `BloomMap` retains the half-resolution FP16 high-pass/blur result and `FinalPostProcessColor` retains the post-grain output. Exact Black values and installed-client `newBloom=false` selection are validated; all native passes and isolated A/B captures pass. | LUTs, color correction, distortion, volumetrics, and the unused six-level new-bloom branch remain outside RC-11. |
 
 ## Rung-model holes
 
@@ -89,7 +90,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | Rung 3: model through EVE scene | Representative scene/background, complete object construction, SH/local lights, and effect areas | Split into 3A geometry, 3B object/material, 3C in-space scene, and 3D object lighting. |
 | Rung 3E: visible SOF attachments | Authored additive and quad geometry was absent from the light-only bridge | Require independent family controls and native lifecycle submission before HDR composition. |
 | Rung 3F: indexed SOF decals | Authored projected markings, faction logos, and kill state were absent | Require native indexed overlay batches and prove that all non-color products remain unchanged. |
-| Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | RC-09 accepts the FP16 composition and RC-10 accepts client histogram exposure plus baked Uncharted2 output. |
+| Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | RC-09 accepts FP16 composition, RC-10 accepts client exposure/tone output, and RC-11 accepts the client-selected legacy bloom and film-grain finish. |
 | Rung 5: depth/normal after post | Depth/normal are prerequisites for AO, shadows, and complete composition | Validate products before accepting postprocess fidelity. |
 | Rung 4B: shadows and AO | Native products require the client reflection/SH contract to compose correctly | RC-08A restores ultra dynamic reflections and client SH intensity before accepting RC-08; keep off/static controls and CP-18 products as regressions. |
 | Rung 4C: local-light shadows | A valid atlas and caster pass do not prove material consumption | Current macOS client parity disables the feature and ships no receiving material. Keep CP-21 explicit diagnostics, but do not block HDR composition on an unavailable reference-client capability. |
@@ -97,10 +98,10 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Add and validate authored bloom under RC-11 before enabling film grain.
+1. Isolate authored distortion and volumetric/froxel effects under RC-12.
 
-Bloom is active under RC-11. Film grain follows only after bloom is accepted;
-distortion, volumetrics, velocity, and TAA remain outside the active queue.
+RC-11 bloom and film grain are accepted. Distortion and volumetrics are now
+active under RC-12; velocity and TAA remain queued behind that unit.
 
 ## Evidence policy
 

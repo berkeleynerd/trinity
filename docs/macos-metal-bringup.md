@@ -23,6 +23,7 @@ The following paths build and run on this host:
 | EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections, submits independent authored hull and booster batches, and renders active SOF attachments and indexed decals. The high client shader tier consumes Trinity SH and tiled local lights; distortion remains deferred. |
 | EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Accepted RC-09 path: complete New Eden composition remains observable in FP16 before exposure and tone mapping, with inventory, product, HDR-headroom, and pacing gates. |
 | EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Accepted RC-10 path: client histogram, exposure adaptation, baked Uncharted2 tone mapping, direct CPU parity, and complete-scene composition gates pass. |
+| EVE post finish | `TrinityALEveSceneProbe_metal --quality-rung hdr-finish` | Accepted RC-11 path: client-selected legacy bloom and authored film grain pass exact-contract, atomic readback, isolated A/B, and complete-scene gates. |
 
 The accepted EVE model rung defaults to the Sisters of EVE Astero geometry and
 its full-detail maps from the local EVE SharedCache. The comparison mode still
@@ -1416,7 +1417,56 @@ TrinityALEveSceneProbe_metal_debug --windowed 1280x720 --background-capture \
 identical FP16 input, distinct final output, clipping reduction, and low-end
 retention. Reports embed the generated postprocess resource manifest with
 logical paths, absolute SharedCache sources, sizes, and checksums. RC-10 and
-CP-23 are accepted; bloom becomes the next direct-path unit under RC-11.
+CP-23 were accepted here, making bloom the next direct-path unit under RC-11.
+
+### Client legacy bloom and film grain (RC-11)
+
+The installed client bytecode at
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
+(30,935,325 bytes, SHA-256
+`232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`)
+sets `newBloom=false`. RC-11 therefore uses Trinity's legacy high-pass plus
+separable-blur path, not the dormant six-level new-bloom implementation.
+
+Live Black inspection confirms bloom threshold `0`, scale `0.5`, brightness
+`0.2`, exposure dependency off, size scale `4`, six steps, and no directional
+or grime contribution. Film grain is colored with amount `0.6`, size `1.25`,
+intensity `0.0008`, density `0.35`, contrast `4`, and brightness modifier
+`-3`. Startup validates these values and synchronously prepares the exact
+high-pass, blur, film-grain, and noise resources. The generated
+`Reports/PostFinishResources.json` records every logical path, absolute hashed
+SharedCache source, byte size, SHA-256, and build-tree destination.
+
+The driver publishes `BloomMap` immediately before tone mapping and
+`FinalPostProcessColor` after film grain. `--validate-post-finish` atomically
+reads bloom, post-tone, and final color from one frozen execution. On the
+640x480-point Retina control (1280x960 backing), the accepted 180-frame run
+reported a 640x480 FP16 bloom hash `cd1daee2b5e69913`, all 307,200 pixels
+nonzero, luminance `0.00158134/0.04480440/0.80055291` min/mean/max, and no
+invalid components. Grain changed 162,001 RGB pixels, changed no alpha, and
+had mean/p99/maximum residual `0.057932/1/2` code values. RC-09 composition
+and all 180 exposure recurrences passed in the same run.
+
+Same-frame finish-off, bloom-only, and bloom-plus-grain PNGs have distinct
+SHA-256 values `275e9715...`, `ae4946a3...`, and `8d30177a...`. This accepts
+RC-11 and CP-24 without enabling LUTs, color correction, distortion,
+volumetrics, TAA, velocity, upscaling, or the unused new-bloom branch.
+
+The final native full-screen inspection used the complete New Eden cinematic
+profile with client exposure, legacy bloom, and film grain enabled. The scene
+remained coherent through camera motion, the finish effects introduced no
+visible composition regression, the user accepted the result, and closing the
+window returned status `0`.
+
+```sh
+TrinityALEveSceneProbe_metal_debug --windowed 640x480 --background-capture \
+  --frames 180 --quality-rung hdr-finish --asset astero \
+  --scene-fixture new-eden --composition cinematic \
+  --local-lights authored --local-shadows off --attachments authored \
+  --decals authored --reflection-source dynamic --shadows high --ao high \
+  --sun-effects all --validate-composition --validate-post-finish \
+  --render-product final-postprocess --capture-prefix Captures/rc11/canonical
+```
 
 ## Revised rung model
 
@@ -1441,12 +1491,14 @@ make those prerequisites explicit.
 | 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
 | 4C | Complete HDR scene composition | Accepted | The canonical New Eden composition passes direct FP16 validation, complete inventory checks, distinct controls, full product capture, and relative pacing at windowed and native resolutions. |
 | 5 | Exposure and tone mapping | Accepted | Client histogram exposure and baked Uncharted2 output pass direct CPU, temporal, A/B, integrated, and manual gates. |
-| 6 | Bloom, film grain, distortion, and volumetrics | Active at bloom | Add one effect at a time after the accepted rung 5 baseline. |
+| 6 | Bloom and film grain | Accepted | Client-selected legacy bloom and authored film grain pass exact-contract, native-pass, atomic readback, isolated A/B, and integrated composition gates. |
+| 6B | Distortion and volumetrics | Active | Add each transparent/deferred subsystem independently after the accepted final-color baseline. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
 
 `hdr-post` now carries the accepted RC-09 composition contract.
 `hdr-exposure` now carries the accepted RC-10 exposure and tone-mapping
-contract. Missing runtime assets still return nonzero rather than silently
+contract. `hdr-finish` adds the accepted RC-11 legacy bloom and film-grain
+finish. Missing runtime assets still return nonzero rather than silently
 falling back.
 
 Detailed task dependencies and artifact evidence live in
@@ -1610,6 +1662,9 @@ The following checks passed on the host snapshot above:
   histogram steps, exact `2.0/1.5` fitted rates, no overshoot, and clean exit;
 - a 540-frame integrated RC-10 orbit retaining the accepted RC-09 inventory,
   all exposure recurrences, and every named render product;
+- exact installed-client legacy-bloom selection and Black-value validation,
+  atomic half-resolution FP16 bloom/post-tone/final readback, distinct
+  off/bloom/grain controls, and a passing 180-frame integrated RC-11 run;
 - visible-window render-plus-present pacing at 60.26 mean FPS with all relative
   gates passing; hidden-window pacing is excluded because WindowServer
   throttles fully occluded CAMetalLayer drawables;
@@ -1626,10 +1681,8 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Add authored bloom under RC-11 and validate it independently before film
-   grain.
-2. Resume film grain, distortion, volumetrics, velocity, and TAA one
-   observable subsystem at a time.
+1. Isolate authored distortion and volumetric/froxel effects under RC-12.
+2. Resume velocity and TAA only after those composition effects are accepted.
 3. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 

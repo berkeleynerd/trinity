@@ -116,12 +116,26 @@ public:
 		bool histogramMerged = false;
 		bool exposureMeasured = false;
 		bool tonemappingSucceeded = false;
+		bool bloomActive = false;
+		bool useNewBloom = false;
+		bool bloomHighPassSucceeded = false;
+		bool bloomBlurHorizontalSucceeded = false;
+		bool bloomBlurVerticalSucceeded = false;
+		bool bloomSucceeded = false;
+		bool filmGrainActive = false;
+		bool filmGrainSucceeded = false;
 		uint32_t sourceWidth = 0;
 		uint32_t sourceHeight = 0;
 		uint32_t sourceFormat = 0;
 		uint32_t postTonemapWidth = 0;
 		uint32_t postTonemapHeight = 0;
 		uint32_t postTonemapFormat = 0;
+		uint32_t bloomWidth = 0;
+		uint32_t bloomHeight = 0;
+		uint32_t bloomFormat = 0;
+		uint32_t finalWidth = 0;
+		uint32_t finalHeight = 0;
+		uint32_t finalFormat = 0;
 		std::array<uint32_t, 65> histogram = {};
 		std::array<float, 8> exposure = {};
 		float minBrightness = 0.0f;
@@ -144,6 +158,18 @@ public:
 		float whiteScale = 0.0f;
 		float outputGamma = 0.0f;
 		int32_t tonemappingMethod = -1;
+		float bloomLuminanceThreshold = 0.0f;
+		float bloomLuminanceScale = 0.0f;
+		float bloomBrightness = 0.0f;
+		bool bloomExposureDependency = false;
+		float bloomGrimeWeight = 0.0f;
+		bool filmGrainColored = false;
+		float filmGrainColorAmount = 0.0f;
+		float filmGrainSize = 0.0f;
+		float filmGrainIntensity = 0.0f;
+		float filmGrainDensity = 0.0f;
+		float filmGrainContrast = 0.0f;
+		float filmGrainBrightnessModifier = 0.0f;
 	};
 
 	enum class BloomDebugMode
@@ -169,12 +195,16 @@ public:
 		Tr2GpuResourcePool& gpuResourcePool,
 		Tr2RenderContext& renderContext,
 		Tr2GpuResourcePool::Texture* preTonemapOutput = nullptr,
-		Tr2GpuResourcePool::Texture* postTonemapOutput = nullptr );
+		Tr2GpuResourcePool::Texture* bloomOutput = nullptr,
+		Tr2GpuResourcePool::Texture* postTonemapOutput = nullptr,
+		Tr2GpuResourcePool::Texture* finalPostProcessOutput = nullptr );
 
 	void SetDiagnosticsEnabled( bool enabled );
 	bool GetDiagnosticsEnabled() const;
 	bool ReadDiagnostics( Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Diagnostics& diagnostics ) const;
 	bool GetLastExecutionSucceeded() const;
+	void SetUseNewBloom( bool enabled );
+	bool GetUseNewBloom() const;
 
 	PostProcess::Quality GetPostProcessingQuality() const;
 	void SetPostProcessingQuality( PostProcess::Quality quality );
@@ -251,7 +281,7 @@ private:
 	uint32_t m_taaFrameCounter;
 
 	// film grain
-	void RenderFilmGrain( const Tr2TextureAL& dest, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain );
+	bool RenderFilmGrain( const Tr2TextureAL& destination, const Tr2TextureAL& source, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain );
 	Tr2EffectPtr m_grainShader;
 
 	Tr2GpuResourcePool::Texture RenderUpscaling(
@@ -290,7 +320,13 @@ private:
 	[[nodiscard]] Tr2GpuResourcePool::Texture GetBlackTexture( Tr2GpuResourcePool & gpuResourcePool ) const;
 
 	// Common
-	Tr2GpuResourcePool::Texture Blur( Tr2GpuResourcePool::Texture src, Tr2GpuResourcePool & gpuResourcePool, Tr2RenderContext & renderContext, const PostProcessBlur::BlurContext& blurContext );
+	Tr2GpuResourcePool::Texture Blur(
+		Tr2GpuResourcePool::Texture src,
+		Tr2GpuResourcePool & gpuResourcePool,
+		Tr2RenderContext & renderContext,
+		const PostProcessBlur::BlurContext& blurContext,
+		bool* horizontalSucceeded = nullptr,
+		bool* verticalSucceeded = nullptr );
 	Tr2GpuResourcePool::Texture DownSampleDepth( const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext );
 
 	Tr2EffectPtr m_downsampleDepthEffect;

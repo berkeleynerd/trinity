@@ -28,6 +28,7 @@ The resolver writes these build-tree reports on this host:
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroLocalLightResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroAttachmentResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroShadowAoResources.json`
+- `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/PostFinishResources.json`
 
 Every JSON entry records `logicalPath`, the relative and absolute source index,
 the relative and absolute hashed `ResFiles` source, byte size, SHA-256, and the
@@ -281,3 +282,25 @@ alliance-logo and two corporation-logo slots. The tall `soe_banner_base.dds`
 texture is retained only as provenance for the rejected first experiment. The
 installed client's identity-dependent logo service would otherwise populate
 these slots; its no-identity fallback is `res:/texture/global/black.dds`.
+
+### RC-11 post-finish resources
+
+```text
+res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_depth
+res:/graphics/effect.metal/managed/space/postprocess/blur.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/blur.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/blur.sm_depth
+res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_depth
+res:/texture/global/film_grain_noise.png
+```
+
+`Reports/PostFinishResources.json` also records inherited checksummed evidence
+for `postprocess.black`, tone mapping, and exposure shaders. The installed
+client bytecode used to establish `newBloom=false` is
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
+(30,935,325 bytes, SHA-256
+`232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`).

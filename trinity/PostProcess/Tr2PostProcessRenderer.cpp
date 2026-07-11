@@ -53,20 +53,27 @@ void DrawPartiallyInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction
 	renderContext.m_esm.PopRenderTarget();
 }
 
-void DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, Tr2RenderContext& renderContext )
+bool DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, Tr2RenderContext& renderContext )
 {
 	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
 	renderContext.m_esm.PushRenderTarget( dest );
-	Tr2Renderer::DrawScreenQuad( renderContext, effect );
+	Tr2Shader* shader = effect ? effect->GetShaderStateInterface() : nullptr;
+	const bool succeeded = shader && shader->GetPassCount( 0 ) > 0;
+	if( succeeded )
+	{
+		Tr2Renderer::DrawScreenQuad( renderContext, effect );
+	}
 	renderContext.m_esm.PopRenderTarget();
+	return succeeded;
 }
 
-void DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, const Tr2TextureAL& src, Tr2RenderContext& renderContext )
+bool DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, Tr2Effect* effect, const Tr2TextureAL& src, Tr2RenderContext& renderContext )
 {
 	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
 	renderContext.m_esm.PushRenderTarget( dest );
-	Tr2Renderer::DrawTexture( renderContext, effect, src );
+	const bool succeeded = Tr2Renderer::DrawTexture( renderContext, effect, src );
 	renderContext.m_esm.PopRenderTarget();
+	return succeeded;
 }
 
 void PrepareFullScreenTarget( const Tr2TextureAL& destination, Tr2RenderContext& renderContext )
@@ -684,6 +691,16 @@ bool Tr2PostProcessRenderer::GetLastExecutionSucceeded() const
 	return m_lastExecutionSucceeded;
 }
 
+void Tr2PostProcessRenderer::SetUseNewBloom( bool enabled )
+{
+	m_useNewBloom = enabled;
+}
+
+bool Tr2PostProcessRenderer::GetUseNewBloom() const
+{
+	return m_useNewBloom;
+}
+
 bool Tr2PostProcessRenderer::ReadDiagnostics(
 	Tr2GpuResourcePool& gpuResourcePool,
 	Tr2RenderContext& renderContext,
@@ -728,7 +745,9 @@ void Tr2PostProcessRenderer::Execute(
 	Tr2GpuResourcePool& gpuResourcePool,
 	Tr2RenderContext& renderContext,
 	Tr2GpuResourcePool::Texture* preTonemapOutput,
-	Tr2GpuResourcePool::Texture* postTonemapOutput )
+	Tr2GpuResourcePool::Texture* bloomOutput,
+	Tr2GpuResourcePool::Texture* postTonemapOutput,
+	Tr2GpuResourcePool::Texture* finalPostProcessOutput )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 	m_lastDiagnostics = {};
@@ -870,11 +889,25 @@ void Tr2PostProcessRenderer::Execute(
 
 	// this needs to be after dynamic exposure, since bloom can be exposure dependent
 	Tr2GpuResourcePool::Texture bloomTexture = GetBlackTexture( gpuResourcePool );
+	m_lastDiagnostics.useNewBloom = m_useNewBloom;
 	if( postProcess != nullptr )
 	{
 		if( auto bloom = postProcess->GetBloomIfAvailable( m_quality ) )
 		{
+			m_lastDiagnostics.bloomActive = true;
+			m_lastDiagnostics.bloomLuminanceThreshold = bloom->m_luminanceThreshold;
+			m_lastDiagnostics.bloomLuminanceScale = bloom->m_luminanceScale;
+			m_lastDiagnostics.bloomBrightness = bloom->m_bloomBrightness;
+			m_lastDiagnostics.bloomExposureDependency = bloom->m_exposureDependency;
+			m_lastDiagnostics.bloomGrimeWeight = bloom->m_grimeWeight;
 			bloomTexture = RenderBloom( upscaledSource, gpuResourcePool, renderContext, bloom, dynamicExposure );
+			if( bloomOutput )
+			{
+				*bloomOutput = bloomTexture;
+			}
+			m_lastDiagnostics.bloomWidth = bloomTexture.IsValid() ? bloomTexture->GetWidth() : 0;
+			m_lastDiagnostics.bloomHeight = bloomTexture.IsValid() ? bloomTexture->GetHeight() : 0;
+			m_lastDiagnostics.bloomFormat = bloomTexture.IsValid() ? static_cast<uint32_t>( bloomTexture->GetFormat() ) : 0;
 		}
 	}
 
@@ -909,22 +942,12 @@ void Tr2PostProcessRenderer::Execute(
 			m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( output, upscaledSource, postProcess, renderContext );
 		}
 
-		PrepareFullScreenTarget( destination, renderContext );
-		if( filmGrain != nullptr )
-		{
-			RenderFilmGrain( output, renderContext, filmGrain );
-		}
-		else
-		{
-			Tr2Renderer::DrawTexture( renderContext, output );
-		}
 	}
 	else
 	{
 		m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( output, upscaledSource, postProcess, renderContext );
-		PrepareFullScreenTarget( destination, renderContext );
-		Tr2Renderer::DrawTexture( renderContext, output );
 	}
+
 	if( postTonemapOutput )
 	{
 		*postTonemapOutput = output;
@@ -932,16 +955,49 @@ void Tr2PostProcessRenderer::Execute(
 	m_lastDiagnostics.postTonemapWidth = output.IsValid() ? output->GetWidth() : 0;
 	m_lastDiagnostics.postTonemapHeight = output.IsValid() ? output->GetHeight() : 0;
 	m_lastDiagnostics.postTonemapFormat = output.IsValid() ? static_cast<uint32_t>( output->GetFormat() ) : 0;
+
+	Tr2GpuResourcePool::Texture finalOutput = output;
+	if( filmGrain != nullptr )
+	{
+		m_lastDiagnostics.filmGrainActive = true;
+		m_lastDiagnostics.filmGrainColored = filmGrain->m_colored;
+		m_lastDiagnostics.filmGrainColorAmount = filmGrain->m_colorAmount;
+		m_lastDiagnostics.filmGrainSize = filmGrain->m_grainSize;
+		m_lastDiagnostics.filmGrainIntensity = filmGrain->m_intensity;
+		m_lastDiagnostics.filmGrainDensity = filmGrain->m_grainDensity;
+		m_lastDiagnostics.filmGrainContrast = filmGrain->m_grainContrast;
+		m_lastDiagnostics.filmGrainBrightnessModifier = filmGrain->m_brightnessModifier;
+		finalOutput = gpuResourcePool.GetTempTexture(
+			"Final PostProcess Result",
+			displaySize,
+			destination.GetFormat(),
+			RENDER_TARGET );
+		m_lastDiagnostics.filmGrainSucceeded =
+			RenderFilmGrain( finalOutput, output, renderContext, filmGrain );
+	}
+	if( finalPostProcessOutput )
+	{
+		*finalPostProcessOutput = finalOutput;
+	}
+	m_lastDiagnostics.finalWidth = finalOutput.IsValid() ? finalOutput->GetWidth() : 0;
+	m_lastDiagnostics.finalHeight = finalOutput.IsValid() ? finalOutput->GetHeight() : 0;
+	m_lastDiagnostics.finalFormat = finalOutput.IsValid() ? static_cast<uint32_t>( finalOutput->GetFormat() ) : 0;
+
+	PrepareFullScreenTarget( destination, renderContext );
+	const bool presentationSucceeded = Tr2Renderer::DrawTexture( renderContext, finalOutput );
 	m_lastExecutionSucceeded = m_lastDiagnostics.tonemappingSucceeded &&
 		( !m_lastDiagnostics.dynamicExposureActive ||
 		  ( m_lastDiagnostics.histogramCreated && m_lastDiagnostics.histogramMerged &&
-			m_lastDiagnostics.exposureMeasured ) );
+			m_lastDiagnostics.exposureMeasured ) ) &&
+		( !m_lastDiagnostics.bloomActive || m_lastDiagnostics.bloomSucceeded ) &&
+		( !m_lastDiagnostics.filmGrainActive || m_lastDiagnostics.filmGrainSucceeded ) &&
+		presentationSucceeded;
 
 	if( postProcess != nullptr )
 	{
 		if( auto signalLoss = postProcess->GetSignalLossIfAvailable( m_quality ) )
 		{
-			RenderSignalLoss( output, renderContext, signalLoss );
+			RenderSignalLoss( finalOutput, renderContext, signalLoss );
 		}
 	}
 
@@ -993,7 +1049,13 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::RenderSharpening( bool enabl
 }
 
 // Helper function to blur certain channel of a source render target to a destination render target with a blur type (Big/Small)
-Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::Blur( Tr2GpuResourcePool::Texture src, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, const PostProcessBlur::BlurContext& blurContext )
+Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::Blur(
+	Tr2GpuResourcePool::Texture src,
+	Tr2GpuResourcePool& gpuResourcePool,
+	Tr2RenderContext& renderContext,
+	const PostProcessBlur::BlurContext& blurContext,
+	bool* horizontalSucceeded,
+	bool* verticalSucceeded )
 {
 	GPU_REGION( renderContext, "Blur" );
 
@@ -1039,12 +1101,20 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::Blur( Tr2GpuResourcePool::Te
 
 	auto rt2 = gpuResourcePool.GetTempTexture( "Blur Temp 1", src->GetWidth(), src->GetHeight(), src->GetFormat(), RENDER_TARGET );
 	TEMP_PARAM( effects.first, "BlitCurrent", src );
-	DrawInto( rt2, Tr2LoadAction::DONT_CARE, effects.first, renderContext );
+	const bool horizontal = DrawInto( rt2, Tr2LoadAction::DONT_CARE, effects.first, renderContext );
+	if( horizontalSucceeded )
+	{
+		*horizontalSucceeded = horizontal;
+	}
 	src = {};
 
 	auto rt1 = gpuResourcePool.GetTempTexture( "Blur Temp 2", rt2->GetWidth(), rt2->GetHeight(), rt2->GetFormat(), RENDER_TARGET );
 	TEMP_PARAM( effects.second, "BlitCurrent", rt2 );
-	DrawInto( rt1, Tr2LoadAction::DONT_CARE, effects.second, renderContext );
+	const bool vertical = DrawInto( rt1, Tr2LoadAction::DONT_CARE, effects.second, renderContext );
+	if( verticalSucceeded )
+	{
+		*verticalSucceeded = vertical;
+	}
 	return rt1;
 }
 
@@ -1073,9 +1143,21 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::RenderBloom( Tr2GpuResourceP
 		auto rt1 = gpuResourcePool.GetTempTexture( "Bloom", TextureSize2D( dest->GetDesc() ) * 0.5f, dest->GetFormat(), RENDER_TARGET );
 		TEMP_PARAM( m_bloomHighPassFilter, "BlitCurrent", dest );
 		TEMP_PARAM( m_bloomHighPassFilter, "Exposure", GetExposureBuffer( gpuResourcePool ) );
-		DrawInto( rt1, Tr2LoadAction::DONT_CARE, m_bloomHighPassFilter, renderContext );
+		m_lastDiagnostics.bloomHighPassSucceeded =
+			DrawInto( rt1, Tr2LoadAction::DONT_CARE, m_bloomHighPassFilter, renderContext );
 
-		return Blur( std::move( rt1 ), gpuResourcePool, renderContext, {} );
+		auto result = Blur(
+			std::move( rt1 ),
+			gpuResourcePool,
+			renderContext,
+			{},
+			&m_lastDiagnostics.bloomBlurHorizontalSucceeded,
+			&m_lastDiagnostics.bloomBlurVerticalSucceeded );
+		m_lastDiagnostics.bloomSucceeded = result.IsValid() &&
+			m_lastDiagnostics.bloomHighPassSucceeded &&
+			m_lastDiagnostics.bloomBlurHorizontalSucceeded &&
+			m_lastDiagnostics.bloomBlurVerticalSucceeded;
+		return result;
 	}
 
 	int depth = 0;
@@ -1209,9 +1291,12 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::RenderBloom( Tr2GpuResourceP
 
 	if( m_bloomDebugMode != BloomDebugMode::BLOOM_DEBUG_NONE )
 	{
-		return RenderBloomDebug( downsampleTexture, upsampleTexture, dest, gpuResourcePool, renderContext );
+		auto result = RenderBloomDebug( downsampleTexture, upsampleTexture, dest, gpuResourcePool, renderContext );
+		m_lastDiagnostics.bloomSucceeded = result.IsValid();
+		return result;
 	}
 
+	m_lastDiagnostics.bloomSucceeded = lastRt.IsValid();
 	return lastRt;
 }
 
@@ -1523,7 +1608,11 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::RenderUpscaling(
 	return dest;
 }
 
-void Tr2PostProcessRenderer::RenderFilmGrain( const Tr2TextureAL& dest, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain )
+bool Tr2PostProcessRenderer::RenderFilmGrain(
+	const Tr2TextureAL& destination,
+	const Tr2TextureAL& source,
+	Tr2RenderContext& renderContext,
+	Tr2PPFilmGrainEffect* filmGrain )
 {
 	GPU_REGION( renderContext, "Film grain" );
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
@@ -1533,8 +1622,8 @@ void Tr2PostProcessRenderer::RenderFilmGrain( const Tr2TextureAL& dest, Tr2Rende
 	m_grainShader->SetParameter( MEMOIZED_STRING( "GrainThreshold" ), 1.0f - filmGrain->m_grainDensity );
 	m_grainShader->SetParameter( MEMOIZED_STRING( "GrainEdge" ), 1.0f / ( filmGrain->m_grainContrast * filmGrain->m_grainSize ) );
 	m_grainShader->SetParameter( MEMOIZED_STRING( "BrightnessModifier" ), filmGrain->m_brightnessModifier );
-	m_grainShader->SetParameter( MEMOIZED_STRING( "InputTexture" ), dest );
-	Tr2Renderer::DrawScreenQuad( renderContext, m_grainShader );
+	TEMP_PARAM( m_grainShader, "InputTexture", source );
+	return DrawInto( destination, Tr2LoadAction::DONT_CARE, m_grainShader, renderContext );
 }
 
 void Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog )

@@ -2779,6 +2779,7 @@ enum StandaloneProbeRung
 	STANDALONE_PROBE_RUNG_HDR_BLIT = 4,
 	STANDALONE_PROBE_RUNG_HDR_POST = 5,
 	STANDALONE_PROBE_RUNG_HDR_EXPOSURE = 6,
+	STANDALONE_PROBE_RUNG_HDR_FINISH = 7,
 };
 
 enum StandaloneLightingView
@@ -2853,12 +2854,21 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_HDR_COMPOSITE = 1 << 10,
 	STANDALONE_CAPTURE_POST_TONEMAP = 1 << 11,
 	STANDALONE_CAPTURE_TONE_CONTRACT = 1 << 12,
+	STANDALONE_CAPTURE_BLOOM = 1 << 13,
+	STANDALONE_CAPTURE_FINAL_POSTPROCESS = 1 << 14,
+	STANDALONE_CAPTURE_POST_FINISH_CONTRACT = 1 << 15,
 };
 
 enum StandaloneDynamicExposureMode
 {
 	STANDALONE_DYNAMIC_EXPOSURE_OFF = 0,
 	STANDALONE_DYNAMIC_EXPOSURE_CLIENT = 1,
+};
+
+enum StandalonePostFinishMode
+{
+	STANDALONE_POST_FINISH_OFF = 0,
+	STANDALONE_POST_FINISH_CLIENT = 1,
 };
 
 enum StandaloneShadowMode
@@ -2976,6 +2986,8 @@ struct StandaloneProbe
 		renderProductReadback = Tr2TextureAL{};
 		hdrCompositeReadback = Tr2TextureAL{};
 		postTonemapReadback = Tr2TextureAL{};
+		bloomReadback = Tr2TextureAL{};
+		finalPostProcessReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
 		dynamicLightShadowResolveEffect.Unlock();
@@ -3024,13 +3036,20 @@ struct StandaloneProbe
 	Tr2TextureAL renderProductReadback;
 	Tr2TextureAL hdrCompositeReadback;
 	Tr2TextureAL postTonemapReadback;
+	Tr2TextureAL bloomReadback;
+	Tr2TextureAL finalPostProcessReadback;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
 	TrinityStandaloneToneValidation toneValidation;
+	TrinityStandalonePostFinishValidation postFinishValidation;
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
 	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
 	Tr2PPTonemappingEffectPtr clientTonemapping;
+	Tr2PPBloomEffectPtr clientBloom;
+	Tr2PPFilmGrainEffectPtr clientFilmGrain;
 	Tr2PostProcess2Ptr clientPostProcess;
 	int dynamicExposureMode = STANDALONE_DYNAMIC_EXPOSURE_CLIENT;
+	int bloomMode = STANDALONE_POST_FINISH_OFF;
+	int filmGrainMode = STANDALONE_POST_FINISH_OFF;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
 	bool postProcessDiagnosticsEnabled = false;
 	int64_t lastRealTime = 0;
@@ -5338,6 +5357,60 @@ bool EnsurePostTonemapReadback(
 	return true;
 }
 
+bool EnsureBloomReadback(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext,
+	uint32_t width,
+	uint32_t height,
+	Tr2RenderContextEnum::PixelFormat format )
+{
+	if( probe.bloomReadback.IsValid() && probe.bloomReadback.GetWidth() == width &&
+		probe.bloomReadback.GetHeight() == height && probe.bloomReadback.GetFormat() == format )
+	{
+		return true;
+	}
+	probe.bloomReadback = Tr2TextureAL{};
+	const HRESULT result = probe.bloomReadback.Create(
+		Tr2BitmapDimensions( width, height, 1, format ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable bloom target (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.bloomReadback.SetName( "StandaloneProbeBloomReadback" );
+	return true;
+}
+
+bool EnsureFinalPostProcessReadback(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext,
+	Tr2RenderContextEnum::PixelFormat format )
+{
+	if( probe.finalPostProcessReadback.IsValid() &&
+		probe.finalPostProcessReadback.GetWidth() == probe.renderWidth &&
+		probe.finalPostProcessReadback.GetHeight() == probe.renderHeight &&
+		probe.finalPostProcessReadback.GetFormat() == format )
+	{
+		return true;
+	}
+	probe.finalPostProcessReadback = Tr2TextureAL{};
+	const HRESULT result = probe.finalPostProcessReadback.Create(
+		Tr2BitmapDimensions( probe.renderWidth, probe.renderHeight, 1, format ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable final postprocess target (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.finalPostProcessReadback.SetName( "StandaloneProbeFinalPostProcessReadback" );
+	return true;
+}
+
 bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& renderContext )
 {
 	Tr2PostProcessRenderer::Diagnostics source;
@@ -5354,12 +5427,26 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 	destination.histogramMerged = source.histogramMerged;
 	destination.exposureMeasured = source.exposureMeasured;
 	destination.tonemappingSucceeded = source.tonemappingSucceeded;
+	destination.bloomActive = source.bloomActive;
+	destination.useNewBloom = source.useNewBloom;
+	destination.bloomHighPassSucceeded = source.bloomHighPassSucceeded;
+	destination.bloomBlurHorizontalSucceeded = source.bloomBlurHorizontalSucceeded;
+	destination.bloomBlurVerticalSucceeded = source.bloomBlurVerticalSucceeded;
+	destination.bloomSucceeded = source.bloomSucceeded;
+	destination.filmGrainActive = source.filmGrainActive;
+	destination.filmGrainSucceeded = source.filmGrainSucceeded;
 	destination.sourceWidth = source.sourceWidth;
 	destination.sourceHeight = source.sourceHeight;
 	destination.sourceFormat = source.sourceFormat;
 	destination.postTonemapWidth = source.postTonemapWidth;
 	destination.postTonemapHeight = source.postTonemapHeight;
 	destination.postTonemapFormat = source.postTonemapFormat;
+	destination.bloomWidth = source.bloomWidth;
+	destination.bloomHeight = source.bloomHeight;
+	destination.bloomFormat = source.bloomFormat;
+	destination.finalWidth = source.finalWidth;
+	destination.finalHeight = source.finalHeight;
+	destination.finalFormat = source.finalFormat;
 	std::copy( source.histogram.begin(), source.histogram.end(), destination.histogram );
 	std::copy( source.exposure.begin(), source.exposure.end(), destination.exposure );
 	destination.minBrightness = source.minBrightness;
@@ -5382,6 +5469,18 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 	destination.whiteScale = source.whiteScale;
 	destination.outputGamma = source.outputGamma;
 	destination.tonemappingMethod = source.tonemappingMethod;
+	destination.bloomLuminanceThreshold = source.bloomLuminanceThreshold;
+	destination.bloomLuminanceScale = source.bloomLuminanceScale;
+	destination.bloomBrightness = source.bloomBrightness;
+	destination.bloomExposureDependency = source.bloomExposureDependency;
+	destination.bloomGrimeWeight = source.bloomGrimeWeight;
+	destination.filmGrainColored = source.filmGrainColored;
+	destination.filmGrainColorAmount = source.filmGrainColorAmount;
+	destination.filmGrainSize = source.filmGrainSize;
+	destination.filmGrainIntensity = source.filmGrainIntensity;
+	destination.filmGrainDensity = source.filmGrainDensity;
+	destination.filmGrainContrast = source.filmGrainContrast;
+	destination.filmGrainBrightnessModifier = source.filmGrainBrightnessModifier;
 	return true;
 }
 
@@ -5544,6 +5643,173 @@ bool ReadToneMappingContract( StandaloneProbe& probe, Tr2RenderContext& renderCo
 		result.meanAbsoluteError,
 		result.p999AbsoluteError,
 		result.maximumAbsoluteError,
+		result.valid ? "pass" : "fail" );
+	return result.valid;
+}
+
+bool ReadPostFinishContract( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	probe.postFinishValidation = {};
+	if( !ReadPostProcessDiagnostics( probe, renderContext ) )
+	{
+		return false;
+	}
+	const auto& diagnostics = probe.postProcessDiagnostics;
+	auto& result = probe.postFinishValidation;
+	result.bloomWidth = probe.bloomReadback.GetWidth();
+	result.bloomHeight = probe.bloomReadback.GetHeight();
+	result.bloomFormat = static_cast<uint32_t>( probe.bloomReadback.GetFormat() );
+	result.finalWidth = probe.finalPostProcessReadback.GetWidth();
+	result.finalHeight = probe.finalPostProcessReadback.GetHeight();
+	result.finalFormat = static_cast<uint32_t>( probe.finalPostProcessReadback.GetFormat() );
+
+	const void* bloomData = nullptr;
+	const void* postData = nullptr;
+	const void* finalData = nullptr;
+	uint32_t bloomPitch = 0;
+	uint32_t postPitch = 0;
+	uint32_t finalPitch = 0;
+	if( FAILED( probe.bloomReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, bloomData, bloomPitch, renderContext ) ) ||
+		!bloomData )
+	{
+		return false;
+	}
+	if( FAILED( probe.postTonemapReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, postData, postPitch, renderContext ) ) ||
+		!postData )
+	{
+		probe.bloomReadback.UnmapForReading( renderContext );
+		return false;
+	}
+	if( FAILED( probe.finalPostProcessReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, finalData, finalPitch, renderContext ) ) ||
+		!finalData )
+	{
+		probe.postTonemapReadback.UnmapForReading( renderContext );
+		probe.bloomReadback.UnmapForReading( renderContext );
+		return false;
+	}
+
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	result.bloomHash = fnvOffset;
+	result.postTonemapHash = fnvOffset;
+	result.finalHash = fnvOffset;
+	double bloomSum = 0.0;
+	result.bloomMinimumLuminance = std::numeric_limits<double>::max();
+	std::vector<float> grainErrors;
+	grainErrors.reserve( static_cast<size_t>( probe.renderWidth ) * probe.renderHeight * 3 );
+	double grainErrorSum = 0.0;
+
+	for( uint32_t y = 0; y < result.bloomHeight; ++y )
+	{
+		const uint8_t* row = static_cast<const uint8_t*>( bloomData ) + static_cast<size_t>( y ) * bloomPitch;
+		const size_t rowBytes = static_cast<size_t>( result.bloomWidth ) * sizeof( Float_16 ) * 4;
+		for( size_t byte = 0; byte < rowBytes; ++byte )
+		{
+			result.bloomHash = ( result.bloomHash ^ row[byte] ) * fnvPrime;
+		}
+		const Float_16* pixels = reinterpret_cast<const Float_16*>( row );
+		for( uint32_t x = 0; x < result.bloomWidth; ++x )
+		{
+			const float red = static_cast<float>( pixels[x * 4] );
+			const float green = static_cast<float>( pixels[x * 4 + 1] );
+			const float blue = static_cast<float>( pixels[x * 4 + 2] );
+			if( !std::isfinite( red ) || !std::isfinite( green ) || !std::isfinite( blue ) )
+			{
+				result.bloomInvalidComponents += 3;
+				continue;
+			}
+			const double luminance = 0.2126 * red + 0.7152 * green + 0.0722 * blue;
+			result.bloomMinimumLuminance = std::min( result.bloomMinimumLuminance, luminance );
+			result.bloomMaximumLuminance = std::max( result.bloomMaximumLuminance, luminance );
+			bloomSum += luminance;
+			if( luminance > 0.000001 )
+			{
+				++result.bloomNonzeroPixels;
+			}
+		}
+	}
+	const uint64_t bloomPixelCount = static_cast<uint64_t>( result.bloomWidth ) * result.bloomHeight;
+	result.bloomMeanLuminance = bloomPixelCount ? bloomSum / static_cast<double>( bloomPixelCount ) : 0.0;
+	if( result.bloomMinimumLuminance == std::numeric_limits<double>::max() )
+	{
+		result.bloomMinimumLuminance = 0.0;
+	}
+
+	for( uint32_t y = 0; y < probe.renderHeight; ++y )
+	{
+		const uint8_t* postRow = static_cast<const uint8_t*>( postData ) + static_cast<size_t>( y ) * postPitch;
+		const uint8_t* finalRow = static_cast<const uint8_t*>( finalData ) + static_cast<size_t>( y ) * finalPitch;
+		for( uint32_t x = 0; x < probe.renderWidth; ++x )
+		{
+			const uint8_t* post = postRow + x * 4;
+			const uint8_t* final = finalRow + x * 4;
+			bool changed = false;
+			for( uint32_t channel = 0; channel < 4; ++channel )
+			{
+				result.postTonemapHash = ( result.postTonemapHash ^ post[channel] ) * fnvPrime;
+				result.finalHash = ( result.finalHash ^ final[channel] ) * fnvPrime;
+				if( channel < 3 )
+				{
+					const float error = std::abs( static_cast<float>( final[channel] ) - post[channel] );
+					grainErrors.push_back( error );
+					grainErrorSum += error;
+					changed = changed || error != 0.0f;
+				}
+			}
+			result.grainChangedPixels += changed ? 1 : 0;
+			result.grainAlphaChangedPixels += post[3] != final[3] ? 1 : 0;
+		}
+	}
+
+	probe.finalPostProcessReadback.UnmapForReading( renderContext );
+	probe.postTonemapReadback.UnmapForReading( renderContext );
+	probe.bloomReadback.UnmapForReading( renderContext );
+	std::sort( grainErrors.begin(), grainErrors.end() );
+	result.grainMeanAbsoluteError = grainErrors.empty() ? 0.0 : grainErrorSum / grainErrors.size();
+	result.grainP99AbsoluteError = grainErrors.empty() ? 0.0 :
+														 grainErrors[std::min(
+															 grainErrors.size() - 1,
+															 static_cast<size_t>( std::ceil( grainErrors.size() * 0.99 ) ) - 1 )];
+	result.grainMaximumAbsoluteError = grainErrors.empty() ? 0.0 : grainErrors.back();
+
+	const uint32_t expectedBloomWidth = std::max( 1u, probe.renderWidth / 2 );
+	const uint32_t expectedBloomHeight = std::max( 1u, probe.renderHeight / 2 );
+	result.bloomValid = diagnostics.bloomActive && !diagnostics.useNewBloom && diagnostics.bloomSucceeded &&
+		diagnostics.bloomHighPassSucceeded && diagnostics.bloomBlurHorizontalSucceeded &&
+		diagnostics.bloomBlurVerticalSucceeded && result.bloomWidth == expectedBloomWidth &&
+		result.bloomHeight == expectedBloomHeight &&
+		result.bloomFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+		result.bloomInvalidComponents == 0 && result.bloomNonzeroPixels != 0 &&
+		result.bloomMaximumLuminance > result.bloomMinimumLuminance;
+	result.filmGrainValid = diagnostics.filmGrainActive && diagnostics.filmGrainSucceeded &&
+		result.finalWidth == probe.renderWidth && result.finalHeight == probe.renderHeight &&
+		result.postTonemapHash != result.finalHash && result.grainChangedPixels != 0 &&
+		result.grainAlphaChangedPixels == 0;
+	result.valid = result.bloomValid && result.filmGrainValid;
+	std::fprintf(
+		stderr,
+		"EVE RC-11 post-finish validation: bloom=%ux%u format=%u hash=%016llx nonzero=%llu "
+		"invalid=%llu luminance=[%.8f,%.8f,%.8f] post=%016llx final=%016llx "
+		"grainChanged=%llu alphaChanged=%llu residual=[mean=%.6f p99=%.6f max=%.6f] validation=%s\n",
+		result.bloomWidth,
+		result.bloomHeight,
+		result.bloomFormat,
+		static_cast<unsigned long long>( result.bloomHash ),
+		static_cast<unsigned long long>( result.bloomNonzeroPixels ),
+		static_cast<unsigned long long>( result.bloomInvalidComponents ),
+		result.bloomMinimumLuminance,
+		result.bloomMeanLuminance,
+		result.bloomMaximumLuminance,
+		static_cast<unsigned long long>( result.postTonemapHash ),
+		static_cast<unsigned long long>( result.finalHash ),
+		static_cast<unsigned long long>( result.grainChangedPixels ),
+		static_cast<unsigned long long>( result.grainAlphaChangedPixels ),
+		result.grainMeanAbsoluteError,
+		result.grainP99AbsoluteError,
+		result.grainMaximumAbsoluteError,
 		result.valid ? "pass" : "fail" );
 	return result.valid;
 }
@@ -5741,6 +6007,8 @@ bool ReadVisualizedRenderProduct(
 		captureProduct == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
 		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL ||
 		captureProduct == STANDALONE_CAPTURE_HDR_COMPOSITE ||
+		captureProduct == STANDALONE_CAPTURE_BLOOM ||
+		captureProduct == STANDALONE_CAPTURE_FINAL_POSTPROCESS ||
 		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
@@ -5765,8 +6033,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
-	std::array<BlueSharedString, 8> requestedNames;
-	std::array<ITr2RenderNode::TempOutput, 8> outputStorage;
+	std::array<BlueSharedString, 12> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 12> outputStorage;
 	size_t requestedCount = 0;
 	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
 	{
@@ -5816,6 +6084,24 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
+	if( captureProducts & ( STANDALONE_CAPTURE_BLOOM | STANDALONE_CAPTURE_POST_FINISH_CONTRACT ) )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "BloomMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_POST_FINISH_CONTRACT )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "PostTonemapColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & ( STANDALONE_CAPTURE_FINAL_POSTPROCESS | STANDALONE_CAPTURE_POST_FINISH_CONTRACT ) )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "FinalPostProcessColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
 	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
@@ -5846,6 +6132,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool hdrCompositeProduct = captureProducts == STANDALONE_CAPTURE_HDR_COMPOSITE;
 		const bool postTonemapProduct = captureProducts == STANDALONE_CAPTURE_POST_TONEMAP;
 		const bool toneContractProduct = captureProducts == STANDALONE_CAPTURE_TONE_CONTRACT;
+		const bool bloomProduct = captureProducts == STANDALONE_CAPTURE_BLOOM;
+		const bool finalPostProcessProduct = captureProducts == STANDALONE_CAPTURE_FINAL_POSTPROCESS;
+		const bool postFinishContractProduct = captureProducts == STANDALONE_CAPTURE_POST_FINISH_CONTRACT;
 		if( ok && toneContractProduct )
 		{
 			const Tr2TextureAL* preTonemap = nullptr;
@@ -5901,6 +6190,72 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				ok = ReadToneMappingContract( probe, renderContext );
 			}
 		}
+		if( ok && postFinishContractProduct )
+		{
+			const Tr2TextureAL* bloom = nullptr;
+			const Tr2TextureAL* postTonemap = nullptr;
+			const Tr2TextureAL* finalPostProcess = nullptr;
+			for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+			{
+				if( outputStorage[outputIndex].name == BlueSharedString( "BloomMap" ) &&
+					outputStorage[outputIndex].texture.IsValid() )
+					bloom = &outputStorage[outputIndex].texture.Get();
+				if( outputStorage[outputIndex].name == BlueSharedString( "PostTonemapColor" ) &&
+					outputStorage[outputIndex].texture.IsValid() )
+					postTonemap = &outputStorage[outputIndex].texture.Get();
+				if( outputStorage[outputIndex].name == BlueSharedString( "FinalPostProcessColor" ) &&
+					outputStorage[outputIndex].texture.IsValid() )
+					finalPostProcess = &outputStorage[outputIndex].texture.Get();
+			}
+			const uint32_t expectedBloomWidth = std::max( 1u, probe.renderWidth / 2 );
+			const uint32_t expectedBloomHeight = std::max( 1u, probe.renderHeight / 2 );
+			if( !bloom || !postTonemap || !finalPostProcess || bloom->GetWidth() != expectedBloomWidth ||
+				bloom->GetHeight() != expectedBloomHeight ||
+				bloom->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ||
+				postTonemap->GetWidth() != probe.renderWidth || postTonemap->GetHeight() != probe.renderHeight ||
+				finalPostProcess->GetWidth() != probe.renderWidth ||
+				finalPostProcess->GetHeight() != probe.renderHeight ||
+				postTonemap->GetFormat() != finalPostProcess->GetFormat() )
+			{
+				std::fprintf( stderr, "RC-11 atomic post-finish outputs are missing or invalid\n" );
+				ok = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End RC-11 post-finish source" );
+				renderContextOpen = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Begin RC-11 post-finish readback" );
+				renderContextOpen = ok;
+			}
+			if( ok && EnsureBloomReadback( probe, renderContext, bloom->GetWidth(), bloom->GetHeight(), bloom->GetFormat() ) &&
+				EnsurePostTonemapReadback( probe, renderContext, postTonemap->GetFormat() ) &&
+				EnsureFinalPostProcessReadback( probe, renderContext, finalPostProcess->GetFormat() ) )
+			{
+				ok = CheckHresult( bloom->Resolve( probe.bloomReadback, renderContext ), "Resolve RC-11 bloom" ) &&
+					CheckHresult(
+						 postTonemap->Resolve( probe.postTonemapReadback, renderContext ),
+						 "Resolve RC-11 post-tonemap color" ) &&
+					CheckHresult(
+						 finalPostProcess->Resolve( probe.finalPostProcessReadback, renderContext ),
+						 "Resolve RC-11 final postprocess color" );
+			}
+			else if( ok )
+			{
+				ok = false;
+			}
+			if( renderContextOpen )
+			{
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End RC-11 post-finish readback" ) && ok;
+				renderContextOpen = false;
+			}
+			if( ok )
+			{
+				ok = ReadPostFinishContract( probe, renderContext );
+			}
+		}
 		const char* selectedName = nullptr;
 		if( colorProduct )
 			selectedName = "Color";
@@ -5922,6 +6277,10 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			selectedName = "PreTonemapColor";
 		else if( postTonemapProduct )
 			selectedName = "PostTonemapColor";
+		else if( bloomProduct )
+			selectedName = "BloomMap";
+		else if( finalPostProcessProduct )
+			selectedName = "FinalPostProcessColor";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -5978,7 +6337,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
 					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ||
-					hdrCompositeProduct || postTonemapProduct;
+					hdrCompositeProduct || postTonemapProduct || finalPostProcessProduct;
 				if( fullResolutionProduct &&
 					( selectedTexture->GetWidth() != probe.renderWidth || selectedTexture->GetHeight() != probe.renderHeight ) )
 				{
@@ -6038,7 +6397,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						static_cast<uint32_t>( selectedTexture->GetFormat() ) );
 					ok = false;
 				}
-				if( postTonemapProduct &&
+				if( ( postTonemapProduct || finalPostProcessProduct ) &&
 					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM &&
 					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
 				{
@@ -6046,6 +6405,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						stderr,
 						"Post-tonemap color has invalid format=%u; expected an 8-bit UNORM target\n",
 						static_cast<uint32_t>( selectedTexture->GetFormat() ) );
+					ok = false;
+				}
+				if( bloomProduct &&
+					( selectedTexture->GetWidth() != std::max( 1u, probe.renderWidth / 2 ) ||
+					  selectedTexture->GetHeight() != std::max( 1u, probe.renderHeight / 2 ) ||
+					  selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ) )
+				{
+					std::fprintf( stderr, "Bloom product does not match the legacy half-resolution FP16 contract\n" );
 					ok = false;
 				}
 				const bool visualizerReady = reflectionProduct ?
@@ -6069,14 +6436,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					{
 						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
-						const float visualizationMode = hdrCompositeProduct ? 7.0f :
-							postTonemapProduct                                ? 2.0f :
-							colorProduct                                    ? 2.0f :
-																			  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
-																															  ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
-																																											   ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-																																																								( depthAtlasProduct ? 4.0f :
-																																																													  ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+						const float visualizationMode = ( hdrCompositeProduct || bloomProduct ) ? 7.0f :
+							postTonemapProduct                                                  ? 2.0f :
+							colorProduct                                                        ? 2.0f :
+																								  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+																																				  ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+																																																   ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+																																																													( depthAtlasProduct ? 4.0f :
+																																																																		  ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "RenderProductMode" ),
 							visualizationMode );
@@ -6313,8 +6680,19 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 		postProcess && static_cast<bool>( postProcess->GetDynamicExposureIfAvailable( PostProcess::HIGH ) ) ==
 			expectsDynamicExposure,
 		expectsDynamicExposure ? "client dynamic exposure enabled" : "dynamic exposure disabled" );
-	require( postProcess && !postProcess->GetBloomIfAvailable( PostProcess::HIGH ), "bloom disabled" );
-	require( postProcess && !postProcess->GetFilmGrainIfAvailable( PostProcess::HIGH ), "film grain disabled" );
+	const bool expectsPostFinish = probe.qualityRung >= STANDALONE_PROBE_RUNG_HDR_FINISH;
+	require(
+		postProcess && static_cast<bool>( postProcess->GetBloomIfAvailable( PostProcess::HIGH ) ) == expectsPostFinish,
+		expectsPostFinish ? "client legacy bloom enabled" : "bloom disabled" );
+	require(
+		postProcess && static_cast<bool>( postProcess->GetFilmGrainIfAvailable( PostProcess::HIGH ) ) == expectsPostFinish,
+		expectsPostFinish ? "client film grain enabled" : "film grain disabled" );
+	if( expectsPostFinish )
+	{
+		require( probe.bloomMode == STANDALONE_POST_FINISH_CLIENT &&
+					 probe.filmGrainMode == STANDALONE_POST_FINISH_CLIENT && !probe.driver->GetUseNewBloom(),
+				 "client legacy post-finish mode" );
+	}
 	require( postProcess && !postProcess->GetTaaIfAvailable( PostProcess::HIGH ), "TAA disabled" );
 	require( postProcess && !postProcess->GetDepthOfFieldIfAvailable( PostProcess::HIGH ),
 			 "depth of field disabled" );
@@ -6394,9 +6772,11 @@ bool ValidateClientPostProcessContract( StandaloneProbe& probe, Tr2PostProcess2&
 {
 	auto exposure = postProcess.GetDynamicExposureIfAvailable( PostProcess::HIGH );
 	auto tonemapping = postProcess.GetTonemappingIfAvailable( PostProcess::HIGH );
-	if( !exposure || !tonemapping )
+	auto bloom = postProcess.GetBloomIfAvailable( PostProcess::HIGH );
+	auto filmGrain = postProcess.GetFilmGrainIfAvailable( PostProcess::HIGH );
+	if( !exposure || !tonemapping || !bloom || !filmGrain )
 	{
-		error = "The client postprocess does not contain dynamic exposure and tone mapping";
+		error = "The client postprocess does not contain exposure, tone mapping, bloom, and film grain";
 		return false;
 	}
 	auto near = []( float actual, float expected ) { return std::abs( actual - expected ) <= 0.000001f; };
@@ -6426,12 +6806,28 @@ bool ValidateClientPostProcessContract( StandaloneProbe& probe, Tr2PostProcess2&
 	require( near( exposure->m_minExposure, -3.7f ), "minExposure" );
 	require( near( exposure->m_maxExposure, 10.0f ), "maxExposure" );
 	require( near( postProcess.m_exposureAdjustment, 0.0f ), "postprocess exposureAdjustment" );
+	require( near( bloom->m_luminanceThreshold, 0.0f ), "bloom luminanceThreshold" );
+	require( near( bloom->m_luminanceScale, 0.5f ), "bloom luminanceScale" );
+	require( near( bloom->m_bloomBrightness, 0.2f ), "bloom brightness" );
+	require( !bloom->m_exposureDependency, "bloom exposureDependency" );
+	require( near( bloom->m_grimeWeight, 0.0f ), "bloom grimeWeight" );
+	require( std::strcmp( bloom->m_grimePath.c_str(), "res:/texture/global/black.dds" ) == 0,
+			 "bloom grimePath" );
+	require( filmGrain->m_colored, "film grain colored" );
+	require( near( filmGrain->m_colorAmount, 0.6f ), "film grain colorAmount" );
+	require( near( filmGrain->m_grainSize, 1.25f ), "film grain grainSize" );
+	require( near( filmGrain->m_intensity, 0.0008f ), "film grain intensity" );
+	require( near( filmGrain->m_grainDensity, 0.35f ), "film grain grainDensity" );
+	require( near( filmGrain->m_grainContrast, 4.0f ), "film grain grainContrast" );
+	require( near( filmGrain->m_brightnessModifier, -3.0f ), "film grain brightnessModifier" );
 	if( !error.empty() )
 	{
 		return false;
 	}
 	probe.clientDynamicExposure = exposure;
 	probe.clientTonemapping = tonemapping;
+	probe.clientBloom = bloom;
+	probe.clientFilmGrain = filmGrain;
 	std::fprintf(
 		stderr,
 		"EVE RC-10 postprocess contract: method=Uncharted2 containerMethod=baked gamma=1.000000 "
@@ -6456,6 +6852,25 @@ bool ValidateClientPostProcessContract( StandaloneProbe& probe, Tr2PostProcess2&
 		exposure->m_adjustment,
 		exposure->m_minExposure,
 		exposure->m_maxExposure );
+	std::fprintf(
+		stderr,
+		"EVE RC-11 post-finish contract: bloomImplementation=legacy threshold=%.6f scale=%.6f "
+		"brightness=%.6f exposureDependency=%s grimeWeight=%.6f grime=%s "
+		"filmGrain=(colored=%s colorAmount=%.6f size=%.6f intensity=%.7f density=%.6f "
+		"contrast=%.6f brightnessModifier=%.6f)\n",
+		bloom->m_luminanceThreshold,
+		bloom->m_luminanceScale,
+		bloom->m_bloomBrightness,
+		bloom->m_exposureDependency ? "true" : "false",
+		bloom->m_grimeWeight,
+		bloom->m_grimePath.c_str(),
+		filmGrain->m_colored ? "true" : "false",
+		filmGrain->m_colorAmount,
+		filmGrain->m_grainSize,
+		filmGrain->m_intensity,
+		filmGrain->m_grainDensity,
+		filmGrain->m_grainContrast,
+		filmGrain->m_brightnessModifier );
 	return true;
 }
 
@@ -6885,6 +7300,47 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				std::fprintf( stderr, "Dynamic exposure effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
 			}
 		}
+		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_FINISH )
+		{
+			const RequiredEffect postFinishEffects[] = {
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/HighPassFilter.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/Blur.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/blur.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/blur.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/FilmGrain.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_hi" },
+			};
+			for( const RequiredEffect& required : postFinishEffects )
+			{
+				if( !BePaths->FileExistsLocally( required.compiledPath ) )
+				{
+					CCP_LOGERR( "RC-11 requires compiled effect: %S", required.compiledPath );
+					return false;
+				}
+				Tr2EffectPtr effect;
+				effect.CreateInstance();
+				effect->SetEffectPathName( required.sourcePath );
+				Tr2EffectRes* resource = effect->GetEffectRes();
+				if( resource )
+				{
+					resource->ForceSynchronousLoad();
+					resource->Reload();
+				}
+				Tr2Shader* shader = effect->GetShaderStateInterface();
+				if( !resource || !resource->IsGood() || !shader || shader->GetPassCount( 0 ) == 0 )
+				{
+					CCP_LOGERR( "RC-11 effect failed to prepare: %s", required.sourcePath );
+					return false;
+				}
+				std::fprintf( stderr, "RC-11 effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
+			}
+			std::string grainNoiseError;
+			if( !PrepareTextureResourceWithoutYield(
+					"res:/texture/global/film_grain_noise.png",
+					"film-grain noise",
+					grainNoiseError ) )
+			{
+				std::fprintf( stderr, "Failed to prepare film-grain noise: %s\n", grainNoiseError.c_str() );
+				return false;
+			}
+		}
 
 		TriTextureResPtr neutralTexture;
 		BeResMan->GetResource( "res:/texture/global/black.dds", "", neutralTexture );
@@ -6936,6 +7392,11 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				std::fprintf( stderr, "Failed to load EVE default postprocess: %s\n", postProcessError.c_str() );
 				return false;
 			}
+			if( !ValidateClientPostProcessContract( probe, *postProcess, postProcessError ) )
+			{
+				std::fprintf( stderr, "EVE client postprocess contract failed: %s\n", postProcessError.c_str() );
+				return false;
+			}
 			postProcess->SetBloom( nullptr );
 			postProcess->SetFilmGrain( nullptr );
 			postProcess->SetTaa( nullptr );
@@ -6952,11 +7413,6 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			if( !exposure || !postProcess->GetTonemappingIfAvailable() )
 			{
 				CCP_LOGERR( "EVE default postprocess does not provide dynamic exposure and tone mapping" );
-				return false;
-			}
-			if( !ValidateClientPostProcessContract( probe, *postProcess, postProcessError ) )
-			{
-				std::fprintf( stderr, "EVE client postprocess contract failed: %s\n", postProcessError.c_str() );
 				return false;
 			}
 			probe.clientPostProcess = postProcess;
@@ -7513,12 +7969,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetReflectionDiagnostics(
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
+	int bloomMode,
+	int filmGrainMode,
 	bool diagnosticsEnabled )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->scene || !probe->driver ||
 		( dynamicExposureMode != STANDALONE_DYNAMIC_EXPOSURE_OFF &&
-		  dynamicExposureMode != STANDALONE_DYNAMIC_EXPOSURE_CLIENT ) )
+		  dynamicExposureMode != STANDALONE_DYNAMIC_EXPOSURE_CLIENT ) ||
+		( bloomMode != STANDALONE_POST_FINISH_OFF && bloomMode != STANDALONE_POST_FINISH_CLIENT ) ||
+		( filmGrainMode != STANDALONE_POST_FINISH_OFF &&
+		  filmGrainMode != STANDALONE_POST_FINISH_CLIENT ) )
 	{
 		return false;
 	}
@@ -7531,18 +7992,38 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 	{
 		return false;
 	}
+	if( bloomMode == STANDALONE_POST_FINISH_CLIENT && !probe->clientBloom )
+	{
+		return false;
+	}
+	if( filmGrainMode == STANDALONE_POST_FINISH_CLIENT && !probe->clientFilmGrain )
+	{
+		return false;
+	}
 	postProcess->SetDynamicExposure(
 		dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT ?
 			probe->clientDynamicExposure :
 			Tr2PPDynamicExposureEffectPtr{} );
+	postProcess->SetBloom(
+		bloomMode == STANDALONE_POST_FINISH_CLIENT ? probe->clientBloom : Tr2PPBloomEffectPtr{} );
+	postProcess->SetFilmGrain(
+		filmGrainMode == STANDALONE_POST_FINISH_CLIENT ?
+			probe->clientFilmGrain :
+			Tr2PPFilmGrainEffectPtr{} );
+	probe->driver->SetUseNewBloom( false );
 	g_eveSpaceSceneGammaBrightness = 1.0f;
 	probe->dynamicExposureMode = dynamicExposureMode;
+	probe->bloomMode = bloomMode;
+	probe->filmGrainMode = filmGrainMode;
 	probe->postProcessDiagnosticsEnabled = diagnosticsEnabled;
 	probe->driver->SetPostProcessDiagnosticsEnabled( diagnosticsEnabled );
 	std::fprintf(
 		stderr,
-		"EVE RC-10 postprocess mode: dynamicExposure=%s diagnostics=%s outputGamma=1.000000\n",
+		"EVE postprocess mode: dynamicExposure=%s bloom=%s filmGrain=%s bloomImplementation=legacy "
+		"diagnostics=%s outputGamma=1.000000\n",
 		dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT ? "client" : "off",
+		bloomMode == STANDALONE_POST_FINISH_CLIENT ? "client" : "off",
+		filmGrainMode == STANDALONE_POST_FINISH_CLIENT ? "client" : "off",
 		diagnosticsEnabled ? "enabled" : "disabled" );
 	return true;
 }
@@ -7600,6 +8081,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetToneValidation(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetPostFinishValidation(
+	void* opaqueProbe,
+	TrinityStandalonePostFinishValidation* validation )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !validation || probe->postFinishValidation.bloomWidth == 0 )
+	{
+		return false;
+	}
+	*validation = probe->postFinishValidation;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -7638,7 +8132,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_REFLECTION &&
 		captureProduct != STANDALONE_CAPTURE_HDR_COMPOSITE &&
 		captureProduct != STANDALONE_CAPTURE_POST_TONEMAP &&
-		captureProduct != STANDALONE_CAPTURE_TONE_CONTRACT )
+		captureProduct != STANDALONE_CAPTURE_TONE_CONTRACT &&
+		captureProduct != STANDALONE_CAPTURE_BLOOM &&
+		captureProduct != STANDALONE_CAPTURE_FINAL_POSTPROCESS &&
+		captureProduct != STANDALONE_CAPTURE_POST_FINISH_CONTRACT )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;

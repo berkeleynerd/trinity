@@ -13,12 +13,26 @@ struct TrinityStandalonePostProcessDiagnostics
 	bool histogramMerged = false;
 	bool exposureMeasured = false;
 	bool tonemappingSucceeded = false;
+	bool bloomActive = false;
+	bool useNewBloom = false;
+	bool bloomHighPassSucceeded = false;
+	bool bloomBlurHorizontalSucceeded = false;
+	bool bloomBlurVerticalSucceeded = false;
+	bool bloomSucceeded = false;
+	bool filmGrainActive = false;
+	bool filmGrainSucceeded = false;
 	uint32_t sourceWidth = 0;
 	uint32_t sourceHeight = 0;
 	uint32_t sourceFormat = 0;
 	uint32_t postTonemapWidth = 0;
 	uint32_t postTonemapHeight = 0;
 	uint32_t postTonemapFormat = 0;
+	uint32_t bloomWidth = 0;
+	uint32_t bloomHeight = 0;
+	uint32_t bloomFormat = 0;
+	uint32_t finalWidth = 0;
+	uint32_t finalHeight = 0;
+	uint32_t finalFormat = 0;
 	uint32_t histogram[65] = {};
 	float exposure[8] = {};
 	float minBrightness = 0.0f;
@@ -41,6 +55,18 @@ struct TrinityStandalonePostProcessDiagnostics
 	float whiteScale = 0.0f;
 	float outputGamma = 0.0f;
 	int32_t tonemappingMethod = -1;
+	float bloomLuminanceThreshold = 0.0f;
+	float bloomLuminanceScale = 0.0f;
+	float bloomBrightness = 0.0f;
+	bool bloomExposureDependency = false;
+	float bloomGrimeWeight = 0.0f;
+	bool filmGrainColored = false;
+	float filmGrainColorAmount = 0.0f;
+	float filmGrainSize = 0.0f;
+	float filmGrainIntensity = 0.0f;
+	float filmGrainDensity = 0.0f;
+	float filmGrainContrast = 0.0f;
+	float filmGrainBrightnessModifier = 0.0f;
 };
 
 struct TrinityStandaloneToneValidation
@@ -63,9 +89,37 @@ struct TrinityStandaloneToneValidation
 	double maximumAbsoluteError = 0.0;
 };
 
+struct TrinityStandalonePostFinishValidation
+{
+	bool valid = false;
+	bool bloomValid = false;
+	bool filmGrainValid = false;
+	uint32_t bloomWidth = 0;
+	uint32_t bloomHeight = 0;
+	uint32_t bloomFormat = 0;
+	uint32_t finalWidth = 0;
+	uint32_t finalHeight = 0;
+	uint32_t finalFormat = 0;
+	uint64_t bloomHash = 0;
+	uint64_t postTonemapHash = 0;
+	uint64_t finalHash = 0;
+	uint64_t bloomNonzeroPixels = 0;
+	uint64_t bloomInvalidComponents = 0;
+	uint64_t grainChangedPixels = 0;
+	uint64_t grainAlphaChangedPixels = 0;
+	double bloomMinimumLuminance = 0.0;
+	double bloomMeanLuminance = 0.0;
+	double bloomMaximumLuminance = 0.0;
+	double grainMeanAbsoluteError = 0.0;
+	double grainP99AbsoluteError = 0.0;
+	double grainMaximumAbsoluteError = 0.0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
+	int bloomMode,
+	int filmGrainMode,
 	bool diagnosticsEnabled );
 extern "C" bool TrinityStandaloneProbeSetExposureCameraPhase(
 	void* opaqueProbe,
@@ -77,3 +131,6 @@ extern "C" bool TrinityStandaloneProbeGetPostProcessDiagnostics(
 extern "C" bool TrinityStandaloneProbeGetToneValidation(
 	void* opaqueProbe,
 	TrinityStandaloneToneValidation* validation );
+extern "C" bool TrinityStandaloneProbeGetPostFinishValidation(
+	void* opaqueProbe,
+	TrinityStandalonePostFinishValidation* validation );

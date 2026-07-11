@@ -118,6 +118,8 @@ public:
 	void SetPostProcessDiagnosticsEnabled( bool enabled );
 	bool ReadPostProcessDiagnostics( Tr2RenderContext& renderContext, Tr2PostProcessRenderer::Diagnostics& diagnostics ) const;
 	bool GetLastPostProcessExecutionSucceeded() const;
+	void SetUseNewBloom( bool enabled );
+	bool GetUseNewBloom() const;
 
 	EXPOSE_TO_BLUE();
 

@@ -358,7 +358,9 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "DynamicLightShadowDepth" ) != 0 &&
 			strcmp( output.c_str(), "SSAOMap" ) != 0 &&
 			strcmp( output.c_str(), "PreTonemapColor" ) != 0 &&
-			strcmp( output.c_str(), "PostTonemapColor" ) != 0 )
+			strcmp( output.c_str(), "BloomMap" ) != 0 &&
+			strcmp( output.c_str(), "PostTonemapColor" ) != 0 &&
+			strcmp( output.c_str(), "FinalPostProcessColor" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
 			return false;
@@ -640,7 +642,9 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		else
 		{
 			auto preTonemapOutput = FindNamedOutput( outputs, "PreTonemapColor" );
+			auto bloomOutput = FindNamedOutput( outputs, "BloomMap" );
 			auto postTonemapOutput = FindNamedOutput( outputs, "PostTonemapColor" );
+			auto finalPostProcessOutput = FindNamedOutput( outputs, "FinalPostProcessColor" );
 			m_postProcess->Execute(
 				*destinations.data,
 				std::move( customBackBuffer ),
@@ -652,7 +656,9 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 				m_gpuResourcePool,
 				renderContext,
 				preTonemapOutput ? &preTonemapOutput->texture : nullptr,
-				postTonemapOutput ? &postTonemapOutput->texture : nullptr );
+				bloomOutput ? &bloomOutput->texture : nullptr,
+				postTonemapOutput ? &postTonemapOutput->texture : nullptr,
+				finalPostProcessOutput ? &finalPostProcessOutput->texture : nullptr );
 		}
 	}
 	SetCameraToRenderer( renderContext );
@@ -698,6 +704,19 @@ bool EveSpaceSceneRenderDriver::ReadPostProcessDiagnostics(
 bool EveSpaceSceneRenderDriver::GetLastPostProcessExecutionSucceeded() const
 {
 	return m_postProcess && m_postProcess->GetLastExecutionSucceeded();
+}
+
+void EveSpaceSceneRenderDriver::SetUseNewBloom( bool enabled )
+{
+	if( m_postProcess )
+	{
+		m_postProcess->SetUseNewBloom( enabled );
+	}
+}
+
+bool EveSpaceSceneRenderDriver::GetUseNewBloom() const
+{
+	return m_postProcess && m_postProcess->GetUseNewBloom();
 }
 
 void EveSpaceSceneRenderDriver::UpdateGpuParticleSystem( Tr2RenderContext& renderContext )

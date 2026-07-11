@@ -145,6 +145,7 @@ enum class QualityRung
 	HdrBlit,
 	HdrPost,
 	HdrExposure,
+	HdrFinish,
 };
 
 enum class MaterialView
@@ -279,6 +280,8 @@ enum class RenderProduct
 	Reflection,
 	HdrComposite,
 	PostTonemap,
+	Bloom,
+	FinalPostprocess,
 	All,
 };
 
@@ -348,8 +351,18 @@ constexpr int kCaptureFreezeScene = 1 << 9;
 constexpr int kCaptureHdrComposite = 1 << 10;
 constexpr int kCapturePostTonemap = 1 << 11;
 constexpr int kCaptureToneContract = 1 << 12;
+constexpr int kCaptureBloom = 1 << 13;
+constexpr int kCaptureFinalPostprocess = 1 << 14;
+constexpr int kCapturePostFinishContract = 1 << 15;
 
 enum class DynamicExposure
+{
+	Auto,
+	Off,
+	Client,
+};
+
+enum class PostFinishMode
 {
 	Auto,
 	Off,
@@ -423,10 +436,15 @@ struct Options
 	bool backgroundCapture = false;
 	bool validateComposition = false;
 	bool validateExposureTone = false;
+	bool validatePostFinish = false;
 	bool framePacingCheck = false;
 	uint32_t timingWarmup = 180;
 	DynamicExposure dynamicExposure = DynamicExposure::Auto;
 	DynamicExposure resolvedDynamicExposure = DynamicExposure::Off;
+	PostFinishMode bloom = PostFinishMode::Auto;
+	PostFinishMode resolvedBloom = PostFinishMode::Off;
+	PostFinishMode filmGrain = PostFinishMode::Auto;
+	PostFinishMode resolvedFilmGrain = PostFinishMode::Off;
 	ExposureSequence exposureSequence = ExposureSequence::None;
 	uint32_t exposureHold = 180;
 };
@@ -843,6 +861,10 @@ std::string RenderProductName( RenderProduct product )
 		return "hdr-composite";
 	case RenderProduct::PostTonemap:
 		return "post-tonemap";
+	case RenderProduct::Bloom:
+		return "bloom";
+	case RenderProduct::FinalPostprocess:
+		return "final-postprocess";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -864,6 +886,8 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::Reflection,
 									 RenderProduct::HdrComposite,
 									 RenderProduct::PostTonemap,
+									 RenderProduct::Bloom,
+									 RenderProduct::FinalPostprocess,
 									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
@@ -888,6 +912,26 @@ bool ParseDynamicExposure( const std::string& value, DynamicExposure& result )
 	for( DynamicExposure candidate : { DynamicExposure::Auto, DynamicExposure::Off, DynamicExposure::Client } )
 	{
 		if( normalized == DynamicExposureName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string PostFinishModeName( PostFinishMode value )
+{
+	static const char* names[] = { "auto", "off", "client" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParsePostFinishMode( const std::string& value, PostFinishMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( PostFinishMode candidate : { PostFinishMode::Auto, PostFinishMode::Off, PostFinishMode::Client } )
+	{
+		if( normalized == PostFinishModeName( candidate ) )
 		{
 			result = candidate;
 			return true;
@@ -1186,6 +1230,10 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureHdrComposite;
 	case RenderProduct::PostTonemap:
 		return kCapturePostTonemap;
+	case RenderProduct::Bloom:
+		return kCaptureBloom;
+	case RenderProduct::FinalPostprocess:
+		return kCaptureFinalPostprocess;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -1256,6 +1304,10 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=PreTonemapColor format=R16G16B16A16_FLOAT visualization=reinhard-plus-gamma diagnosticOnly=true gpuVisualization=true rawValidation=true";
 	case RenderProduct::PostTonemap:
 		return "source=PostTonemapColor format=destination-8-bit-unorm visualization=identity gpuVisualization=true rawValidation=true";
+	case RenderProduct::Bloom:
+		return "source=BloomMap format=R16G16B16A16_FLOAT dimensions=half-resolution visualization=reinhard-plus-gamma gpuVisualization=true rawValidation=true";
+	case RenderProduct::FinalPostprocess:
+		return "source=FinalPostProcessColor format=destination-8-bit-unorm visualization=identity gpuVisualization=true rawValidation=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1416,6 +1468,8 @@ std::string QualityRungName( QualityRung rung )
 		return "hdr-post";
 	case QualityRung::HdrExposure:
 		return "hdr-exposure";
+	case QualityRung::HdrFinish:
+		return "hdr-finish";
 	}
 	return "unknown";
 }
@@ -1436,6 +1490,8 @@ int QualityRungApiValue( QualityRung rung )
 		return 5;
 	case QualityRung::HdrExposure:
 		return 6;
+	case QualityRung::HdrFinish:
+		return 7;
 	}
 	return 0;
 }
@@ -1472,6 +1528,11 @@ bool ParseQualityRung( const std::string& value, QualityRung& rung )
 	if( normalized == "hdr-exposure" || normalized == "exposure" )
 	{
 		rung = QualityRung::HdrExposure;
+		return true;
+	}
+	if( normalized == "hdr-finish" || normalized == "finish" || normalized == "rc11" )
+	{
+		rung = QualityRung::HdrFinish;
 		return true;
 	}
 	return false;
@@ -1535,7 +1596,7 @@ void PrintUsage( const char* executable )
 {
 	std::cerr
 		<< "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
-		<< "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
+		<< "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure|hdr-finish]\n"
 		<< "       [--material-mode probe|eve-v5]\n"
 		<< "       [--area-view all|hull|booster|distortion]\n"
 		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
@@ -1548,7 +1609,7 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
@@ -1556,6 +1617,7 @@ void PrintUsage( const char* executable )
 		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
+		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
@@ -1571,8 +1633,9 @@ bool ValidateCanonicalCompositionOptions( const Options& options )
 			mismatches.emplace_back( requirement );
 		}
 	};
-	require( options.qualityRung == QualityRung::HdrPost || options.qualityRung == QualityRung::HdrExposure,
-			 "--quality-rung hdr-post or hdr-exposure" );
+	require( options.qualityRung == QualityRung::HdrPost || options.qualityRung == QualityRung::HdrExposure ||
+				 options.qualityRung == QualityRung::HdrFinish,
+			 "--quality-rung hdr-post, hdr-exposure, or hdr-finish" );
 	require( options.asset == "astero", "--asset astero" );
 	require( options.sceneFixture == SceneFixture::NewEden, "--scene-fixture new-eden" );
 	require( options.cameraView == CameraView::Model, "--camera-view model" );
@@ -1687,6 +1750,20 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--bloom" )
+		{
+			if( ++i >= argc || !ParsePostFinishMode( argv[i], options.bloom ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--film-grain" )
+		{
+			if( ++i >= argc || !ParsePostFinishMode( argv[i], options.filmGrain ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--exposure-sequence" )
 		{
 			if( ++i >= argc || !ParseExposureSequence( argv[i], options.exposureSequence ) )
@@ -1697,6 +1774,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-exposure-tone" )
 		{
 			options.validateExposureTone = true;
+		}
+		else if( arg == "--validate-post-finish" )
+		{
+			options.validatePostFinish = true;
 		}
 		else if( arg == "--validate-composition" )
 		{
@@ -2116,11 +2197,23 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	options.resolvedDynamicExposure = options.dynamicExposure == DynamicExposure::Auto ?
-		( options.qualityRung == QualityRung::HdrExposure ? DynamicExposure::Client : DynamicExposure::Off ) :
+		( options.qualityRung >= QualityRung::HdrExposure ? DynamicExposure::Client : DynamicExposure::Off ) :
 		options.dynamicExposure;
-	if( options.resolvedDynamicExposure == DynamicExposure::Client && options.qualityRung != QualityRung::HdrExposure )
+	if( options.resolvedDynamicExposure == DynamicExposure::Client && options.qualityRung < QualityRung::HdrExposure )
 	{
-		std::cerr << "Client dynamic exposure requires --quality-rung hdr-exposure\n";
+		std::cerr << "Client dynamic exposure requires --quality-rung hdr-exposure or hdr-finish\n";
+		return false;
+	}
+	options.resolvedBloom = options.bloom == PostFinishMode::Auto ?
+		( options.qualityRung == QualityRung::HdrFinish ? PostFinishMode::Client : PostFinishMode::Off ) :
+		options.bloom;
+	options.resolvedFilmGrain = options.filmGrain == PostFinishMode::Auto ?
+		( options.qualityRung == QualityRung::HdrFinish ? PostFinishMode::Client : PostFinishMode::Off ) :
+		options.filmGrain;
+	if( ( options.resolvedBloom == PostFinishMode::Client || options.resolvedFilmGrain == PostFinishMode::Client ) &&
+		options.qualityRung != QualityRung::HdrFinish )
+	{
+		std::cerr << "Client bloom and film grain require --quality-rung hdr-finish\n";
 		return false;
 	}
 	if( options.renderProduct == RenderProduct::HdrComposite && options.qualityRung < QualityRung::HdrPost )
@@ -2133,8 +2226,15 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "The post-tonemap render product requires --quality-rung hdr-post or hdr-exposure\n";
 		return false;
 	}
+	if( ( options.renderProduct == RenderProduct::Bloom || options.renderProduct == RenderProduct::FinalPostprocess ) &&
+		options.qualityRung != QualityRung::HdrFinish )
+	{
+		std::cerr << "Bloom and final-postprocess products require --quality-rung hdr-finish\n";
+		return false;
+	}
 	if( options.exposureSequence != ExposureSequence::None &&
-		( options.resolvedDynamicExposure != DynamicExposure::Client || options.qualityRung != QualityRung::HdrExposure ) )
+		( options.resolvedDynamicExposure != DynamicExposure::Client ||
+		  options.qualityRung < QualityRung::HdrExposure ) )
 	{
 		std::cerr << "Exposure camera sequences require client dynamic exposure at the hdr-exposure rung\n";
 		return false;
@@ -2152,10 +2252,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.validateExposureTone &&
-		( options.qualityRung != QualityRung::HdrExposure ||
+		( options.qualityRung < QualityRung::HdrExposure ||
 		  options.resolvedDynamicExposure != DynamicExposure::Client ) )
 	{
-		std::cerr << "--validate-exposure-tone requires --quality-rung hdr-exposure --dynamic-exposure client\n";
+		std::cerr << "--validate-exposure-tone requires hdr-exposure or hdr-finish with client exposure\n";
 		return false;
 	}
 	if( options.validateExposureTone && ( options.maxFrames <= 0 || options.capturePrefix.empty() ) )
@@ -2171,6 +2271,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.validateExposureTone && options.framePacingCheck )
 	{
 		std::cerr << "Run frame pacing separately from CPU-synchronized exposure diagnostics\n";
+		return false;
+	}
+	if( options.validatePostFinish &&
+		( options.qualityRung != QualityRung::HdrFinish || options.resolvedBloom != PostFinishMode::Client ||
+		  options.resolvedFilmGrain != PostFinishMode::Client ) )
+	{
+		std::cerr << "--validate-post-finish requires hdr-finish with client bloom and film grain\n";
+		return false;
+	}
+	if( options.validatePostFinish && ( options.maxFrames <= 0 || options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-post-finish requires finite frames and --capture-prefix\n";
 		return false;
 	}
 	if( options.framePacingCheck &&
@@ -2190,6 +2302,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.validateExposureTone && !ValidateCanonicalCompositionOptions( options ) )
+	{
+		return false;
+	}
+	if( options.validatePostFinish && !ValidateCanonicalCompositionOptions( options ) )
 	{
 		return false;
 	}
@@ -2424,7 +2540,8 @@ std::string CaptureBasePath( const Options& options )
 		AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
 	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
-		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix;
+		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
+		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -2521,6 +2638,12 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "dynamicExposureRequested=" << DynamicExposureName( options.dynamicExposure ) << "\n";
 	metadata << "dynamicExposureResolved=" << DynamicExposureName( options.resolvedDynamicExposure ) << "\n";
 	metadata << "validateExposureTone=" << ( options.validateExposureTone ? "true" : "false" ) << "\n";
+	metadata << "bloomRequested=" << PostFinishModeName( options.bloom ) << "\n";
+	metadata << "bloomResolved=" << PostFinishModeName( options.resolvedBloom ) << "\n";
+	metadata << "bloomImplementation=legacy-highpass-blur\n";
+	metadata << "filmGrainRequested=" << PostFinishModeName( options.filmGrain ) << "\n";
+	metadata << "filmGrainResolved=" << PostFinishModeName( options.resolvedFilmGrain ) << "\n";
+	metadata << "validatePostFinish=" << ( options.validatePostFinish ? "true" : "false" ) << "\n";
 	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
 	metadata << "exposureHold=" << options.exposureHold << "\n";
 	metadata << "framePacingCheck=" << ( options.framePacingCheck ? "true" : "false" ) << "\n";
@@ -2892,6 +3015,55 @@ bool CompareToneValidations(
 	return passed;
 }
 
+bool WritePostFinishContractJson( const Options& options, const TrinityStandalonePostFinishValidation& validation )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_post-finish-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/PostFinishResources.json";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	if( !manifestInput || manifest.str().empty() )
+	{
+		std::cerr << "RC-11 could not read the post-finish resource manifest: " << manifestPath << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	output << "{\n"
+		   << "  \"profile\": \"RC-11\",\n"
+		   << "  \"bloomImplementation\": \"legacy-highpass-blur\",\n"
+		   << "  \"newBloom\": false,\n"
+		   << "  \"bloomHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' ) << validation.bloomHash
+		   << "\",\n"
+		   << "  \"postTonemapHash\": \"" << std::setw( 16 ) << validation.postTonemapHash << "\",\n"
+		   << "  \"finalHash\": \"" << std::setw( 16 ) << validation.finalHash << std::dec << "\",\n"
+		   << "  \"bloomDimensions\": [" << validation.bloomWidth << ", " << validation.bloomHeight << "],\n"
+		   << "  \"finalDimensions\": [" << validation.finalWidth << ", " << validation.finalHeight << "],\n"
+		   << "  \"bloomNonzeroPixels\": " << validation.bloomNonzeroPixels << ",\n"
+		   << "  \"bloomInvalidComponents\": " << validation.bloomInvalidComponents << ",\n"
+		   << "  \"bloomLuminance\": {\"minimum\": " << validation.bloomMinimumLuminance
+		   << ", \"mean\": " << validation.bloomMeanLuminance << ", \"maximum\": " << validation.bloomMaximumLuminance
+		   << "},\n"
+		   << "  \"grainChangedPixels\": " << validation.grainChangedPixels << ",\n"
+		   << "  \"grainAlphaChangedPixels\": " << validation.grainAlphaChangedPixels << ",\n"
+		   << "  \"grainResidual\": {\"mean\": " << validation.grainMeanAbsoluteError
+		   << ", \"p99\": " << validation.grainP99AbsoluteError
+		   << ", \"maximum\": " << validation.grainMaximumAbsoluteError << "},\n"
+		   << "  \"validationPassed\": " << ( validation.valid ? "true" : "false" ) << ",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Post-finish contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -3041,16 +3213,18 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
-		const bool collectExposureDiagnostics = options.validateExposureTone ||
+		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
 			options.exposureSequence != ExposureSequence::None;
-		const bool captureToneSnapshot = options.qualityRung == QualityRung::HdrExposure &&
+		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
 			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
 			  options.renderProduct == RenderProduct::All );
-		if( options.qualityRung == QualityRung::HdrExposure &&
+		if( options.qualityRung >= QualityRung::HdrExposure &&
 			!TrinityStandaloneProbeConfigurePostProcess(
 				probe,
 				options.resolvedDynamicExposure == DynamicExposure::Client ? 1 : 0,
+				options.resolvedBloom == PostFinishMode::Client ? 1 : 0,
+				options.resolvedFilmGrain == PostFinishMode::Client ? 1 : 0,
 				collectExposureDiagnostics || captureToneSnapshot ) )
 		{
 			std::cerr << "TrinityStandaloneProbeConfigurePostProcess failed\n";
@@ -3174,13 +3348,17 @@ int main( int argc, char** argv )
 			static_cast<uint32_t>( renderedFrames ) == options.exposureHold;
 		if( captureToneSnapshot )
 		{
+			if( options.qualityRung == QualityRung::HdrFinish &&
+				!TrinityStandaloneProbeConfigurePostProcess(
+					probe, options.resolvedDynamicExposure == DynamicExposure::Client ? 1 : 0, 0, 0, true ) )
+			{
+				toneValidationSucceeded = false;
+			}
 			const int64_t captureTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
-			toneValidationSucceeded = TrinityStandaloneProbeRenderFrame(
-				probe,
-				qualityRung,
-				captureTime,
-				captureTime,
-				kCaptureToneContract | kCaptureFreezeScene ) &&
+			toneValidationSucceeded =
+				toneValidationSucceeded &&
+				TrinityStandaloneProbeRenderFrame(
+					probe, qualityRung, captureTime, captureTime, kCaptureToneContract | kCaptureFreezeScene ) &&
 				TrinityStandaloneProbeGetToneValidation( probe, &toneValidation ) && toneValidation.valid;
 			if( toneValidationSucceeded && options.exposureSequence == ExposureSequence::None )
 			{
@@ -3192,15 +3370,12 @@ int main( int argc, char** argv )
 			toneValidation.valid = toneValidationSucceeded;
 			if( toneValidationSucceeded && runMatchedToneComparison )
 			{
-				toneValidationSucceeded = TrinityStandaloneProbeConfigurePostProcess( probe, 0, true ) &&
+				toneValidationSucceeded =
+					TrinityStandaloneProbeConfigurePostProcess( probe, 0, 0, 0, true ) &&
 					TrinityStandaloneProbeRenderFrame(
-						probe,
-						qualityRung,
-						captureTime,
-						captureTime,
-						kCaptureToneContract | kCaptureFreezeScene ) &&
+						probe, qualityRung, captureTime, captureTime, kCaptureToneContract | kCaptureFreezeScene ) &&
 					TrinityStandaloneProbeGetToneValidation( probe, &offToneValidation );
-				const bool restored = TrinityStandaloneProbeConfigurePostProcess( probe, 1, true );
+				const bool restored = TrinityStandaloneProbeConfigurePostProcess( probe, 1, 0, 0, true );
 				if( toneValidationSucceeded )
 				{
 					toneValidationSucceeded = CompareToneValidations(
@@ -3208,6 +3383,27 @@ int main( int argc, char** argv )
 				}
 				toneValidationSucceeded = restored && toneValidationSucceeded;
 			}
+			if( options.qualityRung == QualityRung::HdrFinish )
+			{
+				toneValidationSucceeded = TrinityStandaloneProbeConfigurePostProcess(
+											  probe,
+											  options.resolvedDynamicExposure == DynamicExposure::Client ? 1 : 0,
+											  options.resolvedBloom == PostFinishMode::Client ? 1 : 0,
+											  options.resolvedFilmGrain == PostFinishMode::Client ? 1 : 0,
+											  true ) &&
+					toneValidationSucceeded;
+			}
+		}
+		TrinityStandalonePostFinishValidation postFinishValidation;
+		bool postFinishValidationSucceeded = true;
+		if( options.validatePostFinish )
+		{
+			const int64_t captureTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+			postFinishValidationSucceeded =
+				TrinityStandaloneProbeRenderFrame(
+					probe, qualityRung, captureTime, captureTime, kCapturePostFinishContract | kCaptureFreezeScene ) &&
+				TrinityStandaloneProbeGetPostFinishValidation( probe, &postFinishValidation ) &&
+				postFinishValidation.valid;
 		}
 		bool exposureReportsSucceeded = true;
 		if( collectExposureDiagnostics )
@@ -3234,6 +3430,11 @@ int main( int argc, char** argv )
 					"_tone-contract-off.json" ) &&
 					exposureReportsSucceeded;
 			}
+		}
+		if( options.validatePostFinish )
+		{
+			exposureReportsSucceeded =
+				WritePostFinishContractJson( options, postFinishValidation ) && exposureReportsSucceeded;
 		}
 		bool captureSucceeded = true;
 		@autoreleasepool
@@ -3269,6 +3470,20 @@ int main( int argc, char** argv )
 					productStats.emplace_back( "toneComparison", toneComparisonStats );
 				}
 			}
+			if( options.validatePostFinish )
+			{
+				std::ostringstream stats;
+				stats << "bloomHash=" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+					  << postFinishValidation.bloomHash << " postHash=" << std::setw( 16 )
+					  << postFinishValidation.postTonemapHash << " finalHash=" << std::setw( 16 )
+					  << postFinishValidation.finalHash << std::dec << " bloom=" << postFinishValidation.bloomWidth
+					  << "x" << postFinishValidation.bloomHeight
+					  << " bloomNonzero=" << postFinishValidation.bloomNonzeroPixels
+					  << " grainChanged=" << postFinishValidation.grainChangedPixels
+					  << " grainP99=" << postFinishValidation.grainP99AbsoluteError
+					  << " validation=" << ( postFinishValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "postFinishValidation", stats.str() );
+			}
 			if( !options.capturePrefix.empty() )
 			{
 				ProcessEvents( window );
@@ -3283,9 +3498,14 @@ int main( int argc, char** argv )
 					{
 						diagnosticProducts.push_back( RenderProduct::HdrComposite );
 					}
-					if( options.qualityRung == QualityRung::HdrExposure )
+					if( options.qualityRung >= QualityRung::HdrExposure )
 					{
 						diagnosticProducts.push_back( RenderProduct::PostTonemap );
+					}
+					if( options.qualityRung == QualityRung::HdrFinish )
+					{
+						diagnosticProducts.push_back( RenderProduct::Bloom );
+						diagnosticProducts.push_back( RenderProduct::FinalPostprocess );
 					}
 					if( options.resolvedShadows != Shadows::Off )
 					{
@@ -3481,7 +3701,8 @@ int main( int argc, char** argv )
 			}
 		}
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
-			exposureValidationSucceeded && toneValidationSucceeded && exposureReportsSucceeded;
+			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
+			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

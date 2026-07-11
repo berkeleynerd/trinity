@@ -82,11 +82,21 @@ set(EVE_SCENE_PROBE_MERGE_HISTOGRAMS_EFFECT ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/m
 set(EVE_SCENE_PROBE_MERGE_HISTOGRAMS_EFFECT_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/mergehistograms.sm_depth)
 set(EVE_SCENE_PROBE_MEASURE_EXPOSURE_EFFECT ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/measureexposure.sm_hi)
 set(EVE_SCENE_PROBE_MEASURE_EXPOSURE_EFFECT_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/measureexposure.sm_depth)
+set(EVE_SCENE_PROBE_HIGH_PASS_FILTER_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/highpassfilter.sm_hi)
+set(EVE_SCENE_PROBE_HIGH_PASS_FILTER_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/highpassfilter.sm_lo)
+set(EVE_SCENE_PROBE_HIGH_PASS_FILTER_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/highpassfilter.sm_depth)
+set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_hi)
+set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_lo)
+set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_depth)
+set(EVE_SCENE_PROBE_FILM_GRAIN_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_hi)
+set(EVE_SCENE_PROBE_FILM_GRAIN_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_lo)
+set(EVE_SCENE_PROBE_FILM_GRAIN_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_depth)
 set(EVE_SCENE_PROBE_BLIT_EFFECT ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/blit.sm_hi)
 set(EVE_SCENE_PROBE_BLIT_EFFECT_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/blit.sm_depth)
 set(EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/blitfiltered.sm_hi)
 set(EVE_SCENE_PROBE_BLIT_FILTERED_EFFECT_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/blitfiltered.sm_depth)
 set(EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global)
+set(EVE_SCENE_PROBE_FILM_GRAIN_NOISE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/film_grain_noise.png)
 set(EVE_SCENE_PROBE_BLACK_TEXTURE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/black.dds)
 set(EVE_SCENE_PROBE_REFLECTION_TEXTURE ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}/genericreflection_cube.dds)
 set(EVE_SCENE_PROBE_FLAT_NORMAL_RESOURCE "res:/texture/global/flatnormal.dds")
@@ -193,6 +203,8 @@ set(EVE_SCENE_PROBE_BACKGROUND_LO ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/backg
 set(EVE_SCENE_PROBE_BACKGROUND_DEPTH ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/background.sm_depth)
 set(EVE_SCENE_PROBE_A01_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/A01SceneResources.json)
 set(EVE_SCENE_PROBE_POSTPROCESS_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/PostProcessResources.json)
+set(EVE_SCENE_PROBE_POST_FINISH_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/PostFinishResources.json)
+set(EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/PostFinishInherited)
 set(EVE_SCENE_PROBE_CLIENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroClientResources.json)
 set(EVE_SCENE_PROBE_ASTERO_MODEL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroModelResources.json)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
@@ -717,6 +729,65 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbePostProcessEffects)
+endif()
+
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_POST_FINISH_OUTPUTS
+        ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_HI}
+        ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_LO}
+        ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_DEPTH}
+        ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI}
+        ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO}
+        ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH}
+        ${EVE_SCENE_PROBE_FILM_GRAIN_HI}
+        ${EVE_SCENE_PROBE_FILM_GRAIN_LO}
+        ${EVE_SCENE_PROBE_FILM_GRAIN_DEPTH}
+        ${EVE_SCENE_PROBE_FILM_GRAIN_NOISE}
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/postprocess.black
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/tonemapping.sm_hi
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/tonemapping.sm_depth
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/createhistograms.sm_hi
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/createhistograms.sm_depth
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/mergehistograms.sm_hi
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/mergehistograms.sm_depth
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/measureexposure.sm_hi
+        ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/measureexposure.sm_depth)
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_POST_FINISH_OUTPUTS} ${EVE_SCENE_PROBE_POST_FINISH_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_POSTPROCESS_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_GLOBAL_TEXTURE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_hi ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_lo ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/highpassfilter.sm_depth ${EVE_SCENE_PROBE_HIGH_PASS_FILTER_DEPTH}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_hi ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_lo ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_depth ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_hi ${EVE_SCENE_PROBE_FILM_GRAIN_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_lo ${EVE_SCENE_PROBE_FILM_GRAIN_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_depth ${EVE_SCENE_PROBE_FILM_GRAIN_DEPTH}
+            --copy-resource res:/texture/global/film_grain_noise.png ${EVE_SCENE_PROBE_FILM_GRAIN_NOISE}
+            --copy-resource ${EVE_SCENE_PROBE_DEFAULT_POSTPROCESS_RESOURCE} ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/postprocess.black
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_hi ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/tonemapping.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/tonemapping.sm_depth ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/tonemapping.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/createhistograms.sm_hi ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/createhistograms.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/createhistograms.sm_depth ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/createhistograms.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/mergehistograms.sm_hi ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/mergehistograms.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/mergehistograms.sm_depth ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/mergehistograms.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/measureexposure.sm_hi ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/measureexposure.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/measureexposure.sm_depth ${EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR}/measureexposure.sm_depth
+            --manifest ${EVE_SCENE_PROBE_POST_FINISH_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbePostFinishAssets
+        DEPENDS ${EVE_SCENE_PROBE_POST_FINISH_OUTPUTS} ${EVE_SCENE_PROBE_POST_FINISH_MANIFEST})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbePostFinishAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
@@ -1458,6 +1529,12 @@ if(TARGET TrinityEveSceneProbePostProcessEffects)
         ${EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE}
         ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
     )
+endif()
+
+if(TARGET TrinityEveSceneProbePostFinishAssets)
+    set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+        ${EVE_SCENE_PROBE_POST_FINISH_OUTPUTS}
+        ${EVE_SCENE_PROBE_POST_FINISH_MANIFEST})
 endif()
 
 if(TARGET TrinityEveSceneProbeClientAssets)
