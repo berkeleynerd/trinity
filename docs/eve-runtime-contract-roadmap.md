@@ -38,10 +38,12 @@ This table is the authoritative implementation order.
 | RC-04B | Reconstruct visible New Eden celestials | Accepted | RC-07 | Native `EvePlanet` renders the authored sun, Sandstorm surface, additive atmosphere, and transparent cloud layer. Exact-system model view retains 60-degree/subpixel framing; derived sun and planet diagnostics report 240.000 pixels against 240.000 expected. CPython 2.7 cloud selection, separate checksummed atmosphere resources, four distinct layer captures, and 180-frame model/HDR/exposure runs pass. Flare and god rays remain separate effects. |
 | RC-04C | Reconstruct New Eden sun effects | Accepted | RC-04B | Authored `SunFlares`, system graphic `1247` (`yellow_small.black`), native foreground/background occlusion, and depth-aware god rays execute in order. The 43-resource manifest is complete; off/flare/god-rays/all captures have distinct hashes; a 540-frame orbit and settled `hdr-exposure` run return zero. |
 | RC-05 | Complete the ship object/material-area contract | Accepted | RC-02 | Groups 0/1/2 remain distinct CMF sections. Hull and booster render through authored `quadv5`/`quadheatv5` batches; distortion geometry/effect/maps are validated and explicitly deferred to RC-12. `AsteroClientAssets.md` classifies every per-object default and absent area. |
+| RC-05B | Render authored visible SOF attachments | Accepted | RC-05 | The active `primary`/`soe` visibility groups produce 83 sprites, 4 spotlights, 16 planes, 2 hazes, and 4 banners through native attachment and quad-renderer paths. Every isolated family differs from off, a 540-frame orbit is stable, and lights remain independently selectable. |
+| RC-05C | Render indexed SOF decal sets | Blocked | RC-05B | Indexed decals retain authored ordering, materials, transforms, and depth behavior without corrupting accepted hull or attachment products. |
 | RC-06 | Supply object SH and local/secondary lighting | Accepted | RC-04, RC-05 | The probe uses the client's high `SM_3_0_DEPTH` tier. Exact New Eden sun/planet inputs correctly produce zero secondary SH after Trinity's cutoff; the synthetic control proves the same upload path. Six authored `primary`/`soe` haze/banner lights resolve and rotate with the ship, and local off/authored/validation captures are distinct. |
 | RC-07 | Validate depth and normal products | Accepted | RC-05 | The driver publishes reverse-Z `D32_FLOAT` depth and `R10G10B10A2_UNORM` normals through named outputs. A sample-owned GPU visualizer produces coherent 180-frame Astero captures; authored and flat-normal controls preserve silhouette/camera while differing in expected surface detail. |
 | RC-08 | Add shadows and AO | Blocked | RC-06, RC-07 | Shadow-caster batches and AO consume validated products; stills show plausible contact/shape cues without geometry or lighting regression. |
-| RC-09 | Accept complete HDR scene composition | Blocked | RC-03, RC-04, RC-04B, RC-04C, RC-06, RC-08 | Model, background, visible celestials and sun effects, direct/indirect lighting, reflection, depth/normal, shadows, and AO coexist in FP16 with stable frame pacing. |
+| RC-09 | Accept complete HDR scene composition | Blocked | RC-03, RC-04, RC-04B, RC-04C, RC-05B, RC-06, RC-08 | Model, background, visible celestials and sun effects, visible attachments, direct/indirect lighting, reflection, depth/normal, shadows, and AO coexist in FP16 with stable frame pacing. |
 | RC-10 | Reaccept exposure and tone mapping | Blocked | RC-09 | Settled `hdr-exposure` captures use the complete scene histogram and improve dynamic range without clipping, pumping, or hiding material errors. |
 | RC-11 | Add bloom and film grain | Blocked | RC-10 | Bloom is accepted independently before film grain; each has an A/B capture and clean finite run. |
 | RC-12 | Add distortion and volumetrics | Blocked | RC-09 | Each effect has its authored geometry/resources and a separate visual gate. |
@@ -70,12 +72,14 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-14 | New Eden authored planet surface | Accepted | Current client FSD resolves planet `40334264` to preset graphic `4321`, height graphics `3843`/`3903`, and their exact Black/DDS resources. The probe applies the client's `NormalHeight1`, `NormalHeight2`, `Random=64`, and deterministic high-resolution cloud mutations before synchronous preparation. | Aurora and data-driven planet FX remain omitted. |
 | CP-15 | New Eden atmosphere and cloud layers | Accepted | `planetring.gr2` is converted to CMF with its reconstructed binormal stream. Native `atmosphere` and `earthlikeclouds` effects render distinct additive/transparent controls; `Reports/NewEdenAtmosphereResources.json` records six Metal payloads and eight Sandstorm cloud textures. | The installed client exposes only an unused `DoPlanetPreprocessing` queue shell, so no scheduler-generated maps are emulated. |
 | CP-16 | New Eden sun flare and god rays | Accepted | `SunFlares` uses converted `unitplane` geometry; `yellow_small.black` retains 11 ordered CMF mesh areas and two foreground plus two background native occluders; client-colored god rays execute before exposure and tone mapping. `Reports/NewEdenSunFxResources.json` records 43 resources. | Whisps, particle-corona branches, bloom, and volumetric/froxel effects remain deferred. |
+| CP-17 | Native SOF visible-attachment machinery | Accepted | `EveSpriteSet`, `EveSpotlightSet`, and `EvePlaneSet` submit through `Tr2QuadRenderer`; `EveHazeSet` and `EveBannerSet` submit additive batches. Six isolated/all captures, a 540-frame orbit, depth/normal controls, and HDR/exposure runs pass. `Reports/AsteroAttachmentResources.json` records the complete staged graph. | Static identity bone deltas are used; boosters, trails, damage FX, indexed decals, distortion, and attachment shadows remain deferred. |
 
 ## Rung-model holes
 
 | Original claim | Missing contract | Correction |
 | --- | --- | --- |
 | Rung 3: model through EVE scene | Representative scene/background, complete object construction, SH/local lights, and effect areas | Split into 3A geometry, 3B object/material, 3C in-space scene, and 3D object lighting. |
+| Rung 3E: visible SOF attachments | Authored additive and quad geometry was absent from the light-only bridge | Require independent family controls and native lifecycle submission before HDR composition. |
 | Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | Treat `hdr-post` and `hdr-exposure` as capability checkpoints until RC-09. |
 | Rung 5: depth/normal after post | Depth/normal are prerequisites for AO, shadows, and complete composition | Validate products before accepting postprocess fidelity. |
 | Rung 6: AO/shadows as optional quality | They materially affect shape readability and scene composition | Make them a direct-path prerequisite for RC-09. |
@@ -83,10 +87,10 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Reconstruct visible SOF attachment geometry separately, preserving the
-   accepted light-only control.
-2. Add shadow-caster batches and enable AO one at a time under RC-08, preserving
+1. Add shadow-caster batches and enable AO one at a time under RC-08, preserving
    the accepted RC-07 product captures as controls.
+2. Reconstruct indexed decal sets separately under RC-05C without enabling
+   distortion or attachment shadows.
 
 Bloom, film grain, distortion, volumetrics, velocity, and TAA are not in the
 active queue. Their capability work remains useful, but they may not advance

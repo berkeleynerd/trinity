@@ -446,7 +446,7 @@ void EvePlaneSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& p
 			c = Saturate( c, l.saturation );
 
 			c.a = 0.5f * fade;
-			auto planeItem = l.index > m_planes.size() ? nullptr : m_planes[l.index];
+			auto planeItem = l.index >= m_planes.size() ? nullptr : m_planes[l.index];
 
 			renderer.DrawSphere(
 				planeItem,

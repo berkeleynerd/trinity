@@ -237,6 +237,9 @@ set(EVE_SCENE_PROBE_LOCAL_LIGHT_BANNER_DIR ${CMAKE_CURRENT_BINARY_DIR}/LocalLigh
 set(EVE_SCENE_PROBE_LOCAL_LIGHT_BANNER_BLACK ${EVE_SCENE_PROBE_LOCAL_LIGHT_BANNER_DIR}/black.dds)
 set(EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER_DIR ${CMAKE_CURRENT_BINARY_DIR}/LocalLightAssets/ui/texture/classes/banners/factional/various)
 set(EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER ${EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER_DIR}/soe_banner_base.dds)
+set(EVE_SCENE_PROBE_ATTACHMENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroAttachmentResources.json)
+set(EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/AttachmentAssets/Inherited)
+set(EVE_SCENE_PROBE_ATTACHMENT_GENERIC ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/generic.black)
 set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib)
 
 function(add_eve_scene_probe_dds_conversion input output metadata)
@@ -333,6 +336,64 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             ${EVE_SCENE_PROBE_LOCAL_LIGHT_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeLocalLightAssets)
+
+    set(EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS ${EVE_SCENE_PROBE_ATTACHMENT_GENERIC})
+    set(EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS
+        --copy-resource res:/dx9/model/spaceobjectfactory/generic.black ${EVE_SCENE_PROBE_ATTACHMENT_GENERIC}
+    )
+    set(EVE_SCENE_PROBE_ATTACHMENT_SOE_LOGO ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/shared/faction_logos/soe_logo.dds)
+    list(APPEND EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS ${EVE_SCENE_PROBE_ATTACHMENT_SOE_LOGO})
+    list(APPEND EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS
+        --copy-resource res:/dx9/model/shared/faction_logos/soe_logo.dds ${EVE_SCENE_PROBE_ATTACHMENT_SOE_LOGO})
+    foreach(effect blinkinglightspool spotlightconepool spotlightglowpool planeglow hazespherical banner)
+        foreach(variant hi lo depth)
+            set(resource "res:/graphics/effect.metal/managed/space/spaceobject/fx/${effect}.sm_${variant}")
+            set(destination "${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/${effect}.sm_${variant}")
+            list(APPEND EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS ${destination})
+            list(APPEND EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS --copy-resource ${resource} ${destination})
+        endforeach()
+    endforeach()
+    foreach(resource
+        res:/texture/particle/whitesharp.dds
+        res:/texture/global/spotramp.dds
+        res:/texture/sprite/caustics.dds
+        res:/texture/sprite/fluorecent.dds
+        res:/texture/sprite/astroiddirt3.dds
+        res:/texture/sprite/white2.dds
+        res:/texture/sprite/spotlight4.dds
+        res:/texture/fx/hologram/hologram_noise.dds
+        res:/texture/fx/hologram/hologram_pulse.dds
+        res:/texture/fx/hologram/hologram_interlace_p.dds)
+        string(REGEX REPLACE "^res:/" "" relative "${resource}")
+        set(destination "${EVE_SCENE_PROBE_ASSETS_DIR}/${relative}")
+        list(APPEND EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS ${destination})
+        list(APPEND EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS --copy-resource ${resource} ${destination})
+    endforeach()
+    set(EVE_SCENE_PROBE_ATTACHMENT_INHERITED_MASK ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR}/soef1_t1_mask.dds)
+    set(EVE_SCENE_PROBE_ATTACHMENT_INHERITED_BANNER ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR}/soe_banner_base.dds)
+    list(APPEND EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS
+        ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_MASK}
+        ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_BANNER})
+    list(APPEND EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS
+        --copy-resource ${EVE_SCENE_PROBE_ASTERO_MASK} ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_MASK}
+        --copy-resource res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_BANNER})
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS} ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_ATTACHMENT_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeAsteroAttachmentAssets
+        DEPENDS ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS} ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroAttachmentAssets)
 
     add_custom_command(
         OUTPUT
@@ -1293,6 +1354,12 @@ if(TARGET TrinityEveSceneProbeLocalLightAssets)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/ui/texture/classes/banners/factional/various/soe_banner_base.dds
         VERBATIM
     )
+endif()
+
+if(TARGET TrinityEveSceneProbeAsteroAttachmentAssets)
+    set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+        ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS}
+        ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
 endif()
 
 add_custom_command(

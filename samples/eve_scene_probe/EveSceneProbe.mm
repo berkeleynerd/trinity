@@ -47,7 +47,9 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int cloudYear,
 													  int cloudMonth,
 													  int cloudDay,
-													  int sunEffects );
+													  int sunEffects,
+													  int attachments,
+													  int attachmentView );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
 												   int qualityRung,
 												   int64_t realTime,
@@ -121,6 +123,24 @@ enum class LocalLights
 	Off,
 	Authored,
 	Validation,
+};
+
+enum class Attachments
+{
+	Auto,
+	Off,
+	Authored,
+};
+
+enum class AttachmentView
+{
+	All,
+	Sprites,
+	SpriteLines,
+	Spotlights,
+	Planes,
+	Hazes,
+	Banners,
 };
 
 enum class ShaderTier
@@ -206,6 +226,9 @@ struct Options
 	LightingView lightingView = LightingView::Combined;
 	ShSource shSource = ShSource::NewEdenCelestials;
 	LocalLights localLights = LocalLights::Off;
+	Attachments attachments = Attachments::Auto;
+	Attachments resolvedAttachments = Attachments::Off;
+	AttachmentView attachmentView = AttachmentView::All;
 	ShaderTier shaderTier = ShaderTier::High;
 	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
 	NormalMapMode normalMapMode = NormalMapMode::Authored;
@@ -342,6 +365,56 @@ bool ParseLocalLights( const std::string& value, LocalLights& mode )
 		if( normalized == LocalLightsName( candidate ) )
 		{
 			mode = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string AttachmentsName( Attachments mode )
+{
+	switch( mode )
+	{
+	case Attachments::Auto:
+		return "auto";
+	case Attachments::Off:
+		return "off";
+	case Attachments::Authored:
+		return "authored";
+	}
+	return "unknown";
+}
+
+bool ParseAttachments( const std::string& value, Attachments& mode )
+{
+	const std::string normalized = ToLower( value );
+	const Attachments values[] = { Attachments::Auto, Attachments::Off, Attachments::Authored };
+	for( Attachments candidate : values )
+	{
+		if( normalized == AttachmentsName( candidate ) )
+		{
+			mode = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string AttachmentViewName( AttachmentView view )
+{
+	static const char* names[] = { "all", "sprites", "sprite-lines", "spotlights", "planes", "hazes", "banners" };
+	return names[static_cast<int>( view )];
+}
+
+bool ParseAttachmentView( const std::string& value, AttachmentView& view )
+{
+	const std::string normalized = ToLower( value );
+	for( int candidate = 0; candidate <= static_cast<int>( AttachmentView::Banners ); ++candidate )
+	{
+		const auto candidateView = static_cast<AttachmentView>( candidate );
+		if( normalized == AttachmentViewName( candidateView ) )
+		{
+			view = candidateView;
 			return true;
 		}
 	}
@@ -921,6 +994,7 @@ void PrintUsage( const char* executable )
 			  << "       [--scene-fixture empty|fitting|a01|new-eden]\n"
 			  << "       [--lighting-view combined|direct|sh|local] [--sh-source new-eden-celestials|validation|none]\n"
 			  << "       [--local-lights off|authored|validation]\n"
+			  << "       [--attachments auto|off|authored] [--attachment-view all|sprites|sprite-lines|spotlights|planes|hazes|banners]\n"
 			  << "       [--shader-tier medium|high]\n"
 			  << "       [--reflection-correction off|client]\n"
 			  << "       [--normal-map authored|flat]\n"
@@ -1058,6 +1132,20 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			}
 			options.localLightsExplicit = true;
 		}
+		else if( arg == "--attachments" )
+		{
+			if( ++i >= argc || !ParseAttachments( argv[i], options.attachments ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--attachment-view" )
+		{
+			if( ++i >= argc || !ParseAttachmentView( argv[i], options.attachmentView ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--shader-tier" )
 		{
 			if( ++i >= argc || !ParseShaderTier( argv[i], options.shaderTier ) )
@@ -1146,6 +1234,17 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
 	{
 		options.localLights = LocalLights::Authored;
+	}
+	options.resolvedAttachments = options.attachments == Attachments::Auto ?
+		( options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
+		  options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
+		  options.qualityRung >= QualityRung::Model ? Attachments::Authored : Attachments::Off ) :
+		options.attachments;
+	if( options.resolvedAttachments == Attachments::Authored &&
+		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ) )
+	{
+		std::cerr << "Authored attachments require --asset astero --material-mode eve-v5\n";
+		return false;
 	}
 	if( options.sunEffects == SunEffects::Auto )
 	{
@@ -1341,7 +1440,9 @@ std::string CaptureBasePath( const Options& options )
 		NormalMapModeName( options.normalMapMode ) + "_camera-" + CameraViewName( options.cameraView ) +
 		"_composition-" + SceneCompositionName( options.composition ) + "_planet-" +
 		PlanetLayersName( options.planetLayers ) + "_cloud-date-" + PlanetCloudDateName( options );
-	const std::string sunSuffix = "_sunfx-" + SunEffectsName( options.resolvedSunEffects );
+	const std::string sunSuffix = "_sunfx-" + SunEffectsName( options.resolvedSunEffects ) +
+		"_attachments-" + AttachmentsName( options.resolvedAttachments ) + "_attachment-view-" +
+		AttachmentViewName( options.attachmentView );
 	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix +
 		sunSuffix;
 }
@@ -1379,6 +1480,9 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "lightingView=" << LightingViewName( options.lightingView ) << "\n";
 	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
 	metadata << "localLights=" << LocalLightsName( options.localLights ) << "\n";
+	metadata << "attachmentsRequested=" << AttachmentsName( options.attachments ) << "\n";
+	metadata << "attachmentsResolved=" << AttachmentsName( options.resolvedAttachments ) << "\n";
+	metadata << "attachmentView=" << AttachmentViewName( options.attachmentView ) << "\n";
 	metadata << "shaderTier=" << ShaderTierName( options.shaderTier ) << "\n";
 	metadata << "reflectionCorrection=" << ReflectionCorrectionName( options.reflectionCorrection ) << "\n";
 	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
@@ -1527,7 +1631,9 @@ int main( int argc, char** argv )
 												   options.cloudYear,
 												   options.cloudMonth,
 												   options.cloudDay,
-												   static_cast<int>( options.resolvedSunEffects ) ) )
+												   static_cast<int>( options.resolvedSunEffects ),
+												   static_cast<int>( options.resolvedAttachments ),
+												   static_cast<int>( options.attachmentView ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

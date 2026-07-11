@@ -493,7 +493,7 @@ void EveSpotlightSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matri
 			Color c = l.lightData.color;
 
 			c.a = 0.5;
-			auto spotlightItem = l.index > m_spotlightItems.size() ? nullptr : m_spotlightItems[l.index];
+			auto spotlightItem = l.index >= m_spotlightItems.size() ? nullptr : m_spotlightItems[l.index];
 
 			renderer.DrawCone(
 				spotlightItem,

@@ -14,12 +14,16 @@
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
 #include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveBannerSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveHazeSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveHazeSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EvePlaneSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EvePlaneSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpotlightSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpotlightSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteLineSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
+#include "Eve/SpaceObject/Attachments/Sets/EveSpriteSetItem.h"
 #include "Eve/SpaceObject/Children/EveChildContainer.h"
 #include "Eve/SpaceObject/Children/EveChildLineSet.h"
 #include "Eve/SpaceObject/Children/EveChildParticleSystem.h"
@@ -62,6 +66,7 @@
 #include <cmath>
 #include <fstream>
 #include <functional>
+#include <map>
 #include <sstream>
 #include <set>
 #include <string>
@@ -213,13 +218,14 @@ public:
 			return true;
 		};
 
-		uint32_t index = 0;
 		for( const auto& setData : hull.m_spriteSets )
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EveSpriteSetPtr set;
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_items )
 			{
+				const uint32_t ordinal = itemOrdinal++;
 				if( !item->m_light )
 					continue;
 				DeclareLight( LIGHT_FAMILY_SPRITE, active );
@@ -236,7 +242,7 @@ public:
 				NormalizeAuthoredLight( data );
 				if( !set )
 					set.CreateInstance();
-				set->AddLightFromSOF( EveSpriteLight( data, item->m_blinkPhase, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
+				set->AddLightFromSOF( EveSpriteLight( data, item->m_blinkPhase, item->m_blinkRate, item->m_minScale, item->m_maxScale, ordinal, item->m_light->m_lightProfilePath ) );
 				ConstructLight( LIGHT_FAMILY_SPRITE, data.boneIndex );
 			}
 			if( set )
@@ -247,8 +253,10 @@ public:
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EveSpriteLineSetPtr set;
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_items )
 			{
+				const uint32_t ordinal = itemOrdinal++;
 				if( !item->m_light )
 					continue;
 				EveSpriteLineSetItemPtr runtimeItem;
@@ -279,7 +287,7 @@ public:
 					NormalizeAuthoredLight( positioned );
 					if( !set )
 						set.CreateInstance();
-					set->AddLightFromSOF( EveSpriteLight( positioned, item->m_blinkPhase + item->m_blinkPhaseShift * positionIndex++, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
+					set->AddLightFromSOF( EveSpriteLight( positioned, item->m_blinkPhase + item->m_blinkPhaseShift * positionIndex++, item->m_blinkRate, item->m_minScale, item->m_maxScale, ordinal, item->m_light->m_lightProfilePath ) );
 					ConstructLight( LIGHT_FAMILY_SPRITE_LINE, positioned.boneIndex );
 				}
 			}
@@ -291,8 +299,10 @@ public:
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EveSpotlightSetPtr set;
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_items )
 			{
+				const uint32_t ordinal = itemOrdinal++;
 				if( !item->m_light )
 					continue;
 				DeclareLight( LIGHT_FAMILY_SPOTLIGHT, active );
@@ -316,7 +326,7 @@ public:
 				NormalizeAuthoredLight( data );
 				if( !set )
 					set.CreateInstance();
-				set->AddLightFromSOF( EveSpotlightLight( data, index++, item->m_light->m_lightProfilePath, item->m_boosterGainInfluence ) );
+				set->AddLightFromSOF( EveSpotlightLight( data, ordinal, item->m_light->m_lightProfilePath, item->m_boosterGainInfluence ) );
 				ConstructLight( LIGHT_FAMILY_SPOTLIGHT, data.boneIndex );
 			}
 			if( set )
@@ -327,8 +337,10 @@ public:
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EvePlaneSetPtr set;
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_items )
 			{
+				const uint32_t ordinal = itemOrdinal++;
 				for( const auto& rawLight : item->m_lights )
 				{
 					DeclareLight( LIGHT_FAMILY_PLANE, active );
@@ -347,7 +359,7 @@ public:
 					NormalizeAuthoredLight( data );
 					if( !set )
 						set.CreateInstance();
-					set->AddLightFromSOF( EvePlaneLight( data, rawLight->m_saturation, index++, rawLight->m_lightProfilePath, static_cast<EveSpaceObjectAttachmentUtils::FadeType>( item->m_blinkMode ), item->m_phase, item->m_rate ) );
+					set->AddLightFromSOF( EvePlaneLight( data, rawLight->m_saturation, ordinal, rawLight->m_lightProfilePath, static_cast<EveSpaceObjectAttachmentUtils::FadeType>( item->m_blinkMode ), item->m_phase, item->m_rate ) );
 					ConstructLight( LIGHT_FAMILY_PLANE, data.boneIndex );
 				}
 			}
@@ -359,8 +371,27 @@ public:
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EveHazeSetPtr set;
+			if( active )
+				set.CreateInstance();
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_items )
 			{
+				const uint32_t ordinal = itemOrdinal++;
+				if( active )
+				{
+					Color itemColor;
+					if( !colorFor( item->m_colorType, itemColor ) )
+						return false;
+					EveHazeSetItemPtr runtime;
+					runtime.CreateInstance();
+					runtime->m_position = NormalizeAuthoredPosition( item->m_position );
+					runtime->m_scaling = item->m_scaling * NormalizeAuthoredLength( 1.0f );
+					runtime->m_rotation = item->m_rotation;
+					runtime->m_color = Saturate( item->m_hazeBrightness * itemColor, item->m_saturation );
+					runtime->m_hazeData = Vector4( item->m_hazeFalloff, item->m_sourceSize, item->m_sourceBrightness, item->m_boosterGainInfluence ? 1.0f : 0.0f );
+					runtime->m_boneIndex = item->m_boneIndex;
+					set->AddHazeItem( runtime );
+				}
 				for( const auto& rawLight : item->m_lights )
 				{
 					DeclareLight( LIGHT_FAMILY_HAZE, active );
@@ -377,9 +408,7 @@ public:
 					data.rotation = Normalize( data.rotation * item->m_rotation );
 					data.boneIndex = item->m_boneIndex;
 					NormalizeAuthoredLight( data );
-					if( !set )
-						set.CreateInstance();
-					set->AddLightFromSOF( EveHazeSetLight( data, index++, rawLight->m_lightProfilePath, item->m_boosterGainInfluence ) );
+					set->AddLightFromSOF( EveHazeSetLight( data, ordinal, rawLight->m_lightProfilePath, item->m_boosterGainInfluence ) );
 					ConstructLight( LIGHT_FAMILY_HAZE, data.boneIndex );
 				}
 			}
@@ -391,9 +420,25 @@ public:
 		{
 			const bool active = isActive( setData->m_visibilityGroup );
 			EveBannerSetPtr set;
+			if( active )
+				set.CreateInstance();
 			TriTextureParameterPtr imageMap;
+			uint32_t itemOrdinal = 0;
 			for( const auto& item : setData->m_banners )
 			{
+				const uint32_t ordinal = itemOrdinal++;
+				if( active )
+				{
+					EveBannerItem runtime;
+					runtime.bone = item->m_boneIndex;
+					runtime.position = NormalizeAuthoredPosition( item->m_position );
+					runtime.rotation = item->m_rotation;
+					runtime.scaling = item->m_scaling * NormalizeAuthoredLength( 1.0f );
+					runtime.angleX = item->m_angleX;
+					runtime.angleY = item->m_angleY;
+					runtime.reference = static_cast<int32_t>( item->m_usage );
+					set->AddBanner( runtime );
+				}
 				if( !item->m_light )
 					continue;
 				DeclareLight( LIGHT_FAMILY_BANNER, active );
@@ -402,17 +447,16 @@ public:
 					continue;
 				if( !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) )
 					return false;
-				if( !set )
+				if( !imageMap )
 				{
-					const char* bannerPath = "res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds";
-					if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE banner", error ) )
+					const char* bannerPath = "res:/dx9/model/shared/faction_logos/soe_logo.dds";
+					if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE square logo", error ) )
 						return false;
-					set.CreateInstance();
 					imageMap.CreateInstance();
 					imageMap->SetParameterName( BlueSharedString( "ImageMap" ) );
 					imageMap->SetResourcePath( bannerPath );
 					set->SetPrimaryTextureParameter( imageMap );
-					std::fprintf( stderr, "Astero dynamic banner texture: deterministic SoE fixture=%s client-no-identity-fallback=res:/texture/global/black.dds\n", bannerPath );
+					std::fprintf( stderr, "Astero dynamic logo texture: deterministic square SoE fixture=%s client-no-identity-fallback=res:/texture/global/black.dds\n", bannerPath );
 				}
 				Color color( 0.0f, 0.0f, 0.0f, 0.0f );
 				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
@@ -422,7 +466,7 @@ public:
 				data.rotation = Normalize( data.rotation * item->m_rotation );
 				data.boneIndex = item->m_boneIndex;
 				NormalizeAuthoredLight( data );
-				set->AddLightFromSOF( EveBannerLight( data, item->m_light->m_saturation, index++, item->m_light->m_lightProfilePath ) );
+				set->AddLightFromSOF( EveBannerLight( data, item->m_light->m_saturation, ordinal, item->m_light->m_lightProfilePath ) );
 				ConstructLight( LIGHT_FAMILY_BANNER, data.boneIndex );
 			}
 			if( set )
@@ -493,6 +537,273 @@ public:
 		if( TotalConstructedLights() == 0 )
 		{
 			error = "Astero authored-light reconstruction produced zero active lights";
+			return false;
+		}
+		return true;
+	}
+
+	bool ConfigureAttachments( int mode, int view, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, const EveSOFDataGeneric& generic, std::string& error )
+	{
+		m_attachmentMode = mode;
+		m_attachmentView = view;
+		if( mode == 1 )
+		{
+			std::fprintf( stderr, "Astero visible attachments disabled\n" );
+			return true;
+		}
+		if( mode != 2 || !faction.m_colorSet || !faction.m_visibilityGroupSet )
+		{
+			error = "Invalid authored-attachment configuration";
+			return false;
+		}
+
+		std::set<std::string> visibilityGroups;
+		for( const auto& value : faction.m_visibilityGroupSet->m_visibilityGroups )
+			visibilityGroups.insert( value->m_str );
+		auto isActive = [&]( const BlueSharedString& group ) { return visibilityGroups.count( group.c_str() ) != 0; };
+		auto selected = [&]( int family ) { return view == 0 || view == family; };
+		auto colorFor = [&]( SOFDataFactionColorChooser::ColorType type, Color& color ) {
+			const int index = static_cast<int>( type );
+			if( index < 0 || index >= SOFDataFactionColorChooser::TYPE_MAX )
+			{
+				error = "Astero attachment has invalid faction color index " + std::to_string( index );
+				return false;
+			}
+			color = faction.m_colorSet->m_colors[index];
+			return true;
+		};
+
+		Tr2EffectPtr spriteEffect;
+		if( selected( 1 ) || selected( 2 ) )
+		{
+			if( !CreateAttachmentEffect( spriteEffect, "res:/graphics/effect/managed/space/spaceobject/fx/blinkinglightspool.fx", "sprite", error ) )
+				return false;
+		}
+
+		for( const auto& setData : hull.m_spriteSets )
+		{
+			CountAttachmentSet( ATTACHMENT_FAMILY_SPRITE, setData->m_items.size(), isActive( setData->m_visibilityGroup ) );
+			if( !isActive( setData->m_visibilityGroup ) || !selected( 1 ) )
+				continue;
+			EveSpriteSetPtr set;
+			set.CreateInstance();
+			set->SetEffect( spriteEffect );
+			set->SetSkinned( false );
+			for( const auto& item : setData->m_items )
+			{
+				Color color;
+				if( !colorFor( item->m_colorType, color ) )
+					return false;
+				EveSpriteSetItemPtr runtime;
+				runtime.CreateInstance();
+				runtime->m_position = NormalizeAuthoredPosition( item->m_position );
+				runtime->m_blinkRate = item->m_blinkRate;
+				runtime->m_blinkPhase = item->m_blinkPhase;
+				runtime->m_minScale = NormalizeAuthoredLength( item->m_minScale );
+				runtime->m_maxScale = NormalizeAuthoredLength( item->m_maxScale );
+				runtime->m_falloff = item->m_falloff;
+				runtime->m_color = Saturate( item->m_intensity * color, item->m_saturation );
+				runtime->m_warpColor = runtime->m_color;
+				runtime->m_boneIndex = item->m_boneIndex;
+				ReportAttachmentBone( ATTACHMENT_FAMILY_SPRITE, item->m_boneIndex );
+				set->Add( runtime );
+			}
+			set->Rebuild();
+			if( !set->Initialize() )
+			{
+				error = "Failed to initialize Astero sprite attachment set";
+				return false;
+			}
+			m_spriteAttachmentSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_spriteLineSets )
+		{
+			CountAttachmentSet( ATTACHMENT_FAMILY_SPRITE_LINE, setData->m_items.size(), isActive( setData->m_visibilityGroup ) );
+			if( !isActive( setData->m_visibilityGroup ) || !selected( 2 ) )
+				continue;
+			EveSpriteLineSetPtr set;
+			set.CreateInstance();
+			set->Setup( spriteEffect, false );
+			for( const auto& item : setData->m_items )
+			{
+				Color color;
+				if( !colorFor( item->m_colorType, color ) )
+					return false;
+				EveSpriteLineSetItemPtr runtime;
+				runtime.CreateInstance();
+				runtime->m_position = NormalizeAuthoredPosition( item->m_position );
+				runtime->m_rotation = item->m_rotation;
+				runtime->m_scaling = item->m_scaling;
+				runtime->m_spacing = item->m_spacing;
+				if( item->m_isCircle )
+					runtime->m_scaling *= NormalizeAuthoredLength( 1.0f );
+				else
+					runtime->m_spacing = NormalizeAuthoredLength( item->m_spacing );
+				runtime->m_isCircle = item->m_isCircle;
+				runtime->m_blinkRate = item->m_blinkRate;
+				runtime->m_blinkPhase = item->m_blinkPhase;
+				runtime->m_blinkPhaseShift = item->m_blinkPhaseShift;
+				runtime->m_minScale = NormalizeAuthoredLength( item->m_minScale );
+				runtime->m_maxScale = NormalizeAuthoredLength( item->m_maxScale );
+				runtime->m_falloff = item->m_falloff;
+				runtime->m_color = Saturate( item->m_intensity * color, item->m_saturation );
+				runtime->m_boneIndex = item->m_boneIndex;
+				ReportAttachmentBone( ATTACHMENT_FAMILY_SPRITE_LINE, item->m_boneIndex );
+				set->Add( runtime );
+			}
+			set->Rebuild();
+			if( !set->Initialize() )
+			{
+				error = "Failed to initialize Astero sprite-line attachment set";
+				return false;
+			}
+			m_spriteLineAttachmentSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_spotlightSets )
+		{
+			CountAttachmentSet( ATTACHMENT_FAMILY_SPOTLIGHT, setData->m_items.size(), isActive( setData->m_visibilityGroup ) );
+			if( !isActive( setData->m_visibilityGroup ) || !selected( 3 ) )
+				continue;
+			Tr2EffectPtr cone, glow;
+			if( !CreateTexturedAttachmentEffect( cone, "res:/graphics/effect/managed/space/spaceobject/fx/spotlightconepool.fx", setData->m_coneTextureResPath, "spotlight cone", error, setData->m_zOffset ) ||
+				!CreateTexturedAttachmentEffect( glow, "res:/graphics/effect/managed/space/spaceobject/fx/spotlightglowpool.fx", setData->m_glowTextureResPath, "spotlight glow", error ) )
+				return false;
+			EveSpotlightSetPtr set;
+			set.CreateInstance();
+			set->SetConeEffect( cone );
+			set->SetGlowEffect( glow );
+			set->SetSkinned( false );
+			for( const auto& item : setData->m_items )
+			{
+				Color color;
+				if( !colorFor( item->m_colorType, color ) )
+					return false;
+				Vector3 scale, position;
+				Quaternion rotation;
+				Decompose( scale, rotation, position, item->m_transform );
+				EveSpotlightSetItemPtr runtime;
+				runtime.CreateInstance();
+				runtime->m_transform = TransformationMatrix( scale * NormalizeAuthoredLength( 1.0f ), rotation, NormalizeAuthoredPosition( position ) );
+				runtime->m_spriteScale = item->m_spriteScale * NormalizeAuthoredLength( 1.0f );
+				runtime->m_coneColor = item->m_coneIntensity * ModifyAttachmentColor( color, item->m_saturation * 0.75f, 0.5f );
+				runtime->m_flareColor = item->m_flareIntensity * ModifyAttachmentColor( color, item->m_saturation, 1.0f );
+				runtime->m_spriteColor = item->m_spriteIntensity * ModifyAttachmentColor( color, item->m_saturation * 0.9f, 0.75f );
+				runtime->m_boneIndex = item->m_boneIndex;
+				runtime->m_boosterGainInfluence = item->m_boosterGainInfluence;
+				ReportAttachmentBone( ATTACHMENT_FAMILY_SPOTLIGHT, item->m_boneIndex );
+				set->AddSpotlightItem( runtime );
+			}
+			set->Rebuild();
+			if( !set->Initialize() )
+			{
+				error = "Failed to initialize Astero spotlight attachment set";
+				return false;
+			}
+			m_spotlightAttachmentSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_planeSets )
+		{
+			CountAttachmentSet( ATTACHMENT_FAMILY_PLANE, setData->m_items.size(), isActive( setData->m_visibilityGroup ) );
+			if( !isActive( setData->m_visibilityGroup ) || !selected( 4 ) )
+				continue;
+			if( setData->m_usage == EveSOFDataHullPlaneSet::USAGE_SPACE_VIDEO || setData->m_usage == EveSOFDataHullPlaneSet::USAGE_HANGAR_VIDEO )
+			{
+				error = "Unsupported active Astero plane-video attachment usage";
+				return false;
+			}
+			Tr2EffectPtr effect;
+			EvePlaneSetPtr set;
+			set.CreateInstance();
+			if( !CreatePlaneAttachmentEffect( effect, *setData, *set, error ) )
+				return false;
+			set->SetEffect( effect );
+			set->SetIsSkinned( false );
+			for( const auto& item : setData->m_items )
+			{
+				Color color;
+				if( !colorFor( item->m_colorType, color ) )
+					return false;
+				EvePlaneSetItemPtr runtime;
+				runtime.CreateInstance();
+				runtime->m_position = NormalizeAuthoredPosition( item->m_position );
+				runtime->m_scaling = item->m_scaling * NormalizeAuthoredLength( 1.0f );
+				runtime->m_rotation = item->m_rotation;
+				runtime->m_color = Saturate( item->m_intensity * color, item->m_saturation );
+				runtime->m_layer1Transform = item->m_layer1Transform;
+				runtime->m_layer2Transform = item->m_layer2Transform;
+				runtime->m_layer1Scroll = item->m_layer1Scroll;
+				runtime->m_layer2Scroll = item->m_layer2Scroll;
+				runtime->m_boneIndex = item->m_boneIndex;
+				runtime->m_maskAtlasID = static_cast<uint32_t>( item->m_maskMapAtlasIndex );
+				runtime->m_blinkData = Vector4( item->m_rate, item->m_phase, item->m_dutyCycle, static_cast<float>( item->m_blinkMode ) );
+				ReportAttachmentBone( ATTACHMENT_FAMILY_PLANE, item->m_boneIndex );
+				set->AddPlaneItem( runtime );
+			}
+			set->Rebuild();
+			if( !set->Initialize() )
+			{
+				error = "Failed to initialize Astero plane attachment set";
+				return false;
+			}
+			m_planeAttachmentSets.push_back( set );
+		}
+
+		for( const auto& setData : hull.m_hazeSets )
+		{
+			CountAttachmentSet( ATTACHMENT_FAMILY_HAZE, setData->m_items.size(), isActive( setData->m_visibilityGroup ) );
+			if( !isActive( setData->m_visibilityGroup ) || !selected( 5 ) )
+				continue;
+			if( setData->m_hazeType != EveSOFDataHullHazeSet::TYPE_SPHERICAL )
+			{
+				error = "Unsupported active Astero half-spherical haze attachment";
+				return false;
+			}
+			Tr2EffectPtr effect;
+			if( !CreateAttachmentEffect( effect, "res:/graphics/effect/managed/space/spaceobject/fx/hazespherical.fx", "spherical haze", error ) )
+				return false;
+			EveHazeSetPtr set;
+			set.CreateInstance();
+			set->Setup( effect );
+			for( const auto& item : setData->m_items )
+			{
+				Color color;
+				if( !colorFor( item->m_colorType, color ) )
+					return false;
+				EveHazeSetItemPtr runtime;
+				runtime.CreateInstance();
+				runtime->m_position = NormalizeAuthoredPosition( item->m_position );
+				runtime->m_scaling = item->m_scaling * NormalizeAuthoredLength( 1.0f );
+				runtime->m_rotation = item->m_rotation;
+				runtime->m_color = Saturate( item->m_hazeBrightness * color, item->m_saturation );
+				runtime->m_hazeData = Vector4( item->m_hazeFalloff, item->m_sourceSize, item->m_sourceBrightness, item->m_boosterGainInfluence ? 1.0f : 0.0f );
+				runtime->m_boneIndex = item->m_boneIndex;
+				ReportAttachmentBone( ATTACHMENT_FAMILY_HAZE, item->m_boneIndex );
+				set->AddHazeItem( runtime );
+			}
+			set->Rebuild();
+			if( !set->Initialize() )
+			{
+				error = "Failed to initialize Astero haze attachment set";
+				return false;
+			}
+			m_hazeAttachmentSets.push_back( set );
+		}
+
+		if( selected( 6 ) && !ConfigureBannerAttachments( hull, generic, visibilityGroups, error ) )
+			return false;
+		else if( !selected( 6 ) )
+		{
+			for( const auto& setData : hull.m_bannerSets )
+				CountAttachmentSet( ATTACHMENT_FAMILY_BANNER, setData->m_banners.size(), isActive( setData->m_visibilityGroup ) );
+		}
+
+		ReportAttachmentStats();
+		if( m_attachmentView > 0 && m_attachmentStats[m_attachmentView - 1].active == 0 && m_attachmentView != 2 )
+		{
+			error = "Selected Astero attachment family unexpectedly has zero active items";
 			return false;
 		}
 		return true;
@@ -637,8 +948,44 @@ public:
 	{
 	}
 
-	void UpdateVisibility( const EveUpdateContext&, const Matrix& ) override
+	void UpdateVisibility( const EveUpdateContext& updateContext, const Matrix& ) override
 	{
+		for( const auto& set : m_spriteAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		for( const auto& set : m_spriteLineAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		for( const auto& set : m_spotlightAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		for( const auto& set : m_planeAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		for( const auto& set : m_hazeAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		for( const auto& set : m_bannerAttachmentSets )
+			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+	}
+
+	void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer ) override
+	{
+		for( const auto& set : m_spriteAttachmentSets )
+			set->RegisterWithQuadRenderer( quadRenderer );
+		for( const auto& set : m_spriteLineAttachmentSets )
+			set->RegisterWithQuadRenderer( quadRenderer );
+		for( const auto& set : m_spotlightAttachmentSets )
+			set->RegisterWithQuadRenderer( quadRenderer );
+		for( const auto& set : m_planeAttachmentSets )
+			set->RegisterWithQuadRenderer( quadRenderer );
+	}
+
+	void AddQuadsToQuadRenderer( const TriFrustum&, Tr2QuadRenderer& quadRenderer ) override
+	{
+		for( const auto& set : m_spriteAttachmentSets )
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+		for( const auto& set : m_spriteLineAttachmentSets )
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+		for( const auto& set : m_spotlightAttachmentSets )
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+		for( const auto& set : m_planeAttachmentSets )
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
 	}
 
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
@@ -674,7 +1021,7 @@ public:
 		transform = m_worldTransform;
 	}
 
-	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData*, Tr2RenderReason ) override
+	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason ) override
 	{
 		if( m_useEveV5Material )
 		{
@@ -687,11 +1034,13 @@ public:
 			{
 				CommitAreaBatch( batches, 0, m_distortionEffect, Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
 			}
+			ForwardAttachmentBatches( batches, batchType, perObjectData, reason );
 			return;
 		}
 
 		if( batchType != TRIBATCHTYPE_OPAQUE || !m_effect || !m_effect->GetShaderStateInterface() )
 		{
+			ForwardAttachmentBatches( batches, batchType, perObjectData, reason );
 			return;
 		}
 		Tr2RenderBatch batch;
@@ -723,6 +1072,7 @@ public:
 			std::fprintf( stderr, "Probe native opaque batch committed\n" );
 			m_reportedBatch = true;
 		}
+		ForwardAttachmentBatches( batches, batchType, perObjectData, reason );
 	}
 
 	bool HasTransparentBatches() override
@@ -834,6 +1184,230 @@ public:
 	}
 
 private:
+	enum AttachmentFamily
+	{
+		ATTACHMENT_FAMILY_SPRITE,
+		ATTACHMENT_FAMILY_SPRITE_LINE,
+		ATTACHMENT_FAMILY_SPOTLIGHT,
+		ATTACHMENT_FAMILY_PLANE,
+		ATTACHMENT_FAMILY_HAZE,
+		ATTACHMENT_FAMILY_BANNER,
+		ATTACHMENT_FAMILY_COUNT,
+	};
+
+	struct AttachmentStats
+	{
+		uint32_t declared = 0;
+		uint32_t excluded = 0;
+		uint32_t active = 0;
+	};
+
+	static const char* AttachmentFamilyName( AttachmentFamily family )
+	{
+		static const char* names[] = { "sprites", "sprite-lines", "spotlights", "planes", "hazes", "banners" };
+		return names[family];
+	}
+
+	void CountAttachmentSet( AttachmentFamily family, size_t count, bool active )
+	{
+		m_attachmentStats[family].declared += static_cast<uint32_t>( count );
+		if( active )
+			m_attachmentStats[family].active += static_cast<uint32_t>( count );
+		else
+			m_attachmentStats[family].excluded += static_cast<uint32_t>( count );
+	}
+
+	void ReportAttachmentBone( AttachmentFamily family, int32_t boneIndex ) const
+	{
+		if( boneIndex >= 0 )
+			std::fprintf( stderr, "Astero visible attachment uses static identity bone delta: family=%s bone=%d\n", AttachmentFamilyName( family ), boneIndex );
+	}
+
+	void ReportAttachmentStats() const
+	{
+		std::fprintf( stderr, "Astero visible-attachment inventory:\n" );
+		for( int family = 0; family < ATTACHMENT_FAMILY_COUNT; ++family )
+		{
+			const AttachmentStats& stats = m_attachmentStats[family];
+			std::fprintf( stderr, "  %-12s declared=%u visibility-excluded=%u active=%u\n", AttachmentFamilyName( static_cast<AttachmentFamily>( family ) ), stats.declared, stats.excluded, stats.active );
+		}
+	}
+
+	float NormalizeAuthoredLength( float value ) const
+	{
+		float centerScale[4];
+		m_model.GetCenterAndScale( centerScale );
+		return value * centerScale[3];
+	}
+
+	Vector3 NormalizeAuthoredPosition( const Vector3& value ) const
+	{
+		float centerScale[4];
+		m_model.GetCenterAndScale( centerScale );
+		return ( value - Vector3( centerScale[0], centerScale[1], centerScale[2] ) ) * centerScale[3];
+	}
+
+	static Color ModifyAttachmentColor( const Color& color, float saturation, float brightness )
+	{
+		CTriColor converted;
+		const float maximum = std::max( { color.r, color.g, color.b, 1.0f } );
+		converted.SetRGB( color.r / maximum, color.g / maximum, color.b / maximum, 1.0f );
+		float hue, sourceSaturation, value;
+		converted.GetHSV( &hue, &sourceSaturation, &value );
+		sourceSaturation *= saturation;
+		value *= brightness;
+		converted.SetHSV( hue, sourceSaturation, value );
+		return Color( converted.r, converted.g, converted.b, color.a );
+	}
+
+	void ForwardAttachmentBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason )
+	{
+		const Tr2PerObjectData* attachmentData = perObjectData ? perObjectData : &m_eveV5PerObjectData;
+		for( const auto& set : m_hazeAttachmentSets )
+			set->GetBatches( batches, batchType, attachmentData, reason );
+		for( const auto& set : m_bannerAttachmentSets )
+			set->GetBatches( batches, batchType, attachmentData, reason );
+	}
+
+	bool CreateAttachmentEffect( Tr2EffectPtr& effect, const char* path, const char* label, std::string& error )
+	{
+		effect.CreateInstance();
+		effect->StartUpdate();
+		effect->SetEffectPathName( path );
+		effect->EndUpdate();
+		if( !ValidateEffect( *effect, label, false ) )
+		{
+			error = std::string( "Failed to validate Astero " ) + label + " effect " + path;
+			return false;
+		}
+		return true;
+	}
+
+	TriTextureParameterPtr AddAttachmentTexture( Tr2Effect& effect, const char* name, const std::string& path )
+	{
+		TriTextureParameterPtr parameter;
+		parameter.CreateInstance();
+		parameter->SetParameterName( BlueSharedString( name ) );
+		parameter->SetResourcePath( path.c_str() );
+		effect.AddResource( parameter );
+		return parameter;
+	}
+
+	bool CreateTexturedAttachmentEffect( Tr2EffectPtr& effect, const char* path, const std::string& texture, const char* label, std::string& error, float zOffset = 0.0f )
+	{
+		if( !PrepareTextureResourceWithoutYield( texture, label, error ) )
+			return false;
+		effect.CreateInstance();
+		effect->StartUpdate();
+		effect->SetEffectPathName( path );
+		AddAttachmentTexture( *effect, "TextureMap", texture );
+		if( zOffset != 0.0f )
+			effect->AddParameterFloat( BlueSharedString( "zOffset" ), zOffset );
+		effect->EndUpdate();
+		if( !ValidateEffect( *effect, label, false ) )
+		{
+			error = std::string( "Failed to validate Astero " ) + label + " effect " + path;
+			return false;
+		}
+		return true;
+	}
+
+	bool CreatePlaneAttachmentEffect( Tr2EffectPtr& effect, const EveSOFDataHullPlaneSet& source, EvePlaneSet& set, std::string& error )
+	{
+		const std::string textures[] = { source.m_layer1MapResPath, source.m_layer2MapResPath, source.m_maskMapResPath };
+		for( const std::string& texture : textures )
+		{
+			if( !PrepareTextureResourceWithoutYield( texture, "Astero plane attachment", error ) )
+				return false;
+		}
+		effect.CreateInstance();
+		effect->StartUpdate();
+		effect->SetEffectPathName( "res:/graphics/effect/managed/space/spaceobject/fx/planeglow.fx" );
+		TriTextureParameterPtr layer1 = AddAttachmentTexture( *effect, "Layer1Map", source.m_layer1MapResPath );
+		TriTextureParameterPtr layer2 = AddAttachmentTexture( *effect, "Layer2Map", source.m_layer2MapResPath );
+		TriTextureParameterPtr mask = AddAttachmentTexture( *effect, "MaskMap", source.m_maskMapResPath );
+		const Vector4 planeData( source.m_usage == EveSOFDataHullPlaneSet::USAGE_HAZE ? 1.0f : 0.0f,
+			static_cast<float>( source.m_atlasSize ), std::floor( source.m_atlasAspectRatio.x ), std::floor( source.m_atlasAspectRatio.y ) );
+		effect->AddParameterVector4( BlueSharedString( "PlaneData" ), &planeData );
+		effect->EndUpdate();
+		set.SetLayerMap1Parameter( layer1 );
+		set.SetLayerMap2Parameter( layer2 );
+		set.SetMaskMapParameter( mask );
+		if( !ValidateEffect( *effect, "plane", false ) )
+		{
+			error = "Failed to validate Astero plane attachment effect";
+			return false;
+		}
+		return true;
+	}
+
+	bool ConfigureBannerAttachments( const EveSOFDataHull& hull, const EveSOFDataGeneric& generic, const std::set<std::string>& visibilityGroups, std::string& error )
+	{
+		const char* bannerPath = "res:/dx9/model/shared/faction_logos/soe_logo.dds";
+		if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE square logo", error ) )
+			return false;
+		for( const auto& setData : hull.m_bannerSets )
+		{
+			const bool active = visibilityGroups.count( setData->m_visibilityGroup.c_str() ) != 0;
+			CountAttachmentSet( ATTACHMENT_FAMILY_BANNER, setData->m_banners.size(), active );
+			if( !active )
+				continue;
+			std::map<int, EveBannerSetPtr> sets;
+			for( const auto& item : setData->m_banners )
+			{
+				const int usage = static_cast<int>( item->m_usage );
+				EveBannerSetPtr& set = sets[usage];
+				if( !set )
+				{
+					set.CreateInstance();
+					Tr2EffectPtr effect;
+					effect.CreateInstance();
+					effect->StartUpdate();
+					effect->SetEffectPathName( generic.m_bannerShader.m_shader.c_str() );
+					for( const auto& parameter : generic.m_bannerShader.m_defaultParameters )
+						effect->AddParameterVector4( parameter->m_name, &parameter->m_value );
+					for( const auto& texture : generic.m_bannerShader.m_defaultTextures )
+					{
+						if( !PrepareTextureResourceWithoutYield( texture->m_resFilePath, "Astero generic banner", error ) )
+							return false;
+						AddAttachmentTexture( *effect, texture->m_name.c_str(), texture->m_resFilePath );
+					}
+					TriTextureParameterPtr image = AddAttachmentTexture( *effect, "ImageMap", bannerPath );
+					effect->EndUpdate();
+					if( !ValidateEffect( *effect, "banner", false ) )
+					{
+						error = "Failed to validate Astero banner attachment effect";
+						return false;
+					}
+					set->SetEffect( effect );
+					set->SetPrimaryTextureParameter( image );
+					set->SetKey( usage );
+				}
+				EveBannerItem runtime;
+				runtime.bone = item->m_boneIndex;
+				runtime.position = NormalizeAuthoredPosition( item->m_position );
+				runtime.rotation = item->m_rotation;
+				runtime.scaling = item->m_scaling * NormalizeAuthoredLength( 1.0f );
+				runtime.angleX = item->m_angleX;
+				runtime.angleY = item->m_angleY;
+				runtime.reference = usage;
+				ReportAttachmentBone( ATTACHMENT_FAMILY_BANNER, item->m_boneIndex );
+				set->AddBanner( runtime );
+			}
+			for( auto& entry : sets )
+			{
+				entry.second->Rebuild();
+				if( !entry.second->Initialize() )
+				{
+					error = "Failed to initialize Astero banner attachment set";
+					return false;
+				}
+				m_bannerAttachmentSets.push_back( entry.second );
+			}
+		}
+		return true;
+	}
+
 	enum LightFamily
 	{
 		LIGHT_FAMILY_EXPLICIT,
@@ -1145,6 +1719,8 @@ private:
 	bool m_reportedShLighting = false;
 	mutable bool m_reportedAcceptedLights = false;
 	int m_localLightMode = 0;
+	int m_attachmentMode = 0;
+	int m_attachmentView = 0;
 	int m_normalMapMode = 0;
 	uint32_t m_shUpdateCount = 0;
 	int m_areaView = 0;
@@ -1169,12 +1745,19 @@ private:
 	Tr2TextureAL m_maskTexture;
 	Tr2TextureAL m_paintMaskTexture;
 	std::array<LightStats, LIGHT_FAMILY_COUNT> m_lightStats = {};
+	std::array<AttachmentStats, ATTACHMENT_FAMILY_COUNT> m_attachmentStats = {};
 	std::vector<EveSpriteSetPtr> m_spriteLightSets;
 	std::vector<EveSpriteLineSetPtr> m_spriteLineLightSets;
 	std::vector<EveSpotlightSetPtr> m_spotlightLightSets;
 	std::vector<EvePlaneSetPtr> m_planeLightSets;
 	std::vector<EveHazeSetPtr> m_hazeLightSets;
 	std::vector<EveBannerSetPtr> m_bannerLightSets;
+	std::vector<EveSpriteSetPtr> m_spriteAttachmentSets;
+	std::vector<EveSpriteLineSetPtr> m_spriteLineAttachmentSets;
+	std::vector<EveSpotlightSetPtr> m_spotlightAttachmentSets;
+	std::vector<EvePlaneSetPtr> m_planeAttachmentSets;
+	std::vector<EveHazeSetPtr> m_hazeAttachmentSets;
+	std::vector<EveBannerSetPtr> m_bannerAttachmentSets;
 	std::vector<DirectLight> m_directLights;
 };
 
@@ -3532,7 +4115,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView )
 {
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
@@ -3950,16 +4533,31 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
 			return false;
 		}
-		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 )
 		{
 			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
 				"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
 			auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>(
 				"res:/dx9/model/spaceobjectfactory/factions/soebase.black", loadError );
-			if( !hull || !faction || !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
+			if( !hull || !faction )
+			{
+				std::fprintf( stderr, "Failed to load Astero SOF attachment descriptors: %s\n", loadError.c_str() );
+				return false;
+			}
+			if( localLights != STANDALONE_LOCAL_LIGHTS_OFF && !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
 			{
 				std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
 				return false;
+			}
+			if( attachments == 2 )
+			{
+				auto generic = LoadBlackObjectWithoutYield<EveSOFDataGeneric>(
+					"res:/dx9/model/spaceobjectfactory/generic.black", loadError );
+				if( !generic || !probe.renderable->ConfigureAttachments( attachments, attachmentView, *hull, *faction, *generic, loadError ) )
+				{
+					std::fprintf( stderr, "Failed to configure Astero visible attachments: %s\n", loadError.c_str() );
+					return false;
+				}
 			}
 		}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
@@ -4102,14 +4700,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )

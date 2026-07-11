@@ -405,7 +405,7 @@ void EveSpriteSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& 
 
 			c.a = 0.5;
 
-			auto sprite = l.index > m_sprites.size() ? nullptr : m_sprites[l.index];
+			auto sprite = l.index >= m_sprites.size() ? nullptr : m_sprites[l.index];
 
 			renderer.DrawSphere(
 				sprite,

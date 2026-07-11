@@ -994,12 +994,19 @@ producer. `EveSOF::SetupBannerSets` exposes `AllianceLogoResPath` and
 `CorpLogoResPath`; Python `evegraphics.logoLoader` fills them from the photo-
 service cache for the ship owner's alliance and corporation. With no identity,
 the exact client fallback is `res:/texture/global/black.dds`. This host has no
-cached alliance/corporation logos. For a deterministic, visually useful SoE
-fixture, the probe instead binds the installed client faction banner
-`res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds`, selected
-explicitly for this sample. Both it and the black fallback are checksummed in
-the local-light manifest. Native `EveBannerSet::GetAverageColor` now derives the
-four banner lights; no sample color constant substitutes for that texture.
+cached alliance/corporation logos. The first deterministic fixture used the
+tall `soe_banner_base.dds` UI composition in square logo slots and was rejected
+visually. The probe now binds the installed square faction logo
+`res:/dx9/model/shared/faction_logos/soe_logo.dds`; the rejected banner and
+black fallback remain checksummed provenance. Native
+`EveBannerSet::GetAverageColor` derives the four banner lights; no sample color
+constant substitutes for that texture.
+
+On this host the accepted square logo resolves to:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/e3/e3d11dc03829181e_d7942ad340c042c64d7da3b44976d586
+```
 
 `--local-lights off|authored|validation` and `--lighting-view local` isolate the
 new path. At high tier, the labeled validation point resolves one light over an
@@ -1066,6 +1073,37 @@ The probe now transfers its explicit simulation clock to `TriDevice` before
 client preset's startup transient, so exposure comparisons use at least 180
 warm-up frames. Bloom and film grain remain separate observable rungs.
 
+### Authored visible Astero attachments (RC-05B)
+
+The standalone object now reconstructs the active SOF attachment families from
+`soef1_t1.black`, `soebase.black`, and `generic.black`. The base faction enables
+`primary` and `soe`, yielding 83 sprites, 4 spotlights, 16 planes, 2 spherical
+hazes, and 4 banners. The 38 event sprites, 4 event spotlights, 4 event planes,
+and 2 event hazes remain excluded; the hull declares no sprite lines.
+
+Sprites, spotlights, and planes use Trinity's native `Tr2QuadRenderer`
+registration and submission. Hazes and banners forward their native additive
+batches. The same CMF center/fit transform used by the mesh and authored lights
+normalizes attachment positions and dimensions; nonnegative bone indices use
+the documented static identity-rest fallback. The square SoE faction logo
+fills identity-dependent alliance and corporation logo slots.
+
+`--attachments auto|off|authored` and `--attachment-view` isolate every family
+without changing `--local-lights`. The six nonempty family captures all differ
+from off. A 540-frame orbit, local-light off/authored A/B, named depth/normal
+products, and 180-frame `hdr-post`/`hdr-exposure` runs return zero. The generated
+`Reports/AsteroAttachmentResources.json` records absolute SharedCache paths,
+sizes, SHA-256 values, and logical destinations for the external resources.
+Indexed decals, attachment shadows, boosters, trails, damage FX, and distortion
+remain separate units.
+
+The first integrated HDR run exposed a bridge error rather than a shader bug:
+haze and banner batches were forwarded with null per-object data, causing Metal's
+constant-buffer allocator to fault during transparent rendering. The bridge now
+forwards the owning V5 per-object block. A 540-frame cinematic run with visible
+sun and planet, all attachments, six authored lights, HDR, flare, and god rays
+then completed cleanly.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1083,6 +1121,7 @@ make those prerequisites explicit.
 | 3B | Authored material and per-object contract | Accepted | Three CMF sections map to the authored hull, booster, and distortion SOF areas; opaque batches and every retained/defaulted field have direct evidence. |
 | 3C | Representative in-space scene, background, and visible celestials | Accepted | A01 renders through `EveSpaceScene`; New Eden adds seeded stars, authored sun/planet layers, `SunFlares`, native lens-flare occlusion, and god rays with separate manifests and captures. |
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
+| 3E | Visible SOF attachments | Accepted | Native sprite, spotlight, plane, haze, and banner paths render the exact active inventory with independent family/light controls and stable orbit/HDR captures. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Missing | Feed validated products and shadow-caster batches; accept against captures. |
 | 4C | Complete HDR scene composition | Missing | Model, background, lighting, and generated products coexist without regression. |
@@ -1184,6 +1223,14 @@ The following checks passed on the host snapshot above:
   fallback, and SoE faction banner; synthetic validation resolves one surface
   light over 4,800 tiles, while authored mode excludes 18 of 24 descriptors and
   resolves six; high-tier off/authored/validation captures are all distinct;
+- checksummed staging of `generic.black`, 18 Metal attachment shaders, eleven
+  authored textures, and inherited Astero mask/SoE banner inputs in
+  `AsteroAttachmentResources.json`;
+- isolated 180-frame captures for 83 sprites, 4 spotlights, 16 planes, 2 hazes,
+  and 4 banners, each distinct from off, plus a stable 540-frame all-family
+  orbit;
+- independent local-light off/authored attachment captures, coherent named
+  depth/normal outputs, and 180-frame `hdr-post`/`hdr-exposure` regressions;
 - capture- and inspection-owned Cocoa objects drain before Trinity device
   destruction, and the ARC-managed window disables AppKit's legacy
   release-on-close behavior; finite, long-run, and inspection shutdowns are
@@ -1197,10 +1244,9 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Reconstruct visible SOF attachment geometry as a separate control, then add
-   shadow-caster batches and enable shadows/AO against accepted products.
-2. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
+1. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
    captures as regression controls.
+2. Reconstruct indexed SOF decal sets under RC-05C as a separate control.
 3. Reaccept dynamic exposure and tone mapping against that composition.
 4. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.

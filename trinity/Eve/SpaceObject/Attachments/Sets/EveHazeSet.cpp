@@ -356,7 +356,7 @@ void EveHazeSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matrix& pa
 
 			c.a = 0.5;
 
-			auto hazeItem = l.index > m_hazes.size() ? nullptr : m_hazes[l.index];
+			auto hazeItem = l.index >= m_hazes.size() ? nullptr : m_hazes[l.index];
 
 			renderer.DrawSphere(
 				hazeItem,

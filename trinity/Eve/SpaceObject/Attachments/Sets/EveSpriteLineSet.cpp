@@ -319,7 +319,7 @@ void EveSpriteLineSet::RenderDebugInfo( ITr2DebugRenderer2& renderer, const Matr
 
 			c.a = 0.5;
 
-			auto spriteLine = l.index > m_spriteLines.size() ? nullptr : m_spriteLines[l.index];
+			auto spriteLine = l.index >= m_spriteLines.size() ? nullptr : m_spriteLines[l.index];
 
 			renderer.DrawSphere(
 				spriteLine,
