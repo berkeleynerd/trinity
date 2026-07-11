@@ -58,11 +58,23 @@ struct LegacySourceVertex
 	float weights[4];
 };
 
+struct PreviousSourceVertex
+{
+	float position[3];
+	float normal[3];
+	float tangent[4];
+	float texcoord[2];
+	float color[4];
+	uint16_t joints[4];
+	float weights[4];
+};
+
 struct SourceVertex
 {
 	float position[3];
 	float normal[3];
 	float tangent[4];
+	float binormal[3];
 	float texcoord[2];
 	float color[4];
 	uint16_t joints[4];
@@ -287,7 +299,8 @@ public:
 			}
 
 			const cmf::MeshLod& lod = mesh.lods[0];
-			if( lod.vb.stride != sizeof( SourceVertex ) && lod.vb.stride != sizeof( LegacySourceVertex ) )
+			if( lod.vb.stride != sizeof( SourceVertex ) && lod.vb.stride != sizeof( PreviousSourceVertex ) &&
+				lod.vb.stride != sizeof( LegacySourceVertex ) )
 			{
 				error = "EVE rung 3 expects the glTF importer vertex layout";
 				return false;
@@ -298,7 +311,8 @@ public:
 			{
 				return false;
 			}
-			const bool hasAuthoredTangents = lod.vb.stride == sizeof( SourceVertex ) &&
+			const bool hasAuthoredTangents = ( lod.vb.stride == sizeof( SourceVertex ) ||
+											   lod.vb.stride == sizeof( PreviousSourceVertex ) ) &&
 				cmf::FindElement( mesh.decl, cmf::Usage::Tangent ) != nullptr;
 
 			const uint32_t vertexCount = cmf::GetStreamElementCount( lod.vb );
@@ -317,6 +331,17 @@ public:
 				if( lod.vb.stride == sizeof( SourceVertex ) )
 				{
 					source = static_cast<const SourceVertex*>( sourceVertexData )[i];
+				}
+				else if( lod.vb.stride == sizeof( PreviousSourceVertex ) )
+				{
+					const PreviousSourceVertex& previous = static_cast<const PreviousSourceVertex*>( sourceVertexData )[i];
+					std::memcpy( source.position, previous.position, sizeof( source.position ) );
+					std::memcpy( source.normal, previous.normal, sizeof( source.normal ) );
+					std::memcpy( source.tangent, previous.tangent, sizeof( source.tangent ) );
+					std::memcpy( source.texcoord, previous.texcoord, sizeof( source.texcoord ) );
+					std::memcpy( source.color, previous.color, sizeof( source.color ) );
+					std::memcpy( source.joints, previous.joints, sizeof( source.joints ) );
+					std::memcpy( source.weights, previous.weights, sizeof( source.weights ) );
 				}
 				else
 				{

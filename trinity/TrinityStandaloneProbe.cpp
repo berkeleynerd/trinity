@@ -7,6 +7,8 @@
 #include "Eve/EveSpaceScene.h"
 #include "Eve/EveSpaceSceneRenderDriver.h"
 #include "Eve/EveEntity.h"
+#include "Eve/EveLensflare.h"
+#include "Eve/EveOccluder.h"
 #include "Eve/EveStarfield.h"
 #include "Eve/IEveSpaceObject2.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
@@ -55,6 +57,7 @@
 
 #include <cstdio>
 #include <cstdint>
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <fstream>
@@ -73,12 +76,12 @@ extern bool g_useDynamicLightsShadows;
 #define IRootReader_H
 BLUE_INTERFACE( IRootReader ) : public IRoot
 {
-	virtual IRoot* ReadFromStream( IBlueStream* stream ) = 0;
-	virtual bool ReadForCachingFromStream( IBlueStream* stream ) = 0;
+	virtual IRoot* ReadFromStream( IBlueStream * stream ) = 0;
+	virtual bool ReadForCachingFromStream( IBlueStream * stream ) = 0;
 	virtual void SetFileName( const wchar_t* name ) = 0;
 	virtual void SetDoInitialize( bool value ) = 0;
 	virtual void SetTimeSlice( float seconds ) = 0;
-	virtual void GetErrorMessage( std::string& message ) = 0;
+	virtual void GetErrorMessage( std::string & message ) = 0;
 };
 BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 #endif
@@ -217,22 +220,27 @@ public:
 			EveSpriteSetPtr set;
 			for( const auto& item : setData->m_items )
 			{
-				if( !item->m_light ) continue;
+				if( !item->m_light )
+					continue;
 				DeclareLight( LIGHT_FAMILY_SPRITE, active );
-				if( !active ) continue;
+				if( !active )
+					continue;
 				Color color;
-				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) )
+					return false;
 				color = Saturate( item->m_intensity * color, item->m_saturation * item->m_light->m_saturation );
 				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
 				LightData data = attachment.AsLightData( color, 1.0f );
 				data.position += item->m_position;
 				data.boneIndex = item->m_boneIndex;
 				NormalizeAuthoredLight( data );
-				if( !set ) set.CreateInstance();
+				if( !set )
+					set.CreateInstance();
 				set->AddLightFromSOF( EveSpriteLight( data, item->m_blinkPhase, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
 				ConstructLight( LIGHT_FAMILY_SPRITE, data.boneIndex );
 			}
-			if( set ) m_spriteLightSets.push_back( set );
+			if( set )
+				m_spriteLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_spriteLineSets )
@@ -241,7 +249,8 @@ public:
 			EveSpriteLineSetPtr set;
 			for( const auto& item : setData->m_items )
 			{
-				if( !item->m_light ) continue;
+				if( !item->m_light )
+					continue;
 				EveSpriteLineSetItemPtr runtimeItem;
 				runtimeItem.CreateInstance();
 				runtimeItem->m_position = item->m_position;
@@ -250,10 +259,13 @@ public:
 				runtimeItem->m_spacing = item->m_spacing;
 				runtimeItem->m_isCircle = item->m_isCircle;
 				const auto positions = runtimeItem->GetPositions();
-				for( size_t positionIndex = 0; positionIndex < positions.size(); ++positionIndex ) DeclareLight( LIGHT_FAMILY_SPRITE_LINE, active );
-				if( !active ) continue;
+				for( size_t positionIndex = 0; positionIndex < positions.size(); ++positionIndex )
+					DeclareLight( LIGHT_FAMILY_SPRITE_LINE, active );
+				if( !active )
+					continue;
 				Color color;
-				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) )
+					return false;
 				color = Saturate( item->m_intensity * color, item->m_saturation * item->m_light->m_saturation );
 				EveSOFDataMgr::PointLightAttachment attachment( *item->m_light );
 				LightData data = attachment.AsLightData( color, 1.0f );
@@ -265,12 +277,14 @@ public:
 					positioned.position = item->m_light->m_translation + position + item->m_position;
 					positioned.rotation = Normalize( positioned.rotation * item->m_rotation );
 					NormalizeAuthoredLight( positioned );
-					if( !set ) set.CreateInstance();
+					if( !set )
+						set.CreateInstance();
 					set->AddLightFromSOF( EveSpriteLight( positioned, item->m_blinkPhase + item->m_blinkPhaseShift * positionIndex++, item->m_blinkRate, item->m_minScale, item->m_maxScale, index++, item->m_light->m_lightProfilePath ) );
 					ConstructLight( LIGHT_FAMILY_SPRITE_LINE, positioned.boneIndex );
 				}
 			}
-			if( set ) m_spriteLineLightSets.push_back( set );
+			if( set )
+				m_spriteLineLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_spotlightSets )
@@ -279,11 +293,14 @@ public:
 			EveSpotlightSetPtr set;
 			for( const auto& item : setData->m_items )
 			{
-				if( !item->m_light ) continue;
+				if( !item->m_light )
+					continue;
 				DeclareLight( LIGHT_FAMILY_SPOTLIGHT, active );
-				if( !active ) continue;
+				if( !active )
+					continue;
 				Color color;
-				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) )
+					return false;
 				Vector3 scale, position;
 				Quaternion rotation;
 				Decompose( scale, rotation, position, item->m_transform );
@@ -297,11 +314,13 @@ public:
 				data.brightness *= item->m_coneIntensity;
 				data.boneIndex = item->m_boneIndex;
 				NormalizeAuthoredLight( data );
-				if( !set ) set.CreateInstance();
+				if( !set )
+					set.CreateInstance();
 				set->AddLightFromSOF( EveSpotlightLight( data, index++, item->m_light->m_lightProfilePath, item->m_boosterGainInfluence ) );
 				ConstructLight( LIGHT_FAMILY_SPOTLIGHT, data.boneIndex );
 			}
-			if( set ) m_spotlightLightSets.push_back( set );
+			if( set )
+				m_spotlightLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_planeSets )
@@ -313,9 +332,11 @@ public:
 				for( const auto& rawLight : item->m_lights )
 				{
 					DeclareLight( LIGHT_FAMILY_PLANE, active );
-					if( !active ) continue;
+					if( !active )
+						continue;
 					Color color;
-					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) ) return false;
+					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) )
+						return false;
 					color = Saturate( item->m_intensity * color, item->m_saturation * rawLight->m_saturation );
 					EveSOFDataMgr::PointLightAttachment attachment( *rawLight );
 					const float scale = std::max( item->m_scaling.x, std::max( item->m_scaling.y, item->m_scaling.z ) );
@@ -324,12 +345,14 @@ public:
 					data.rotation = Normalize( data.rotation * item->m_rotation );
 					data.boneIndex = item->m_boneIndex;
 					NormalizeAuthoredLight( data );
-					if( !set ) set.CreateInstance();
+					if( !set )
+						set.CreateInstance();
 					set->AddLightFromSOF( EvePlaneLight( data, rawLight->m_saturation, index++, rawLight->m_lightProfilePath, static_cast<EveSpaceObjectAttachmentUtils::FadeType>( item->m_blinkMode ), item->m_phase, item->m_rate ) );
 					ConstructLight( LIGHT_FAMILY_PLANE, data.boneIndex );
 				}
 			}
-			if( set ) m_planeLightSets.push_back( set );
+			if( set )
+				m_planeLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_hazeSets )
@@ -341,9 +364,11 @@ public:
 				for( const auto& rawLight : item->m_lights )
 				{
 					DeclareLight( LIGHT_FAMILY_HAZE, active );
-					if( !active ) continue;
+					if( !active )
+						continue;
 					Color color;
-					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) ) return false;
+					if( !colorFor( item->m_colorType, color ) || !ValidateLightProfile( rawLight->m_lightProfilePath, error ) )
+						return false;
 					color = Saturate( color, rawLight->m_saturation );
 					EveSOFDataMgr::PointLightAttachment attachment( *rawLight );
 					const float scale = std::max( item->m_scaling.x, std::max( item->m_scaling.y, item->m_scaling.z ) );
@@ -352,12 +377,14 @@ public:
 					data.rotation = Normalize( data.rotation * item->m_rotation );
 					data.boneIndex = item->m_boneIndex;
 					NormalizeAuthoredLight( data );
-					if( !set ) set.CreateInstance();
+					if( !set )
+						set.CreateInstance();
 					set->AddLightFromSOF( EveHazeSetLight( data, index++, rawLight->m_lightProfilePath, item->m_boosterGainInfluence ) );
 					ConstructLight( LIGHT_FAMILY_HAZE, data.boneIndex );
 				}
 			}
-			if( set ) m_hazeLightSets.push_back( set );
+			if( set )
+				m_hazeLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_bannerSets )
@@ -367,16 +394,19 @@ public:
 			TriTextureParameterPtr imageMap;
 			for( const auto& item : setData->m_banners )
 			{
-				if( !item->m_light ) continue;
+				if( !item->m_light )
+					continue;
 				DeclareLight( LIGHT_FAMILY_BANNER, active );
-				std::fprintf( stderr, "Astero banner descriptor: name=%s usage=%d visibility=%s active=%s\n",
-					item->m_name.c_str(), static_cast<int>( item->m_usage ), setData->m_visibilityGroup.c_str(), active ? "yes" : "no" );
-				if( !active ) continue;
-				if( !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) ) return false;
+				std::fprintf( stderr, "Astero banner descriptor: name=%s usage=%d visibility=%s active=%s\n", item->m_name.c_str(), static_cast<int>( item->m_usage ), setData->m_visibilityGroup.c_str(), active ? "yes" : "no" );
+				if( !active )
+					continue;
+				if( !ValidateLightProfile( item->m_light->m_lightProfilePath, error ) )
+					return false;
 				if( !set )
 				{
 					const char* bannerPath = "res:/ui/texture/classes/banners/factional/various/soe_banner_base.dds";
-					if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE banner", error ) ) return false;
+					if( !PrepareTextureResourceWithoutYield( bannerPath, "Astero Sisters of EVE banner", error ) )
+						return false;
 					set.CreateInstance();
 					imageMap.CreateInstance();
 					imageMap->SetParameterName( BlueSharedString( "ImageMap" ) );
@@ -395,7 +425,8 @@ public:
 				set->AddLightFromSOF( EveBannerLight( data, item->m_light->m_saturation, index++, item->m_light->m_lightProfilePath ) );
 				ConstructLight( LIGHT_FAMILY_BANNER, data.boneIndex );
 			}
-			if( set ) m_bannerLightSets.push_back( set );
+			if( set )
+				m_bannerLightSets.push_back( set );
 		}
 
 		for( const auto& setData : hull.m_lightSets )
@@ -404,10 +435,12 @@ public:
 			for( const auto& item : setData->m_items )
 			{
 				DeclareLight( LIGHT_FAMILY_EXPLICIT, active );
-				if( !active ) continue;
+				if( !active )
+					continue;
 				const auto& source = item->m_data;
 				Color color;
-				if( !colorFor( source.lightColor, color ) ) return false;
+				if( !colorFor( source.lightColor, color ) )
+					return false;
 				LightData data;
 				data.position = source.position;
 				data.rotation = source.rotation;
@@ -427,16 +460,23 @@ public:
 				Tr2LightPtr light;
 				if( source.type == EveSOFDataHullLightSetItem::POINT_LIGHT )
 				{
-					Tr2PointLightPtr point; point.CreateInstance(); light = point;
+					Tr2PointLightPtr point;
+					point.CreateInstance();
+					light = point;
 				}
 				else if( source.type == EveSOFDataHullLightSetItem::TEXTURED_POINT_LIGHT )
 				{
-					if( !PrepareTextureResourceWithoutYield( ToNarrowPath( source.texturePath.c_str() ), "Astero textured local light", error ) ) return false;
-					Tr2TexturedPointLightPtr point; point.CreateInstance(); light = point;
+					if( !PrepareTextureResourceWithoutYield( ToNarrowPath( source.texturePath.c_str() ), "Astero textured local light", error ) )
+						return false;
+					Tr2TexturedPointLightPtr point;
+					point.CreateInstance();
+					light = point;
 				}
 				else if( source.type == EveSOFDataHullLightSetItem::SPOT_LIGHT )
 				{
-					Tr2SpotLightPtr spot; spot.CreateInstance(); light = spot;
+					Tr2SpotLightPtr spot;
+					spot.CreateInstance();
+					light = spot;
 				}
 				else
 				{
@@ -470,21 +510,19 @@ public:
 		}
 		if( !m_useEveV5Material &&
 			( !CreateTexture( m_model.BaseColorTexture(), m_baseColorTexture, renderContext ) ||
-			!CreateTexture( m_model.NormalTexture(), m_normalTexture, renderContext ) ||
-			!CreateTexture( m_model.RoughnessTexture(), m_roughnessTexture, renderContext ) ||
-			!CreateTexture( m_model.MaterialTexture(), m_materialTexture, renderContext ) ||
-			!CreateTexture( m_model.GlowTexture(), m_glowTexture, renderContext ) ||
-			!CreateTexture( m_model.DirtTexture(), m_dirtTexture, renderContext ) ||
-			!CreateTexture( m_model.MaskTexture(), m_maskTexture, renderContext ) ||
-			!CreateTexture( m_model.PaintMaskTexture(), m_paintMaskTexture, renderContext ) ) )
+			  !CreateTexture( m_model.NormalTexture(), m_normalTexture, renderContext ) ||
+			  !CreateTexture( m_model.RoughnessTexture(), m_roughnessTexture, renderContext ) ||
+			  !CreateTexture( m_model.MaterialTexture(), m_materialTexture, renderContext ) ||
+			  !CreateTexture( m_model.GlowTexture(), m_glowTexture, renderContext ) ||
+			  !CreateTexture( m_model.DirtTexture(), m_dirtTexture, renderContext ) ||
+			  !CreateTexture( m_model.MaskTexture(), m_maskTexture, renderContext ) ||
+			  !CreateTexture( m_model.PaintMaskTexture(), m_paintMaskTexture, renderContext ) ) )
 		{
 			return false;
 		}
 
 		const uint32_t vertexStride = m_useEveV5Material ? sizeof( TrinityStandaloneEveV5Vertex ) : sizeof( TrinityStandaloneCmfVertex );
-		const void* vertexData = m_useEveV5Material
-			? static_cast<const void*>( m_model.EveV5Vertices().data() )
-			: static_cast<const void*>( m_model.Vertices().data() );
+		const void* vertexData = m_useEveV5Material ? static_cast<const void*>( m_model.EveV5Vertices().data() ) : static_cast<const void*>( m_model.Vertices().data() );
 		if( FAILED( m_vertexBuffer.Create(
 				vertexStride,
 				m_model.VertexCount(),
@@ -535,8 +573,7 @@ public:
 				{
 					m_sectionsByGroup[section.sourceGroup] = &section;
 				}
-				std::fprintf( stderr, "CMF area section: name=%s group=%u firstIndex=%u indexCount=%u\n",
-					section.name.c_str(), section.sourceGroup, section.firstIndex, section.indexCount );
+				std::fprintf( stderr, "CMF area section: name=%s group=%u firstIndex=%u indexCount=%u\n", section.name.c_str(), section.sourceGroup, section.firstIndex, section.indexCount );
 			}
 			for( uint32_t group = 0; group < m_sectionsByGroup.size(); ++group )
 			{
@@ -585,8 +622,7 @@ public:
 		}
 
 		UpdateEffectParameters();
-		std::fprintf( stderr, "Standalone material contract ready: mode=%s vertices=%u indices=%u sections=%zu areaView=%d\n",
-			m_useEveV5Material ? "eve-v5" : "probe", m_model.VertexCount(), m_model.IndexCount(), m_model.Sections().size(), m_areaView );
+		std::fprintf( stderr, "Standalone material contract ready: mode=%s vertices=%u indices=%u sections=%zu areaView=%d\n", m_useEveV5Material ? "eve-v5" : "probe", m_model.VertexCount(), m_model.IndexCount(), m_model.Sections().size(), m_areaView );
 		return true;
 	}
 
@@ -605,40 +641,40 @@ public:
 	{
 	}
 
-	void GetRenderables( std::vector<ITr2Renderable*>& renderables, Tr2ImpostorManager* ) override
+	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
 	{
 		renderables.push_back( this );
 	}
 
-	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery ) const override
+	bool GetBoundingSphere( Vector4 & sphere, BoundingSphereQuery ) const override
 	{
 		sphere = Vector4( 0.0f, 0.0f, 0.0f, 2.0f );
 		return true;
 	}
 
-	void UpdateModelCenterWorldPosition( Vector3& position, Be::Time ) override
+	void UpdateModelCenterWorldPosition( Vector3 & position, Be::Time ) override
 	{
 		position = Vector3( 0.0f, 0.0f, 0.0f );
 	}
 
-	void GetModelCenterWorldPosition( Vector3& position ) const override
+	void GetModelCenterWorldPosition( Vector3 & position ) const override
 	{
 		position = Vector3( 0.0f, 0.0f, 0.0f );
 	}
 
-	bool GetLocalBoundingBox( Vector3& minimum, Vector3& maximum ) override
+	bool GetLocalBoundingBox( Vector3 & minimum, Vector3 & maximum ) override
 	{
 		minimum = Vector3( -1.0f, -1.0f, -1.0f );
 		maximum = Vector3( 1.0f, 1.0f, 1.0f );
 		return true;
 	}
 
-	void GetLocalToWorldTransform( Matrix& transform ) const override
+	void GetLocalToWorldTransform( Matrix & transform ) const override
 	{
 		transform = m_worldTransform;
 	}
 
-	void GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData*, Tr2RenderReason ) override
+	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData*, Tr2RenderReason ) override
 	{
 		if( m_useEveV5Material )
 		{
@@ -671,8 +707,7 @@ public:
 		if( m_areaView != 0 )
 		{
 			const uint32_t requestedGroup = static_cast<uint32_t>( m_areaView - 1 );
-			const auto section = std::find_if( m_model.Sections().begin(), m_model.Sections().end(),
-				[requestedGroup]( const TrinityStandaloneCmfSection& candidate ) { return candidate.sourceGroup == requestedGroup; } );
+			const auto section = std::find_if( m_model.Sections().begin(), m_model.Sections().end(), [requestedGroup]( const TrinityStandaloneCmfSection& candidate ) { return candidate.sourceGroup == requestedGroup; } );
 			if( section == m_model.Sections().end() )
 			{
 				return;
@@ -719,7 +754,7 @@ public:
 		}
 	}
 
-	void UpdateShLighting( Tr2ShLightingManager& manager, const EveUpdateContext& ) override
+	void UpdateShLighting( Tr2ShLightingManager & manager, const EveUpdateContext& ) override
 	{
 		ClearShLighting();
 		if( !m_shLightingEnabled || !m_useEveV5Material )
@@ -748,15 +783,11 @@ public:
 		++m_shUpdateCount;
 		if( !m_reportedShLighting && ( maximumMagnitude > 0.0f || m_shUpdateCount >= 2 ) )
 		{
-			std::fprintf( stderr, "Trinity SH receiver coefficients: physicalMax=%e sentinelW=%g status=%s\n",
-				maximumMagnitude,
-				m_eveV5PerObjectData.m_psData.shLightingCoefficients[Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT - 1].w,
-				maximumMagnitude > 0.0f ? "contributing" : "zero-or-culled" );
+			std::fprintf( stderr, "Trinity SH receiver coefficients: physicalMax=%e sentinelW=%g status=%s\n", maximumMagnitude, m_eveV5PerObjectData.m_psData.shLightingCoefficients[Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT - 1].w, maximumMagnitude > 0.0f ? "contributing" : "zero-or-culled" );
 			for( size_t index = 0; index < Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT; ++index )
 			{
 				const Vector4& coefficient = m_eveV5PerObjectData.m_psData.shLightingCoefficients[index];
-				std::fprintf( stderr, "  sh[%zu]=(%e, %e, %e, %e)\n", index,
-					coefficient.x, coefficient.y, coefficient.z, coefficient.w );
+				std::fprintf( stderr, "  sh[%zu]=(%e, %e, %e, %e)\n", index, coefficient.x, coefficient.y, coefficient.z, coefficient.w );
 			}
 			m_reportedShLighting = true;
 		}
@@ -770,19 +801,25 @@ public:
 			sizeof( m_eveV5PerObjectData.m_psData.shLightingCoefficients ) );
 	}
 
-	void GetLights( Tr2LightManager& lightManager ) const override
+	void GetLights( Tr2LightManager & lightManager ) const override
 	{
 		auto addFamily = [&]( LightFamily family, const auto& lightSet ) {
 			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
 			lightSet->GetLights( lightManager );
 			m_lightStats[family].frustumAccepted += static_cast<uint32_t>( lightManager.GetCurrentThreadPendingLightCount() - before );
 		};
-		for( const auto& set : m_spriteLightSets ) addFamily( LIGHT_FAMILY_SPRITE, set );
-		for( const auto& set : m_spriteLineLightSets ) addFamily( LIGHT_FAMILY_SPRITE_LINE, set );
-		for( const auto& set : m_spotlightLightSets ) addFamily( LIGHT_FAMILY_SPOTLIGHT, set );
-		for( const auto& set : m_planeLightSets ) addFamily( LIGHT_FAMILY_PLANE, set );
-		for( const auto& set : m_hazeLightSets ) addFamily( LIGHT_FAMILY_HAZE, set );
-		for( const auto& set : m_bannerLightSets ) addFamily( LIGHT_FAMILY_BANNER, set );
+		for( const auto& set : m_spriteLightSets )
+			addFamily( LIGHT_FAMILY_SPRITE, set );
+		for( const auto& set : m_spriteLineLightSets )
+			addFamily( LIGHT_FAMILY_SPRITE_LINE, set );
+		for( const auto& set : m_spotlightLightSets )
+			addFamily( LIGHT_FAMILY_SPOTLIGHT, set );
+		for( const auto& set : m_planeLightSets )
+			addFamily( LIGHT_FAMILY_PLANE, set );
+		for( const auto& set : m_hazeLightSets )
+			addFamily( LIGHT_FAMILY_HAZE, set );
+		for( const auto& set : m_bannerLightSets )
+			addFamily( LIGHT_FAMILY_BANNER, set );
 		for( const DirectLight& direct : m_directLights )
 		{
 			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
@@ -833,7 +870,8 @@ private:
 	void DeclareLight( LightFamily family, bool active )
 	{
 		++m_lightStats[family].declared;
-		if( !active ) ++m_lightStats[family].visibilityExcluded;
+		if( !active )
+			++m_lightStats[family].visibilityExcluded;
 	}
 
 	void ConstructLight( LightFamily family, int32_t boneIndex )
@@ -845,7 +883,7 @@ private:
 		}
 	}
 
-	void AddDirectLight( Tr2Light* light, LightFamily family )
+	void AddDirectLight( Tr2Light * light, LightFamily family )
 	{
 		m_directLights.push_back( DirectLight{ light, family } );
 	}
@@ -853,7 +891,8 @@ private:
 	uint32_t TotalConstructedLights() const
 	{
 		uint32_t count = 0;
-		for( const LightStats& stats : m_lightStats ) count += stats.constructed;
+		for( const LightStats& stats : m_lightStats )
+			count += stats.constructed;
 		return count;
 	}
 
@@ -868,16 +907,15 @@ private:
 			excluded += stats.visibilityExcluded;
 			constructed += stats.constructed;
 			accepted += stats.frustumAccepted;
-			std::fprintf( stderr, "  %-11s declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n",
-				LightFamilyName( static_cast<LightFamily>( family ) ), stats.declared, stats.visibilityExcluded, stats.constructed, stats.frustumAccepted );
+			std::fprintf( stderr, "  %-11s declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n", LightFamilyName( static_cast<LightFamily>( family ) ), stats.declared, stats.visibilityExcluded, stats.constructed, stats.frustumAccepted );
 		}
-		std::fprintf( stderr, "  total       declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n",
-			declared, excluded, constructed, accepted );
+		std::fprintf( stderr, "  total       declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n", declared, excluded, constructed, accepted );
 	}
 
 	bool ValidateLightProfile( const std::wstring& path, std::string& error )
 	{
-		if( path.empty() ) return true;
+		if( path.empty() )
+			return true;
 		const std::string logicalPath = ToNarrowPath( path.c_str() );
 		if( !BePaths->FileExistsLocally( path.c_str() ) )
 		{
@@ -900,7 +938,7 @@ private:
 		return true;
 	}
 
-	void NormalizeAuthoredLight( LightData& data ) const
+	void NormalizeAuthoredLight( LightData & data ) const
 	{
 		float centerScale[4];
 		m_model.GetCenterAndScale( centerScale );
@@ -915,12 +953,18 @@ private:
 
 	void UpdateAttachmentLights()
 	{
-		for( const auto& set : m_spriteLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
-		for( const auto& set : m_spriteLineLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
-		for( const auto& set : m_spotlightLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
-		for( const auto& set : m_planeLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
-		for( const auto& set : m_hazeLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
-		for( const auto& set : m_bannerLightSets ) set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_spriteLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_spriteLineLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_spotlightLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_planeLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_hazeLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+		for( const auto& set : m_bannerLightSets )
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
 	}
 
 	void RegisterComponents() override
@@ -931,7 +975,7 @@ private:
 		}
 	}
 
-	bool ValidateEffect( Tr2Effect& effect, const char* label, bool requireDepth )
+	bool ValidateEffect( Tr2Effect & effect, const char* label, bool requireDepth )
 	{
 		Tr2EffectRes* resource = effect.GetEffectRes();
 		if( resource )
@@ -957,17 +1001,17 @@ private:
 		if( requireDepth && m_localLightMode != 0 )
 		{
 			std::fprintf( stderr,
-				"Astero %s local-light shader contract: LightBuffer=%s LightIndexBuffer=%s consumption-gate=%s\n",
-				label,
-				shader->GetResource( "LightBuffer" ) ? "present" : "absent",
-				shader->GetResource( "LightIndexBuffer" ) ? "present" : "absent",
-				shader->GetResource( "LightBuffer" ) && shader->GetResource( "LightIndexBuffer" ) ? "open" : "blocked" );
+						  "Astero %s local-light shader contract: LightBuffer=%s LightIndexBuffer=%s consumption-gate=%s\n",
+						  label,
+						  shader->GetResource( "LightBuffer" ) ? "present" : "absent",
+						  shader->GetResource( "LightIndexBuffer" ) ? "present" : "absent",
+						  shader->GetResource( "LightBuffer" ) && shader->GetResource( "LightIndexBuffer" ) ? "open" : "blocked" );
 		}
 		std::fprintf( stderr, "Astero %s effect ready: Main=%u Depth=%s\n", label, mainTechnique, requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a" );
 		return true;
 	}
 
-	bool InitializeAsteroEffect( Tr2EffectPtr& effect, uint32_t sourceGroup, const char* effectPath, bool requireDepth )
+	bool InitializeAsteroEffect( Tr2EffectPtr & effect, uint32_t sourceGroup, const char* effectPath, bool requireDepth )
 	{
 		effect.CreateInstance();
 		effect->StartUpdate();
@@ -1007,8 +1051,7 @@ private:
 				texture->ForceSynchronousLoad();
 				texture->Reload();
 			}
-			std::fprintf( stderr, "Astero group %u texture %s: %s path=%ls\n", sourceGroup, textureName,
-				texture && texture->IsGood() ? "ready" : "FAILED", texture ? texture->GetPath() : L"" );
+			std::fprintf( stderr, "Astero group %u texture %s: %s path=%ls\n", sourceGroup, textureName, texture && texture->IsGood() ? "ready" : "FAILED", texture ? texture->GetPath() : L"" );
 			if( !texture || !texture->IsGood() )
 			{
 				return false;
@@ -1017,7 +1060,7 @@ private:
 		return ValidateEffect( *effect, sourceGroup == 0 ? "distortion" : ( sourceGroup == 1 ? "hull" : "booster" ), requireDepth );
 	}
 
-	void CommitAreaBatch( ITriRenderBatchAccumulator* batches, uint32_t sourceGroup, Tr2Effect* effect, Tr2EffectStateManager::RenderingMode renderMode )
+	void CommitAreaBatch( ITriRenderBatchAccumulator * batches, uint32_t sourceGroup, Tr2Effect* effect, Tr2EffectStateManager::RenderingMode renderMode )
 	{
 		if( sourceGroup >= m_sectionsByGroup.size() || !m_sectionsByGroup[sourceGroup] ||
 			!effect || !effect->GetShaderStateInterface() || ( m_areaView != 0 && m_areaView != static_cast<int>( sourceGroup + 1 ) ) )
@@ -1035,8 +1078,7 @@ private:
 		batches->Commit( batch );
 		if( !m_reportedAreaBatch[sourceGroup] )
 		{
-			std::fprintf( stderr, "Astero area batch committed: group=%u indices=%u batch=%s\n", sourceGroup, section.indexCount,
-				sourceGroup == 0 ? "distortion" : "opaque" );
+			std::fprintf( stderr, "Astero area batch committed: group=%u indices=%u batch=%s\n", sourceGroup, section.indexCount, sourceGroup == 0 ? "distortion" : "opaque" );
 			m_reportedAreaBatch[sourceGroup] = true;
 		}
 	}
@@ -1139,15 +1181,14 @@ private:
 TYPEDEF_BLUECLASS( TrinityStandaloneRenderable );
 BLUE_DEFINE_NONEXPOSED( TrinityStandaloneRenderable );
 
-const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue()
-{
+const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue(){
 	EXPOSURE_BEGIN( TrinityStandaloneRenderable, "" )
 		MAP_INTERFACE( IEveSpaceObject2 )
-		MAP_INTERFACE( ITr2Renderable )
-		MAP_INTERFACE( ITr2ShLightingReceiver )
-		MAP_INTERFACE( ITr2LightOwner )
-		MAP_INTERFACE( EveEntity )
-	EXPOSURE_END()
+			MAP_INTERFACE( ITr2Renderable )
+				MAP_INTERFACE( ITr2ShLightingReceiver )
+					MAP_INTERFACE( ITr2LightOwner )
+						MAP_INTERFACE( EveEntity )
+							EXPOSURE_END()
 }
 
 BLUE_CLASS( TrinityStandaloneSecondaryLight ) :
@@ -1169,38 +1210,52 @@ public:
 		m_emissive = emissive;
 	}
 
-	void UpdateSyncronous( const EveUpdateContext& ) override {}
-	void UpdateAsyncronous( const EveUpdateContext& ) override {}
-	void UpdateVisibility( const EveUpdateContext&, const Matrix& ) override {}
-	void GetRenderables( std::vector<ITr2Renderable*>&, Tr2ImpostorManager* ) override {}
+	void UpdateSyncronous( const EveUpdateContext& ) override
+	{
+	}
+	void UpdateAsyncronous( const EveUpdateContext& ) override
+	{
+	}
+	void UpdateVisibility( const EveUpdateContext&, const Matrix& ) override
+	{
+	}
+	void GetRenderables( std::vector<ITr2Renderable*>&, Tr2ImpostorManager* ) override
+	{
+	}
 
-	bool GetBoundingSphere( Vector4& sphere, BoundingSphereQuery ) const override
+	bool GetBoundingSphere( Vector4 & sphere, BoundingSphereQuery ) const override
 	{
 		sphere = Vector4( m_position.x, m_position.y, m_position.z, m_radius );
 		return true;
 	}
 
-	void UpdateModelCenterWorldPosition( Vector3& position, Be::Time ) override { position = m_position; }
-	void GetModelCenterWorldPosition( Vector3& position ) const override { position = m_position; }
+	void UpdateModelCenterWorldPosition( Vector3 & position, Be::Time ) override
+	{
+		position = m_position;
+	}
+	void GetModelCenterWorldPosition( Vector3 & position ) const override
+	{
+		position = m_position;
+	}
 
-	bool GetLocalBoundingBox( Vector3& minimum, Vector3& maximum ) override
+	bool GetLocalBoundingBox( Vector3 & minimum, Vector3 & maximum ) override
 	{
 		minimum = Vector3( -m_radius, -m_radius, -m_radius );
 		maximum = Vector3( m_radius, m_radius, m_radius );
 		return true;
 	}
 
-	void GetLocalToWorldTransform( Matrix& transform ) const override
+	void GetLocalToWorldTransform( Matrix & transform ) const override
 	{
 		transform = TranslationMatrix( m_position );
 	}
 
-	void RegisterSecondaryLightSource( Tr2ShLightingManager& manager ) override
+	void RegisterSecondaryLightSource( Tr2ShLightingManager & manager ) override
 	{
 		manager.RegisterSecondaryLightSource( &m_position, &m_radius, &m_albedo, &m_emissive );
 	}
 
-	void UnregisterSecondaryLightSource( Tr2ShLightingManager& manager ) override
+	void UnregisterSecondaryLightSource( Tr2ShLightingManager & manager ) override
 	{
 		manager.UnregisterSecondaryLightSource( &m_position );
 	}
@@ -1291,6 +1346,40 @@ enum StandaloneSceneComposition
 	STANDALONE_COMPOSITION_CINEMATIC = 1,
 };
 
+enum StandalonePlanetLayers
+{
+	STANDALONE_PLANET_SURFACE = 0,
+	STANDALONE_PLANET_ATMOSPHERE = 1,
+	STANDALONE_PLANET_CLOUDS = 2,
+	STANDALONE_PLANET_ALL = 3,
+};
+
+enum StandaloneSunEffects
+{
+	STANDALONE_SUN_EFFECTS_AUTO = 0,
+	STANDALONE_SUN_EFFECTS_OFF = 1,
+	STANDALONE_SUN_EFFECTS_FLARE = 2,
+	STANDALONE_SUN_EFFECTS_GOD_RAYS = 3,
+	STANDALONE_SUN_EFFECTS_ALL = 4,
+};
+
+const char* SunEffectsName( int effects )
+{
+	switch( effects )
+	{
+	case STANDALONE_SUN_EFFECTS_OFF:
+		return "off";
+	case STANDALONE_SUN_EFFECTS_FLARE:
+		return "flare";
+	case STANDALONE_SUN_EFFECTS_GOD_RAYS:
+		return "god-rays";
+	case STANDALONE_SUN_EFFECTS_ALL:
+		return "all";
+	default:
+		return "invalid";
+	}
+}
+
 struct StandaloneProbe
 {
 	~StandaloneProbe()
@@ -1345,6 +1434,13 @@ struct StandaloneProbe
 	uint64_t renderedFrameCount = 0;
 	bool reportedCameraOrbit = false;
 	int cameraView = STANDALONE_CAMERA_MODEL;
+	EvePlanet* celestialInspectionTarget = nullptr;
+	const char* celestialInspectionName = nullptr;
+	float celestialExpectedPixelDiameter = 0.0f;
+	float celestialInspectionFovRadians = 0.0f;
+	float celestialInspectionScale = 1.0f;
+	Vector3 celestialInspectionDirection;
+	bool celestialInspectionValidated = false;
 };
 
 std::wstring ToWide( const char* value )
@@ -1618,6 +1714,125 @@ Color HsvToColor( float hue, float saturation, float value )
 	}
 }
 
+class Python27Random
+{
+public:
+	explicit Python27Random( uint32_t seed )
+	{
+		Seed( seed );
+	}
+
+	uint32_t RandInt( uint32_t first, uint32_t last )
+	{
+		return first + static_cast<uint32_t>( Random() * ( last - first + 1 ) );
+	}
+
+	double Random()
+	{
+		const uint32_t high = Next() >> 5;
+		const uint32_t low = Next() >> 6;
+		return ( high * 67108864.0 + low ) / 9007199254740992.0;
+	}
+
+private:
+	static constexpr size_t kStateSize = 624;
+
+	void Seed( uint32_t seed )
+	{
+		m_state[0] = 19650218U;
+		for( size_t index = 1; index < kStateSize; ++index )
+		{
+			m_state[index] = 1812433253U * ( m_state[index - 1] ^ ( m_state[index - 1] >> 30 ) ) +
+				static_cast<uint32_t>( index );
+		}
+		size_t stateIndex = 1;
+		for( size_t count = kStateSize; count > 0; --count )
+		{
+			m_state[stateIndex] = ( m_state[stateIndex] ^
+									( ( m_state[stateIndex - 1] ^ ( m_state[stateIndex - 1] >> 30 ) ) * 1664525U ) ) +
+				seed;
+			if( ++stateIndex >= kStateSize )
+			{
+				m_state[0] = m_state[kStateSize - 1];
+				stateIndex = 1;
+			}
+		}
+		for( size_t count = kStateSize - 1; count > 0; --count )
+		{
+			m_state[stateIndex] = ( m_state[stateIndex] ^
+									( ( m_state[stateIndex - 1] ^ ( m_state[stateIndex - 1] >> 30 ) ) * 1566083941U ) ) -
+				static_cast<uint32_t>( stateIndex );
+			if( ++stateIndex >= kStateSize )
+			{
+				m_state[0] = m_state[kStateSize - 1];
+				stateIndex = 1;
+			}
+		}
+		m_state[0] = 0x80000000U;
+		m_index = kStateSize;
+	}
+
+	uint32_t Next()
+	{
+		if( m_index >= kStateSize )
+		{
+			constexpr uint32_t matrix = 0x9908b0dfU;
+			for( size_t index = 0; index < kStateSize; ++index )
+			{
+				const uint32_t combined = ( m_state[index] & 0x80000000U ) |
+					( m_state[( index + 1 ) % kStateSize] & 0x7fffffffU );
+				m_state[index] = m_state[( index + 397 ) % kStateSize] ^ ( combined >> 1 ) ^
+					( ( combined & 1U ) ? matrix : 0U );
+			}
+			m_index = 0;
+		}
+		uint32_t value = m_state[m_index++];
+		value ^= value >> 11;
+		value ^= ( value << 7 ) & 0x9d2c5680U;
+		value ^= ( value << 15 ) & 0xefc60000U;
+		value ^= value >> 18;
+		return value;
+	}
+
+	std::array<uint32_t, kStateSize> m_state;
+	size_t m_index = kStateSize;
+};
+
+struct PlanetCloudSelection
+{
+	std::string cloudPath;
+	std::string capPath;
+	float brightness = 0.0f;
+	float transparency = 0.0f;
+};
+
+PlanetCloudSelection SelectPlanetClouds( int year, int month, int day, int32_t itemId )
+{
+	Python27Random random( static_cast<uint32_t>( year + month * 30 + day + itemId ) );
+	const bool useDense = random.RandInt( 1, 5 ) % 5 == 0;
+	(void)useDense;
+	const uint32_t cloudIndex = random.RandInt( 0, 3 );
+	const uint32_t capIndex = random.RandInt( 0, 3 );
+	const char* cloudPaths[] = {
+		"res:/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dust04_m_hi.dds",
+	};
+	const char* capPaths[] = {
+		"res:/dx9/model/worldobject/planet/sandstorm/dustcap01_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds",
+		"res:/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds",
+	};
+	return {
+		cloudPaths[cloudIndex],
+		capPaths[capIndex],
+		static_cast<float>( random.Random() * 0.4 + 0.6 ),
+		static_cast<float>( random.Random() * 2.0 + 1.0 ),
+	};
+}
+
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error )
 {
 	if( logicalPath.empty() )
@@ -1767,17 +1982,10 @@ bool PrepareSceneBackgroundWithoutYield( EveSpaceScene& scene, const char* scene
 	return true;
 }
 
-bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath, const char* role, std::string& error )
+bool PrepareMeshWithoutYield( Tr2Mesh& mesh, const char* cmfPath, const char* role, std::string& error )
 {
-	Tr2MeshPtr mesh = BlueCastPtr( child.GetMesh() );
-	if( !mesh )
-	{
-		error = std::string( role ) + " does not contain a serialized Tr2Mesh";
-		return false;
-	}
-
-	mesh->SetMeshResPath( cmfPath );
-	TriGeometryRes* geometry = mesh->GetGeometryResource();
+	mesh.SetMeshResPath( cmfPath );
+	TriGeometryRes* geometry = mesh.GetGeometryResource();
 	if( geometry )
 	{
 		geometry->ForceSynchronousLoad();
@@ -1797,16 +2005,30 @@ bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath,
 		error = std::string( role ) + " geometry failed to prepare: " + cmfPath;
 		return false;
 	}
+	const int meshIndex = mesh.GetMeshIndex();
+	if( meshIndex < 0 || static_cast<unsigned int>( meshIndex ) >= geometry->GetMeshCount() )
+	{
+		error = std::string( role ) + " serialized mesh index is outside converted CMF geometry";
+		return false;
+	}
+	const unsigned int geometryAreaCount = geometry->GetAreaCount( static_cast<unsigned int>( meshIndex ) );
 
 	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
 	{
-		const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+		const Tr2MeshAreaVector* areas = mesh.GetAreas( static_cast<TriBatchType>( batchType ) );
 		if( !areas )
 		{
 			continue;
 		}
 		for( Tr2MeshArea* area : *areas )
 		{
+			const int areaIndex = area->GetIndex();
+			const int areaCount = std::max( 1, area->GetCount() );
+			if( areaIndex < 0 || static_cast<unsigned int>( areaIndex + areaCount ) > geometryAreaCount )
+			{
+				error = std::string( role ) + " serialized area range is outside converted CMF geometry: " + area->GetName();
+				return false;
+			}
 			Tr2Effect* effect = area->GetMaterialInterface();
 			if( !effect )
 			{
@@ -1819,6 +2041,29 @@ bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath,
 			}
 		}
 	}
+	std::fprintf(
+		stderr,
+		"New Eden %s mesh ready: geometry=%s meshIndex=%d meshCount=%u areaCount=%u\n",
+		role,
+		cmfPath,
+		meshIndex,
+		geometry->GetMeshCount(),
+		geometryAreaCount );
+	return true;
+}
+
+bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath, const char* role, std::string& error )
+{
+	Tr2MeshPtr mesh = BlueCastPtr( child.GetMesh() );
+	if( !mesh )
+	{
+		error = std::string( role ) + " does not contain a serialized Tr2Mesh";
+		return false;
+	}
+	if( !PrepareMeshWithoutYield( *mesh, cmfPath, role, error ) )
+	{
+		return false;
+	}
 
 	if( !child.Initialize() )
 	{
@@ -1829,7 +2074,109 @@ bool PrepareCelestialMeshWithoutYield( EveChildMesh& child, const char* cmfPath,
 	return true;
 }
 
-bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, std::string& error )
+bool PrepareLensFlareTransformWithoutYield( EveTransform& transform, const char* cmfPath, const char* role, std::string& error )
+{
+	Tr2MeshPtr mesh = BlueCastPtr( transform.GetMesh() );
+	if( mesh && !PrepareMeshWithoutYield( *mesh, cmfPath, role, error ) )
+	{
+		return false;
+	}
+	if( !transform.Initialize() )
+	{
+		error = std::string( role ) + " transform failed to initialize";
+		return false;
+	}
+	return true;
+}
+
+bool PrepareNewEdenLensFlareWithoutYield( EveLensflare& lensFlare, std::string& error )
+{
+	Tr2MeshPtr mesh = lensFlare.GetMesh();
+	if( !mesh )
+	{
+		error = "New Eden lens flare has no serialized mesh";
+		return false;
+	}
+	if( !PrepareMeshWithoutYield( *mesh, "res:/fisfx/lensflare/yellow_small.cmf", "lens flare", error ) )
+	{
+		return false;
+	}
+
+	size_t flareTransformCount = 0;
+	for( EveTransform* flare : lensFlare.Flares() )
+	{
+		if( !flare || !PrepareLensFlareTransformWithoutYield( *flare, "res:/fisfx/lensflare/yellow_small.cmf", "lens flare transform", error ) )
+		{
+			return false;
+		}
+		++flareTransformCount;
+	}
+
+	size_t foregroundSpriteCount = 0;
+	size_t backgroundSpriteCount = 0;
+	auto prepareOccluders = [&]( const PEveOccluderVector& occluders, const char* role, size_t& spriteCount ) {
+		for( EveOccluder* occluder : occluders )
+		{
+			if( !occluder )
+			{
+				error = std::string( role ) + " contains a null occluder";
+				return false;
+			}
+			for( EveTransform* sprite : occluder->Sprites() )
+			{
+				if( !sprite || !PrepareLensFlareTransformWithoutYield( *sprite, "res:/model/global/zsprite.cmf", role, error ) )
+				{
+					return false;
+				}
+				++spriteCount;
+			}
+		}
+		return true;
+	};
+	if( !prepareOccluders( lensFlare.Occluders(), "lens flare foreground occluder", foregroundSpriteCount ) ||
+		!prepareOccluders( lensFlare.BackgroundOccluders(), "lens flare background occluder", backgroundSpriteCount ) )
+	{
+		return false;
+	}
+
+	Tr2EffectPtr managementEffect;
+	if( !managementEffect.CreateInstance() )
+	{
+		error = "Failed to create lens flare occlusion-management effect";
+		return false;
+	}
+	managementEffect->SetEffectPathName( "res:/graphics/effect/managed/space/specialfx/lensflares/occludermanagement.fx" );
+	if( !PrepareEffectResourcesWithoutYield( *managementEffect, "lens flare occlusion management", error ) )
+	{
+		return false;
+	}
+	if( !lensFlare.Initialize() )
+	{
+		error = "New Eden lens flare failed to initialize";
+		return false;
+	}
+	lensFlare.StartControllers();
+	std::fprintf(
+		stderr,
+		"New Eden lens flare ready: graphicId=1247 path=res:/fisfx/lensflare/yellow_small.black "
+		"flareTransforms=%zu foregroundOccluders=%zu foregroundSprites=%zu backgroundOccluders=%zu backgroundSprites=%zu\n",
+		flareTransformCount,
+		lensFlare.Occluders().size(),
+		foregroundSpriteCount,
+		lensFlare.BackgroundOccluders().size(),
+		backgroundSpriteCount );
+	return true;
+}
+
+bool PrepareNewEdenCelestialsWithoutYield(
+	EvePlanet& sun,
+	EvePlanet& planet,
+	int sunEffects,
+	int planetLayers,
+	int cloudYear,
+	int cloudMonth,
+	int cloudDay,
+	std::string& error )
 {
 	EveChildContainerPtr sunBodyContainer;
 	PIEveSpaceObjectChildVector& sunChildren = sun.GetChildren();
@@ -1854,13 +2201,18 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 		}
 	}
 
+	const bool retainSunFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
 	EveChildMeshPtr sunBody;
+	EveChildMeshPtr sunFlare;
 	for( IEveSpaceObjectChild* child : sunBodyContainer->m_objects )
 	{
 		if( std::strcmp( child->GetName(), "Sun" ) == 0 )
 		{
 			sunBody = BlueCastPtr( child );
-			break;
+		}
+		else if( std::strcmp( child->GetName(), "SunFlares" ) == 0 )
+		{
+			sunFlare = BlueCastPtr( child );
 		}
 	}
 	if( !sunBody )
@@ -1868,9 +2220,15 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 		error = "New Eden sun sphere child is missing";
 		return false;
 	}
+	if( retainSunFlare && !sunFlare )
+	{
+		error = "New Eden authored SunFlares child is missing";
+		return false;
+	}
 	for( ssize_t index = static_cast<ssize_t>( sunBodyContainer->m_objects.size() ) - 1; index >= 0; --index )
 	{
-		if( sunBodyContainer->m_objects[index] != sunBody->GetRawRoot() )
+		IRoot* child = sunBodyContainer->m_objects[index];
+		if( child != sunBody->GetRawRoot() && ( !retainSunFlare || child != sunFlare->GetRawRoot() ) )
 		{
 			sunBodyContainer->m_objects.Remove( index );
 		}
@@ -1878,12 +2236,21 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 
 	PIEveSpaceObjectChildVector& planetChildren = planet.GetChildren();
 	EveChildMeshPtr planetBody;
+	EveChildContainerPtr atmosphereContainer;
+	EveChildMeshPtr cloudLayer;
 	for( IEveSpaceObjectChild* child : planetChildren )
 	{
 		if( std::strcmp( child->GetName(), "Planet" ) == 0 || std::strcmp( child->GetName(), "planet" ) == 0 )
 		{
 			planetBody = BlueCastPtr( child );
-			break;
+		}
+		else if( std::strcmp( child->GetName(), "Atmosphere" ) == 0 )
+		{
+			atmosphereContainer = BlueCastPtr( child );
+		}
+		else if( std::strcmp( child->GetName(), "CloudLayer" ) == 0 )
+		{
+			cloudLayer = BlueCastPtr( child );
 		}
 	}
 	if( !planetBody )
@@ -1891,12 +2258,70 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 		error = "New Eden planet sphere child is missing";
 		return false;
 	}
+	if( !atmosphereContainer || !cloudLayer )
+	{
+		error = "New Eden planet atmosphere container or CloudLayer mesh is missing";
+		return false;
+	}
+
+	EveChildMeshPtr atmosphereMeshChild;
+	for( IEveSpaceObjectChild* child : atmosphereContainer->m_objects )
+	{
+		EveChildMeshPtr meshChild = BlueCastPtr( child );
+		std::fprintf(
+			stderr,
+			"New Eden atmosphere graph: child=%s mesh=%s\n",
+			child->GetName(),
+			meshChild ? "yes" : "no" );
+		if( std::strcmp( child->GetName(), "Atmo" ) == 0 )
+		{
+			atmosphereMeshChild = meshChild;
+		}
+	}
+	if( !atmosphereMeshChild )
+	{
+		error = "New Eden planet atmosphere graph is missing the Atmo mesh";
+		return false;
+	}
+	const bool retainAtmosphere = planetLayers == STANDALONE_PLANET_ATMOSPHERE || planetLayers == STANDALONE_PLANET_ALL;
+	const bool retainClouds = planetLayers == STANDALONE_PLANET_CLOUDS || planetLayers == STANDALONE_PLANET_ALL;
 	for( ssize_t index = static_cast<ssize_t>( planetChildren.size() ) - 1; index >= 0; --index )
 	{
-		if( planetChildren[index] != planetBody->GetRawRoot() )
+		IRoot* child = planetChildren[index];
+		if( child != planetBody->GetRawRoot() &&
+			( child != atmosphereContainer->GetRawRoot() || !retainAtmosphere ) &&
+			( child != cloudLayer->GetRawRoot() || !retainClouds ) )
 		{
 			planetChildren.Remove( index );
 		}
+	}
+	for( ssize_t index = static_cast<ssize_t>( atmosphereContainer->m_objects.size() ) - 1; index >= 0; --index )
+	{
+		if( atmosphereContainer->m_objects[index] != atmosphereMeshChild->GetRawRoot() )
+		{
+			atmosphereContainer->m_objects.Remove( index );
+		}
+	}
+
+	const PlanetCloudSelection cloudSelection = SelectPlanetClouds( cloudYear, cloudMonth, cloudDay, 40334264 );
+	std::fprintf(
+		stderr,
+		"New Eden planet cloud selection: date=%04d-%02d-%02d cloud=%s cap=%s brightness=%.10f transparency=%.10f\n",
+		cloudYear,
+		cloudMonth,
+		cloudDay,
+		cloudSelection.cloudPath.c_str(),
+		cloudSelection.capPath.c_str(),
+		cloudSelection.brightness,
+		cloudSelection.transparency );
+	if( cloudYear == 2026 && cloudMonth == 7 && cloudDay == 10 &&
+		( cloudSelection.cloudPath.find( "dust04_m_hi.dds" ) == std::string::npos ||
+		  cloudSelection.capPath.find( "dustcap02_m_hi.dds" ) == std::string::npos ||
+		  std::abs( cloudSelection.brightness - 0.9530833834f ) > 1e-6f ||
+		  std::abs( cloudSelection.transparency - 2.7395450457f ) > 1e-6f ) )
+	{
+		error = "Python 2.7 cloud randomization parity check failed for 2026-07-10";
+		return false;
 	}
 
 	Tr2MeshPtr planetMesh = BlueCastPtr( planetBody->GetMesh() );
@@ -1920,6 +2345,26 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 				error = "New Eden planet surface area has no effect";
 				return false;
 			}
+			TriTextureParameterPtr cloudTexture = BlueCastPtr( effect->GetResourceByName( "CloudsTexture" ) );
+			TriTextureParameterPtr cloudCapTexture = BlueCastPtr( effect->GetResourceByName( "CloudCapTexture" ) );
+			Tr2ConstantEffectParameter* cloudFactors = nullptr;
+			for( auto& parameter : effect->m_constParameters )
+			{
+				if( std::strcmp( parameter.name.c_str(), "CloudsFactors" ) == 0 )
+				{
+					cloudFactors = &parameter;
+					break;
+				}
+			}
+			if( !cloudTexture || !cloudCapTexture || !cloudFactors )
+			{
+				error = "New Eden planet surface is missing authored cloud parameters";
+				return false;
+			}
+			cloudTexture->SetResourcePath( cloudSelection.cloudPath.c_str() );
+			cloudCapTexture->SetResourcePath( cloudSelection.capPath.c_str() );
+			cloudFactors->value.y = cloudSelection.brightness;
+			cloudFactors->value.z = cloudSelection.transparency;
 			for( ssize_t index = static_cast<ssize_t>( effect->m_resources.size() ) - 1; index >= 0; --index )
 			{
 				if( std::strcmp( effect->m_resources[index]->GetParameterName(), "HeightMap" ) == 0 )
@@ -1942,24 +2387,70 @@ bool PrepareNewEdenCelestialsWithoutYield( EvePlanet& sun, EvePlanet& planet, st
 				stderr,
 				"New Eden planet authored preset: graphic=4321 path=res:/dx9/model/worldobject/planet/"
 				"template_hi/sandstorm/p_sandstorm_11.black heightMap1=3843 heightMap2=3903 random=64 "
-				"surface-only=yes\n" );
+				"cloudDate=%04d-%02d-%02d clouds=%s cap=%s brightness=%.10f transparency=%.10f\n",
+				cloudYear,
+				cloudMonth,
+				cloudDay,
+				cloudSelection.cloudPath.c_str(),
+				cloudSelection.capPath.c_str(),
+				cloudSelection.brightness,
+				cloudSelection.transparency );
 		}
 	}
 
-	return PrepareCelestialMeshWithoutYield(
-		*sunBody,
-		"res:/graphics/generic/unitsphere/unitsphere_4k_01a.cmf",
-		"sun body",
-		error ) &&
-		PrepareCelestialMeshWithoutYield(
+	if( !PrepareCelestialMeshWithoutYield(
+			*sunBody,
+			"res:/graphics/generic/unitsphere/unitsphere_4k_01a.cmf",
+			"sun body",
+			error ) ||
+		!PrepareCelestialMeshWithoutYield(
 			*planetBody,
 			"res:/dx9/model/worldobject/planet/planetsphere.cmf",
 			"planet body",
-			error ) &&
-		sunBodyContainer->Initialize() && sun.Initialize() && planet.Initialize();
+			error ) )
+	{
+		return false;
+	}
+	if( retainSunFlare && !PrepareCelestialMeshWithoutYield( *sunFlare, "res:/graphics/generic/unitplane/unitplane.cmf", "authored sun flare", error ) )
+	{
+		return false;
+	}
+	if( retainAtmosphere && !PrepareCelestialMeshWithoutYield( *atmosphereMeshChild, "res:/dx9/model/worldobject/planet/planetring.cmf", "planet atmosphere", error ) )
+	{
+		return false;
+	}
+	if( retainClouds && !PrepareCelestialMeshWithoutYield( *cloudLayer, "res:/dx9/model/worldobject/planet/planetring.cmf", "planet cloud layer", error ) )
+	{
+		return false;
+	}
+	if( retainAtmosphere && !atmosphereContainer->Initialize() )
+	{
+		error = "New Eden planet atmosphere container failed to initialize";
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"New Eden authored sun flare: enabled=%s child=SunFlares geometry=res:/graphics/generic/unitplane/unitplane.cmf\n",
+		retainSunFlare ? "yes" : "no" );
+	std::fprintf(
+		stderr,
+		"New Eden planet layers ready: surface=yes atmosphere=%s clouds=%s aurora=no dataDrivenFx=no\n",
+		retainAtmosphere ? "yes" : "no",
+		retainClouds ? "yes" : "no" );
+	return sunBodyContainer->Initialize() && sun.Initialize() && planet.Initialize();
 }
 
-bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int composition, std::string& error )
+bool ConfigureNewEdenSystem(
+	StandaloneProbe& probe,
+	EveSpaceScene& scene,
+	int cameraView,
+	int composition,
+	int sunEffects,
+	int planetLayers,
+	int cloudYear,
+	int cloudMonth,
+	int cloudDay,
+	std::string& error )
 {
 	constexpr int32_t systemId = 30005286;
 	constexpr int32_t constellationId = 20000773;
@@ -2000,8 +2491,9 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int compositi
 		// destination. Reproduce eveCfg.GetPlanetWarpInPoint's radial distance here.
 		constexpr double factor = 20.0;
 		double warpScale = std::pow(
-			factor,
-			( 5.0 - std::log10( planetRadius / metersPerSceneUnit ) - 0.5 ) / factor ) * factor;
+							   factor,
+							   ( 5.0 - std::log10( planetRadius / metersPerSceneUnit ) - 0.5 ) / factor ) *
+			factor;
 		warpScale = std::min( 10.0, std::max( 0.0, warpScale ) ) + 0.5;
 		const double warpSurfaceClearance = metersPerSceneUnit + planetRadius * warpScale;
 		const double warpCenterDistance = planetRadius + warpSurfaceClearance;
@@ -2085,13 +2577,42 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int compositi
 		static_cast<float>( planetRadius ),
 		Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-	if( !PrepareNewEdenCelestialsWithoutYield( *sun, *planet, error ) )
+	if( !PrepareNewEdenCelestialsWithoutYield(
+			*sun,
+			*planet,
+			sunEffects,
+			planetLayers,
+			cloudYear,
+			cloudMonth,
+			cloudDay,
+			error ) )
 	{
 		if( error.empty() )
 		{
 			error = "New Eden celestial graph failed to initialize";
 		}
 		return false;
+	}
+	const bool enableLensFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
+	if( enableLensFlare && cameraView != STANDALONE_CAMERA_PLANET )
+	{
+		auto lensFlare = LoadBlackObjectWithoutYield<EveLensflare>(
+			"res:/fisfx/lensflare/yellow_small.black",
+			error );
+		if( !lensFlare )
+		{
+			return false;
+		}
+		if( !PrepareNewEdenLensFlareWithoutYield( *lensFlare, error ) )
+		{
+			return false;
+		}
+		lensFlare->SetTranslationCurve( sun->GetTranslationCurve() );
+		scene.Lensflares().Insert( -1, lensFlare->GetRawRoot() );
+	}
+	else if( enableLensFlare )
+	{
+		std::fprintf( stderr, "New Eden planet camera isolation: lens flare submission disabled\n" );
 	}
 	if( cameraView != STANDALONE_CAMERA_PLANET )
 	{
@@ -2102,6 +2623,50 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int compositi
 		std::fprintf( stderr, "New Eden planet camera isolation: sun submission disabled\n" );
 	}
 	scene.Planets().Insert( -1, planet->GetRawRoot() );
+	if( composition == STANDALONE_COMPOSITION_SYSTEM )
+	{
+		const float sixtyDegreeFov = 60.0f * 3.1415926535f / 180.0f;
+		auto pixelDiameter = [&]( float radius, const Vector3& position, float fov ) {
+			return static_cast<float>( probe.renderHeight ) * ( radius / Length( position ) ) / std::tan( fov * 0.5f );
+		};
+		std::fprintf(
+			stderr,
+			"New Eden exact-system observer view: fov=60.000000 degrees sunPixels=%.8f planetPixels=%.8f "
+			"planetScale=1000000 planetCameraScale=1000000\n",
+			pixelDiameter( static_cast<float>( starRadius ), sunPosition, sixtyDegreeFov ),
+			pixelDiameter( static_cast<float>( planetRadius ), planetPosition, sixtyDegreeFov ) );
+
+		if( cameraView == STANDALONE_CAMERA_CELESTIALS || cameraView == STANDALONE_CAMERA_PLANET )
+		{
+			constexpr float inspectionDistance = 10000.0f;
+			constexpr float targetHeightFraction = 0.25f;
+			const bool inspectPlanet = cameraView == STANDALONE_CAMERA_PLANET;
+			const Vector3 selectedPosition = inspectPlanet ? planetPosition : sunPosition;
+			const float selectedRadius = inspectPlanet ? static_cast<float>( planetRadius ) : static_cast<float>( starRadius );
+			const float selectedDistance = Length( selectedPosition );
+			const float angularRadius = std::asin( std::min( 1.0f, selectedRadius / selectedDistance ) );
+			probe.celestialInspectionTarget = inspectPlanet ? planet.p : sun.p;
+			probe.celestialInspectionName = inspectPlanet ? "planet" : "sun";
+			probe.celestialExpectedPixelDiameter = static_cast<float>( probe.renderHeight ) * targetHeightFraction;
+			probe.celestialInspectionFovRadians = 2.0f * std::atan( std::tan( angularRadius ) / targetHeightFraction );
+			probe.celestialInspectionScale = selectedDistance / inspectionDistance;
+			probe.celestialInspectionDirection = Normalize( selectedPosition );
+			scene.SetPlanetScale( probe.celestialInspectionScale );
+			scene.SetPlanetCameraScale( probe.celestialInspectionScale );
+			std::fprintf(
+				stderr,
+				"New Eden celestial inspection configured: target=%s authoredDistance=%.3f authoredRadius=%.3f "
+				"renderDistance=%.3f scale=%.6f fovRadians=%.10f fovDegrees=%.8f expectedPixels=%.3f\n",
+				probe.celestialInspectionName,
+				selectedDistance,
+				selectedRadius,
+				inspectionDistance,
+				probe.celestialInspectionScale,
+				probe.celestialInspectionFovRadians,
+				probe.celestialInspectionFovRadians * 180.0f / 3.1415926535f,
+				probe.celestialExpectedPixelDiameter );
+		}
+	}
 	auto describeCelestial = []( const char* role, EvePlanet& celestial ) {
 		std::function<void( IEveSpaceObjectChild*, int )> describeChild;
 		describeChild = [&]( IEveSpaceObjectChild* child, int depth ) {
@@ -2115,11 +2680,11 @@ bool ConfigureNewEdenSystem( EveSpaceScene& scene, int cameraView, int compositi
 			Tr2MeshBase* mesh = meshChild ? meshChild->GetMesh() : ( lineSet ? lineSet->GetMesh() : nullptr );
 			Tr2MeshPtr serializedMesh = BlueCastPtr( mesh );
 			const char* type = container ? "container" :
-				( socket ? "socket" :
-					( childRef ? "ref" :
-						( meshChild ? "mesh" :
-							( lineSet ? "line-set" :
-								( quad ? "quad" : ( particles ? "particles" : "other" ) ) ) ) ) );
+										   ( socket ? "socket" :
+													  ( childRef ? "ref" :
+																   ( meshChild ? "mesh" :
+																				 ( lineSet ? "line-set" :
+																							 ( quad ? "quad" : ( particles ? "particles" : "other" ) ) ) ) ) );
 			std::fprintf(
 				stderr,
 				"New Eden %s graph: depth=%d type=%s name=%s resource=%s mesh=%s\n",
@@ -2235,13 +2800,11 @@ bool ConfigureShLighting(
 	{
 		const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
 		probe.scene->SetSunLighting( lighting.sunDirection, Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-		std::fprintf( stderr, "Lighting isolation: %s only; direct scene sun color is zero\n",
-			lightingView == STANDALONE_LIGHTING_SH ? "SH" : "local" );
+		std::fprintf( stderr, "Lighting isolation: %s only; direct scene sun color is zero\n", lightingView == STANDALONE_LIGHTING_SH ? "SH" : "local" );
 	}
 	else
 	{
-		std::fprintf( stderr, "Lighting isolation: %s\n",
-			lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH" );
+		std::fprintf( stderr, "Lighting isolation: %s\n", lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH" );
 	}
 
 	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_LOCAL || shSource == STANDALONE_SH_SOURCE_NONE )
@@ -2445,9 +3008,7 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 		}
 	}
 
-	const auto glowType = sourceGroup == 2
-		? SOFDataFactionColorChooser::TYPE_BOOSTER
-		: SOFDataFactionColorChooser::TYPE_HULL;
+	const auto glowType = sourceGroup == 2 ? SOFDataFactionColorChooser::TYPE_BOOSTER : SOFDataFactionColorChooser::TYPE_HULL;
 	const Color& glow = faction->m_colorSet->m_colors[glowType];
 	const Vector4 glowValue( glow.r, glow.g, glow.b, glow.a );
 	effect.AddParameterVector4( BlueSharedString( "GeneralGlowColor" ), &glowValue );
@@ -2636,7 +3197,7 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "## Authored `quadv5` Effect\n\n";
 	output << "- Logical source path: `" << effectPath << "`\n";
 	const char* shaderSuffix = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? "sm_depth" :
-		( Tr2Renderer::GetShaderModel() == TR2SM_3_0_HI ? "sm_hi" : "sm_lo" );
+																				  ( Tr2Renderer::GetShaderModel() == TR2SM_3_0_HI ? "sm_hi" : "sm_lo" );
 	output << "- Shader model: `" << Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ) << "`\n";
 	output << "- Compiled path: `res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5." << shaderSuffix << "`\n";
 	output << "- Runtime load: " << ( effectLoaded ? "success" : "FAILED" ) << "\n";
@@ -2768,14 +3329,14 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| 1 | `area_hull` | Opaque | `quad/quadv5.fx` | Rendered as an independent indexed batch. |\n";
 	output << "| 2 | `area_booster` | Opaque | `quad/quadheatv5.fx` | Rendered independently with four authored heat parameter sets and booster glow color. |\n\n";
 	output << "The hull declares no decal, transparent, or additive mesh areas. The root-object shader options explicitly disable clipping, projected-pattern textures, and instanced-attachment mode. "
-		"The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. "
-		"The standalone bridge now reconstructs their active light descriptors through `ITr2LightOwner` and Trinity's tiled light manager without submitting attachment geometry. "
-		"Visible sprites, cones, planes, haze, and banners remain separately observable follow-up work.\n\n";
+			  "The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. "
+			  "The standalone bridge now reconstructs their active light descriptors through `ITr2LightOwner` and Trinity's tiled light manager without submitting attachment geometry. "
+			  "Visible sprites, cones, planes, haze, and banners remain separately observable follow-up work.\n\n";
 	output << "## RC-06 Dynamic-Light Contract\n\n";
 	output << "The current `soebase` payload enables `primary` and `soe`; the Capsuleer Day explicit light strip is outside those groups and is excluded. "
-		"Active point and spotlight attachments retain Trinity blink, fade, noise, profile, and cone conversion through the native attachment-light wrappers. "
-		"The static CMF bridge uses identity rest-pose bone deltas and applies the same model center/fit normalization as its vertices. "
-		"Banner lights use native `EveBannerSet` average-color sampling from the staged Sisters of EVE faction banner fixture. The installed client `LogoLoader` would normally replace these alliance/corporation slots from its photo cache and otherwise uses `res:/texture/global/black.dds`. ";
+			  "Active point and spotlight attachments retain Trinity blink, fade, noise, profile, and cone conversion through the native attachment-light wrappers. "
+			  "The static CMF bridge uses identity rest-pose bone deltas and applies the same model center/fit normalization as its vertices. "
+			  "Banner lights use native `EveBannerSet` average-color sampling from the staged Sisters of EVE faction banner fixture. The installed client `LogoLoader` would normally replace these alliance/corporation slots from its photo cache and otherwise uses `res:/texture/global/black.dds`. ";
 	if( hasLightBuffer && hasLightIndexBuffer )
 	{
 		output << "The selected Metal V5 payload declares both tiled-light buffers, so opaque consumption is eligible for visual A/B acceptance. ";
@@ -2784,8 +3345,7 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	{
 		output << "The selected Metal V5 payload does not declare both tiled-light buffers, so manager/list generation remains capability-only evidence. ";
 	}
-	output <<
-		"Local shadows, volumetrics, AO, and all visible attachment geometry remain disabled.\n\n";
+	output << "Local shadows, volumetrics, AO, and all visible attachment geometry remain disabled.\n\n";
 
 	output << "## Per-Object Field Contract\n\n";
 	output << "| Field family | Probe value | Classification |\n";
@@ -2972,7 +3532,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects )
 {
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
@@ -2989,6 +3549,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone normal-map mode" );
 		return false;
 	}
+	if( planetLayers < STANDALONE_PLANET_SURFACE || planetLayers > STANDALONE_PLANET_ALL ||
+		cloudYear < 1 || cloudMonth < 1 || cloudMonth > 12 || cloudDay < 1 || cloudDay > 31 )
+	{
+		CCP_LOGERR( "Invalid standalone planet layer or cloud-date selection" );
+		return false;
+	}
 	if( cameraView < STANDALONE_CAMERA_MODEL || cameraView > STANDALONE_CAMERA_PLANET )
 	{
 		CCP_LOGERR( "Invalid standalone camera view" );
@@ -2999,6 +3565,30 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone scene composition" );
 		return false;
 	}
+	if( sunEffects < STANDALONE_SUN_EFFECTS_OFF || sunEffects > STANDALONE_SUN_EFFECTS_ALL )
+	{
+		CCP_LOGERR( "Invalid standalone sun-effects mode" );
+		return false;
+	}
+	if( sceneFixture != 3 && sunEffects != STANDALONE_SUN_EFFECTS_OFF )
+	{
+		CCP_LOGERR( "Standalone sun effects require the New Eden scene fixture" );
+		return false;
+	}
+	const bool enableGodRays = sunEffects == STANDALONE_SUN_EFFECTS_GOD_RAYS || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
+	if( enableGodRays && qualityRung < STANDALONE_PROBE_RUNG_HDR_POST )
+	{
+		CCP_LOGERR( "Standalone god rays require the hdr-post or hdr-exposure quality rung" );
+		return false;
+	}
+	if( sceneFixture == 3 )
+	{
+		std::fprintf(
+			stderr,
+			"New Eden sun effects: mode=%s graphicId=1247 flare=res:/fisfx/lensflare/yellow_small.black "
+			"godRayColor=(0.270588189, 0.278431386, 0.352941185, 1.0)\n",
+			SunEffectsName( sunEffects ) );
+	}
 	probe.cameraView = cameraView;
 	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH )
 	{
@@ -3007,9 +3597,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	probe.localLights = localLights;
 	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
 	{
-		const wchar_t* compiledPath = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH
-			? L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth"
-			: L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi";
+		const wchar_t* compiledPath = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth" : L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi";
 		const char* effectPath = "res:/graphics/effect/managed/space/system/computelightlists.fx";
 		if( !BePaths->FileExistsLocally( compiledPath ) )
 		{
@@ -3085,6 +3673,43 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			}
 			std::fprintf( stderr, "HDR/post effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
 		}
+		if( enableGodRays )
+		{
+			const RequiredEffect godRayEffects[] = {
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/Godrays.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/godrays.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/godrays.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/DownSampleDepth.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/downsampledepth.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/downsampledepth.sm_hi" },
+			};
+			for( const RequiredEffect& required : godRayEffects )
+			{
+				if( !BePaths->FileExistsLocally( required.compiledPath ) )
+				{
+					CCP_LOGERR( "God rays require compiled effect: %S", required.compiledPath );
+					return false;
+				}
+				Tr2EffectPtr effect;
+				effect.CreateInstance();
+				effect->SetEffectPathName( required.sourcePath );
+				Tr2EffectRes* resource = effect->GetEffectRes();
+				if( resource )
+				{
+					resource->ForceSynchronousLoad();
+					resource->Reload();
+				}
+				Tr2Shader* shader = effect->GetShaderStateInterface();
+				if( !resource || !resource->IsGood() || !shader || shader->GetPassCount( 0 ) == 0 )
+				{
+					CCP_LOGERR( "God-ray effect failed to prepare: %s", required.sourcePath );
+					return false;
+				}
+				std::fprintf( stderr, "God-ray effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
+			}
+			std::string noiseError;
+			if( !PrepareTextureResourceWithoutYield( "res:/texture/global/noise.dds", "god-ray noise", noiseError ) )
+			{
+				std::fprintf( stderr, "Failed to prepare god-ray noise: %s\n", noiseError.c_str() );
+				return false;
+			}
+		}
 
 		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE )
 		{
@@ -3145,7 +3770,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			std::fprintf( stderr, "Failed to load EVE scene '%s': %s\n", sceneResourcePath, sceneError.c_str() );
 			return false;
 		}
-		if( sceneFixture == 3 && !ConfigureNewEdenSystem( *probe.scene, cameraView, composition, sceneError ) )
+		if( sceneFixture == 3 && !ConfigureNewEdenSystem( probe, *probe.scene, cameraView, composition, sunEffects, planetLayers, cloudYear, cloudMonth, cloudDay, sceneError ) )
 		{
 			std::fprintf( stderr, "Failed to configure New Eden system: %s\n", sceneError.c_str() );
 			return false;
@@ -3156,10 +3781,11 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 
+		Tr2PostProcess2Ptr postProcess;
 		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE )
 		{
 			std::string postProcessError;
-			auto postProcess = LoadBlackObjectWithoutYield<Tr2PostProcess2>(
+			postProcess = LoadBlackObjectWithoutYield<Tr2PostProcess2>(
 				"res:/dx9/default/postprocess.black",
 				postProcessError );
 			if( !postProcess )
@@ -3176,7 +3802,6 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				CCP_LOGERR( "EVE default postprocess does not provide dynamic exposure and tone mapping" );
 				return false;
 			}
-			probe.scene->m_sceneDefaultPostProcess = postProcess;
 			std::fprintf(
 				stderr,
 				"EVE dynamic exposure active: middle=%.4f influence=%.4f adjustment=%.4f range=[%.4f, %.4f]\n",
@@ -3185,6 +3810,42 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				exposure->m_adjustment,
 				exposure->m_minExposure,
 				exposure->m_maxExposure );
+		}
+		else if( enableGodRays && !postProcess.CreateInstance() )
+		{
+			CCP_LOGERR( "Failed to create standalone postprocess container for god rays" );
+			return false;
+		}
+		if( enableGodRays )
+		{
+			Tr2PPGodRaysEffectPtr godRays;
+			if( !godRays.CreateInstance() )
+			{
+				CCP_LOGERR( "Failed to create Tr2PPGodRaysEffect" );
+				return false;
+			}
+			godRays->m_godRayColor = Color( 0.2705881894f, 0.2784313858f, 0.3529411852f, 1.0f );
+			godRays->m_intensity = 1.0f;
+			godRays->m_noiseTexturePath = BlueSharedString( "res:/texture/global/noise.dds" );
+			postProcess->SetGodRays( godRays );
+			std::fprintf(
+				stderr,
+				"New Eden god rays active: graphicId=1247 color=(%.9f, %.9f, %.9f, %.1f) "
+				"intensity=%.1f noise=%s factors=(%.1f, %.1f, %.1f, %.1f)\n",
+				godRays->m_godRayColor.r,
+				godRays->m_godRayColor.g,
+				godRays->m_godRayColor.b,
+				godRays->m_godRayColor.a,
+				godRays->m_intensity,
+				godRays->m_noiseTexturePath.c_str(),
+				godRays->grFactors.x,
+				godRays->grFactors.y,
+				godRays->grFactors.z,
+				godRays->grFactors.w );
+		}
+		if( postProcess )
+		{
+			probe.scene->m_sceneDefaultPostProcess = postProcess;
 		}
 	}
 	else if( !probe.scene.CreateInstance() )
@@ -3234,19 +3895,17 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 
 	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
 	constexpr float newEdenPlanetWarpCenterDistance = 31245000.0f;
-	const Vector3 planetPosition = composition == STANDALONE_COMPOSITION_CINEMATIC
-		? Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) * newEdenPlanetWarpCenterDistance
-		: Vector3( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	const Vector3 planetPosition = composition == STANDALONE_COMPOSITION_CINEMATIC ? Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) * newEdenPlanetWarpCenterDistance : Vector3( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
 	const Vector3 eye( 0.0f, 0.0f, -5.2f );
-	const Vector3 target = cameraView == STANDALONE_CAMERA_CELESTIALS
-		? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) )
-		: ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) );
+	const bool exactSystemInspection = composition == STANDALONE_COMPOSITION_SYSTEM &&
+		probe.celestialInspectionTarget && probe.celestialInspectionFovRadians > 0.0f;
+	const Vector3 target = exactSystemInspection ? eye + probe.celestialInspectionDirection : ( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) : ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) );
 	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
 	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
-		( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
-	const float cameraFovDegrees = cameraView == STANDALONE_CAMERA_PLANET && composition == STANDALONE_COMPOSITION_SYSTEM ? 0.015f : 60.0f;
-	std::fprintf( stderr, "EVE camera view: %s fov=%.4f degrees\n", cameraName, cameraFovDegrees );
-	probe.projection->PerspectiveFov( cameraFovDegrees * 3.1415926535f / 180.0f, aspect, 1.0f, 10000.0f );
+																		  ( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
+	const float cameraFovRadians = exactSystemInspection ? probe.celestialInspectionFovRadians : 60.0f * 3.1415926535f / 180.0f;
+	std::fprintf( stderr, "EVE camera view: %s fov=%.8f degrees diagnostic=%s\n", cameraName, cameraFovRadians * 180.0f / 3.1415926535f, exactSystemInspection ? "yes" : "no" );
+	probe.projection->PerspectiveFov( cameraFovRadians, aspect, 1.0f, 10000.0f );
 
 	EveSpaceSceneRenderDriver::Settings settings;
 	settings.clearColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
@@ -3285,31 +3944,31 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		std::string loadError;
-			if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
+		if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
 		{
 			std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
 			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
+			return false;
+		}
+		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+		{
+			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
+				"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
+			auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>(
+				"res:/dx9/model/spaceobjectfactory/factions/soebase.black", loadError );
+			if( !hull || !faction || !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
+			{
+				std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
 				return false;
 			}
-			if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
-			{
-				auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
-					"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
-				auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>(
-					"res:/dx9/model/spaceobjectfactory/factions/soebase.black", loadError );
-				if( !hull || !faction || !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
-				{
-					std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
-					return false;
-				}
-			}
+		}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
 		if( !probe.renderable->InitializeGpu( primaryRenderContext, materialView, materialMode, areaView, normalMapMode ) )
 		{
 			CCP_LOGERR( "Failed to initialize the standalone EVE renderable GPU resources" );
 			return false;
 		}
-			probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
+		probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
 	return true;
@@ -3395,8 +4054,7 @@ TRINITY_STANDALONE_EXPORT void* TrinityStandaloneProbeCreateDevice( void* window
 		return nullptr;
 	}
 	Tr2Renderer::SetShaderModel( shaderTier == 1 ? TR2SM_3_0_DEPTH : TR2SM_3_0_HI );
-	std::fprintf( stderr, "Trinity standalone shader model: %s (%s client tier)\n",
-		Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ), shaderTier == 1 ? "high" : "medium" );
+	std::fprintf( stderr, "Trinity standalone shader model: %s (%s client tier)\n", Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ), shaderTier == 1 ? "high" : "medium" );
 
 	auto* probe = CCP_NEW( "TrinityStandaloneProbe" ) StandaloneProbe();
 	probe->renderWidth = renderWidth;
@@ -3444,14 +4102,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
@@ -3489,6 +4147,29 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	{
 		++probe->renderedFrameCount;
 	}
+	if( rendered && !freezeScene && probe->celestialInspectionTarget &&
+		!probe->celestialInspectionValidated && probe->renderedFrameCount >= 2 )
+	{
+		const float reported = probe->celestialInspectionTarget->GetEstimatedPixelDiameter();
+		const float expected = probe->celestialExpectedPixelDiameter;
+		const float relativeError = expected > 0.0f ? std::abs( reported - expected ) / expected : 1.0f;
+		std::fprintf(
+			stderr,
+			"New Eden celestial inspection validation: target=%s expectedPixels=%.4f trinityPixels=%.4f "
+			"relativeError=%.4f scale=%.6f fovDegrees=%.8f\n",
+			probe->celestialInspectionName,
+			expected,
+			reported,
+			relativeError,
+			probe->celestialInspectionScale,
+			probe->celestialInspectionFovRadians * 180.0f / 3.1415926535f );
+		if( !std::isfinite( reported ) || relativeError > 0.05f )
+		{
+			CCP_LOGERR( "New Eden celestial inspection pixel diameter differs from the derived target by more than five percent" );
+			return false;
+		}
+		probe->celestialInspectionValidated = true;
+	}
 	if( rendered && probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF )
 	{
 		Tr2LightManager* manager = Tr2LightManager::GetInstance();
@@ -3507,8 +4188,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		{
 			const uint32_t tilesX = ( probe->renderWidth + 15 ) / 16;
 			const uint32_t tilesY = ( probe->renderHeight + 15 ) / 16;
-			std::fprintf( stderr, "Trinity tiled local-light result: resolved=%zu tile-grid=%ux%u tile-count=%u update=success\n",
-				resolved, tilesX, tilesY, tilesX * tilesY );
+			std::fprintf( stderr, "Trinity tiled local-light result: resolved=%zu tile-grid=%ux%u tile-count=%u update=success\n", resolved, tilesX, tilesY, tilesX * tilesY );
 			probe->reportedResolvedLights = true;
 		}
 	}

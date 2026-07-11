@@ -133,6 +133,11 @@ set(EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE "res:/dx9/model/celestial/sun/sun_yell
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black")
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_GEOMETRY_RESOURCE "res:/graphics/generic/unitsphere/unitsphere_4k_01a.gr2")
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetsphere.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RING_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetring.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_RESOURCE "res:/fisfx/lensflare/yellow_small.black")
+set(EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_GEOMETRY_RESOURCE "res:/fisfx/lensflare/yellow_small.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN_FLARE_GEOMETRY_RESOURCE "res:/graphics/generic/unitplane/unitplane.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_OCCLUDER_GEOMETRY_RESOURCE "res:/model/global/zsprite.gr2")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_lo")
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth")
@@ -202,8 +207,28 @@ set(EVE_SCENE_PROBE_PLANET_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.gl
 set(EVE_SCENE_PROBE_PLANET_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.bin)
 set(EVE_SCENE_PROBE_PLANET_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/planetsphere.cmf)
 set(EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_RING_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/PlanetRing.gltf)
+set(EVE_SCENE_PROBE_PLANET_RING_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/PlanetRing.bin)
+set(EVE_SCENE_PROBE_PLANET_RING_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/planetring.cmf)
+set(EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetRingGeometry.json)
 set(EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/planet)
 set(EVE_SCENE_PROBE_CELESTIAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenCelestialResources.json)
+set(EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenAtmosphereResources.json)
+set(EVE_SCENE_PROBE_SUN_FX_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/SunFxAssets)
+set(EVE_SCENE_PROBE_SUN_FX_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunFxResources.json)
+set(EVE_SCENE_PROBE_SUN_FX_NOISE ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/Inherited/texture/global/noise.dds)
+set(EVE_SCENE_PROBE_LENS_FLARE_GLTF ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/YellowSmall.gltf)
+set(EVE_SCENE_PROBE_LENS_FLARE_BIN ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/YellowSmall.bin)
+set(EVE_SCENE_PROBE_LENS_FLARE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/lensflare/yellow_small.cmf)
+set(EVE_SCENE_PROBE_LENS_FLARE_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenLensFlareGeometry.json)
+set(EVE_SCENE_PROBE_SUN_FLARE_GLTF ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/UnitPlane.gltf)
+set(EVE_SCENE_PROBE_SUN_FLARE_BIN ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/UnitPlane.bin)
+set(EVE_SCENE_PROBE_SUN_FLARE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitplane/unitplane.cmf)
+set(EVE_SCENE_PROBE_SUN_FLARE_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunFlareGeometry.json)
+set(EVE_SCENE_PROBE_OCCLUDER_GLTF ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/ZSprite.gltf)
+set(EVE_SCENE_PROBE_OCCLUDER_BIN ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/ZSprite.bin)
+set(EVE_SCENE_PROBE_OCCLUDER_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/model/global/zsprite.cmf)
+set(EVE_SCENE_PROBE_OCCLUDER_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenLensFlareOccluderGeometry.json)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_hi)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_lo)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_depth)
@@ -692,6 +717,245 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
             ${EVE_SCENE_PROBE_CELESTIAL_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenCelestialAssets)
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_RING_GLTF} ${EVE_SCENE_PROBE_PLANET_RING_BIN} ${EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_RING_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_PLANET_RING_GLTF}
+            --manifest ${EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_RING_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_PLANET_RING_GLTF}
+            --output ${EVE_SCENE_PROBE_PLANET_RING_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_PLANET_RING_GLTF} ${EVE_SCENE_PROBE_PLANET_RING_BIN}
+        VERBATIM
+    )
+
+    set(EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_depth
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust04_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap01_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/atmosphere.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/atmosphere.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/atmosphere.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_depth
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust04_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust04_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap01_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap01_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds
+            --manifest ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeNewEdenAtmosphereAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_PLANET_RING_CMF}
+            ${EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenAtmosphereAssets)
+endif()
+
+if(TARGET TrinityEveSceneProbeNewEdenAssets AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_SUN_FX_RESOURCE_OUTPUTS
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/lensflare/yellow_small.black
+        ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/yellow_small.gr2
+        ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/unitplane.gr2
+        ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/zsprite.gr2
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_hi
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_lo
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_hi
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_lo
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_hi
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_lo
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_hi
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_lo
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_depth
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_hi
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_lo
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_depth
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_hi
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_lo
+        ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flaremainwhiteblur.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/largehalo_soft.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/thick_streaks.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/streak_blue.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flarestreaks.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flare_rainbow_blue_dim.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/rainbow.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/zoom.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/lightfracture_cyan2.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/grime9.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/aberrationmask.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/grimemask.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/spot.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/white.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whitesharphifi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whiteglobe.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/hringur.dds
+        ${EVE_SCENE_PROBE_SUN_FX_NOISE}
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_FX_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_SUN_FX_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_RESOURCE} ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/lensflare/yellow_small.black
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_GEOMETRY_RESOURCE} ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/yellow_small.gr2
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_SUN_FLARE_GEOMETRY_RESOURCE} ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/unitplane.gr2
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_OCCLUDER_GEOMETRY_RESOURCE} ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/SourceGeometry/zsprite.gr2
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunflare.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunflare.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/sunflare.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/sunflare.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_hi ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_lo ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_depth ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflare.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_hi ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_lo ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_depth ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensgrime.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_hi ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_lo ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_depth ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/lensflareoccludert.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_hi ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_lo ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_depth ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/lensflares/occludermanagement.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/godrays.sm_hi ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/godrays.sm_lo ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/godrays.sm_depth ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/godrays.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/downsampledepth.sm_hi ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/downsampledepth.sm_lo ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/downsampledepth.sm_depth ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/downsampledepth.sm_depth
+            --copy-resource res:/texture/flare/flaremainwhiteblur.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flaremainwhiteblur.dds
+            --copy-resource res:/texture/flare/largehalo_soft.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/largehalo_soft.dds
+            --copy-resource res:/texture/flare/thick_streaks.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/thick_streaks.dds
+            --copy-resource res:/texture/flare/streak_blue.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/streak_blue.dds
+            --copy-resource res:/texture/flare/flarestreaks.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flarestreaks.dds
+            --copy-resource res:/texture/flare/flare_rainbow_blue_dim.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/flare_rainbow_blue_dim.dds
+            --copy-resource res:/texture/flare/rainbow.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/rainbow.dds
+            --copy-resource res:/texture/flare/zoom.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/zoom.dds
+            --copy-resource res:/texture/flare/lightfracture_cyan2.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/lightfracture_cyan2.dds
+            --copy-resource res:/texture/flare/grime9.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/grime9.dds
+            --copy-resource res:/texture/flare/aberrationmask.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/aberrationmask.dds
+            --copy-resource res:/texture/flare/grimemask.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/grimemask.dds
+            --copy-resource res:/texture/flare/spot.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/flare/spot.dds
+            --copy-resource res:/texture/global/white.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/white.dds
+            --copy-resource res:/texture/particle/whitesharphifi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whitesharphifi.dds
+            --copy-resource res:/texture/particle/whiteglobe.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whiteglobe.dds
+            --copy-resource res:/texture/hringur.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/hringur.dds
+            --copy-resource res:/texture/global/noise.dds ${EVE_SCENE_PROBE_SUN_FX_NOISE}
+            --manifest ${EVE_SCENE_PROBE_SUN_FX_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_LENS_FLARE_GLTF} ${EVE_SCENE_PROBE_LENS_FLARE_BIN} ${EVE_SCENE_PROBE_LENS_FLARE_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_LENS_FLARE_GLTF}
+            --manifest ${EVE_SCENE_PROBE_LENS_FLARE_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_LENS_FLARE_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/lensflare
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf> --input ${EVE_SCENE_PROBE_LENS_FLARE_GLTF} --output ${EVE_SCENE_PROBE_LENS_FLARE_CMF} --merge-meshes --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_LENS_FLARE_GLTF} ${EVE_SCENE_PROBE_LENS_FLARE_BIN}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_FLARE_GLTF} ${EVE_SCENE_PROBE_SUN_FLARE_BIN} ${EVE_SCENE_PROBE_SUN_FLARE_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_SUN_FLARE_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_SUN_FLARE_GLTF}
+            --manifest ${EVE_SCENE_PROBE_SUN_FLARE_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_FLARE_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitplane
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf> --input ${EVE_SCENE_PROBE_SUN_FLARE_GLTF} --output ${EVE_SCENE_PROBE_SUN_FLARE_CMF} --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_SUN_FLARE_GLTF} ${EVE_SCENE_PROBE_SUN_FLARE_BIN}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_OCCLUDER_GLTF} ${EVE_SCENE_PROBE_OCCLUDER_BIN} ${EVE_SCENE_PROBE_OCCLUDER_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_OCCLUDER_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_OCCLUDER_GLTF}
+            --manifest ${EVE_SCENE_PROBE_OCCLUDER_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_OCCLUDER_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/model/global
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf> --input ${EVE_SCENE_PROBE_OCCLUDER_GLTF} --output ${EVE_SCENE_PROBE_OCCLUDER_CMF} --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_OCCLUDER_GLTF} ${EVE_SCENE_PROBE_OCCLUDER_BIN}
+        VERBATIM
+    )
+
+    add_custom_target(TrinityEveSceneProbeNewEdenSunFxAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_SUN_FX_RESOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_SUN_FX_MANIFEST}
+            ${EVE_SCENE_PROBE_LENS_FLARE_CMF}
+            ${EVE_SCENE_PROBE_LENS_FLARE_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_SUN_FLARE_CMF}
+            ${EVE_SCENE_PROBE_SUN_FLARE_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_OCCLUDER_CMF}
+            ${EVE_SCENE_PROBE_OCCLUDER_GEOMETRY_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeNewEdenSunFxAssets TrinityEveSceneProbeNewEdenCelestialAssets)
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenSunFxAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHIP_SOURCE}")

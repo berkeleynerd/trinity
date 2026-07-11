@@ -164,9 +164,10 @@ function validateMesh( mesh )
     {
         throw new Error( `GR2 mesh '${mesh.name}' has no valid positions` );
     }
-    if( mesh.vertex.normal.length !== vertexCount * 3 )
+    const normalComponents = mesh.vertex.normal.length / vertexCount;
+    if( normalComponents !== 0 && normalComponents !== 3 )
     {
-        throw new Error( `GR2 mesh '${mesh.name}' does not have one unpacked normal per vertex` );
+        throw new Error( `GR2 mesh '${mesh.name}' has an incomplete authored normal stream` );
     }
     const tangentComponents = mesh.vertex.tangent.length / vertexCount;
     const binormalComponents = mesh.vertex.binormal.length / vertexCount;
@@ -179,7 +180,7 @@ function validateMesh( mesh )
     {
         throw new Error( `GR2 mesh '${mesh.name}' does not have one TEXCOORD_0 per vertex` );
     }
-    return { vertexCount, tangentComponents };
+    return { vertexCount, normalComponents, tangentComponents };
 }
 
 function positionBounds( positions )
@@ -204,18 +205,52 @@ function align4( value )
 
 function buildGltf( mesh, sourcePath, outputPath, includeGroups )
 {
-    const { vertexCount, tangentComponents } = validateMesh( mesh );
+    const { vertexCount, normalComponents, tangentComponents } = validateMesh( mesh );
     const hasTangents = tangentComponents !== 0;
     const positions = new Float32Array( mesh.vertex.position );
-    const normals = new Float32Array( mesh.vertex.normal );
+    const normals = normalComponents === 3 ? new Float32Array( mesh.vertex.normal ) : new Float32Array( vertexCount * 3 );
+    if( normalComponents === 0 )
+    {
+        for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+        {
+            normals[vertexIndex * 3 + 2] = 1.0;
+        }
+        console.warn( `GR2 mesh '${mesh.name}' has no authored normals; using deterministic +Z billboard normals` );
+    }
+    else
+    {
+        let replacedZeroNormal = false;
+        for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+        {
+            const offset = vertexIndex * 3;
+            const length = Math.hypot( normals[offset + 0], normals[offset + 1], normals[offset + 2] );
+            if( length < 1.0e-8 )
+            {
+                normals[offset + 0] = 0.0;
+                normals[offset + 1] = 0.0;
+                normals[offset + 2] = 1.0;
+                replacedZeroNormal = true;
+            }
+            else
+            {
+                normals[offset + 0] /= length;
+                normals[offset + 1] /= length;
+                normals[offset + 2] /= length;
+            }
+        }
+        if( replacedZeroNormal )
+        {
+            console.warn( `GR2 mesh '${mesh.name}' has zero authored normals; using deterministic +Z billboard normals for those vertices` );
+        }
+    }
     const tangents = hasTangents ? new Float32Array( vertexCount * 4 ) : null;
     for( let vertexIndex = 0; hasTangents && vertexIndex < vertexCount; ++vertexIndex )
     {
         const normalOffset = vertexIndex * 3;
         const tangentOffset = vertexIndex * tangentComponents;
-        const nx = mesh.vertex.normal[normalOffset + 0];
-        const ny = mesh.vertex.normal[normalOffset + 1];
-        const nz = mesh.vertex.normal[normalOffset + 2];
+        const nx = normals[normalOffset + 0];
+        const ny = normals[normalOffset + 1];
+        const nz = normals[normalOffset + 2];
         const tx = mesh.vertex.tangent[tangentOffset + 0];
         const ty = mesh.vertex.tangent[tangentOffset + 1];
         const tz = mesh.vertex.tangent[tangentOffset + 2];
@@ -225,7 +260,16 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         const tangentLength = Math.hypot( tx, ty, tz );
         if( tangentLength < 1.0e-8 )
         {
-            throw new Error( `GR2 mesh '${mesh.name}' has a zero authored tangent at vertex ${vertexIndex}` );
+            const fallbackX = Math.abs( nz ) > 0.9 ? 1.0 : -ny;
+            const fallbackY = Math.abs( nz ) > 0.9 ? 0.0 : nx;
+            const fallbackZ = 0.0;
+            const fallbackLength = Math.hypot( fallbackX, fallbackY, fallbackZ );
+            tangents[vertexIndex * 4 + 0] = fallbackX / fallbackLength;
+            tangents[vertexIndex * 4 + 1] = fallbackY / fallbackLength;
+            tangents[vertexIndex * 4 + 2] = fallbackZ;
+            tangents[vertexIndex * 4 + 3] = 1.0;
+            console.warn( `GR2 mesh '${mesh.name}' has a zero authored tangent at vertex ${vertexIndex}; using a deterministic orthogonal tangent` );
+            continue;
         }
         tangents[vertexIndex * 4 + 0] = tx / tangentLength;
         tangents[vertexIndex * 4 + 1] = ty / tangentLength;

@@ -214,6 +214,18 @@ public:
 	{
 		return m_planets;
 	}
+	PEveLensflareVector& Lensflares()
+	{
+		return m_lensflares;
+	}
+	void SetPlanetScale( float value )
+	{
+		m_planetScale = value;
+	}
+	void SetPlanetCameraScale( float value )
+	{
+		m_planetCameraScale = value;
+	}
 	struct LightingSetup
 	{
 		Vector3 sunDirection;
@@ -255,7 +267,7 @@ public:
 		m_sunData.DirWorld = direction;
 		m_sunColor = color;
 	}
-	void SetStarfield( EveStarfield* starfield )
+	void SetStarfield( EveStarfield * starfield )
 	{
 		m_starfield = starfield;
 	}

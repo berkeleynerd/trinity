@@ -68,6 +68,10 @@ public:
 
 	// do the occlusion rendering/querying
 	void RunQuery( Tr2RenderContext& renderContext, const EveUpdateContext& updateContext, const Matrix& transform, uint32_t bufferOffset, float fogWeight );
+	const PEveTransformVector& Sprites() const
+	{
+		return m_sprites;
+	}
 
 private:
 	// name

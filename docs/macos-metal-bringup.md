@@ -819,15 +819,25 @@ three top-level quality/container children and the planet has one authored mesh
 child using `SandStormPlanet.fx`.
 
 The probe now prepares the selected high-quality Black graphs synchronously,
-redirects the unit-sphere and planet-sphere GR2 resources to build-time CMF,
+redirects the unit-sphere, planet-sphere, and planet-ring GR2 resources to build-time CMF,
 and validates every retained Metal effect and texture. It mirrors
 `Planet.SetEffectParameters`: serialized `HeightMap` is removed,
 `NormalHeight1`/`NormalHeight2` are installed from graphics `3843`/`3903`, and
-`Random` is set to `40334264 % 100`, or `64`. The planet fixture deliberately
-retains only the surface mesh. Atmosphere, aurora, data-driven FX, Sandstorm
-cloud randomization, and scheduler-generated render targets remain explicit
-follow-up gates. Lens flare, god rays, whisps, particles, and low-quality sun
-socket branches are also still pruned.
+`Random` is set to `40334264 % 100`, or `64`. `--planet-layers` independently
+retains the surface, nested additive `Atmo`, and top-level transparent
+`CloudLayer` branches. The CMF bridge now preserves an explicit binormal stream;
+without it the planet shaders produced a dark mask and incorrect flat lighting.
+Aurora and data-driven FX remain pruned. Lens flare, god rays, whisps, particles,
+and low-quality sun socket branches are also still separate gates.
+
+The installed Python 2.7 `RandomizeShaderClouds` algorithm is reproduced locally
+without starting the client scheduler. It seeds with
+`year + month*30 + day + itemID`, uses the client runtime's float-based small
+`randint`, and mutates only the surface shader subtree. The fixed `2026-07-10`
+fixture selects `Dust04_M_HI` and `DustCap02_M_HI`, brightness
+`0.9530833834`, and transparency `2.7395450457`. The installed bytecode contains
+an unused `DoPlanetPreprocessing` queue shell, no `PreProcessAll`, and no caller,
+so the probe does not invent scheduler-generated planet maps.
 
 The installed client also resolved an important units error. Its
 `eveCfg.GetPlanetWarpInPoint` implementation is packaged in:
@@ -855,8 +865,73 @@ other applications and captures it without stealing focus. The accepted
 placement control contains Astero, the planet, and the procedural sun in one
 frame. The exact preset changes the earlier generic blue-green planet to the
 authored brown sandstorm surface in both isolated and combined captures.
-Exact-system-scale composition and the deferred atmosphere/cloud branches
-remain RC-04B fidelity gates.
+Exact-system model view retains the authored coordinates, one-million-unit
+planet scales, and 60-degree FOV; the planet and sun are correctly subpixel.
+Diagnostic views scale both body and camera coordinates to place the inspected
+body 10,000 scene units away and derive a 25%-frame-height FOV. Trinity reports
+240.000 pixels for both diagnostics, matching the derived target. Separate
+surface, atmosphere, cloud, and all-layer captures plus 180-frame model,
+HDR/post, and exposure runs accept RC-04B.
+
+## RC-04C New Eden sun flare and god rays
+
+The client divides the visible star treatment across three systems. The sun
+Black owns an authored `SunFlares` mesh, solar-system data selects a separate
+`EveLensflare`, and the render job inserts god rays ahead of exposure and tone
+mapping. New Eden system `30005286` selects graphic ID `1247`,
+`res:/fisfx/lensflare/yellow_small.black`, and god-ray color
+`(0.270588, 0.278431, 0.352941, 1)`. The probe preserves that split rather than
+collapsing it into the procedural sun surface.
+
+`--sun-effects auto|off|flare|god-rays|all` exposes the layers. `auto` enables
+flare geometry and the lens flare below `hdr-post`, then adds god rays at
+`hdr-post` and `hdr-exposure`. Explicit god rays on a lower rung fail. The lens
+flare is bound to the same sun translation curve and uses Trinity's existing
+two foreground and two background `EveOccluder` queries plus the native
+occlusion buffer. God rays use the client's intensity `1.0`, noise map, and
+native factors `(1000, 0.2, 128, 2)`.
+
+The legacy flare geometry required two narrow open-format repairs. The GR2
+converter synthesizes deterministic positive-Z normals only when a billboard
+mesh has no normal stream, and replaces zero normal/tangent entries with a
+stable orthogonal frame. `TrinityGltfToCmf --merge-meshes` then combines the 11
+`yellow_small.gr2` meshes while preserving their serialized area order and
+index ranges. Runtime preparation validates every Black mesh-area reference
+against those CMF areas before the first frame.
+
+`Reports/NewEdenSunFxResources.json` records 43 Black, geometry, texture, and
+Metal resources with absolute SharedCache paths, sizes, and SHA-256 values. Key
+source files on this host include:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/2e/2e180ff679bf158b_89072dbef47e87db7bb90fdf54b50e4f  yellow_small.black
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/9a/9a52022de4cff5b1_a9ff54614d55748792765552068fad50  yellow_small.gr2
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/12/122a6825c168ee48_238fdf7d1f76dfc7812f22e5aea40135  unitplane.gr2
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/c7/c7b8827f3b0248ce_5fd705673211dfd9881d4bcf2f1b09be  zsprite.gr2
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/8c/8c936ffbc93ac45d_dc11152af4f5ba7634d10901ebd30f81  godrays.sm_depth
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/2f/2fa41448c05d3931_568848908a5453cf299d0924d29f8dde  downsampledepth.sm_depth
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/23/239a24daab34ba73_cfd6e59e6ffd3843a1677d56360fe0fb  noise.dds
+```
+
+At `hdr-post`, exact-system `off`, `flare`, `god-rays`, and `all` captures are
+nonblank and have four distinct SHA-256 hashes. A 540-frame cinematic orbit
+keeps the lens flare registered with the moving sun and completes through the
+native occlusion path. A settled 180-frame `hdr-exposure` capture preserves the
+Astero, planet layers, nebula, flare, and god rays through FP16 composition,
+dynamic exposure, and tone mapping. Focused and full `all` builds pass with
+`WITH_GRANNY=OFF`. This accepts RC-04C. Sun whisps, particle-corona branches,
+bloom, and volumetric/froxel effects remain separate units.
+
+The ignored `samples/eve_scene_probe/Recordings/rc04c-sunfx-20s` build output
+contains the final visual-delivery controls. The native ReplayKit master is
+19.985 seconds at 4096x2304 and approximately 60 fps; its SHA-256 is
+`7d87569108ac92c47bc3b2d99b4abecc18888f05b36e0a63f5bd1cdf91c1fa6e`.
+The Signal copy is a constant-60-fps, 2560x1440 H.264 High/AAC MP4 with
+fast-start metadata, 49,896,076 bytes, and SHA-256
+`08a6d7a9ef9a3373159da17c97aa51d8d8e294c5321adc5c7eb78540127f1a78`.
+A five-frame contact sheet confirms more than one camera orbit with the Astero,
+sun, planet, nebula, flare, and god rays present, and FFmpeg decodes the entire
+share copy without errors. These media files remain outside source control.
 
 ## Object SH generation and upload
 
@@ -1006,7 +1081,7 @@ make those prerequisites explicit.
 | 2 | Empty EVE scene driver | Accepted as machinery | Driver validation and execution return zero. |
 | 3A | Geometry, topology, UVs, and textures | Accepted | Astero silhouette and material-view captures remain coherent. |
 | 3B | Authored material and per-object contract | Accepted | Three CMF sections map to the authored hull, booster, and distortion SOF areas; opaque batches and every retained/defaulted field have direct evidence. |
-| 3C | Representative in-space scene and background | Accepted | A01 renders through `EveSpaceScene`; its explicit resource manifest, scene-only capture, and Astero capture pass. |
+| 3C | Representative in-space scene, background, and visible celestials | Accepted | A01 renders through `EveSpaceScene`; New Eden adds seeded stars, authored sun/planet layers, `SunFlares`, native lens-flare occlusion, and god rays with separate manifests and captures. |
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Missing | Feed validated products and shadow-caster batches; accept against captures. |
@@ -1078,6 +1153,23 @@ The following checks passed on the host snapshot above:
 - exact New Eden planet preset reconstruction from current client FSD: graphic
   `4321`, height graphics `3843`/`3903`, client parameter mutation, checksummed
   surface resources, and focus-safe isolated/combined captures;
+- exact-system 60-degree/subpixel controls and derived sun/planet diagnostic
+  views, each matching the 240-pixel target with zero reported error;
+- checksummed staging of `planetring.gr2`, six atmosphere/cloud Metal payloads,
+  and all eight high-resolution Sandstorm cloud/cap variants; four layer-mode
+  captures have distinct hashes and survive 180-frame HDR/exposure composition;
+- CPython 2.7 cloud parity for the fixed `2026-07-10` fixture, including
+  `Dust04_M_HI`, `DustCap02_M_HI`, brightness `0.9530833834`, and transparency
+  `2.7395450457`;
+- checksummed staging of 43 lens-flare, occlusion, god-ray, texture, and Metal
+  resources, with absolute SharedCache sources recorded in the generated
+  `NewEdenSunFxResources.json` report;
+- exact-system sun-effect captures for off, flare, god rays, and all, with four
+  distinct image hashes, plus a 540-frame native-occlusion orbit and settled
+  180-frame `hdr-exposure` regression;
+- a verified 20-second 4096x2304 native scene recording and a fully decoded
+  2560x1440 H.264/AAC Signal delivery copy, both retained only in the ignored
+  build output;
 - authored GR2 tangent preservation through glTF/CMF and a finite V5 capture
   using the required `PackedTangentLegacy` encoding;
 - 180/181-frame boundary tests proving model captures remain fixed through
@@ -1105,16 +1197,14 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Complete New Eden planet atmosphere/cloud preprocessing and exact-system-
-   scale controls under RC-04B, keeping lens flare and god rays separate.
-2. Reconstruct visible SOF attachment geometry as a separate control, then add
+1. Reconstruct visible SOF attachment geometry as a separate control, then add
    shadow-caster batches and enable shadows/AO against accepted products.
-3. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
+2. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
    captures as regression controls.
-4. Reaccept dynamic exposure and tone mapping against that composition.
-5. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
+3. Reaccept dynamic exposure and tone mapping against that composition.
+4. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
-6. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+5. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

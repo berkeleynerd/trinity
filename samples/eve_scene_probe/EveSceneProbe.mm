@@ -11,6 +11,7 @@
 #include <climits>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <iostream>
@@ -21,7 +22,10 @@
 #include <vector>
 
 extern "C" bool TrinityStandaloneProbeStartup( int argc, const char* const* argv, const char* executableDirectory );
-extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle, uint32_t renderWidth, uint32_t renderHeight, int shaderTier );
+extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle,
+													 uint32_t renderWidth,
+													 uint32_t renderHeight,
+													 int shaderTier );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
@@ -38,7 +42,12 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int reflectionCorrection,
 													  int normalMapMode,
 													  int cameraView,
-													  int composition );
+													  int composition,
+													  int planetLayers,
+													  int cloudYear,
+													  int cloudMonth,
+													  int cloudDay,
+													  int sunEffects );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
 												   int qualityRung,
 												   int64_t realTime,
@@ -154,6 +163,23 @@ enum class SceneComposition
 	Cinematic,
 };
 
+enum class PlanetLayers
+{
+	Surface,
+	Atmosphere,
+	Clouds,
+	All,
+};
+
+enum class SunEffects
+{
+	Auto,
+	Off,
+	Flare,
+	GodRays,
+	All,
+};
+
 constexpr int kCaptureColor = 1 << 0;
 constexpr int kCaptureDepth = 1 << 1;
 constexpr int kCaptureNormal = 1 << 2;
@@ -186,6 +212,12 @@ struct Options
 	RenderProduct renderProduct = RenderProduct::Window;
 	CameraView cameraView = CameraView::Model;
 	SceneComposition composition = SceneComposition::System;
+	PlanetLayers planetLayers = PlanetLayers::All;
+	SunEffects sunEffects = SunEffects::Auto;
+	SunEffects resolvedSunEffects = SunEffects::Off;
+	int cloudYear = 2026;
+	int cloudMonth = 7;
+	int cloudDay = 10;
 	int maxFrames = -1;
 	uint32_t windowWidth = kDefaultWindowWidth;
 	uint32_t windowHeight = kDefaultWindowHeight;
@@ -273,7 +305,9 @@ std::string LightingViewName( LightingView view )
 bool ParseLightingView( const std::string& value, LightingView& view )
 {
 	const std::string normalized = ToLower( value );
-	const LightingView values[] = { LightingView::Combined, LightingView::Direct, LightingView::Sh, LightingView::Local };
+	const LightingView values[] = {
+		LightingView::Combined, LightingView::Direct, LightingView::Sh, LightingView::Local
+	};
 	for( LightingView candidate : values )
 	{
 		if( normalized == LightingViewName( candidate ) )
@@ -468,6 +502,130 @@ bool ParseSceneComposition( const std::string& value, SceneComposition& composit
 	return false;
 }
 
+std::string PlanetLayersName( PlanetLayers layers )
+{
+	switch( layers )
+	{
+	case PlanetLayers::Surface:
+		return "surface";
+	case PlanetLayers::Atmosphere:
+		return "atmosphere";
+	case PlanetLayers::Clouds:
+		return "clouds";
+	case PlanetLayers::All:
+		return "all";
+	}
+	return "unknown";
+}
+
+bool ParsePlanetLayers( const std::string& value, PlanetLayers& layers )
+{
+	const std::string normalized = ToLower( value );
+	const PlanetLayers values[] = {
+		PlanetLayers::Surface, PlanetLayers::Atmosphere, PlanetLayers::Clouds, PlanetLayers::All
+	};
+	for( PlanetLayers candidate : values )
+	{
+		if( normalized == PlanetLayersName( candidate ) )
+		{
+			layers = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string SunEffectsName( SunEffects effects )
+{
+	switch( effects )
+	{
+	case SunEffects::Auto:
+		return "auto";
+	case SunEffects::Off:
+		return "off";
+	case SunEffects::Flare:
+		return "flare";
+	case SunEffects::GodRays:
+		return "god-rays";
+	case SunEffects::All:
+		return "all";
+	}
+	return "unknown";
+}
+
+bool ParseSunEffects( const std::string& value, SunEffects& effects )
+{
+	const std::string normalized = ToLower( value );
+	const SunEffects values[] = {
+		SunEffects::Auto, SunEffects::Off, SunEffects::Flare, SunEffects::GodRays, SunEffects::All
+	};
+	for( SunEffects candidate : values )
+	{
+		if( normalized == SunEffectsName( candidate ) )
+		{
+			effects = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string PlanetCloudDateName( const Options& options )
+{
+	char value[16];
+	std::snprintf( value, sizeof( value ), "%04d-%02d-%02d", options.cloudYear, options.cloudMonth, options.cloudDay );
+	return value;
+}
+
+bool ParsePlanetCloudDate( const std::string& value, Options& options )
+{
+	NSInteger year = 0;
+	NSInteger month = 0;
+	NSInteger day = 0;
+	NSCalendar* calendar = [[NSCalendar alloc] initWithCalendarIdentifier:NSCalendarIdentifierGregorian];
+	if( ToLower( value ) == "today" )
+	{
+		NSDateComponents* components = [calendar components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay
+												   fromDate:[NSDate date]];
+		year = components.year;
+		month = components.month;
+		day = components.day;
+	}
+	else
+	{
+		char trailing = '\0';
+		int parsedYear = 0;
+		int parsedMonth = 0;
+		int parsedDay = 0;
+		if( std::sscanf( value.c_str(), "%d-%d-%d%c", &parsedYear, &parsedMonth, &parsedDay, &trailing ) != 3 )
+		{
+			return false;
+		}
+		NSDateComponents* requested = [[NSDateComponents alloc] init];
+		requested.year = parsedYear;
+		requested.month = parsedMonth;
+		requested.day = parsedDay;
+		NSDate* date = [calendar dateFromComponents:requested];
+		if( !date )
+		{
+			return false;
+		}
+		NSDateComponents* normalized = [calendar components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay
+												   fromDate:date];
+		if( normalized.year != parsedYear || normalized.month != parsedMonth || normalized.day != parsedDay )
+		{
+			return false;
+		}
+		year = normalized.year;
+		month = normalized.month;
+		day = normalized.day;
+	}
+	options.cloudYear = static_cast<int>( year );
+	options.cloudMonth = static_cast<int>( month );
+	options.cloudDay = static_cast<int>( day );
+	return true;
+}
+
 int RenderProductApiValue( RenderProduct product )
 {
 	switch( product )
@@ -542,7 +700,9 @@ int SceneFixtureApiValue( SceneFixture fixture )
 
 std::string ToLower( std::string value )
 {
-	std::transform( value.begin(), value.end(), value.begin(), []( unsigned char c ) { return static_cast<char>( std::tolower( c ) ); } );
+	std::transform( value.begin(), value.end(), value.begin(), []( unsigned char c ) {
+		return static_cast<char>( std::tolower( c ) );
+	} );
 	return value;
 }
 
@@ -597,15 +757,9 @@ bool ParseMaterialView( const std::string& value, MaterialView& view )
 {
 	const std::string normalized = ToLower( value );
 	const MaterialView values[] = {
-		MaterialView::Lit,
-		MaterialView::BaseColor,
-		MaterialView::Normal,
-		MaterialView::Roughness,
-		MaterialView::Material,
-		MaterialView::Glow,
-		MaterialView::Dirt,
-		MaterialView::Mask,
-		MaterialView::Paint,
+		MaterialView::Lit,       MaterialView::BaseColor, MaterialView::Normal,
+		MaterialView::Roughness, MaterialView::Material,  MaterialView::Glow,
+		MaterialView::Dirt,      MaterialView::Mask,      MaterialView::Paint,
 	};
 	for( MaterialView candidate : values )
 	{
@@ -690,7 +844,8 @@ bool ParseQualityRung( const std::string& value, QualityRung& rung )
 		rung = QualityRung::HdrBlit;
 		return true;
 	}
-	if( normalized == "hdr" || normalized == "hdr-post" || normalized == "post" || normalized == "rung4" || normalized == "4" )
+	if( normalized == "hdr" || normalized == "hdr-post" || normalized == "post" || normalized == "rung4" ||
+		normalized == "4" )
 	{
 		rung = QualityRung::HdrPost;
 		return true;
@@ -727,8 +882,7 @@ bool ParseWindowSize( const std::string& text, uint32_t& width, uint32_t& height
 		return false;
 	}
 
-	return ParseUnsigned( text.substr( 0, separator ), width ) &&
-		ParseUnsigned( text.substr( separator + 1 ), height );
+	return ParseUnsigned( text.substr( 0, separator ), width ) && ParseUnsigned( text.substr( separator + 1 ), height );
 }
 
 std::string ExecutableDirectory()
@@ -772,7 +926,9 @@ void PrintUsage( const char* executable )
 			  << "       [--normal-map authored|flat]\n"
 			  << "       [--render-product window|color|depth|normal|all]\n"
 			  << "       [--camera-view model|celestials|planet]\n"
-			  << "       [--composition system|cinematic] [--background-capture]\n"
+			  << "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
+			  << "       [--sun-effects auto|off|flare|god-rays|all]\n"
+			  << "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 			  << "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 			  << "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
@@ -944,6 +1100,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--planet-layers" )
+		{
+			if( ++i >= argc || !ParsePlanetLayers( argv[i], options.planetLayers ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--planet-cloud-date" )
+		{
+			if( ++i >= argc || !ParsePlanetCloudDate( argv[i], options ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--sun-effects" )
+		{
+			if( ++i >= argc || !ParseSunEffects( argv[i], options.sunEffects ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--inspect-client-assets" )
 		{
 			if( ++i >= argc )
@@ -969,6 +1146,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
 	{
 		options.localLights = LocalLights::Authored;
+	}
+	if( options.sunEffects == SunEffects::Auto )
+	{
+		options.resolvedSunEffects = options.sceneFixture == SceneFixture::NewEden ?
+			( options.qualityRung >= QualityRung::HdrPost ? SunEffects::All : SunEffects::Flare ) :
+			SunEffects::Off;
+	}
+	else
+	{
+		options.resolvedSunEffects = options.sunEffects;
+	}
+	if( options.sceneFixture != SceneFixture::NewEden && options.resolvedSunEffects != SunEffects::Off )
+	{
+		std::cerr << "Sun effects require --scene-fixture new-eden\n";
+		return false;
+	}
+	if( ( options.resolvedSunEffects == SunEffects::GodRays || options.resolvedSunEffects == SunEffects::All ) &&
+		options.qualityRung < QualityRung::HdrPost )
+	{
+		std::cerr << "God rays require --quality-rung hdr-post or hdr-exposure\n";
+		return false;
 	}
 	if( options.renderProduct != RenderProduct::Window &&
 		( options.capturePrefix.empty() || options.maxFrames <= 0 || options.qualityRung == QualityRung::Shell ) )
@@ -1017,9 +1215,9 @@ NSWindow* CreateWindow( const Options& options, NSView** outView )
 	}
 
 	NSWindow* window = [[NSWindow alloc] initWithContentRect:frame
-											   styleMask:styleMask
-												 backing:NSBackingStoreBuffered
-												   defer:NO];
+												   styleMask:styleMask
+													 backing:NSBackingStoreBuffered
+													   defer:NO];
 	[window setReleasedWhenClosed:NO];
 	[window setTitle:@"TrinityAL EVE Scene Probe"];
 	[window setBackgroundColor:[NSColor blackColor]];
@@ -1033,7 +1231,8 @@ NSWindow* CreateWindow( const Options& options, NSView** outView )
 	{
 		[window setFrame:frame display:YES];
 		[window setLevel:NSMainMenuWindowLevel + 1];
-		[window setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorFullScreenPrimary];
+		[window setCollectionBehavior:NSWindowCollectionBehaviorCanJoinAllSpaces |
+				NSWindowCollectionBehaviorFullScreenPrimary];
 	}
 
 	EveSceneProbeContentView* view = [[EveSceneProbeContentView alloc] initWithFrame:frame];
@@ -1079,7 +1278,10 @@ bool EnsureParentDirectory( const std::string& path )
 	}
 
 	NSError* error = nil;
-	if( ![[NSFileManager defaultManager] createDirectoryAtPath:parent withIntermediateDirectories:YES attributes:nil error:&error] )
+	if( ![[NSFileManager defaultManager] createDirectoryAtPath:parent
+								   withIntermediateDirectories:YES
+													attributes:nil
+														 error:&error] )
 	{
 		std::cerr << "Failed to create capture directory: " << error.localizedDescription.UTF8String << "\n";
 		return false;
@@ -1094,11 +1296,10 @@ bool CaptureWindowPng( NSWindow* window, const std::string& path )
 		return false;
 	}
 
-	CGImageRef image = CGWindowListCreateImage(
-		CGRectNull,
-		kCGWindowListOptionIncludingWindow,
-		static_cast<CGWindowID>( window.windowNumber ),
-		kCGWindowImageBoundsIgnoreFraming );
+	CGImageRef image = CGWindowListCreateImage( CGRectNull,
+												kCGWindowListOptionIncludingWindow,
+												static_cast<CGWindowID>( window.windowNumber ),
+												kCGWindowImageBoundsIgnoreFraming );
 	if( !image )
 	{
 		std::cerr << "Failed to capture window image\n";
@@ -1108,10 +1309,7 @@ bool CaptureWindowPng( NSWindow* window, const std::string& path )
 	NSString* nsPath = [NSString stringWithUTF8String:path.c_str()];
 	NSURL* url = [NSURL fileURLWithPath:nsPath];
 	CGImageDestinationRef destination = CGImageDestinationCreateWithURL(
-		(__bridge CFURLRef)url,
-		(__bridge CFStringRef)UTTypePNG.identifier,
-		1,
-		nullptr );
+		(__bridge CFURLRef)url, (__bridge CFStringRef)UTTypePNG.identifier, 1, nullptr );
 	if( !destination )
 	{
 		CGImageRelease( image );
@@ -1141,8 +1339,11 @@ std::string CaptureBasePath( const Options& options )
 		LocalLightsName( options.localLights ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_normal-" +
 		NormalMapModeName( options.normalMapMode ) + "_camera-" + CameraViewName( options.cameraView ) +
-		"_composition-" + SceneCompositionName( options.composition );
-	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix;
+		"_composition-" + SceneCompositionName( options.composition ) + "_planet-" +
+		PlanetLayersName( options.planetLayers ) + "_cloud-date-" + PlanetCloudDateName( options );
+	const std::string sunSuffix = "_sunfx-" + SunEffectsName( options.resolvedSunEffects );
+	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix +
+		sunSuffix;
 }
 
 bool WriteCaptureMetadata( const Options& options,
@@ -1184,6 +1385,10 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "renderProduct=" << RenderProductName( options.renderProduct ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
 	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
+	metadata << "planetLayers=" << PlanetLayersName( options.planetLayers ) << "\n";
+	metadata << "planetCloudDate=" << PlanetCloudDateName( options ) << "\n";
+	metadata << "sunEffectsRequested=" << SunEffectsName( options.sunEffects ) << "\n";
+	metadata << "sunEffectsResolved=" << SunEffectsName( options.resolvedSunEffects ) << "\n";
 	metadata << "backgroundCapture=" << ( options.backgroundCapture ? "true" : "false" ) << "\n";
 	metadata << "renderWidth=" << width << "\n";
 	metadata << "renderHeight=" << height << "\n";
@@ -1228,14 +1433,16 @@ int main( int argc, char** argv )
 			return 2;
 		}
 
-		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model && !FileExists( options.inputPath ) )
+		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model &&
+			!FileExists( options.inputPath ) )
 		{
 			std::cerr << "CMF asset file is not present: " << options.inputPath << "\n";
 			return 1;
 		}
 
 		const std::string executableDirectory = ExecutableDirectory();
-		if( !TrinityStandaloneProbeStartup( argc, const_cast<const char* const*>( argv ), executableDirectory.c_str() ) )
+		if( !TrinityStandaloneProbeStartup(
+				argc, const_cast<const char* const*>( argv ), executableDirectory.c_str() ) )
 		{
 			std::cerr << "Trinity standalone probe startup failed\n";
 			return 1;
@@ -1269,7 +1476,8 @@ int main( int argc, char** argv )
 			metalLayer.drawableSize = CGSizeMake( renderWidth, renderHeight );
 		}
 
-		void* probe = TrinityStandaloneProbeCreateDevice( (__bridge void*)view, renderWidth, renderHeight, static_cast<int>( options.shaderTier ) );
+		void* probe = TrinityStandaloneProbeCreateDevice(
+			(__bridge void*)view, renderWidth, renderHeight, static_cast<int>( options.shaderTier ) );
 		if( !probe )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateDevice failed\n";
@@ -1314,7 +1522,12 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.reflectionCorrection ),
 												   static_cast<int>( options.normalMapMode ),
 												   static_cast<int>( options.cameraView ),
-												   static_cast<int>( options.composition ) ) )
+												   static_cast<int>( options.composition ),
+												   static_cast<int>( options.planetLayers ),
+												   options.cloudYear,
+												   options.cloudMonth,
+												   options.cloudDay,
+												   static_cast<int>( options.resolvedSunEffects ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

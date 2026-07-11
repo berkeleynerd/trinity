@@ -85,6 +85,26 @@ public:
 	void SetControllerVariable( const char* name, float value );
 	void HandleControllerEvent( const char* name ) override;
 	void StartControllers();
+	void SetTranslationCurve( ITriVectorFunction* curve )
+	{
+		m_translationCurve = curve;
+	}
+	Tr2MeshPtr GetMesh() const
+	{
+		return m_mesh;
+	}
+	const PEveTransformVector& Flares() const
+	{
+		return m_flares;
+	}
+	const PEveOccluderVector& Occluders() const
+	{
+		return m_occluders;
+	}
+	const PEveOccluderVector& BackgroundOccluders() const
+	{
+		return m_backgroundOccluders;
+	}
 
 
 private:

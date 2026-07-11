@@ -13,7 +13,7 @@ namespace
 
 void PrintUsage( const char* executable )
 {
-	std::cerr << "Usage: " << executable << " --input <asset.glb|asset.gltf> --output <asset.cmf> [--summary]\n";
+	std::cerr << "Usage: " << executable << " --input <asset.glb|asset.gltf> --output <asset.cmf> [--merge-meshes] [--summary]\n";
 }
 
 bool WriteFile( const std::string& path, const std::vector<uint8_t>& bytes, std::string& error )
@@ -82,6 +82,10 @@ int main( int argc, char** argv )
 		{
 			summary = true;
 			options.verbose = true;
+		}
+		else if( std::strcmp( argv[i], "--merge-meshes" ) == 0 )
+		{
+			options.mergeMeshes = true;
 		}
 		else if( std::strcmp( argv[i], "--help" ) == 0 || std::strcmp( argv[i], "-h" ) == 0 )
 		{

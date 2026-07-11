@@ -11,6 +11,7 @@ struct GltfToCmfOptions
 	std::string inputPath;
 	std::string sourceName;
 	bool verbose = false;
+	bool mergeMeshes = false;
 };
 
 struct GltfToCmfTexture

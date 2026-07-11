@@ -38,6 +38,7 @@ struct ImportedVertex
 	float position[3] = {};
 	float normal[3] = {};
 	float tangent[4] = { 1.0f, 0.0f, 0.0f, 1.0f };
+	float binormal[3] = { 0.0f, 0.0f, 1.0f };
 	float texcoord[2] = {};
 	float color[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
 	uint16_t joints[4] = {};
@@ -53,9 +54,18 @@ struct DecodedImage
 
 struct PendingMesh
 {
+	struct Area
+	{
+		std::string name;
+		uint32_t firstElement = 0;
+		uint32_t elementCount = 0;
+		CcpMath::AxisAlignedBox bounds = {};
+	};
+
 	std::string name;
 	std::vector<ImportedVertex> vertices;
 	std::vector<uint32_t> indices;
+	std::vector<Area> areas;
 	std::vector<std::string> boneBindings;
 	uint32_t skeletonIndex = kNoSkeleton;
 	bool hasTangents = false;
@@ -147,10 +157,7 @@ bool HasExtension( const cgltf_data& data, const char* extensionName )
 Matrix ConvertGltfMatrix( const cgltf_float* m )
 {
 	return Matrix(
-		m[0], m[1], m[2], m[3],
-		m[4], m[5], m[6], m[7],
-		m[8], m[9], m[10], m[11],
-		m[12], m[13], m[14], m[15] );
+		m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11], m[12], m[13], m[14], m[15] );
 }
 
 cmf::Transform ReadNodeTransform( const cgltf_node& node )
@@ -806,7 +813,7 @@ bool ImportPrimitive(
 
 		float position[3] = {};
 		if( dracoPosition ? !ReadDracoFloatAttribute( *dracoPosition, vertexIndex, position, 3, error ) :
-			!ReadFloatAccessor( positionAccessor, vertexIndex, position, 3, error ) )
+							!ReadFloatAccessor( positionAccessor, vertexIndex, position, 3, error ) )
 		{
 			return false;
 		}
@@ -821,12 +828,12 @@ bool ImportPrimitive(
 		vertex.position[2] = modelPosition.z;
 		ExtendBounds( pending.bounds, modelPosition, boundsInitialized );
 
-			Vector3 normal( 0.0f, 1.0f, 0.0f );
-			if( hasNormals )
-			{
-				float normalValues[3] = {};
-				if( dracoNormal ? !ReadDracoFloatAttribute( *dracoNormal, vertexIndex, normalValues, 3, error ) :
-					!ReadFloatAccessor( normalAttribute->data, vertexIndex, normalValues, 3, error ) )
+		Vector3 normal( 0.0f, 1.0f, 0.0f );
+		if( hasNormals )
+		{
+			float normalValues[3] = {};
+			if( dracoNormal ? !ReadDracoFloatAttribute( *dracoNormal, vertexIndex, normalValues, 3, error ) :
+							  !ReadFloatAccessor( normalAttribute->data, vertexIndex, normalValues, 3, error ) )
 			{
 				return false;
 			}
@@ -836,44 +843,48 @@ bool ImportPrimitive(
 				normal = TransformNormal( normal, nodeWorld );
 			}
 			normal = Normalize( normal );
-			}
-			vertex.normal[0] = normal.x;
-			vertex.normal[1] = normal.y;
-			vertex.normal[2] = normal.z;
-			if( hasTangents )
+		}
+		vertex.normal[0] = normal.x;
+		vertex.normal[1] = normal.y;
+		vertex.normal[2] = normal.z;
+		if( hasTangents )
+		{
+			float tangentValues[4] = {};
+			if( dracoTangent ? !ReadDracoFloatAttribute( *dracoTangent, vertexIndex, tangentValues, 4, error ) :
+							   !ReadFloatAccessor( tangentAttribute->data, vertexIndex, tangentValues, 4, error ) )
 			{
-				float tangentValues[4] = {};
-				if( dracoTangent ? !ReadDracoFloatAttribute( *dracoTangent, vertexIndex, tangentValues, 4, error ) :
-								   !ReadFloatAccessor( tangentAttribute->data, vertexIndex, tangentValues, 4, error ) )
-				{
-					return false;
-				}
-				Vector3 tangent( tangentValues[0], tangentValues[1], tangentValues[2] );
-				if( !skinned )
-				{
-					tangent = TransformNormal( tangent, nodeWorld );
-				}
-				tangent = Normalize( tangent );
-				vertex.tangent[0] = tangent.x;
-				vertex.tangent[1] = tangent.y;
-				vertex.tangent[2] = tangent.z;
-				vertex.tangent[3] = tangentValues[3] * ( !skinned && Determinant( nodeWorld ) < 0.0f ? -1.0f : 1.0f );
+				return false;
 			}
-			SetImportedColor( vertex, baseColorFactor );
-			if( texcoordAttribute && texcoordAttribute->data )
+			Vector3 tangent( tangentValues[0], tangentValues[1], tangentValues[2] );
+			if( !skinned )
 			{
-				float texcoord[2] = {};
-				if( dracoTexcoord ? !ReadDracoFloatAttribute( *dracoTexcoord, vertexIndex, texcoord, 2, error ) :
-					!ReadFloatAccessor( texcoordAttribute->data, vertexIndex, texcoord, 2, error ) )
-				{
-					return false;
-				}
-				vertex.texcoord[0] = texcoord[0];
-				vertex.texcoord[1] = texcoord[1];
+				tangent = TransformNormal( tangent, nodeWorld );
 			}
+			tangent = Normalize( tangent );
+			vertex.tangent[0] = tangent.x;
+			vertex.tangent[1] = tangent.y;
+			vertex.tangent[2] = tangent.z;
+			vertex.tangent[3] = tangentValues[3] * ( !skinned && Determinant( nodeWorld ) < 0.0f ? -1.0f : 1.0f );
+			const Vector3 binormal = Normalize( Cross( normal, tangent ) ) * vertex.tangent[3];
+			vertex.binormal[0] = binormal.x;
+			vertex.binormal[1] = binormal.y;
+			vertex.binormal[2] = binormal.z;
+		}
+		SetImportedColor( vertex, baseColorFactor );
+		if( texcoordAttribute && texcoordAttribute->data )
+		{
+			float texcoord[2] = {};
+			if( dracoTexcoord ? !ReadDracoFloatAttribute( *dracoTexcoord, vertexIndex, texcoord, 2, error ) :
+								!ReadFloatAccessor( texcoordAttribute->data, vertexIndex, texcoord, 2, error ) )
+			{
+				return false;
+			}
+			vertex.texcoord[0] = texcoord[0];
+			vertex.texcoord[1] = texcoord[1];
+		}
 
-			if( skinned )
-			{
+		if( skinned )
+		{
 			cgltf_uint joints[4] = {};
 			float weights[4] = {};
 			if( !ReadUintAccessor( jointsAttribute->data, vertexIndex, joints, 4, error ) )
@@ -930,22 +941,69 @@ bool ImportPrimitive(
 	}
 
 	if( pending.indices.size() % 3 != 0 )
-		{
-			error = "Triangle primitive index count is not divisible by 3";
-			return false;
-		}
-		if( !hasNormals )
-		{
-			GenerateNormals( pending );
-		}
+	{
+		error = "Triangle primitive index count is not divisible by 3";
+		return false;
+	}
+	if( !hasNormals )
+	{
+		GenerateNormals( pending );
+	}
 
-		if( skinned )
-		{
+	if( skinned )
+	{
 		const PendingSkeleton& skeleton = context.skeletons[skeletonIndex];
 		pending.boneBindings = skeleton.bones;
 	}
+	pending.areas.push_back( {
+		pending.name,
+		0,
+		static_cast<uint32_t>( pending.indices.size() / 3 ),
+		pending.bounds,
+	} );
 
 	context.meshes.push_back( std::move( pending ) );
+	return true;
+}
+
+bool MergeImportedMeshes( ImportContext& context, std::string& error )
+{
+	if( context.meshes.size() < 2 )
+	{
+		return true;
+	}
+
+	PendingMesh merged;
+	merged.name = "merged_mesh";
+	merged.skeletonIndex = context.meshes.front().skeletonIndex;
+	merged.boneBindings = context.meshes.front().boneBindings;
+	bool boundsInitialized = false;
+	for( const PendingMesh& source : context.meshes )
+	{
+		if( source.skeletonIndex != merged.skeletonIndex || source.boneBindings != merged.boneBindings )
+		{
+			error = "--merge-meshes requires compatible skeleton bindings";
+			return false;
+		}
+		const uint32_t vertexOffset = static_cast<uint32_t>( merged.vertices.size() );
+		const uint32_t firstElement = static_cast<uint32_t>( merged.indices.size() / 3 );
+		merged.vertices.insert( merged.vertices.end(), source.vertices.begin(), source.vertices.end() );
+		for( uint32_t index : source.indices )
+		{
+			merged.indices.push_back( index + vertexOffset );
+		}
+		for( const PendingMesh::Area& sourceArea : source.areas )
+		{
+			PendingMesh::Area area = sourceArea;
+			area.firstElement += firstElement;
+			merged.areas.push_back( std::move( area ) );
+		}
+		merged.hasTangents = merged.hasTangents || source.hasTangents;
+		ExtendBounds( merged.bounds, source.bounds.m_min, boundsInitialized );
+		ExtendBounds( merged.bounds, source.bounds.m_max, boundsInitialized );
+	}
+	context.meshes.clear();
+	context.meshes.push_back( std::move( merged ) );
 	return true;
 }
 
@@ -1177,13 +1235,14 @@ cmf::Span<uint8_t> CopyFloatBytes( cmf::MemoryAllocator& allocator, const std::v
 
 cmf::Span<cmf::VertexElement> BuildVertexDecl( cmf::MemoryAllocator& allocator, bool includeTangents, bool includeSkinning )
 {
-	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( 4 + ( includeTangents ? 1 : 0 ) + ( includeSkinning ? 2 : 0 ) );
+	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( 4 + ( includeTangents ? 2 : 0 ) + ( includeSkinning ? 2 : 0 ) );
 	size_t index = 0;
 	decl[index++] = { cmf::Usage::Position, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, position ) };
 	decl[index++] = { cmf::Usage::Normal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, normal ) };
 	if( includeTangents )
 	{
 		decl[index++] = { cmf::Usage::Tangent, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, tangent ) };
+		decl[index++] = { cmf::Usage::Binormal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, binormal ) };
 	}
 	decl[index++] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 2, offsetof( ImportedVertex, texcoord ) };
 	decl[index++] = { cmf::Usage::Color, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, color ) };
@@ -1251,7 +1310,7 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 		dst.name = CopyString( allocator, src.name );
 		dst.decl = BuildVertexDecl( allocator, src.hasTangents, !src.boneBindings.empty() );
 		dst.lods = allocator.AllocateSpan<cmf::MeshLod>( 1 );
-		dst.areas = allocator.AllocateSpan<cmf::MeshArea>( 1 );
+		dst.areas = allocator.AllocateSpan<cmf::MeshArea>( src.areas.size() );
 		dst.boneBindings = allocator.AllocateSpan<cmf::BoneBinding>( src.boneBindings.size() );
 		dst.uvDensities = allocator.AllocateSpan<float>( 1 );
 		dst.uvDensities[0] = 0.0f;
@@ -1265,17 +1324,20 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 			dst.boneBindings[boneIndex].bounds = src.bounds;
 		}
 
-		cmf::MeshArea& area = dst.areas[0] = {};
-		area.name = CopyString( allocator, "default" );
-		area.bounds = src.bounds;
-		area.affectedByBones = !src.boneBindings.empty();
-		area.affectedByMorphTargets = false;
-		if( !src.boneBindings.empty() )
+		for( size_t areaIndex = 0; areaIndex < src.areas.size(); ++areaIndex )
 		{
-			area.bones = allocator.AllocateSpan<uint16_t>( src.boneBindings.size() );
-			for( size_t boneIndex = 0; boneIndex < src.boneBindings.size(); ++boneIndex )
+			cmf::MeshArea& area = dst.areas[areaIndex] = {};
+			area.name = CopyString( allocator, src.areas[areaIndex].name );
+			area.bounds = src.areas[areaIndex].bounds;
+			area.affectedByBones = !src.boneBindings.empty();
+			area.affectedByMorphTargets = false;
+			if( !src.boneBindings.empty() )
 			{
-				area.bones[boneIndex] = static_cast<uint16_t>( boneIndex );
+				area.bones = allocator.AllocateSpan<uint16_t>( src.boneBindings.size() );
+				for( size_t boneIndex = 0; boneIndex < src.boneBindings.size(); ++boneIndex )
+				{
+					area.bones[boneIndex] = static_cast<uint16_t>( boneIndex );
+				}
 			}
 		}
 
@@ -1286,9 +1348,12 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 		indexBuffers.push_back( BuildIndexBuffer( src.indices, indexStride ) );
 		std::vector<uint8_t>& indexBytes = indexBuffers.back();
 		lod.ib = buffers.AddBuffer( indexBytes.data(), static_cast<uint32_t>( indexBytes.size() ), indexStride );
-		lod.areas = allocator.AllocateSpan<cmf::LodMeshArea>( 1 );
-		lod.areas[0].firstElement = 0;
-		lod.areas[0].elementCount = static_cast<uint32_t>( src.indices.size() / 3 );
+		lod.areas = allocator.AllocateSpan<cmf::LodMeshArea>( src.areas.size() );
+		for( size_t areaIndex = 0; areaIndex < src.areas.size(); ++areaIndex )
+		{
+			lod.areas[areaIndex].firstElement = src.areas[areaIndex].firstElement;
+			lod.areas[areaIndex].elementCount = src.areas[areaIndex].elementCount;
+		}
 		lod.morphTargets = {};
 		lod.threshold = cmf::MeshLod::MAX_THRESHOLD;
 	}
@@ -1421,6 +1486,10 @@ bool BuildCmfFromGltf( const GltfToCmfOptions& options, GltfToCmfResult& result,
 		return false;
 	}
 	if( !ImportMeshes( context, error ) )
+	{
+		return false;
+	}
+	if( options.mergeMeshes && !MergeImportedMeshes( context, error ) )
 	{
 		return false;
 	}
