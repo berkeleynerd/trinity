@@ -48,6 +48,23 @@ public:
 
 	void UpdateWithDirectionalLight( const Vector3& direction, const Vector3& color );
 
+	float GetPrimaryIntensity() const
+	{
+		return m_primaryIntensity;
+	}
+	void SetPrimaryIntensity( float intensity )
+	{
+		m_primaryIntensity = intensity;
+	}
+	float GetSecondaryIntensity() const
+	{
+		return m_secondaryIntensity;
+	}
+	void SetSecondaryIntensity( float intensity )
+	{
+		m_secondaryIntensity = intensity;
+	}
+
 	static const size_t PACKED_COEFFICIENT_COUNT = 7;
 
 private:

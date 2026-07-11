@@ -61,11 +61,14 @@ set(EVE_SCENE_PROBE_ASTERO_PAINT_RGBA ${EVE_SCENE_PROBE_ASTERO_CMF}.p3.rgba)
 set(EVE_SCENE_PROBE_ASTERO_PAINT_METADATA ${EVE_SCENE_PROBE_ASTERO_CMF}.p3.txt)
 set(EVE_SCENE_PROBE_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/AsteroPbr.fx)
 set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RenderProductVisualizer.fx)
+set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ReflectionProductVisualizer.fx)
 set(EVE_SCENE_PROBE_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/probe)
 set(EVE_SCENE_PROBE_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/asteropbr.sm_hi)
 set(EVE_SCENE_PROBE_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/asteropbr.sm_depth)
 set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/renderproductvisualizer.sm_hi)
 set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/renderproductvisualizer.sm_depth)
+set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/reflectionproductvisualizer.sm_hi)
+set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/reflectionproductvisualizer.sm_depth)
 set(EVE_SCENE_PROBE_POSTPROCESS_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/postprocess)
 set(EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/system)
 set(EVE_SCENE_PROBE_TONEMAPPING_EFFECT ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/tonemapping.sm_hi)
@@ -240,8 +243,14 @@ set(EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER ${EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BAN
 set(EVE_SCENE_PROBE_ATTACHMENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroAttachmentResources.json)
 set(EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/AttachmentAssets/Inherited)
 set(EVE_SCENE_PROBE_ATTACHMENT_GENERIC ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/generic.black)
+set(EVE_SCENE_PROBE_DECAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroDecalResources.json)
+set(EVE_SCENE_PROBE_DECAL_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/DecalAssets/Inherited)
 set(EVE_SCENE_PROBE_SHADOW_AO_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroShadowAoResources.json)
 set(EVE_SCENE_PROBE_SHADOW_AO_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/ShadowAoAssets/Inherited)
+set(EVE_SCENE_PROBE_V5_INDIRECT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroV5IndirectResources.json)
+set(EVE_SCENE_PROBE_V5_INDIRECT_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/V5IndirectAssets/Inherited)
+set(EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE_RESOURCE "res:/dx9/scene/cinematic/black_cube_refl.dds")
+set(EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/cinematic/black_cube_refl.dds)
 set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib)
 
 function(add_eve_scene_probe_dds_conversion input output metadata)
@@ -268,6 +277,8 @@ add_custom_command(
 		${EVE_SCENE_PROBE_EFFECT_DEPTH}
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_EFFECT_DIR}
 	COMMAND $<TARGET_FILE:ShaderCompiler>
 		/single /O3
@@ -293,7 +304,23 @@ add_custom_command(
 		/define PLATFORM 10
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
-	DEPENDS ShaderCompiler ${EVE_SCENE_PROBE_EFFECT_SOURCE} ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 4
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 5
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
+	DEPENDS
+		ShaderCompiler
+		${EVE_SCENE_PROBE_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE}
 	VERBATIM
 )
 add_custom_target(TrinityEveSceneProbeEffect DEPENDS
@@ -301,6 +328,8 @@ add_custom_target(TrinityEveSceneProbeEffect DEPENDS
 	${EVE_SCENE_PROBE_EFFECT_DEPTH}
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
 )
 add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeEffect)
 
@@ -397,6 +426,69 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
         DEPENDS ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS} ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroAttachmentAssets)
 
+	set(EVE_SCENE_PROBE_DECAL_OUTPUTS)
+	set(EVE_SCENE_PROBE_DECAL_COPY_ARGS)
+	foreach(effect decalv5 decalcounterv5)
+		foreach(variant hi lo depth)
+			set(resource "res:/graphics/effect.metal/managed/space/decals/v5/${effect}.sm_${variant}")
+			set(destination "${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/decals/v5/${effect}.sm_${variant}")
+			list(APPEND EVE_SCENE_PROBE_DECAL_OUTPUTS ${destination})
+			list(APPEND EVE_SCENE_PROBE_DECAL_COPY_ARGS --copy-resource ${resource} ${destination})
+		endforeach()
+	endforeach()
+	foreach(texture_set
+		logo_soe_01
+		marking_302va1_02
+		marking_info01_01
+		marking_propeldynamics01_01)
+		foreach(channel a f n r t)
+			set(resource "res:/dx9/model/decal/soe/${texture_set}_${channel}.dds")
+			set(destination "${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/decal/soe/${texture_set}_${channel}.dds")
+			list(APPEND EVE_SCENE_PROBE_DECAL_OUTPUTS ${destination})
+			list(APPEND EVE_SCENE_PROBE_DECAL_COPY_ARGS --copy-resource ${resource} ${destination})
+		endforeach()
+	endforeach()
+	foreach(resource
+		res:/dx9/model/decal/soe/glow_killmarks_01_t.dds
+		res:/dx9/model/shared/dirtdetailnoise.dds)
+		string(REGEX REPLACE "^res:/" "" relative "${resource}")
+		set(destination "${EVE_SCENE_PROBE_ASSETS_DIR}/${relative}")
+		list(APPEND EVE_SCENE_PROBE_DECAL_OUTPUTS ${destination})
+		list(APPEND EVE_SCENE_PROBE_DECAL_COPY_ARGS --copy-resource ${resource} ${destination})
+	endforeach()
+	foreach(inherited_resource
+		${EVE_SCENE_PROBE_ASTERO_HULL_BLACK_RESOURCE}
+		${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK_RESOURCE}
+		res:/dx9/model/spaceobjectfactory/generic.black
+		${EVE_SCENE_PROBE_ASTERO_MODEL}
+		${EVE_SCENE_PROBE_ASTERO_NORMAL}
+		${EVE_SCENE_PROBE_ASTERO_DETAIL}
+		${EVE_SCENE_PROBE_ASTERO_PAINT}
+		${EVE_SCENE_PROBE_ASTERO_MATERIAL}
+		${EVE_SCENE_PROBE_ASTERO_GLOW})
+		string(REGEX REPLACE "^.*/" "" inherited_name "${inherited_resource}")
+		set(destination "${EVE_SCENE_PROBE_DECAL_INHERITED_DIR}/${inherited_name}")
+		list(APPEND EVE_SCENE_PROBE_DECAL_OUTPUTS ${destination})
+		list(APPEND EVE_SCENE_PROBE_DECAL_COPY_ARGS --copy-resource ${inherited_resource} ${destination})
+	endforeach()
+
+	add_custom_command(
+		OUTPUT ${EVE_SCENE_PROBE_DECAL_OUTPUTS} ${EVE_SCENE_PROBE_DECAL_MANIFEST}
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_DECAL_INHERITED_DIR}
+		COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+			--cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+			${EVE_SCENE_PROBE_DECAL_COPY_ARGS}
+			--manifest ${EVE_SCENE_PROBE_DECAL_MANIFEST}
+			--summary
+		DEPENDS TrinitySharedCacheToGltf
+			${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+			${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+		VERBATIM
+	)
+	add_custom_target(TrinityEveSceneProbeAsteroDecalAssets
+		DEPENDS ${EVE_SCENE_PROBE_DECAL_OUTPUTS} ${EVE_SCENE_PROBE_DECAL_MANIFEST})
+	add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroDecalAssets)
+
     set(EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS)
     set(EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS)
     foreach(effect shadowdepth estimatenoise denoiseestimate denoise1d)
@@ -448,6 +540,51 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
     add_custom_target(TrinityEveSceneProbeShadowAoAssets
         DEPENDS ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS} ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST})
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeShadowAoAssets)
+
+	set(EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS ${EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE})
+	set(EVE_SCENE_PROBE_V5_INDIRECT_COPY_ARGS
+		--copy-resource ${EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE_RESOURCE} ${EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE})
+	foreach(effect reflectionfilteractivisionpre reflectionfilteractivision128 copycube)
+		foreach(variant hi lo depth)
+			set(resource "res:/graphics/effect.metal/managed/space/system/reflection/${effect}.sm_${variant}")
+			set(destination "${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/reflection/${effect}.sm_${variant}")
+			list(APPEND EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS ${destination})
+			list(APPEND EVE_SCENE_PROBE_V5_INDIRECT_COPY_ARGS --copy-resource ${resource} ${destination})
+		endforeach()
+	endforeach()
+	foreach(inherited_resource
+		${EVE_SCENE_PROBE_A01_REFLECTION_RESOURCE}
+		${EVE_SCENE_PROBE_REFLECTION_CORRECTION_RESOURCE}
+		${EVE_SCENE_PROBE_QUADV5_HI_RESOURCE}
+		${EVE_SCENE_PROBE_QUADV5_LO_RESOURCE}
+		${EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE}
+		${EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE}
+		${EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE}
+		${EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE})
+		string(REGEX REPLACE "^.*/" "" inherited_name "${inherited_resource}")
+		set(destination "${EVE_SCENE_PROBE_V5_INDIRECT_INHERITED_DIR}/${inherited_name}")
+		list(APPEND EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS ${destination})
+		list(APPEND EVE_SCENE_PROBE_V5_INDIRECT_COPY_ARGS --copy-resource ${inherited_resource} ${destination})
+	endforeach()
+
+	add_custom_command(
+		OUTPUT ${EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS} ${EVE_SCENE_PROBE_V5_INDIRECT_MANIFEST}
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/reflection
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/cinematic
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_V5_INDIRECT_INHERITED_DIR}
+		COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+			--cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+			${EVE_SCENE_PROBE_V5_INDIRECT_COPY_ARGS}
+			--manifest ${EVE_SCENE_PROBE_V5_INDIRECT_MANIFEST}
+			--summary
+		DEPENDS TrinitySharedCacheToGltf
+			${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+			${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+		VERBATIM
+	)
+	add_custom_target(TrinityEveSceneProbeV5IndirectAssets
+		DEPENDS ${EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS} ${EVE_SCENE_PROBE_V5_INDIRECT_MANIFEST})
+	add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeV5IndirectAssets)
 
     add_custom_command(
         OUTPUT
@@ -1235,6 +1372,8 @@ set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
 	${EVE_SCENE_PROBE_EFFECT_DEPTH}
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT}
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
 )
 
 if(TARGET TrinityEveSceneProbePostProcessEffects)
@@ -1416,10 +1555,22 @@ if(TARGET TrinityEveSceneProbeAsteroAttachmentAssets)
         ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
 endif()
 
+if(TARGET TrinityEveSceneProbeAsteroDecalAssets)
+	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+		${EVE_SCENE_PROBE_DECAL_OUTPUTS}
+		${EVE_SCENE_PROBE_DECAL_MANIFEST})
+endif()
+
 if(TARGET TrinityEveSceneProbeShadowAoAssets)
     set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
         ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS}
         ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST})
+endif()
+
+if(TARGET TrinityEveSceneProbeV5IndirectAssets)
+	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+		${EVE_SCENE_PROBE_V5_INDIRECT_OUTPUTS}
+		${EVE_SCENE_PROBE_V5_INDIRECT_MANIFEST})
 endif()
 
 add_custom_command(
@@ -1433,6 +1584,8 @@ add_custom_command(
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/asteropbr.sm_depth
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/renderproductvisualizer.sm_hi
 	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/renderproductvisualizer.sm_depth
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/reflectionproductvisualizer.sm_hi
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/probe/reflectionproductvisualizer.sm_depth
 	VERBATIM
 )
 

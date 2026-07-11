@@ -230,6 +230,34 @@ public:
 	{
 		m_planetShadowsEnabled = value;
 	}
+	Tr2ReflectionProbePtr GetReflectionProbe() const
+	{
+		return m_reflectionProbe;
+	}
+	void SetReflectionProbe( Tr2ReflectionProbe* probe )
+	{
+		m_reflectionProbe = probe;
+	}
+	void SetEnvironmentMapResourcePath( const std::string& path )
+	{
+		m_envMapResPath = path;
+	}
+	ITr2TextureProviderPtr GetResolvedEnvironmentMap() const
+	{
+		return m_envMapTextureRes;
+	}
+	ITr2TextureProviderPtr GetStaticEnvironmentMap() const
+	{
+		return m_staticEnvMapTextureRes;
+	}
+	void SetReflectionSetting( EntityComponents::ReflectionSetting setting )
+	{
+		g_eveReflectionMode = setting;
+	}
+	EntityComponents::ReflectionSetting GetReflectionSetting() const
+	{
+		return static_cast<EntityComponents::ReflectionSetting>( g_eveReflectionMode );
+	}
 	struct LightingSetup
 	{
 		Vector3 sunDirection;
@@ -237,6 +265,11 @@ public:
 		Color ambientColor;
 		float nebulaIntensity;
 		float reflectionIntensity;
+		float backgroundReflectionIntensity;
+		float defaultDiffuseRoughness;
+		float reflectionBackLightingContrast;
+		Color reflectionBackLightingColor;
+		bool dynamicObjectReflectionEnabled;
 		bool backgroundRenderingEnabled;
 		Quaternion environmentMapRotation;
 		std::string environmentMapPath;
@@ -253,6 +286,11 @@ public:
 			m_ambientColor,
 			m_nebulaIntensity,
 			m_reflectionIntensity,
+			m_backgroundReflectionIntensity,
+			m_defaultDiffuseRoughness,
+			m_reflectionBackLightingContrast,
+			m_reflectionBackLightingColor,
+			m_dynamicObjectReflectionEnabled,
 			m_backgroundRenderingEnabled,
 			m_envMapRotation,
 			m_envMapResPath,

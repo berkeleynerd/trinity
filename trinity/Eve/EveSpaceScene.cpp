@@ -3210,7 +3210,7 @@ bool EveSpaceScene::Initialize()
 {
 	// the environment cubemap aka the nebula
 
-	if( m_staticEnvMapHandle )
+	if( !m_envMapResPath.empty() )
 	{
 		BeResMan->GetResource( m_envMapResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_staticEnvMapTextureRes );
 	}
@@ -3222,7 +3222,7 @@ bool EveSpaceScene::Initialize()
 		m_reflectionProbe->SetBackLightColor( m_reflectionBackLightingColor );
 		m_reflectionProbe->SetBackLightContrast( m_reflectionBackLightingContrast );
 	}
-	else if( m_envMapHandle )
+	else if( m_staticEnvMapTextureRes )
 	{
 		m_envMapTextureRes = m_staticEnvMapTextureRes;
 	}
@@ -3273,7 +3273,7 @@ bool EveSpaceScene::OnModified( Be::Var* value )
 	{
 		m_staticEnvMapTextureRes.Unlock();
 
-		if( m_staticEnvMapHandle )
+		if( !m_envMapResPath.empty() )
 		{
 			BeResMan->GetResource( m_envMapResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_staticEnvMapTextureRes );
 		}
@@ -3285,7 +3285,7 @@ bool EveSpaceScene::OnModified( Be::Var* value )
 			m_reflectionProbe->SetBackLightColor( m_reflectionBackLightingColor );
 			m_reflectionProbe->SetBackLightContrast( m_reflectionBackLightingContrast );
 		}
-		else if( m_envMapHandle )
+		else if( m_staticEnvMapTextureRes )
 		{
 			m_envMapTextureRes = m_staticEnvMapTextureRes;
 		}

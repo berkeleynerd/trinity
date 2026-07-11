@@ -510,9 +510,9 @@ public:
 				bitangent );
 
 			TrinityStandaloneEveV5Vertex vertex = {};
-			vertex.position[0] = ( source.position[0] - m_center.x ) * m_fitScale;
-			vertex.position[1] = ( source.position[1] - m_center.y ) * m_fitScale;
-			vertex.position[2] = ( source.position[2] - m_center.z ) * m_fitScale;
+			vertex.position[0] = source.position[0];
+			vertex.position[1] = source.position[1];
+			vertex.position[2] = source.position[2];
 			std::memcpy( vertex.joints, m_jointIndices[vertexIndex].data(), sizeof( vertex.joints ) );
 			vertex.texcoord[0] = source.texcoord[0];
 			vertex.texcoord[1] = source.texcoord[1];

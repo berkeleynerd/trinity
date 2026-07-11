@@ -28,14 +28,25 @@ extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle,
 													 int shaderTier );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetCapturedProduct( void* opaqueProbe,
-													 const uint8_t** pixels,
-													 uint32_t* width,
-													 uint32_t* height,
-													 uint32_t* pitch );
+														  const uint8_t** pixels,
+														  uint32_t* width,
+														  uint32_t* height,
+														  uint32_t* pitch );
 extern "C" bool TrinityStandaloneProbeGetShadowDiagnostics( void* opaqueProbe,
-													uint32_t* casterTests,
-													uint32_t* acceptedCascades,
-													uint32_t* committedBatches );
+															uint32_t* casterTests,
+															uint32_t* acceptedCascades,
+															uint32_t* committedBatches );
+extern "C" bool TrinityStandaloneProbeGetReflectionDiagnostics( void* opaqueProbe,
+																int* source,
+																uint32_t* format,
+																uint32_t* width,
+																uint32_t* height,
+																uint32_t* mipCount,
+																bool* hasData,
+																bool* filterSucceeded,
+																float* reflectionIntensity,
+																float* shPrimaryIntensity,
+																float* shSecondaryIntensity );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
@@ -48,6 +59,7 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int lightingView,
 													  int shSource,
 													  int localLights,
+													  int reflectionSource,
 													  int reflectionCorrection,
 													  int normalMapMode,
 													  int cameraView,
@@ -56,12 +68,16 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int cloudYear,
 													  int cloudMonth,
 													  int cloudDay,
-												  int sunEffects,
-												  int attachments,
-												  int attachmentView,
-												  int shadows,
-												  int ambientOcclusion,
-												  int aoMethod );
+													  int sunEffects,
+													  int attachments,
+													  int attachmentView,
+													  int decals,
+													  int decalView,
+													  uint32_t killCount,
+													  float modelYawDegrees,
+													  int shadows,
+													  int ambientOcclusion,
+													  int aoMethod );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
 												   int qualityRung,
 												   int64_t realTime,
@@ -128,6 +144,7 @@ enum class LightingView
 	Direct,
 	Sh,
 	Local,
+	Environment,
 };
 
 enum class LocalLights
@@ -155,6 +172,21 @@ enum class AttachmentView
 	Banners,
 };
 
+enum class Decals
+{
+	Auto,
+	Off,
+	Authored,
+};
+
+enum class DecalView
+{
+	All,
+	Standard,
+	Logos,
+	Killmarks,
+};
+
 enum class ShaderTier
 {
 	Medium,
@@ -165,6 +197,14 @@ enum class ReflectionCorrection
 {
 	Off,
 	Client,
+};
+
+enum class ReflectionSource
+{
+	Auto,
+	Off,
+	Static,
+	Dynamic,
 };
 
 enum class NormalMapMode
@@ -183,6 +223,7 @@ enum class RenderProduct
 	ShadowAtlas,
 	AmbientOcclusion,
 	BentNormal,
+	Reflection,
 	All,
 };
 
@@ -246,6 +287,7 @@ constexpr int kCaptureShadow = 1 << 3;
 constexpr int kCaptureShadowAtlas = 1 << 4;
 constexpr int kCaptureAmbientOcclusion = 1 << 5;
 constexpr int kCaptureBentNormal = 1 << 6;
+constexpr int kCaptureReflection = 1 << 7;
 constexpr int kCaptureFreezeScene = 1 << 8;
 
 enum class ShSource
@@ -272,8 +314,15 @@ struct Options
 	Attachments attachments = Attachments::Auto;
 	Attachments resolvedAttachments = Attachments::Off;
 	AttachmentView attachmentView = AttachmentView::All;
+	Decals decals = Decals::Auto;
+	Decals resolvedDecals = Decals::Off;
+	DecalView decalView = DecalView::All;
+	uint32_t killCount = 0;
+	float modelYawDegrees = 0.0f;
 	ShaderTier shaderTier = ShaderTier::High;
 	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
+	ReflectionSource reflectionSource = ReflectionSource::Auto;
+	ReflectionSource resolvedReflectionSource = ReflectionSource::Off;
 	NormalMapMode normalMapMode = NormalMapMode::Authored;
 	RenderProduct renderProduct = RenderProduct::Window;
 	Shadows shadows = Shadows::Auto;
@@ -369,6 +418,8 @@ std::string LightingViewName( LightingView view )
 		return "sh";
 	case LightingView::Local:
 		return "local";
+	case LightingView::Environment:
+		return "environment";
 	}
 	return "unknown";
 }
@@ -377,7 +428,7 @@ bool ParseLightingView( const std::string& value, LightingView& view )
 {
 	const std::string normalized = ToLower( value );
 	const LightingView values[] = {
-		LightingView::Combined, LightingView::Direct, LightingView::Sh, LightingView::Local
+		LightingView::Combined, LightingView::Direct, LightingView::Sh, LightingView::Local, LightingView::Environment
 	};
 	for( LightingView candidate : values )
 	{
@@ -469,6 +520,56 @@ bool ParseAttachmentView( const std::string& value, AttachmentView& view )
 	return false;
 }
 
+std::string DecalsName( Decals mode )
+{
+	switch( mode )
+	{
+	case Decals::Auto:
+		return "auto";
+	case Decals::Off:
+		return "off";
+	case Decals::Authored:
+		return "authored";
+	}
+	return "unknown";
+}
+
+bool ParseDecals( const std::string& value, Decals& mode )
+{
+	const std::string normalized = ToLower( value );
+	const Decals values[] = { Decals::Auto, Decals::Off, Decals::Authored };
+	for( Decals candidate : values )
+	{
+		if( normalized == DecalsName( candidate ) )
+		{
+			mode = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string DecalViewName( DecalView view )
+{
+	static const char* names[] = { "all", "standard", "logos", "killmarks" };
+	return names[static_cast<int>( view )];
+}
+
+bool ParseDecalView( const std::string& value, DecalView& view )
+{
+	const std::string normalized = ToLower( value );
+	for( int candidate = 0; candidate <= static_cast<int>( DecalView::Killmarks ); ++candidate )
+	{
+		const auto candidateView = static_cast<DecalView>( candidate );
+		if( normalized == DecalViewName( candidateView ) )
+		{
+			view = candidateView;
+			return true;
+		}
+	}
+	return false;
+}
+
 std::string ShaderTierName( ShaderTier tier )
 {
 	return tier == ShaderTier::High ? "high" : "medium";
@@ -509,6 +610,55 @@ bool ParseReflectionCorrection( const std::string& value, ReflectionCorrection& 
 		return true;
 	}
 	return false;
+}
+
+std::string ReflectionSourceName( ReflectionSource source )
+{
+	switch( source )
+	{
+	case ReflectionSource::Auto:
+		return "auto";
+	case ReflectionSource::Off:
+		return "off";
+	case ReflectionSource::Static:
+		return "static";
+	case ReflectionSource::Dynamic:
+		return "dynamic";
+	}
+	return "unknown";
+}
+
+bool ParseReflectionSource( const std::string& value, ReflectionSource& source )
+{
+	const std::string normalized = ToLower( value );
+	const ReflectionSource values[] = {
+		ReflectionSource::Auto, ReflectionSource::Off, ReflectionSource::Static, ReflectionSource::Dynamic
+	};
+	for( ReflectionSource candidate : values )
+	{
+		if( normalized == ReflectionSourceName( candidate ) )
+		{
+			source = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+int ReflectionSourceApiValue( ReflectionSource source )
+{
+	switch( source )
+	{
+	case ReflectionSource::Off:
+		return 0;
+	case ReflectionSource::Static:
+		return 1;
+	case ReflectionSource::Dynamic:
+		return 2;
+	case ReflectionSource::Auto:
+		break;
+	}
+	return 0;
 }
 
 std::string NormalMapModeName( NormalMapMode mode )
@@ -552,6 +702,8 @@ std::string RenderProductName( RenderProduct product )
 		return "ao";
 	case RenderProduct::BentNormal:
 		return "bent-normal";
+	case RenderProduct::Reflection:
+		return "reflection";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -561,17 +713,16 @@ std::string RenderProductName( RenderProduct product )
 bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 {
 	const std::string normalized = ToLower( value );
-	const RenderProduct values[] = {
-		RenderProduct::Window,
-		RenderProduct::Color,
-		RenderProduct::Depth,
-		RenderProduct::Normal,
-		RenderProduct::Shadow,
-		RenderProduct::ShadowAtlas,
-		RenderProduct::AmbientOcclusion,
-		RenderProduct::BentNormal,
-		RenderProduct::All
-	};
+	const RenderProduct values[] = { RenderProduct::Window,
+									 RenderProduct::Color,
+									 RenderProduct::Depth,
+									 RenderProduct::Normal,
+									 RenderProduct::Shadow,
+									 RenderProduct::ShadowAtlas,
+									 RenderProduct::AmbientOcclusion,
+									 RenderProduct::BentNormal,
+									 RenderProduct::Reflection,
+									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
 		if( normalized == RenderProductName( candidate ) )
@@ -844,6 +995,8 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureAmbientOcclusion;
 	case RenderProduct::BentNormal:
 		return kCaptureBentNormal;
+	case RenderProduct::Reflection:
+		return kCaptureReflection;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -906,6 +1059,8 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 			"source=SSAOMap format=R8_UNORM channel=red gpuVisualization=true";
 	case RenderProduct::BentNormal:
 		return "source=SSAOMap format=R8G8B8A8_SNORM channel=rgb-remapped gpuVisualization=true";
+	case RenderProduct::Reflection:
+		return "source=EveSpaceSceneEnvMap type=cube layout=3x2 toneMapped=true gpuVisualization=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1183,26 +1338,30 @@ bool FileExists( const std::string& path )
 
 void PrintUsage( const char* executable )
 {
-	std::cerr << "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
-			  << "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
-			  << "       [--material-mode probe|eve-v5]\n"
-			  << "       [--area-view all|hull|booster|distortion]\n"
-			  << "       [--scene-fixture empty|fitting|a01|new-eden]\n"
-			  << "       [--lighting-view combined|direct|sh|local] [--sh-source new-eden-celestials|validation|none]\n"
-			  << "       [--local-lights off|authored|validation]\n"
-			  << "       [--attachments auto|off|authored] [--attachment-view all|sprites|sprite-lines|spotlights|planes|hazes|banners]\n"
-			  << "       [--shader-tier medium|high]\n"
-			  << "       [--reflection-correction off|client]\n"
-			  << "       [--normal-map authored|flat]\n"
-			  << "       [--render-product window|color|depth|normal|shadow|shadow-atlas|ao|bent-normal|all]\n"
-			  << "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
-			  << "       [--ao-method cortao|cacao]\n"
-			  << "       [--camera-view model|celestials|planet]\n"
-			  << "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
-			  << "       [--sun-effects auto|off|flare|god-rays|all]\n"
-			  << "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
-			  << "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
-			  << "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
+	std::cerr
+		<< "Usage: " << executable << " [--asset astero|ship|fox] [--input PATH] [--frames N]\n"
+		<< "       [--windowed WxH] [--quality-rung shell|scene|model|hdr-blit|hdr-post|hdr-exposure]\n"
+		<< "       [--material-mode probe|eve-v5]\n"
+		<< "       [--area-view all|hull|booster|distortion]\n"
+		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
+		<< "       [--lighting-view combined|direct|sh|local|environment] [--sh-source new-eden-celestials|validation|none]\n"
+		<< "       [--local-lights off|authored|validation]\n"
+		<< "       [--attachments auto|off|authored] [--attachment-view all|sprites|sprite-lines|spotlights|planes|hazes|banners]\n"
+		<< "       [--decals auto|off|authored] [--decal-view all|standard|logos|killmarks] [--kill-count N]\n"
+		<< "       [--model-yaw-degrees N]\n"
+		<< "       [--shader-tier medium|high]\n"
+		<< "       [--reflection-source auto|off|static|dynamic]\n"
+		<< "       [--reflection-correction off|client]\n"
+		<< "       [--normal-map authored|flat]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|ao|bent-normal|reflection|all]\n"
+		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
+		<< "       [--ao-method cortao|cacao]\n"
+		<< "       [--camera-view model|celestials|planet]\n"
+		<< "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
+		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
+		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
+		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
+		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
 }
 
 bool ParseArgs( int argc, char** argv, Options& options )
@@ -1344,6 +1503,48 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--decals" )
+		{
+			if( ++i >= argc || !ParseDecals( argv[i], options.decals ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--decal-view" )
+		{
+			if( ++i >= argc || !ParseDecalView( argv[i], options.decalView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--kill-count" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const unsigned long long parsed = std::strtoull( argv[i], &end, 10 );
+			if( !end || *end != '\0' || parsed > UINT32_MAX )
+			{
+				return false;
+			}
+			options.killCount = static_cast<uint32_t>( parsed );
+		}
+		else if( arg == "--model-yaw-degrees" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) )
+			{
+				return false;
+			}
+			options.modelYawDegrees = parsed;
+		}
 		else if( arg == "--shader-tier" )
 		{
 			if( ++i >= argc || !ParseShaderTier( argv[i], options.shaderTier ) )
@@ -1354,6 +1555,13 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--reflection-correction" )
 		{
 			if( ++i >= argc || !ParseReflectionCorrection( argv[i], options.reflectionCorrection ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--reflection-source" )
+		{
+			if( ++i >= argc || !ParseReflectionSource( argv[i], options.reflectionSource ) )
 			{
 				return false;
 			}
@@ -1454,10 +1662,47 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		options.localLights = LocalLights::Authored;
 	}
+	if( options.lightingView == LightingView::Direct || options.lightingView == LightingView::Sh ||
+		options.lightingView == LightingView::Environment )
+	{
+		options.localLights = LocalLights::Off;
+	}
+	if( options.reflectionSource == ReflectionSource::Auto )
+	{
+		if( options.qualityRung < QualityRung::Scene || options.sceneFixture == SceneFixture::Empty )
+		{
+			options.resolvedReflectionSource = ReflectionSource::Off;
+		}
+		else if( options.sceneFixture == SceneFixture::Fitting )
+		{
+			options.resolvedReflectionSource = ReflectionSource::Static;
+		}
+		else
+		{
+			options.resolvedReflectionSource = ReflectionSource::Dynamic;
+		}
+	}
+	else
+	{
+		options.resolvedReflectionSource = options.reflectionSource;
+	}
+	if( options.lightingView == LightingView::Direct || options.lightingView == LightingView::Sh ||
+		options.lightingView == LightingView::Local )
+	{
+		options.resolvedReflectionSource = ReflectionSource::Off;
+	}
+	if( options.resolvedReflectionSource != ReflectionSource::Off &&
+		( options.qualityRung < QualityRung::Scene || options.sceneFixture == SceneFixture::Empty ) )
+	{
+		std::cerr << "Static and dynamic reflections require a populated scene at the scene rung or higher\n";
+		return false;
+	}
 	options.resolvedAttachments = options.attachments == Attachments::Auto ?
 		( options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
-		  options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
-		  options.qualityRung >= QualityRung::Model ? Attachments::Authored : Attachments::Off ) :
+				  options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
+				  options.qualityRung >= QualityRung::Model ?
+			  Attachments::Authored :
+			  Attachments::Off ) :
 		options.attachments;
 	if( options.resolvedAttachments == Attachments::Authored &&
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ) )
@@ -1468,14 +1713,25 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	const bool compatibleLightingModel = options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
 		options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
 		options.qualityRung >= QualityRung::Model;
-	const bool directSunEnabled = options.lightingView == LightingView::Combined || options.lightingView == LightingView::Direct;
+	options.resolvedDecals =
+		options.decals == Decals::Auto ? ( compatibleLightingModel ? Decals::Authored : Decals::Off ) : options.decals;
+	if( options.resolvedDecals == Decals::Authored && !compatibleLightingModel )
+	{
+		std::cerr << "Authored decals require a lit, all-area Astero using eve-v5 at the model rung or higher\n";
+		return false;
+	}
+	const bool directSunEnabled =
+		options.lightingView == LightingView::Combined || options.lightingView == LightingView::Direct;
 	options.resolvedShadows = options.shadows == Shadows::Auto ?
-		( compatibleLightingModel && directSunEnabled ? Shadows::High : Shadows::Off ) : options.shadows;
+		( compatibleLightingModel && directSunEnabled ? Shadows::High : Shadows::Off ) :
+		options.shadows;
 	options.resolvedAmbientOcclusion = options.ambientOcclusion == AmbientOcclusion::Auto ?
-		( compatibleLightingModel ? AmbientOcclusion::High : AmbientOcclusion::Off ) : options.ambientOcclusion;
+		( compatibleLightingModel ? AmbientOcclusion::High : AmbientOcclusion::Off ) :
+		options.ambientOcclusion;
 	if( options.resolvedShadows != Shadows::Off && ( !compatibleLightingModel || !directSunEnabled ) )
 	{
-		std::cerr << "Directional shadows require a lit, all-area Astero using eve-v5 with direct or combined lighting\n";
+		std::cerr
+			<< "Directional shadows require a lit, all-area Astero using eve-v5 with direct or combined lighting\n";
 		return false;
 	}
 	if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off && !compatibleLightingModel )
@@ -1495,7 +1751,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Shadow render products require enabled directional shadows\n";
 		return false;
 	}
-	if( options.renderProduct == RenderProduct::AmbientOcclusion && options.resolvedAmbientOcclusion == AmbientOcclusion::Off )
+	if( options.renderProduct == RenderProduct::AmbientOcclusion &&
+		options.resolvedAmbientOcclusion == AmbientOcclusion::Off )
 	{
 		std::cerr << "AO render product requires enabled ambient occlusion\n";
 		return false;
@@ -1698,20 +1955,20 @@ bool CaptureProbeProductPng( void* probe, const std::string& path )
 		std::cerr << "No synchronized render-product readback is available\n";
 		return false;
 	}
-	CGDataProviderRef provider = CGDataProviderCreateWithData( nullptr, pixels, static_cast<size_t>( pitch ) * height, nullptr );
+	CGDataProviderRef provider =
+		CGDataProviderCreateWithData( nullptr, pixels, static_cast<size_t>( pitch ) * height, nullptr );
 	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
-	CGImageRef image = CGImageCreate(
-		width,
-		height,
-		8,
-		32,
-		pitch,
-		colorSpace,
-		kCGBitmapByteOrderDefault | kCGImageAlphaLast,
-		provider,
-		nullptr,
-		false,
-		kCGRenderingIntentDefault );
+	CGImageRef image = CGImageCreate( width,
+									  height,
+									  8,
+									  32,
+									  pitch,
+									  colorSpace,
+									  kCGBitmapByteOrderDefault | kCGImageAlphaLast,
+									  provider,
+									  nullptr,
+									  false,
+									  kCGRenderingIntentDefault );
 	CGColorSpaceRelease( colorSpace );
 	CGDataProviderRelease( provider );
 	if( !image )
@@ -1720,10 +1977,7 @@ bool CaptureProbeProductPng( void* probe, const std::string& path )
 	}
 	NSString* nsPath = [NSString stringWithUTF8String:path.c_str()];
 	CGImageDestinationRef destination = CGImageDestinationCreateWithURL(
-		(__bridge CFURLRef)[NSURL fileURLWithPath:nsPath],
-		(__bridge CFStringRef)UTTypePNG.identifier,
-		1,
-		nullptr );
+		(__bridge CFURLRef)[NSURL fileURLWithPath:nsPath], (__bridge CFStringRef)UTTypePNG.identifier, 1, nullptr );
 	if( !destination )
 	{
 		CGImageRelease( image );
@@ -1742,18 +1996,39 @@ std::string CaptureBasePath( const Options& options )
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lit-" +
 		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_ll-" +
-		LocalLightsName( options.localLights ) + "_refl-" +
+		LocalLightsName( options.localLights ) + "_reflsrc-" +
+		ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_nrm-" +
-		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) +
-		"_comp-" + SceneCompositionName( options.composition ) + "_pl-" +
-		PlanetLayersName( options.planetLayers ) + "_date-" + PlanetCloudDateName( options );
-	const std::string sunSuffix = "_sun-" + SunEffectsName( options.resolvedSunEffects ) +
-		"_att-" + AttachmentsName( options.resolvedAttachments ) + "-" + AttachmentViewName( options.attachmentView ) +
-		"_shadow-" + ShadowsName( options.resolvedShadows ) + "_ao-" +
+		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) + "_comp-" +
+		SceneCompositionName( options.composition ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
+		PlanetCloudDateName( options );
+	const std::string sunSuffix = "_sun-" + SunEffectsName( options.resolvedSunEffects ) + "_att-" +
+		AttachmentsName( options.resolvedAttachments ) + "-" + AttachmentViewName( options.attachmentView ) +
+		"_decal-" + DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
+		std::to_string( options.killCount ) + "_shadow-" + ShadowsName( options.resolvedShadows ) + "_ao-" +
 		AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
-	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix +
-		sunSuffix;
+	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
+		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix;
+	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
+	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
+	if( filenameLength <= 220 )
+	{
+		return fullPath;
+	}
+
+	uint64_t hash = 1469598103934665603ull;
+	for( unsigned char value : fullPath )
+	{
+		hash ^= value;
+		hash *= 1099511628211ull;
+	}
+	char hashText[17];
+	std::snprintf( hashText, sizeof( hashText ), "%016llx", static_cast<unsigned long long>( hash ) );
+	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + "_decal-" +
+		DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
+		std::to_string( options.killCount ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
+		PlanetCloudDateName( options ) + "_" + hashText;
 }
 
 bool WriteCaptureMetadata( const Options& options,
@@ -1792,7 +2067,14 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "attachmentsRequested=" << AttachmentsName( options.attachments ) << "\n";
 	metadata << "attachmentsResolved=" << AttachmentsName( options.resolvedAttachments ) << "\n";
 	metadata << "attachmentView=" << AttachmentViewName( options.attachmentView ) << "\n";
+	metadata << "decalsRequested=" << DecalsName( options.decals ) << "\n";
+	metadata << "decalsResolved=" << DecalsName( options.resolvedDecals ) << "\n";
+	metadata << "decalView=" << DecalViewName( options.decalView ) << "\n";
+	metadata << "killCount=" << options.killCount << "\n";
+	metadata << "modelYawDegrees=" << options.modelYawDegrees << "\n";
 	metadata << "shaderTier=" << ShaderTierName( options.shaderTier ) << "\n";
+	metadata << "reflectionSourceRequested=" << ReflectionSourceName( options.reflectionSource ) << "\n";
+	metadata << "reflectionSourceResolved=" << ReflectionSourceName( options.resolvedReflectionSource ) << "\n";
 	metadata << "reflectionCorrection=" << ReflectionCorrectionName( options.reflectionCorrection ) << "\n";
 	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
 	metadata << "shadowsRequested=" << ShadowsName( options.shadows ) << "\n";
@@ -1822,7 +2104,7 @@ bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& opti
 {
 	const std::string basePath = CaptureBasePath( options );
 	const std::string suffix = product == RenderProduct::Window ? "" : "_" + RenderProductName( product );
-	if( product != RenderProduct::Window && product != RenderProduct::Color )
+	if( product != RenderProduct::Window )
 	{
 		return CaptureProbeProductPng( probe, basePath + suffix + ".png" );
 	}
@@ -1941,6 +2223,7 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.lightingView ),
 												   static_cast<int>( options.shSource ),
 												   static_cast<int>( options.localLights ),
+												   ReflectionSourceApiValue( options.resolvedReflectionSource ),
 												   static_cast<int>( options.reflectionCorrection ),
 												   static_cast<int>( options.normalMapMode ),
 												   static_cast<int>( options.cameraView ),
@@ -1952,6 +2235,10 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.resolvedSunEffects ),
 												   static_cast<int>( options.resolvedAttachments ),
 												   static_cast<int>( options.attachmentView ),
+												   static_cast<int>( options.resolvedDecals ),
+												   static_cast<int>( options.decalView ),
+												   options.killCount,
+												   options.modelYawDegrees,
 												   ShadowsApiValue( options.resolvedShadows ),
 												   AmbientOcclusionApiValue( options.resolvedAmbientOcclusion ),
 												   static_cast<int>( options.aoMethod ) ) )
@@ -1976,7 +2263,8 @@ int main( int argc, char** argv )
 				const int64_t realTime = static_cast<int64_t>( renderedFrames ) * kFrameTime;
 				const int64_t simTime = realTime;
 				const int captureProducts = options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
-					RenderProductApiValue( options.renderProduct ) :
+					RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
+																						 options.renderProduct ) :
 					0;
 				if( !TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts ) )
 				{
@@ -2000,7 +2288,9 @@ int main( int argc, char** argv )
 				{
 					captureSucceeded = CapturePresentedProduct( probe, window, options, RenderProduct::Color );
 					productStats.emplace_back( "color", RenderProductStats( options, RenderProduct::Color ) );
-					std::vector<RenderProduct> diagnosticProducts = { RenderProduct::Depth, RenderProduct::Normal };
+					std::vector<RenderProduct> diagnosticProducts = { RenderProduct::Depth,
+																	  RenderProduct::Normal,
+																	  RenderProduct::Reflection };
 					if( options.resolvedShadows != Shadows::Off )
 					{
 						diagnosticProducts.push_back( RenderProduct::Shadow );
@@ -2020,20 +2310,24 @@ int main( int argc, char** argv )
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
 						const int frozenProduct = RenderProductApiValue( product ) | kCaptureFreezeScene;
 						if( !captureSucceeded ||
-							!TrinityStandaloneProbeRenderFrame( probe, qualityRung, captureTime, captureTime, frozenProduct ) ||
-							!TrinityStandaloneProbeRenderFrame( probe, qualityRung, captureTime, captureTime, frozenProduct ) )
+							!TrinityStandaloneProbeRenderFrame(
+								probe, qualityRung, captureTime, captureTime, frozenProduct ) ||
+							!TrinityStandaloneProbeRenderFrame(
+								probe, qualityRung, captureTime, captureTime, frozenProduct ) )
 						{
 							captureSucceeded = false;
 							break;
 						}
 						ProcessEvents( window );
 						captureSucceeded = CapturePresentedProduct( probe, window, options, product );
-						productStats.emplace_back( RenderProductName( product ), RenderProductStats( options, product ) );
+						productStats.emplace_back( RenderProductName( product ),
+												   RenderProductStats( options, product ) );
 					}
 				}
 				else
 				{
-					if( options.renderProduct != RenderProduct::Window && options.renderProduct != RenderProduct::Color )
+					if( options.renderProduct != RenderProduct::Window &&
+						options.renderProduct != RenderProduct::Color )
 					{
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
@@ -2045,12 +2339,12 @@ int main( int argc, char** argv )
 							RenderProductApiValue( options.renderProduct ) | kCaptureFreezeScene );
 						ProcessEvents( window );
 					}
-					captureSucceeded = captureSucceeded && CapturePresentedProduct( probe, window, options, options.renderProduct );
+					captureSucceeded =
+						captureSucceeded && CapturePresentedProduct( probe, window, options, options.renderProduct );
 					if( options.renderProduct != RenderProduct::Window )
 					{
-						productStats.emplace_back(
-							RenderProductName( options.renderProduct ),
-							RenderProductStats( options, options.renderProduct ) );
+						productStats.emplace_back( RenderProductName( options.renderProduct ),
+												   RenderProductStats( options, options.renderProduct ) );
 					}
 				}
 				if( options.resolvedShadows != Shadows::Off )
@@ -2059,21 +2353,58 @@ int main( int argc, char** argv )
 					uint32_t acceptedCascades = 0;
 					uint32_t committedBatches = 0;
 					if( !TrinityStandaloneProbeGetShadowDiagnostics(
-							probe,
-							&casterTests,
-							&acceptedCascades,
-							&committedBatches ) )
+							probe, &casterTests, &acceptedCascades, &committedBatches ) )
 					{
 						captureSucceeded = false;
 					}
 					else
 					{
 						std::ostringstream stats;
-						stats << "casterTests=" << casterTests
-							  << " acceptedCascades=" << acceptedCascades
+						stats << "casterTests=" << casterTests << " acceptedCascades=" << acceptedCascades
 							  << " committedBatches=" << committedBatches
 							  << " expectedBatches=" << acceptedCascades * 2;
 						productStats.emplace_back( "shadowRuntime", stats.str() );
+					}
+				}
+				if( options.qualityRung != QualityRung::Shell )
+				{
+					int reflectionSource = -1;
+					uint32_t reflectionFormat = 0;
+					uint32_t reflectionWidth = 0;
+					uint32_t reflectionHeight = 0;
+					uint32_t reflectionMipCount = 0;
+					bool reflectionHasData = false;
+					bool reflectionFilterSucceeded = false;
+					float reflectionIntensity = 0.0f;
+					float shPrimaryIntensity = 0.0f;
+					float shSecondaryIntensity = 0.0f;
+					if( !TrinityStandaloneProbeGetReflectionDiagnostics( probe,
+																		 &reflectionSource,
+																		 &reflectionFormat,
+																		 &reflectionWidth,
+																		 &reflectionHeight,
+																		 &reflectionMipCount,
+																		 &reflectionHasData,
+																		 &reflectionFilterSucceeded,
+																		 &reflectionIntensity,
+																		 &shPrimaryIntensity,
+																		 &shSecondaryIntensity ) )
+					{
+						captureSucceeded = false;
+					}
+					else
+					{
+						std::ostringstream stats;
+						stats << "source=" << ReflectionSourceName( options.resolvedReflectionSource )
+							  << " sourceApi=" << reflectionSource << " format=" << reflectionFormat
+							  << " dimensions=" << reflectionWidth << "x" << reflectionHeight
+							  << " mipCount=" << reflectionMipCount
+							  << " hasData=" << ( reflectionHasData ? "true" : "false" )
+							  << " filterSucceeded=" << ( reflectionFilterSucceeded ? "true" : "false" )
+							  << " reflectionIntensity=" << reflectionIntensity
+							  << " shPrimaryIntensity=" << shPrimaryIntensity
+							  << " shSecondaryIntensity=" << shSecondaryIntensity;
+						productStats.emplace_back( "reflectionRuntime", stats.str() );
 					}
 				}
 				captureSucceeded = captureSucceeded &&

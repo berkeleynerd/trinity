@@ -178,6 +178,64 @@ res:/graphics/effect.metal/managed/space/system/ssao/ssao.sm_hi
 res:/graphics/effect.metal/managed/space/system/ssao/ssao.sm_lo
 ```
 
+### Reflection-probe resources
+
+```text
+res:/dx9/scene/cinematic/black_cube_refl.dds
+res:/graphics/effect.metal/managed/space/system/reflection/copycube.sm_depth
+res:/graphics/effect.metal/managed/space/system/reflection/copycube.sm_hi
+res:/graphics/effect.metal/managed/space/system/reflection/copycube.sm_lo
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivision128.sm_depth
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivision128.sm_hi
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivision128.sm_lo
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivisionpre.sm_depth
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivisionpre.sm_hi
+res:/graphics/effect.metal/managed/space/system/reflection/reflectionfilteractivisionpre.sm_lo
+```
+
+`AsteroV5IndirectResources.json` also records the A01 reflection cube,
+reflection-correction lookup, and six V5 opaque effects as inherited inputs.
+The black cube is an explicit off control; dynamic mode never falls back to it.
+
+### Indexed decal resources
+
+```text
+res:/graphics/effect.metal/managed/space/decals/v5/decalv5.sm_depth
+res:/graphics/effect.metal/managed/space/decals/v5/decalv5.sm_hi
+res:/graphics/effect.metal/managed/space/decals/v5/decalv5.sm_lo
+res:/graphics/effect.metal/managed/space/decals/v5/decalcounterv5.sm_depth
+res:/graphics/effect.metal/managed/space/decals/v5/decalcounterv5.sm_hi
+res:/graphics/effect.metal/managed/space/decals/v5/decalcounterv5.sm_lo
+res:/dx9/model/decal/soe/glow_killmarks_01_t.dds
+res:/dx9/model/decal/soe/logo_soe_01_a.dds
+res:/dx9/model/decal/soe/logo_soe_01_f.dds
+res:/dx9/model/decal/soe/logo_soe_01_n.dds
+res:/dx9/model/decal/soe/logo_soe_01_r.dds
+res:/dx9/model/decal/soe/logo_soe_01_t.dds
+res:/dx9/model/decal/soe/marking_302va1_02_a.dds
+res:/dx9/model/decal/soe/marking_302va1_02_f.dds
+res:/dx9/model/decal/soe/marking_302va1_02_n.dds
+res:/dx9/model/decal/soe/marking_302va1_02_r.dds
+res:/dx9/model/decal/soe/marking_302va1_02_t.dds
+res:/dx9/model/decal/soe/marking_info01_01_a.dds
+res:/dx9/model/decal/soe/marking_info01_01_f.dds
+res:/dx9/model/decal/soe/marking_info01_01_n.dds
+res:/dx9/model/decal/soe/marking_info01_01_r.dds
+res:/dx9/model/decal/soe/marking_info01_01_t.dds
+res:/dx9/model/decal/soe/marking_propeldynamics01_01_a.dds
+res:/dx9/model/decal/soe/marking_propeldynamics01_01_f.dds
+res:/dx9/model/decal/soe/marking_propeldynamics01_01_n.dds
+res:/dx9/model/decal/soe/marking_propeldynamics01_01_r.dds
+res:/dx9/model/decal/soe/marking_propeldynamics01_01_t.dds
+res:/dx9/model/shared/dirtdetailnoise.dds
+```
+
+`Reports/AsteroDecalResources.json` records these 28 direct inputs plus nine
+inherited hull, faction, generic, GR2, and parent-map resources. Every entry
+contains the logical path, absolute SharedCache hashed source, byte size,
+SHA-256, and staged build-tree destination. The report and payloads remain
+outside source control.
+
 ### Supporting textures
 
 ```text

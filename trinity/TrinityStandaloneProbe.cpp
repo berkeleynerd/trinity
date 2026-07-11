@@ -12,6 +12,8 @@
 #include "Eve/EveStarfield.h"
 #include "Eve/IEveShadowCaster.h"
 #include "Eve/IEveSpaceObject2.h"
+#include "Eve/SpaceObject/Attachments/EveSpaceObjectDecal.h"
+#include "Eve/SpaceObject/Attachments/IEveSpaceObjectDecalOwner.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
 #include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveBannerSet.h"
@@ -31,6 +33,7 @@
 #include "Eve/SpaceObject/Children/EveChildQuad.h"
 #include "Eve/SpaceObject/Children/EveChildRef.h"
 #include "Eve/SpaceObject/Children/EveChildSocket.h"
+#include "ITr2TextureProvider.h"
 #include "ITr2Renderable.h"
 #include "Lights/ITr2LightOwner.h"
 #include "Lights/Tr2Light.h"
@@ -40,6 +43,7 @@
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Tr2Mesh.h"
 #include "Tr2ProfileTimer.h"
+#include "Tr2ReflectionProbe.h"
 #include "Tr2MeshBase.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
@@ -103,9 +107,11 @@ BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 
 namespace
 {
+struct StandaloneProbe;
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
 std::string ToNarrowPath( const wchar_t* path );
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
+bool PrepareReflectionProductVisualizer( StandaloneProbe& probe );
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -143,6 +149,9 @@ public:
 	EveSpaceObjectVSData m_vsData = {};
 	EveSpaceObjectPSData m_psData = {};
 };
+
+static_assert( sizeof( EveSpaceScene::PerFramePSData ) == 1888, "V5 per-frame shader contract changed" );
+static_assert( sizeof( EveSpaceObjectPSData ) == 464, "V5 per-object shader contract changed" );
 }
 
 BLUE_CLASS( TrinityStandaloneRenderable ) :
@@ -151,6 +160,7 @@ BLUE_CLASS( TrinityStandaloneRenderable ) :
 	public ITr2ShLightingReceiver,
 	public ITr2LightOwner,
 	public IEveShadowCaster,
+	public IEveSpaceObjectDecalOwner,
 	public EveEntity
 {
 public:
@@ -167,15 +177,18 @@ public:
 		{
 			return false;
 		}
+		float centerScale[4];
+		m_model.GetCenterAndScale( centerScale );
 		m_shadowBoundingRadius = 0.0f;
 		for( const TrinityStandaloneEveV5Vertex& vertex : m_model.EveV5Vertices() )
 		{
 			m_shadowBoundingRadius = std::max(
 				m_shadowBoundingRadius,
-				Length( Vector3( vertex.position[0], vertex.position[1], vertex.position[2] ) ) );
+				Length( Vector3(
+					vertex.position[0] - centerScale[0],
+					vertex.position[1] - centerScale[1],
+					vertex.position[2] - centerScale[2] ) ) );
 		}
-		float centerScale[4];
-		m_model.GetCenterAndScale( centerScale );
 		m_authoredWorldScale = centerScale[3] > 0.0f ? 1.0f / centerScale[3] : 1.0f;
 		return m_shadowBoundingRadius > 0.0f;
 	}
@@ -188,6 +201,12 @@ public:
 	float GetAuthoredWorldScale() const
 	{
 		return m_authoredWorldScale;
+	}
+
+	void SetModelYawDegrees( float degrees )
+	{
+		m_modelYawOffset = degrees * 3.1415926535f / 180.0f;
+		std::fprintf( stderr, "Standalone model yaw offset: %.6f degrees\n", degrees );
 	}
 
 	bool ConfigureLocalLights( int mode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
@@ -838,6 +857,271 @@ public:
 		return true;
 	}
 
+	bool ConfigureDecals( int mode,
+						  int view,
+						  uint32_t killCount,
+						  const EveSOFDataHull& hull,
+						  const EveSOFDataFaction& faction,
+						  const EveSOFDataGeneric& generic,
+						  std::string& error )
+	{
+		m_decalMode = mode;
+		m_decalView = view;
+		m_killCount = killCount;
+		if( mode == 1 )
+		{
+			std::fprintf( stderr, "Astero indexed decals disabled\n" );
+			return true;
+		}
+		if( mode != 2 || view < 0 || view > 3 || !faction.m_visibilityGroupSet || !faction.m_colorSet )
+		{
+			error = "Invalid authored Astero decal configuration";
+			return false;
+		}
+		if( !PrepareDecalGeometry( error ) )
+		{
+			return false;
+		}
+
+		std::set<std::string> visibilityGroups;
+		for( const auto& value : faction.m_visibilityGroupSet->m_visibilityGroups )
+		{
+			visibilityGroups.insert( value->m_str );
+		}
+
+		uint32_t activeSetCount = 0;
+		uint32_t activeItemCount = 0;
+		uint32_t excludedSetCount = 0;
+		uint32_t excludedItemCount = 0;
+		uint32_t activeLod0IndexCount = 0;
+		uint32_t maximumLod0Index = 0;
+		for( const auto& setData : hull.m_decalSets )
+		{
+			++m_decalDeclaredSetCount;
+			m_decalDeclaredItemCount += static_cast<uint32_t>( setData->m_items.size() );
+			const bool active = visibilityGroups.count( setData->m_visibilityGroup.c_str() ) != 0;
+			if( active )
+			{
+				++activeSetCount;
+			}
+			else
+			{
+				++excludedSetCount;
+				excludedItemCount += static_cast<uint32_t>( setData->m_items.size() );
+			}
+
+			for( const auto& item : setData->m_items )
+			{
+				if( !active )
+				{
+					continue;
+				}
+				++activeItemCount;
+				if( item->m_boneIndex != -1 )
+				{
+					error = "Active Astero decal unexpectedly requires bone " + std::to_string( item->m_boneIndex ) + ": " + item->m_name;
+					return false;
+				}
+
+				DecalFamily family;
+				const char* effectName = nullptr;
+				if( item->m_usage == EveSOFDataHullDecalSetItem::USAGE_STANDARD )
+				{
+					family = DECAL_FAMILY_STANDARD;
+					effectName = "decalv5.fx";
+				}
+				else if( item->m_usage == EveSOFDataHullDecalSetItem::USAGE_LOGO )
+				{
+					family = DECAL_FAMILY_LOGO;
+					effectName = "decalv5.fx";
+				}
+				else if( item->m_usage == EveSOFDataHullDecalSetItem::USAGE_KILLCOUNTER )
+				{
+					family = DECAL_FAMILY_KILLMARK;
+					effectName = "decalcounterv5.fx";
+				}
+				else
+				{
+					error = "Unsupported active Astero decal usage " + std::to_string( static_cast<int>( item->m_usage ) ) + ": " + item->m_name;
+					return false;
+				}
+
+				std::vector<std::vector<uint32_t>> indexBuffers;
+				indexBuffers.reserve( item->m_indexBuffers.size() );
+				for( const auto& source : item->m_indexBuffers )
+				{
+					if( source->m_indexBuffer.size() % 3 != 0 )
+					{
+						error = "Astero decal index count is not divisible by three: " + item->m_name;
+						return false;
+					}
+					indexBuffers.push_back( source->m_indexBuffer );
+				}
+				if( indexBuffers.empty() || indexBuffers.front().empty() )
+				{
+					error = "Astero decal has no high-detail index buffer: " + item->m_name;
+					return false;
+				}
+				for( uint32_t index : indexBuffers.front() )
+				{
+					maximumLod0Index = std::max( maximumLod0Index, index );
+					if( index >= m_decalSourceVertexCount )
+					{
+						error = "Astero decal index exceeds the first CMF source-vertex block: " + item->m_name;
+						return false;
+					}
+				}
+				activeLod0IndexCount += static_cast<uint32_t>( indexBuffers.front().size() );
+				const uint32_t lod0Triangles = static_cast<uint32_t>( indexBuffers.front().size() / 3 );
+				++m_decalStats[family].active;
+				m_decalStats[family].activeTriangles += lod0Triangles;
+
+				if( view != 0 && view != static_cast<int>( family ) + 1 )
+				{
+					continue;
+				}
+				std::fprintf(
+					stderr,
+					"Astero indexed decal selected: item=%s family=%s mesh=%d bone=%d position=(%.6f, %.6f, %.6f) rotation=(%.6f, %.6f, %.6f, %.6f) scaling=(%.6f, %.6f, %.6f) lods=%zu lod0-triangles=%u\n",
+					item->m_name.c_str(),
+					DecalFamilyName( family ),
+					item->m_meshIndex,
+					item->m_boneIndex,
+					item->m_position.x,
+					item->m_position.y,
+					item->m_position.z,
+					item->m_rotation.x,
+					item->m_rotation.y,
+					item->m_rotation.z,
+					item->m_rotation.w,
+					item->m_scaling.x,
+					item->m_scaling.y,
+					item->m_scaling.z,
+					indexBuffers.size(),
+					lod0Triangles );
+				for( const auto& parameter : item->m_parameters )
+				{
+					std::fprintf(
+						stderr,
+						"  decal parameter %s=(%.6f, %.6f, %.6f, %.6f)\n",
+						parameter->m_name.c_str(),
+						parameter->m_value.x,
+						parameter->m_value.y,
+						parameter->m_value.z,
+						parameter->m_value.w );
+				}
+				const Matrix inverseDecal = Inverse( TransformationMatrix( item->m_scaling, item->m_rotation, item->m_position ) );
+				Vector3 localMinimum( std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max() );
+				Vector3 localMaximum( -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max() );
+				for( uint32_t index : indexBuffers.front() )
+				{
+					const TrinityStandaloneCmfVertex& vertex = m_model.Vertices()[index];
+					const Vector3 local = XMVector3Transform(
+						Vector3( vertex.position[0], vertex.position[1], vertex.position[2] ),
+						inverseDecal );
+					localMinimum = Vector3(
+						std::min( localMinimum.x, local.x ),
+						std::min( localMinimum.y, local.y ),
+						std::min( localMinimum.z, local.z ) );
+					localMaximum = Vector3(
+						std::max( localMaximum.x, local.x ),
+						std::max( localMaximum.y, local.y ),
+						std::max( localMaximum.z, local.z ) );
+				}
+				std::fprintf(
+					stderr,
+					"  decal indexed local bounds min=(%.6f, %.6f, %.6f) max=(%.6f, %.6f, %.6f)\n",
+					localMinimum.x,
+					localMinimum.y,
+					localMinimum.z,
+					localMaximum.x,
+					localMaximum.y,
+					localMaximum.z );
+
+				Tr2EffectPtr effect;
+				if( !CreateDecalEffect( effect, *item, hull, faction, generic, effectName, error ) )
+				{
+					return false;
+				}
+				EveSpaceObjectDecalPtr decal;
+				decal.CreateInstance();
+				decal->SetPosition( item->m_position );
+				decal->SetRotation( item->m_rotation );
+				decal->SetScaling( item->m_scaling );
+				decal->SetBoneIndex( item->m_boneIndex );
+				decal->SetMinScreenSize( 10.0f );
+				decal->SetHighDetailDecalState( true );
+				decal->SetIndices( indexBuffers );
+				decal->SetEffect( effect );
+				decal->SetBatchType( TRIBATCHTYPE_DECAL );
+				if( !decal->Initialize() )
+				{
+					error = "Failed to initialize Astero decal: " + item->m_name;
+					return false;
+				}
+				AddDecal( decal );
+				m_decalEntries.push_back( { decal, family, lod0Triangles, item->m_name } );
+				++m_decalStats[family].selected;
+				m_decalStats[family].selectedTriangles += lod0Triangles;
+			}
+		}
+
+		if( m_decalDeclaredSetCount != 10 || m_decalDeclaredItemCount != 43 || activeSetCount != 2 ||
+			activeItemCount != 11 || excludedSetCount != 8 || excludedItemCount != 32 ||
+			activeLod0IndexCount != 84 || maximumLod0Index != 6764 )
+		{
+			error = "Astero decal inventory no longer matches the verified primary/soe fixture";
+			return false;
+		}
+		if( m_decalStats[DECAL_FAMILY_STANDARD].active != 6 || m_decalStats[DECAL_FAMILY_STANDARD].activeTriangles != 14 ||
+			m_decalStats[DECAL_FAMILY_LOGO].active != 4 || m_decalStats[DECAL_FAMILY_LOGO].activeTriangles != 12 ||
+			m_decalStats[DECAL_FAMILY_KILLMARK].active != 1 || m_decalStats[DECAL_FAMILY_KILLMARK].activeTriangles != 2 )
+		{
+			error = "Astero decal family inventory no longer matches the verified fixture";
+			return false;
+		}
+		if( m_decalEntries.empty() )
+		{
+			error = "Selected Astero decal family produced zero native decals";
+			return false;
+		}
+
+		std::fprintf(
+			stderr,
+			"Astero indexed-decal inventory: sets=%u active-sets=%u visibility-excluded-sets=%u "
+			"items=%u active-items=%u visibility-excluded-items=%u lod0-indices=%u lod0-triangles=%u max-index=%u source-vertices=%u kill-count=%u\n",
+			m_decalDeclaredSetCount,
+			activeSetCount,
+			excludedSetCount,
+			m_decalDeclaredItemCount,
+			activeItemCount,
+			excludedItemCount,
+			activeLod0IndexCount,
+			activeLod0IndexCount / 3,
+			maximumLod0Index,
+			m_decalSourceVertexCount,
+			m_killCount );
+		for( int familyIndex = 0; familyIndex < DECAL_FAMILY_COUNT; ++familyIndex )
+		{
+			const DecalStats& stats = m_decalStats[familyIndex];
+			std::fprintf(
+				stderr,
+				"  %-10s active=%u triangles=%u selected=%u selected-triangles=%u\n",
+				DecalFamilyName( static_cast<DecalFamily>( familyIndex ) ),
+				stats.active,
+				stats.activeTriangles,
+				stats.selected,
+				stats.selectedTriangles );
+		}
+		return true;
+	}
+
+	void AddDecal( EveSpaceObjectDecalPtr decal ) override
+	{
+		decal->SetPriority( static_cast<uint32_t>( m_decals.size() ) );
+		m_decals.push_back( decal );
+	}
+
 	bool InitializeGpu( Tr2PrimaryRenderContext & renderContext, int materialView, int materialMode, int areaView, int normalMapMode )
 	{
 		using namespace Tr2RenderContextEnum;
@@ -972,6 +1256,10 @@ public:
 		m_shadowAcceptedCascades = 0;
 		m_shadowCommittedBatches = 0;
 		m_time = updateContext.GetTime();
+		if( !m_decalEntries.empty() )
+		{
+			++m_decalWarmupFrames;
+		}
 		UpdateEffectParameters();
 		UpdateAttachmentLights();
 	}
@@ -994,9 +1282,19 @@ public:
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
 		for( const auto& set : m_bannerAttachmentSets )
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+
+		if( !m_decalEntries.empty() )
+		{
+			IEveSpaceObject2::ParentData parentData;
+			GetDecalParentData( parentData );
+			for( const DecalEntry& entry : m_decalEntries )
+			{
+				entry.decal->UpdateVisibility( updateContext, &parentData );
+			}
+		}
 	}
 
-	void RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer ) override
+	void RegisterWithQuadRenderer( Tr2QuadRenderer & quadRenderer ) override
 	{
 		for( const auto& set : m_spriteAttachmentSets )
 			set->RegisterWithQuadRenderer( quadRenderer );
@@ -1023,11 +1321,91 @@ public:
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
 	{
 		renderables.push_back( this );
+		if( !m_decalGeometry || m_decalEntries.empty() )
+		{
+			return;
+		}
+
+		DecalMeshCache meshCache;
+		uint32_t submitted = 0;
+		uint32_t submittedTriangles = 0;
+		uint32_t committed = 0;
+		float minimumVisibility = 1.0f;
+		for( const DecalEntry& entry : m_decalEntries )
+		{
+			const size_t before = renderables.size();
+			entry.decal->GetRenderables(
+				renderables,
+				meshCache,
+				m_decalGeometry,
+				std::numeric_limits<float>::max() );
+			if( renderables.size() != before + 1 )
+			{
+				continue;
+			}
+			const std::vector<uint32_t> primitiveCounts = entry.decal->GetDecalPrimitiveCounts();
+			if( primitiveCounts.empty() || primitiveCounts.front() != entry.lod0Triangles )
+			{
+				std::fprintf(
+					stderr,
+					"Astero indexed decal primitive mismatch: item=%s expected=%u actual=%u\n",
+					entry.name.c_str(),
+					entry.lod0Triangles,
+					primitiveCounts.empty() ? 0 : primitiveCounts.front() );
+				m_drawFailed = true;
+				continue;
+			}
+			if( entry.family == DECAL_FAMILY_KILLMARK && entry.decal->GetResolvedKillCount() != m_killCount )
+			{
+				std::fprintf(
+					stderr,
+					"Astero killmark display-data mismatch: expected=%u actual=%u\n",
+					m_killCount,
+					entry.decal->GetResolvedKillCount() );
+				m_drawFailed = true;
+				continue;
+			}
+			++submitted;
+			submittedTriangles += primitiveCounts.front();
+			if( entry.decal->GetCommittedBatchCount() != 0 )
+			{
+				++committed;
+			}
+			minimumVisibility = std::min( minimumVisibility, entry.decal->GetResolvedVisibility() );
+		}
+		if( m_decalWarmupFrames >= 2 && ( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) )
+		{
+			if( !m_reportedDecalFailure )
+			{
+				std::fprintf(
+					stderr,
+					"Astero indexed decal render contract failed: configured=%zu submitted=%u committed=%u visibility=%.6f warmup-frames=%u\n",
+					m_decalEntries.size(),
+					submitted,
+					committed,
+					minimumVisibility,
+					m_decalWarmupFrames );
+				m_reportedDecalFailure = true;
+			}
+			m_drawFailed = true;
+		}
+		else if( submitted == m_decalEntries.size() && committed == m_decalEntries.size() && !m_reportedDecalSubmission )
+		{
+			std::fprintf(
+				stderr,
+				"Astero indexed decals ready: configured=%zu submitted=%u committed=%u lod0-triangles=%u visibility=%.6f batch=decal\n",
+				m_decalEntries.size(),
+				submitted,
+				committed,
+				submittedTriangles,
+				minimumVisibility );
+			m_reportedDecalSubmission = true;
+		}
 	}
 
 	bool GetBoundingSphere( Vector4 & sphere, BoundingSphereQuery ) const override
 	{
-		sphere = Vector4( 0.0f, 0.0f, 0.0f, m_shadowBoundingRadius * m_authoredWorldScale );
+		sphere = Vector4( 0.0f, 0.0f, 0.0f, m_shadowBoundingRadius );
 		return true;
 	}
 
@@ -1051,6 +1429,15 @@ public:
 	void GetLocalToWorldTransform( Matrix & transform ) const override
 	{
 		transform = m_worldTransform;
+	}
+
+	void GetParentData( IEveSpaceObject2::ParentData * parentData ) const override
+	{
+		if( !parentData )
+		{
+			return;
+		}
+		GetDecalParentData( *parentData );
 	}
 
 	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason ) override
@@ -1132,7 +1519,7 @@ public:
 		}
 		const Vector4 sphere(
 			TransformCoord( Vector3( 0.0f, 0.0f, 0.0f ), m_worldTransform ),
-			m_shadowBoundingRadius * m_authoredWorldScale );
+			m_shadowBoundingRadius );
 		if( shadowFrustum.IsVisible( cameraFrustum, sphere ) )
 		{
 			sizeInShadow = shadowFrustum.GetSizeInShadow( sphere );
@@ -1145,7 +1532,7 @@ public:
 		return true;
 	}
 
-	void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData, float ) override
+	void GetShadowBatches( ITriRenderBatchAccumulator * batches, const Tr2PerObjectData* perObjectData, float ) override
 	{
 		if( !m_shadowCastingEnabled || !m_useEveV5Material )
 		{
@@ -1271,6 +1658,284 @@ public:
 	}
 
 private:
+	enum DecalFamily
+	{
+		DECAL_FAMILY_STANDARD,
+		DECAL_FAMILY_LOGO,
+		DECAL_FAMILY_KILLMARK,
+		DECAL_FAMILY_COUNT,
+	};
+
+	struct DecalStats
+	{
+		uint32_t active = 0;
+		uint32_t activeTriangles = 0;
+		uint32_t selected = 0;
+		uint32_t selectedTriangles = 0;
+	};
+
+	struct DecalEntry
+	{
+		EveSpaceObjectDecalPtr decal;
+		DecalFamily family;
+		uint32_t lod0Triangles;
+		std::string name;
+	};
+
+	static const char* DecalFamilyName( DecalFamily family )
+	{
+		static const char* names[] = { "standard", "logos", "killmarks" };
+		return names[family];
+	}
+
+	void GetDecalParentData( IEveSpaceObject2::ParentData & parentData ) const
+	{
+		parentData = IEveSpaceObject2::ParentData{};
+		parentData.transform = m_decalWorldTransform;
+		parentData.killCount = m_killCount;
+		parentData.shipData = m_eveV5PerObjectData.m_psData.shipData;
+		parentData.clipSphereCenter = m_eveV5PerObjectData.m_psData.clipSphereCenter;
+		parentData.clipRadiusSq = m_eveV5PerObjectData.m_psData.clipRadiusSq;
+		parentData.clipRadius2Sq = m_eveV5PerObjectData.m_psData.clipRadius2Sq;
+		parentData.clipFactor = m_eveV5PerObjectData.m_psData.clipSphereFactor;
+		parentData.clipFactor2 = m_eveV5PerObjectData.m_psData.clipSphereFactor2;
+		parentData.shLighting = m_eveV5PerObjectData.m_psData.shLightingCoefficients;
+	}
+
+	bool PrepareDecalGeometry( std::string & error )
+	{
+		if( m_model.Sections().size() != 3 || m_model.VertexCount() != 21582 || m_model.VertexCount() % 3 != 0 )
+		{
+			error = "Astero CMF does not contain the verified three equal source-vertex blocks";
+			return false;
+		}
+		for( uint32_t group = 0; group < 3; ++group )
+		{
+			if( m_model.Sections()[group].sourceGroup != group )
+			{
+				error = "Astero CMF source-group order is incompatible with indexed decals";
+				return false;
+			}
+		}
+		m_decalSourceVertexCount = m_model.VertexCount() / 3;
+		if( m_decalSourceVertexCount != 7194 )
+		{
+			error = "Astero CMF first source-vertex block no longer contains 7194 vertices";
+			return false;
+		}
+
+		BeResMan->GetResource( "res:/Astero.cmf", "", m_decalGeometry );
+		if( m_decalGeometry )
+		{
+			m_decalGeometry->ForceSynchronousLoad();
+			m_decalGeometry->Reload();
+		}
+		std::fprintf(
+			stderr,
+			"Astero native decal geometry state: path=res:/Astero.cmf exists=%s resource=%s loading=%s prepared=%s good=%s cmf=%s meshes=%u\n",
+			BePaths->FileExistsLocally( L"res:/Astero.cmf" ) ? "yes" : "no",
+			m_decalGeometry ? "yes" : "no",
+			m_decalGeometry && m_decalGeometry->IsLoading() ? "yes" : "no",
+			m_decalGeometry && m_decalGeometry->IsPrepared() ? "yes" : "no",
+			m_decalGeometry && m_decalGeometry->IsGood() ? "yes" : "no",
+			m_decalGeometry && m_decalGeometry->IsUsingCMF() ? "yes" : "no",
+			m_decalGeometry ? m_decalGeometry->GetMeshCount() : 0 );
+		if( !m_decalGeometry || !m_decalGeometry->IsGood() || !m_decalGeometry->IsUsingCMF() ||
+			m_decalGeometry->GetMeshCount() != 3 )
+		{
+			error = "Failed to prepare res:/Astero.cmf as native decal geometry";
+			return false;
+		}
+		for( uint32_t meshIndex = 0; meshIndex < 3; ++meshIndex )
+		{
+			TriGeometryResMeshData* mesh = m_decalGeometry->GetMeshData( meshIndex );
+			if( !mesh || mesh->m_lods.size() != 1 || mesh->m_lods.front()->m_vertexCount != m_decalSourceVertexCount )
+			{
+				error = "Native Astero decal geometry does not contain three equal 7194-vertex source blocks";
+				return false;
+			}
+		}
+		std::fprintf(
+			stderr,
+			"Astero native decal geometry ready: path=res:/Astero.cmf merged-vertices=%u native-meshes=3 source-vertices=%u lods=1\n",
+			m_model.VertexCount(),
+			m_decalSourceVertexCount );
+		return true;
+	}
+
+	bool FindDecalParentTexture( const EveSOFDataHull& hull,
+								 int32_t meshIndex,
+								 const std::string& textureName,
+								 std::string& path ) const
+	{
+		if( meshIndex < 0 )
+		{
+			return false;
+		}
+		for( const auto& area : hull.m_opaqueAreas )
+		{
+			if( meshIndex < static_cast<int32_t>( area->m_index ) ||
+				meshIndex >= static_cast<int32_t>( area->m_index + area->m_count ) )
+			{
+				continue;
+			}
+			for( const auto& texture : area->m_textures )
+			{
+				if( texture->m_name == BlueSharedString( textureName.c_str() ) )
+				{
+					path = texture->m_resFilePath;
+					return !path.empty();
+				}
+			}
+		}
+		return false;
+	}
+
+	bool CreateDecalEffect( Tr2EffectPtr & effect,
+							const EveSOFDataHullDecalSetItem& item,
+							const EveSOFDataHull& hull,
+							const EveSOFDataFaction& faction,
+							const EveSOFDataGeneric& generic,
+							const char* effectName,
+							std::string& error )
+	{
+		EveSOFDataGenericDecalShaderPtr shaderData;
+		for( const auto& candidate : generic.m_decalShaders )
+		{
+			if( candidate->m_shader == BlueSharedString( effectName ) )
+			{
+				shaderData = candidate;
+				break;
+			}
+		}
+		if( !shaderData )
+		{
+			error = std::string( "Missing generic Astero decal shader descriptor: " ) + effectName;
+			return false;
+		}
+
+		const std::string effectPath = generic.m_decalShaderLocation + "/" + generic.m_shaderPrefix + effectName;
+		effect.CreateInstance();
+		effect->StartUpdate();
+		effect->SetEffectPathName( effectPath.c_str() );
+		auto addTexture = [&]( const auto& name, const std::string& path, const char* role ) {
+			if( path.empty() )
+			{
+				error = std::string( "Empty Astero decal texture path for " ) + name.c_str();
+				return false;
+			}
+			if( !PrepareTextureResourceWithoutYield( path, role, error ) )
+			{
+				return false;
+			}
+			effect->AddResourceTexture2D( BlueSharedString( name.c_str() ), path.c_str() );
+			return true;
+		};
+
+		for( const auto& parameter : item.m_parameters )
+		{
+			effect->AddParameterVector4( parameter->m_name, &parameter->m_value );
+		}
+		for( const auto& texture : item.m_textures )
+		{
+			std::fprintf(
+				stderr,
+				"  decal texture %s=%s\n",
+				texture->m_name.c_str(),
+				texture->m_resFilePath.c_str() );
+			if( !addTexture( texture->m_name, texture->m_resFilePath, "Astero authored decal" ) )
+			{
+				effect->EndUpdate();
+				return false;
+			}
+		}
+		for( const auto& texture : shaderData->m_defaultTextures )
+		{
+			if( !addTexture( texture->m_name, texture->m_resFilePath, "Astero generic decal" ) )
+			{
+				effect->EndUpdate();
+				return false;
+			}
+		}
+		for( const auto& parentName : shaderData->m_parentTextures )
+		{
+			std::string parentPath;
+			if( !FindDecalParentTexture( hull, item.m_meshIndex, parentName->m_str, parentPath ) )
+			{
+				if( parentName->m_str == "AoMap" )
+				{
+					if( !m_reportedMissingDecalAoMap )
+					{
+						std::fprintf( stderr, "Astero decal optional parent AoMap is absent; retaining the client shader default\n" );
+						m_reportedMissingDecalAoMap = true;
+					}
+					continue;
+				}
+				error = "Missing required Astero decal parent texture " + parentName->m_str;
+				effect->EndUpdate();
+				return false;
+			}
+			if( !addTexture( parentName->m_str, parentPath, "Astero decal parent hull" ) )
+			{
+				effect->EndUpdate();
+				return false;
+			}
+		}
+
+		if( item.m_usage == EveSOFDataHullDecalSetItem::USAGE_LOGO )
+		{
+			const int logoIndex = static_cast<int>( item.m_logoType );
+			if( !faction.m_logoSet || logoIndex < 0 || logoIndex >= EveSOFDataLogoSet::TYPE_MAX || !faction.m_logoSet->m_logos[logoIndex] )
+			{
+				error = "Active Astero logo decal has no faction logo set";
+				effect->EndUpdate();
+				return false;
+			}
+			for( const auto& texture : faction.m_logoSet->m_logos[logoIndex]->m_textures )
+			{
+				if( !addTexture( texture->m_name, texture->m_resFilePath, "Astero faction logo decal" ) )
+				{
+					effect->EndUpdate();
+					return false;
+				}
+			}
+		}
+		else if( item.m_usage != EveSOFDataHullDecalSetItem::USAGE_STANDARD )
+		{
+			const int colorIndex = static_cast<int>( item.m_glowColorType );
+			if( colorIndex < 0 || colorIndex >= SOFDataFactionColorChooser::TYPE_MAX )
+			{
+				error = "Astero killmark decal has an invalid faction glow-color index";
+				effect->EndUpdate();
+				return false;
+			}
+			Color glowColor = faction.m_colorSet->m_colors[colorIndex];
+			std::fprintf(
+				stderr,
+				"Astero killmark glow: color-index=%d rgba=(%.6f, %.6f, %.6f, %.6f)\n",
+				colorIndex,
+				glowColor.r,
+				glowColor.g,
+				glowColor.b,
+				glowColor.a );
+			effect->AddParameterColor( BlueSharedString( "DecalGlowColor" ), &glowColor );
+		}
+
+		effect->EndUpdate();
+		if( !ValidateEffect( *effect, effectName, false ) )
+		{
+			error = "Failed to validate Astero decal effect " + effectPath;
+			return false;
+		}
+		std::fprintf(
+			stderr,
+			"Astero decal effect ready: item=%s effect=%s batch=%s\n",
+			item.m_name.c_str(),
+			effectPath.c_str(),
+			"decal" );
+		return true;
+	}
+
 	enum AttachmentFamily
 	{
 		ATTACHMENT_FAMILY_SPRITE,
@@ -1347,7 +2012,7 @@ private:
 		return Color( converted.r, converted.g, converted.b, color.a );
 	}
 
-	void ForwardAttachmentBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason )
+	void ForwardAttachmentBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason )
 	{
 		const Tr2PerObjectData* attachmentData = perObjectData ? perObjectData : &m_eveV5PerObjectData;
 		for( const auto& set : m_hazeAttachmentSets )
@@ -1356,7 +2021,7 @@ private:
 			set->GetBatches( batches, batchType, attachmentData, reason );
 	}
 
-	bool CreateAttachmentEffect( Tr2EffectPtr& effect, const char* path, const char* label, std::string& error )
+	bool CreateAttachmentEffect( Tr2EffectPtr & effect, const char* path, const char* label, std::string& error )
 	{
 		effect.CreateInstance();
 		effect->StartUpdate();
@@ -1370,7 +2035,7 @@ private:
 		return true;
 	}
 
-	TriTextureParameterPtr AddAttachmentTexture( Tr2Effect& effect, const char* name, const std::string& path )
+	TriTextureParameterPtr AddAttachmentTexture( Tr2Effect & effect, const char* name, const std::string& path )
 	{
 		TriTextureParameterPtr parameter;
 		parameter.CreateInstance();
@@ -1380,7 +2045,7 @@ private:
 		return parameter;
 	}
 
-	bool CreateTexturedAttachmentEffect( Tr2EffectPtr& effect, const char* path, const std::string& texture, const char* label, std::string& error, float zOffset = 0.0f )
+	bool CreateTexturedAttachmentEffect( Tr2EffectPtr & effect, const char* path, const std::string& texture, const char* label, std::string& error, float zOffset = 0.0f )
 	{
 		if( !PrepareTextureResourceWithoutYield( texture, label, error ) )
 			return false;
@@ -1399,7 +2064,7 @@ private:
 		return true;
 	}
 
-	bool CreatePlaneAttachmentEffect( Tr2EffectPtr& effect, const EveSOFDataHullPlaneSet& source, EvePlaneSet& set, std::string& error )
+	bool CreatePlaneAttachmentEffect( Tr2EffectPtr & effect, const EveSOFDataHullPlaneSet& source, EvePlaneSet& set, std::string& error )
 	{
 		const std::string textures[] = { source.m_layer1MapResPath, source.m_layer2MapResPath, source.m_maskMapResPath };
 		for( const std::string& texture : textures )
@@ -1414,7 +2079,9 @@ private:
 		TriTextureParameterPtr layer2 = AddAttachmentTexture( *effect, "Layer2Map", source.m_layer2MapResPath );
 		TriTextureParameterPtr mask = AddAttachmentTexture( *effect, "MaskMap", source.m_maskMapResPath );
 		const Vector4 planeData( source.m_usage == EveSOFDataHullPlaneSet::USAGE_HAZE ? 1.0f : 0.0f,
-			static_cast<float>( source.m_atlasSize ), std::floor( source.m_atlasAspectRatio.x ), std::floor( source.m_atlasAspectRatio.y ) );
+								 static_cast<float>( source.m_atlasSize ),
+								 std::floor( source.m_atlasAspectRatio.x ),
+								 std::floor( source.m_atlasAspectRatio.y ) );
 		effect->AddParameterVector4( BlueSharedString( "PlaneData" ), &planeData );
 		effect->EndUpdate();
 		set.SetLayerMap1Parameter( layer1 );
@@ -1760,7 +2427,7 @@ private:
 		}
 	}
 
-	bool CommitShadowAreaBatch( ITriRenderBatchAccumulator* batches, uint32_t sourceGroup, Tr2Effect* effect, const Tr2PerObjectData* perObjectData ) const
+	bool CommitShadowAreaBatch( ITriRenderBatchAccumulator * batches, uint32_t sourceGroup, Tr2Effect* effect, const Tr2PerObjectData* perObjectData ) const
 	{
 		if( sourceGroup >= m_sectionsByGroup.size() || !m_sectionsByGroup[sourceGroup] || !effect ||
 			!effect->GetShaderStateInterface() || ( m_areaView != 0 && m_areaView != static_cast<int>( sourceGroup + 1 ) ) )
@@ -1798,22 +2465,27 @@ private:
 			return;
 		}
 		const float seconds = static_cast<float>( m_time ) / 10000000.0f;
-		const float yaw = seconds * 0.38f - 0.8f;
+		const float yaw = seconds * 0.38f - 0.8f + m_modelYawOffset;
 		const float pitch = -0.28f;
 		if( m_useEveV5Material )
 		{
-			m_worldTransform = ScalingMatrix( m_authoredWorldScale, m_authoredWorldScale, m_authoredWorldScale ) *
-				RotationYMatrix( yaw ) * RotationXMatrix( pitch );
+			const Matrix rotation = RotationYMatrix( yaw ) * RotationXMatrix( pitch );
+			float centerScale[4];
+			m_model.GetCenterAndScale( centerScale );
+			m_decalWorldTransform = TranslationMatrix(
+										Vector3( -centerScale[0], -centerScale[1], -centerScale[2] ) ) *
+				rotation;
+			m_worldTransform = m_decalWorldTransform;
 			const Matrix world = Transpose( m_worldTransform );
 			const Matrix inverseWorld = Transpose( Inverse( m_worldTransform ) );
 			m_eveV5PerObjectData.m_vsData.worldTransform = world;
 			m_eveV5PerObjectData.m_vsData.worldTransformLast = world;
 			m_eveV5PerObjectData.m_vsData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_vsData.shipData = Vector4(
-				m_authoredWorldScale,
+				1.0f,
 				1.0f,
 				0.0f,
-				m_shadowBoundingRadius * m_authoredWorldScale );
+				m_shadowBoundingRadius );
 			m_eveV5PerObjectData.m_vsData.clipData = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidRadii = Vector4( -1.0f, -1.0f, -1.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidCenter = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
@@ -1848,18 +2520,32 @@ private:
 	int m_localLightMode = 0;
 	int m_attachmentMode = 0;
 	int m_attachmentView = 0;
+	int m_decalMode = 0;
+	int m_decalView = 0;
 	int m_normalMapMode = 0;
 	uint32_t m_shUpdateCount = 0;
+	uint32_t m_killCount = 0;
+	float m_modelYawOffset = 0.0f;
+	uint32_t m_decalWarmupFrames = 0;
+	uint32_t m_decalDeclaredSetCount = 0;
+	uint32_t m_decalDeclaredItemCount = 0;
+	uint32_t m_decalSourceVertexCount = 0;
 	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
+	Matrix m_decalWorldTransform = IdentityMatrix();
 	float m_shadowBoundingRadius = 0.0f;
 	float m_authoredWorldScale = 1.0f;
+	bool m_reportedMissingDecalAoMap = false;
+	bool m_reportedDecalSubmission = false;
+	bool m_reportedDecalFailure = false;
 	mutable std::atomic<uint32_t> m_shadowCullTests = 0;
 	mutable std::atomic<uint32_t> m_shadowAcceptedCascades = 0;
 	mutable std::atomic<uint32_t> m_shadowCommittedBatches = 0;
 	TrinityStandaloneCmfModel m_model;
+	TriGeometryResPtr m_decalGeometry;
 	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
 	std::array<bool, 3> m_reportedAreaBatch = {};
+	std::array<DecalStats, DECAL_FAMILY_COUNT> m_decalStats = {};
 	StandaloneEveV5PerObjectData m_eveV5PerObjectData;
 	Tr2BufferAL m_vertexBuffer;
 	Tr2BufferAL m_indexBuffer;
@@ -1890,6 +2576,8 @@ private:
 	std::vector<EvePlaneSetPtr> m_planeAttachmentSets;
 	std::vector<EveHazeSetPtr> m_hazeAttachmentSets;
 	std::vector<EveBannerSetPtr> m_bannerAttachmentSets;
+	std::vector<EveSpaceObjectDecalPtr> m_decals;
+	std::vector<DecalEntry> m_decalEntries;
 	std::vector<DirectLight> m_directLights;
 };
 
@@ -1903,8 +2591,9 @@ const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue(){
 				MAP_INTERFACE( ITr2ShLightingReceiver )
 					MAP_INTERFACE( ITr2LightOwner )
 						MAP_INTERFACE( IEveShadowCaster )
-							MAP_INTERFACE( EveEntity )
-								EXPOSURE_END()
+							MAP_INTERFACE( IEveSpaceObjectDecalOwner )
+								MAP_INTERFACE( EveEntity )
+									EXPOSURE_END()
 }
 
 BLUE_CLASS( TrinityStandaloneSecondaryLight ) :
@@ -2013,6 +2702,7 @@ enum StandaloneLightingView
 	STANDALONE_LIGHTING_DIRECT = 1,
 	STANDALONE_LIGHTING_SH = 2,
 	STANDALONE_LIGHTING_LOCAL = 3,
+	STANDALONE_LIGHTING_ENVIRONMENT = 4,
 };
 
 enum StandaloneLocalLights
@@ -2035,6 +2725,28 @@ enum StandaloneReflectionCorrection
 	STANDALONE_REFLECTION_CORRECTION_CLIENT = 1,
 };
 
+enum StandaloneReflectionSource
+{
+	STANDALONE_REFLECTION_SOURCE_OFF = 0,
+	STANDALONE_REFLECTION_SOURCE_STATIC = 1,
+	STANDALONE_REFLECTION_SOURCE_DYNAMIC = 2,
+};
+
+const char* ReflectionSourceName( int source )
+{
+	switch( source )
+	{
+	case STANDALONE_REFLECTION_SOURCE_OFF:
+		return "off";
+	case STANDALONE_REFLECTION_SOURCE_STATIC:
+		return "static";
+	case STANDALONE_REFLECTION_SOURCE_DYNAMIC:
+		return "dynamic";
+	default:
+		return "invalid";
+	}
+}
+
 enum StandaloneNormalMapMode
 {
 	STANDALONE_NORMAL_MAP_AUTHORED = 0,
@@ -2050,6 +2762,7 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_SHADOW_ATLAS = 1 << 4,
 	STANDALONE_CAPTURE_AO = 1 << 5,
 	STANDALONE_CAPTURE_BENT_NORMAL = 1 << 6,
+	STANDALONE_CAPTURE_REFLECTION = 1 << 7,
 	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 8,
 };
 
@@ -2104,6 +2817,21 @@ enum StandaloneSunEffects
 	STANDALONE_SUN_EFFECTS_ALL = 4,
 };
 
+enum StandaloneDecals
+{
+	STANDALONE_DECALS_AUTO = 0,
+	STANDALONE_DECALS_OFF = 1,
+	STANDALONE_DECALS_AUTHORED = 2,
+};
+
+enum StandaloneDecalView
+{
+	STANDALONE_DECAL_VIEW_ALL = 0,
+	STANDALONE_DECAL_VIEW_STANDARD = 1,
+	STANDALONE_DECAL_VIEW_LOGOS = 2,
+	STANDALONE_DECAL_VIEW_KILLMARKS = 3,
+};
+
 const char* SunEffectsName( int effects )
 {
 	switch( effects )
@@ -2131,6 +2859,7 @@ struct StandaloneProbe
 		}
 		renderProductReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
+		reflectionProductVisualizer.Unlock();
 		driver.Unlock();
 		ssao.Unlock();
 		scene.Unlock();
@@ -2171,6 +2900,7 @@ struct StandaloneProbe
 	TriViewPtr view;
 	TriProjectionPtr projection;
 	Tr2EffectPtr renderProductVisualizer;
+	Tr2EffectPtr reflectionProductVisualizer;
 	Tr2TextureAL renderProductReadback;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
@@ -2178,7 +2908,9 @@ struct StandaloneProbe
 	int shadows = STANDALONE_SHADOWS_OFF;
 	int ambientOcclusion = STANDALONE_AO_OFF;
 	int aoMethod = STANDALONE_AO_CORTAO;
+	int reflectionSource = STANDALONE_REFLECTION_SOURCE_OFF;
 	bool reportedShadowStats = false;
+	bool reportedReflectionStatus = false;
 	std::vector<uint8_t> capturedProductPixels;
 	uint32_t capturedProductWidth = 0;
 	uint32_t capturedProductHeight = 0;
@@ -2671,6 +3403,96 @@ bool PrepareEffectResourcesWithoutYield( Tr2Effect& effect, const char* role, st
 	return true;
 }
 
+bool ConfigureReflectionSourceWithoutYield(
+	StandaloneProbe& probe,
+	EveSpaceScene& scene,
+	int reflectionSource,
+	std::string& error )
+{
+	if( reflectionSource < STANDALONE_REFLECTION_SOURCE_OFF ||
+		reflectionSource > STANDALONE_REFLECTION_SOURCE_DYNAMIC )
+	{
+		error = "Invalid standalone reflection source";
+		return false;
+	}
+
+	probe.reflectionSource = reflectionSource;
+	if( reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC )
+	{
+		scene.SetReflectionSetting( EntityComponents::REFLECTION_SETTING_ULTRA );
+		Tr2ReflectionProbePtr reflectionProbe = scene.GetReflectionProbe();
+		if( !reflectionProbe || !reflectionProbe->IsValid() )
+		{
+			error = "Dynamic reflection probe failed to create its render targets";
+			return false;
+		}
+		reflectionProbe->SetRenderFrequency( Tr2ReflectionProbe::ALL_SIDES_PER_FRAME );
+		const std::pair<Tr2EffectPtr, const char*> effects[] = {
+			{ reflectionProbe->GetPreFilterEffect(), "reflection prefilter" },
+			{ reflectionProbe->GetFilterEffect(), "reflection main filter" },
+			{ reflectionProbe->GetCopyMipEffect(), "reflection cube copy" },
+		};
+		for( const auto& effect : effects )
+		{
+			if( !effect.first || !PrepareEffectResourcesWithoutYield( *effect.first, effect.second, error ) )
+			{
+				if( error.empty() )
+				{
+					error = std::string( effect.second ) + " effect is unavailable";
+				}
+				return false;
+			}
+		}
+		if( reflectionProbe->GetReflectionWidth() != 256 ||
+			reflectionProbe->GetReflectionHeight() != 256 ||
+			reflectionProbe->GetReflectionMipCount() != 8 )
+		{
+			std::ostringstream message;
+			message << "Dynamic reflection target has invalid dimensions "
+					<< reflectionProbe->GetReflectionWidth() << "x"
+					<< reflectionProbe->GetReflectionHeight() << " mips="
+					<< reflectionProbe->GetReflectionMipCount();
+			error = message.str();
+			return false;
+		}
+		std::fprintf(
+			stderr,
+			"EVE reflection source ready: mode=dynamic quality=ultra frequency=all-sides-per-frame "
+			"cube=%ux%u mips=%u\n",
+			reflectionProbe->GetReflectionWidth(),
+			reflectionProbe->GetReflectionHeight(),
+			reflectionProbe->GetReflectionMipCount() );
+		return true;
+	}
+
+	scene.SetReflectionSetting( EntityComponents::REFLECTION_SETTING_OFF );
+	scene.SetReflectionProbe( nullptr );
+	std::string environmentPath = scene.GetLightingSetup().environmentMapPath;
+	if( reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF )
+	{
+		environmentPath = "res:/dx9/scene/cinematic/black_cube_refl.dds";
+		scene.SetEnvironmentMapResourcePath( environmentPath );
+	}
+	if( environmentPath.empty() )
+	{
+		error = std::string( ReflectionSourceName( reflectionSource ) ) + " reflection source has no environment cube";
+		return false;
+	}
+	if( !PrepareTextureResourceWithoutYield(
+			environmentPath,
+			reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF ? "disabled reflection cube" : "authored reflection cube",
+			error ) )
+	{
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"EVE reflection source ready: mode=%s quality=off path=%s\n",
+		ReflectionSourceName( reflectionSource ),
+		environmentPath.c_str() );
+	return true;
+}
+
 bool PrepareManagedEffectWithoutYield(
 	const char* logicalPath,
 	const char* role,
@@ -2718,7 +3540,8 @@ bool PrepareSceneBackgroundWithoutYield( EveSpaceScene& scene, const char* scene
 		stderr,
 		"EVE scene lighting: scene=%s background=%s sunDirection=(%.4f, %.4f, %.4f) "
 		"sunColor=(%.4f, %.4f, %.4f) ambient=(%.4f, %.4f, %.4f) nebula=%.4f "
-		"reflection=%.4f envRotation=(%.4f, %.4f, %.4f, %.4f) env=%s env1=%s env2=%s sh=%s\n",
+		"reflection=%.4f backgroundReflection=%.4f diffuseRoughness=%.4f backlightContrast=%.4f "
+		"dynamicObjectReflection=%s envRotation=(%.4f, %.4f, %.4f, %.4f) env=%s env1=%s env2=%s sh=%s\n",
 		scenePath,
 		lighting.backgroundRenderingEnabled ? "enabled" : "disabled",
 		lighting.sunDirection.x,
@@ -2732,6 +3555,10 @@ bool PrepareSceneBackgroundWithoutYield( EveSpaceScene& scene, const char* scene
 		lighting.ambientColor.b,
 		lighting.nebulaIntensity,
 		lighting.reflectionIntensity,
+		lighting.backgroundReflectionIntensity,
+		lighting.defaultDiffuseRoughness,
+		lighting.reflectionBackLightingContrast,
+		lighting.dynamicObjectReflectionEnabled ? "enabled" : "disabled",
 		lighting.environmentMapRotation.x,
 		lighting.environmentMapRotation.y,
 		lighting.environmentMapRotation.z,
@@ -3581,7 +4408,7 @@ bool ConfigureShLighting(
 	int sceneFixture,
 	std::string& error )
 {
-	if( lightingView < STANDALONE_LIGHTING_COMBINED || lightingView > STANDALONE_LIGHTING_LOCAL )
+	if( lightingView < STANDALONE_LIGHTING_COMBINED || lightingView > STANDALONE_LIGHTING_ENVIRONMENT )
 	{
 		error = "Invalid standalone lighting view";
 		return false;
@@ -3592,18 +4419,22 @@ bool ConfigureShLighting(
 		return false;
 	}
 
-	if( lightingView == STANDALONE_LIGHTING_SH || lightingView == STANDALONE_LIGHTING_LOCAL )
+	if( lightingView == STANDALONE_LIGHTING_SH || lightingView == STANDALONE_LIGHTING_LOCAL ||
+		lightingView == STANDALONE_LIGHTING_ENVIRONMENT )
 	{
 		const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
 		probe.scene->SetSunLighting( lighting.sunDirection, Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-		std::fprintf( stderr, "Lighting isolation: %s only; direct scene sun color is zero\n", lightingView == STANDALONE_LIGHTING_SH ? "SH" : "local" );
+		const char* isolatedName = lightingView == STANDALONE_LIGHTING_SH ? "SH" :
+																			( lightingView == STANDALONE_LIGHTING_LOCAL ? "local" : "environment" );
+		std::fprintf( stderr, "Lighting isolation: %s only; direct scene sun color is zero\n", isolatedName );
 	}
 	else
 	{
-		std::fprintf( stderr, "Lighting isolation: %s\n", lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH" );
+		std::fprintf( stderr, "Lighting isolation: %s\n", lightingView == STANDALONE_LIGHTING_DIRECT ? "direct only" : "combined direct plus SH, local, and environment" );
 	}
 
-	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_LOCAL || shSource == STANDALONE_SH_SOURCE_NONE )
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_LOCAL ||
+		lightingView == STANDALONE_LIGHTING_ENVIRONMENT || shSource == STANDALONE_SH_SOURCE_NONE )
 	{
 		std::fprintf( stderr, "Trinity SH manager disabled for this comparison\n" );
 		return true;
@@ -3614,7 +4445,15 @@ bool ConfigureShLighting(
 		error = "Failed to create Tr2ShLightingManager";
 		return false;
 	}
+	probe.shLightingManager->SetPrimaryIntensity( 3.14f );
+	probe.shLightingManager->SetSecondaryIntensity( 3.14f );
 	probe.scene->SetShLightingManager( probe.shLightingManager );
+	std::fprintf(
+		stderr,
+		"Trinity SH manager: primaryIntensity=%.2f secondaryIntensity=%.2f source=%s\n",
+		probe.shLightingManager->GetPrimaryIntensity(),
+		probe.shLightingManager->GetSecondaryIntensity(),
+		shSource == STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS ? "new-eden-celestials" : "validation" );
 
 	auto addSecondarySource = [&]( const Vector3& position, float radius, const Color& albedo, const Color& emissive ) {
 		BluePtr<TrinityStandaloneSecondaryLight> source;
@@ -4151,11 +4990,13 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| Clip sphere and custom masks | Disabled/zero; custom-mask matrices identity | Neutral because clipping and PPT permutations are disabled. |\n";
 	output << "| Shape ellipsoid | `(-1, -1, -1, 0)` | Matches the unconfigured `EveSpaceObject2` sentinel. |\n";
 	output << "| Bone and morph offsets | Zero | Static bind-pose bridge; no runtime animation or morph targets. |\n";
-	output << "| SH coefficients | Scene manager or zero by isolation mode | RC-06 proves generation/upload; the selected opaque V5 passes do not consume the physical payload. |\n";
+	output << "| SH coefficients | Scene manager or zero by isolation mode | High-tier opaque V5 consumes all seven packed SH vectors; the client sets primary and secondary intensity to `3.14`. |\n";
+	output << "| Environment reflection | Authored static cube, ultra dynamic probe, or checksummed black control | High-tier opaque V5 samples the environment cube and reads reflection intensity from the packed ambient/reflection vector. Its selected permutation does not use authored ambient RGB as diffuse fill. |\n";
 	output << "| Tiled local lights | Authored, validation, or disabled by isolation mode | Real `Tr2LightManager` buffers and `ComputeLightLists`; "
 		   << ( hasLightBuffer && hasLightIndexBuffer ? "selected Metal V5 bindings present; visual A/B required for acceptance." : "selected Metal V5 bindings incomplete; opaque consumption unaccepted." )
 		   << " |\n";
 	output << "| Screen/custom/impact data | Zero | Neutral for the selected opaque permutations and absent impact/custom systems. |\n";
+	output << "\nThe selected client Metal payload requires an 1888-byte per-frame buffer and a 464-byte per-object pixel buffer. Both layouts are compile-time assertions in the standalone bridge.\n";
 
 	return materialsLoaded;
 }
@@ -4211,6 +5052,37 @@ bool PrepareRenderProductVisualizer( StandaloneProbe& probe )
 		return false;
 	}
 	std::fprintf( stderr, "EVE render-product visualization effect ready: Main=%u\n", technique );
+	return true;
+}
+
+bool PrepareReflectionProductVisualizer( StandaloneProbe& probe )
+{
+	if( probe.reflectionProductVisualizer )
+	{
+		return true;
+	}
+	probe.reflectionProductVisualizer.CreateInstance();
+	probe.reflectionProductVisualizer->StartUpdate();
+	probe.reflectionProductVisualizer->SetEffectPathName(
+		"res:/graphics/effect/managed/space/spaceobject/probe/reflectionproductvisualizer.fx" );
+	probe.reflectionProductVisualizer->SetParameter( BlueSharedString( "ReflectionMip" ), 0.0f );
+	probe.reflectionProductVisualizer->EndUpdate();
+	Tr2EffectRes* resource = probe.reflectionProductVisualizer->GetEffectRes();
+	if( resource )
+	{
+		resource->ForceSynchronousLoad();
+		resource->Reload();
+	}
+	Tr2Shader* shader = probe.reflectionProductVisualizer->GetShaderStateInterface();
+	uint32_t technique = 0;
+	if( !resource || !resource->IsGood() || !shader ||
+		!shader->GetTechniqueIndex( BlueSharedString( "Main" ), technique ) )
+	{
+		std::fprintf( stderr, "EVE reflection-product visualization effect is unavailable\n" );
+		probe.reflectionProductVisualizer.Unlock();
+		return false;
+	}
+	std::fprintf( stderr, "EVE reflection-product visualization effect ready: Main=%u layout=3x2\n", technique );
 	return true;
 }
 
@@ -4286,7 +5158,9 @@ bool ReadVisualizedRenderProduct(
 
 	const bool requireVariation = captureProduct == STANDALONE_CAPTURE_SHADOW ||
 		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
-		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL;
+		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL ||
+		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
+		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
 		stderr,
 		"EVE render-product readback: output=%ux%u range=[%u,%u]\n",
@@ -4296,7 +5170,7 @@ bool ReadVisualizedRenderProduct(
 		maximum );
 	if( requireVariation && minimum == maximum )
 	{
-		std::fprintf( stderr, "Enabled EVE render product is uniform and cannot satisfy RC-08\n" );
+		std::fprintf( stderr, "Enabled EVE render product is uniform and cannot satisfy its runtime contract\n" );
 		probe.capturedProductPixels.clear();
 		return false;
 	}
@@ -4362,12 +5236,17 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		Tr2ProfileTimer rootTimer;
 		driver.Execute( destinationSpan, outputSpan, realTime, simTime, rootTimer, renderContext );
 
-		const char* selectedName = captureProducts == STANDALONE_CAPTURE_DEPTH ? "DepthMap" :
-			( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" :
-				( captureProducts == STANDALONE_CAPTURE_SHADOW ? "ShadowMap" :
-					( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? "CascadedShadowDepth" :
-						( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ?
-							"SSAOMap" : nullptr ) ) ) );
+		const bool colorProduct = captureProducts == STANDALONE_CAPTURE_COLOR;
+		const bool reflectionProduct = captureProducts == STANDALONE_CAPTURE_REFLECTION;
+		const char* selectedName = colorProduct ? "Color" :
+												  ( reflectionProduct ? "ReflectionCube" :
+																		( captureProducts == STANDALONE_CAPTURE_DEPTH ? "DepthMap" :
+																														( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" :
+																																										 ( captureProducts == STANDALONE_CAPTURE_SHADOW ? "ShadowMap" :
+																																																						  ( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? "CascadedShadowDepth" :
+																																																																				 ( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ?
+																																																																					   "SSAOMap" :
+																																																																					   nullptr ) ) ) ) ) );
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -4378,12 +5257,27 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				renderContextOpen = ok;
 			}
 			const Tr2TextureAL* selectedTexture = nullptr;
-			for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+			if( colorProduct )
 			{
-				if( outputStorage[outputIndex].name == BlueSharedString( selectedName ) && outputStorage[outputIndex].texture.IsValid() )
+				selectedTexture = &destination;
+			}
+			else if( reflectionProduct )
+			{
+				ITr2TextureProviderPtr environment = probe.scene->GetResolvedEnvironmentMap();
+				if( environment )
 				{
-					selectedTexture = &outputStorage[outputIndex].texture.Get();
-					break;
+					selectedTexture = environment->GetTexture();
+				}
+			}
+			else
+			{
+				for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+				{
+					if( outputStorage[outputIndex].name == BlueSharedString( selectedName ) && outputStorage[outputIndex].texture.IsValid() )
+					{
+						selectedTexture = &outputStorage[outputIndex].texture.Get();
+						break;
+					}
 				}
 			}
 			if( !selectedTexture )
@@ -4393,6 +5287,20 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			}
 			else
 			{
+				if( reflectionProduct &&
+					( selectedTexture->GetType() != Tr2RenderContextEnum::TEX_TYPE_CUBE ||
+					  selectedTexture->GetWidth() <= 1 || selectedTexture->GetHeight() <= 1 ||
+					  selectedTexture->GetMipCount() == 0 ) )
+				{
+					std::fprintf(
+						stderr,
+						"Reflection cube is invalid: type=%d dimensions=%ux%u mips=%u\n",
+						static_cast<int>( selectedTexture->GetType() ),
+						selectedTexture->GetWidth(),
+						selectedTexture->GetHeight(),
+						selectedTexture->GetMipCount() );
+					ok = false;
+				}
 				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
 					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL;
 				if( fullResolutionProduct &&
@@ -4418,20 +5326,30 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						selectedTexture->GetHeight() );
 					ok = false;
 				}
-				if( ok && PrepareRenderProductVisualizer( probe ) &&
+				const bool visualizerReady = reflectionProduct ?
+					PrepareReflectionProductVisualizer( probe ) :
+					PrepareRenderProductVisualizer( probe );
+				Tr2EffectPtr visualizer = reflectionProduct ?
+					probe.reflectionProductVisualizer :
+					probe.renderProductVisualizer;
+				if( ok && visualizerReady &&
 					EnsureRenderProductReadback( probe, renderContext ) )
 				{
-					const float visualizationMode = captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
-						( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
-							( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-								( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? 4.0f :
-									( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) );
-					probe.renderProductVisualizer->SetParameter(
-						BlueSharedString( "RenderProductMode" ),
-						visualizationMode );
-					probe.renderProductVisualizer->SetParameter(
-						BlueSharedString( "AoUsesAlpha" ),
-						probe.aoMethod == STANDALONE_AO_CORTAO ? 1.0f : 0.0f );
+					if( !reflectionProduct )
+					{
+						const float visualizationMode = colorProduct ? 2.0f :
+																	   ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+																													   ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+																																										( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+																																																						 ( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? 4.0f :
+																																																																				( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+						probe.renderProductVisualizer->SetParameter(
+							BlueSharedString( "RenderProductMode" ),
+							visualizationMode );
+						probe.renderProductVisualizer->SetParameter(
+							BlueSharedString( "AoUsesAlpha" ),
+							probe.aoMethod == STANDALONE_AO_CORTAO ? 1.0f : 0.0f );
+					}
 					renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
 					renderContext.m_esm.SetRenderTarget( 0, probe.renderProductReadback );
 					renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
@@ -4440,15 +5358,20 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					renderContext.m_esm.SetDepthStencilBuffer( {} );
 					renderContext.m_esm.SetFullScreenViewport();
 					ok = CheckHresult(
-						renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0xff000000, 1.0f ),
-						"Clear render-product readback target" ) && ok;
+							 renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0xff000000, 1.0f ),
+							 "Clear render-product readback target" ) &&
+						ok;
 					renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
-					ok = Tr2Renderer::DrawTexture( renderContext, probe.renderProductVisualizer, *selectedTexture ) && ok;
+					ok = Tr2Renderer::DrawTexture( renderContext, visualizer, *selectedTexture ) && ok;
 					ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End render-product readback" ) && ok;
 					renderContextOpen = false;
 					if( ok )
 					{
 						ok = ReadVisualizedRenderProduct( probe, captureProducts, renderContext );
+						if( ok && reflectionProduct && probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC )
+						{
+							probe.reportedReflectionStatus = true;
+						}
 					}
 					if( ok )
 					{
@@ -4466,9 +5389,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						renderContext.m_esm.SetFullScreenViewport();
 						renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 						ok = Tr2Renderer::DrawTexture(
-							renderContext,
-							probe.renderProductVisualizer,
-							*selectedTexture ) &&
+								 renderContext,
+								 visualizer,
+								 *selectedTexture ) &&
 							ok;
 					}
 				}
@@ -4480,6 +5403,68 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				{
 					std::fprintf( stderr, "Failed to visualize EVE render product '%s'\n", selectedName );
 				}
+			}
+		}
+		const bool validateDynamicReflection =
+			( captureProducts == 0 || captureProducts == STANDALONE_CAPTURE_COLOR ) &&
+			probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC &&
+			!probe.reportedReflectionStatus && probe.renderedFrameCount >= 1;
+		if( ok && renderContextOpen && validateDynamicReflection )
+		{
+			Tr2ReflectionProbePtr reflectionProbe = probe.scene->GetReflectionProbe();
+			ITr2TextureProviderPtr environment = probe.scene->GetResolvedEnvironmentMap();
+			Tr2TextureAL* reflectionTexture = environment ? environment->GetTexture() : nullptr;
+			if( !reflectionProbe || !reflectionProbe->LastFilterSucceeded() || !reflectionProbe->HasData() ||
+				!reflectionTexture || !reflectionTexture->IsValid() ||
+				reflectionTexture->GetType() != Tr2RenderContextEnum::TEX_TYPE_CUBE ||
+				reflectionTexture->GetWidth() <= 1 || reflectionTexture->GetHeight() <= 1 ||
+				reflectionTexture->GetMipCount() <= 1 )
+			{
+				std::fprintf(
+					stderr,
+					"Dynamic reflection contract failed after two warm-up frames: filter=%s data=%s texture=%s\n",
+					reflectionProbe && reflectionProbe->LastFilterSucceeded() ? "success" : "failed",
+					reflectionProbe && reflectionProbe->HasData() ? "yes" : "no",
+					reflectionTexture && reflectionTexture->IsValid() ? "valid" : "invalid" );
+				ok = false;
+			}
+			if( ok && PrepareReflectionProductVisualizer( probe ) &&
+				EnsureRenderProductReadback( probe, renderContext ) )
+			{
+				renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+				renderContext.m_esm.SetRenderTarget( 0, probe.renderProductReadback );
+				renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+				renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+				renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+				renderContext.m_esm.SetDepthStencilBuffer( {} );
+				renderContext.m_esm.SetFullScreenViewport();
+				renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
+				ok = Tr2Renderer::DrawTexture(
+					renderContext,
+					probe.reflectionProductVisualizer,
+					*reflectionTexture );
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End dynamic reflection validation" ) && ok;
+				renderContextOpen = false;
+				if( ok )
+				{
+					ok = ReadVisualizedRenderProduct( probe, STANDALONE_CAPTURE_REFLECTION, renderContext );
+				}
+				if( ok )
+				{
+					std::fprintf(
+						stderr,
+						"Dynamic reflection contract accepted: format=%d cube=%ux%u mips=%u filter=success nonuniform=yes\n",
+						static_cast<int>( reflectionTexture->GetFormat() ),
+						reflectionTexture->GetWidth(),
+						reflectionTexture->GetHeight(),
+						reflectionTexture->GetMipCount() );
+					probe.reportedReflectionStatus = true;
+					probe.capturedProductPixels.clear();
+				}
+			}
+			else if( ok )
+			{
+				ok = false;
 			}
 		}
 		if( renderContextOpen )
@@ -4520,8 +5505,13 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int shadows, int ambientOcclusion, int aoMethod )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
+	if( !std::isfinite( modelYawDegrees ) )
+	{
+		CCP_LOGERR( "Invalid standalone model yaw" );
+		return false;
+	}
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
 		CCP_LOGERR( "Invalid standalone local-light mode" );
@@ -4532,9 +5522,20 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone reflection-correction mode" );
 		return false;
 	}
+	if( reflectionSource < STANDALONE_REFLECTION_SOURCE_OFF || reflectionSource > STANDALONE_REFLECTION_SOURCE_DYNAMIC )
+	{
+		CCP_LOGERR( "Invalid standalone reflection-source mode" );
+		return false;
+	}
 	if( normalMapMode < STANDALONE_NORMAL_MAP_AUTHORED || normalMapMode > STANDALONE_NORMAL_MAP_FLAT )
 	{
 		CCP_LOGERR( "Invalid standalone normal-map mode" );
+		return false;
+	}
+	if( decals < STANDALONE_DECALS_OFF || decals > STANDALONE_DECALS_AUTHORED ||
+		decalView < STANDALONE_DECAL_VIEW_ALL || decalView > STANDALONE_DECAL_VIEW_KILLMARKS )
+	{
+		CCP_LOGERR( "Invalid standalone decal mode or view" );
 		return false;
 	}
 	if( shadows < STANDALONE_SHADOWS_OFF || shadows > STANDALONE_SHADOWS_HIGH ||
@@ -4627,10 +5628,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			}
 		}
 		else if( !PrepareManagedEffectWithoutYield(
-				 "res:/graphics/effect/managed/space/system/SSAO/SSAO.fx",
-				 "FidelityFX CACAO",
-				 {},
-				 qualityResourceError ) )
+					 "res:/graphics/effect/managed/space/system/SSAO/SSAO.fx",
+					 "FidelityFX CACAO",
+					 {},
+					 qualityResourceError ) )
 		{
 			std::fprintf( stderr, "Failed to prepare CACAO: %s\n", qualityResourceError.c_str() );
 			return false;
@@ -4677,9 +5678,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			SunEffectsName( sunEffects ) );
 	}
 	probe.cameraView = cameraView;
-	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH )
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH ||
+		lightingView == STANDALONE_LIGHTING_ENVIRONMENT )
 	{
 		localLights = STANDALONE_LOCAL_LIGHTS_OFF;
+	}
+	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH ||
+		lightingView == STANDALONE_LIGHTING_LOCAL )
+	{
+		reflectionSource = STANDALONE_REFLECTION_SOURCE_OFF;
 	}
 	probe.localLights = localLights;
 	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
@@ -4940,6 +5947,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to create EveSpaceScene" );
 		return false;
 	}
+	std::string reflectionError;
+	if( !ConfigureReflectionSourceWithoutYield( probe, *probe.scene, reflectionSource, reflectionError ) )
+	{
+		std::fprintf(
+			stderr,
+			"Failed to configure %s EVE reflection source: %s\n",
+			ReflectionSourceName( reflectionSource ),
+			reflectionError.c_str() );
+		return false;
+	}
 	if( !probe.scene->Initialize() )
 	{
 		CCP_LOGERR( "Failed to initialize EveSpaceScene" );
@@ -5011,26 +6028,30 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.postProcessBlitOnly = qualityRung == STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.enableDistortion = false;
 	settings.shadowQuality = shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
-		( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED );
+																  ( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED );
 	settings.antiAliasingQuality = EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled;
 	settings.aoQuality = ambientOcclusion == STANDALONE_AO_HIGH ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High :
-		( ambientOcclusion == STANDALONE_AO_MEDIUM ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Medium :
-			( ambientOcclusion == STANDALONE_AO_LOW ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Low :
-				EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Disabled ) );
+																  ( ambientOcclusion == STANDALONE_AO_MEDIUM ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Medium :
+																											   ( ambientOcclusion == STANDALONE_AO_LOW ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Low :
+																																						 EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Disabled ) );
 	settings.volumetricQuality = Tr2VolumerticQuality::Low;
 	settings.postProcessingQuality = qualityRung >= STANDALONE_PROBE_RUNG_HDR_POST ? PostProcess::HIGH : PostProcess::LOW;
 	settings.forceNormalMap = qualityRung >= STANDALONE_PROBE_RUNG_MODEL;
-	settings.forceOpaqueBuffer = false;
+	settings.forceOpaqueBuffer = true;
 	settings.forceVelocityMap = false;
 	std::fprintf(
 		stderr,
-		"EVE RC-08 quality: shadows=%s denoiser=%s ao=%s method=%s bentNormals=%s\n",
+		"EVE RC-08A quality: shadows=%s denoiser=%s ao=%s method=%s bentNormals=%s "
+		"reflection=%s forceOpaqueBuffer=true v5PerFrame=%zu v5PerObject=%zu\n",
 		shadows == STANDALONE_SHADOWS_HIGH ? "high" : ( shadows == STANDALONE_SHADOWS_LOW ? "low" : "off" ),
 		shadows == STANDALONE_SHADOWS_HIGH ? "enabled" : "disabled",
 		ambientOcclusion == STANDALONE_AO_HIGH ? "high" :
-			( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
+												 ( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
 		aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "cacao",
-		ambientOcclusion != STANDALONE_AO_OFF && aoMethod == STANDALONE_AO_CORTAO ? "enabled" : "disabled" );
+		ambientOcclusion != STANDALONE_AO_OFF && aoMethod == STANDALONE_AO_CORTAO ? "enabled" : "disabled",
+		ReflectionSourceName( reflectionSource ),
+		sizeof( EveSpaceScene::PerFramePSData ),
+		sizeof( EveSpaceObjectPSData ) );
 	if( materialMode != 0 )
 	{
 		std::fprintf( stderr, "EVE distortion compositor disabled: Astero group 0 is validated but not submitted until RC-12\n" );
@@ -5044,8 +6065,9 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL )
 	{
 		std::string loadError;
+		probe.renderable->SetModelYawDegrees( modelYawDegrees );
 		probe.renderable->SetShadowCastingEnabled( shadows != STANDALONE_SHADOWS_OFF );
-		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 )
+		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 || decals == STANDALONE_DECALS_AUTHORED )
 		{
 			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
 				"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
@@ -5061,15 +6083,27 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
 				return false;
 			}
-			if( attachments == 2 )
+			EveSOFDataGenericPtr generic;
+			if( attachments == 2 || decals == STANDALONE_DECALS_AUTHORED )
 			{
-				auto generic = LoadBlackObjectWithoutYield<EveSOFDataGeneric>(
+				generic = LoadBlackObjectWithoutYield<EveSOFDataGeneric>(
 					"res:/dx9/model/spaceobjectfactory/generic.black", loadError );
-				if( !generic || !probe.renderable->ConfigureAttachments( attachments, attachmentView, *hull, *faction, *generic, loadError ) )
+				if( !generic )
 				{
-					std::fprintf( stderr, "Failed to configure Astero visible attachments: %s\n", loadError.c_str() );
+					std::fprintf( stderr, "Failed to load Astero generic SOF descriptor: %s\n", loadError.c_str() );
 					return false;
 				}
+			}
+			if( attachments == 2 && !probe.renderable->ConfigureAttachments( attachments, attachmentView, *hull, *faction, *generic, loadError ) )
+			{
+				std::fprintf( stderr, "Failed to configure Astero visible attachments: %s\n", loadError.c_str() );
+				return false;
+			}
+			if( decals == STANDALONE_DECALS_AUTHORED &&
+				!probe.renderable->ConfigureDecals( decals, decalView, killCount, *hull, *faction, *generic, loadError ) )
+			{
+				std::fprintf( stderr, "Failed to configure Astero indexed decals: %s\n", loadError.c_str() );
+				return false;
 			}
 		}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
@@ -5237,6 +6271,44 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetReflectionDiagnostics(
+	void* opaqueProbe,
+	int* source,
+	uint32_t* format,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* mipCount,
+	bool* hasData,
+	bool* filterSucceeded,
+	float* reflectionIntensity,
+	float* shPrimaryIntensity,
+	float* shSecondaryIntensity )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || !source || !format || !width || !height || !mipCount ||
+		!hasData || !filterSucceeded || !reflectionIntensity || !shPrimaryIntensity || !shSecondaryIntensity )
+	{
+		return false;
+	}
+	ITr2TextureProviderPtr environment = probe->scene->GetResolvedEnvironmentMap();
+	Tr2TextureAL* texture = environment ? environment->GetTexture() : nullptr;
+	Tr2ReflectionProbePtr reflectionProbe = probe->scene->GetReflectionProbe();
+	*source = probe->reflectionSource;
+	*format = texture && texture->IsValid() ? static_cast<uint32_t>( texture->GetFormat() ) : 0;
+	*width = texture && texture->IsValid() ? texture->GetWidth() : 0;
+	*height = texture && texture->IsValid() ? texture->GetHeight() : 0;
+	*mipCount = texture && texture->IsValid() ? texture->GetMipCount() : 0;
+	*hasData = probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC ?
+		( reflectionProbe && reflectionProbe->HasData() ) :
+		texture && texture->IsValid();
+	*filterSucceeded = probe->reflectionSource != STANDALONE_REFLECTION_SOURCE_DYNAMIC ||
+		( reflectionProbe && reflectionProbe->LastFilterSucceeded() );
+	*reflectionIntensity = probe->scene->GetLightingSetup().reflectionIntensity;
+	*shPrimaryIntensity = probe->shLightingManager ? probe->shLightingManager->GetPrimaryIntensity() : 0.0f;
+	*shSecondaryIntensity = probe->shLightingManager ? probe->shLightingManager->GetSecondaryIntensity() : 0.0f;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -5248,14 +6320,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int shadows, int ambientOcclusion, int aoMethod )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, shadows, ambientOcclusion, aoMethod );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionSource, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
@@ -5270,7 +6342,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
 		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL &&
 		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
-		captureProduct != STANDALONE_CAPTURE_AO && captureProduct != STANDALONE_CAPTURE_BENT_NORMAL )
+		captureProduct != STANDALONE_CAPTURE_AO && captureProduct != STANDALONE_CAPTURE_BENT_NORMAL &&
+		captureProduct != STANDALONE_CAPTURE_REFLECTION )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;

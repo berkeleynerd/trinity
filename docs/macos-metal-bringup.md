@@ -20,7 +20,7 @@ The following paths build and run on this host:
 | Standalone CMF renderer | `TrinityALAnimatedModel_metal` | Renders the synthetic box and the animated Khronos Fox through TrinityAL. |
 | EVE driver shell | `TrinityALEveSceneProbe_metal --quality-rung shell` | Creates a Trinity device and clears/presents through the low-level context. |
 | EVE scene fixture | `TrinityALEveSceneProbe_metal --quality-rung scene` | Runs the real driver with the New Eden specialization of the authored A01 universe by default; `--scene-fixture empty` preserves the empty control. |
-| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections, submits independent authored hull and booster batches, and renders active SOF attachments. The high client shader tier consumes Trinity SH and tiled local lights; distortion and indexed decals remain deferred. |
+| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections, submits independent authored hull and booster batches, and renders active SOF attachments and indexed decals. The high client shader tier consumes Trinity SH and tiled local lights; distortion remains deferred. |
 | EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Capability checkpoint: renders through the driver's FP16 target, resolves, executes the extracted client Metal tone-mapping container, and presents through client `Blit`. The scene composition is incomplete. |
 | EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Capability checkpoint: executes client histogram, histogram-merge, exposure-measure, and Uncharted 2 tone passes. It is not a fidelity milestone until a representative in-space background and lighting composition feed the histogram. |
 
@@ -1095,8 +1095,8 @@ from off. A 540-frame orbit, local-light off/authored A/B, named depth/normal
 products, and 180-frame `hdr-post`/`hdr-exposure` runs return zero. The generated
 `Reports/AsteroAttachmentResources.json` records absolute SharedCache paths,
 sizes, SHA-256 values, and logical destinations for the external resources.
-Indexed decals, attachment shadows, boosters, trails, damage FX, and distortion
-remain separate units.
+Attachment shadows, boosters, trails, damage FX, and distortion remain separate
+units. Indexed decals are accepted separately under RC-05C.
 
 The first integrated HDR run exposed a bridge error rather than a shader bug:
 haze and banner batches were forwarded with null per-object data, causing Metal's
@@ -1129,13 +1129,10 @@ inputs. Isolated AO, bent-normal, screen-shadow, and cascade-atlas products are
 nonuniform. The CACAO fallback runs, while CORTAO remains the fidelity path. A
 540-frame `hdr-post` orbit and 180-frame `hdr-exposure` regression return zero.
 
-RC-08 remains partial. The directional mask follows plausible loop-to-hull
-occlusion, but fully shadowed V5 regions become nearly black in low and high
-quality. The caster transform, atlas, and denoiser controls are coherent; the
-remaining gap is the object-lighting contract exposed when direct sun is
-removed. The probe does not hide it with synthetic ambient light. CP-18 accepts
-the machinery, while RC-08 waits for readable indirect fill. Authored
-local-light shadows are tracked separately as RC-08B.
+The initial combined result remained partial: fully sun-shadowed V5 regions
+became nearly black even though the caster transform, atlas, denoiser, and AO
+products were coherent. This was retained as the RC-08A indirect-light blocker
+rather than hidden with `ShadowLightness` or synthetic ambient.
 
 The first interactive RC-08 launch exposed two additional probe-contract
 problems. It still defaulted to exact `system` composition, where the New Eden
@@ -1159,6 +1156,84 @@ eclipse shadows. Directional Astero self-shadowing remains enabled and
 nonuniform; exact-system mode retains native planet eclipsing. A 360-frame
 HDR/CORTAO run crosses into the authored-scale camera orbit with status 0.
 
+### V5 indirect fill and reflection probes (RC-08A)
+
+The installed client configures `Tr2ReflectionProbe` at ultra quality, renders
+all six faces per frame, sets `forceOpaqueBuffer=true`, and applies `3.14` to
+both SH intensity controls. This checkout already replaced A01's serialized
+reflection cube with a dynamic probe, but the three filtering effect containers
+were absent from the staged resource graph. `EndRenderPass` then marked the
+probe populated without checking face copies, prefiltering, mip generation,
+main filtering, or the final cube copy. A valid but black environment provider
+therefore reached V5.
+
+`TrinityEveSceneProbeV5IndirectAssets` now stages the client Metal variants for
+`reflectionfilteractivisionpre`, `reflectionfilteractivision128`, and
+`copycube`, plus `black_cube_refl.dds`. Its 18-entry
+`Reports/AsteroV5IndirectResources.json` records absolute SharedCache sources,
+sizes, SHA-256 values, and staged destinations; A01 reflection, correction, and
+V5 effects are checksummed inherited inputs. No payload enters source control.
+
+The probe now makes every filtering failure observable and exposes data only
+after all stages succeed. `--reflection-source auto|off|static|dynamic` selects
+the client-style source without fallback, while `--lighting-view environment`
+isolates cube response. A sample-owned `--render-product reflection` visualizes
+the six HDR faces in a 3x2 mosaic and rejects a uniform dynamic result after two
+warm-up frames. The accepted cube is 256x256 with eight mips and contains the
+New Eden nebula, sun, and planet.
+
+Off, static, and dynamic 180-frame environment-only captures have distinct
+hashes. Off leaves the Astero near-black; static restores authored A01 response;
+dynamic preserves readable, nonuniform shadow-side material detail. A
+540-frame integrated `hdr-post` orbit, 180-frame `hdr-exposure` run, and an
+all-products capture return zero. The latter retains three accepted shadow
+cascades, six V5 shadow batches, and nonuniform depth, normal, shadow, atlas,
+CORTAO, and bent-normal products. RC-08 and CP-19 are therefore accepted;
+authored local-light shadows remain RC-08B.
+
+Client Metal inspection also corrects an earlier compatibility-report claim.
+The high-tier opaque V5 permutation consumes all seven packed SH vectors and
+the environment cube. Its 1888-byte per-frame block packs authored ambient RGB
+beside reflection intensity, but this selected permutation does not use that RGB
+as diffuse fill. The per-object pixel block is 464 bytes; both sizes are now
+compile-time assertions.
+
+### Indexed SOF decals (RC-05C)
+
+The Astero bridge now implements `IEveSpaceObjectDecalOwner` and retains native
+`EveSpaceObjectDecal` instances in authored set/item order. Only the active
+`primary` and `soe` visibility groups are selected: six standard markings use
+14 LOD0 triangles, four faction logos use 12, and the kill counter uses two.
+Eight sets and 32 items remain visibility-excluded. Standard and logo items use
+`decalv5`; the counter uses `decalcounterv5` with the authored glow color,
+transparency atlas, and caller-supplied kill count.
+
+The bridge loads `res:/Astero.cmf` through `TriGeometryRes`, freezes native
+decals to high detail, and supplies all seven authored index arrays. The GR2
+bridge preserves the exact 7,194-vertex source block and both killmark triples
+occur verbatim in hull group 1. Manual V5 hull vertices now remain in raw CMF
+space and use the same `Translation(-modelCenter) * objectRotation` transform
+as native decals. This removes the earlier normalized-vertex approximation and
+keeps coplanar depth behavior aligned with Trinity's object path.
+
+`--decals`, `--decal-view`, and `--kill-count` provide independent controls.
+The counter's negative-X placement is hidden in the default inspection view;
+the accepted killmark A/B uses `--model-yaw-degrees 270`, recorded in metadata.
+All three families produce distinct 180-frame captures. A 540-frame integrated
+`hdr-post` orbit and 180-frame `hdr-exposure` run pass with attachments, lights,
+dynamic reflections, high cascades/CORTAO, planet layers, and sun effects.
+Decal-on changes only color: depth, normal, reflection, shadow, cascade atlas,
+AO, and bent-normal captures remain byte-identical. Long capture names now use
+a deterministic compact fallback to stay within the macOS filename limit.
+
+`Reports/AsteroDecalResources.json` records 37 checksummed external inputs:
+six Metal containers, 22 decal/default textures, and nine inherited Black,
+GR2, and hull-map resources. RC-05C and CP-20 are accepted; RC-08B is next.
+The final full-screen integrated launch resolved six authored local lights,
+three directional-shadow cascades, all 11 decal batches, and a nonuniform ultra
+reflection cube; interactive visual inspection passed and the window closed
+with status 0.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1177,16 +1252,17 @@ make those prerequisites explicit.
 | 3C | Representative in-space scene, background, and visible celestials | Accepted | A01 renders through `EveSpaceScene`; New Eden adds seeded stars, authored sun/planet layers, `SunFlares`, native lens-flare occlusion, and god rays with separate manifests and captures. |
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
 | 3E | Visible SOF attachments | Accepted | Native sprite, spotlight, plane, haze, and banner paths render the exact active inventory with independent family/light controls and stable orbit/HDR captures. |
+| 3F | Indexed SOF decals | Accepted | Native standard, SoE logo, and kill-counter overlays preserve authored ordering, transforms, materials, and LOD0 indices without changing depth, normal, shadow, reflection, or AO products. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
-| 4B | Shadows and AO | Partial | Native cascades, denoising, CORTAO, and named diagnostics pass; composed shadows still require readable V5 indirect fill. |
-| 4C | Complete HDR scene composition | Missing | Model, background, lighting, and generated products coexist without regression. |
+| 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
+| 4C | Complete HDR scene composition | Missing | Authored local-light shadows remain before final composition acceptance. |
 | 5 | Exposure and tone mapping | Machinery accepted, fidelity blocked | Re-run `hdr-exposure` against accepted rung 4C and compare settled captures. |
 | 6 | Bloom, film grain, distortion, and volumetrics | Blocked | Add one effect at a time only after rung 5 fidelity acceptance. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
 
 `hdr-post` and `hdr-exposure` remain useful executable checkpoints. They prove
 effect loading, FP16 targets, compute dispatch, tone mapping, and presentation;
-they do not accept RC-08 or complete HDR composition by themselves. Missing
+they do not accept complete RC-09 HDR composition by themselves. Missing
 runtime assets still return nonzero rather than silently falling back.
 
 Detailed task dependencies and artifact evidence live in
@@ -1291,11 +1367,25 @@ The following checks passed on the host snapshot above:
 - nonuniform screen-shadow, 16384x4096 cascade-atlas, CORTAO AO, and bent-normal
   diagnostics through direct RGBA readback, plus a clean CACAO smoke control;
 - 540-frame combined `hdr-post` and 180-frame `hdr-exposure` shadow/AO runs with
-  status 0; visual acceptance remains partial because direct-shadow regions
-  expose insufficient indirect fill;
+  status 0 and readable indirect material detail from the ultra dynamic probe;
+- checksummed staging of 18 RC-08A inputs, including all nine reflection-filter
+  Metal containers and the black diagnostic cube, with absolute SharedCache
+  sources in `AsteroV5IndirectResources.json`;
+- distinct 180-frame reflection off/static/dynamic hull captures, a nonuniform
+  256x256 eight-mip six-face reflection product, and checked success for every
+  copy/filter stage;
+- an exact-system SH-only control reporting `physicalMax=0` at client
+  intensities `3.14/3.14`, plus 1888-byte per-frame and 464-byte per-object V5
+  layout assertions;
 - authored Astero world scale `16.66810036` with matched `86.67411804` camera
   radius, native shadow splits, nonuniform cinematic shadow output, visible sun
   and planet, and a clean 360-frame orbit transition;
+- checksummed staging of 37 RC-05C resources; exact active inventory of 11
+  decals and 28 LOD0 triangles; distinct standard, logo, and kill-counter
+  captures; and 11 committed native decal renderables;
+- a 540-frame integrated decal `hdr-post` orbit and 180-frame `hdr-exposure`
+  run with status 0, plus byte-identical decal-off/on depth, normal, reflection,
+  shadow, cascade-atlas, AO, and bent-normal products;
 - capture- and inspection-owned Cocoa objects drain before Trinity device
   destruction, and the ARC-managed window disables AppKit's legacy
   release-on-close behavior; finite, long-run, and inspection shutdowns are
@@ -1309,15 +1399,12 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Close the V5 ambient/indirect-light contract exposed by RC-08, retaining the
-   accepted shadow/AO diagnostics as regression controls.
-2. Reconstruct indexed SOF decal sets under RC-05C as a separate control.
-3. Add authored local-light shadows under RC-08B after directional composition
-   is accepted.
-4. Reaccept dynamic exposure and tone mapping against that composition.
-5. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
+1. Add authored local-light shadows under RC-08B while preserving the accepted
+   directional-shadow, CORTAO, and dynamic-reflection products.
+2. Accept complete HDR composition and reaccept dynamic exposure against it.
+3. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
-6. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

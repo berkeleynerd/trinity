@@ -28,6 +28,7 @@ const auto s_viewDirectionName = BlueSharedString( "ViewDirection" );
 Tr2ReflectionProbe::Tr2ReflectionProbe( IRoot* lockobj ) :
 	m_initialized( false ),
 	m_hasData( false ),
+	m_lastFilterSucceeded( false ),
 	m_position( 0, 0, 0 ),
 	m_intermediateSize( FILTER_SIZE * 4 ),
 	m_prevCullInversion( false ),
@@ -68,6 +69,11 @@ bool Tr2ReflectionProbe::IsValid()
 bool Tr2ReflectionProbe::HasData() const
 {
 	return m_hasData && m_postFilterTarget->IsValid();
+}
+
+bool Tr2ReflectionProbe::LastFilterSucceeded() const
+{
+	return m_lastFilterSucceeded;
 }
 
 TriFrustum Tr2ReflectionProbe::GetFrustum( unsigned face, Tr2RenderContext& renderContext )
@@ -176,12 +182,15 @@ void Tr2ReflectionProbe::StartRenderFace( unsigned face, Tr2RenderContext& rende
 
 void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext& renderContext )
 {
+	bool copiesSucceeded = true;
 	{
 		GPU_REGION( renderContext, "Reflection RT Copy" );
 
 		for( int i = GetStartFace(); i < GetEndFace(); i++ )
 		{
-			CR( m_renderTargetCube->GetRenderTarget().CopySubresourceRegion( Tr2TextureSubresource( i, 0 ), *m_renderTargets[i], Tr2TextureSubresource( 0, 0 ), renderContext ) );
+			const ALResult result = m_renderTargetCube->GetRenderTarget().CopySubresourceRegion( Tr2TextureSubresource( i, 0 ), *m_renderTargets[i], Tr2TextureSubresource( 0, 0 ), renderContext );
+			CR( result );
+			copiesSucceeded = copiesSucceeded && SUCCEEDED( result );
 		}
 	}
 
@@ -193,11 +202,11 @@ void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext& renderContext )
 	Tr2Renderer::PopViewTransform();
 	renderContext.m_esm.PopViewport();
 
-	Filter( renderContext );
-	m_hasData = true;
-	m_onePassDone = true;
+	m_lastFilterSucceeded = copiesSucceeded && Filter( renderContext );
+	m_hasData = m_lastFilterSucceeded;
+	m_onePassDone = m_lastFilterSucceeded;
 
-	if( m_renderFrequency != ALL_SIDES_PER_FRAME )
+	if( m_lastFilterSucceeded && m_renderFrequency != ALL_SIDES_PER_FRAME )
 	{
 		m_currentFrame = ( m_currentFrame + 1 ) % 6;
 	}
@@ -206,6 +215,46 @@ void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext& renderContext )
 Tr2RenderTargetPtr Tr2ReflectionProbe::GetReflection()
 {
 	return m_postFilterTarget;
+}
+
+Tr2EffectPtr Tr2ReflectionProbe::GetPreFilterEffect() const
+{
+	return m_preFilterEffect;
+}
+
+Tr2EffectPtr Tr2ReflectionProbe::GetFilterEffect() const
+{
+	return m_filterEffect;
+}
+
+Tr2EffectPtr Tr2ReflectionProbe::GetCopyMipEffect() const
+{
+	return m_copyMipEffect;
+}
+
+Tr2ReflectionProbe::ReflectionProbeRenderFrequency Tr2ReflectionProbe::GetRenderFrequency() const
+{
+	return m_renderFrequency;
+}
+
+void Tr2ReflectionProbe::SetRenderFrequency( ReflectionProbeRenderFrequency frequency )
+{
+	m_renderFrequency = frequency;
+}
+
+uint32_t Tr2ReflectionProbe::GetReflectionWidth() const
+{
+	return m_postFilterTarget && m_postFilterTarget->IsValid() ? m_postFilterTarget->GetWidth() : 0;
+}
+
+uint32_t Tr2ReflectionProbe::GetReflectionHeight() const
+{
+	return m_postFilterTarget && m_postFilterTarget->IsValid() ? m_postFilterTarget->GetHeight() : 0;
+}
+
+uint32_t Tr2ReflectionProbe::GetReflectionMipCount() const
+{
+	return m_postFilterTarget && m_postFilterTarget->IsValid() ? m_postFilterTarget->GetMipCount() : 0;
 }
 
 void Tr2ReflectionProbe::SetBackLightColor( Color color )
@@ -221,6 +270,8 @@ void Tr2ReflectionProbe::SetBackLightContrast( float contrast )
 void Tr2ReflectionProbe::ReleaseResources( TriStorage s )
 {
 	m_initialized = false;
+	m_hasData = false;
+	m_lastFilterSucceeded = false;
 }
 
 bool Tr2ReflectionProbe::OnPrepareResources()
@@ -340,14 +391,18 @@ void Tr2ReflectionProbe::DestroyRenderTargets()
 	m_preFilterTarget->Destroy();
 	m_postFilterTarget->Destroy();
 	m_initialized = false;
+	m_hasData = false;
+	m_lastFilterSucceeded = false;
 	m_onePassDone = false;
 	m_currentFrame = 0;
 }
 
-void Tr2ReflectionProbe::Filter( Tr2RenderContext& renderContext )
+bool Tr2ReflectionProbe::Filter( Tr2RenderContext& renderContext )
 {
 	if( !IsValid() )
-		return;
+	{
+		return false;
+	}
 
 	{
 		GPU_REGION( renderContext, "Reflection Pre Filter" );
@@ -363,29 +418,43 @@ void Tr2ReflectionProbe::Filter( Tr2RenderContext& renderContext )
 			m_copyMipEffect->SetParameter( s_viewDirectionName, Tr2Renderer::GetInverseViewTransform().GetZ() );
 		}
 
-		Tr2Renderer::RunComputeShader( m_preFilterEffect, FILTER_SIZE * 2 / 8, FILTER_SIZE * 2 / 8, 6, renderContext );
+		if( !Tr2Renderer::RunComputeShader( m_preFilterEffect, FILTER_SIZE * 2 / 8, FILTER_SIZE * 2 / 8, 6, renderContext ) )
+		{
+			return false;
+		}
 	}
 
 	{
 		GPU_REGION( renderContext, "Reflection Filter Mip Generation" );
-		m_preFilterTarget->GenerateMipMaps();
+		if( FAILED( m_preFilterTarget->GenerateMipMaps() ) )
+		{
+			return false;
+		}
 	}
 	{
 		GPU_REGION( renderContext, "Reflection Main Filter" );
-		Tr2Renderer::RunComputeShader( m_filterEffect, FILTER_GROUP_DIM, 6, 1, renderContext );
+		if( !Tr2Renderer::RunComputeShader( m_filterEffect, FILTER_GROUP_DIM, 6, 1, renderContext ) )
+		{
+			return false;
+		}
 	}
 	{
 		GPU_REGION( renderContext, "Copy Mip" );
-		Tr2Renderer::RunComputeShader( m_copyMipEffect, FILTER_SIZE * 2 / 8, FILTER_SIZE * 2 / 8, 6, renderContext );
+		if( !Tr2Renderer::RunComputeShader( m_copyMipEffect, FILTER_SIZE * 2 / 8, FILTER_SIZE * 2 / 8, 6, renderContext ) )
+		{
+			return false;
+		}
 	}
+	return true;
 }
 
 void Tr2ReflectionProbe::RunFilter()
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	DestroyRenderTargets();
-	DoPrepareResources( PIXEL_FORMAT_R16G16B16A16_FLOAT, renderContext );
-	Filter( renderContext );
+	m_lastFilterSucceeded = DoPrepareResources( PIXEL_FORMAT_R16G16B16A16_FLOAT, renderContext ) && Filter( renderContext );
+	m_hasData = m_lastFilterSucceeded;
+	m_onePassDone = m_lastFilterSucceeded;
 }
 
 bool Tr2ReflectionProbe::IsHollyWoodModeOn() const

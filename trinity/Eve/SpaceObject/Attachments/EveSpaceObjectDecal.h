@@ -158,6 +158,11 @@ public:
 
 	void SetPriority( uint32_t priority );
 
+	std::vector<uint32_t> GetDecalPrimitiveCounts() const;
+	uint32_t GetResolvedKillCount() const;
+	float GetResolvedVisibility() const;
+	uint32_t GetCommittedBatchCount() const;
+
 private:
 	// create
 	void CreateDecalIndexBuffers( TriGeometryResPtr geomRes, DecalMeshCache & meshCache );
@@ -167,8 +172,6 @@ private:
 
 	bool HasStaticIndexBuffers() const;
 	std::vector<std::vector<uint32_t>> GetStaticIndexBuffers() const;
-	std::vector<uint32_t> GetDecalPrimitiveCounts() const;
-
 	// name
 	std::string m_name;
 	// display
@@ -207,6 +210,7 @@ private:
 	TriBatchType m_batchType;
 
 	uint32_t m_priority;
+	uint32_t m_committedBatchCount;
 
 	unsigned int m_vertexDeclarationOverride;
 	ITr2InstanceData* m_instanceData;

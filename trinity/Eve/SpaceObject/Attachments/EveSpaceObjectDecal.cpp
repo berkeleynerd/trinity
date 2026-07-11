@@ -45,6 +45,7 @@ EveSpaceObjectDecal::EveSpaceObjectDecal( IRoot* lockobj ) :
 	m_instanceScreenSize( -1 ),
 	m_batchType( TRIBATCHTYPE_DECAL ),
 	m_priority( 0 ),
+	m_committedBatchCount( 0 ),
 	m_vertexDeclarationOverride( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_instanceData( nullptr ),
 	m_minBounds( 0, 0, 0 ),
@@ -327,6 +328,7 @@ void EveSpaceObjectDecal::GetBatches( ITriRenderBatchAccumulator* batches,
 		CCP_STATS_INC( decalDPCount );
 
 		batches->Commit( batch );
+		++m_committedBatchCount;
 	}
 }
 
@@ -953,6 +955,21 @@ std::vector<uint32_t> EveSpaceObjectDecal::GetDecalPrimitiveCounts() const
 		}
 	}
 	return counts;
+}
+
+uint32_t EveSpaceObjectDecal::GetResolvedKillCount() const
+{
+	return m_parentData.killCount;
+}
+
+float EveSpaceObjectDecal::GetResolvedVisibility() const
+{
+	return m_isVisible;
+}
+
+uint32_t EveSpaceObjectDecal::GetCommittedBatchCount() const
+{
+	return m_committedBatchCount;
 }
 
 void EveSpaceObjectDecal::SetBatchType( TriBatchType batchType )

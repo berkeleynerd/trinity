@@ -33,6 +33,7 @@ public:
 
 	bool IsValid();
 	bool HasData() const;
+	bool LastFilterSucceeded() const;
 	void InitRenderPass( Tr2RenderContext & renderContext );
 	void StartRenderFace( unsigned face, Tr2RenderContext& renderContext );
 	void EndRenderPass( Tr2RenderContext & renderContext );
@@ -41,6 +42,14 @@ public:
 	TriFrustum GetFrustum( unsigned face, Tr2RenderContext& renderContext );
 
 	Tr2RenderTargetPtr GetReflection();
+	Tr2EffectPtr GetPreFilterEffect() const;
+	Tr2EffectPtr GetFilterEffect() const;
+	Tr2EffectPtr GetCopyMipEffect() const;
+	ReflectionProbeRenderFrequency GetRenderFrequency() const;
+	void SetRenderFrequency( ReflectionProbeRenderFrequency frequency );
+	uint32_t GetReflectionWidth() const;
+	uint32_t GetReflectionHeight() const;
+	uint32_t GetReflectionMipCount() const;
 	void SetPosition( Vector3 position );
 
 	void SetBackLightColor( Color color );
@@ -62,12 +71,13 @@ public:
 
 private:
 	void RunFilter();
-	void Filter( Tr2RenderContext & renderContext );
+	bool Filter( Tr2RenderContext & renderContext );
 	bool DoPrepareResources( ImageIO::PixelFormat targetFormat, Tr2PrimaryRenderContext & renderContext );
 	void DestroyRenderTargets();
 
 	bool m_initialized;
 	bool m_hasData;
+	bool m_lastFilterSucceeded;
 	bool m_lockPosition;
 	Vector3 m_position;
 	int m_intermediateSize;
