@@ -64,6 +64,7 @@ public:
 		bool forceOpaqueBuffer = false;
 		bool forceNormalMap = false;
 		bool forceVelocityMap = false;
+		bool enableDirectionalShadows = true;
 		bool enableUpscaling = true;
 		bool bypassPostProcessing = false;
 		bool postProcessBlitOnly = false;
@@ -96,12 +97,12 @@ public:
 	{
 		return m_ssao;
 	}
-	void SetSSAO( Tr2SSAO* ssao )
+	void SetSSAO( Tr2SSAO * ssao )
 	{
 		m_ssao = ssao;
 	}
-	void SetView( TriView* view );
-	void SetProjection( TriProjection* projection );
+	void SetView( TriView * view );
+	void SetProjection( TriProjection * projection );
 	void SetReflectionCorrectionEnabled( bool enabled )
 	{
 		m_reflectionCorrectionEnabled = enabled;

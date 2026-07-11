@@ -36,6 +36,25 @@ extern "C" bool TrinityStandaloneProbeGetShadowDiagnostics( void* opaqueProbe,
 															uint32_t* casterTests,
 															uint32_t* acceptedCascades,
 															uint32_t* committedBatches );
+extern "C" bool TrinityStandaloneProbeGetLocalShadowDiagnostics( void* opaqueProbe,
+																 uint32_t* eligibleLights,
+																 uint32_t* selectedLights,
+																 uint32_t* droppedLights,
+																 uint32_t* packedEntries,
+																 uint32_t* hazeEligible,
+																 uint32_t* bannerEligible,
+																 uint32_t* validationEligible,
+																 uint32_t* pointLights,
+																 uint32_t* spotLights,
+																 uint32_t* facePasses,
+																 uint32_t* casterTests,
+																 uint32_t* acceptedCasterPasses,
+																 uint32_t* committedBatches,
+																 uint32_t* atlasFormat,
+																 uint32_t* atlasWidth,
+																 uint32_t* atlasHeight,
+																 bool* allocationSucceeded,
+																 bool* atlasValid );
 extern "C" bool TrinityStandaloneProbeGetReflectionDiagnostics( void* opaqueProbe,
 																int* source,
 																uint32_t* format,
@@ -59,6 +78,7 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int lightingView,
 													  int shSource,
 													  int localLights,
+													  int localShadows,
 													  int reflectionSource,
 													  int reflectionCorrection,
 													  int normalMapMode,
@@ -154,6 +174,14 @@ enum class LocalLights
 	Validation,
 };
 
+enum class LocalShadows
+{
+	Auto,
+	Off,
+	Authored,
+	Validation,
+};
+
 enum class Attachments
 {
 	Auto,
@@ -221,6 +249,7 @@ enum class RenderProduct
 	Normal,
 	Shadow,
 	ShadowAtlas,
+	LocalShadowAtlas,
 	AmbientOcclusion,
 	BentNormal,
 	Reflection,
@@ -288,7 +317,8 @@ constexpr int kCaptureShadowAtlas = 1 << 4;
 constexpr int kCaptureAmbientOcclusion = 1 << 5;
 constexpr int kCaptureBentNormal = 1 << 6;
 constexpr int kCaptureReflection = 1 << 7;
-constexpr int kCaptureFreezeScene = 1 << 8;
+constexpr int kCaptureLocalShadowAtlas = 1 << 8;
+constexpr int kCaptureFreezeScene = 1 << 9;
 
 enum class ShSource
 {
@@ -311,6 +341,8 @@ struct Options
 	LightingView lightingView = LightingView::Combined;
 	ShSource shSource = ShSource::NewEdenCelestials;
 	LocalLights localLights = LocalLights::Off;
+	LocalShadows localShadows = LocalShadows::Auto;
+	LocalShadows resolvedLocalShadows = LocalShadows::Off;
 	Attachments attachments = Attachments::Auto;
 	Attachments resolvedAttachments = Attachments::Off;
 	AttachmentView attachmentView = AttachmentView::All;
@@ -344,6 +376,7 @@ struct Options
 	bool windowed = false;
 	bool materialModeExplicit = false;
 	bool localLightsExplicit = false;
+	bool localShadowsExplicit = false;
 	bool backgroundCapture = false;
 };
 
@@ -468,6 +501,55 @@ bool ParseLocalLights( const std::string& value, LocalLights& mode )
 		}
 	}
 	return false;
+}
+
+std::string LocalShadowsName( LocalShadows mode )
+{
+	switch( mode )
+	{
+	case LocalShadows::Auto:
+		return "auto";
+	case LocalShadows::Off:
+		return "off";
+	case LocalShadows::Authored:
+		return "authored";
+	case LocalShadows::Validation:
+		return "validation";
+	}
+	return "unknown";
+}
+
+bool ParseLocalShadows( const std::string& value, LocalShadows& mode )
+{
+	const std::string normalized = ToLower( value );
+	const LocalShadows values[] = {
+		LocalShadows::Auto, LocalShadows::Off, LocalShadows::Authored, LocalShadows::Validation
+	};
+	for( LocalShadows candidate : values )
+	{
+		if( normalized == LocalShadowsName( candidate ) )
+		{
+			mode = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+int LocalShadowsApiValue( LocalShadows mode )
+{
+	switch( mode )
+	{
+	case LocalShadows::Off:
+		return 0;
+	case LocalShadows::Authored:
+		return 1;
+	case LocalShadows::Validation:
+		return 2;
+	case LocalShadows::Auto:
+		break;
+	}
+	return 0;
 }
 
 std::string AttachmentsName( Attachments mode )
@@ -698,6 +780,8 @@ std::string RenderProductName( RenderProduct product )
 		return "shadow";
 	case RenderProduct::ShadowAtlas:
 		return "shadow-atlas";
+	case RenderProduct::LocalShadowAtlas:
+		return "local-shadow-atlas";
 	case RenderProduct::AmbientOcclusion:
 		return "ao";
 	case RenderProduct::BentNormal:
@@ -719,6 +803,7 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::Normal,
 									 RenderProduct::Shadow,
 									 RenderProduct::ShadowAtlas,
+									 RenderProduct::LocalShadowAtlas,
 									 RenderProduct::AmbientOcclusion,
 									 RenderProduct::BentNormal,
 									 RenderProduct::Reflection,
@@ -991,6 +1076,8 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureShadow;
 	case RenderProduct::ShadowAtlas:
 		return kCaptureShadowAtlas;
+	case RenderProduct::LocalShadowAtlas:
+		return kCaptureLocalShadowAtlas;
 	case RenderProduct::AmbientOcclusion:
 		return kCaptureAmbientOcclusion;
 	case RenderProduct::BentNormal:
@@ -1053,6 +1140,8 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=ShadowMap format=R8_UNORM channel=red gpuVisualization=true";
 	case RenderProduct::ShadowAtlas:
 		return "source=CascadedShadowDepth format=D32_FLOAT dimensions=16384x4096 gpuVisualization=true";
+	case RenderProduct::LocalShadowAtlas:
+		return "source=DynamicLightShadowDepth format=D32_FLOAT dimensions=16384x16384 gpuVisualization=true";
 	case RenderProduct::AmbientOcclusion:
 		return options.aoMethod == AoMethod::Cortao ?
 			"source=SSAOMap format=R8G8B8A8_SNORM channel=alpha-snorm-remapped gpuVisualization=true" :
@@ -1345,7 +1434,7 @@ void PrintUsage( const char* executable )
 		<< "       [--area-view all|hull|booster|distortion]\n"
 		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
 		<< "       [--lighting-view combined|direct|sh|local|environment] [--sh-source new-eden-celestials|validation|none]\n"
-		<< "       [--local-lights off|authored|validation]\n"
+		<< "       [--local-lights off|authored|validation] [--local-shadows auto|off|authored|validation]\n"
 		<< "       [--attachments auto|off|authored] [--attachment-view all|sprites|sprite-lines|spotlights|planes|hazes|banners]\n"
 		<< "       [--decals auto|off|authored] [--decal-view all|standard|logos|killmarks] [--kill-count N]\n"
 		<< "       [--model-yaw-degrees N]\n"
@@ -1353,7 +1442,7 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|ao|bent-normal|reflection|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
@@ -1488,6 +1577,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.localLightsExplicit = true;
+		}
+		else if( arg == "--local-shadows" )
+		{
+			if( ++i >= argc || !ParseLocalShadows( argv[i], options.localShadows ) )
+			{
+				return false;
+			}
+			options.localShadowsExplicit = true;
 		}
 		else if( arg == "--attachments" )
 		{
@@ -1713,6 +1810,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	const bool compatibleLightingModel = options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
 		options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
 		options.qualityRung >= QualityRung::Model;
+	// The current macOS client disables dynamic-light shadows and ships no V5 receiver.
+	options.resolvedLocalShadows =
+		options.localShadows == LocalShadows::Auto ? LocalShadows::Off : options.localShadows;
+	if( options.resolvedLocalShadows == LocalShadows::Authored &&
+		( !compatibleLightingModel || options.localLights != LocalLights::Authored ) )
+	{
+		std::cerr << "Authored local shadows require authored local lights on a lit, all-area Astero using eve-v5\n";
+		return false;
+	}
+	if( options.resolvedLocalShadows == LocalShadows::Validation &&
+		( !compatibleLightingModel || options.localLights != LocalLights::Validation ) )
+	{
+		std::cerr
+			<< "Validation local shadows require the validation local light on a lit, all-area Astero using eve-v5\n";
+		return false;
+	}
 	options.resolvedDecals =
 		options.decals == Decals::Auto ? ( compatibleLightingModel ? Decals::Authored : Decals::Off ) : options.decals;
 	if( options.resolvedDecals == Decals::Authored && !compatibleLightingModel )
@@ -1734,6 +1847,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			<< "Directional shadows require a lit, all-area Astero using eve-v5 with direct or combined lighting\n";
 		return false;
 	}
+	if( options.resolvedLocalShadows != LocalShadows::Off && options.resolvedShadows == Shadows::Low )
+	{
+		std::cerr << "Local shadows require high native quality and cannot be combined with low directional shadows\n";
+		return false;
+	}
 	if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off && !compatibleLightingModel )
 	{
 		std::cerr << "Ambient occlusion requires a lit, all-area Astero using eve-v5\n";
@@ -1749,6 +1867,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		options.resolvedShadows == Shadows::Off )
 	{
 		std::cerr << "Shadow render products require enabled directional shadows\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::LocalShadowAtlas && options.resolvedLocalShadows == LocalShadows::Off )
+	{
+		std::cerr << "The local-shadow-atlas render product requires enabled local shadows\n";
 		return false;
 	}
 	if( options.renderProduct == RenderProduct::AmbientOcclusion &&
@@ -1996,8 +2119,8 @@ std::string CaptureBasePath( const Options& options )
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lit-" +
 		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_ll-" +
-		LocalLightsName( options.localLights ) + "_reflsrc-" +
-		ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
+		LocalLightsName( options.localLights ) + "_lsh-" + LocalShadowsName( options.resolvedLocalShadows ) +
+		"_reflsrc-" + ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_nrm-" +
 		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) + "_comp-" +
 		SceneCompositionName( options.composition ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
@@ -2064,6 +2187,18 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "lightingView=" << LightingViewName( options.lightingView ) << "\n";
 	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
 	metadata << "localLights=" << LocalLightsName( options.localLights ) << "\n";
+	metadata << "localShadowsRequested=" << LocalShadowsName( options.localShadows ) << "\n";
+	metadata << "localShadowsResolved=" << LocalShadowsName( options.resolvedLocalShadows ) << "\n";
+	metadata << "localShadowEligibility="
+			 << ( options.resolvedLocalShadows == LocalShadows::Authored ?
+					  "probe-all-active" :
+					  ( options.resolvedLocalShadows == LocalShadows::Validation ? "probe-validation" : "none" ) )
+			 << "\n";
+	metadata << "nativeShadowQuality="
+			 << ( options.resolvedLocalShadows != LocalShadows::Off ? "high" : ShadowsName( options.resolvedShadows ) )
+			 << "\n";
+	metadata << "localShadowReceiver=probe-raster-atlas-to-r16-mask\n";
+	metadata << "localShadowReceiverConsumption=current-v5-main-readnone\n";
 	metadata << "attachmentsRequested=" << AttachmentsName( options.attachments ) << "\n";
 	metadata << "attachmentsResolved=" << AttachmentsName( options.resolvedAttachments ) << "\n";
 	metadata << "attachmentView=" << AttachmentViewName( options.attachmentView ) << "\n";
@@ -2223,6 +2358,7 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.lightingView ),
 												   static_cast<int>( options.shSource ),
 												   static_cast<int>( options.localLights ),
+												   LocalShadowsApiValue( options.resolvedLocalShadows ),
 												   ReflectionSourceApiValue( options.resolvedReflectionSource ),
 												   static_cast<int>( options.reflectionCorrection ),
 												   static_cast<int>( options.normalMapMode ),
@@ -2296,6 +2432,10 @@ int main( int argc, char** argv )
 						diagnosticProducts.push_back( RenderProduct::Shadow );
 						diagnosticProducts.push_back( RenderProduct::ShadowAtlas );
 					}
+					if( options.resolvedLocalShadows != LocalShadows::Off )
+					{
+						diagnosticProducts.push_back( RenderProduct::LocalShadowAtlas );
+					}
 					if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off )
 					{
 						diagnosticProducts.push_back( RenderProduct::AmbientOcclusion );
@@ -2364,6 +2504,63 @@ int main( int argc, char** argv )
 							  << " committedBatches=" << committedBatches
 							  << " expectedBatches=" << acceptedCascades * 2;
 						productStats.emplace_back( "shadowRuntime", stats.str() );
+					}
+				}
+				if( options.resolvedLocalShadows != LocalShadows::Off )
+				{
+					uint32_t eligibleLights = 0;
+					uint32_t selectedLights = 0;
+					uint32_t droppedLights = 0;
+					uint32_t packedEntries = 0;
+					uint32_t hazeEligible = 0;
+					uint32_t bannerEligible = 0;
+					uint32_t validationEligible = 0;
+					uint32_t pointLights = 0;
+					uint32_t spotLights = 0;
+					uint32_t facePasses = 0;
+					uint32_t casterTests = 0;
+					uint32_t acceptedCasterPasses = 0;
+					uint32_t committedBatches = 0;
+					uint32_t atlasFormat = 0;
+					uint32_t atlasWidth = 0;
+					uint32_t atlasHeight = 0;
+					bool allocationSucceeded = false;
+					bool atlasValid = false;
+					if( !TrinityStandaloneProbeGetLocalShadowDiagnostics( probe,
+																		  &eligibleLights,
+																		  &selectedLights,
+																		  &droppedLights,
+																		  &packedEntries,
+																		  &hazeEligible,
+																		  &bannerEligible,
+																		  &validationEligible,
+																		  &pointLights,
+																		  &spotLights,
+																		  &facePasses,
+																		  &casterTests,
+																		  &acceptedCasterPasses,
+																		  &committedBatches,
+																		  &atlasFormat,
+																		  &atlasWidth,
+																		  &atlasHeight,
+																		  &allocationSucceeded,
+																		  &atlasValid ) )
+					{
+						captureSucceeded = false;
+					}
+					else
+					{
+						std::ostringstream stats;
+						stats << "eligible=" << eligibleLights << " selected=" << selectedLights
+							  << " dropped=" << droppedLights << " packed=" << packedEntries
+							  << " hazeEligible=" << hazeEligible << " bannerEligible=" << bannerEligible
+							  << " validationEligible=" << validationEligible << " point=" << pointLights
+							  << " spot=" << spotLights << " faces=" << facePasses << " casterTests=" << casterTests
+							  << " accepted=" << acceptedCasterPasses << " batches=" << committedBatches
+							  << " atlasFormat=" << atlasFormat << " atlas=" << atlasWidth << "x" << atlasHeight
+							  << " allocation=" << ( allocationSucceeded ? "success" : "failed" )
+							  << " atlasValid=" << ( atlasValid ? "true" : "false" );
+						productStats.emplace_back( "localShadowRuntime", stats.str() );
 					}
 				}
 				if( options.qualityRung != QualityRung::Shell )

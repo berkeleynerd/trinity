@@ -236,6 +236,17 @@ contains the logical path, absolute SharedCache hashed source, byte size,
 SHA-256, and staged build-tree destination. The report and payloads remain
 outside source control.
 
+### Local-shadow inherited resources
+
+`Reports/AsteroLocalShadowResources.json` records 13 checksummed inputs reused
+by the native raster local-shadow path: the `quadv5`, `quadheatv5`, and
+`computelightlists` Metal high/low/depth variants; `soef1_t1.gr2`;
+`soef1_t1.black`; `soebase.black`; and the deterministic SoE logo. Each report
+entry contains the logical path, the absolute hashed source below
+`~/Library/Application Support/EVE Online/SharedCache/ResFiles/`, byte size,
+SHA-256, and ignored build-tree destination. The atlas-to-mask resolver is
+repository-owned shader source and adds no client payload.
+
 ### Supporting textures
 
 ```text

@@ -231,7 +231,7 @@ void EveSpaceSceneRenderDriver::PropagateSettings()
 	}
 
 	// Shadow quality setting
-	if( m_settings.shadowQuality == ShadowQuality::SHADOW_DISABLED )
+	if( m_settings.shadowQuality == ShadowQuality::SHADOW_DISABLED || !m_settings.enableDirectionalShadows )
 	{
 		m_scene->m_cascadedShadowMap = nullptr;
 		m_scene->m_rtManager = nullptr;
@@ -355,6 +355,7 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "CustomStencilMap" ) != 0 &&
 			strcmp( output.c_str(), "ShadowMap" ) != 0 &&
 			strcmp( output.c_str(), "CascadedShadowDepth" ) != 0 &&
+			strcmp( output.c_str(), "DynamicLightShadowDepth" ) != 0 &&
 			strcmp( output.c_str(), "SSAOMap" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
@@ -540,6 +541,7 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		}
 		SetNamedOutput( outputs, "ShadowMap", shadowResources.shadowMap );
 		SetNamedOutput( outputs, "CascadedShadowDepth", shadowResources.cascadedShadowDepth );
+		SetNamedOutput( outputs, "DynamicLightShadowDepth", shadowResources.pointLightShadowDepth );
 		TimeSection ssaoSection( m_timers.ssao, "SSAO", rootTimer, renderContext );
 		auto ssao = RenderSSAO( depthBuffer, normalMap, renderContext );
 		ssaoSection.Stop();

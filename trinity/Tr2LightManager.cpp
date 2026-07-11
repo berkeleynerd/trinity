@@ -211,6 +211,16 @@ void Tr2LightManager::DeleteInstance()
 	singleton = nullptr;
 }
 
+void Tr2LightManager::SetDynamicLightShadowsEnabled( bool enabled )
+{
+	g_useDynamicLightsShadows = enabled;
+}
+
+bool Tr2LightManager::AreDynamicLightShadowsEnabled()
+{
+	return g_useDynamicLightsShadows;
+}
+
 void Tr2LightManager::SetVariableStore()
 {
 	m_lightBufferVariable = m_lightBuffer;
@@ -230,6 +240,9 @@ void Tr2LightManager::Clear( Tr2RenderContext& renderContext )
 	m_lightData.clear();
 	m_shadowCastingLights.clear();
 	m_volumetricLights.clear();
+	m_dynamicShadowDiagnostics = {};
+	m_dynamicShadowDiagnostics.enabled = g_useDynamicLightsShadows;
+	m_dynamicShadowDiagnostics.atlasSettings = m_ShadowMap.m_atlasSettings;
 
 	m_ShadowMap.m_atlasNodes.resize( 1 );
 	m_ShadowMap.m_atlasNodes[0].x = 0;
@@ -439,7 +452,7 @@ ALResult Tr2LightManager::DoUpdateLists( const Tr2TextureAL& depthMap, Tr2Render
 	return S_OK;
 }
 
-void Tr2LightManager::CreateShadowMapAtlas( uint32_t numShadowCastingLights, const std::vector<LightScreenSizeTuple>& lightTuples )
+bool Tr2LightManager::CreateShadowMapAtlas( uint32_t numShadowCastingLights, const std::vector<LightScreenSizeTuple>& lightTuples )
 {
 	bool everythingFit = false;
 	// 5 iterations are more than enough. With the current values we should actually only need at most 4 iterations.
@@ -504,7 +517,34 @@ void Tr2LightManager::CreateShadowMapAtlas( uint32_t numShadowCastingLights, con
 			}
 		}
 	}
-	CCP_ASSERT_M( everythingFit, "Not all entries fit into the shadow map atlas!" );
+	if( !everythingFit )
+	{
+		CCP_LOGERR( "Tr2LightManager: not all dynamic-light shadow entries fit into the atlas" );
+		return false;
+	}
+
+	m_dynamicShadowDiagnostics.entries.clear();
+	m_dynamicShadowDiagnostics.entries.reserve( numShadowCastingLights );
+	for( uint32_t i = 0; i < numShadowCastingLights; ++i )
+	{
+		const uint32_t lightIndex = lightTuples[i].lightIndex;
+		const Tr2LightManager::PerLightData& lightData = m_lightData[lightIndex];
+		ShadowMapAtlasEntry entry;
+		entry.lightIndex = lightIndex;
+		entry.isSpotLight = lightData.innerAngle > 0.f;
+		GetUnpackedShadowMapData( lightData, entry.faceSize, entry.offsetX, entry.offsetY );
+		entry.width = entry.isSpotLight ? entry.faceSize : 3 * entry.faceSize;
+		entry.height = entry.isSpotLight ? entry.faceSize : 2 * entry.faceSize;
+		if( entry.faceSize == 0 || entry.offsetX + entry.width > m_ShadowMap.m_atlasSettings.size ||
+			entry.offsetY + entry.height > m_ShadowMap.m_atlasSettings.size )
+		{
+			CCP_LOGERR( "Tr2LightManager: dynamic-light shadow atlas entry is invalid" );
+			m_dynamicShadowDiagnostics.entries.clear();
+			return false;
+		}
+		m_dynamicShadowDiagnostics.entries.push_back( entry );
+	}
+	return true;
 }
 
 Tr2RaytracingPipelineStateManager* Tr2LightManager::GetRaytracingPipelineManager()
@@ -583,6 +623,7 @@ void Tr2LightManager::ResolveLightData()
 				lightTuples.push_back( LightScreenSizeTuple{ i, sizeAcross } );
 			}
 		}
+		m_dynamicShadowDiagnostics.eligibleLightCount = static_cast<uint32_t>( lightTuples.size() );
 
 		// sort shadowcasting lights by size on screen
 		std::sort( lightTuples.begin(), lightTuples.end(), []( const LightScreenSizeTuple& a, const LightScreenSizeTuple& b ) {
@@ -591,6 +632,8 @@ void Tr2LightManager::ResolveLightData()
 
 		// keep only the largest lights
 		numShadowCastingLights = min( MAX_NUM_SHADOWCASTING_LIGHTS, (uint32_t)lightTuples.size() );
+		m_dynamicShadowDiagnostics.selectedLightCount = numShadowCastingLights;
+		m_dynamicShadowDiagnostics.droppedLightCount = static_cast<uint32_t>( lightTuples.size() ) - numShadowCastingLights;
 		m_shadowCastingLights.resize( numShadowCastingLights );
 		uint32_t i = 0;
 		for( ; i < numShadowCastingLights; i++ )
@@ -615,7 +658,16 @@ void Tr2LightManager::ResolveLightData()
 
 	if( m_currentSpaceSceneShadowQuality == ShadowQuality::SHADOW_LOW || m_currentSpaceSceneShadowQuality == ShadowQuality::SHADOW_HIGH )
 	{
-		CreateShadowMapAtlas( numShadowCastingLights, lightTuples );
+		m_dynamicShadowDiagnostics.allocationSucceeded = CreateShadowMapAtlas( numShadowCastingLights, lightTuples );
+		m_dynamicShadowDiagnostics.atlasSettings = m_ShadowMap.m_atlasSettings;
+		if( !m_dynamicShadowDiagnostics.allocationSucceeded )
+		{
+			m_shadowCastingLights.clear();
+			for( auto& lightData : m_lightData )
+			{
+				lightData.flags &= ~FLAG_CASTS_SHADOWS;
+			}
+		}
 	}
 }
 
@@ -717,14 +769,31 @@ const Tr2LightManager::PerLightData& Tr2LightManager::GetLightData( uint32_t ind
 	return m_lightData[index];
 }
 
+void Tr2LightManager::AssignScreenSpaceShadowMasks()
+{
+	for( uint32_t shadowIndex = 0; shadowIndex < m_shadowCastingLights.size(); ++shadowIndex )
+	{
+		m_lightData[m_shadowCastingLights[shadowIndex]].Raytracing.shadowMask = static_cast<uint16_t>( 1u << shadowIndex );
+	}
+}
+
 Tr2GpuResourcePool::Texture Tr2LightManager::GetShadowMapAtlas( Tr2GpuResourcePool& gpuResourcePool )
 {
+	if( !m_dynamicShadowDiagnostics.allocationSucceeded || m_ShadowMap.m_atlasSettings.actualTextureSize <= 1 )
+	{
+		return {};
+	}
 	return gpuResourcePool.GetTempTexture( "EveSpaceSceneDynamicShadowMap", m_ShadowMap.m_atlasSettings.actualTextureSize, m_ShadowMap.m_atlasSettings.actualTextureSize, ImageIO::PIXEL_FORMAT_D32_FLOAT, Tr2GpuUsage::DEPTH_STENCIL | Tr2GpuUsage::SHADER_RESOURCE );
 }
 
 const Tr2LightManager::ShadowMapAtlasSettings& Tr2LightManager::GetShadowMapAtlasSettings() const
 {
 	return m_ShadowMap.m_atlasSettings;
+}
+
+const Tr2LightManager::DynamicShadowDiagnostics& Tr2LightManager::GetDynamicShadowDiagnostics() const
+{
+	return m_dynamicShadowDiagnostics;
 }
 
 ShadowQuality Tr2LightManager::GetCurrentSpaceSceneShadowQuality()

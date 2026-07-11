@@ -83,7 +83,6 @@
 extern "C" void TrinityStandaloneStartup();
 extern "C" bool BlueInitializeResourceLoading();
 extern bool g_eveSpaceSceneDynamicLighting;
-extern bool g_useDynamicLightsShadows;
 
 #ifndef IRootReader_H
 #define IRootReader_H
@@ -112,6 +111,13 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 std::string ToNarrowPath( const wchar_t* path );
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
 bool PrepareReflectionProductVisualizer( StandaloneProbe& probe );
+
+enum StandaloneLocalShadowMode
+{
+	STANDALONE_LOCAL_SHADOWS_OFF = 0,
+	STANDALONE_LOCAL_SHADOWS_AUTHORED = 1,
+	STANDALONE_LOCAL_SHADOWS_VALIDATION = 2,
+};
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -190,6 +196,14 @@ public:
 					vertex.position[2] - centerScale[2] ) ) );
 		}
 		m_authoredWorldScale = centerScale[3] > 0.0f ? 1.0f / centerScale[3] : 1.0f;
+		std::fprintf(
+			stderr,
+			"CMF authored coordinate contract: center=(%.8f,%.8f,%.8f) fitScale=%.8f rawRadius=%.8f\n",
+			centerScale[0],
+			centerScale[1],
+			centerScale[2],
+			centerScale[3],
+			m_shadowBoundingRadius );
 		return m_shadowBoundingRadius > 0.0f;
 	}
 
@@ -209,9 +223,10 @@ public:
 		std::fprintf( stderr, "Standalone model yaw offset: %.6f degrees\n", degrees );
 	}
 
-	bool ConfigureLocalLights( int mode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
+	bool ConfigureLocalLights( int mode, int localShadowMode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
 	{
 		m_localLightMode = mode;
+		m_localShadowMode = localShadowMode;
 		if( mode == 0 )
 		{
 			std::fprintf( stderr, "Astero local lights disabled\n" );
@@ -225,6 +240,11 @@ public:
 			data.innerRadius = 0.15f;
 			data.color = Color( 15.0f, 2.4f, 0.6f, 1.0f );
 			data.brightness = 6.0f;
+			if( localShadowMode == STANDALONE_LOCAL_SHADOWS_VALIDATION )
+			{
+				data.castsShadows = PerLightShadowSetting::ENABLED_ONLY_ON_HIGH_QUALITY;
+				++m_lightStats[LIGHT_FAMILY_VALIDATION].shadowEligible;
+			}
 			Tr2PointLightPtr light;
 			light.CreateInstance();
 			light->SetLightData( data );
@@ -287,7 +307,7 @@ public:
 				LightData data = attachment.AsLightData( color, 1.0f );
 				data.position += item->m_position;
 				data.boneIndex = item->m_boneIndex;
-				NormalizeAuthoredLight( data );
+				NormalizeAuthoredLight( data, LIGHT_FAMILY_SPRITE );
 				if( !set )
 					set.CreateInstance();
 				set->AddLightFromSOF( EveSpriteLight( data, item->m_blinkPhase, item->m_blinkRate, item->m_minScale, item->m_maxScale, ordinal, item->m_light->m_lightProfilePath ) );
@@ -332,7 +352,7 @@ public:
 					LightData positioned = data;
 					positioned.position = item->m_light->m_translation + position + item->m_position;
 					positioned.rotation = Normalize( positioned.rotation * item->m_rotation );
-					NormalizeAuthoredLight( positioned );
+					NormalizeAuthoredLight( positioned, LIGHT_FAMILY_SPRITE_LINE );
 					if( !set )
 						set.CreateInstance();
 					set->AddLightFromSOF( EveSpriteLight( positioned, item->m_blinkPhase + item->m_blinkPhaseShift * positionIndex++, item->m_blinkRate, item->m_minScale, item->m_maxScale, ordinal, item->m_light->m_lightProfilePath ) );
@@ -371,7 +391,7 @@ public:
 				data.rotation = rotation;
 				data.brightness *= item->m_coneIntensity;
 				data.boneIndex = item->m_boneIndex;
-				NormalizeAuthoredLight( data );
+				NormalizeAuthoredLight( data, LIGHT_FAMILY_SPOTLIGHT );
 				if( !set )
 					set.CreateInstance();
 				set->AddLightFromSOF( EveSpotlightLight( data, ordinal, item->m_light->m_lightProfilePath, item->m_boosterGainInfluence ) );
@@ -404,7 +424,7 @@ public:
 					data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
 					data.rotation = Normalize( data.rotation * item->m_rotation );
 					data.boneIndex = item->m_boneIndex;
-					NormalizeAuthoredLight( data );
+					NormalizeAuthoredLight( data, LIGHT_FAMILY_PLANE );
 					if( !set )
 						set.CreateInstance();
 					set->AddLightFromSOF( EvePlaneLight( data, rawLight->m_saturation, ordinal, rawLight->m_lightProfilePath, static_cast<EveSpaceObjectAttachmentUtils::FadeType>( item->m_blinkMode ), item->m_phase, item->m_rate ) );
@@ -455,7 +475,7 @@ public:
 					data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
 					data.rotation = Normalize( data.rotation * item->m_rotation );
 					data.boneIndex = item->m_boneIndex;
-					NormalizeAuthoredLight( data );
+					NormalizeAuthoredLight( data, LIGHT_FAMILY_HAZE );
 					set->AddLightFromSOF( EveHazeSetLight( data, ordinal, rawLight->m_lightProfilePath, item->m_boosterGainInfluence ) );
 					ConstructLight( LIGHT_FAMILY_HAZE, data.boneIndex );
 				}
@@ -513,7 +533,7 @@ public:
 				data.position = Transform( data.position, RotationMatrix( item->m_rotation ) ) + item->m_position;
 				data.rotation = Normalize( data.rotation * item->m_rotation );
 				data.boneIndex = item->m_boneIndex;
-				NormalizeAuthoredLight( data );
+				NormalizeAuthoredLight( data, LIGHT_FAMILY_BANNER );
 				set->AddLightFromSOF( EveBannerLight( data, item->m_light->m_saturation, ordinal, item->m_light->m_lightProfilePath ) );
 				ConstructLight( LIGHT_FAMILY_BANNER, data.boneIndex );
 			}
@@ -548,7 +568,7 @@ public:
 				data.texturePath = source.texturePath;
 				data.boneIndex = source.boneIndex;
 				data.flags = source.flags;
-				NormalizeAuthoredLight( data );
+				NormalizeAuthoredLight( data, LIGHT_FAMILY_EXPLICIT );
 				Tr2LightPtr light;
 				if( source.type == EveSOFDataHullLightSetItem::POINT_LIGHT )
 				{
@@ -1511,7 +1531,11 @@ public:
 
 	bool IsCastingShadow( const TriFrustum& cameraFrustum, const IEveShadowFrustum& shadowFrustum, Tr2RenderReason, float& sizeInShadow ) const override
 	{
-		++m_shadowCullTests;
+		const bool directional = dynamic_cast<const TriShadowOrthoFrustum*>( &shadowFrustum ) != nullptr;
+		if( directional )
+		{
+			++m_shadowCullTests;
+		}
 		sizeInShadow = 0.0f;
 		if( !m_shadowCastingEnabled || !m_useEveV5Material || m_shadowBoundingRadius <= 0.0f )
 		{
@@ -1528,7 +1552,10 @@ public:
 		{
 			return false;
 		}
-		++m_shadowAcceptedCascades;
+		if( directional )
+		{
+			++m_shadowAcceptedCascades;
+		}
 		return true;
 	}
 
@@ -1562,6 +1589,21 @@ public:
 	uint32_t GetShadowCommittedBatches() const
 	{
 		return m_shadowCommittedBatches.load();
+	}
+
+	uint32_t GetHazeShadowEligibleCount() const
+	{
+		return m_lightStats[LIGHT_FAMILY_HAZE].shadowEligible;
+	}
+
+	uint32_t GetBannerShadowEligibleCount() const
+	{
+		return m_lightStats[LIGHT_FAMILY_BANNER].shadowEligible;
+	}
+
+	uint32_t GetValidationShadowEligibleCount() const
+	{
+		return m_lightStats[LIGHT_FAMILY_VALIDATION].shadowEligible;
 	}
 
 	bool DrawFailed() const
@@ -1987,16 +2029,12 @@ private:
 
 	float NormalizeAuthoredLength( float value ) const
 	{
-		float centerScale[4];
-		m_model.GetCenterAndScale( centerScale );
-		return value * centerScale[3];
+		return value;
 	}
 
 	Vector3 NormalizeAuthoredPosition( const Vector3& value ) const
 	{
-		float centerScale[4];
-		m_model.GetCenterAndScale( centerScale );
-		return ( value - Vector3( centerScale[0], centerScale[1], centerScale[2] ) ) * centerScale[3];
+		return value;
 	}
 
 	static Color ModifyAttachmentColor( const Color& color, float saturation, float brightness )
@@ -2180,6 +2218,7 @@ private:
 		uint32_t declared = 0;
 		uint32_t visibilityExcluded = 0;
 		uint32_t constructed = 0;
+		uint32_t shadowEligible = 0;
 		mutable uint32_t frustumAccepted = 0;
 	};
 
@@ -2226,7 +2265,7 @@ private:
 
 	void ReportLightStats( const char* phase ) const
 	{
-		uint32_t declared = 0, excluded = 0, constructed = 0, accepted = 0;
+		uint32_t declared = 0, excluded = 0, constructed = 0, shadowEligible = 0, accepted = 0;
 		std::fprintf( stderr, "Astero local-light counts (%s):\n", phase );
 		for( int family = 0; family < LIGHT_FAMILY_COUNT; ++family )
 		{
@@ -2234,10 +2273,11 @@ private:
 			declared += stats.declared;
 			excluded += stats.visibilityExcluded;
 			constructed += stats.constructed;
+			shadowEligible += stats.shadowEligible;
 			accepted += stats.frustumAccepted;
-			std::fprintf( stderr, "  %-11s declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n", LightFamilyName( static_cast<LightFamily>( family ) ), stats.declared, stats.visibilityExcluded, stats.constructed, stats.frustumAccepted );
+			std::fprintf( stderr, "  %-11s declared=%u visibility-excluded=%u constructed=%u shadow-eligible=%u frustum-accepted=%u\n", LightFamilyName( static_cast<LightFamily>( family ) ), stats.declared, stats.visibilityExcluded, stats.constructed, stats.shadowEligible, stats.frustumAccepted );
 		}
-		std::fprintf( stderr, "  total       declared=%u visibility-excluded=%u constructed=%u frustum-accepted=%u\n", declared, excluded, constructed, accepted );
+		std::fprintf( stderr, "  total       declared=%u visibility-excluded=%u constructed=%u shadow-eligible=%u frustum-accepted=%u\n", declared, excluded, constructed, shadowEligible, accepted );
 	}
 
 	bool ValidateLightProfile( const std::wstring& path, std::string& error )
@@ -2266,14 +2306,15 @@ private:
 		return true;
 	}
 
-	void NormalizeAuthoredLight( LightData & data ) const
+	void NormalizeAuthoredLight( LightData & data, LightFamily family )
 	{
-		float centerScale[4];
-		m_model.GetCenterAndScale( centerScale );
-		data.position = ( data.position - Vector3( centerScale[0], centerScale[1], centerScale[2] ) ) * centerScale[3];
-		data.radius *= centerScale[3];
-		data.innerRadius *= centerScale[3];
-		data.castsShadows = PerLightShadowSetting::DISABLED;
+		data.castsShadows = m_localShadowMode == STANDALONE_LOCAL_SHADOWS_AUTHORED ?
+			PerLightShadowSetting::ENABLED_ONLY_ON_HIGH_QUALITY :
+			PerLightShadowSetting::DISABLED;
+		if( data.castsShadows != PerLightShadowSetting::DISABLED )
+		{
+			++m_lightStats[family].shadowEligible;
+		}
 		data.isVolumetric = false;
 		data.flags &= ~Tr2LightManager::FLAG_CASTS_SHADOWS;
 		data.flags &= ~Tr2LightManager::FLAG_IS_VOLUMETRIC;
@@ -2329,9 +2370,12 @@ private:
 		uint32_t mainTechnique = 0;
 		uint32_t depthTechnique = 0;
 		uint32_t shadowTechnique = 0;
+		uint32_t dynamicLightShadowTechnique = 0;
 		if( !shader || !shader->GetTechniqueIndex( BlueSharedString( "Main" ), mainTechnique ) ||
 			( requireDepth && !shader->GetTechniqueIndex( BlueSharedString( "Depth" ), depthTechnique ) ) ||
-			( requireDepth && m_shadowCastingEnabled && !shader->GetTechniqueIndex( BlueSharedString( "Shadow" ), shadowTechnique ) ) )
+			( requireDepth && m_shadowCastingEnabled && !shader->GetTechniqueIndex( BlueSharedString( "Shadow" ), shadowTechnique ) ) ||
+			( requireDepth && m_localShadowMode != STANDALONE_LOCAL_SHADOWS_OFF &&
+			  !shader->GetTechniqueIndex( BlueSharedString( "DynamicLightShadow" ), dynamicLightShadowTechnique ) ) )
 		{
 			std::fprintf( stderr, "Astero %s effect is missing its required techniques\n", label );
 			return false;
@@ -2347,11 +2391,14 @@ private:
 		}
 		std::fprintf(
 			stderr,
-			"Astero %s effect ready: Main=%u Depth=%s Shadow=%s\n",
+			"Astero %s effect ready: Main=%u Depth=%s Shadow=%s DynamicLightShadow=%s\n",
 			label,
 			mainTechnique,
 			requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a",
-			requireDepth && m_shadowCastingEnabled ? std::to_string( shadowTechnique ).c_str() : "n/a" );
+			requireDepth && m_shadowCastingEnabled ? std::to_string( shadowTechnique ).c_str() : "n/a",
+			requireDepth && m_localShadowMode != STANDALONE_LOCAL_SHADOWS_OFF ?
+				std::to_string( dynamicLightShadowTechnique ).c_str() :
+				"n/a" );
 		return true;
 	}
 
@@ -2518,6 +2565,7 @@ private:
 	bool m_reportedShLighting = false;
 	mutable bool m_reportedAcceptedLights = false;
 	int m_localLightMode = 0;
+	int m_localShadowMode = STANDALONE_LOCAL_SHADOWS_OFF;
 	int m_attachmentMode = 0;
 	int m_attachmentView = 0;
 	int m_decalMode = 0;
@@ -2763,7 +2811,8 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_AO = 1 << 5,
 	STANDALONE_CAPTURE_BENT_NORMAL = 1 << 6,
 	STANDALONE_CAPTURE_REFLECTION = 1 << 7,
-	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 8,
+	STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS = 1 << 8,
+	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 9,
 };
 
 enum StandaloneShadowMode
@@ -2860,6 +2909,7 @@ struct StandaloneProbe
 		renderProductReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
+		dynamicLightShadowResolveEffect.Unlock();
 		driver.Unlock();
 		ssao.Unlock();
 		scene.Unlock();
@@ -2867,7 +2917,7 @@ struct StandaloneProbe
 		secondaryLights.clear();
 		shLightingManager.Unlock();
 		g_eveSpaceSceneDynamicLighting = false;
-		g_useDynamicLightsShadows = false;
+		Tr2LightManager::SetDynamicLightShadowsEnabled( false );
 		Tr2LightManager::DeleteInstance();
 		view.Unlock();
 		projection.Unlock();
@@ -2901,10 +2951,12 @@ struct StandaloneProbe
 	TriProjectionPtr projection;
 	Tr2EffectPtr renderProductVisualizer;
 	Tr2EffectPtr reflectionProductVisualizer;
+	Tr2EffectPtr dynamicLightShadowResolveEffect;
 	Tr2TextureAL renderProductReadback;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
 	int localLights = STANDALONE_LOCAL_LIGHTS_OFF;
+	int localShadows = STANDALONE_LOCAL_SHADOWS_OFF;
 	int shadows = STANDALONE_SHADOWS_OFF;
 	int ambientOcclusion = STANDALONE_AO_OFF;
 	int aoMethod = STANDALONE_AO_CORTAO;
@@ -2915,6 +2967,7 @@ struct StandaloneProbe
 	uint32_t capturedProductWidth = 0;
 	uint32_t capturedProductHeight = 0;
 	bool reportedResolvedLights = false;
+	bool reportedLocalShadowStats = false;
 	uint64_t renderedFrameCount = 0;
 	bool reportedCameraOrbit = false;
 	int cameraView = STANDALONE_CAMERA_MODEL;
@@ -2943,6 +2996,7 @@ bool CheckHresult( HRESULT result, const char* operation )
 	{
 		return true;
 	}
+	std::fprintf( stderr, "%s failed with HRESULT 0x%08x\n", operation, static_cast<uint32_t>( result ) );
 	CCP_LOGERR( "%s failed with HRESULT 0x%08x", operation, static_cast<uint32_t>( result ) );
 	return false;
 }
@@ -4965,12 +5019,12 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| 2 | `area_booster` | Opaque | `quad/quadheatv5.fx` | Rendered independently with four authored heat parameter sets and booster glow color. |\n\n";
 	output << "The hull declares no decal, transparent, or additive mesh areas. The root-object shader options explicitly disable clipping, projected-pattern textures, and instanced-attachment mode. "
 			  "The ten decal sets, four sprite sets, two spotlight sets, four plane sets, and one light set are auxiliary SOF attachments rather than retained GR2 mesh groups. "
-			  "The standalone bridge now reconstructs their active light descriptors through `ITr2LightOwner` and Trinity's tiled light manager without submitting attachment geometry. "
-			  "Visible sprites, cones, planes, haze, and banners remain separately observable follow-up work.\n\n";
+			  "The standalone bridge reconstructs their active light descriptors through `ITr2LightOwner` and Trinity's tiled light manager. "
+			  "Visible sprites, cones, planes, haze, and banners submit through the native attachment and quad-renderer paths under independent controls.\n\n";
 	output << "## RC-06 Dynamic-Light Contract\n\n";
 	output << "The current `soebase` payload enables `primary` and `soe`; the Capsuleer Day explicit light strip is outside those groups and is excluded. "
 			  "Active point and spotlight attachments retain Trinity blink, fade, noise, profile, and cone conversion through the native attachment-light wrappers. "
-			  "The static CMF bridge uses identity rest-pose bone deltas and applies the same model center/fit normalization as its vertices. "
+			  "The static CMF bridge uses identity rest-pose bone deltas. V5 hull vertices, indexed decals, attachments, and lights retain raw GR2/SOF coordinates and share the same center-and-rotation object transform. "
 			  "Banner lights use native `EveBannerSet` average-color sampling from the staged Sisters of EVE faction banner fixture. The installed client `LogoLoader` would normally replace these alliance/corporation slots from its photo cache and otherwise uses `res:/texture/global/black.dds`. ";
 	if( hasLightBuffer && hasLightIndexBuffer )
 	{
@@ -4980,13 +5034,20 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	{
 		output << "The selected Metal V5 payload does not declare both tiled-light buffers, so manager/list generation remains capability-only evidence. ";
 	}
-	output << "Local shadows, volumetrics, AO, and all visible attachment geometry remain disabled.\n\n";
+	output << "Volumetric lighting remains disabled. Visible attachments, CORTAO, directional shadows, and indexed decals have separate accepted runtime gates.\n\n";
+
+	output << "## RC-08B Local-Shadow Contract\n\n";
+	output << "All six active Astero lights are authored SOF point lights: two haze lights and four banner lights. "
+			  "SOF has no `castsShadows` field, so `--local-shadows authored` labels all six `ENABLED_ONLY_ON_HIGH_QUALITY` under the explicit `probe-all-active` policy. "
+			  "Trinity selects and packs them through the native 16384x16384 D32 raster atlas, executes six cube faces per point light, and submits only the opaque hull and booster through each accepted `DynamicLightShadow` pass. "
+			  "Directional cascades remain independently controlled by `--shadows`; attachments, decals, planets, atmosphere, and sun effects are not local-shadow casters. "
+			  "The sample-owned resolver can project that atlas into a full-resolution R16_UINT light mask, but all 2,224 unique current-client Metal libraries exposing `EveSpaceSceneDynamicShadowMap` compile it as AIR `readnone`. The engine feature flag defaults off and the installed client does not override it. `--local-shadows auto` therefore resolves off for client parity; explicit modes retain the native writer as CP-21 diagnostic capability.\n\n";
 
 	output << "## Per-Object Field Contract\n\n";
 	output << "| Field family | Probe value | Classification |\n";
 	output << "|---|---|---|\n";
 	output << "| World/inverse/previous transforms | Rotating root transform | Derived each frame; previous equals current until velocity/TAA work. |\n";
-	output << "| `shipData` | `(1, 1, 0, 2)` | Root scale, activation, authored default dirt, fitted radius. |\n";
+	output << "| `shipData` | `(1, 1, 0, rawRadius)` | Authored root scale, activation, default dirt, and raw-model bounding radius. |\n";
 	output << "| Clip sphere and custom masks | Disabled/zero; custom-mask matrices identity | Neutral because clipping and PPT permutations are disabled. |\n";
 	output << "| Shape ellipsoid | `(-1, -1, -1, 0)` | Matches the unconfigured `EveSpaceObject2` sentinel. |\n";
 	output << "| Bone and morph offsets | Zero | Static bind-pose bridge; no runtime animation or morph targets. |\n";
@@ -4995,6 +5056,7 @@ bool WriteAsteroClientAssetReport( const char* reportPath )
 	output << "| Tiled local lights | Authored, validation, or disabled by isolation mode | Real `Tr2LightManager` buffers and `ComputeLightLists`; "
 		   << ( hasLightBuffer && hasLightIndexBuffer ? "selected Metal V5 bindings present; visual A/B required for acceptance." : "selected Metal V5 bindings incomplete; opaque consumption unaccepted." )
 		   << " |\n";
+	output << "| Local-light shadows | Auto off; explicit authored or synthetic validation | Current macOS client parity is off: the feature flag defaults false and every shipped receiving candidate compiles the binding `readnone`. Explicit modes retain the native raster atlas and `DynamicLightShadow` caster pass as diagnostics. |\n";
 	output << "| Screen/custom/impact data | Zero | Neutral for the selected opaque permutations and absent impact/custom systems. |\n";
 	output << "\nThe selected client Metal payload requires an 1888-byte per-frame buffer and a 464-byte per-object pixel buffer. Both layouts are compile-time assertions in the standalone bridge.\n";
 
@@ -5157,7 +5219,8 @@ bool ReadVisualizedRenderProduct(
 	probe.renderProductReadback.UnmapForReading( renderContext );
 
 	const bool requireVariation = captureProduct == STANDALONE_CAPTURE_SHADOW ||
-		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
+		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS ||
+		captureProduct == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
 		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL ||
 		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
@@ -5183,8 +5246,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
-	std::array<BlueSharedString, 6> requestedNames;
-	std::array<ITr2RenderNode::TempOutput, 6> outputStorage;
+	std::array<BlueSharedString, 7> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 7> outputStorage;
 	size_t requestedCount = 0;
 	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
 	{
@@ -5207,6 +5270,12 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	if( captureProducts & STANDALONE_CAPTURE_SHADOW_ATLAS )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "CascadedShadowDepth" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "DynamicLightShadowDepth" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
@@ -5238,15 +5307,23 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 
 		const bool colorProduct = captureProducts == STANDALONE_CAPTURE_COLOR;
 		const bool reflectionProduct = captureProducts == STANDALONE_CAPTURE_REFLECTION;
-		const char* selectedName = colorProduct ? "Color" :
-												  ( reflectionProduct ? "ReflectionCube" :
-																		( captureProducts == STANDALONE_CAPTURE_DEPTH ? "DepthMap" :
-																														( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" :
-																																										 ( captureProducts == STANDALONE_CAPTURE_SHADOW ? "ShadowMap" :
-																																																						  ( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? "CascadedShadowDepth" :
-																																																																				 ( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ?
-																																																																					   "SSAOMap" :
-																																																																					   nullptr ) ) ) ) ) );
+		const char* selectedName = nullptr;
+		if( colorProduct )
+			selectedName = "Color";
+		else if( reflectionProduct )
+			selectedName = "ReflectionCube";
+		else if( captureProducts == STANDALONE_CAPTURE_DEPTH )
+			selectedName = "DepthMap";
+		else if( captureProducts == STANDALONE_CAPTURE_NORMAL )
+			selectedName = "NormalMap";
+		else if( captureProducts == STANDALONE_CAPTURE_SHADOW )
+			selectedName = "ShadowMap";
+		else if( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS )
+			selectedName = "CascadedShadowDepth";
+		else if( captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS )
+			selectedName = "DynamicLightShadowDepth";
+		else if( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL )
+			selectedName = "SSAOMap";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -5326,6 +5403,18 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						selectedTexture->GetHeight() );
 					ok = false;
 				}
+				if( captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS &&
+					( selectedTexture->GetWidth() != 16384 || selectedTexture->GetHeight() != 16384 ||
+					  selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ) )
+				{
+					std::fprintf(
+						stderr,
+						"Dynamic-light shadow atlas is invalid: format=%u dimensions=%ux%u; expected D32 16384x16384\n",
+						static_cast<uint32_t>( selectedTexture->GetFormat() ),
+						selectedTexture->GetWidth(),
+						selectedTexture->GetHeight() );
+					ok = false;
+				}
 				const bool visualizerReady = reflectionProduct ?
 					PrepareReflectionProductVisualizer( probe ) :
 					PrepareRenderProductVisualizer( probe );
@@ -5337,12 +5426,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				{
 					if( !reflectionProduct )
 					{
+						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
+							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
 						const float visualizationMode = colorProduct ? 2.0f :
 																	   ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
 																													   ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
 																																										( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-																																																						 ( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? 4.0f :
-																																																																				( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+																																																						 ( depthAtlasProduct ? 4.0f :
+																																																											   ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "RenderProductMode" ),
 							visualizationMode );
@@ -5505,7 +5596,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	if( !std::isfinite( modelYawDegrees ) )
 	{
@@ -5515,6 +5606,11 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
 		CCP_LOGERR( "Invalid standalone local-light mode" );
+		return false;
+	}
+	if( localShadows < STANDALONE_LOCAL_SHADOWS_OFF || localShadows > STANDALONE_LOCAL_SHADOWS_VALIDATION )
+	{
+		CCP_LOGERR( "Invalid standalone local-shadow mode" );
 		return false;
 	}
 	if( reflectionCorrection < STANDALONE_REFLECTION_CORRECTION_OFF || reflectionCorrection > STANDALONE_REFLECTION_CORRECTION_CLIENT )
@@ -5545,7 +5641,13 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone shadow or ambient-occlusion mode" );
 		return false;
 	}
+	if( localShadows != STANDALONE_LOCAL_SHADOWS_OFF && shadows == STANDALONE_SHADOWS_LOW )
+	{
+		CCP_LOGERR( "Local-light shadows require high native shadow quality and cannot be combined with low directional shadows" );
+		return false;
+	}
 	probe.shadows = shadows;
+	probe.localShadows = localShadows;
 	probe.ambientOcclusion = ambientOcclusion;
 	probe.aoMethod = aoMethod;
 	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
@@ -5683,12 +5785,29 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	{
 		localLights = STANDALONE_LOCAL_LIGHTS_OFF;
 	}
+	if( localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED && localLights != STANDALONE_LOCAL_LIGHTS_AUTHORED )
+	{
+		CCP_LOGERR( "Authored local shadows require authored local lights" );
+		return false;
+	}
+	if( localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION && localLights != STANDALONE_LOCAL_LIGHTS_VALIDATION )
+	{
+		CCP_LOGERR( "Validation local shadows require the validation local light" );
+		return false;
+	}
+	if( localShadows != STANDALONE_LOCAL_SHADOWS_OFF &&
+		( qualityRung < STANDALONE_PROBE_RUNG_MODEL || materialMode == 0 || areaView != 0 ) )
+	{
+		CCP_LOGERR( "Local shadows require an all-area eve-v5 model at the model rung or higher" );
+		return false;
+	}
 	if( lightingView == STANDALONE_LIGHTING_DIRECT || lightingView == STANDALONE_LIGHTING_SH ||
 		lightingView == STANDALONE_LIGHTING_LOCAL )
 	{
 		reflectionSource = STANDALONE_REFLECTION_SOURCE_OFF;
 	}
 	probe.localLights = localLights;
+	probe.localShadows = localShadows;
 	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
 	{
 		const wchar_t* compiledPath = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth" : L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi";
@@ -5714,18 +5833,58 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		g_eveSpaceSceneDynamicLighting = true;
-		g_useDynamicLightsShadows = false;
+		Tr2LightManager::SetDynamicLightShadowsEnabled( localShadows != STANDALONE_LOCAL_SHADOWS_OFF );
 		Tr2LightManager::DeleteInstance();
 		if( !Tr2LightManager::GetOrCreateInstance( effectPath ) )
 		{
 			CCP_LOGERR( "Failed to create Tr2LightManager" );
 			return false;
 		}
-		std::fprintf( stderr, "Trinity tiled local-light path ready: effect=%s passes=%u shadows=disabled\n", effectPath, shader->GetPassCount( 0 ) );
+		std::fprintf(
+			stderr,
+			"Trinity tiled local-light path ready: effect=%s passes=%u localShadows=%s eligibility=%s\n",
+			effectPath,
+			shader->GetPassCount( 0 ),
+			localShadows == STANDALONE_LOCAL_SHADOWS_OFF ? "off" :
+														   ( localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "authored" : "validation" ),
+			localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "probe-all-active" :
+																( localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? "probe-validation" : "none" ) );
+		if( localShadows != STANDALONE_LOCAL_SHADOWS_OFF )
+		{
+			const char* resolvePath = "res:/graphics/effect/managed/space/system/rasterdynamicshadowresolve.fx";
+			if( !probe.dynamicLightShadowResolveEffect.CreateInstance() )
+			{
+				CCP_LOGERR( "Failed to create the raster dynamic-light shadow receiver resolve effect" );
+				return false;
+			}
+			probe.dynamicLightShadowResolveEffect->StartUpdate();
+			probe.dynamicLightShadowResolveEffect->SetEffectPathName( resolvePath );
+			probe.dynamicLightShadowResolveEffect->EndUpdate();
+			if( !PrepareEffectResourcesWithoutYield(
+					*probe.dynamicLightShadowResolveEffect,
+					"raster dynamic-light shadow receiver resolve",
+					qualityResourceError ) )
+			{
+				std::fprintf( stderr, "Failed to prepare local-shadow receiver resolve: %s\n", qualityResourceError.c_str() );
+				return false;
+			}
+			uint32_t techniqueIndex = 0;
+			Tr2Shader* shader = probe.dynamicLightShadowResolveEffect->GetShaderStateInterface();
+			if( !shader || !shader->GetTechniqueIndex( BlueSharedString( "Main" ), techniqueIndex ) )
+			{
+				CCP_LOGERR( "Raster dynamic-light shadow receiver resolve is missing the Main technique" );
+				return false;
+			}
+			std::fprintf(
+				stderr,
+				"Raster local-shadow receiver adapter ready: effect=%s technique=Main output=R16_UINT\n",
+				resolvePath );
+		}
 	}
 	else
 	{
 		g_eveSpaceSceneDynamicLighting = false;
+		Tr2LightManager::SetDynamicLightShadowsEnabled( false );
 		Tr2LightManager::DeleteInstance();
 	}
 	if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_BLIT )
@@ -5947,6 +6106,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to create EveSpaceScene" );
 		return false;
 	}
+	probe.scene->SetDynamicLightShadowResolveEffect( probe.dynamicLightShadowResolveEffect );
 	std::string reflectionError;
 	if( !ConfigureReflectionSourceWithoutYield( probe, *probe.scene, reflectionSource, reflectionError ) )
 	{
@@ -6027,8 +6187,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.bypassPostProcessing = qualityRung < STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.postProcessBlitOnly = qualityRung == STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.enableDistortion = false;
-	settings.shadowQuality = shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
-																  ( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED );
+	settings.enableDirectionalShadows = shadows != STANDALONE_SHADOWS_OFF;
+	settings.shadowQuality = localShadows != STANDALONE_LOCAL_SHADOWS_OFF ? ShadowQuality::SHADOW_HIGH :
+																			( shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
+																												   ( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED ) );
 	settings.antiAliasingQuality = EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled;
 	settings.aoQuality = ambientOcclusion == STANDALONE_AO_HIGH ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High :
 																  ( ambientOcclusion == STANDALONE_AO_MEDIUM ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Medium :
@@ -6041,10 +6203,17 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.forceVelocityMap = false;
 	std::fprintf(
 		stderr,
-		"EVE RC-08A quality: shadows=%s denoiser=%s ao=%s method=%s bentNormals=%s "
+		"EVE RC-08B quality: directionalShadows=%s nativeShadowQuality=%s denoiser=%s "
+		"localShadows=%s eligibility=%s ao=%s method=%s bentNormals=%s "
 		"reflection=%s forceOpaqueBuffer=true v5PerFrame=%zu v5PerObject=%zu\n",
 		shadows == STANDALONE_SHADOWS_HIGH ? "high" : ( shadows == STANDALONE_SHADOWS_LOW ? "low" : "off" ),
+		settings.shadowQuality == ShadowQuality::SHADOW_HIGH ? "high" :
+															   ( settings.shadowQuality == ShadowQuality::SHADOW_LOW ? "low" : "off" ),
 		shadows == STANDALONE_SHADOWS_HIGH ? "enabled" : "disabled",
+		localShadows == STANDALONE_LOCAL_SHADOWS_OFF ? "off" :
+													   ( localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "authored" : "validation" ),
+		localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "probe-all-active" :
+															( localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? "probe-validation" : "none" ),
 		ambientOcclusion == STANDALONE_AO_HIGH ? "high" :
 												 ( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
 		aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "cacao",
@@ -6066,7 +6235,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	{
 		std::string loadError;
 		probe.renderable->SetModelYawDegrees( modelYawDegrees );
-		probe.renderable->SetShadowCastingEnabled( shadows != STANDALONE_SHADOWS_OFF );
+		probe.renderable->SetShadowCastingEnabled(
+			shadows != STANDALONE_SHADOWS_OFF || localShadows != STANDALONE_LOCAL_SHADOWS_OFF );
 		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 || decals == STANDALONE_DECALS_AUTHORED )
 		{
 			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
@@ -6078,7 +6248,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				std::fprintf( stderr, "Failed to load Astero SOF attachment descriptors: %s\n", loadError.c_str() );
 				return false;
 			}
-			if( localLights != STANDALONE_LOCAL_LIGHTS_OFF && !probe.renderable->ConfigureLocalLights( localLights, *hull, *faction, loadError ) )
+			if( localLights != STANDALONE_LOCAL_LIGHTS_OFF &&
+				!probe.renderable->ConfigureLocalLights( localLights, localShadows, *hull, *faction, loadError ) )
 			{
 				std::fprintf( stderr, "Failed to configure Astero local lights: %s\n", loadError.c_str() );
 				return false;
@@ -6267,7 +6438,66 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	}
 	*casterTests = probe->renderable->GetShadowCullTests();
 	*acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
-	*committedBatches = probe->renderable->GetShadowCommittedBatches();
+	const uint32_t allCommittedBatches = probe->renderable->GetShadowCommittedBatches();
+	const uint32_t localCommittedBatches = probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF && probe->scene ?
+		probe->scene->GetDynamicLightShadowDiagnostics().committedBatches :
+		0;
+	*committedBatches = allCommittedBatches >= localCommittedBatches ?
+		allCommittedBatches - localCommittedBatches :
+		0;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetLocalShadowDiagnostics(
+	void* opaqueProbe,
+	uint32_t* eligibleLights,
+	uint32_t* selectedLights,
+	uint32_t* droppedLights,
+	uint32_t* packedEntries,
+	uint32_t* hazeEligible,
+	uint32_t* bannerEligible,
+	uint32_t* validationEligible,
+	uint32_t* pointLights,
+	uint32_t* spotLights,
+	uint32_t* facePasses,
+	uint32_t* casterTests,
+	uint32_t* acceptedCasterPasses,
+	uint32_t* committedBatches,
+	uint32_t* atlasFormat,
+	uint32_t* atlasWidth,
+	uint32_t* atlasHeight,
+	bool* allocationSucceeded,
+	bool* atlasValid )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	Tr2LightManager* manager = Tr2LightManager::GetInstance();
+	if( !probe || !probe->renderable || !probe->scene || !manager || !eligibleLights || !selectedLights ||
+		!droppedLights || !packedEntries || !hazeEligible || !bannerEligible || !validationEligible ||
+		!pointLights || !spotLights || !facePasses || !casterTests || !acceptedCasterPasses ||
+		!committedBatches || !atlasFormat || !atlasWidth || !atlasHeight || !allocationSucceeded || !atlasValid )
+	{
+		return false;
+	}
+	const auto& managerStats = manager->GetDynamicShadowDiagnostics();
+	const auto& sceneStats = probe->scene->GetDynamicLightShadowDiagnostics();
+	*eligibleLights = managerStats.eligibleLightCount;
+	*selectedLights = managerStats.selectedLightCount;
+	*droppedLights = managerStats.droppedLightCount;
+	*packedEntries = static_cast<uint32_t>( managerStats.entries.size() );
+	*hazeEligible = probe->renderable->GetHazeShadowEligibleCount();
+	*bannerEligible = probe->renderable->GetBannerShadowEligibleCount();
+	*validationEligible = probe->renderable->GetValidationShadowEligibleCount();
+	*pointLights = sceneStats.pointLights;
+	*spotLights = sceneStats.spotLights;
+	*facePasses = sceneStats.facePasses;
+	*casterTests = sceneStats.casterTests;
+	*acceptedCasterPasses = sceneStats.acceptedCasterPasses;
+	*committedBatches = sceneStats.committedBatches;
+	*atlasFormat = sceneStats.atlasFormat;
+	*atlasWidth = sceneStats.atlasWidth;
+	*atlasHeight = sceneStats.atlasHeight;
+	*allocationSucceeded = managerStats.allocationSucceeded;
+	*atlasValid = sceneStats.atlasValid;
 	return true;
 }
 
@@ -6320,14 +6550,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionSource, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
@@ -6342,6 +6572,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
 		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL &&
 		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
+		captureProduct != STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS &&
 		captureProduct != STANDALONE_CAPTURE_AO && captureProduct != STANDALONE_CAPTURE_BENT_NORMAL &&
 		captureProduct != STANDALONE_CAPTURE_REFLECTION )
 	{
@@ -6413,11 +6644,147 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->reportedResolvedLights = true;
 		}
 	}
+	if( rendered && !freezeScene && probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF &&
+		probe->renderedFrameCount >= 2 )
+	{
+		Tr2LightManager* manager = Tr2LightManager::GetInstance();
+		if( !manager || !probe->scene || !probe->renderable )
+		{
+			CCP_LOGERR( "Dynamic-light shadow diagnostics are unavailable" );
+			return false;
+		}
+		const Tr2LightManager::DynamicShadowDiagnostics& managerStats = manager->GetDynamicShadowDiagnostics();
+		const EveSpaceScene::DynamicLightShadowDiagnostics& sceneStats =
+			probe->scene->GetDynamicLightShadowDiagnostics();
+		const uint32_t expectedLights = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 6u : 1u;
+		bool entriesValid = managerStats.entries.size() == expectedLights;
+		for( size_t i = 0; i < managerStats.entries.size() && entriesValid; ++i )
+		{
+			const auto& entry = managerStats.entries[i];
+			entriesValid = !entry.isSpotLight && entry.faceSize > 0 &&
+				entry.offsetX + entry.width <= managerStats.atlasSettings.size &&
+				entry.offsetY + entry.height <= managerStats.atlasSettings.size;
+			for( size_t j = i + 1; j < managerStats.entries.size() && entriesValid; ++j )
+			{
+				const auto& other = managerStats.entries[j];
+				const bool overlaps = entry.offsetX < other.offsetX + other.width &&
+					entry.offsetX + entry.width > other.offsetX &&
+					entry.offsetY < other.offsetY + other.height &&
+					entry.offsetY + entry.height > other.offsetY;
+				entriesValid = !overlaps;
+			}
+		}
+		const uint32_t expectedHaze = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 2u : 0u;
+		const uint32_t expectedBanner = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 4u : 0u;
+		const uint32_t expectedValidation = probe->localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? 1u : 0u;
+		if( !managerStats.enabled || !managerStats.allocationSucceeded ||
+			managerStats.eligibleLightCount != expectedLights || managerStats.selectedLightCount != expectedLights ||
+			managerStats.droppedLightCount != 0 || managerStats.atlasSettings.actualTextureSize != 16384 ||
+			managerStats.atlasSettings.size != 16384 || !entriesValid || !sceneStats.atlasValid ||
+			sceneStats.atlasFormat != Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+			sceneStats.atlasWidth != 16384 || sceneStats.atlasHeight != 16384 ||
+			sceneStats.selectedLights != expectedLights || sceneStats.pointLights != expectedLights ||
+			sceneStats.spotLights != 0 || sceneStats.facePasses != expectedLights * 6 ||
+			sceneStats.casterTests != sceneStats.facePasses || sceneStats.acceptedCasterPasses == 0 ||
+			sceneStats.committedBatches != sceneStats.acceptedCasterPasses * 2 ||
+			probe->renderable->GetHazeShadowEligibleCount() != expectedHaze ||
+			probe->renderable->GetBannerShadowEligibleCount() != expectedBanner ||
+			probe->renderable->GetValidationShadowEligibleCount() != expectedValidation ||
+			!sceneStats.receiverMaskResolved ||
+			sceneStats.receiverMaskFormat != Tr2RenderContextEnum::PIXEL_FORMAT_R16_UINT ||
+			sceneStats.receiverMaskWidth != probe->renderWidth ||
+			sceneStats.receiverMaskHeight != probe->renderHeight )
+		{
+			std::fprintf(
+				stderr,
+				"Astero local-shadow contract failed: manager(enabled=%u allocation=%u eligible=%u selected=%u dropped=%u packed=%zu) atlas(format=%u size=%ux%u valid=%u) receiver(format=%u size=%ux%u resolved=%u) faces=%u accepted=%u batches=%u\n",
+				managerStats.enabled ? 1u : 0u,
+				managerStats.allocationSucceeded ? 1u : 0u,
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				managerStats.droppedLightCount,
+				managerStats.entries.size(),
+				sceneStats.atlasFormat,
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				sceneStats.atlasValid ? 1u : 0u,
+				sceneStats.receiverMaskFormat,
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight,
+				sceneStats.receiverMaskResolved ? 1u : 0u,
+				sceneStats.facePasses,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches );
+			CCP_LOGERR(
+				"Astero local-shadow contract failed: eligible=%u selected=%u dropped=%u packed=%zu atlas=%ux%u valid=%u point=%u spot=%u faces=%u tests=%u accepted=%u batches=%u haze=%u banner=%u validation=%u receiver=%ux%u format=%u resolved=%u",
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				managerStats.droppedLightCount,
+				managerStats.entries.size(),
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				sceneStats.atlasValid ? 1u : 0u,
+				sceneStats.pointLights,
+				sceneStats.spotLights,
+				sceneStats.facePasses,
+				sceneStats.casterTests,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches,
+				probe->renderable->GetHazeShadowEligibleCount(),
+				probe->renderable->GetBannerShadowEligibleCount(),
+				probe->renderable->GetValidationShadowEligibleCount(),
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight,
+				sceneStats.receiverMaskFormat,
+				sceneStats.receiverMaskResolved ? 1u : 0u );
+			return false;
+		}
+		if( !probe->reportedLocalShadowStats )
+		{
+			std::fprintf(
+				stderr,
+				"Astero local-shadow result: mode=%s eligibility=%s eligible=%u selected=%u point=%u spot=%u faces=%u accepted=%u batches=%u atlas=D32 %ux%u entries=%zu receiver=R16_UINT %ux%u\n",
+				probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "authored" : "validation",
+				probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "probe-all-active" : "probe-validation",
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				sceneStats.pointLights,
+				sceneStats.spotLights,
+				sceneStats.facePasses,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches,
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				managerStats.entries.size(),
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight );
+			for( const auto& entry : managerStats.entries )
+			{
+				std::fprintf(
+					stderr,
+					"  local-shadow entry: light=%u type=%s offset=(%u,%u) face=%u block=%ux%u\n",
+					entry.lightIndex,
+					entry.isSpotLight ? "spot" : "point",
+					entry.offsetX,
+					entry.offsetY,
+					entry.faceSize,
+					entry.width,
+					entry.height );
+			}
+			probe->reportedLocalShadowStats = true;
+		}
+	}
 	if( rendered && !freezeScene && probe->shadows != STANDALONE_SHADOWS_OFF && probe->renderable )
 	{
 		const uint32_t cullTests = probe->renderable->GetShadowCullTests();
 		const uint32_t acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
-		const uint32_t committedBatches = probe->renderable->GetShadowCommittedBatches();
+		const uint32_t allCommittedBatches = probe->renderable->GetShadowCommittedBatches();
+		const uint32_t localCommittedBatches = probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF && probe->scene ?
+			probe->scene->GetDynamicLightShadowDiagnostics().committedBatches :
+			0;
+		const uint32_t committedBatches = allCommittedBatches >= localCommittedBatches ?
+			allCommittedBatches - localCommittedBatches :
+			0;
 		if( acceptedCascades == 0 || committedBatches != acceptedCascades * 2 )
 		{
 			CCP_LOGERR(

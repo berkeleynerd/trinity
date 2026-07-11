@@ -121,6 +121,33 @@ TRI_REGISTER_SETTING( "enablePostProcessDebugging", g_enablePostProcessDebugging
 
 namespace
 {
+constexpr uint32_t MAX_RASTER_DYNAMIC_SHADOW_LIGHTS = 6;
+constexpr uint32_t MAX_RASTER_DYNAMIC_SHADOW_FACES = MAX_RASTER_DYNAMIC_SHADOW_LIGHTS * 6;
+
+struct UInt4
+{
+	uint32_t x = 0;
+	uint32_t y = 0;
+	uint32_t z = 0;
+	uint32_t w = 0;
+};
+
+struct RasterDynamicShadowResolveData
+{
+	Matrix inverseViewProjection;
+	Vector4 targetDimensions;
+	Vector4 atlasDimensions;
+	Vector4 shadowSettings;
+	Vector4 lightPositionRadius[MAX_RASTER_DYNAMIC_SHADOW_LIGHTS];
+	UInt4 lightFaceRanges[MAX_RASTER_DYNAMIC_SHADOW_LIGHTS];
+	Matrix faceViewProjection[MAX_RASTER_DYNAMIC_SHADOW_FACES];
+	Vector4 faceAtlasRect[MAX_RASTER_DYNAMIC_SHADOW_FACES];
+	UInt4 resolveCounts;
+};
+
+static_assert( sizeof( UInt4 ) == sizeof( Vector4 ), "Raster shadow uint4 layout must match HLSL" );
+static_assert( sizeof( RasterDynamicShadowResolveData ) == 3200, "Raster shadow resolve buffer layout changed" );
+
 const char* VISUALIZER_EFFECT_PATH[EveSpaceScene::VM_COUNT] = {
 	"",
 	"res:/Graphics/Effect/Managed/Space/Visualizer/Texcoord0.fx",
@@ -558,15 +585,15 @@ void EveSpaceScene::Update( Be::Time realTime, Be::Time simTime )
 	}
 	{
 		CCP_STATS_ZONE( "UpdateAsyncronous" );
-	#if BLUE_WITH_PYTHON
+#if BLUE_WITH_PYTHON
 		std::unique_ptr<ScopedBlockTrap> blockTrap;
 		if( PyOS )
 		{
 			blockTrap = std::make_unique<ScopedBlockTrap>();
 		}
-	#else
+#else
 		ScopedBlockTrap blockTrap;
-	#endif
+#endif
 
 		Tr2ParallelTaskGroup taskGroup = {};
 		m_updateContext.SetTaskGroup( &taskGroup );
@@ -2505,6 +2532,7 @@ void EveSpaceScene::RenderShadowMapForSpotLight(
 	const Tr2TextureAL& shadowMap )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+	++m_dynamicLightShadowDiagnostics.facePasses;
 
 	renderContext.m_esm.PushViewport();
 	renderContext.m_esm.UpdateRenderTargetViewport( shadowMap.GetWidth(), shadowMap.GetHeight() );
@@ -2514,18 +2542,26 @@ void EveSpaceScene::RenderShadowMapForSpotLight(
 	const float marginScale = 1.f - ( margin / shadowMapScale );
 	const Matrix marginMatrix = ScalingMatrix( Vector3( marginScale, marginScale, 1.f ) );
 	const Matrix viewProj = view * projection * marginMatrix;
+	m_dynamicLightShadowFaces.push_back( { viewProj,
+										   Vector4(
+											   static_cast<float>( shadowMapOffsetX ),
+											   static_cast<float>( shadowMapOffsetY ),
+											   static_cast<float>( shadowMapScale ),
+											   0.0f ) } );
 
 	TriFrustum shadowFrustum;
 	shadowFrustum.DeriveFrustum( &view, &lightPosition, &projection, renderContext.m_esm.GetViewport() );
 	{
 		CCP_STATS_ZONE( "get shadowbatches for light" );
-		float sizeInShadow = 0.0f;
 		for( auto& caster : shadowCasters )
 		{
+			float sizeInShadow = 0.0f;
+			++m_dynamicLightShadowDiagnostics.casterTests;
 			caster->IsCastingShadow( m_updateContext.GetFrustum(), TriShadowFrustum( shadowFrustum ), TR2RENDERREASON_NORMAL, sizeInShadow );
 			// special threshold check
 			if( sizeInShadow > 5.0f )
 			{
+				++m_dynamicLightShadowDiagnostics.acceptedCasterPasses;
 				auto perObjData = caster->GetShadowPerObjectData( m_shadowBatches[0].get() );
 				caster->GetShadowBatches( m_shadowBatches[0].get(), perObjData, min( (float)shadowMapScale, sizeInShadow ) );
 			}
@@ -2535,6 +2571,7 @@ void EveSpaceScene::RenderShadowMapForSpotLight(
 	}
 
 	m_shadowBatches[0]->Finalize();
+	m_dynamicLightShadowDiagnostics.committedBatches += static_cast<uint32_t>( m_shadowBatches[0]->GetBatchCount() );
 	PerFrameVSData data;
 	data.ViewProjectionMat = Transpose( viewProj );
 
@@ -2617,8 +2654,137 @@ void EveSpaceScene::FinishRenderingShadowMapForLights( Tr2RenderContext& renderC
 	ApplyPerFrameData( renderContext );
 }
 
+Tr2GpuResourcePool::Texture EveSpaceScene::ResolveDynamicLightShadowReceivers(
+	const Tr2TextureAL& depthMap,
+	const Tr2TextureAL& shadowMap,
+	Tr2LightManager& lightManager,
+	Tr2GpuResourcePool& gpuResourcePool,
+	Tr2RenderContext& renderContext )
+{
+	if( !m_dynamicLightShadowResolveEffect || !depthMap.IsValid() || !shadowMap.IsValid() )
+	{
+		std::fprintf( stderr, "Raster dynamic-light receiver resolve failed: effect/depth/atlas unavailable\n" );
+		CCP_LOGERR( "EveSpaceScene: raster dynamic-light shadow receiver resolve is unavailable" );
+		return {};
+	}
+
+	const std::vector<uint32_t>& selectedLights = lightManager.GetShadowCastingLights();
+	if( selectedLights.empty() || selectedLights.size() > MAX_RASTER_DYNAMIC_SHADOW_LIGHTS ||
+		m_dynamicLightShadowFaces.size() > MAX_RASTER_DYNAMIC_SHADOW_FACES )
+	{
+		std::fprintf(
+			stderr,
+			"Raster dynamic-light receiver resolve failed: lights=%zu faces=%zu\n",
+			selectedLights.size(),
+			m_dynamicLightShadowFaces.size() );
+		CCP_LOGERR( "EveSpaceScene: raster dynamic-light shadow receiver input count is invalid" );
+		return {};
+	}
+
+	RasterDynamicShadowResolveData data{};
+	const Matrix inverseViewProjection =
+		Inverse( Tr2Renderer::GetReversedDepthProjectionTransform() ) * Tr2Renderer::GetInverseViewTransform();
+	data.inverseViewProjection = Transpose( inverseViewProjection );
+	data.targetDimensions = Vector4(
+		static_cast<float>( depthMap.GetWidth() ),
+		static_cast<float>( depthMap.GetHeight() ),
+		1.0f / static_cast<float>( depthMap.GetWidth() ),
+		1.0f / static_cast<float>( depthMap.GetHeight() ) );
+	data.atlasDimensions = Vector4(
+		static_cast<float>( shadowMap.GetWidth() ),
+		static_cast<float>( shadowMap.GetHeight() ),
+		1.0f / static_cast<float>( shadowMap.GetWidth() ),
+		1.0f / static_cast<float>( shadowMap.GetHeight() ) );
+	data.shadowSettings = Vector4( 0.00035f, 1.5f, 0.0f, 0.0f );
+
+	uint32_t faceOffset = 0;
+	for( uint32_t shadowSlot = 0; shadowSlot < selectedLights.size(); ++shadowSlot )
+	{
+		const Tr2LightManager::PerLightData& lightData = lightManager.GetLightData( selectedLights[shadowSlot] );
+		const uint32_t faceCount = lightData.innerAngle <= 0.0f ? 6u : 1u;
+		if( faceOffset + faceCount > m_dynamicLightShadowFaces.size() )
+		{
+			std::fprintf( stderr, "Raster dynamic-light receiver resolve failed: incomplete face data\n" );
+			CCP_LOGERR( "EveSpaceScene: raster dynamic-light shadow face data is incomplete" );
+			return {};
+		}
+		data.lightPositionRadius[shadowSlot] = Vector4(
+			lightData.position.x,
+			lightData.position.y,
+			lightData.position.z,
+			lightData.radius );
+		data.lightFaceRanges[shadowSlot] = { faceOffset, faceCount, 1u << shadowSlot, 0u };
+		faceOffset += faceCount;
+	}
+	if( faceOffset != m_dynamicLightShadowFaces.size() )
+	{
+		std::fprintf( stderr, "Raster dynamic-light receiver resolve failed: face count mismatch\n" );
+		CCP_LOGERR( "EveSpaceScene: raster dynamic-light shadow face count does not match selected lights" );
+		return {};
+	}
+	for( uint32_t faceIndex = 0; faceIndex < faceOffset; ++faceIndex )
+	{
+		data.faceViewProjection[faceIndex] = Transpose( m_dynamicLightShadowFaces[faceIndex].viewProjection );
+		data.faceAtlasRect[faceIndex] = m_dynamicLightShadowFaces[faceIndex].atlasRect;
+	}
+	data.resolveCounts = {
+		static_cast<uint32_t>( selectedLights.size() ),
+		faceOffset,
+		depthMap.GetWidth(),
+		depthMap.GetHeight()
+	};
+
+	auto receiverMask = gpuResourcePool.GetTempTexture(
+		"RasterDynamicShadowReceiverMask",
+		depthMap.GetWidth(),
+		depthMap.GetHeight(),
+		ImageIO::PIXEL_FORMAT_R16_UINT,
+		Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+	if( !receiverMask.IsValid() )
+	{
+		std::fprintf( stderr, "Raster dynamic-light receiver resolve failed: R16_UINT mask allocation\n" );
+		CCP_LOGERR( "EveSpaceScene: failed to allocate the raster dynamic-light shadow receiver mask" );
+		return {};
+	}
+
+	m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "SceneDepth" ), depthMap );
+	m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "ShadowAtlas" ), shadowMap );
+	m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "ShadowMask" ), receiverMask );
+	ON_BLOCK_EXIT( [&] {
+		m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "SceneDepth" ), Tr2TextureAL{} );
+		m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "ShadowAtlas" ), Tr2TextureAL{} );
+		m_dynamicLightShadowResolveEffect->SetParameter( BlueSharedString( "ShadowMask" ), Tr2TextureAL{} );
+	} );
+
+	const bool constantsReady = FillAndSetConstants(
+		m_dynamicLightShadowResolveBuffer,
+		data,
+		Tr2RenderContextEnum::COMPUTE_SHADER,
+		Tr2Renderer::GetPerFramePSStartRegister(),
+		renderContext );
+	const bool dispatched = constantsReady && Tr2Renderer::RunComputeShader( m_dynamicLightShadowResolveEffect, BlueSharedString( "Main" ), ( depthMap.GetWidth() + 7 ) / 8, ( depthMap.GetHeight() + 7 ) / 8, 1, renderContext );
+	if( !dispatched )
+	{
+		std::fprintf(
+			stderr,
+			"Raster dynamic-light receiver resolve failed: constants=%s dispatch=%s\n",
+			constantsReady ? "ready" : "failed",
+			dispatched ? "ready" : "failed" );
+		CCP_LOGERR( "EveSpaceScene: raster dynamic-light shadow receiver resolve failed" );
+		return {};
+	}
+	lightManager.AssignScreenSpaceShadowMasks();
+	m_dynamicLightShadowDiagnostics.receiverMaskFormat = static_cast<uint32_t>( receiverMask->GetFormat() );
+	m_dynamicLightShadowDiagnostics.receiverMaskWidth = receiverMask->GetWidth();
+	m_dynamicLightShadowDiagnostics.receiverMaskHeight = receiverMask->GetHeight();
+	m_dynamicLightShadowDiagnostics.receiverMaskResolved = true;
+	return receiverMask;
+}
+
 EveSpaceScene::ShadowResources EveSpaceScene::RenderShadows( const Tr2TextureAL& depthMap, const Tr2TextureAL& normalMap, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext )
 {
+	m_dynamicLightShadowDiagnostics = {};
+	m_dynamicLightShadowFaces.clear();
 	if( !m_display || !m_enableShadows )
 	{
 		return {};
@@ -2665,11 +2831,33 @@ EveSpaceScene::ShadowResources EveSpaceScene::RenderShadows( const Tr2TextureAL&
 	{
 		if( lightManager->GetShadowCastingLights().size() > 0 && m_shadowQuality != ShadowQuality::SHADOW_DISABLED && m_shadowQuality != ShadowQuality::SHADOW_RAYTRACED )
 		{
+			m_dynamicLightShadowDiagnostics.selectedLights = static_cast<uint32_t>( lightManager->GetShadowCastingLights().size() );
+			for( uint32_t lightIndex : lightManager->GetShadowCastingLights() )
+			{
+				const Tr2LightManager::PerLightData& lightData = lightManager->GetLightData( lightIndex );
+				if( lightData.innerAngle <= 0.f )
+				{
+					++m_dynamicLightShadowDiagnostics.pointLights;
+				}
+				else
+				{
+					++m_dynamicLightShadowDiagnostics.spotLights;
+				}
+			}
 			GPU_REGION( renderContext, "PointLight/SpotLight Shadow Maps" );
 			auto shadowMap = lightManager->GetShadowMapAtlas( gpuResourcePool );
 			if( shadowMap.IsValid() ) // I HATE THIS. But it makes sense. The shadow map creation might fail, i.e. if we run out of memory.
 			{
-				PrepareShadowMapForLights( renderContext, shadowMap );
+				m_dynamicLightShadowDiagnostics.atlasValid = true;
+				m_dynamicLightShadowDiagnostics.atlasFormat = static_cast<uint32_t>( shadowMap->GetFormat() );
+				m_dynamicLightShadowDiagnostics.atlasWidth = shadowMap->GetWidth();
+				m_dynamicLightShadowDiagnostics.atlasHeight = shadowMap->GetHeight();
+				if( !PrepareShadowMapForLights( renderContext, shadowMap ) )
+				{
+					m_dynamicLightShadowDiagnostics.atlasValid = false;
+					FinishRenderingShadowMapForLights( renderContext );
+					return result;
+				}
 				std::vector<IEveShadowCaster*> shadowCasters = m_componentRegistry->GetComponents<IEveShadowCaster>();
 				for( uint32_t lightIndex : lightManager->GetShadowCastingLights() )
 				{
@@ -2678,6 +2866,19 @@ EveSpaceScene::ShadowResources EveSpaceScene::RenderShadows( const Tr2TextureAL&
 				}
 				FinishRenderingShadowMapForLights( renderContext );
 				result.pointLightShadowDepth = shadowMap;
+				result.pointLightShadowMap = ResolveDynamicLightShadowReceivers(
+					depthMap,
+					shadowMap,
+					*lightManager,
+					gpuResourcePool,
+					renderContext );
+				if( result.pointLightShadowMap.IsValid() )
+				{
+					// Current V5 client shaders consume local visibility through the raytraced-style
+					// screen mask even when the probe populated it from Trinity's raster atlas.
+					m_perFramePS.ShadowQuality = 1u << static_cast<uint32_t>( ShadowQuality::SHADOW_RAYTRACED );
+					ApplyPerFrameData( renderContext );
+				}
 			}
 		}
 	}
@@ -2711,7 +2912,6 @@ bool EveSpaceScene::RenderMainPass(
 	renderContext.AddGpuMarker( __FUNCTION__ );
 
 	renderContext.SetReadOnlyDepth( true );
-
 	GPU_REGION( renderContext, "Color Pass" );
 
 	{

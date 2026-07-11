@@ -1189,7 +1189,8 @@ dynamic preserves readable, nonuniform shadow-side material detail. A
 all-products capture return zero. The latter retains three accepted shadow
 cascades, six V5 shadow batches, and nonuniform depth, normal, shadow, atlas,
 CORTAO, and bent-normal products. RC-08 and CP-19 are therefore accepted;
-authored local-light shadows remain RC-08B.
+the then-open authored local-light shadow contract is resolved under RC-08B
+below.
 
 Client Metal inspection also corrects an earlier compatibility-report claim.
 The high-tier opaque V5 permutation consumes all seven packed SH vectors and
@@ -1228,11 +1229,53 @@ a deterministic compact fallback to stay within the macOS filename limit.
 
 `Reports/AsteroDecalResources.json` records 37 checksummed external inputs:
 six Metal containers, 22 decal/default textures, and nine inherited Black,
-GR2, and hull-map resources. RC-05C and CP-20 are accepted; RC-08B is next.
+GR2, and hull-map resources. RC-05C and CP-20 are accepted; the subsequent
+RC-08B investigation is recorded below.
 The final full-screen integrated launch resolved six authored local lights,
 three directional-shadow cascades, all 11 decal batches, and a nonuniform ultra
 reflection cube; interactive visual inspection passed and the window closed
 with status 0.
+
+### Authored local-shadow investigation (RC-08B)
+
+The probe now separates directional cascades from raster local shadows and can
+select `off`, six authored SOF point lights, or one synthetic validation light.
+SOF does not serialize shadow eligibility, so authored mode explicitly labels
+its two haze and four banner lights with the `probe-all-active` policy. Their
+positions and radii use the same raw GR2 coordinate space as the hull and
+attachments. This corrected the earlier residual fit-scale transform and lets
+all six lights reach Trinity's native seven-pixel selection threshold.
+
+The writer path is operational. Authored mode renders 36 cube faces into a
+valid 16384x16384 D32 atlas and commits 68 hull/booster batches across 34
+accepted caster passes. Validation mode renders six faces and 12 batches. A
+sample-owned compute resolver also projects the atlas into a full-resolution
+R16_UINT per-light mask. `Reports/AsteroLocalShadowResources.json` records 13
+checksummed inherited client inputs; the resolver itself is repository source.
+
+The color-composition gate did not pass. Shadow-off/on captures are identical,
+including tests with a forced nonzero mask. Disassembly of the selected
+`quadv5` Main pixel metallib shows its reflected
+`EveSpaceSceneDynamicShadowMap` argument compiled as AIR `readnone`.
+`DynamicLightShadow` is the caster technique and the effect exposes no shadow
+receiver permutation. CP-21 therefore accepts the native atlas writer only.
+
+The follow-up client-parity audit covered all 1,611 Metal effect containers in
+the installed macOS index. Sixty containers expose the dynamic-shadow binding,
+covering V5 quad, organic, decal, impact, particle, and turret families. Their
+2,928 embedded references deduplicate to 2,224 Metal libraries; disassembly
+marks the binding `readnone` in all 2,224. The ordinary high and low Astero V5
+tiers omit the binding entirely, while all 776 unique depth-tier Astero V5
+libraries that expose it also mark it unused.
+
+Client code corroborates the shader evidence. Trinity commit `f72f399a2`
+introduced `useDynamicLightsShadows` in July 2025 with a default of `false`.
+The installed `code.ccp` never sets that flag. High-end macOS defaults to
+shadow quality `2` (High); quality `3` (Raytraced) is offered only when
+`SupportsRaytracing()` succeeds, but neither path enables the separate dynamic
+light-shadow feature. RC-08B is therefore closed as unavailable in the current
+macOS reference client. `--local-shadows auto` now resolves off; explicit
+`authored` and `validation` modes preserve CP-21 for future payload audits.
 
 ## Revised rung model
 
@@ -1255,7 +1298,7 @@ make those prerequisites explicit.
 | 3F | Indexed SOF decals | Accepted | Native standard, SoE logo, and kill-counter overlays preserve authored ordering, transforms, materials, and LOD0 indices without changing depth, normal, shadow, reflection, or AO products. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
-| 4C | Complete HDR scene composition | Missing | Authored local-light shadows remain before final composition acceptance. |
+| 4C | Complete HDR scene composition | Active | Current macOS client parity disables local-light shadows. Preserve CP-21 explicit diagnostics and accept the complete FP16 composition without inventing an unavailable receiving material. |
 | 5 | Exposure and tone mapping | Machinery accepted, fidelity blocked | Re-run `hdr-exposure` against accepted rung 4C and compare settled captures. |
 | 6 | Bloom, film grain, distortion, and volumetrics | Blocked | Add one effect at a time only after rung 5 fidelity acceptance. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
@@ -1386,6 +1429,20 @@ The following checks passed on the host snapshot above:
 - a 540-frame integrated decal `hdr-post` orbit and 180-frame `hdr-exposure`
   run with status 0, plus byte-identical decal-off/on depth, normal, reflection,
   shadow, cascade-atlas, AO, and bent-normal products;
+- checksummed staging of 13 inherited RC-08B inputs in
+  `AsteroLocalShadowResources.json`; authored mode selects six point lights
+  (two haze and four banner), renders 36 cube faces into a valid 16384x16384
+  D32 atlas, and commits 68 hull/booster batches across 34 accepted caster
+  passes;
+- a sample-owned atlas resolver producing a full-resolution R16_UINT light
+  mask, followed by a decisive failed color gate: shadow-off/on captures remain
+  byte-identical because Metal disassembly marks the current-client V5 Main
+  `EveSpaceSceneDynamicShadowMap` argument `readnone`; `DynamicLightShadow` is
+  the caster technique rather than a receiving color pass;
+- a current-client-wide audit of 1,611 Metal containers: 60 expose the
+  dynamic-shadow binding, yielding 2,224 unique relevant metallibs, and every
+  one compiles the argument `readnone`; installed Python bytecode contains no
+  override for Trinity's default-off `useDynamicLightsShadows` feature flag;
 - capture- and inspection-owned Cocoa objects drain before Trinity device
   destruction, and the ARC-managed window disables AppKit's legacy
   release-on-close behavior; finite, long-run, and inspection shutdowns are
@@ -1399,9 +1456,9 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Add authored local-light shadows under RC-08B while preserving the accepted
-   directional-shadow, CORTAO, and dynamic-reflection products.
-2. Accept complete HDR composition and reaccept dynamic exposure against it.
+1. Accept complete HDR composition under RC-09 with current-client local-light
+   shadows disabled and CP-21 explicit diagnostics preserved.
+2. Reaccept dynamic exposure against the complete composition.
 3. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
 4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource

@@ -132,7 +132,34 @@ public:
 		Tr2GpuResourcePool::Texture pointLightShadowDepth;
 	};
 
+	struct DynamicLightShadowDiagnostics
+	{
+		uint32_t selectedLights = 0;
+		uint32_t pointLights = 0;
+		uint32_t spotLights = 0;
+		uint32_t facePasses = 0;
+		uint32_t casterTests = 0;
+		uint32_t acceptedCasterPasses = 0;
+		uint32_t committedBatches = 0;
+		uint32_t atlasFormat = 0;
+		uint32_t atlasWidth = 0;
+		uint32_t atlasHeight = 0;
+		bool atlasValid = false;
+		uint32_t receiverMaskFormat = 0;
+		uint32_t receiverMaskWidth = 0;
+		uint32_t receiverMaskHeight = 0;
+		bool receiverMaskResolved = false;
+	};
+
 	ShadowResources RenderShadows( const Tr2TextureAL& depthMap, const Tr2TextureAL& normalMap, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext );
+	const DynamicLightShadowDiagnostics& GetDynamicLightShadowDiagnostics() const
+	{
+		return m_dynamicLightShadowDiagnostics;
+	}
+	void SetDynamicLightShadowResolveEffect( Tr2Effect * effect )
+	{
+		m_dynamicLightShadowResolveEffect = effect;
+	}
 	bool RenderMainPass(
 		const Tr2TextureAL& colorMap,
 		const Tr2TextureAL& depthMap,
@@ -234,7 +261,7 @@ public:
 	{
 		return m_reflectionProbe;
 	}
-	void SetReflectionProbe( Tr2ReflectionProbe* probe )
+	void SetReflectionProbe( Tr2ReflectionProbe * probe )
 	{
 		m_reflectionProbe = probe;
 	}
@@ -769,6 +796,12 @@ public:
 		const Tr2TextureAL& shadowMap );
 	void RenderShadowMapForLight( Tr2RenderContext & renderContext, const std::vector<IEveShadowCaster*>& shadowCasters, const Tr2LightManager::PerLightData& lightData, const Tr2TextureAL& shadowMap );
 	void FinishRenderingShadowMapForLights( Tr2RenderContext & renderContext );
+	Tr2GpuResourcePool::Texture ResolveDynamicLightShadowReceivers(
+		const Tr2TextureAL& depthMap,
+		const Tr2TextureAL& shadowMap,
+		Tr2LightManager& lightManager,
+		Tr2GpuResourcePool& gpuResourcePool,
+		Tr2RenderContext& renderContext );
 
 	// Object to gather all components
 	EveComponentRegistryPtr m_componentRegistry;
@@ -781,6 +814,15 @@ public:
 	bool m_enableShadows;
 
 	ShadowQuality m_shadowQuality;
+	DynamicLightShadowDiagnostics m_dynamicLightShadowDiagnostics;
+	struct DynamicLightShadowFace
+	{
+		Matrix viewProjection;
+		Vector4 atlasRect;
+	};
+	std::vector<DynamicLightShadowFace> m_dynamicLightShadowFaces;
+	Tr2EffectPtr m_dynamicLightShadowResolveEffect;
+	Tr2ConstantBufferAL m_dynamicLightShadowResolveBuffer;
 
 	const BlueSharedString m_shadowCascadedName = BlueSharedString( "SHADOW_CASCADED" );
 	const BlueSharedString m_shadowRaytracedName = BlueSharedString( "SHADOW_RT" );

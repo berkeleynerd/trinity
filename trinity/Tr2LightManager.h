@@ -86,13 +86,35 @@ public:
 
 	struct ShadowMapAtlasSettings
 	{
-		uint32_t actualTextureSize; // only updated once per frame. might be larger than size, as multiple eve space scenes might request different shadow qualities
-		uint32_t sizeLog2;
-		uint32_t size;
-		uint32_t entryMinSizeLog2;
-		uint32_t entryMinSize;
-		uint32_t entryInverseScaleFactorLog2;
-		uint32_t entryMaxSize;
+		uint32_t actualTextureSize = 0; // only updated once per frame. might be larger than size, as multiple eve space scenes might request different shadow qualities
+		uint32_t sizeLog2 = 0;
+		uint32_t size = 0;
+		uint32_t entryMinSizeLog2 = 0;
+		uint32_t entryMinSize = 0;
+		uint32_t entryInverseScaleFactorLog2 = 0;
+		uint32_t entryMaxSize = 0;
+	};
+
+	struct ShadowMapAtlasEntry
+	{
+		uint32_t lightIndex = 0;
+		uint32_t offsetX = 0;
+		uint32_t offsetY = 0;
+		uint32_t faceSize = 0;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		bool isSpotLight = false;
+	};
+
+	struct DynamicShadowDiagnostics
+	{
+		bool enabled = false;
+		bool allocationSucceeded = false;
+		uint32_t eligibleLightCount = 0;
+		uint32_t selectedLightCount = 0;
+		uint32_t droppedLightCount = 0;
+		ShadowMapAtlasSettings atlasSettings;
+		std::vector<ShadowMapAtlasEntry> entries;
 	};
 
 	void GetUnpackedShadowMapData( const PerLightData& lightData, uint32_t& shadowMapScale, uint32_t& shadowMapOffsetX, uint32_t& shadowMapOffsetY ) const;
@@ -124,6 +146,8 @@ public:
 	static Tr2LightManager* GetOrCreateInstance( const char* effectPath );
 	static Tr2LightManager* GetInstance();
 	static void DeleteInstance();
+	static void SetDynamicLightShadowsEnabled( bool enabled );
+	static bool AreDynamicLightShadowsEnabled();
 
 	static bool AreLightFlagsValid( uint16_t flags );
 
@@ -132,8 +156,10 @@ public:
 	const std::vector<uint32_t>& GetShadowCastingLights() const;
 	const std::vector<uint32_t>& GetVolumetricLights() const;
 	const Tr2LightManager::PerLightData& GetLightData( uint32_t index ) const;
+	void AssignScreenSpaceShadowMasks();
 	Tr2GpuResourcePool::Texture GetShadowMapAtlas( Tr2GpuResourcePool& gpuResourcePool );
 	const ShadowMapAtlasSettings& GetShadowMapAtlasSettings() const;
+	const DynamicShadowDiagnostics& GetDynamicShadowDiagnostics() const;
 
 	ShadowQuality GetCurrentSpaceSceneShadowQuality();
 
@@ -178,7 +204,7 @@ private:
 	uint32_t InsertAtlasNode( std::vector<AtlasNode>& atlasNodes, uint32_t nodeId, uint32_t lightIndex, int32_t width, int32_t height );
 
 	bool GetShadowMapAtlasEntry( uint32_t lightIndex, uint32_t width, uint32_t height, uint32_t& out_posX, uint32_t& out_posY );
-	void CreateShadowMapAtlas( uint32_t numShadowCastingLights, const std::vector<LightScreenSizeTuple>& lightTuples );
+	bool CreateShadowMapAtlas( uint32_t numShadowCastingLights, const std::vector<LightScreenSizeTuple>& lightTuples );
 
 	Tr2EnumerableThreadSpecific<std::vector<PerLightData>> m_tlsLightData;
 	std::vector<PerLightData> m_lightData;
@@ -197,7 +223,7 @@ private:
 
 	float m_adjustedCutoff;
 
-	uint32_t nextFrameShadowQuality; // bitmask, collecting ShadowQualities during the current frame
+	uint32_t nextFrameShadowQuality = 0; // bitmask, collecting ShadowQualities during the current frame
 	ShadowQuality m_currentSpaceSceneShadowQuality;
 	uint64_t m_currentFrameCounter;
 
@@ -207,6 +233,7 @@ private:
 		std::vector<AtlasNode> m_atlasNodes;
 		ShadowQuality m_qualityUsedByAtlas;
 	} m_ShadowMap;
+	DynamicShadowDiagnostics m_dynamicShadowDiagnostics;
 
 	struct
 	{
