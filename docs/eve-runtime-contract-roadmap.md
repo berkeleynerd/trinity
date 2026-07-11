@@ -42,7 +42,8 @@ This table is the authoritative implementation order.
 | RC-05C | Render indexed SOF decal sets | Blocked | RC-05B | Indexed decals retain authored ordering, materials, transforms, and depth behavior without corrupting accepted hull or attachment products. |
 | RC-06 | Supply object SH and local/secondary lighting | Accepted | RC-04, RC-05 | The probe uses the client's high `SM_3_0_DEPTH` tier. Exact New Eden sun/planet inputs correctly produce zero secondary SH after Trinity's cutoff; the synthetic control proves the same upload path. Six authored `primary`/`soe` haze/banner lights resolve and rotate with the ship, and local off/authored/validation captures are distinct. |
 | RC-07 | Validate depth and normal products | Accepted | RC-05 | The driver publishes reverse-Z `D32_FLOAT` depth and `R10G10B10A2_UNORM` normals through named outputs. A sample-owned GPU visualizer produces coherent 180-frame Astero captures; authored and flat-normal controls preserve silhouette/camera while differing in expected surface detail. |
-| RC-08 | Add shadows and AO | Blocked | RC-06, RC-07 | Shadow-caster batches and AO consume validated products; stills show plausible contact/shape cues without geometry or lighting regression. |
+| RC-08 | Add sun shadows and AO | Partial | RC-06, RC-07 | Native cascades and CORTAO consume the accepted depth/normal products. The normalized CMF is restored to authored scale with a matched camera distance, preserving the client's 2048x16 cascade layout. Caster and named-product diagnostics pass, but the combined V5 image still exposes near-black direct-shadow regions because the current object-lighting path supplies insufficient indirect fill. |
+| RC-08B | Add authored local-light shadows | Blocked | RC-08 | Active SOF point/spot lights allocate authored shadow atlases and submit coherent casters without changing the accepted directional-shadow controls. |
 | RC-09 | Accept complete HDR scene composition | Blocked | RC-03, RC-04, RC-04B, RC-04C, RC-05B, RC-06, RC-08 | Model, background, visible celestials and sun effects, visible attachments, direct/indirect lighting, reflection, depth/normal, shadows, and AO coexist in FP16 with stable frame pacing. |
 | RC-10 | Reaccept exposure and tone mapping | Blocked | RC-09 | Settled `hdr-exposure` captures use the complete scene histogram and improve dynamic range without clipping, pumping, or hiding material errors. |
 | RC-11 | Add bloom and film grain | Blocked | RC-10 | Bloom is accepted independently before film grain; each has an A/B capture and clean finite run. |
@@ -73,6 +74,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-15 | New Eden atmosphere and cloud layers | Accepted | `planetring.gr2` is converted to CMF with its reconstructed binormal stream. Native `atmosphere` and `earthlikeclouds` effects render distinct additive/transparent controls; `Reports/NewEdenAtmosphereResources.json` records six Metal payloads and eight Sandstorm cloud textures. | The installed client exposes only an unused `DoPlanetPreprocessing` queue shell, so no scheduler-generated maps are emulated. |
 | CP-16 | New Eden sun flare and god rays | Accepted | `SunFlares` uses converted `unitplane` geometry; `yellow_small.black` retains 11 ordered CMF mesh areas and two foreground plus two background native occluders; client-colored god rays execute before exposure and tone mapping. `Reports/NewEdenSunFxResources.json` records 43 resources. | Whisps, particle-corona branches, bloom, and volumetric/froxel effects remain deferred. |
 | CP-17 | Native SOF visible-attachment machinery | Accepted | `EveSpriteSet`, `EveSpotlightSet`, and `EvePlaneSet` submit through `Tr2QuadRenderer`; `EveHazeSet` and `EveBannerSet` submit additive batches. Six isolated/all captures, a 540-frame orbit, depth/normal controls, and HDR/exposure runs pass. `Reports/AsteroAttachmentResources.json` records the complete staged graph. | Static identity bone deltas are used; boosters, trails, damage FX, indexed decals, distortion, and attachment shadows remain deferred. |
+| CP-18 | Native cascaded shadows and bent-normal AO | Accepted | The Astero is a real `IEveShadowCaster`; three accepted cascades commit two V5 batches each. Named `ShadowMap`, `CascadedShadowDepth`, and `SSAOMap` outputs produce nonuniform GPU-readback captures. Authored object/camera scale removes the normalized-scene texel-density mismatch; a 360-frame cinematic orbit remains stable. | Directional visibility is mechanically correct, but missing indirect fill makes full occlusion visually too dark. Cinematic placement disables exact-system planet eclipsing; local-light shadows remain RC-08B. |
 
 ## Rung-model holes
 
@@ -82,15 +84,17 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | Rung 3E: visible SOF attachments | Authored additive and quad geometry was absent from the light-only bridge | Require independent family controls and native lifecycle submission before HDR composition. |
 | Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | Treat `hdr-post` and `hdr-exposure` as capability checkpoints until RC-09. |
 | Rung 5: depth/normal after post | Depth/normal are prerequisites for AO, shadows, and complete composition | Validate products before accepting postprocess fidelity. |
-| Rung 6: AO/shadows as optional quality | They materially affect shape readability and scene composition | Make them a direct-path prerequisite for RC-09. |
+| Rung 4B: shadows and AO | Native products can be correct while their composed lighting exposes a missing ambient contract | Keep CP-18 as capability evidence; accept RC-08 only after shadowed V5 surfaces retain readable indirect detail. |
 | Rung 8: background as an optional effect | Background drives reflections and exposure statistics | Move background to RC-03, before lighting and postprocess acceptance. |
 
 ## Active work queue
 
-1. Add shadow-caster batches and enable AO one at a time under RC-08, preserving
-   the accepted RC-07 product captures as controls.
+1. Close the V5 ambient/indirect-light contract exposed by RC-08, preserving
+   the accepted CP-18 shadow and AO diagnostics as controls.
 2. Reconstruct indexed decal sets separately under RC-05C without enabling
    distortion or attachment shadows.
+3. Add authored local-light shadow atlases under RC-08B only after directional
+   shadow composition is accepted.
 
 Bloom, film grain, distortion, volumetrics, velocity, and TAA are not in the
 active queue. Their capability work remains useful, but they may not advance

@@ -10,6 +10,7 @@
 #include "Eve/EveLensflare.h"
 #include "Eve/EveOccluder.h"
 #include "Eve/EveStarfield.h"
+#include "Eve/IEveShadowCaster.h"
 #include "Eve/IEveSpaceObject2.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
 #include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
@@ -42,6 +43,7 @@
 #include "Tr2MeshBase.h"
 #include "Tr2PerObjectData.h"
 #include "Tr2Renderer.h"
+#include "Tr2SSAO.h"
 #include "Tr2ShLightingManager.h"
 #include "Resources/TriTextureRes.h"
 #include "Resources/TriGeometryRes.h"
@@ -63,9 +65,11 @@
 #include <cstdint>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <fstream>
 #include <functional>
+#include <initializer_list>
 #include <map>
 #include <sstream>
 #include <set>
@@ -146,6 +150,7 @@ BLUE_CLASS( TrinityStandaloneRenderable ) :
 	public ITr2Renderable,
 	public ITr2ShLightingReceiver,
 	public ITr2LightOwner,
+	public IEveShadowCaster,
 	public EveEntity
 {
 public:
@@ -158,7 +163,31 @@ public:
 	bool LoadAsset( const std::string& path, float aspect, std::string& error )
 	{
 		m_aspect = aspect;
-		return m_model.Load( path, error );
+		if( !m_model.Load( path, error ) )
+		{
+			return false;
+		}
+		m_shadowBoundingRadius = 0.0f;
+		for( const TrinityStandaloneEveV5Vertex& vertex : m_model.EveV5Vertices() )
+		{
+			m_shadowBoundingRadius = std::max(
+				m_shadowBoundingRadius,
+				Length( Vector3( vertex.position[0], vertex.position[1], vertex.position[2] ) ) );
+		}
+		float centerScale[4];
+		m_model.GetCenterAndScale( centerScale );
+		m_authoredWorldScale = centerScale[3] > 0.0f ? 1.0f / centerScale[3] : 1.0f;
+		return m_shadowBoundingRadius > 0.0f;
+	}
+
+	void SetShadowCastingEnabled( bool enabled )
+	{
+		m_shadowCastingEnabled = enabled;
+	}
+
+	float GetAuthoredWorldScale() const
+	{
+		return m_authoredWorldScale;
 	}
 
 	bool ConfigureLocalLights( int mode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
@@ -939,6 +968,9 @@ public:
 
 	void UpdateSyncronous( const EveUpdateContext& updateContext ) override
 	{
+		m_shadowCullTests = 0;
+		m_shadowAcceptedCascades = 0;
+		m_shadowCommittedBatches = 0;
 		m_time = updateContext.GetTime();
 		UpdateEffectParameters();
 		UpdateAttachmentLights();
@@ -995,7 +1027,7 @@ public:
 
 	bool GetBoundingSphere( Vector4 & sphere, BoundingSphereQuery ) const override
 	{
-		sphere = Vector4( 0.0f, 0.0f, 0.0f, 2.0f );
+		sphere = Vector4( 0.0f, 0.0f, 0.0f, m_shadowBoundingRadius * m_authoredWorldScale );
 		return true;
 	}
 
@@ -1088,6 +1120,61 @@ public:
 	Tr2PerObjectData* GetPerObjectData( ITriRenderBatchAccumulator* ) override
 	{
 		return m_useEveV5Material ? &m_eveV5PerObjectData : nullptr;
+	}
+
+	bool IsCastingShadow( const TriFrustum& cameraFrustum, const IEveShadowFrustum& shadowFrustum, Tr2RenderReason, float& sizeInShadow ) const override
+	{
+		++m_shadowCullTests;
+		sizeInShadow = 0.0f;
+		if( !m_shadowCastingEnabled || !m_useEveV5Material || m_shadowBoundingRadius <= 0.0f )
+		{
+			return false;
+		}
+		const Vector4 sphere(
+			TransformCoord( Vector3( 0.0f, 0.0f, 0.0f ), m_worldTransform ),
+			m_shadowBoundingRadius * m_authoredWorldScale );
+		if( shadowFrustum.IsVisible( cameraFrustum, sphere ) )
+		{
+			sizeInShadow = shadowFrustum.GetSizeInShadow( sphere );
+		}
+		if( sizeInShadow <= 15.0f )
+		{
+			return false;
+		}
+		++m_shadowAcceptedCascades;
+		return true;
+	}
+
+	void GetShadowBatches( ITriRenderBatchAccumulator* batches, const Tr2PerObjectData* perObjectData, float ) override
+	{
+		if( !m_shadowCastingEnabled || !m_useEveV5Material )
+		{
+			return;
+		}
+		uint32_t committed = 0;
+		committed += CommitShadowAreaBatch( batches, 1, m_hullEffect, perObjectData ) ? 1u : 0u;
+		committed += CommitShadowAreaBatch( batches, 2, m_boosterEffect, perObjectData ) ? 1u : 0u;
+		m_shadowCommittedBatches += committed;
+	}
+
+	Tr2PerObjectData* GetShadowPerObjectData( ITriRenderBatchAccumulator* ) override
+	{
+		return m_useEveV5Material ? &m_eveV5PerObjectData : nullptr;
+	}
+
+	uint32_t GetShadowCullTests() const
+	{
+		return m_shadowCullTests.load();
+	}
+
+	uint32_t GetShadowAcceptedCascades() const
+	{
+		return m_shadowAcceptedCascades.load();
+	}
+
+	uint32_t GetShadowCommittedBatches() const
+	{
+		return m_shadowCommittedBatches.load();
 	}
 
 	bool DrawFailed() const
@@ -1543,9 +1630,17 @@ private:
 
 	void RegisterComponents() override
 	{
-		if( GetComponentRegistry() && TotalConstructedLights() > 0 )
+		if( !GetComponentRegistry() )
+		{
+			return;
+		}
+		if( TotalConstructedLights() > 0 )
 		{
 			GetComponentRegistry()->RegisterComponent<ITr2LightOwner>( this );
+		}
+		if( m_shadowCastingEnabled )
+		{
+			GetComponentRegistry()->RegisterComponent<IEveShadowCaster>( this );
 		}
 	}
 
@@ -1566,8 +1661,10 @@ private:
 		Tr2Shader* shader = effect.GetShaderStateInterface();
 		uint32_t mainTechnique = 0;
 		uint32_t depthTechnique = 0;
+		uint32_t shadowTechnique = 0;
 		if( !shader || !shader->GetTechniqueIndex( BlueSharedString( "Main" ), mainTechnique ) ||
-			( requireDepth && !shader->GetTechniqueIndex( BlueSharedString( "Depth" ), depthTechnique ) ) )
+			( requireDepth && !shader->GetTechniqueIndex( BlueSharedString( "Depth" ), depthTechnique ) ) ||
+			( requireDepth && m_shadowCastingEnabled && !shader->GetTechniqueIndex( BlueSharedString( "Shadow" ), shadowTechnique ) ) )
 		{
 			std::fprintf( stderr, "Astero %s effect is missing its required techniques\n", label );
 			return false;
@@ -1581,7 +1678,13 @@ private:
 						  shader->GetResource( "LightIndexBuffer" ) ? "present" : "absent",
 						  shader->GetResource( "LightBuffer" ) && shader->GetResource( "LightIndexBuffer" ) ? "open" : "blocked" );
 		}
-		std::fprintf( stderr, "Astero %s effect ready: Main=%u Depth=%s\n", label, mainTechnique, requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a" );
+		std::fprintf(
+			stderr,
+			"Astero %s effect ready: Main=%u Depth=%s Shadow=%s\n",
+			label,
+			mainTechnique,
+			requireDepth ? std::to_string( depthTechnique ).c_str() : "n/a",
+			requireDepth && m_shadowCastingEnabled ? std::to_string( shadowTechnique ).c_str() : "n/a" );
 		return true;
 	}
 
@@ -1657,6 +1760,24 @@ private:
 		}
 	}
 
+	bool CommitShadowAreaBatch( ITriRenderBatchAccumulator* batches, uint32_t sourceGroup, Tr2Effect* effect, const Tr2PerObjectData* perObjectData ) const
+	{
+		if( sourceGroup >= m_sectionsByGroup.size() || !m_sectionsByGroup[sourceGroup] || !effect ||
+			!effect->GetShaderStateInterface() || ( m_areaView != 0 && m_areaView != static_cast<int>( sourceGroup + 1 ) ) )
+		{
+			return false;
+		}
+		const TrinityStandaloneCmfSection& section = *m_sectionsByGroup[sourceGroup];
+		Tr2RenderBatch batch;
+		batch.SetMaterial( effect );
+		batch.SetGeometry( m_vertexDeclaration, m_vertexBuffer, sizeof( TrinityStandaloneEveV5Vertex ), m_indexBuffer, sizeof( uint32_t ) );
+		batch.SetPerObjectData( perObjectData );
+		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
+		batch.SetRenderingMode( Tr2EffectStateManager::RM_OPAQUE );
+		batches->Commit( batch );
+		return true;
+	}
+
 	static bool CreateTexture( const TrinityStandaloneCmfTexture& source, Tr2TextureAL& texture, Tr2PrimaryRenderContext& renderContext )
 	{
 		Tr2SubresourceData data = {};
@@ -1681,13 +1802,18 @@ private:
 		const float pitch = -0.28f;
 		if( m_useEveV5Material )
 		{
-			m_worldTransform = RotationYMatrix( yaw ) * RotationXMatrix( pitch );
+			m_worldTransform = ScalingMatrix( m_authoredWorldScale, m_authoredWorldScale, m_authoredWorldScale ) *
+				RotationYMatrix( yaw ) * RotationXMatrix( pitch );
 			const Matrix world = Transpose( m_worldTransform );
 			const Matrix inverseWorld = Transpose( Inverse( m_worldTransform ) );
 			m_eveV5PerObjectData.m_vsData.worldTransform = world;
 			m_eveV5PerObjectData.m_vsData.worldTransformLast = world;
 			m_eveV5PerObjectData.m_vsData.invWorldTransform = inverseWorld;
-			m_eveV5PerObjectData.m_vsData.shipData = Vector4( 1.0f, 1.0f, 0.0f, 2.0f );
+			m_eveV5PerObjectData.m_vsData.shipData = Vector4(
+				m_authoredWorldScale,
+				1.0f,
+				0.0f,
+				m_shadowBoundingRadius * m_authoredWorldScale );
 			m_eveV5PerObjectData.m_vsData.clipData = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidRadii = Vector4( -1.0f, -1.0f, -1.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidCenter = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
@@ -1715,6 +1841,7 @@ private:
 	bool m_drawFailed = false;
 	bool m_reportedBatch = false;
 	bool m_useEveV5Material = false;
+	bool m_shadowCastingEnabled = false;
 	bool m_shLightingEnabled = true;
 	bool m_reportedShLighting = false;
 	mutable bool m_reportedAcceptedLights = false;
@@ -1725,6 +1852,11 @@ private:
 	uint32_t m_shUpdateCount = 0;
 	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
+	float m_shadowBoundingRadius = 0.0f;
+	float m_authoredWorldScale = 1.0f;
+	mutable std::atomic<uint32_t> m_shadowCullTests = 0;
+	mutable std::atomic<uint32_t> m_shadowAcceptedCascades = 0;
+	mutable std::atomic<uint32_t> m_shadowCommittedBatches = 0;
 	TrinityStandaloneCmfModel m_model;
 	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
 	std::array<bool, 3> m_reportedAreaBatch = {};
@@ -1770,8 +1902,9 @@ const Be::ClassInfo* TrinityStandaloneRenderable::ExposeToBlue(){
 			MAP_INTERFACE( ITr2Renderable )
 				MAP_INTERFACE( ITr2ShLightingReceiver )
 					MAP_INTERFACE( ITr2LightOwner )
-						MAP_INTERFACE( EveEntity )
-							EXPOSURE_END()
+						MAP_INTERFACE( IEveShadowCaster )
+							MAP_INTERFACE( EveEntity )
+								EXPOSURE_END()
 }
 
 BLUE_CLASS( TrinityStandaloneSecondaryLight ) :
@@ -1913,7 +2046,32 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_COLOR = 1 << 0,
 	STANDALONE_CAPTURE_DEPTH = 1 << 1,
 	STANDALONE_CAPTURE_NORMAL = 1 << 2,
+	STANDALONE_CAPTURE_SHADOW = 1 << 3,
+	STANDALONE_CAPTURE_SHADOW_ATLAS = 1 << 4,
+	STANDALONE_CAPTURE_AO = 1 << 5,
+	STANDALONE_CAPTURE_BENT_NORMAL = 1 << 6,
 	STANDALONE_CAPTURE_FREEZE_SCENE = 1 << 8,
+};
+
+enum StandaloneShadowMode
+{
+	STANDALONE_SHADOWS_OFF = 0,
+	STANDALONE_SHADOWS_LOW = 1,
+	STANDALONE_SHADOWS_HIGH = 2,
+};
+
+enum StandaloneAmbientOcclusionMode
+{
+	STANDALONE_AO_OFF = 0,
+	STANDALONE_AO_LOW = 1,
+	STANDALONE_AO_MEDIUM = 2,
+	STANDALONE_AO_HIGH = 3,
+};
+
+enum StandaloneAoMethod
+{
+	STANDALONE_AO_CORTAO = 0,
+	STANDALONE_AO_CACAO = 1,
 };
 
 enum StandaloneCameraView
@@ -1971,8 +2129,10 @@ struct StandaloneProbe
 		{
 			scene->SetShLightingManager( nullptr );
 		}
+		renderProductReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		driver.Unlock();
+		ssao.Unlock();
 		scene.Unlock();
 		renderable.Unlock();
 		secondaryLights.clear();
@@ -2004,15 +2164,24 @@ struct StandaloneProbe
 	Tr2RenderContext* renderContext = nullptr;
 	EveSpaceScenePtr scene;
 	EveSpaceSceneRenderDriverPtr driver;
+	Tr2SSAOPtr ssao;
 	BluePtr<TrinityStandaloneRenderable> renderable;
 	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
 	Tr2ShLightingManagerPtr shLightingManager;
 	TriViewPtr view;
 	TriProjectionPtr projection;
 	Tr2EffectPtr renderProductVisualizer;
+	Tr2TextureAL renderProductReadback;
 	uint32_t renderWidth = 0;
 	uint32_t renderHeight = 0;
 	int localLights = STANDALONE_LOCAL_LIGHTS_OFF;
+	int shadows = STANDALONE_SHADOWS_OFF;
+	int ambientOcclusion = STANDALONE_AO_OFF;
+	int aoMethod = STANDALONE_AO_CORTAO;
+	bool reportedShadowStats = false;
+	std::vector<uint8_t> capturedProductPixels;
+	uint32_t capturedProductWidth = 0;
+	uint32_t capturedProductHeight = 0;
 	bool reportedResolvedLights = false;
 	uint64_t renderedFrameCount = 0;
 	bool reportedCameraOrbit = false;
@@ -2021,6 +2190,7 @@ struct StandaloneProbe
 	const char* celestialInspectionName = nullptr;
 	float celestialExpectedPixelDiameter = 0.0f;
 	float celestialInspectionFovRadians = 0.0f;
+	float modelWorldScale = 1.0f;
 	float celestialInspectionScale = 1.0f;
 	Vector3 celestialInspectionDirection;
 	bool celestialInspectionValidated = false;
@@ -2498,6 +2668,46 @@ bool PrepareEffectResourcesWithoutYield( Tr2Effect& effect, const char* role, st
 		role,
 		effect.GetEffectPathName(),
 		shader->GetPassCount( 0 ) );
+	return true;
+}
+
+bool PrepareManagedEffectWithoutYield(
+	const char* logicalPath,
+	const char* role,
+	std::initializer_list<const char*> requiredTechniques,
+	std::string& error )
+{
+	Tr2EffectPtr effect;
+	if( !effect.CreateInstance() )
+	{
+		error = std::string( role ) + " failed to create effect: " + logicalPath;
+		return false;
+	}
+	effect->StartUpdate();
+	effect->SetEffectPathName( logicalPath );
+	effect->EndUpdate();
+	Tr2EffectRes* resource = effect->GetEffectRes();
+	if( resource )
+	{
+		resource->ForceSynchronousLoad();
+		resource->Reload();
+	}
+	Tr2Shader* shader = effect->GetShaderStateInterface();
+	if( !resource || !resource->IsGood() || !shader )
+	{
+		error = std::string( role ) + " failed to prepare: " + logicalPath;
+		return false;
+	}
+	for( const char* techniqueName : requiredTechniques )
+	{
+		uint32_t technique = 0;
+		if( !shader->GetTechniqueIndex( BlueSharedString( techniqueName ), technique ) )
+		{
+			error = std::string( role ) + " is missing technique " + techniqueName + ": " + logicalPath;
+			return false;
+		}
+	}
+	std::fprintf( stderr, "EVE %s effect ready: %s\n", role, logicalPath );
 	return true;
 }
 
@@ -3068,8 +3278,11 @@ bool ConfigureNewEdenSystem(
 		farValue + ( closeHsv.z - farValue ) * distanceRatio );
 	Vector3 sunPosition( 1069486940160.0f, -202669301760.0f, -831868968960.0f );
 	Vector3 planetPosition( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	float celestialRadiusScale = 1.0f;
 	if( composition == STANDALONE_COMPOSITION_CINEMATIC )
 	{
+		scene.SetPlanetShadowsEnabled( false );
+		celestialRadiusScale = probe.modelWorldScale;
 		// EVE applies the selectable warp range around a deterministic planet-specific
 		// destination. Reproduce eveCfg.GetPlanetWarpInPoint's radial distance here.
 		constexpr double factor = 20.0;
@@ -3084,13 +3297,13 @@ bool ConfigureNewEdenSystem(
 		const double visualContactCenterDistance = planetRadius + asteroMeshRadius;
 		constexpr double cinematicSunCenterDistance = 1000000000.0;
 		sunPosition = Normalize( Vector3( -0.65f, 0.32f, 1.0f ) ) *
-			static_cast<float>( cinematicSunCenterDistance );
+			static_cast<float>( cinematicSunCenterDistance ) * celestialRadiusScale;
 		planetPosition = Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) *
-			static_cast<float>( warpCenterDistance );
+			static_cast<float>( warpCenterDistance ) * celestialRadiusScale;
 		sunDirection = -Normalize( sunPosition );
 		std::fprintf(
 			stderr,
-			"New Eden cinematic composition: authored bodies retained; standard planet warp-in "
+			"New Eden cinematic composition: authored bodies retained; exact-system planet eclipse disabled; standard planet warp-in "
 			"radius=%.3f km surfaceClearance=%.3f km centerDistance=%.3f km "
 			"contactCenterDistance=%.3f km visualContactCenterDistance=%.3f km\n",
 			planetRadius / 1000.0,
@@ -3152,12 +3365,12 @@ bool ConfigureNewEdenSystem(
 	}
 	sun->SetStandalonePlacement(
 		sunPosition,
-		static_cast<float>( starRadius ),
+		static_cast<float>( starRadius ) * celestialRadiusScale,
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
 		Color( emissiveR, emissiveG, emissiveB, 1.0f ) );
 	planet->SetStandalonePlacement(
 		planetPosition,
-		static_cast<float>( planetRadius ),
+		static_cast<float>( planetRadius ) * celestialRadiusScale,
 		Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
 	if( !PrepareNewEdenCelestialsWithoutYield(
@@ -3980,6 +4193,7 @@ bool PrepareRenderProductVisualizer( StandaloneProbe& probe )
 	probe.renderProductVisualizer->SetEffectPathName(
 		"res:/graphics/effect/managed/space/spaceobject/probe/renderproductvisualizer.fx" );
 	probe.renderProductVisualizer->SetParameter( BlueSharedString( "RenderProductMode" ), 1.0f );
+	probe.renderProductVisualizer->SetParameter( BlueSharedString( "AoUsesAlpha" ), 1.0f );
 	probe.renderProductVisualizer->EndUpdate();
 	Tr2EffectRes* resource = probe.renderProductVisualizer->GetEffectRes();
 	if( resource )
@@ -4000,14 +4214,103 @@ bool PrepareRenderProductVisualizer( StandaloneProbe& probe )
 	return true;
 }
 
+bool EnsureRenderProductReadback( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	if( probe.renderProductReadback.IsValid() &&
+		probe.renderProductReadback.GetWidth() == probe.renderWidth &&
+		probe.renderProductReadback.GetHeight() == probe.renderHeight )
+	{
+		return true;
+	}
+
+	probe.renderProductReadback = Tr2TextureAL{};
+	const HRESULT result = probe.renderProductReadback.Create(
+		Tr2BitmapDimensions(
+			probe.renderWidth,
+			probe.renderHeight,
+			1,
+			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ),
+		Tr2GpuUsage::RENDER_TARGET,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable EVE render-product target (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.renderProductReadback.SetName( "StandaloneProbeRenderProductReadback" );
+	return true;
+}
+
+bool ReadVisualizedRenderProduct(
+	StandaloneProbe& probe,
+	int captureProduct,
+	Tr2RenderContext& renderContext )
+{
+	probe.capturedProductWidth = probe.renderProductReadback.GetWidth();
+	probe.capturedProductHeight = probe.renderProductReadback.GetHeight();
+	probe.capturedProductPixels.resize(
+		static_cast<size_t>( probe.capturedProductWidth ) * probe.capturedProductHeight * 4 );
+
+	const void* sourceData = nullptr;
+	uint32_t sourcePitch = 0;
+	if( FAILED( probe.renderProductReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, sourceData, sourcePitch, renderContext ) ) ||
+		!sourceData )
+	{
+		std::fprintf( stderr, "Failed to read back visualized EVE render product\n" );
+		probe.capturedProductPixels.clear();
+		return false;
+	}
+
+	uint8_t minimum = 255;
+	uint8_t maximum = 0;
+	for( uint32_t y = 0; y < probe.capturedProductHeight; ++y )
+	{
+		const uint8_t* sourceRow = static_cast<const uint8_t*>( sourceData ) +
+			static_cast<size_t>( y ) * sourcePitch;
+		uint8_t* destinationRow = probe.capturedProductPixels.data() +
+			static_cast<size_t>( y ) * probe.capturedProductWidth * 4;
+		std::memcpy( destinationRow, sourceRow, static_cast<size_t>( probe.capturedProductWidth ) * 4 );
+		for( uint32_t x = 0; x < probe.capturedProductWidth; ++x )
+		{
+			const uint8_t* destination = destinationRow + x * 4;
+			const uint8_t red = destination[0];
+			const uint8_t green = destination[1];
+			const uint8_t blue = destination[2];
+			minimum = std::min( minimum, std::min( red, std::min( green, blue ) ) );
+			maximum = std::max( maximum, std::max( red, std::max( green, blue ) ) );
+		}
+	}
+	probe.renderProductReadback.UnmapForReading( renderContext );
+
+	const bool requireVariation = captureProduct == STANDALONE_CAPTURE_SHADOW ||
+		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS || captureProduct == STANDALONE_CAPTURE_AO ||
+		captureProduct == STANDALONE_CAPTURE_BENT_NORMAL;
+	std::fprintf(
+		stderr,
+		"EVE render-product readback: output=%ux%u range=[%u,%u]\n",
+		probe.capturedProductWidth,
+		probe.capturedProductHeight,
+		minimum,
+		maximum );
+	if( requireVariation && minimum == maximum )
+	{
+		std::fprintf( stderr, "Enabled EVE render product is uniform and cannot satisfy RC-08\n" );
+		probe.capturedProductPixels.clear();
+		return false;
+	}
+	return true;
+}
+
 bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts )
 {
 	Tr2RenderContext& renderContext = *probe.renderContext;
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
-	std::array<BlueSharedString, 2> requestedNames;
-	std::array<ITr2RenderNode::TempOutput, 2> outputStorage;
+	std::array<BlueSharedString, 6> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 6> outputStorage;
 	size_t requestedCount = 0;
 	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
 	{
@@ -4018,6 +4321,24 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	if( captureProducts & STANDALONE_CAPTURE_NORMAL )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "NormalMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_SHADOW )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "ShadowMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_SHADOW_ATLAS )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "CascadedShadowDepth" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & ( STANDALONE_CAPTURE_AO | STANDALONE_CAPTURE_BENT_NORMAL ) )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "SSAOMap" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
@@ -4032,6 +4353,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 
 	Tr2Renderer::BeginFrame();
 	bool ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Tr2Renderer::BeginRenderContext" );
+	bool renderContextOpen = ok;
 	if( ok )
 	{
 		const Tr2TextureAL* destinationTexture = &destination;
@@ -4041,9 +4363,20 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		driver.Execute( destinationSpan, outputSpan, realTime, simTime, rootTimer, renderContext );
 
 		const char* selectedName = captureProducts == STANDALONE_CAPTURE_DEPTH ? "DepthMap" :
-																				 ( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" : nullptr );
+			( captureProducts == STANDALONE_CAPTURE_NORMAL ? "NormalMap" :
+				( captureProducts == STANDALONE_CAPTURE_SHADOW ? "ShadowMap" :
+					( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? "CascadedShadowDepth" :
+						( captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ?
+							"SSAOMap" : nullptr ) ) ) );
 		if( selectedName )
 		{
+			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
+			renderContextOpen = false;
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Begin render-product visualization" );
+				renderContextOpen = ok;
+			}
 			const Tr2TextureAL* selectedTexture = nullptr;
 			for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
 			{
@@ -4060,16 +4393,84 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			}
 			else
 			{
-				if( PrepareRenderProductVisualizer( probe ) )
+				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
+					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL;
+				if( fullResolutionProduct &&
+					( selectedTexture->GetWidth() != probe.renderWidth || selectedTexture->GetHeight() != probe.renderHeight ) )
 				{
+					std::fprintf(
+						stderr,
+						"Requested EVE render product '%s' has invalid dimensions %ux%u; expected %ux%u\n",
+						selectedName,
+						selectedTexture->GetWidth(),
+						selectedTexture->GetHeight(),
+						probe.renderWidth,
+						probe.renderHeight );
+					ok = false;
+				}
+				if( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS &&
+					( selectedTexture->GetWidth() != 16384 || selectedTexture->GetHeight() != 4096 ) )
+				{
+					std::fprintf(
+						stderr,
+						"Cascaded shadow atlas has invalid dimensions %ux%u; expected 16384x4096\n",
+						selectedTexture->GetWidth(),
+						selectedTexture->GetHeight() );
+					ok = false;
+				}
+				if( ok && PrepareRenderProductVisualizer( probe ) &&
+					EnsureRenderProductReadback( probe, renderContext ) )
+				{
+					const float visualizationMode = captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+						( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+							( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+								( captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ? 4.0f :
+									( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) );
 					probe.renderProductVisualizer->SetParameter(
 						BlueSharedString( "RenderProductMode" ),
-						captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f : 2.0f );
-					renderContext.m_esm.SetRenderTarget( 0, destination );
-					renderContext.m_esm.SetDepthStencilBuffer( {} );
+						visualizationMode );
+					probe.renderProductVisualizer->SetParameter(
+						BlueSharedString( "AoUsesAlpha" ),
+						probe.aoMethod == STANDALONE_AO_CORTAO ? 1.0f : 0.0f );
 					renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+					renderContext.m_esm.SetRenderTarget( 0, probe.renderProductReadback );
+					renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+					renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+					renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+					renderContext.m_esm.SetDepthStencilBuffer( {} );
+					renderContext.m_esm.SetFullScreenViewport();
+					ok = CheckHresult(
+						renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0xff000000, 1.0f ),
+						"Clear render-product readback target" ) && ok;
 					renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
-					ok = Tr2Renderer::DrawTexture( renderContext, probe.renderProductVisualizer, *selectedTexture );
+					ok = Tr2Renderer::DrawTexture( renderContext, probe.renderProductVisualizer, *selectedTexture ) && ok;
+					ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End render-product readback" ) && ok;
+					renderContextOpen = false;
+					if( ok )
+					{
+						ok = ReadVisualizedRenderProduct( probe, captureProducts, renderContext );
+					}
+					if( ok )
+					{
+						ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Begin render-product presentation" );
+						renderContextOpen = ok;
+					}
+					if( ok )
+					{
+						renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+						renderContext.m_esm.SetRenderTarget( 0, destination );
+						renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+						renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+						renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+						renderContext.m_esm.SetDepthStencilBuffer( {} );
+						renderContext.m_esm.SetFullScreenViewport();
+						renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
+						ok = Tr2Renderer::DrawTexture(
+							renderContext,
+							probe.renderProductVisualizer,
+							*selectedTexture ) &&
+							ok;
+					}
 				}
 				else
 				{
@@ -4081,7 +4482,11 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 			}
 		}
-		ok = CheckHresult( Tr2Renderer::EndRenderContext(), "Tr2Renderer::EndRenderContext" ) && ok;
+		if( renderContextOpen )
+		{
+			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "Tr2Renderer::EndRenderContext" ) && ok;
+			renderContextOpen = false;
+		}
 	}
 	Tr2Renderer::EndFrame();
 	if( !ok )
@@ -4104,18 +4509,18 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	const float orbitFrame = static_cast<float>( probe.renderedFrameCount - kStaticCameraFrames + 1 );
 	const float angle = orbitFrame * ( 2.0f * 3.1415926535f / kOrbitFrames );
 	const Vector3 eye(
-		kCameraRadius * std::sin( angle ),
+		kCameraRadius * probe.modelWorldScale * std::sin( angle ),
 		0.0f,
-		-kCameraRadius * std::cos( angle ) );
+		-kCameraRadius * probe.modelWorldScale * std::cos( angle ) );
 	probe.view->SetLookAtPosition( eye, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
 	if( !probe.reportedCameraOrbit )
 	{
-		std::fprintf( stderr, "EVE probe camera orbit active after %llu static frames: radius=%.1f period=%.1f seconds\n", static_cast<unsigned long long>( kStaticCameraFrames ), kCameraRadius, kOrbitFrames / 60.0f );
+		std::fprintf( stderr, "EVE probe camera orbit active after %llu static frames: radius=%.1f period=%.1f seconds\n", static_cast<unsigned long long>( kStaticCameraFrames ), kCameraRadius * probe.modelWorldScale, kOrbitFrames / 60.0f );
 		probe.reportedCameraOrbit = true;
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int shadows, int ambientOcclusion, int aoMethod )
 {
 	if( localLights < STANDALONE_LOCAL_LIGHTS_OFF || localLights > STANDALONE_LOCAL_LIGHTS_VALIDATION )
 	{
@@ -4131,6 +4536,105 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	{
 		CCP_LOGERR( "Invalid standalone normal-map mode" );
 		return false;
+	}
+	if( shadows < STANDALONE_SHADOWS_OFF || shadows > STANDALONE_SHADOWS_HIGH ||
+		ambientOcclusion < STANDALONE_AO_OFF || ambientOcclusion > STANDALONE_AO_HIGH ||
+		aoMethod < STANDALONE_AO_CORTAO || aoMethod > STANDALONE_AO_CACAO )
+	{
+		CCP_LOGERR( "Invalid standalone shadow or ambient-occlusion mode" );
+		return false;
+	}
+	probe.shadows = shadows;
+	probe.ambientOcclusion = ambientOcclusion;
+	probe.aoMethod = aoMethod;
+	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
+	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL )
+	{
+		if( !assetPath || assetPath[0] == '\0' )
+		{
+			CCP_LOGERR( "EVE model rung requires a CMF asset path" );
+			return false;
+		}
+		if( !probe.renderable.CreateInstance() )
+		{
+			CCP_LOGERR( "Failed to create the standalone EVE renderable" );
+			return false;
+		}
+		std::string loadError;
+		if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
+		{
+			std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
+			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
+			return false;
+		}
+		probe.modelWorldScale = probe.renderable->GetAuthoredWorldScale();
+		std::fprintf(
+			stderr,
+			"Standalone authored-scale contract: worldScale=%.8f cameraDistance=%.8f nativeShadowSplits=yes\n",
+			probe.modelWorldScale,
+			5.2f * probe.modelWorldScale );
+	}
+	std::string qualityResourceError;
+	if( shadows != STANDALONE_SHADOWS_OFF )
+	{
+		if( !PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/system/ShadowDepth.fx",
+				"cascaded shadow resolve",
+				{ "Main" },
+				qualityResourceError ) )
+		{
+			std::fprintf( stderr, "Failed to prepare directional shadows: %s\n", qualityResourceError.c_str() );
+			return false;
+		}
+		if( shadows == STANDALONE_SHADOWS_HIGH )
+		{
+			const std::pair<const char*, const char*> denoisers[] = {
+				{ "res:/graphics/effect/managed/space/system/EstimateNoise.fx", "shadow noise estimation" },
+				{ "res:/graphics/effect/managed/space/system/DenoiseEstimate.fx", "shadow denoise estimation" },
+				{ "res:/graphics/effect/managed/space/system/Denoise1D.fx", "shadow one-dimensional denoise" },
+			};
+			for( const auto& denoiser : denoisers )
+			{
+				if( !PrepareManagedEffectWithoutYield( denoiser.first, denoiser.second, { "Main" }, qualityResourceError ) )
+				{
+					std::fprintf( stderr, "Failed to prepare high-quality directional shadows: %s\n", qualityResourceError.c_str() );
+					return false;
+				}
+			}
+		}
+	}
+	if( ambientOcclusion != STANDALONE_AO_OFF )
+	{
+		if( aoMethod == STANDALONE_AO_CORTAO )
+		{
+			if( !PrepareManagedEffectWithoutYield(
+					"res:/graphics/effect/managed/space/system/CORTAO/CORTAO.fx",
+					"CORTAO",
+					{ "Pack", "MainPass" },
+					qualityResourceError ) ||
+				!PrepareManagedEffectWithoutYield(
+					"res:/graphics/effect/managed/space/system/CORTAO/Blur.fx",
+					"CORTAO blur",
+					{ "Blur" },
+					qualityResourceError ) ||
+				!PrepareTextureResourceWithoutYield(
+					"res:/texture/ssao/24x24x16x16.dds",
+					"CORTAO lookup table",
+					qualityResourceError ) )
+			{
+				std::fprintf( stderr, "Failed to prepare CORTAO: %s\n", qualityResourceError.c_str() );
+				return false;
+			}
+		}
+		else if( !PrepareManagedEffectWithoutYield(
+				 "res:/graphics/effect/managed/space/system/SSAO/SSAO.fx",
+				 "FidelityFX CACAO",
+				 {},
+				 qualityResourceError ) )
+		{
+			std::fprintf( stderr, "Failed to prepare CACAO: %s\n", qualityResourceError.c_str() );
+			return false;
+		}
 	}
 	if( planetLayers < STANDALONE_PLANET_SURFACE || planetLayers > STANDALONE_PLANET_ALL ||
 		cloudYear < 1 || cloudMonth < 1 || cloudMonth > 12 || cloudDay < 1 || cloudDay > 31 )
@@ -4452,6 +4956,17 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to create EveSpaceSceneRenderDriver" );
 		return false;
 	}
+	if( ambientOcclusion != STANDALONE_AO_OFF )
+	{
+		if( !probe.ssao.CreateInstance() )
+		{
+			CCP_LOGERR( "Failed to create Tr2SSAO" );
+			return false;
+		}
+		probe.ssao->SetCortaoEnabled( aoMethod == STANDALONE_AO_CORTAO );
+		probe.ssao->SetCortaoBentNormal( aoMethod == STANDALONE_AO_CORTAO );
+		probe.driver->SetSSAO( probe.ssao );
+	}
 	const bool reflectionCorrectionEnabled = reflectionCorrection == STANDALONE_REFLECTION_CORRECTION_CLIENT;
 	const std::string reflectionCorrectionPath = reflectionCorrectionEnabled ? "res:/texture/reflectioncorrection/128x128.dds" : "res:/texture/global/black.dds";
 	std::string reflectionCorrectionError;
@@ -4476,10 +4991,9 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		return false;
 	}
 
-	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
 	constexpr float newEdenPlanetWarpCenterDistance = 31245000.0f;
-	const Vector3 planetPosition = composition == STANDALONE_COMPOSITION_CINEMATIC ? Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) * newEdenPlanetWarpCenterDistance : Vector3( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
-	const Vector3 eye( 0.0f, 0.0f, -5.2f );
+	const Vector3 planetPosition = composition == STANDALONE_COMPOSITION_CINEMATIC ? Normalize( Vector3( 0.55f, -0.12f, 1.0f ) ) * newEdenPlanetWarpCenterDistance * probe.modelWorldScale : Vector3( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	const Vector3 eye( 0.0f, 0.0f, -5.2f * probe.modelWorldScale );
 	const bool exactSystemInspection = composition == STANDALONE_COMPOSITION_SYSTEM &&
 		probe.celestialInspectionTarget && probe.celestialInspectionFovRadians > 0.0f;
 	const Vector3 target = exactSystemInspection ? eye + probe.celestialInspectionDirection : ( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) : ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) );
@@ -4496,14 +5010,27 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.bypassPostProcessing = qualityRung < STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.postProcessBlitOnly = qualityRung == STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.enableDistortion = false;
-	settings.shadowQuality = ShadowQuality::SHADOW_DISABLED;
+	settings.shadowQuality = shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
+		( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED );
 	settings.antiAliasingQuality = EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled;
-	settings.aoQuality = EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Disabled;
+	settings.aoQuality = ambientOcclusion == STANDALONE_AO_HIGH ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High :
+		( ambientOcclusion == STANDALONE_AO_MEDIUM ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Medium :
+			( ambientOcclusion == STANDALONE_AO_LOW ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Low :
+				EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Disabled ) );
 	settings.volumetricQuality = Tr2VolumerticQuality::Low;
 	settings.postProcessingQuality = qualityRung >= STANDALONE_PROBE_RUNG_HDR_POST ? PostProcess::HIGH : PostProcess::LOW;
 	settings.forceNormalMap = qualityRung >= STANDALONE_PROBE_RUNG_MODEL;
 	settings.forceOpaqueBuffer = false;
 	settings.forceVelocityMap = false;
+	std::fprintf(
+		stderr,
+		"EVE RC-08 quality: shadows=%s denoiser=%s ao=%s method=%s bentNormals=%s\n",
+		shadows == STANDALONE_SHADOWS_HIGH ? "high" : ( shadows == STANDALONE_SHADOWS_LOW ? "low" : "off" ),
+		shadows == STANDALONE_SHADOWS_HIGH ? "enabled" : "disabled",
+		ambientOcclusion == STANDALONE_AO_HIGH ? "high" :
+			( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
+		aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "cacao",
+		ambientOcclusion != STANDALONE_AO_OFF && aoMethod == STANDALONE_AO_CORTAO ? "enabled" : "disabled" );
 	if( materialMode != 0 )
 	{
 		std::fprintf( stderr, "EVE distortion compositor disabled: Astero group 0 is validated but not submitted until RC-12\n" );
@@ -4516,23 +5043,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 
 	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL )
 	{
-		if( !assetPath || assetPath[0] == '\0' )
-		{
-			CCP_LOGERR( "EVE model rung requires a CMF asset path" );
-			return false;
-		}
-		if( !probe.renderable.CreateInstance() )
-		{
-			CCP_LOGERR( "Failed to create the standalone EVE renderable" );
-			return false;
-		}
 		std::string loadError;
-		if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
-		{
-			std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
-			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
-			return false;
-		}
+		probe.renderable->SetShadowCastingEnabled( shadows != STANDALONE_SHADOWS_OFF );
 		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 )
 		{
 			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
@@ -4689,6 +5201,42 @@ TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeDestroyDevice( void* opaque
 	delete probe;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
+	void* opaqueProbe,
+	const uint8_t** pixels,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* pitch )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !pixels || !width || !height || !pitch || probe->capturedProductPixels.empty() )
+	{
+		return false;
+	}
+	*pixels = probe->capturedProductPixels.data();
+	*width = probe->capturedProductWidth;
+	*height = probe->capturedProductHeight;
+	*pitch = probe->capturedProductWidth * 4;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
+	void* opaqueProbe,
+	uint32_t* casterTests,
+	uint32_t* acceptedCascades,
+	uint32_t* committedBatches )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderable || !casterTests || !acceptedCascades || !committedBatches )
+	{
+		return false;
+	}
+	*casterTests = probe->renderable->GetShadowCullTests();
+	*acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
+	*committedBatches = probe->renderable->GetShadowCommittedBatches();
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -4700,14 +5248,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
@@ -4720,7 +5268,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	const bool freezeScene = ( captureProducts & STANDALONE_CAPTURE_FREEZE_SCENE ) != 0;
 	const int captureProduct = captureProducts & ~STANDALONE_CAPTURE_FREEZE_SCENE;
 	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
-		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL )
+		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL &&
+		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
+		captureProduct != STANDALONE_CAPTURE_AO && captureProduct != STANDALONE_CAPTURE_BENT_NORMAL )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;
@@ -4788,6 +5338,32 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			const uint32_t tilesY = ( probe->renderHeight + 15 ) / 16;
 			std::fprintf( stderr, "Trinity tiled local-light result: resolved=%zu tile-grid=%ux%u tile-count=%u update=success\n", resolved, tilesX, tilesY, tilesX * tilesY );
 			probe->reportedResolvedLights = true;
+		}
+	}
+	if( rendered && !freezeScene && probe->shadows != STANDALONE_SHADOWS_OFF && probe->renderable )
+	{
+		const uint32_t cullTests = probe->renderable->GetShadowCullTests();
+		const uint32_t acceptedCascades = probe->renderable->GetShadowAcceptedCascades();
+		const uint32_t committedBatches = probe->renderable->GetShadowCommittedBatches();
+		if( acceptedCascades == 0 || committedBatches != acceptedCascades * 2 )
+		{
+			CCP_LOGERR(
+				"Astero directional shadow contract failed: tests=%u accepted=%u batches=%u expected=%u",
+				cullTests,
+				acceptedCascades,
+				committedBatches,
+				acceptedCascades * 2 );
+			return false;
+		}
+		if( !probe->reportedShadowStats )
+		{
+			std::fprintf(
+				stderr,
+				"Astero directional shadow result: caster=1 tests=%u accepted-cascades=%u batches=%u atlas=16384x4096\n",
+				cullTests,
+				acceptedCascades,
+				committedBatches );
+			probe->reportedShadowStats = true;
 		}
 	}
 	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );

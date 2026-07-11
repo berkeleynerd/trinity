@@ -12,6 +12,7 @@ SamplerState ProductSampler
 };
 
 float RenderProductMode;
+float AoUsesAlpha;
 
 struct VertexInput
 {
@@ -36,11 +37,24 @@ VertexOutput MainVS( VertexInput input )
 float4 MainPS( VertexOutput input ) : SV_Target
 {
 	float4 value = BlitSource.SampleLevel( ProductSampler, input.texcoord, 0.0 );
-	if( RenderProductMode < 1.5 )
+	if( RenderProductMode < 1.5 || ( RenderProductMode >= 3.5 && RenderProductMode < 4.5 ) )
 	{
 		float depth = saturate( value.r );
 		float visibleDepth = depth > 0.0 ? pow( depth, 0.25 ) : 0.0;
 		return float4( visibleDepth, visibleDepth, visibleDepth, 1.0 );
+	}
+	if( RenderProductMode >= 2.5 && RenderProductMode < 3.5 )
+	{
+		return float4( value.rrr, 1.0 );
+	}
+	if( RenderProductMode >= 4.5 && RenderProductMode < 5.5 )
+	{
+		float ao = AoUsesAlpha > 0.5 ? value.a * 0.5 + 0.5 : value.r;
+		return float4( ao, ao, ao, 1.0 );
+	}
+	if( RenderProductMode >= 5.5 )
+	{
+		return float4( value.rgb * 0.5 + 0.5, 1.0 );
 	}
 	return float4( value.rgb, 1.0 );
 }

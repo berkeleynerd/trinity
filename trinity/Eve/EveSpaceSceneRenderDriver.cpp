@@ -251,6 +251,10 @@ void EveSpaceSceneRenderDriver::PropagateSettings()
 		{
 			m_scene->m_cascadedShadowMap.CreateInstance();
 		}
+		if( m_scene->m_cascadedShadowMap )
+		{
+			m_scene->m_cascadedShadowMap->ShouldUseDenoiser( m_settings.shadowQuality == ShadowQuality::SHADOW_HIGH );
+		}
 	}
 	m_scene->m_shadowQuality = m_settings.shadowQuality;
 
@@ -348,7 +352,10 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 		if( strcmp( output.c_str(), "DepthMap" ) != 0 &&
 			strcmp( output.c_str(), "VelocityMap" ) != 0 &&
 			strcmp( output.c_str(), "NormalMap" ) != 0 &&
-			strcmp( output.c_str(), "CustomStencilMap" ) != 0 )
+			strcmp( output.c_str(), "CustomStencilMap" ) != 0 &&
+			strcmp( output.c_str(), "ShadowMap" ) != 0 &&
+			strcmp( output.c_str(), "CascadedShadowDepth" ) != 0 &&
+			strcmp( output.c_str(), "SSAOMap" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
 			return false;
@@ -531,9 +538,12 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 			TimeSection shadowsSection( m_timers.shadows, "Shadows", rootTimer, renderContext );
 			shadowResources = m_scene->RenderShadows( depthBuffer, normalMap, m_gpuResourcePool, renderContext );
 		}
+		SetNamedOutput( outputs, "ShadowMap", shadowResources.shadowMap );
+		SetNamedOutput( outputs, "CascadedShadowDepth", shadowResources.cascadedShadowDepth );
 		TimeSection ssaoSection( m_timers.ssao, "SSAO", rootTimer, renderContext );
 		auto ssao = RenderSSAO( depthBuffer, normalMap, renderContext );
 		ssaoSection.Stop();
+		SetNamedOutput( outputs, "SSAOMap", ssao );
 
 		GlobalStore().RegisterVariable( "SSAOMap", ssao );
 

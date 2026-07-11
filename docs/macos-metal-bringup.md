@@ -20,7 +20,7 @@ The following paths build and run on this host:
 | Standalone CMF renderer | `TrinityALAnimatedModel_metal` | Renders the synthetic box and the animated Khronos Fox through TrinityAL. |
 | EVE driver shell | `TrinityALEveSceneProbe_metal --quality-rung shell` | Creates a Trinity device and clears/presents through the low-level context. |
 | EVE scene fixture | `TrinityALEveSceneProbe_metal --quality-rung scene` | Runs the real driver with the New Eden specialization of the authored A01 universe by default; `--scene-fixture empty` preserves the empty control. |
-| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections and submits independent authored hull and booster batches. The high client shader tier consumes Trinity SH and tiled local lights; distortion and visible attachment geometry remain deferred. |
+| EVE batch bridge | `TrinityALEveSceneProbe_metal --quality-rung model` | Resolves the Astero into three CMF sections, submits independent authored hull and booster batches, and renders active SOF attachments. The high client shader tier consumes Trinity SH and tiled local lights; distortion and indexed decals remain deferred. |
 | EVE HDR/postprocess | `TrinityALEveSceneProbe_metal --quality-rung hdr-post` | Capability checkpoint: renders through the driver's FP16 target, resolves, executes the extracted client Metal tone-mapping container, and presents through client `Blit`. The scene composition is incomplete. |
 | EVE dynamic exposure | `TrinityALEveSceneProbe_metal --quality-rung hdr-exposure` | Capability checkpoint: executes client histogram, histogram-merge, exposure-measure, and Uncharted 2 tone passes. It is not a fidelity milestone until a representative in-space background and lighting composition feed the histogram. |
 
@@ -32,16 +32,17 @@ paths. This validates the native material-area and object-light transport
 contracts without claiming that the still-missing auxiliary-effect or
 distortion-composition contracts are complete.
 
-Model runs keep the original fixed camera for the first 180 successful frames,
-preserving established capture comparisons. Starting with frame 181, the probe
-orbits the camera around the model at radius `5.2`, completing one revolution
-every 900 frames (15 seconds at the fixed 60 Hz simulation clock). Scene-only
-and shell runs retain their fixed camera behavior.
+Model runs keep the original fixed framing for the first 180 successful frames,
+preserving established capture comparisons. The Astero now renders at authored
+scale, so its equivalent camera radius is `86.6741` rather than the normalized
+`5.2`. Starting with frame 181, the probe completes one orbit every 900 frames
+(15 seconds at the fixed 60 Hz simulation clock). Scene-only and shell runs
+retain their fixed camera behavior.
 
 The complete external-client provenance is recorded in
 [`eve-client-resource-ledger.md`](eve-client-resource-ledger.md). It lists all
-69 logical resource paths, this host's absolute SharedCache and index paths,
-and the build manifests that record each exact hashed source file and checksum.
+logical resource paths, this host's absolute SharedCache and index paths, and
+the build manifests that record each exact hashed source file and checksum.
 
 Rung 4 reads the client's macOS-specific resource index and copies selected
 version-15 Metal effect containers into the build tree. Matching `.sm_depth`
@@ -1104,6 +1105,60 @@ forwards the owning V5 per-object block. A 540-frame cinematic run with visible
 sun and planet, all attachments, six authored lights, HDR, flare, and god rays
 then completed cleanly.
 
+### Native Astero shadows and CORTAO (RC-08)
+
+The standalone Astero now implements `IEveShadowCaster` and registers with the
+real scene component registry. Its fitted CMF bounds drive Trinity's native
+frustum and 15-pixel caster tests. Each accepted cascade submits the hull and
+booster through their V5 `Shadow` techniques and the same rotating per-object
+transform used by `Main` and `Depth`. A representative frame tests 16
+cascades, accepts 3, and commits the expected 6 batches into the 16384x4096 D32
+atlas.
+
+The probe explicitly owns `Tr2SSAO`. `--shadows`, `--ao`, and `--ao-method`
+select directional quality, CORTAO quality, and the CACAO diagnostic fallback.
+The driver publishes `ShadowMap`, `CascadedShadowDepth`, and `SSAOMap`; a
+sample-owned GPU visualizer converts depth, unsigned visibility, and signed
+bent-normal data into a CPU-readable RGBA target. Direct PNG capture avoids
+Cocoa focus changes and records dimensions plus caster statistics in sidecar
+metadata. CORTAO seeds are zero-initialized for deterministic captures, and
+high shadows explicitly enable Trinity's denoiser.
+
+`Reports/AsteroShadowAoResources.json` records 28 checksummed SharedCache
+inputs. Isolated AO, bent-normal, screen-shadow, and cascade-atlas products are
+nonuniform. The CACAO fallback runs, while CORTAO remains the fidelity path. A
+540-frame `hdr-post` orbit and 180-frame `hdr-exposure` regression return zero.
+
+RC-08 remains partial. The directional mask follows plausible loop-to-hull
+occlusion, but fully shadowed V5 regions become nearly black in low and high
+quality. The caster transform, atlas, and denoiser controls are coherent; the
+remaining gap is the object-lighting contract exposed when direct sun is
+removed. The probe does not hide it with synthetic ambient light. CP-18 accepts
+the machinery, while RC-08 waits for readable indirect fill. Authored
+local-light shadows are tracked separately as RC-08B.
+
+The first interactive RC-08 launch exposed two additional probe-contract
+problems. It still defaulted to exact `system` composition, where the New Eden
+sun and planet are correctly subpixel from the Promised Land observer. The
+interactive default is now `cinematic`, keeping both authored bodies in frame;
+`--composition system` remains the accurate astronomical control.
+
+The imported CMF had also been fitted to normalized coordinates while
+Trinity's fixed 25/75/150/... cascade distances remained in authored world
+units. This made a screen-filling 4K ship occupy too few shadow texels and
+caused coarse crawling edges. The bridge now applies the inverse CMF fit scale
+(`16.66810036`) to the object and moves the camera from `5.2` to `86.67411804`,
+preserving apparent framing while leaving the client's native 2048-pixel,
+16-cascade layout and high-quality denoiser unchanged. Visible attachments,
+local lights, bounds, and cinematic celestial placement share the same scale.
+
+The production planet-eclipse path assumes exact solar-system coordinates.
+Using the relocated cinematic planet as a shadow caster produced a uniform
+black sun-visibility map, so cinematic mode explicitly disables only planet
+eclipse shadows. Directional Astero self-shadowing remains enabled and
+nonuniform; exact-system mode retains native planet eclipsing. A 360-frame
+HDR/CORTAO run crosses into the authored-scale camera orbit with status 0.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1123,7 +1178,7 @@ make those prerequisites explicit.
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
 | 3E | Visible SOF attachments | Accepted | Native sprite, spotlight, plane, haze, and banner paths render the exact active inventory with independent family/light controls and stable orbit/HDR captures. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
-| 4B | Shadows and AO | Missing | Feed validated products and shadow-caster batches; accept against captures. |
+| 4B | Shadows and AO | Partial | Native cascades, denoising, CORTAO, and named diagnostics pass; composed shadows still require readable V5 indirect fill. |
 | 4C | Complete HDR scene composition | Missing | Model, background, lighting, and generated products coexist without regression. |
 | 5 | Exposure and tone mapping | Machinery accepted, fidelity blocked | Re-run `hdr-exposure` against accepted rung 4C and compare settled captures. |
 | 6 | Bloom, film grain, distortion, and volumetrics | Blocked | Add one effect at a time only after rung 5 fidelity acceptance. |
@@ -1131,8 +1186,8 @@ make those prerequisites explicit.
 
 `hdr-post` and `hdr-exposure` remain useful executable checkpoints. They prove
 effect loading, FP16 targets, compute dispatch, tone mapping, and presentation;
-they do not advance the direct fidelity path past rung 3C. Missing runtime
-assets still return nonzero rather than silently falling back.
+they do not accept RC-08 or complete HDR composition by themselves. Missing
+runtime assets still return nonzero rather than silently falling back.
 
 Detailed task dependencies and artifact evidence live in
 [`eve-runtime-contract-roadmap.md`](eve-runtime-contract-roadmap.md). That
@@ -1231,6 +1286,16 @@ The following checks passed on the host snapshot above:
   orbit;
 - independent local-light off/authored attachment captures, coherent named
   depth/normal outputs, and 180-frame `hdr-post`/`hdr-exposure` regressions;
+- checksummed staging of 28 shadow/AO resources; native Astero cascade
+  submission reports 16 tests, 3 accepted cascades, and 6 V5 batches;
+- nonuniform screen-shadow, 16384x4096 cascade-atlas, CORTAO AO, and bent-normal
+  diagnostics through direct RGBA readback, plus a clean CACAO smoke control;
+- 540-frame combined `hdr-post` and 180-frame `hdr-exposure` shadow/AO runs with
+  status 0; visual acceptance remains partial because direct-shadow regions
+  expose insufficient indirect fill;
+- authored Astero world scale `16.66810036` with matched `86.67411804` camera
+  radius, native shadow splits, nonuniform cinematic shadow output, visible sun
+  and planet, and a clean 360-frame orbit transition;
 - capture- and inspection-owned Cocoa objects drain before Trinity device
   destruction, and the ARC-managed window disables AppKit's legacy
   release-on-close behavior; finite, long-run, and inspection shutdowns are
@@ -1244,13 +1309,15 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Add shadows and AO one at a time under RC-08, retaining direct depth/normal
-   captures as regression controls.
+1. Close the V5 ambient/indirect-light contract exposed by RC-08, retaining the
+   accepted shadow/AO diagnostics as regression controls.
 2. Reconstruct indexed SOF decal sets under RC-05C as a separate control.
-3. Reaccept dynamic exposure and tone mapping against that composition.
-4. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
+3. Add authored local-light shadows under RC-08B after directional composition
+   is accepted.
+4. Reaccept dynamic exposure and tone mapping against that composition.
+5. Resume bloom, film grain, distortion, volumetrics, velocity, and TAA one
    observable subsystem at a time.
-5. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+6. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

@@ -92,6 +92,14 @@ public:
 
 	EveSpaceScene* GetScene() const;
 	void SetScene( EveSpaceScene * scene );
+	Tr2SSAO* GetSSAO() const
+	{
+		return m_ssao;
+	}
+	void SetSSAO( Tr2SSAO* ssao )
+	{
+		m_ssao = ssao;
+	}
 	void SetView( TriView* view );
 	void SetProjection( TriProjection* projection );
 	void SetReflectionCorrectionEnabled( bool enabled )

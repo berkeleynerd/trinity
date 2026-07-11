@@ -226,6 +226,10 @@ public:
 	{
 		m_planetCameraScale = value;
 	}
+	void SetPlanetShadowsEnabled( bool value )
+	{
+		m_planetShadowsEnabled = value;
+	}
 	struct LightingSetup
 	{
 		Vector3 sunDirection;
@@ -461,6 +465,7 @@ protected:
 
 	float m_planetScale;
 	float m_planetCameraScale;
+	bool m_planetShadowsEnabled;
 
 	//cascaded shadow map
 	Tr2ShadowMapPtr m_cascadedShadowMap;

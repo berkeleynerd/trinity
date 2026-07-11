@@ -202,6 +202,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_nebulaIntensityVar( "NebulaIntensity", m_nebulaIntensity ),
 	m_planetScale( 1e6 ),
 	m_planetCameraScale( 1e6 ),
+	m_planetShadowsEnabled( true ),
 	m_sunColor( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_sunColorWithDynamicLights( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_currentSunColor( 1.0f, 1.0f, 1.0f, 1.0f ),
@@ -3930,6 +3931,14 @@ void EveSpaceScene::ClearRenderTargetIfNoBatches( const Tr2TextureAL& rt, uint32
 
 void EveSpaceScene::SetupPlanetsAsShadowCaster( CcpMath::Sphere* planets, size_t maxPlanets )
 {
+	if( !m_planetShadowsEnabled )
+	{
+		for( size_t i = 0; i < maxPlanets; ++i )
+		{
+			planets[i] = CcpMath::Sphere();
+		}
+		return;
+	}
 	Vector3 sunPosition = { 0, 0, 0 };
 	if( m_sunBall )
 	{

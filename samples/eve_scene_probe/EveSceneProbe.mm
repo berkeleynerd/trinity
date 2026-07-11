@@ -27,6 +27,15 @@ extern "C" void* TrinityStandaloneProbeCreateDevice( void* windowHandle,
 													 uint32_t renderHeight,
 													 int shaderTier );
 extern "C" void TrinityStandaloneProbeDestroyDevice( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetCapturedProduct( void* opaqueProbe,
+													 const uint8_t** pixels,
+													 uint32_t* width,
+													 uint32_t* height,
+													 uint32_t* pitch );
+extern "C" bool TrinityStandaloneProbeGetShadowDiagnostics( void* opaqueProbe,
+													uint32_t* casterTests,
+													uint32_t* acceptedCascades,
+													uint32_t* committedBatches );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
@@ -47,9 +56,12 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int cloudYear,
 													  int cloudMonth,
 													  int cloudDay,
-													  int sunEffects,
-													  int attachments,
-													  int attachmentView );
+												  int sunEffects,
+												  int attachments,
+												  int attachmentView,
+												  int shadows,
+												  int ambientOcclusion,
+												  int aoMethod );
 extern "C" bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe,
 												   int qualityRung,
 												   int64_t realTime,
@@ -167,7 +179,34 @@ enum class RenderProduct
 	Color,
 	Depth,
 	Normal,
+	Shadow,
+	ShadowAtlas,
+	AmbientOcclusion,
+	BentNormal,
 	All,
+};
+
+enum class Shadows
+{
+	Auto,
+	Off,
+	Low,
+	High,
+};
+
+enum class AmbientOcclusion
+{
+	Auto,
+	Off,
+	Low,
+	Medium,
+	High,
+};
+
+enum class AoMethod
+{
+	Cortao,
+	Cacao,
 };
 
 enum class CameraView
@@ -203,6 +242,10 @@ enum class SunEffects
 constexpr int kCaptureColor = 1 << 0;
 constexpr int kCaptureDepth = 1 << 1;
 constexpr int kCaptureNormal = 1 << 2;
+constexpr int kCaptureShadow = 1 << 3;
+constexpr int kCaptureShadowAtlas = 1 << 4;
+constexpr int kCaptureAmbientOcclusion = 1 << 5;
+constexpr int kCaptureBentNormal = 1 << 6;
 constexpr int kCaptureFreezeScene = 1 << 8;
 
 enum class ShSource
@@ -233,8 +276,13 @@ struct Options
 	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
 	NormalMapMode normalMapMode = NormalMapMode::Authored;
 	RenderProduct renderProduct = RenderProduct::Window;
+	Shadows shadows = Shadows::Auto;
+	Shadows resolvedShadows = Shadows::Off;
+	AmbientOcclusion ambientOcclusion = AmbientOcclusion::Auto;
+	AmbientOcclusion resolvedAmbientOcclusion = AmbientOcclusion::Off;
+	AoMethod aoMethod = AoMethod::Cortao;
 	CameraView cameraView = CameraView::Model;
-	SceneComposition composition = SceneComposition::System;
+	SceneComposition composition = SceneComposition::Cinematic;
 	PlanetLayers planetLayers = PlanetLayers::All;
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
@@ -496,6 +544,14 @@ std::string RenderProductName( RenderProduct product )
 		return "depth";
 	case RenderProduct::Normal:
 		return "normal";
+	case RenderProduct::Shadow:
+		return "shadow";
+	case RenderProduct::ShadowAtlas:
+		return "shadow-atlas";
+	case RenderProduct::AmbientOcclusion:
+		return "ao";
+	case RenderProduct::BentNormal:
+		return "bent-normal";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -506,7 +562,15 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 {
 	const std::string normalized = ToLower( value );
 	const RenderProduct values[] = {
-		RenderProduct::Window, RenderProduct::Color, RenderProduct::Depth, RenderProduct::Normal, RenderProduct::All
+		RenderProduct::Window,
+		RenderProduct::Color,
+		RenderProduct::Depth,
+		RenderProduct::Normal,
+		RenderProduct::Shadow,
+		RenderProduct::ShadowAtlas,
+		RenderProduct::AmbientOcclusion,
+		RenderProduct::BentNormal,
+		RenderProduct::All
 	};
 	for( RenderProduct candidate : values )
 	{
@@ -515,6 +579,69 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 			product = candidate;
 			return true;
 		}
+	}
+	return false;
+}
+
+std::string ShadowsName( Shadows shadows )
+{
+	static const char* names[] = { "auto", "off", "low", "high" };
+	return names[static_cast<int>( shadows )];
+}
+
+bool ParseShadows( const std::string& value, Shadows& shadows )
+{
+	const std::string normalized = ToLower( value );
+	for( int candidate = 0; candidate <= static_cast<int>( Shadows::High ); ++candidate )
+	{
+		const auto candidateValue = static_cast<Shadows>( candidate );
+		if( normalized == ShadowsName( candidateValue ) )
+		{
+			shadows = candidateValue;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string AmbientOcclusionName( AmbientOcclusion ao )
+{
+	static const char* names[] = { "auto", "off", "low", "medium", "high" };
+	return names[static_cast<int>( ao )];
+}
+
+bool ParseAmbientOcclusion( const std::string& value, AmbientOcclusion& ao )
+{
+	const std::string normalized = ToLower( value );
+	for( int candidate = 0; candidate <= static_cast<int>( AmbientOcclusion::High ); ++candidate )
+	{
+		const auto candidateValue = static_cast<AmbientOcclusion>( candidate );
+		if( normalized == AmbientOcclusionName( candidateValue ) )
+		{
+			ao = candidateValue;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string AoMethodName( AoMethod method )
+{
+	return method == AoMethod::Cortao ? "cortao" : "cacao";
+}
+
+bool ParseAoMethod( const std::string& value, AoMethod& method )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "cortao" )
+	{
+		method = AoMethod::Cortao;
+		return true;
+	}
+	if( normalized == "cacao" )
+	{
+		method = AoMethod::Cacao;
+		return true;
 	}
 	return false;
 }
@@ -709,12 +836,81 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureDepth;
 	case RenderProduct::Normal:
 		return kCaptureNormal;
+	case RenderProduct::Shadow:
+		return kCaptureShadow;
+	case RenderProduct::ShadowAtlas:
+		return kCaptureShadowAtlas;
+	case RenderProduct::AmbientOcclusion:
+		return kCaptureAmbientOcclusion;
+	case RenderProduct::BentNormal:
+		return kCaptureBentNormal;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
 		return 0;
 	}
 	return 0;
+}
+
+int ShadowsApiValue( Shadows shadows )
+{
+	switch( shadows )
+	{
+	case Shadows::Off:
+		return 0;
+	case Shadows::Low:
+		return 1;
+	case Shadows::High:
+		return 2;
+	case Shadows::Auto:
+		break;
+	}
+	return 0;
+}
+
+int AmbientOcclusionApiValue( AmbientOcclusion ao )
+{
+	switch( ao )
+	{
+	case AmbientOcclusion::Off:
+		return 0;
+	case AmbientOcclusion::Low:
+		return 1;
+	case AmbientOcclusion::Medium:
+		return 2;
+	case AmbientOcclusion::High:
+		return 3;
+	case AmbientOcclusion::Auto:
+		break;
+	}
+	return 0;
+}
+
+std::string RenderProductStats( const Options& options, RenderProduct product )
+{
+	switch( product )
+	{
+	case RenderProduct::Color:
+		return "source=presented drawable gpuVisualization=false";
+	case RenderProduct::Depth:
+		return "source=DepthMap format=D32_FLOAT reverseZ=true clear=0 gpuVisualization=true";
+	case RenderProduct::Normal:
+		return "source=NormalMap format=R10G10B10A2_UNORM clear=0 gpuVisualization=true";
+	case RenderProduct::Shadow:
+		return "source=ShadowMap format=R8_UNORM channel=red gpuVisualization=true";
+	case RenderProduct::ShadowAtlas:
+		return "source=CascadedShadowDepth format=D32_FLOAT dimensions=16384x4096 gpuVisualization=true";
+	case RenderProduct::AmbientOcclusion:
+		return options.aoMethod == AoMethod::Cortao ?
+			"source=SSAOMap format=R8G8B8A8_SNORM channel=alpha-snorm-remapped gpuVisualization=true" :
+			"source=SSAOMap format=R8_UNORM channel=red gpuVisualization=true";
+	case RenderProduct::BentNormal:
+		return "source=SSAOMap format=R8G8B8A8_SNORM channel=rgb-remapped gpuVisualization=true";
+	case RenderProduct::Window:
+	case RenderProduct::All:
+		break;
+	}
+	return "source=presented drawable gpuVisualization=false";
 }
 
 std::string ShSourceName( ShSource source )
@@ -998,7 +1194,9 @@ void PrintUsage( const char* executable )
 			  << "       [--shader-tier medium|high]\n"
 			  << "       [--reflection-correction off|client]\n"
 			  << "       [--normal-map authored|flat]\n"
-			  << "       [--render-product window|color|depth|normal|all]\n"
+			  << "       [--render-product window|color|depth|normal|shadow|shadow-atlas|ao|bent-normal|all]\n"
+			  << "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
+			  << "       [--ao-method cortao|cacao]\n"
 			  << "       [--camera-view model|celestials|planet]\n"
 			  << "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
 			  << "       [--sun-effects auto|off|flare|god-rays|all]\n"
@@ -1174,6 +1372,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--shadows" )
+		{
+			if( ++i >= argc || !ParseShadows( argv[i], options.shadows ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--ao" )
+		{
+			if( ++i >= argc || !ParseAmbientOcclusion( argv[i], options.ambientOcclusion ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--ao-method" )
+		{
+			if( ++i >= argc || !ParseAoMethod( argv[i], options.aoMethod ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--camera-view" )
 		{
 			if( ++i >= argc || !ParseCameraView( argv[i], options.cameraView ) )
@@ -1244,6 +1463,41 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ) )
 	{
 		std::cerr << "Authored attachments require --asset astero --material-mode eve-v5\n";
+		return false;
+	}
+	const bool compatibleLightingModel = options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
+		options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
+		options.qualityRung >= QualityRung::Model;
+	const bool directSunEnabled = options.lightingView == LightingView::Combined || options.lightingView == LightingView::Direct;
+	options.resolvedShadows = options.shadows == Shadows::Auto ?
+		( compatibleLightingModel && directSunEnabled ? Shadows::High : Shadows::Off ) : options.shadows;
+	options.resolvedAmbientOcclusion = options.ambientOcclusion == AmbientOcclusion::Auto ?
+		( compatibleLightingModel ? AmbientOcclusion::High : AmbientOcclusion::Off ) : options.ambientOcclusion;
+	if( options.resolvedShadows != Shadows::Off && ( !compatibleLightingModel || !directSunEnabled ) )
+	{
+		std::cerr << "Directional shadows require a lit, all-area Astero using eve-v5 with direct or combined lighting\n";
+		return false;
+	}
+	if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off && !compatibleLightingModel )
+	{
+		std::cerr << "Ambient occlusion requires a lit, all-area Astero using eve-v5\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::BentNormal &&
+		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off || options.aoMethod != AoMethod::Cortao ) )
+	{
+		std::cerr << "Bent-normal capture requires enabled CORTAO\n";
+		return false;
+	}
+	if( ( options.renderProduct == RenderProduct::Shadow || options.renderProduct == RenderProduct::ShadowAtlas ) &&
+		options.resolvedShadows == Shadows::Off )
+	{
+		std::cerr << "Shadow render products require enabled directional shadows\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::AmbientOcclusion && options.resolvedAmbientOcclusion == AmbientOcclusion::Off )
+	{
+		std::cerr << "AO render product requires enabled ambient occlusion\n";
 		return false;
 	}
 	if( options.sunEffects == SunEffects::Auto )
@@ -1429,20 +1683,75 @@ bool CaptureWindowPng( NSWindow* window, const std::string& path )
 	return true;
 }
 
+bool CaptureProbeProductPng( void* probe, const std::string& path )
+{
+	if( !EnsureParentDirectory( path ) )
+	{
+		return false;
+	}
+	const uint8_t* pixels = nullptr;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t pitch = 0;
+	if( !TrinityStandaloneProbeGetCapturedProduct( probe, &pixels, &width, &height, &pitch ) )
+	{
+		std::cerr << "No synchronized render-product readback is available\n";
+		return false;
+	}
+	CGDataProviderRef provider = CGDataProviderCreateWithData( nullptr, pixels, static_cast<size_t>( pitch ) * height, nullptr );
+	CGColorSpaceRef colorSpace = CGColorSpaceCreateDeviceRGB();
+	CGImageRef image = CGImageCreate(
+		width,
+		height,
+		8,
+		32,
+		pitch,
+		colorSpace,
+		kCGBitmapByteOrderDefault | kCGImageAlphaLast,
+		provider,
+		nullptr,
+		false,
+		kCGRenderingIntentDefault );
+	CGColorSpaceRelease( colorSpace );
+	CGDataProviderRelease( provider );
+	if( !image )
+	{
+		return false;
+	}
+	NSString* nsPath = [NSString stringWithUTF8String:path.c_str()];
+	CGImageDestinationRef destination = CGImageDestinationCreateWithURL(
+		(__bridge CFURLRef)[NSURL fileURLWithPath:nsPath],
+		(__bridge CFStringRef)UTTypePNG.identifier,
+		1,
+		nullptr );
+	if( !destination )
+	{
+		CGImageRelease( image );
+		return false;
+	}
+	CGImageDestinationAddImage( destination, image, nullptr );
+	const bool finalized = CGImageDestinationFinalize( destination );
+	CFRelease( destination );
+	CGImageRelease( image );
+	return finalized;
+}
+
 std::string CaptureBasePath( const Options& options )
 {
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
-		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lighting-" +
-		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_local-" +
-		LocalLightsName( options.localLights ) + "_reflcorr-" +
-		ReflectionCorrectionName( options.reflectionCorrection ) + "_normal-" +
-		NormalMapModeName( options.normalMapMode ) + "_camera-" + CameraViewName( options.cameraView ) +
-		"_composition-" + SceneCompositionName( options.composition ) + "_planet-" +
-		PlanetLayersName( options.planetLayers ) + "_cloud-date-" + PlanetCloudDateName( options );
-	const std::string sunSuffix = "_sunfx-" + SunEffectsName( options.resolvedSunEffects ) +
-		"_attachments-" + AttachmentsName( options.resolvedAttachments ) + "_attachment-view-" +
-		AttachmentViewName( options.attachmentView );
+		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lit-" +
+		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_ll-" +
+		LocalLightsName( options.localLights ) + "_refl-" +
+		ReflectionCorrectionName( options.reflectionCorrection ) + "_nrm-" +
+		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) +
+		"_comp-" + SceneCompositionName( options.composition ) + "_pl-" +
+		PlanetLayersName( options.planetLayers ) + "_date-" + PlanetCloudDateName( options );
+	const std::string sunSuffix = "_sun-" + SunEffectsName( options.resolvedSunEffects ) +
+		"_att-" + AttachmentsName( options.resolvedAttachments ) + "-" + AttachmentViewName( options.attachmentView ) +
+		"_shadow-" + ShadowsName( options.resolvedShadows ) + "_ao-" +
+		AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
+		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
 	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + materialSuffix +
 		sunSuffix;
 }
@@ -1486,6 +1795,11 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "shaderTier=" << ShaderTierName( options.shaderTier ) << "\n";
 	metadata << "reflectionCorrection=" << ReflectionCorrectionName( options.reflectionCorrection ) << "\n";
 	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
+	metadata << "shadowsRequested=" << ShadowsName( options.shadows ) << "\n";
+	metadata << "shadowsResolved=" << ShadowsName( options.resolvedShadows ) << "\n";
+	metadata << "aoRequested=" << AmbientOcclusionName( options.ambientOcclusion ) << "\n";
+	metadata << "aoResolved=" << AmbientOcclusionName( options.resolvedAmbientOcclusion ) << "\n";
+	metadata << "aoMethod=" << AoMethodName( options.aoMethod ) << "\n";
 	metadata << "renderProduct=" << RenderProductName( options.renderProduct ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
 	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
@@ -1504,10 +1818,14 @@ bool WriteCaptureMetadata( const Options& options,
 	return true;
 }
 
-bool CapturePresentedProduct( NSWindow* window, const Options& options, RenderProduct product )
+bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
 	const std::string suffix = product == RenderProduct::Window ? "" : "_" + RenderProductName( product );
+	if( product != RenderProduct::Window && product != RenderProduct::Color )
+	{
+		return CaptureProbeProductPng( probe, basePath + suffix + ".png" );
+	}
 	std::this_thread::sleep_for( std::chrono::milliseconds( 50 ) );
 	return CaptureWindowPng( window, basePath + suffix + ".png" );
 }
@@ -1633,7 +1951,10 @@ int main( int argc, char** argv )
 												   options.cloudDay,
 												   static_cast<int>( options.resolvedSunEffects ),
 												   static_cast<int>( options.resolvedAttachments ),
-												   static_cast<int>( options.attachmentView ) ) )
+												   static_cast<int>( options.attachmentView ),
+												   ShadowsApiValue( options.resolvedShadows ),
+												   AmbientOcclusionApiValue( options.resolvedAmbientOcclusion ),
+												   static_cast<int>( options.aoMethod ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -1677,45 +1998,82 @@ int main( int argc, char** argv )
 				ProcessEvents( window );
 				if( options.renderProduct == RenderProduct::All )
 				{
-					captureSucceeded = CapturePresentedProduct( window, options, RenderProduct::Color );
-					productStats.emplace_back( "color", "source=presented drawable gpuVisualization=false" );
-					const RenderProduct diagnosticProducts[] = { RenderProduct::Depth, RenderProduct::Normal };
+					captureSucceeded = CapturePresentedProduct( probe, window, options, RenderProduct::Color );
+					productStats.emplace_back( "color", RenderProductStats( options, RenderProduct::Color ) );
+					std::vector<RenderProduct> diagnosticProducts = { RenderProduct::Depth, RenderProduct::Normal };
+					if( options.resolvedShadows != Shadows::Off )
+					{
+						diagnosticProducts.push_back( RenderProduct::Shadow );
+						diagnosticProducts.push_back( RenderProduct::ShadowAtlas );
+					}
+					if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off )
+					{
+						diagnosticProducts.push_back( RenderProduct::AmbientOcclusion );
+						if( options.aoMethod == AoMethod::Cortao )
+						{
+							diagnosticProducts.push_back( RenderProduct::BentNormal );
+						}
+					}
 					for( RenderProduct product : diagnosticProducts )
 					{
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+						const int frozenProduct = RenderProductApiValue( product ) | kCaptureFreezeScene;
 						if( !captureSucceeded ||
-							!TrinityStandaloneProbeRenderFrame( probe,
-																qualityRung,
-																captureTime,
-																captureTime,
-																RenderProductApiValue( product ) |
-																	kCaptureFreezeScene ) )
+							!TrinityStandaloneProbeRenderFrame( probe, qualityRung, captureTime, captureTime, frozenProduct ) ||
+							!TrinityStandaloneProbeRenderFrame( probe, qualityRung, captureTime, captureTime, frozenProduct ) )
 						{
 							captureSucceeded = false;
 							break;
 						}
 						ProcessEvents( window );
-						captureSucceeded = CapturePresentedProduct( window, options, product );
-						productStats.emplace_back(
-							RenderProductName( product ),
-							product == RenderProduct::Depth ?
-								"source=DepthMap format=D32_FLOAT reverseZ=true clear=0 gpuVisualization=true" :
-								"source=NormalMap format=R10G10B10A2_UNORM clear=0 gpuVisualization=true" );
+						captureSucceeded = CapturePresentedProduct( probe, window, options, product );
+						productStats.emplace_back( RenderProductName( product ), RenderProductStats( options, product ) );
 					}
 				}
 				else
 				{
-					captureSucceeded = CapturePresentedProduct( window, options, options.renderProduct );
+					if( options.renderProduct != RenderProduct::Window && options.renderProduct != RenderProduct::Color )
+					{
+						const int64_t captureTime =
+							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+						captureSucceeded = TrinityStandaloneProbeRenderFrame(
+							probe,
+							qualityRung,
+							captureTime,
+							captureTime,
+							RenderProductApiValue( options.renderProduct ) | kCaptureFreezeScene );
+						ProcessEvents( window );
+					}
+					captureSucceeded = captureSucceeded && CapturePresentedProduct( probe, window, options, options.renderProduct );
 					if( options.renderProduct != RenderProduct::Window )
 					{
 						productStats.emplace_back(
 							RenderProductName( options.renderProduct ),
-							options.renderProduct == RenderProduct::Depth ?
-								"source=DepthMap format=D32_FLOAT reverseZ=true clear=0 gpuVisualization=true" :
-								options.renderProduct == RenderProduct::Normal ?
-								"source=NormalMap format=R10G10B10A2_UNORM clear=0 gpuVisualization=true" :
-								"source=presented drawable gpuVisualization=false" );
+							RenderProductStats( options, options.renderProduct ) );
+					}
+				}
+				if( options.resolvedShadows != Shadows::Off )
+				{
+					uint32_t casterTests = 0;
+					uint32_t acceptedCascades = 0;
+					uint32_t committedBatches = 0;
+					if( !TrinityStandaloneProbeGetShadowDiagnostics(
+							probe,
+							&casterTests,
+							&acceptedCascades,
+							&committedBatches ) )
+					{
+						captureSucceeded = false;
+					}
+					else
+					{
+						std::ostringstream stats;
+						stats << "casterTests=" << casterTests
+							  << " acceptedCascades=" << acceptedCascades
+							  << " committedBatches=" << committedBatches
+							  << " expectedBatches=" << acceptedCascades * 2;
+						productStats.emplace_back( "shadowRuntime", stats.str() );
 					}
 				}
 				captureSucceeded = captureSucceeded &&

@@ -27,6 +27,7 @@ The resolver writes these build-tree reports on this host:
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/NewEdenSceneResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroLocalLightResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroAttachmentResources.json`
+- `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroShadowAoResources.json`
 
 Every JSON entry records `logicalPath`, the relative and absolute source index,
 the relative and absolute hashed `ResFiles` source, byte size, SHA-256, and the
@@ -154,6 +155,27 @@ res:/graphics/effect.metal/managed/space/system/blitfiltered.sm_hi
 res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth
 res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi
 res:/graphics/effect.metal/managed/space/system/computelightlists.sm_lo
+res:/graphics/effect.metal/managed/space/system/shadowdepth.sm_depth
+res:/graphics/effect.metal/managed/space/system/shadowdepth.sm_hi
+res:/graphics/effect.metal/managed/space/system/shadowdepth.sm_lo
+res:/graphics/effect.metal/managed/space/system/estimatenoise.sm_depth
+res:/graphics/effect.metal/managed/space/system/estimatenoise.sm_hi
+res:/graphics/effect.metal/managed/space/system/estimatenoise.sm_lo
+res:/graphics/effect.metal/managed/space/system/denoiseestimate.sm_depth
+res:/graphics/effect.metal/managed/space/system/denoiseestimate.sm_hi
+res:/graphics/effect.metal/managed/space/system/denoiseestimate.sm_lo
+res:/graphics/effect.metal/managed/space/system/denoise1d.sm_depth
+res:/graphics/effect.metal/managed/space/system/denoise1d.sm_hi
+res:/graphics/effect.metal/managed/space/system/denoise1d.sm_lo
+res:/graphics/effect.metal/managed/space/system/cortao/cortao.sm_depth
+res:/graphics/effect.metal/managed/space/system/cortao/cortao.sm_hi
+res:/graphics/effect.metal/managed/space/system/cortao/cortao.sm_lo
+res:/graphics/effect.metal/managed/space/system/cortao/blur.sm_depth
+res:/graphics/effect.metal/managed/space/system/cortao/blur.sm_hi
+res:/graphics/effect.metal/managed/space/system/cortao/blur.sm_lo
+res:/graphics/effect.metal/managed/space/system/ssao/ssao.sm_depth
+res:/graphics/effect.metal/managed/space/system/ssao/ssao.sm_hi
+res:/graphics/effect.metal/managed/space/system/ssao/ssao.sm_lo
 ```
 
 ### Supporting textures
@@ -168,6 +190,7 @@ res:/texture/global/genericreflection_cube.dds
 res:/texture/global/spotramp.dds
 res:/texture/particle/whitesharp.dds
 res:/texture/reflectioncorrection/128x128.dds
+res:/texture/ssao/24x24x16x16.dds
 res:/texture/sprite/astroiddirt3.dds
 res:/texture/sprite/caustics.dds
 res:/texture/sprite/fluorecent.dds

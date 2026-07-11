@@ -240,6 +240,8 @@ set(EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BANNER ${EVE_SCENE_PROBE_LOCAL_LIGHT_SOE_BAN
 set(EVE_SCENE_PROBE_ATTACHMENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroAttachmentResources.json)
 set(EVE_SCENE_PROBE_ATTACHMENT_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/AttachmentAssets/Inherited)
 set(EVE_SCENE_PROBE_ATTACHMENT_GENERIC ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/generic.black)
+set(EVE_SCENE_PROBE_SHADOW_AO_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroShadowAoResources.json)
+set(EVE_SCENE_PROBE_SHADOW_AO_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/ShadowAoAssets/Inherited)
 set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib)
 
 function(add_eve_scene_probe_dds_conversion input output metadata)
@@ -394,6 +396,58 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
     add_custom_target(TrinityEveSceneProbeAsteroAttachmentAssets
         DEPENDS ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS} ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroAttachmentAssets)
+
+    set(EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS)
+    set(EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS)
+    foreach(effect shadowdepth estimatenoise denoiseestimate denoise1d)
+        foreach(variant hi lo depth)
+            set(resource "res:/graphics/effect.metal/managed/space/system/${effect}.sm_${variant}")
+            set(destination "${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/${effect}.sm_${variant}")
+            list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${destination})
+            list(APPEND EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS --copy-resource ${resource} ${destination})
+        endforeach()
+    endforeach()
+    foreach(effect cortao/cortao cortao/blur ssao/ssao)
+        foreach(variant hi lo depth)
+            set(resource "res:/graphics/effect.metal/managed/space/system/${effect}.sm_${variant}")
+            set(destination "${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/${effect}.sm_${variant}")
+            list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${destination})
+            list(APPEND EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS --copy-resource ${resource} ${destination})
+        endforeach()
+    endforeach()
+    set(EVE_SCENE_PROBE_CORTAO_LOOKUP ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/ssao/24x24x16x16.dds)
+    list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${EVE_SCENE_PROBE_CORTAO_LOOKUP})
+    list(APPEND EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS
+        --copy-resource res:/texture/ssao/24x24x16x16.dds ${EVE_SCENE_PROBE_CORTAO_LOOKUP})
+    foreach(inherited_resource
+        ${EVE_SCENE_PROBE_QUADV5_HI_RESOURCE}
+        ${EVE_SCENE_PROBE_QUADV5_LO_RESOURCE}
+        ${EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE}
+        ${EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE}
+        ${EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE}
+        ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE})
+        string(REGEX REPLACE "^.*/" "" inherited_name "${inherited_resource}")
+        set(destination "${EVE_SCENE_PROBE_SHADOW_AO_INHERITED_DIR}/${inherited_name}")
+        list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${destination})
+        list(APPEND EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS --copy-resource ${inherited_resource} ${destination})
+    endforeach()
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS} ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SHADOW_AO_INHERITED_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeShadowAoAssets
+        DEPENDS ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS} ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeShadowAoAssets)
 
     add_custom_command(
         OUTPUT
@@ -1360,6 +1414,12 @@ if(TARGET TrinityEveSceneProbeAsteroAttachmentAssets)
     set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
         ${EVE_SCENE_PROBE_ATTACHMENT_OUTPUTS}
         ${EVE_SCENE_PROBE_ATTACHMENT_MANIFEST})
+endif()
+
+if(TARGET TrinityEveSceneProbeShadowAoAssets)
+    set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+        ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS}
+        ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST})
 endif()
 
 add_custom_command(

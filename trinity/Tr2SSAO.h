@@ -30,6 +30,22 @@ public:
 
 	void Enable( bool enable );
 	void SetQuality( SSAOQuality quality, bool downsampled );
+	void SetCortaoEnabled( bool enabled )
+	{
+		m_cortaoEnabled = enabled;
+	}
+	bool GetCortaoEnabled() const
+	{
+		return m_cortaoEnabled;
+	}
+	void SetCortaoBentNormal( bool enabled )
+	{
+		m_cortaoBentNormal = enabled;
+	}
+	bool GetCortaoBentNormal() const
+	{
+		return m_cortaoBentNormal;
+	}
 
 private:
 	struct SSAOResources;
@@ -110,7 +126,7 @@ private:
 	bool m_cortaoBlur;
 
 
-	uint32_t m_cortaoRandSeeds[4];
+	uint32_t m_cortaoRandSeeds[4] = {};
 
 	uint32_t Hash( uint32_t n );
 
