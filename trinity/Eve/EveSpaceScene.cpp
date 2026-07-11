@@ -2944,7 +2944,9 @@ bool EveSpaceScene::RenderMainPass(
 	const Tr2TextureAL& velocityMap,
 	const Tr2TextureAL& opaqueColorMap,
 	Tr2GpuResourcePool& gpuResourcePool,
-	Tr2RenderContext& renderContext )
+	Tr2RenderContext& renderContext,
+	Tr2GpuResourcePool::Texture* froxelFogOutput,
+	Tr2GpuResourcePool::Texture* volumetricSlicesOutput )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -3005,6 +3007,14 @@ bool EveSpaceScene::RenderMainPass(
 
 	PopulateAndApplyPerFrameData( renderContext );
 	auto [froxelFog, volumetricSlices] = RenderVolumetrics( depthMap, gpuResourcePool, renderContext );
+	if( froxelFogOutput )
+	{
+		*froxelFogOutput = froxelFog;
+	}
+	if( volumetricSlicesOutput )
+	{
+		*volumetricSlicesOutput = volumetricSlices;
+	}
 	GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", volumetricSlices );
 	GlobalStore().RegisterVariable( "EveSceneFroxelFogMap", froxelFog );
 

@@ -7,6 +7,7 @@
 #include "Eve/EveSpaceScene.h"
 #include "Eve/EveSpaceSceneRenderDriver.h"
 #include "Eve/EveEntity.h"
+#include "Eve/EveEffectRoot2.h"
 #include "Eve/EveLensflare.h"
 #include "Eve/EveOccluder.h"
 #include "Eve/EveStarfield.h"
@@ -28,6 +29,8 @@
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveSpriteSetItem.h"
 #include "Eve/SpaceObject/Children/EveChildContainer.h"
+#include "Eve/SpaceObject/Children/EveChildCloud2.h"
+#include "Eve/SpaceObject/Children/EveChildFogVolume.h"
 #include "Eve/SpaceObject/Children/EveChildLineSet.h"
 #include "Eve/SpaceObject/Children/EveChildParticleSystem.h"
 #include "Eve/SpaceObject/Children/EveChildQuad.h"
@@ -49,6 +52,7 @@
 #include "Tr2Renderer.h"
 #include "Tr2SSAO.h"
 #include "Tr2ShLightingManager.h"
+#include "Tr2VolumetricsRenderer.h"
 #include "Resources/TriTextureRes.h"
 #include "Resources/TriGeometryRes.h"
 #include "Resources/Tr2LightProfileRes.h"
@@ -113,12 +117,21 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 std::string ToNarrowPath( const wchar_t* path );
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
 bool PrepareReflectionProductVisualizer( StandaloneProbe& probe );
+bool PrepareVolumetricProductVisualizer( StandaloneProbe& probe, bool froxel );
 
 enum StandaloneLocalShadowMode
 {
 	STANDALONE_LOCAL_SHADOWS_OFF = 0,
 	STANDALONE_LOCAL_SHADOWS_AUTHORED = 1,
 	STANDALONE_LOCAL_SHADOWS_VALIDATION = 2,
+};
+
+enum StandaloneVolumetricMode
+{
+	STANDALONE_VOLUMETRICS_OFF = 0,
+	STANDALONE_VOLUMETRICS_SILK = 1,
+	STANDALONE_VOLUMETRICS_FROXEL = 2,
+	STANDALONE_VOLUMETRICS_ALL = 3,
 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
@@ -2877,6 +2890,9 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_FINAL_POSTPROCESS = 1 << 14,
 	STANDALONE_CAPTURE_POST_FINISH_CONTRACT = 1 << 15,
 	STANDALONE_CAPTURE_DISTORTION = 1 << 16,
+	STANDALONE_CAPTURE_VOLUME_SLICES = 1 << 17,
+	STANDALONE_CAPTURE_FROXEL_FOG = 1 << 18,
+	STANDALONE_CAPTURE_MIE_ENVIRONMENT = 1 << 19,
 };
 
 enum StandaloneDistortionMode
@@ -3017,9 +3033,14 @@ struct StandaloneProbe
 		distortionReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
+		volumeSlicesVisualizer.Unlock();
+		froxelProductVisualizer.Unlock();
 		dynamicLightShadowResolveEffect.Unlock();
 		driver.Unlock();
 		ssao.Unlock();
+		froxelVolume.Unlock();
+		froxelRoot.Unlock();
+		silkCloudRoot.Unlock();
 		scene.Unlock();
 		renderable.Unlock();
 		secondaryLights.clear();
@@ -3052,6 +3073,9 @@ struct StandaloneProbe
 	EveSpaceScenePtr scene;
 	EveSpaceSceneRenderDriverPtr driver;
 	Tr2SSAOPtr ssao;
+	EveEffectRoot2Ptr silkCloudRoot;
+	EveEffectRoot2Ptr froxelRoot;
+	EveChildFogVolumePtr froxelVolume;
 	BluePtr<TrinityStandaloneRenderable> renderable;
 	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
 	Tr2ShLightingManagerPtr shLightingManager;
@@ -3059,6 +3083,8 @@ struct StandaloneProbe
 	TriProjectionPtr projection;
 	Tr2EffectPtr renderProductVisualizer;
 	Tr2EffectPtr reflectionProductVisualizer;
+	Tr2EffectPtr volumeSlicesVisualizer;
+	Tr2EffectPtr froxelProductVisualizer;
 	Tr2EffectPtr dynamicLightShadowResolveEffect;
 	Tr2TextureAL renderProductReadback;
 	Tr2TextureAL hdrCompositeReadback;
@@ -3080,6 +3106,9 @@ struct StandaloneProbe
 	int bloomMode = STANDALONE_POST_FINISH_OFF;
 	int filmGrainMode = STANDALONE_POST_FINISH_OFF;
 	int distortionMode = STANDALONE_DISTORTION_OFF;
+	int volumetricMode = STANDALONE_VOLUMETRICS_OFF;
+	Tr2VolumerticQuality volumetricQuality = Tr2VolumerticQuality::High;
+	uint32_t volumetricSeed = 0x12b;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
 	bool postProcessDiagnosticsEnabled = false;
 	int64_t lastRealTime = 0;
@@ -5303,6 +5332,43 @@ bool PrepareReflectionProductVisualizer( StandaloneProbe& probe )
 	return true;
 }
 
+bool PrepareVolumetricProductVisualizer( StandaloneProbe& probe, bool froxel )
+{
+	Tr2EffectPtr& visualizer = froxel ? probe.froxelProductVisualizer : probe.volumeSlicesVisualizer;
+	if( visualizer )
+	{
+		return true;
+	}
+	visualizer.CreateInstance();
+	visualizer->StartUpdate();
+	visualizer->SetEffectPathName(
+		froxel ?
+			"res:/graphics/effect/managed/space/spaceobject/probe/froxelproductvisualizer.fx" :
+			"res:/graphics/effect/managed/space/spaceobject/probe/volumeslicesvisualizer.fx" );
+	visualizer->EndUpdate();
+	Tr2EffectRes* resource = visualizer->GetEffectRes();
+	if( resource )
+	{
+		resource->ForceSynchronousLoad();
+		resource->Reload();
+	}
+	Tr2Shader* shader = visualizer->GetShaderStateInterface();
+	uint32_t technique = 0;
+	if( !resource || !resource->IsGood() || !shader ||
+		!shader->GetTechniqueIndex( BlueSharedString( "Main" ), technique ) )
+	{
+		std::fprintf( stderr, "EVE %s visualization effect is unavailable\n", froxel ? "froxel" : "volume-slices" );
+		visualizer.Unlock();
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"EVE %s visualization effect ready: Main=%u\n",
+		froxel ? "froxel" : "volume-slices",
+		technique );
+	return true;
+}
+
 bool EnsureRenderProductReadback( StandaloneProbe& probe, Tr2RenderContext& renderContext )
 {
 	if( probe.renderProductReadback.IsValid() &&
@@ -5644,14 +5710,14 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 float DecodeSrgb( float value )
 {
 	return value <= 0.04045f ? value / 12.92f :
-		std::pow( ( value + 0.055f ) / 1.055f, 2.4f );
+							   std::pow( ( value + 0.055f ) / 1.055f, 2.4f );
 }
 
 float EncodeSrgb( float value )
 {
 	value = std::max( value, 0.0f );
 	return value <= 0.0031308f ? value * 12.92f :
-		1.055f * std::pow( value, 1.0f / 2.4f ) - 0.055f;
+								 1.055f * std::pow( value, 1.0f / 2.4f ) - 0.055f;
 }
 
 float Uncharted2Curve( float value, const TrinityStandalonePostProcessDiagnostics& diagnostics )
@@ -5663,7 +5729,7 @@ float Uncharted2Curve( float value, const TrinityStandalonePostProcessDiagnostic
 	const float e = diagnostics.toeNumerator;
 	const float f = diagnostics.toeDenominator;
 	return ( value * ( a * value + c * b ) + d * e ) /
-			   ( value * ( a * value + b ) + d * f ) -
+		( value * ( a * value + b ) + d * f ) -
 		e / f;
 }
 
@@ -5689,12 +5755,14 @@ bool ReadToneMappingContract( StandaloneProbe& probe, Tr2RenderContext& renderCo
 	uint32_t prePitch = 0;
 	uint32_t postPitch = 0;
 	if( FAILED( probe.hdrCompositeReadback.MapForReading(
-			Tr2TextureSubresource( 0 ), true, preData, prePitch, renderContext ) ) || !preData )
+			Tr2TextureSubresource( 0 ), true, preData, prePitch, renderContext ) ) ||
+		!preData )
 	{
 		return false;
 	}
 	if( FAILED( probe.postTonemapReadback.MapForReading(
-			Tr2TextureSubresource( 0 ), true, postData, postPitch, renderContext ) ) || !postData )
+			Tr2TextureSubresource( 0 ), true, postData, postPitch, renderContext ) ) ||
+		!postData )
 	{
 		probe.hdrCompositeReadback.UnmapForReading( renderContext );
 		return false;
@@ -6167,6 +6235,9 @@ bool ReadVisualizedRenderProduct(
 		captureProduct == STANDALONE_CAPTURE_BLOOM ||
 		captureProduct == STANDALONE_CAPTURE_FINAL_POSTPROCESS ||
 		captureProduct == STANDALONE_CAPTURE_DISTORTION ||
+		captureProduct == STANDALONE_CAPTURE_VOLUME_SLICES ||
+		captureProduct == STANDALONE_CAPTURE_FROXEL_FOG ||
+		captureProduct == STANDALONE_CAPTURE_MIE_ENVIRONMENT ||
 		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
@@ -6191,8 +6262,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
 	const Tr2BitmapDimensions destinationDimensions = destination.GetDesc();
-	std::array<BlueSharedString, 12> requestedNames;
-	std::array<ITr2RenderNode::TempOutput, 12> outputStorage;
+	std::array<BlueSharedString, 16> requestedNames;
+	std::array<ITr2RenderNode::TempOutput, 16> outputStorage;
 	size_t requestedCount = 0;
 	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
 	{
@@ -6266,6 +6337,24 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
+	if( captureProducts & STANDALONE_CAPTURE_VOLUME_SLICES )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "VolumetricSlices" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_FROXEL_FOG )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "FroxelFog" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_MIE_ENVIRONMENT )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "MieEnvironmentMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
 	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
@@ -6305,6 +6394,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool finalPostProcessProduct = captureProducts == STANDALONE_CAPTURE_FINAL_POSTPROCESS;
 		const bool postFinishContractProduct = captureProducts == STANDALONE_CAPTURE_POST_FINISH_CONTRACT;
 		const bool distortionProduct = captureProducts == STANDALONE_CAPTURE_DISTORTION;
+		const bool volumeSlicesProduct = captureProducts == STANDALONE_CAPTURE_VOLUME_SLICES;
+		const bool froxelFogProduct = captureProducts == STANDALONE_CAPTURE_FROXEL_FOG;
+		const bool mieEnvironmentProduct = captureProducts == STANDALONE_CAPTURE_MIE_ENVIRONMENT;
 		if( ok && toneContractProduct )
 		{
 			const Tr2TextureAL* preTonemap = nullptr;
@@ -6453,6 +6545,12 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			selectedName = "FinalPostProcessColor";
 		else if( distortionProduct )
 			selectedName = "DistortionMap";
+		else if( volumeSlicesProduct )
+			selectedName = "VolumetricSlices";
+		else if( froxelFogProduct )
+			selectedName = "FroxelFog";
+		else if( mieEnvironmentProduct )
+			selectedName = "MieEnvironmentMap";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -6493,14 +6591,15 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			}
 			else
 			{
-				if( reflectionProduct &&
+				const bool cubeProduct = reflectionProduct || mieEnvironmentProduct;
+				if( cubeProduct &&
 					( selectedTexture->GetType() != Tr2RenderContextEnum::TEX_TYPE_CUBE ||
 					  selectedTexture->GetWidth() <= 1 || selectedTexture->GetHeight() <= 1 ||
 					  selectedTexture->GetMipCount() == 0 ) )
 				{
 					std::fprintf(
 						stderr,
-						"Reflection cube is invalid: type=%d dimensions=%ux%u mips=%u\n",
+						"Cube render product is invalid: type=%d dimensions=%ux%u mips=%u\n",
 						static_cast<int>( selectedTexture->GetType() ),
 						selectedTexture->GetWidth(),
 						selectedTexture->GetHeight(),
@@ -6593,12 +6692,40 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					std::fprintf( stderr, "Distortion product is not B8G8R8A8_UNORM\n" );
 					ok = false;
 				}
-				const bool visualizerReady = reflectionProduct ?
+				if( volumeSlicesProduct &&
+					( selectedTexture->GetArraySize() != 4 ||
+					  selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ) )
+				{
+					std::fprintf( stderr, "VolumetricSlices does not match the four-layer FP16 contract\n" );
+					ok = false;
+				}
+				if( froxelFogProduct &&
+					( selectedTexture->GetType() != Tr2RenderContextEnum::TEX_TYPE_3D ||
+					  selectedTexture->GetDepth() < 64 ||
+					  selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R11G11B10_FLOAT ) )
+				{
+					std::fprintf( stderr, "FroxelFog does not match the native 3D R11G11B10 contract\n" );
+					ok = false;
+				}
+				if( mieEnvironmentProduct &&
+					( selectedTexture->GetWidth() != 128 || selectedTexture->GetHeight() != 128 ||
+					  selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT ) )
+				{
+					std::fprintf( stderr, "MieEnvironmentMap does not match the 128x128 float cube contract\n" );
+					ok = false;
+				}
+				const bool visualizerReady = cubeProduct ?
 					PrepareReflectionProductVisualizer( probe ) :
-					PrepareRenderProductVisualizer( probe );
-				Tr2EffectPtr visualizer = reflectionProduct ?
+					( volumeSlicesProduct ?
+						  PrepareVolumetricProductVisualizer( probe, false ) :
+						  ( froxelFogProduct ?
+								PrepareVolumetricProductVisualizer( probe, true ) :
+								PrepareRenderProductVisualizer( probe ) ) );
+				Tr2EffectPtr visualizer = cubeProduct ?
 					probe.reflectionProductVisualizer :
-					probe.renderProductVisualizer;
+					( volumeSlicesProduct ?
+						  probe.volumeSlicesVisualizer :
+						  ( froxelFogProduct ? probe.froxelProductVisualizer : probe.renderProductVisualizer ) );
 				if( ok && visualizerReady &&
 					EnsureRenderProductReadback( probe, renderContext ) &&
 					( !hdrCompositeProduct || EnsureHdrCompositeReadback( probe, renderContext ) ) &&
@@ -6615,22 +6742,23 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					if( distortionProduct )
 					{
 						ok = CheckHresult(
-							selectedTexture->Resolve( probe.distortionReadback, renderContext ),
-							"Resolve raw distortion map" ) && ok;
+								 selectedTexture->Resolve( probe.distortionReadback, renderContext ),
+								 "Resolve raw distortion map" ) &&
+							ok;
 					}
-					if( !reflectionProduct )
+					if( !cubeProduct && !volumeSlicesProduct && !froxelFogProduct )
 					{
 						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
 						const float visualizationMode = distortionProduct ? 8.0f :
-							( hdrCompositeProduct || bloomProduct ) ? 7.0f :
-							postTonemapProduct                                                  ? 2.0f :
-							colorProduct                                                        ? 2.0f :
-																								  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
-																																				  ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
-																																																   ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-																																																													( depthAtlasProduct ? 4.0f :
-																																																																		  ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+							( hdrCompositeProduct || bloomProduct )       ? 7.0f :
+							postTonemapProduct                            ? 2.0f :
+							colorProduct                                  ? 2.0f :
+																			( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+																															( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+																																											 ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+																																																							  ( depthAtlasProduct ? 4.0f :
+																																																													( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "RenderProductMode" ),
 							visualizationMode );
@@ -6868,8 +6996,7 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 	const bool expectsDynamicExposure = probe.qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE &&
 		probe.dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT;
 	require(
-		postProcess && static_cast<bool>( postProcess->GetDynamicExposureIfAvailable( PostProcess::HIGH ) ) ==
-			expectsDynamicExposure,
+		postProcess && static_cast<bool>( postProcess->GetDynamicExposureIfAvailable( PostProcess::HIGH ) ) == expectsDynamicExposure,
 		expectsDynamicExposure ? "client dynamic exposure enabled" : "dynamic exposure disabled" );
 	const bool expectsPostFinish = probe.qualityRung >= STANDALONE_PROBE_RUNG_HDR_FINISH;
 	require(
@@ -6891,9 +7018,18 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 	const size_t volumetricRenderableCount = probe.scene->m_componentRegistry ?
 		probe.scene->m_componentRegistry->ComponentCount<ITr2VolumetricRenderable>() :
 		0;
+	const size_t froxelSettingsCount = probe.scene->m_componentRegistry ?
+		probe.scene->m_componentRegistry->ComponentCount<ITr2FroxelFogSettings>() :
+		0;
 	const bool froxelFogActive = probe.scene->m_volumetricsRenderer && probe.scene->m_volumetricsRenderer->HasFog();
-	require( volumetricRenderableCount == 0 && !froxelFogActive,
-			 "volumetric renderables and froxel fog disabled" );
+	const bool expectsSilk = probe.volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
+		probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL;
+	const bool expectsFroxel = probe.volumetricMode == STANDALONE_VOLUMETRICS_FROXEL ||
+		probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL;
+	require( volumetricRenderableCount == ( expectsSilk ? 1u : 0u ),
+			 expectsSilk ? "one authored Silk volumetric renderable" : "local volumetric renderables disabled" );
+	require( froxelSettingsCount == ( expectsFroxel ? 1u : 0u ) && froxelFogActive == expectsFroxel,
+			 expectsFroxel ? "one active native froxel settings component" : "froxel fog disabled" );
 
 	const auto& settings = probe.driver->GetSettings();
 	require( !settings.bypassPostProcessing && !settings.postProcessBlitOnly,
@@ -6911,14 +7047,14 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 	{
 		const auto& distortion = probe.driver->GetDistortionDiagnostics();
 		require( distortion.foregroundBatches && distortion.foregroundApplications == 1 &&
-				 distortion.backgroundApplications == 0 && distortion.copySucceeded &&
-				 distortion.compositeSucceeded && probe.renderable->GetDistortionSubmittedBatchCount() == 1 &&
-				 probe.renderable->GetDistortionSubmittedIndexCount() == 120,
-			 "one native 40-triangle distortion batch and compositor application" );
+					 distortion.backgroundApplications == 0 && distortion.copySucceeded &&
+					 distortion.compositeSucceeded && probe.renderable->GetDistortionSubmittedBatchCount() == 1 &&
+					 probe.renderable->GetDistortionSubmittedIndexCount() == 120,
+				 "one native 40-triangle distortion batch and compositor application" );
 	}
 	require( !settings.enableUpscaling &&
-			 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
-			 !settings.forceVelocityMap,
+				 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
+				 !settings.forceVelocityMap,
 			 "upscaling, TAA, and velocity disabled" );
 	require( settings.forceOpaqueBuffer && settings.forceNormalMap,
 			 "opaque and normal products retained" );
@@ -7875,6 +8011,209 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	return true;
 }
 
+bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32_t seed, std::string& error )
+{
+	if( !probe.scene || !probe.driver || !probe.renderContext )
+	{
+		error = "Volumetrics require a configured EVE scene";
+		return false;
+	}
+	if( mode < STANDALONE_VOLUMETRICS_OFF || mode > STANDALONE_VOLUMETRICS_ALL || quality < 0 || quality > 3 )
+	{
+		error = "Invalid volumetric mode or quality";
+		return false;
+	}
+	const bool wantsFroxel = mode == STANDALONE_VOLUMETRICS_FROXEL || mode == STANDALONE_VOLUMETRICS_ALL;
+	if( wantsFroxel )
+	{
+		error = "Froxel volumetrics are disabled on the standalone Metal probe: native compute submission stalled the AGX GPU and triggered the macOS WindowServer watchdog";
+		return false;
+	}
+
+	const Tr2VolumerticQuality qualities[] = {
+		Tr2VolumerticQuality::Low,
+		Tr2VolumerticQuality::Medium,
+		Tr2VolumerticQuality::High,
+		Tr2VolumerticQuality::Ultra,
+	};
+	probe.volumetricMode = mode;
+	probe.volumetricQuality = qualities[quality];
+	probe.volumetricSeed = seed;
+	Tr2VolumetricsRendererPtr renderer = probe.scene->GetVolumetricsRenderer();
+	if( !renderer )
+	{
+		error = "EVE scene has no Tr2VolumetricsRenderer";
+		return false;
+	}
+	renderer->SetQuality( probe.volumetricQuality );
+	if( !renderer->SetNoiseSeed( seed, *probe.renderContext ) )
+	{
+		error = "Failed to create deterministic 64x64x64 froxel noise";
+		return false;
+	}
+	auto settings = probe.driver->GetSettings();
+	settings.volumetricQuality = probe.volumetricQuality;
+	probe.driver->SetSettings( settings );
+
+	if( mode == STANDALONE_VOLUMETRICS_OFF )
+	{
+		std::fprintf( stderr, "EVE RC-12B volumetrics: mode=off serializedSceneContent=none quality=%d seed=%u\n", quality, seed );
+		return true;
+	}
+
+	const bool wantsSilk = mode == STANDALONE_VOLUMETRICS_SILK || mode == STANDALONE_VOLUMETRICS_ALL;
+	if( wantsSilk )
+	{
+		const std::pair<const char*, const char*> textures[] = {
+			{ "res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_density.vta", "Silk high-detail density VTA" },
+			{ "res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_temperature.vta", "Silk high-detail temperature VTA" },
+			{ "res:/texture/global/cloudbluenoise.dds", "Silk blue-noise texture" },
+			{ "res:/texture/fx/gradients/ramp_vdb_color_04a.dds", "Silk temperature gradient" },
+			{ "res:/texture/global/cloud1_cube.dds", "Silk environment cube" },
+		};
+		for( const auto& texture : textures )
+		{
+			if( !PrepareTextureResourceWithoutYield( texture.first, texture.second, error ) )
+			{
+				return false;
+			}
+		}
+		if( !PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/specialfx/volumetric/BasicCloud.fx",
+				"Silk volumetric cloud",
+				{ "Main", "GenerateLightmap" },
+				error ) ||
+			!PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/specialfx/volumetric/BasicCloudReflectionProxy.fx",
+				"Silk reflection proxy",
+				{ "Main" },
+				error ) ||
+			!PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/specialfx/volumetric/DownsampleDepth.fx",
+				"local volumetric depth downsample",
+				{ "Main" },
+				error ) ||
+			!PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/specialfx/volumetric/BlurVolumetric.fx",
+				"local volumetric blur",
+				{ "Main" },
+				error ) ||
+			!PrepareManagedEffectWithoutYield(
+				"res:/graphics/effect/managed/space/specialfx/volumetric/VolumeBlit.fx",
+				"local volumetric composition",
+				{ "Main" },
+				error ) )
+		{
+			return false;
+		}
+		probe.silkCloudRoot = LoadBlackObjectWithoutYield<EveEffectRoot2>(
+			"res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black",
+			error );
+		if( !probe.silkCloudRoot )
+		{
+			return false;
+		}
+		uint32_t cloudChildren = 0;
+		for( IEveSpaceObjectChild* child : probe.silkCloudRoot->GetChildren() )
+		{
+			EveChildCloud2Ptr cloud = BlueCastPtr( child );
+			if( cloud )
+			{
+				++cloudChildren;
+			}
+		}
+		if( cloudChildren != 1 )
+		{
+			error = "Silk fixture does not contain exactly one EveChildCloud2";
+			return false;
+		}
+		Vector4 cloudSphere;
+		probe.silkCloudRoot->GetBoundingSphere( cloudSphere );
+		const float authoredRadius = cloudSphere.w > 0.0f ? cloudSphere.w : 1.0f;
+		const float targetRadius = 2.2f * probe.modelWorldScale;
+		const float fixtureScale = targetRadius / authoredRadius;
+		const Vector3 fixturePosition(
+			-3.2f * probe.modelWorldScale,
+			1.8f * probe.modelWorldScale,
+			3.8f * probe.modelWorldScale );
+		probe.silkCloudRoot->SetTransform(
+			ScalingMatrix( fixtureScale, fixtureScale, fixtureScale ) * TranslationMatrix( fixturePosition ) );
+		probe.silkCloudRoot->SetControllerVariable( "Density", 2.0f );
+		probe.silkCloudRoot->SetControllerVariable( "TemperatureControl", 1.0f );
+		probe.silkCloudRoot->StartControllers();
+		probe.silkCloudRoot->Start();
+		probe.scene->Objects().Insert( -1, probe.silkCloudRoot->GetRawRoot() );
+		std::fprintf(
+			stderr,
+			"EVE RC-12B Silk fixture: path=res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black "
+			"children=%u authoredRadius=%.6f scale=%.6f position=(%.6f,%.6f,%.6f) pointLights=0\n",
+			cloudChildren,
+			authoredRadius,
+			fixtureScale,
+			fixturePosition.x,
+			fixturePosition.y,
+			fixturePosition.z );
+	}
+
+	if( wantsFroxel )
+	{
+		const std::pair<const char*, const char*> effects[] = {
+			{ "res:/graphics/effect/managed/space/specialfx/volumetric/Fog/CalculateFroxels.fx", "froxel calculation" },
+			{ "res:/graphics/effect/managed/space/specialfx/volumetric/Fog/FilterFroxels.fx", "froxel temporal filter" },
+			{ "res:/graphics/effect/managed/space/specialfx/volumetric/Fog/RaymarchFroxels.fx", "froxel raymarch" },
+			{ "res:/graphics/effect/managed/space/specialfx/volumetric/Fog/ApplyFroxels.fx", "froxel scene application" },
+			{ "res:/graphics/effect/managed/space/specialfx/volumetric/Fog/UpdateMieEnvironmentMap.fx", "froxel Mie environment update" },
+		};
+		for( const auto& effect : effects )
+		{
+			if( !PrepareManagedEffectWithoutYield( effect.first, effect.second, { "Main" }, error ) )
+			{
+				return false;
+			}
+		}
+		if( !probe.froxelRoot.CreateInstance() || !probe.froxelVolume.CreateInstance() )
+		{
+			error = "Failed to create native froxel fixture objects";
+			return false;
+		}
+		probe.froxelVolume->SetName( "RC-12B validation froxel fog" );
+		probe.froxelVolume->SetIntensity( 0.35f );
+		auto* fog = probe.froxelVolume->GetFroxelFogSettings();
+		auto set = []( auto& attribute, const auto& value ) {
+			attribute.enabled = true;
+			attribute.value = value;
+		};
+		set( fog->thickness, 1.0f );
+		set( fog->lightDirectionality, 0.5f );
+		set( fog->environmentIntensity, 1.0f );
+		set( fog->environmentDirectionality, 0.75f );
+		set( fog->fogColor, Color( 0.82f, 0.88f, 1.0f, 1.0f ) );
+		set( fog->backgroundVisibility, 0.2f );
+		set( fog->godRayNoiseIntensity, 0.1f );
+		set( fog->godRayNoiseFrequency, 15.0f );
+		set( fog->godRayNoiseAnimationSpeed, 0.0f );
+		set( fog->fogNoiseIntensity, 0.15f );
+		set( fog->fogNoiseFrequency, 15.0f );
+		set( fog->fogNoiseMovementSpeed, Vector3( 0.0f, 0.0f, 0.0f ) );
+		if( !probe.froxelVolume->Initialize() )
+		{
+			error = "Native EveChildFogVolume failed to initialize";
+			return false;
+		}
+		probe.froxelRoot->AddToEffectChildrenList( probe.froxelVolume );
+		probe.froxelRoot->Start();
+		probe.scene->Objects().Insert( -1, probe.froxelRoot->GetRawRoot() );
+		std::fprintf(
+			stderr,
+			"EVE RC-12B froxel fixture: native=EveChildFogVolume authoredSystem=false intensity=0.35 "
+			"thickness=1.0 environment=1.0 noise=0.15 godRayNoise=0.10 temporal=true seed=%u\n",
+			seed );
+	}
+
+	renderer->ResetTemporalHistory();
+	return true;
+}
+
 Tr2WindowHandle ToWindowHandle( void* windowHandle )
 {
 #ifdef __APPLE__
@@ -8408,6 +8747,139 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqu
 	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
+	void* opaqueProbe,
+	int mode,
+	int quality,
+	uint32_t seed )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe )
+	{
+		return false;
+	}
+	std::string error;
+	if( !ConfigureVolumetrics( *probe, mode, quality, seed, error ) )
+	{
+		std::fprintf( stderr, "Failed to configure RC-12B volumetrics: %s\n", error.c_str() );
+		return false;
+	}
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneVolumetricDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || !diagnostics )
+	{
+		return false;
+	}
+	Tr2VolumetricsRendererPtr renderer = probe->scene->GetVolumetricsRenderer();
+	if( !renderer )
+	{
+		return false;
+	}
+	const auto& source = renderer->GetDiagnostics();
+	diagnostics->froxelEnabled = source.froxelEnabled;
+	diagnostics->temporalEnabled = source.temporalEnabled;
+	diagnostics->calculateSucceeded = source.calculateSucceeded;
+	diagnostics->temporalFilterSucceeded = source.temporalFilterSucceeded;
+	diagnostics->raymarchSucceeded = source.raymarchSucceeded;
+	diagnostics->applySucceeded = source.applySucceeded;
+	diagnostics->mieUpdateSucceeded = source.mieUpdateSucceeded;
+	diagnostics->localDepthDownsampleSucceeded = source.localDepthDownsampleSucceeded;
+	diagnostics->localBlurSucceeded = source.localBlurSucceeded;
+	diagnostics->localBlitSucceeded = source.localBlitSucceeded;
+	diagnostics->mode = static_cast<uint32_t>( probe->volumetricMode );
+	diagnostics->quality = static_cast<uint32_t>( probe->volumetricQuality );
+	diagnostics->seed = probe->volumetricSeed;
+	diagnostics->localRenderableCount = source.localRenderableCount;
+	diagnostics->froxelSettingsCount = probe->scene->m_componentRegistry ?
+		static_cast<uint32_t>( probe->scene->m_componentRegistry->ComponentCount<ITr2FroxelFogSettings>() ) :
+		0;
+	diagnostics->localBatchCount = source.localBatchCount;
+	diagnostics->localLightmapUpdates = source.localLightmapUpdates;
+	diagnostics->volumeWidth = source.volumeWidth;
+	diagnostics->volumeHeight = source.volumeHeight;
+	diagnostics->volumeLayers = source.volumeLayers;
+	diagnostics->volumeFormat = source.volumeFormat;
+	diagnostics->froxelWidth = source.froxelWidth;
+	diagnostics->froxelHeight = source.froxelHeight;
+	diagnostics->froxelDepth = source.froxelDepth;
+	diagnostics->froxelFormat = source.froxelFormat;
+	diagnostics->mieWidth = source.mieWidth;
+	diagnostics->mieHeight = source.mieHeight;
+	diagnostics->mieFormat = source.mieFormat;
+	diagnostics->dynamicLightCount = source.dynamicLightCount;
+
+	const bool wantsSilk = probe->volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
+		probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL;
+	const bool wantsFroxel = probe->volumetricMode == STANDALONE_VOLUMETRICS_FROXEL ||
+		probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL;
+	const bool localValid = !wantsSilk ||
+		( diagnostics->localRenderableCount == 1 && diagnostics->localBatchCount > 0 &&
+		  diagnostics->volumeWidth > 1 && diagnostics->volumeHeight > 1 && diagnostics->volumeLayers == 4 &&
+		  diagnostics->volumeFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+		  diagnostics->localDepthDownsampleSucceeded && diagnostics->localBlurSucceeded &&
+		  diagnostics->localBlitSucceeded );
+	const bool froxelValid = !wantsFroxel ||
+		( diagnostics->froxelSettingsCount == 1 && diagnostics->froxelEnabled &&
+		  diagnostics->froxelWidth > 1 && diagnostics->froxelHeight > 1 &&
+		  diagnostics->froxelDepth >= 64 &&
+		  diagnostics->froxelFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R11G11B10_FLOAT &&
+		  diagnostics->calculateSucceeded && diagnostics->temporalFilterSucceeded &&
+		  diagnostics->raymarchSucceeded && diagnostics->applySucceeded &&
+		  diagnostics->mieUpdateSucceeded && diagnostics->mieWidth == 128 && diagnostics->mieHeight == 128 &&
+		  diagnostics->mieFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT );
+	const bool offValid = probe->volumetricMode != STANDALONE_VOLUMETRICS_OFF ||
+		( diagnostics->localRenderableCount == 0 && diagnostics->froxelSettingsCount == 0 &&
+		  !diagnostics->froxelEnabled );
+	diagnostics->valid = localValid && froxelValid && offValid;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe )
+{
+	TrinityStandaloneVolumetricDiagnostics diagnostics;
+	if( !TrinityStandaloneProbeGetVolumetricDiagnostics( opaqueProbe, &diagnostics ) )
+	{
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"EVE RC-12B diagnostics: mode=%u quality=%u seed=%u local=%u batches=%u slices=%ux%ux%u/%u "
+		"froxelSettings=%u fog=%s grid=%ux%ux%u/%u temporal=%s passes=[%s,%s,%s,%s] "
+		"mie=%ux%u/%u lights=%u validation=%s\n",
+		diagnostics.mode,
+		diagnostics.quality,
+		diagnostics.seed,
+		diagnostics.localRenderableCount,
+		diagnostics.localBatchCount,
+		diagnostics.volumeWidth,
+		diagnostics.volumeHeight,
+		diagnostics.volumeLayers,
+		diagnostics.volumeFormat,
+		diagnostics.froxelSettingsCount,
+		diagnostics.froxelEnabled ? "on" : "off",
+		diagnostics.froxelWidth,
+		diagnostics.froxelHeight,
+		diagnostics.froxelDepth,
+		diagnostics.froxelFormat,
+		diagnostics.temporalEnabled ? "on" : "off",
+		diagnostics.calculateSucceeded ? "calculate" : "FAILED",
+		diagnostics.temporalFilterSucceeded ? "filter" : "FAILED",
+		diagnostics.raymarchSucceeded ? "raymarch" : "FAILED",
+		diagnostics.applySucceeded ? "apply" : "FAILED",
+		diagnostics.mieWidth,
+		diagnostics.mieHeight,
+		diagnostics.mieFormat,
+		diagnostics.dynamicLightCount,
+		diagnostics.valid ? "pass" : "fail" );
+	return diagnostics.valid;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -8429,7 +8901,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_BLOOM &&
 		captureProduct != STANDALONE_CAPTURE_FINAL_POSTPROCESS &&
 		captureProduct != STANDALONE_CAPTURE_POST_FINISH_CONTRACT &&
-		captureProduct != STANDALONE_CAPTURE_DISTORTION )
+		captureProduct != STANDALONE_CAPTURE_DISTORTION &&
+		captureProduct != STANDALONE_CAPTURE_VOLUME_SLICES &&
+		captureProduct != STANDALONE_CAPTURE_FROXEL_FOG &&
+		captureProduct != STANDALONE_CAPTURE_MIE_ENVIRONMENT )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;

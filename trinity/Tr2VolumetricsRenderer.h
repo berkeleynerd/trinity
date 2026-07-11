@@ -137,6 +137,47 @@ public:
 	void PopulatePerFrameData( FroxelPerFrameData & data );
 
 	void SetQuality( Tr2VolumerticQuality quality );
+	Tr2VolumerticQuality GetQuality() const
+	{
+		return m_quality;
+	}
+
+	struct Diagnostics
+	{
+		bool froxelEnabled = false;
+		bool temporalEnabled = false;
+		bool calculateSucceeded = false;
+		bool temporalFilterSucceeded = false;
+		bool raymarchSucceeded = false;
+		bool applySucceeded = false;
+		bool mieUpdateSucceeded = false;
+		bool localDepthDownsampleSucceeded = false;
+		bool localBlurSucceeded = false;
+		bool localBlitSucceeded = false;
+		uint32_t localRenderableCount = 0;
+		uint32_t localBatchCount = 0;
+		uint32_t localLightmapUpdates = 0;
+		uint32_t volumeWidth = 0;
+		uint32_t volumeHeight = 0;
+		uint32_t volumeLayers = 0;
+		uint32_t volumeFormat = 0;
+		uint32_t froxelWidth = 0;
+		uint32_t froxelHeight = 0;
+		uint32_t froxelDepth = 0;
+		uint32_t froxelFormat = 0;
+		uint32_t mieWidth = 0;
+		uint32_t mieHeight = 0;
+		uint32_t mieFormat = 0;
+		uint32_t dynamicLightCount = 0;
+	};
+
+	const Diagnostics& GetDiagnostics() const
+	{
+		return m_lastDiagnostics;
+	}
+	bool SetNoiseSeed( uint32_t seed, Tr2RenderContext& renderContext );
+	void ResetTemporalHistory();
+	const Tr2TextureAL* GetMieEnvironmentMap() const;
 
 	EXPOSE_TO_BLUE();
 
@@ -158,6 +199,7 @@ private:
 		Vector3 froxelJitter;
 		bool useTemporalFroxels;
 		bool currentTemporalFroxels;
+		bool resetTemporalFroxels = true;
 	};
 
 
@@ -203,6 +245,7 @@ private:
 	float m_gameBackClip;
 
 	Tr2TextureReferencePtr m_froxel3DNoise;
+	uint32_t m_noiseSeed = 0;
 
 
 	double m_godRayNoiseAnimation;
@@ -215,6 +258,7 @@ private:
 	FogViewDependentResources m_fogReflectionResources;
 
 	Tr2EffectPtr m_updateMieEnvironmentMap;
+	Diagnostics m_lastDiagnostics;
 
 	struct FogPerObjectData
 	{

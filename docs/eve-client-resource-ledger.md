@@ -332,3 +332,41 @@ high compositor source is
 `Reports/AsteroDistortionGeneratedCmf.sha256` records the generated CMF hash
 separately. The older `res:/fisfx/postprocess/distortion.black` is intentionally
 excluded because it belongs to the legacy postprocess-job path.
+
+### RC-12B volumetric resources
+
+`Reports/VolumetricResources.json` records 38 resources staged only under the
+ignored probe build tree. The authored local-volume fixture is rooted at:
+
+```text
+res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black
+res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_density.vta
+res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_density_lowdetail.vta
+res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_temperature.vta
+res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_temperature_lowdetail.vta
+```
+
+Supporting inputs are `cloudbluenoise.dds`, `cloud1_cube.dds`, and
+`ramp_vdb_color_04a.dds`. The staged Metal graph contains high, low, and depth
+variants of `basiccloud`, `basiccloudreflectionproxy`, `blurvolumetric`,
+`downsampledepth`, `volumeblit`, `applyfroxels`, `calculatefroxels`,
+`filterfroxels`, `raymarchfroxels`, and `updatemieenvironmentmap`.
+
+The authoritative index is:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/resfileindex.txt
+```
+
+The selected Silk Black resolves to:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/6e/6e04d3820694ca9a_9961a786f682735500c71b2fded0921a
+```
+
+It is 4,699 bytes with SHA-256
+`5928f40112f8fc79519193ce16026c9e1ade072ec5396b122c345cce39dcc655`.
+The generated manifest carries the absolute hashed source, size, and checksum
+for every other input. No listed payload is source controlled. Global froxel
+execution remains blocked by the documented AGX watchdog incident; staging
+these shaders is resource evidence only.

@@ -2,6 +2,7 @@
 
 #include "StdAfx.h"
 #include "EveSpaceSceneRenderDriver.h"
+#include "Tr2VolumetricsRenderer.h"
 #include "EveSpaceScene.h"
 #include "../Tr2Renderer.h"
 #include "../TriProjection.h"
@@ -372,7 +373,10 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "BloomMap" ) != 0 &&
 			strcmp( output.c_str(), "PostTonemapColor" ) != 0 &&
 			strcmp( output.c_str(), "FinalPostProcessColor" ) != 0 &&
-			strcmp( output.c_str(), "DistortionMap" ) != 0 )
+			strcmp( output.c_str(), "DistortionMap" ) != 0 &&
+			strcmp( output.c_str(), "VolumetricSlices" ) != 0 &&
+			strcmp( output.c_str(), "FroxelFog" ) != 0 &&
+			strcmp( output.c_str(), "MieEnvironmentMap" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
 			return false;
@@ -593,10 +597,39 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 
 		RegisterWithVariableStore( shadowResources, m_gpuResourcePool );
 		bool hasDistortionBatches = false;
+		Tr2GpuResourcePool::Texture froxelFog;
+		Tr2GpuResourcePool::Texture volumetricSlices;
 		distortionMap = GetDistortionMapIfNeeded( renderSize );
 		{
 			TimeSection mainPassSection( m_timers.mainPass, "MainPass", rootTimer, renderContext );
-			hasDistortionBatches = m_scene->RenderMainPass( sceneColorTarget, depthBuffer, distortionMap, velocityMap, opaqueBackBuffer, m_gpuResourcePool, renderContext );
+			hasDistortionBatches = m_scene->RenderMainPass(
+				sceneColorTarget,
+				depthBuffer,
+				distortionMap,
+				velocityMap,
+				opaqueBackBuffer,
+				m_gpuResourcePool,
+				renderContext,
+				&froxelFog,
+				&volumetricSlices );
+		}
+		SetNamedOutput( outputs, "FroxelFog", froxelFog );
+		SetNamedOutput( outputs, "VolumetricSlices", volumetricSlices );
+		if( Tr2VolumetricsRendererPtr volumetrics = m_scene->GetVolumetricsRenderer() )
+		{
+			const Tr2TextureAL* mie = volumetrics->GetMieEnvironmentMap();
+			if( mie && mie->IsValid() )
+			{
+				auto mieOutput = FindNamedOutput( outputs, "MieEnvironmentMap" );
+				if( mieOutput )
+				{
+					mieOutput->texture = m_gpuResourcePool.GetTempTexture( "MieEnvironmentMapOutput", mie->GetDesc(), Tr2GpuUsage::SHADER_RESOURCE );
+					if( FAILED( mie->Resolve( mieOutput->texture, renderContext ) ) )
+					{
+						mieOutput->texture = {};
+					}
+				}
+			}
 		}
 		RegisterWithVariableStore( {}, m_gpuResourcePool );
 
@@ -608,10 +641,10 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 				ApplyDistortion( customBackBuffer, distortionMap, m_gpuResourcePool, m_distortionEffect, renderContext, copySucceeded );
 			m_lastDistortionDiagnostics.copySucceeded =
 				m_lastDistortionDiagnostics.backgroundApplications == 0 ? copySucceeded :
-					m_lastDistortionDiagnostics.copySucceeded && copySucceeded;
+																		  m_lastDistortionDiagnostics.copySucceeded && copySucceeded;
 			m_lastDistortionDiagnostics.compositeSucceeded =
 				m_lastDistortionDiagnostics.backgroundApplications == 0 ? compositeSucceeded :
-					m_lastDistortionDiagnostics.compositeSucceeded && compositeSucceeded;
+																		  m_lastDistortionDiagnostics.compositeSucceeded && compositeSucceeded;
 			m_lastDistortionDiagnostics.foregroundApplications = 1;
 			SetNamedOutput( outputs, "DistortionMap", distortionMap );
 			renderContext.m_esm.SetDepthStencilBuffer( depthBuffer );
@@ -735,8 +768,7 @@ bool EveSpaceSceneRenderDriver::ReadPostProcessDiagnostics(
 	Tr2RenderContext& renderContext,
 	Tr2PostProcessRenderer::Diagnostics& diagnostics ) const
 {
-	return m_postProcess && m_postProcess->ReadDiagnostics(
-		const_cast<Tr2GpuResourcePool&>( m_gpuResourcePool ), renderContext, diagnostics );
+	return m_postProcess && m_postProcess->ReadDiagnostics( const_cast<Tr2GpuResourcePool&>( m_gpuResourcePool ), renderContext, diagnostics );
 }
 
 bool EveSpaceSceneRenderDriver::GetLastPostProcessExecutionSucceeded() const

@@ -284,6 +284,9 @@ enum class RenderProduct
 	Bloom,
 	FinalPostprocess,
 	Distortion,
+	VolumeSlices,
+	FroxelFog,
+	MieEnvironment,
 	All,
 };
 
@@ -357,6 +360,9 @@ constexpr int kCaptureBloom = 1 << 13;
 constexpr int kCaptureFinalPostprocess = 1 << 14;
 constexpr int kCapturePostFinishContract = 1 << 15;
 constexpr int kCaptureDistortion = 1 << 16;
+constexpr int kCaptureVolumeSlices = 1 << 17;
+constexpr int kCaptureFroxelFog = 1 << 18;
+constexpr int kCaptureMieEnvironment = 1 << 19;
 
 enum class DynamicExposure
 {
@@ -377,6 +383,24 @@ enum class DistortionMode
 	Auto,
 	Off,
 	Authored,
+};
+
+enum class VolumetricMode
+{
+	Auto,
+	Off,
+	Silk,
+	Froxel,
+	All,
+};
+
+enum class VolumetricQuality
+{
+	Auto,
+	Low,
+	Medium,
+	High,
+	Ultra,
 };
 
 enum class ExposureSequence
@@ -458,6 +482,12 @@ struct Options
 	PostFinishMode resolvedFilmGrain = PostFinishMode::Off;
 	DistortionMode distortion = DistortionMode::Auto;
 	DistortionMode resolvedDistortion = DistortionMode::Off;
+	VolumetricMode volumetrics = VolumetricMode::Auto;
+	VolumetricMode resolvedVolumetrics = VolumetricMode::Off;
+	VolumetricQuality volumetricQuality = VolumetricQuality::Auto;
+	VolumetricQuality resolvedVolumetricQuality = VolumetricQuality::High;
+	uint32_t volumetricSeed = 0x12b;
+	bool validateVolumetrics = false;
 	ExposureSequence exposureSequence = ExposureSequence::None;
 	uint32_t exposureHold = 180;
 };
@@ -880,6 +910,12 @@ std::string RenderProductName( RenderProduct product )
 		return "final-postprocess";
 	case RenderProduct::Distortion:
 		return "distortion";
+	case RenderProduct::VolumeSlices:
+		return "volume-slices";
+	case RenderProduct::FroxelFog:
+		return "froxel-fog";
+	case RenderProduct::MieEnvironment:
+		return "mie-environment";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -904,6 +940,9 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::Bloom,
 									 RenderProduct::FinalPostprocess,
 									 RenderProduct::Distortion,
+									 RenderProduct::VolumeSlices,
+									 RenderProduct::FroxelFog,
+									 RenderProduct::MieEnvironment,
 									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
@@ -974,6 +1013,88 @@ bool ParseDistortionMode( const std::string& value, DistortionMode& result )
 		}
 	}
 	return false;
+}
+
+std::string VolumetricModeName( VolumetricMode value )
+{
+	static const char* names[] = { "auto", "off", "silk", "froxel", "all" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseVolumetricMode( const std::string& value, VolumetricMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( VolumetricMode candidate : { VolumetricMode::Auto,
+									  VolumetricMode::Off,
+									  VolumetricMode::Silk,
+									  VolumetricMode::Froxel,
+									  VolumetricMode::All } )
+	{
+		if( normalized == VolumetricModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string VolumetricQualityName( VolumetricQuality value )
+{
+	static const char* names[] = { "auto", "low", "medium", "high", "ultra" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseVolumetricQuality( const std::string& value, VolumetricQuality& result )
+{
+	const std::string normalized = ToLower( value );
+	for( VolumetricQuality candidate : { VolumetricQuality::Auto,
+										 VolumetricQuality::Low,
+										 VolumetricQuality::Medium,
+										 VolumetricQuality::High,
+										 VolumetricQuality::Ultra } )
+	{
+		if( normalized == VolumetricQualityName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+int VolumetricModeApiValue( VolumetricMode value )
+{
+	switch( value )
+	{
+	case VolumetricMode::Silk:
+		return 1;
+	case VolumetricMode::Froxel:
+		return 2;
+	case VolumetricMode::All:
+		return 3;
+	case VolumetricMode::Auto:
+	case VolumetricMode::Off:
+		return 0;
+	}
+	return 0;
+}
+
+int VolumetricQualityApiValue( VolumetricQuality value )
+{
+	switch( value )
+	{
+	case VolumetricQuality::Low:
+		return 0;
+	case VolumetricQuality::Medium:
+		return 1;
+	case VolumetricQuality::Ultra:
+		return 3;
+	case VolumetricQuality::Auto:
+	case VolumetricQuality::High:
+		return 2;
+	}
+	return 2;
 }
 
 std::string ExposureSequenceName( ExposureSequence value )
@@ -1272,6 +1393,12 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureFinalPostprocess;
 	case RenderProduct::Distortion:
 		return kCaptureDistortion;
+	case RenderProduct::VolumeSlices:
+		return kCaptureVolumeSlices;
+	case RenderProduct::FroxelFog:
+		return kCaptureFroxelFog;
+	case RenderProduct::MieEnvironment:
+		return kCaptureMieEnvironment;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -1348,6 +1475,12 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=FinalPostProcessColor format=destination-8-bit-unorm visualization=identity gpuVisualization=true rawValidation=true";
 	case RenderProduct::Distortion:
 		return "source=DistortionMap format=B8G8R8A8_UNORM visualization=decoded-rg-vector gpuVisualization=true rawValidation=true";
+	case RenderProduct::VolumeSlices:
+		return "source=VolumetricSlices type=2d-array format=R16G16B16A16_FLOAT layers=4 visualization=2x2-atlas gpuVisualization=true";
+	case RenderProduct::FroxelFog:
+		return "source=FroxelFog type=3d format=R11G11B10_FLOAT visualization=depth-projection gpuVisualization=true";
+	case RenderProduct::MieEnvironment:
+		return "source=MieEnvironmentMap type=cube format=R32G32B32A32_FLOAT layout=3x2 gpuVisualization=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1649,7 +1782,7 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|volume-slices|froxel-fog|mie-environment|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
@@ -1659,6 +1792,8 @@ void PrintUsage( const char* executable )
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
+		<< "       [--volumetrics auto|off|silk|froxel|all] [--volumetric-quality auto|low|medium|high|ultra]\n"
+		<< "       [--volumetric-seed N] [--validate-volumetrics]\n"
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
@@ -1812,6 +1947,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--volumetrics" )
+		{
+			if( ++i >= argc || !ParseVolumetricMode( argv[i], options.volumetrics ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--volumetric-quality" )
+		{
+			if( ++i >= argc || !ParseVolumetricQuality( argv[i], options.volumetricQuality ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--volumetric-seed" )
+		{
+			if( ++i >= argc || !ParseUnsigned( argv[i], options.volumetricSeed ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--exposure-sequence" )
 		{
 			if( ++i >= argc || !ParseExposureSequence( argv[i], options.exposureSequence ) )
@@ -1830,6 +1986,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-distortion" )
 		{
 			options.validateDistortion = true;
+		}
+		else if( arg == "--validate-volumetrics" )
+		{
+			options.validateVolumetrics = true;
 		}
 		else if( arg == "--validate-composition" )
 		{
@@ -2268,9 +2428,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Client bloom and film grain require --quality-rung hdr-finish\n";
 		return false;
 	}
-	const bool distortionCompatible = options.qualityRung == QualityRung::HdrFinish &&
-		options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
-		options.shaderTier == ShaderTier::High &&
+	const bool distortionCompatible = options.qualityRung == QualityRung::HdrFinish && options.asset == "astero" &&
+		options.materialMode == MaterialMode::EveV5 && options.shaderTier == ShaderTier::High &&
 		( options.areaView == AreaView::All || options.areaView == AreaView::Distortion );
 	options.resolvedDistortion = options.distortion == DistortionMode::Auto ?
 		( distortionCompatible ? DistortionMode::Authored : DistortionMode::Off ) :
@@ -2278,6 +2437,15 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.resolvedDistortion == DistortionMode::Authored && !distortionCompatible )
 	{
 		std::cerr << "Authored distortion requires high-tier Astero eve-v5 rendering at hdr-finish\n";
+		return false;
+	}
+	options.resolvedVolumetrics =
+		options.volumetrics == VolumetricMode::Auto ? VolumetricMode::Off : options.volumetrics;
+	options.resolvedVolumetricQuality =
+		options.volumetricQuality == VolumetricQuality::Auto ? VolumetricQuality::High : options.volumetricQuality;
+	if( options.resolvedVolumetrics != VolumetricMode::Off && options.qualityRung < QualityRung::Scene )
+	{
+		std::cerr << "Volumetric fixtures require the scene rung or higher\n";
 		return false;
 	}
 	if( options.renderProduct == RenderProduct::HdrComposite && options.qualityRung < QualityRung::HdrPost )
@@ -2296,10 +2464,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Bloom and final-postprocess products require --quality-rung hdr-finish\n";
 		return false;
 	}
-	if( options.renderProduct == RenderProduct::Distortion &&
-		options.resolvedDistortion != DistortionMode::Authored )
+	if( options.renderProduct == RenderProduct::Distortion && options.resolvedDistortion != DistortionMode::Authored )
 	{
 		std::cerr << "The distortion render product requires authored distortion\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::VolumeSlices && options.resolvedVolumetrics != VolumetricMode::Silk &&
+		options.resolvedVolumetrics != VolumetricMode::All )
+	{
+		std::cerr << "The volume-slices render product requires silk or all volumetrics\n";
+		return false;
+	}
+	if( ( options.renderProduct == RenderProduct::FroxelFog ||
+		  options.renderProduct == RenderProduct::MieEnvironment ) &&
+		options.resolvedVolumetrics != VolumetricMode::Froxel && options.resolvedVolumetrics != VolumetricMode::All )
+	{
+		std::cerr << "Froxel and Mie render products require froxel or all volumetrics\n";
 		return false;
 	}
 	if( options.exposureSequence != ExposureSequence::None &&
@@ -2388,11 +2568,19 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	}
 	if( options.validateDistortion && static_cast<uint32_t>( options.maxFrames ) < options.exposureHold )
 	{
-		std::cerr << "--validate-distortion requires at least --exposure-hold frames for settled final-color validation\n";
+		std::cerr
+			<< "--validate-distortion requires at least --exposure-hold frames for settled final-color validation\n";
 		return false;
 	}
 	if( options.validateDistortion && !ValidateCanonicalCompositionOptions( options ) )
 	{
+		return false;
+	}
+	if( options.validateVolumetrics &&
+		( options.resolvedVolumetrics == VolumetricMode::Off || options.maxFrames <= 0 ||
+		  options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-volumetrics requires an explicit fixture, finite frames, and --capture-prefix\n";
 		return false;
 	}
 	if( options.renderProduct != RenderProduct::Window &&
@@ -2628,7 +2816,9 @@ std::string CaptureBasePath( const Options& options )
 	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
-		"_dist-" + DistortionModeName( options.resolvedDistortion );
+		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
+		VolumetricModeName( options.resolvedVolumetrics ) + "-" +
+		VolumetricQualityName( options.resolvedVolumetricQuality );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -2734,6 +2924,13 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "distortionRequested=" << DistortionModeName( options.distortion ) << "\n";
 	metadata << "distortionResolved=" << DistortionModeName( options.resolvedDistortion ) << "\n";
 	metadata << "distortionClientPolicy=high-shader-tier\n";
+	metadata << "volumetricsRequested=" << VolumetricModeName( options.volumetrics ) << "\n";
+	metadata << "volumetricsResolved=" << VolumetricModeName( options.resolvedVolumetrics ) << "\n";
+	metadata << "volumetricQualityRequested=" << VolumetricQualityName( options.volumetricQuality ) << "\n";
+	metadata << "volumetricQualityResolved=" << VolumetricQualityName( options.resolvedVolumetricQuality ) << "\n";
+	metadata << "volumetricSeed=" << options.volumetricSeed << "\n";
+	metadata << "volumetricClientPolicy=high; ultra-diagnostic-only\n";
+	metadata << "volumetricFixtureAuthorship=silk-client-authored; froxel-sample-owned\n";
 	metadata << "validateDistortion=" << ( options.validateDistortion ? "true" : "false" ) << "\n";
 	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
 	metadata << "exposureHold=" << options.exposureHold << "\n";
@@ -2851,10 +3048,9 @@ bool EvaluateFramePacing( const std::vector<double>& samples, std::string& resul
 double ExposureTarget( const TrinityStandalonePostProcessDiagnostics& sample )
 {
 	const double luminance = std::max( 0.0001, 0.5 * ( sample.exposure[5] + sample.exposure[6] ) );
-	const double compensation = std::clamp(
-		0.5 / luminance,
-		std::exp2( static_cast<double>( sample.minExposure ) ),
-		std::exp2( static_cast<double>( sample.maxExposure ) ) );
+	const double compensation = std::clamp( 0.5 / luminance,
+											std::exp2( static_cast<double>( sample.minExposure ) ),
+											std::exp2( static_cast<double>( sample.maxExposure ) ) );
 	return 0.5 / compensation;
 }
 
@@ -2868,10 +3064,9 @@ double Median( std::vector<double> values )
 	return values[values.size() / 2];
 }
 
-bool EvaluateExposureSamples(
-	const Options& options,
-	const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
-	std::string& summary )
+bool EvaluateExposureSamples( const Options& options,
+							  const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
+							  std::string& summary )
 {
 	uint64_t invalidFrames = 0;
 	uint64_t histogramMismatches = 0;
@@ -2883,8 +3078,8 @@ bool EvaluateExposureSamples(
 	auto near = []( float actual, float expected ) { return std::abs( actual - expected ) <= 0.000001f; };
 	for( const auto& sample : samples )
 	{
-		const uint64_t histogramTotal = std::accumulate(
-			std::begin( sample.histogram ), std::begin( sample.histogram ) + 64, uint64_t{ 0 } );
+		const uint64_t histogramTotal =
+			std::accumulate( std::begin( sample.histogram ), std::begin( sample.histogram ) + 64, uint64_t{ 0 } );
 		const uint64_t expectedPixels = static_cast<uint64_t>( sample.sourceWidth ) * sample.sourceHeight;
 		if( histogramTotal != expectedPixels )
 		{
@@ -2924,8 +3119,8 @@ bool EvaluateExposureSamples(
 		const double target = ExposureTarget( current );
 		const double speed = target > previous.exposure[0] ? current.increaseSpeed : current.decreaseSpeed;
 		const double alpha = std::clamp( 1.0 - std::exp( -deltaTime * speed ), 0.0, 1.0 );
-		const double expectedRoot = std::sqrt( previous.exposure[0] ) +
-			( std::sqrt( target ) - std::sqrt( previous.exposure[0] ) ) * alpha;
+		const double expectedRoot =
+			std::sqrt( previous.exposure[0] ) + ( std::sqrt( target ) - std::sqrt( previous.exposure[0] ) ) * alpha;
 		const double expected = expectedRoot * expectedRoot;
 		const double error = std::abs( current.exposure[0] - expected );
 		maximumRecurrenceError = std::max( maximumRecurrenceError, error );
@@ -2944,9 +3139,7 @@ bool EvaluateExposureSamples(
 		if( std::abs( denominator ) > 0.000001 )
 		{
 			const double observedAlpha = std::clamp(
-				( std::sqrt( current.exposure[0] ) - std::sqrt( previous.exposure[0] ) ) / denominator,
-				0.0,
-				0.999999 );
+				( std::sqrt( current.exposure[0] ) - std::sqrt( previous.exposure[0] ) ) / denominator, 0.0, 0.999999 );
 			const double rate = -std::log( 1.0 - observedAlpha ) / deltaTime;
 			( target > previous.exposure[0] ? increaseRates : decreaseRates ).push_back( rate );
 		}
@@ -2964,8 +3157,8 @@ bool EvaluateExposureSamples(
 		std::vector<double> secondTargets;
 		for( size_t index = hold - window; index < hold && index < samples.size(); ++index )
 			firstTargets.push_back( ExposureTarget( samples[index] ) );
-		for( size_t index = std::min( samples.size(), hold * 2 ) - window;
-			 index < std::min( samples.size(), hold * 2 ); ++index )
+		for( size_t index = std::min( samples.size(), hold * 2 ) - window; index < std::min( samples.size(), hold * 2 );
+			 ++index )
 			secondTargets.push_back( ExposureTarget( samples[index] ) );
 		const double firstTarget = Median( firstTargets );
 		const double secondTarget = Median( secondTargets );
@@ -2983,21 +3176,18 @@ bool EvaluateExposureSamples(
 	const bool passed = !samples.empty() && invalidFrames == 0 && histogramMismatches == 0 &&
 		recurrenceMismatches == 0 && overshoots == 0 && sequencePassed;
 	std::ostringstream out;
-	out << std::fixed << std::setprecision( 8 ) << "samples=" << samples.size()
-		<< " invalidFrames=" << invalidFrames << " histogramMismatches=" << histogramMismatches
-		<< " recurrenceMismatches=" << recurrenceMismatches << " maximumRecurrenceError=" << maximumRecurrenceError
-		<< " overshoots=" << overshoots << " increaseRate=" << Median( increaseRates )
-		<< " decreaseRate=" << Median( decreaseRates ) << " stepFraction=" << stepFraction
-		<< " fittedSequenceRate=" << fittedRate << " terminalTrackingError=" << terminalTrackingError
-		<< " validation=" << ( passed ? "pass" : "fail" );
+	out << std::fixed << std::setprecision( 8 ) << "samples=" << samples.size() << " invalidFrames=" << invalidFrames
+		<< " histogramMismatches=" << histogramMismatches << " recurrenceMismatches=" << recurrenceMismatches
+		<< " maximumRecurrenceError=" << maximumRecurrenceError << " overshoots=" << overshoots
+		<< " increaseRate=" << Median( increaseRates ) << " decreaseRate=" << Median( decreaseRates )
+		<< " stepFraction=" << stepFraction << " fittedSequenceRate=" << fittedRate
+		<< " terminalTrackingError=" << terminalTrackingError << " validation=" << ( passed ? "pass" : "fail" );
 	summary = out.str();
 	std::cerr << "EVE RC-10 exposure validation: " << summary << "\n";
 	return passed;
 }
 
-bool WriteExposureCsv(
-	const std::string& path,
-	const std::vector<TrinityStandalonePostProcessDiagnostics>& samples )
+bool WriteExposureCsv( const std::string& path, const std::vector<TrinityStandalonePostProcessDiagnostics>& samples )
 {
 	if( !EnsureParentDirectory( path ) )
 	{
@@ -3008,7 +3198,8 @@ bool WriteExposureCsv(
 	{
 		return false;
 	}
-	output << "frame,realTime,simTime,adaptedLuminance,sceneTime,reserved2,lowerBin,upperBin,lowerLuminance,upperLuminance,reserved7";
+	output
+		<< "frame,realTime,simTime,adaptedLuminance,sceneTime,reserved2,lowerBin,upperBin,lowerLuminance,upperLuminance,reserved7";
 	for( uint32_t bin = 0; bin < 65; ++bin )
 		output << ",histogram" << bin;
 	output << "\n";
@@ -3025,12 +3216,11 @@ bool WriteExposureCsv(
 	return output.good();
 }
 
-bool WriteToneContractJson(
-	const Options& options,
-	const TrinityStandaloneToneValidation& tone,
-	const std::string& exposureSummary,
-	DynamicExposure mode,
-	const char* suffix )
+bool WriteToneContractJson( const Options& options,
+							const TrinityStandaloneToneValidation& tone,
+							const std::string& exposureSummary,
+							DynamicExposure mode,
+							const char* suffix )
 {
 	const std::string outputPath = CaptureBasePath( options ) + suffix;
 	if( !EnsureParentDirectory( outputPath ) )
@@ -3059,17 +3249,17 @@ bool WriteToneContractJson(
 		   << "  \"outputGamma\": 1.0,\n"
 		   << "  \"dynamicExposure\": \"" << DynamicExposureName( mode ) << "\",\n"
 		   << "  \"exposureSequence\": \"" << ExposureSequenceName( options.exposureSequence ) << "\",\n"
-		   << "  \"preTonemapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
-		   << tone.preTonemapHash << "\",\n"
+		   << "  \"preTonemapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' ) << tone.preTonemapHash
+		   << "\",\n"
 		   << "  \"postTonemapHash\": \"" << std::setw( 16 ) << tone.postTonemapHash << std::dec << "\",\n"
 		   << "  \"dimensions\": [" << tone.width << ", " << tone.height << "],\n"
 		   << "  \"fullyBlackPixels\": " << tone.fullyBlackPixels << ",\n"
 		   << "  \"fullyWhitePixels\": " << tone.fullyWhitePixels << ",\n"
 		   << "  \"anySaturatedChannelPixels\": " << tone.anySaturatedChannelPixels << ",\n"
-		   << "  \"luminance\": {\"p01\": " << tone.luminanceP01 << ", \"p50\": "
-		   << tone.luminanceP50 << ", \"p99\": " << tone.luminanceP99 << "},\n"
-		   << "  \"cpuReferenceError\": {\"mean\": " << tone.meanAbsoluteError << ", \"p999\": "
-		   << tone.p999AbsoluteError << ", \"maximum\": " << tone.maximumAbsoluteError << "},\n"
+		   << "  \"luminance\": {\"p01\": " << tone.luminanceP01 << ", \"p50\": " << tone.luminanceP50
+		   << ", \"p99\": " << tone.luminanceP99 << "},\n"
+		   << "  \"cpuReferenceError\": {\"mean\": " << tone.meanAbsoluteError
+		   << ", \"p999\": " << tone.p999AbsoluteError << ", \"maximum\": " << tone.maximumAbsoluteError << "},\n"
 		   << "  \"exposureValidation\": \"" << exposureSummary << "\",\n"
 		   << "  \"validationPassed\": " << ( tone.valid ? "true" : "false" ) << ",\n"
 		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
@@ -3079,26 +3269,23 @@ bool WriteToneContractJson(
 	return output.good();
 }
 
-bool CompareToneValidations(
-	const TrinityStandaloneToneValidation& off,
-	const TrinityStandaloneToneValidation& client,
-	std::string& summary )
+bool CompareToneValidations( const TrinityStandaloneToneValidation& off,
+							 const TrinityStandaloneToneValidation& client,
+							 std::string& summary )
 {
 	const uint64_t pixelCount = static_cast<uint64_t>( client.width ) * client.height;
 	const bool sameInput = off.preTonemapHash == client.preTonemapHash;
 	const bool distinctOutput = off.postTonemapHash != client.postTonemapHash;
 	const bool reducedWhite = client.fullyWhitePixels < off.fullyWhitePixels;
 	const bool clippingValid = client.fullyWhitePixels <= pixelCount / 1000 &&
-		client.anySaturatedChannelPixels <= pixelCount * 3 / 100 &&
-		client.fullyBlackPixels <= pixelCount / 1000;
+		client.anySaturatedChannelPixels <= pixelCount * 3 / 100 && client.fullyBlackPixels <= pixelCount / 1000;
 	const bool lowEndRetained = client.luminanceP01 >= off.luminanceP01 * 0.75;
-	const bool passed = off.valid && client.valid && sameInput && distinctOutput && reducedWhite &&
-		clippingValid && lowEndRetained;
+	const bool passed =
+		off.valid && client.valid && sameInput && distinctOutput && reducedWhite && clippingValid && lowEndRetained;
 	std::ostringstream out;
 	out << "sameInput=" << ( sameInput ? "true" : "false" )
-		<< " distinctOutput=" << ( distinctOutput ? "true" : "false" )
-		<< " offWhite=" << off.fullyWhitePixels << " clientWhite=" << client.fullyWhitePixels
-		<< " clientAnySaturated=" << client.anySaturatedChannelPixels
+		<< " distinctOutput=" << ( distinctOutput ? "true" : "false" ) << " offWhite=" << off.fullyWhitePixels
+		<< " clientWhite=" << client.fullyWhitePixels << " clientAnySaturated=" << client.anySaturatedChannelPixels
 		<< " offP01=" << off.luminanceP01 << " clientP01=" << client.luminanceP01
 		<< " validation=" << ( passed ? "pass" : "fail" );
 	summary = out.str();
@@ -3155,9 +3342,7 @@ bool WritePostFinishContractJson( const Options& options, const TrinityStandalon
 	return output.good();
 }
 
-bool WriteDistortionContractJson(
-	const Options& options,
-	const TrinityStandaloneDistortionDiagnostics& diagnostics )
+bool WriteDistortionContractJson( const Options& options, const TrinityStandaloneDistortionDiagnostics& diagnostics )
 {
 	const std::string outputPath = CaptureBasePath( options ) + "_distortion-contract.json";
 	if( !EnsureParentDirectory( outputPath ) )
@@ -3165,8 +3350,7 @@ bool WriteDistortionContractJson(
 		return false;
 	}
 	const std::string manifestPath = ExecutableDirectory() + "/../Reports/AsteroDistortionResources.json";
-	const std::string generatedCmfHashPath =
-		ExecutableDirectory() + "/../Reports/AsteroDistortionGeneratedCmf.sha256";
+	const std::string generatedCmfHashPath = ExecutableDirectory() + "/../Reports/AsteroDistortionGeneratedCmf.sha256";
 	std::ifstream manifestInput( manifestPath );
 	std::ostringstream manifest;
 	manifest << manifestInput.rdbuf();
@@ -3189,14 +3373,12 @@ bool WriteDistortionContractJson(
 		   << "  \"clientPolicy\": \"enabled exactly at high shader quality\",\n"
 		   << "  \"requestedMode\": \"" << DistortionModeName( options.distortion ) << "\",\n"
 		   << "  \"resolvedMode\": \"" << DistortionModeName( options.resolvedDistortion ) << "\",\n"
-		   << "  \"mapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
-		   << diagnostics.mapHash << "\",\n"
+		   << "  \"mapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' ) << diagnostics.mapHash
+		   << "\",\n"
 		   << "  \"offPreTonemapHash\": \"" << std::setw( 16 ) << diagnostics.offPreTonemapHash << "\",\n"
-		   << "  \"authoredPreTonemapHash\": \"" << std::setw( 16 ) << diagnostics.authoredPreTonemapHash
-		   << "\",\n"
+		   << "  \"authoredPreTonemapHash\": \"" << std::setw( 16 ) << diagnostics.authoredPreTonemapHash << "\",\n"
 		   << "  \"offFinalHash\": \"" << std::setw( 16 ) << diagnostics.offFinalHash << "\",\n"
-		   << "  \"authoredFinalHash\": \"" << std::setw( 16 ) << diagnostics.authoredFinalHash << std::dec
-		   << "\",\n"
+		   << "  \"authoredFinalHash\": \"" << std::setw( 16 ) << diagnostics.authoredFinalHash << std::dec << "\",\n"
 		   << "  \"dimensions\": [" << diagnostics.mapWidth << ", " << diagnostics.mapHeight << "],\n"
 		   << "  \"format\": " << diagnostics.mapFormat << ",\n"
 		   << "  \"submittedBatches\": " << diagnostics.submittedBatches << ",\n"
@@ -3213,8 +3395,7 @@ bool WriteDistortionContractJson(
 		   << "  \"affectedBounds\": [" << diagnostics.affectedMinX << ", " << diagnostics.affectedMinY << ", "
 		   << diagnostics.affectedMaxX << ", " << diagnostics.affectedMaxY << "],\n"
 		   << "  \"mapCreated\": " << ( diagnostics.mapCreated ? "true" : "false" ) << ",\n"
-		   << "  \"sceneColorCopySucceeded\": "
-		   << ( diagnostics.copySucceeded ? "true" : "false" ) << ",\n"
+		   << "  \"sceneColorCopySucceeded\": " << ( diagnostics.copySucceeded ? "true" : "false" ) << ",\n"
 		   << "  \"compositorSucceeded\": " << ( diagnostics.compositeSucceeded ? "true" : "false" ) << ",\n"
 		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << ",\n"
 		   << "  \"generatedCmfHashPath\": \"" << generatedCmfHashPath << "\",\n"
@@ -3376,9 +3557,19 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.qualityRung != QualityRung::Shell &&
+			!TrinityStandaloneProbeConfigureVolumetrics( probe,
+														 VolumetricModeApiValue( options.resolvedVolumetrics ),
+														 VolumetricQualityApiValue( options.resolvedVolumetricQuality ),
+														 options.volumetricSeed ) )
+		{
+			std::cerr << "TrinityStandaloneProbeConfigureVolumetrics failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
-			options.validateDistortion ||
-			options.exposureSequence != ExposureSequence::None;
+			options.validateDistortion || options.exposureSequence != ExposureSequence::None;
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
 			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
@@ -3433,8 +3624,8 @@ int main( int argc, char** argv )
 				if( options.exposureSequence != ExposureSequence::None )
 				{
 					const bool secondPhase = static_cast<uint32_t>( renderedFrames ) >= options.exposureHold;
-					const bool sunFacing = options.exposureSequence == ExposureSequence::DarkToBright ?
-						secondPhase : !secondPhase;
+					const bool sunFacing =
+						options.exposureSequence == ExposureSequence::DarkToBright ? secondPhase : !secondPhase;
 					if( !TrinityStandaloneProbeSetExposureCameraPhase( probe, true, sunFacing ) )
 					{
 						std::cerr << "Failed to set the RC-10 exposure camera phase\n";
@@ -3501,8 +3692,8 @@ int main( int argc, char** argv )
 		const bool framePacingSucceeded =
 			!options.framePacingCheck || EvaluateFramePacing( framePacingSamples, framePacingStats );
 		std::string exposureValidationStats = "not-requested";
-		const bool exposureValidationSucceeded = !collectExposureDiagnostics ||
-			EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
+		const bool exposureValidationSucceeded =
+			!collectExposureDiagnostics || EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
 		TrinityStandaloneToneValidation toneValidation;
 		TrinityStandaloneToneValidation offToneValidation;
 		bool toneValidationSucceeded = true;
@@ -3542,8 +3733,8 @@ int main( int argc, char** argv )
 				const bool restored = TrinityStandaloneProbeConfigurePostProcess( probe, 1, 0, 0, true );
 				if( toneValidationSucceeded )
 				{
-					toneValidationSucceeded = CompareToneValidations(
-						offToneValidation, toneValidation, toneComparisonStats );
+					toneValidationSucceeded =
+						CompareToneValidations( offToneValidation, toneValidation, toneComparisonStats );
 				}
 				toneValidationSucceeded = restored && toneValidationSucceeded;
 			}
@@ -3577,29 +3768,35 @@ int main( int argc, char** argv )
 				TrinityStandaloneProbeGetDistortionDiagnostics( probe, &distortionDiagnostics ) &&
 				distortionDiagnostics.valid;
 		}
+		TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
+		bool volumetricValidationSucceeded = true;
+		if( options.validateVolumetrics )
+		{
+			volumetricValidationSucceeded = TrinityStandaloneProbeValidateVolumetrics( probe ) &&
+				TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics ) &&
+				volumetricDiagnostics.valid;
+		}
 		bool exposureReportsSucceeded = true;
 		if( collectExposureDiagnostics )
 		{
-			exposureReportsSucceeded = WriteExposureCsv(
-				CaptureBasePath( options ) + "_exposure.csv", exposureSamples );
+			exposureReportsSucceeded =
+				WriteExposureCsv( CaptureBasePath( options ) + "_exposure.csv", exposureSamples );
 		}
 		if( captureToneSnapshot )
 		{
-			exposureReportsSucceeded = WriteToneContractJson(
-				options,
-				toneValidation,
-				exposureValidationStats,
-				options.resolvedDynamicExposure,
-				"_tone-contract.json" ) &&
+			exposureReportsSucceeded = WriteToneContractJson( options,
+															  toneValidation,
+															  exposureValidationStats,
+															  options.resolvedDynamicExposure,
+															  "_tone-contract.json" ) &&
 				exposureReportsSucceeded;
 			if( runMatchedToneComparison )
 			{
-				exposureReportsSucceeded = WriteToneContractJson(
-					options,
-					offToneValidation,
-					"paired-control",
-					DynamicExposure::Off,
-					"_tone-contract-off.json" ) &&
+				exposureReportsSucceeded = WriteToneContractJson( options,
+																  offToneValidation,
+																  "paired-control",
+																  DynamicExposure::Off,
+																  "_tone-contract-off.json" ) &&
 					exposureReportsSucceeded;
 			}
 		}
@@ -3634,8 +3831,8 @@ int main( int argc, char** argv )
 				std::ostringstream stats;
 				stats << "preHash=" << std::hex << std::setw( 16 ) << std::setfill( '0' )
 					  << toneValidation.preTonemapHash << " postHash=" << std::setw( 16 )
-					  << toneValidation.postTonemapHash << std::dec << " fullyBlack="
-					  << toneValidation.fullyBlackPixels << " fullyWhite=" << toneValidation.fullyWhitePixels
+					  << toneValidation.postTonemapHash << std::dec << " fullyBlack=" << toneValidation.fullyBlackPixels
+					  << " fullyWhite=" << toneValidation.fullyWhitePixels
 					  << " anySaturated=" << toneValidation.anySaturatedChannelPixels
 					  << " errorMean=" << toneValidation.meanAbsoluteError
 					  << " errorP999=" << toneValidation.p999AbsoluteError
@@ -3669,14 +3866,28 @@ int main( int argc, char** argv )
 					  << distortionDiagnostics.offPreTonemapHash << " authoredPre=" << std::setw( 16 )
 					  << distortionDiagnostics.authoredPreTonemapHash << " offFinal=" << std::setw( 16 )
 					  << distortionDiagnostics.offFinalHash << " authoredFinal=" << std::setw( 16 )
-					  << distortionDiagnostics.authoredFinalHash << std::dec << " map="
-					  << distortionDiagnostics.mapWidth << "x" << distortionDiagnostics.mapHeight
+					  << distortionDiagnostics.authoredFinalHash << std::dec
+					  << " map=" << distortionDiagnostics.mapWidth << "x" << distortionDiagnostics.mapHeight
 					  << " nonNeutral=" << distortionDiagnostics.nonNeutralPixels
 					  << " affectedBounds=" << distortionDiagnostics.affectedMinX << ","
 					  << distortionDiagnostics.affectedMinY << "-" << distortionDiagnostics.affectedMaxX << ","
 					  << distortionDiagnostics.affectedMaxY
 					  << " validation=" << ( distortionValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "distortionValidation", stats.str() );
+			}
+			if( options.validateVolumetrics )
+			{
+				std::ostringstream stats;
+				stats << "mode=" << VolumetricModeName( options.resolvedVolumetrics )
+					  << " quality=" << VolumetricQualityName( options.resolvedVolumetricQuality )
+					  << " seed=" << options.volumetricSeed << " local=" << volumetricDiagnostics.localRenderableCount
+					  << " batches=" << volumetricDiagnostics.localBatchCount
+					  << " slices=" << volumetricDiagnostics.volumeWidth << "x" << volumetricDiagnostics.volumeHeight
+					  << "x" << volumetricDiagnostics.volumeLayers << " froxel=" << volumetricDiagnostics.froxelWidth
+					  << "x" << volumetricDiagnostics.froxelHeight << "x" << volumetricDiagnostics.froxelDepth
+					  << " mie=" << volumetricDiagnostics.mieWidth << "x" << volumetricDiagnostics.mieHeight
+					  << " validation=" << ( volumetricValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "volumetricValidation", stats.str() );
 			}
 			if( !options.capturePrefix.empty() )
 			{
@@ -3721,6 +3932,17 @@ int main( int argc, char** argv )
 						{
 							diagnosticProducts.push_back( RenderProduct::BentNormal );
 						}
+					}
+					if( options.resolvedVolumetrics == VolumetricMode::Silk ||
+						options.resolvedVolumetrics == VolumetricMode::All )
+					{
+						diagnosticProducts.push_back( RenderProduct::VolumeSlices );
+					}
+					if( options.resolvedVolumetrics == VolumetricMode::Froxel ||
+						options.resolvedVolumetrics == VolumetricMode::All )
+					{
+						diagnosticProducts.push_back( RenderProduct::FroxelFog );
+						diagnosticProducts.push_back( RenderProduct::MieEnvironment );
 					}
 					for( RenderProduct product : diagnosticProducts )
 					{
@@ -3900,7 +4122,7 @@ int main( int argc, char** argv )
 		}
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			distortionValidationSucceeded && exposureReportsSucceeded;
+			distortionValidationSucceeded && volumetricValidationSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

@@ -58,6 +58,10 @@ public:
 	/////////////////////////////////////////////////////////////////////////////////////
 	// ITr2FroxelFogSettings
 	FroxelFogSettings* GetFroxelFogSettings() override;
+	void SetIntensity( float intensity )
+	{
+		m_intensity = intensity;
+	}
 
 private:
 	void UpdateTransformFromParent( const EveChildUpdateParams& params );

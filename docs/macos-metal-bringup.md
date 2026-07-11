@@ -1521,6 +1521,46 @@ TrinityALEveSceneProbe_metal --windowed 1280x720 --background-capture \
   --capture-prefix Captures/rc12a/full-validate
 ```
 
+### Volumetric bring-up and Metal watchdog incident (RC-12B)
+
+The first RC-12B pass closes the resource and observability contracts without
+claiming visual acceptance. `TrinityEveSceneProbeVolumetricAssets` stages 38
+external resources into the ignored build tree: one authored Silk
+`EveChildCloud2` Black graph, its high/low density and temperature VTAs,
+noise/environment/gradient textures, five local-volume effect families, and
+five global-froxel effect families. `Reports/VolumetricResources.json` records
+the absolute SharedCache index and hashed source, byte size, SHA-256, and
+destination for every entry.
+
+The probe exposes `--volumetrics off|silk|froxel|all`, quality and seed
+controls, native local-volume and `EveChildFogVolume` fixture construction,
+pass diagnostics, and `volume-slices`, `froxel-fog`, and `mie-environment`
+products. New Eden/A01 `auto` remains `off`: cache inspection found 202
+serialized `EveChildCloud2` objects but none in these fixtures, no serialized
+`EveChildFogVolume`, and no client Python construction of one. Silk placement
+and global fog values are therefore sample-owned capability fixtures.
+
+Native froxel execution is unsafe in this Metal checkout. Runs with temporal
+history enabled and disabled both stalled command-buffer completion and
+triggered host reboots at 21:34 and 21:46 on 2026-07-11. The retained report
+names `TrinityALEveSceneProbe_metal_debug`, shows 109 seconds blocked in Metal
+completion, and shows WindowServer blocked in AGX/IOGPU until its 40-second
+service watchdog fired:
+
+```text
+/Library/Logs/DiagnosticReports/WindowServer-2026-07-11-213209.ips
+/Library/Logs/DiagnosticReports/WindowServer_2026-07-11-213213_mini.userspace_watchdog_timeout.spin
+```
+
+The common unsafe boundary is the base Mie/calculate/raymarch/apply compute
+chain; temporal 3D clearing does not explain the second event. Metal API
+validation also exposed writable-resource and missing-buffer contract
+violations in adjacent complete-scene passes. The experimental 3D-clear
+backend change was removed. Explicit `froxel` and `all` modes now return
+nonzero before GPU submission with the watchdog reason, while `auto` remains
+safe and off. Do not execute the complete froxel chain on this host until each
+3D UAV and cube pass has an isolated resource-usage audit.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1546,7 +1586,8 @@ make those prerequisites explicit.
 | 4C | Complete HDR scene composition | Accepted | The canonical New Eden composition passes direct FP16 validation, complete inventory checks, distinct controls, full product capture, and relative pacing at windowed and native resolutions. |
 | 5 | Exposure and tone mapping | Accepted | Client histogram exposure and baked Uncharted2 output pass direct CPU, temporal, A/B, integrated, and manual gates. |
 | 6 | Bloom and film grain | Accepted | Client-selected legacy bloom and authored film grain pass exact-contract, native-pass, atomic readback, isolated A/B, and integrated composition gates. |
-| 6B | Distortion and volumetrics | Active | Add each transparent/deferred subsystem independently after the accepted final-color baseline. |
+| 6B | Authored distortion | Accepted | Native map generation and scene warping pass isolated and integrated gates. |
+| 6C | Volumetrics | Blocked | Resources and observability are present; global froxel Metal compute must pass isolated GPU-safety gates before visual validation. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
 
 `hdr-post` now carries the accepted RC-09 composition contract.
@@ -1726,6 +1767,9 @@ The following checks passed on the host snapshot above:
 - frozen matched distortion off/on captures with distinct pre-tone and final
   hashes, byte-identical depth/normal/reflection/shadow/atlas/AO/bent-normal
   products, and a passing 540-frame relative-pacing run;
+- checksummed staging of 38 RC-12B volumetric inputs, deterministic fixture
+  controls, local/froxel/Mie named outputs, and a fail-closed global-froxel
+  gate after two reproducible AGX/WindowServer watchdog reboots;
 - visible-window render-plus-present pacing at 60.26 mean FPS with all relative
   gates passing; hidden-window pacing is excluded because WindowServer
   throttles fully occluded CAMetalLayer drawables;
@@ -1742,10 +1786,12 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Isolate volumetric/froxel effects under RC-12B.
-2. Reconstruct authored booster plumes, particles, and trails under RC-05D.
-3. Resume velocity and TAA only after RC-12B and RC-05D are accepted.
-4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+1. Audit each RC-12B Mie and 3D UAV compute pass without running the complete
+   froxel chain on this host.
+2. Validate the authored Silk local-volume fixture independently.
+3. Reconstruct authored booster plumes, particles, and trails under RC-05D.
+4. Resume velocity and TAA only after RC-12B and RC-05D are accepted.
+5. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

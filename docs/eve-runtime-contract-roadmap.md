@@ -49,8 +49,9 @@ This table is the authoritative implementation order.
 | RC-09 | Accept complete HDR scene composition | Accepted | RC-08B | `PreTonemapColor` proves the complete canonical composition is finite, nonuniform, and retains HDR headroom. Four controls differ from full; exact inventory checks and 540-frame windowed/native relative-pacing gates pass. |
 | RC-10 | Reaccept exposure and tone mapping | Accepted | RC-09 | The installed client Black and baked Uncharted2 Metal container are validated directly. Every histogram, exposure recurrence, CPU tone reference, controlled camera cut, matched off/client A/B, and integrated 540-frame composition gate passes. |
 | RC-11 | Add bloom and film grain | Accepted | RC-10 | Installed-client bytecode selects legacy high-pass/blur bloom (`newBloom=false`). Exact Black values, every native pass, atomic bloom/post-tone/final readback, isolated off/bloom/grain captures, and the complete 180-frame composition gate pass. |
-| RC-12 | Add distortion and volumetrics | Active | RC-11 | Authored distortion is accepted under RC-12A; volumetric/froxel effects remain active as RC-12B. |
+| RC-12 | Add distortion and volumetrics | Partial | RC-11 | Authored distortion is accepted under RC-12A. RC-12B resource closure and observability are implemented, but native froxel execution is blocked after reproducible AGX GPU stalls triggered macOS WindowServer watchdog reboots. |
 | RC-12A | Compose authored Astero distortion | Accepted | RC-11 | One native 40-triangle V5 distortion batch writes a localized full-resolution vector map and runs the client scene-warp compositor before exposure/tone/finish. Matched off/on HDR and final hashes differ while depth, normal, reflection, shadow, atlas, AO, and bent-normal products remain byte-identical. |
+| RC-12B | Render local VDB and global froxel volumetrics | Blocked | RC-12A | A 38-resource manifest closes one authored Silk VDB fixture and the local/froxel Metal effect graph. The probe exposes deterministic fixtures, quality controls, diagnostics, and three named products. Explicit `froxel`/`all` modes fail before GPU submission because both temporal and non-temporal native compute runs stalled AGX and rebooted macOS through the WindowServer watchdog. Silk remains unaccepted until an isolated finite capture passes. |
 | RC-13 | Add velocity and TAA | Blocked | RC-05D, RC-07, RC-12B | Current/previous camera, ship, attachment, and engine-effect transforms must produce valid velocity; TAA is accepted only after direct velocity visualization and engine-trail ghosting checks. |
 
 ## Capability evidence tracker
@@ -85,6 +86,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-23 | Client histogram exposure and baked Uncharted2 output | Accepted | `PostTonemapColor`, the 65-value histogram, and the eight-float exposure state are captured from one frame. The CPU reconstruction differs by at most one 8-bit code value; both temporal rates and matched exposure-off/client dynamic-range gates pass. | The current client container bakes Uncharted2 and exposes no runtime tone-method permutation. ACES fields remain serialized but inactive. |
 | CP-24 | Client legacy bloom and film grain | Accepted | `BloomMap` retains the half-resolution FP16 high-pass/blur result and `FinalPostProcessColor` retains the post-grain output. Exact Black values and installed-client `newBloom=false` selection are validated; all native passes and isolated A/B captures pass. | LUTs, color correction, distortion, volumetrics, and the unused six-level new-bloom branch remain outside RC-11. |
 | CP-25 | Native authored distortion composition | Accepted | Astero group 0 submits 120 indices through `TRIBATCHTYPE_DISTORTION`; `DistortionMap` reports 124,290 non-neutral pixels in localized bounds at the integrated gate. Scene-color copy and one foreground compositor draw succeed, and a frozen matched validator proves distinct pre-tone and final output. | Cloaking, warp tunnels, camera distortion, particles, and volumetric/froxel effects remain outside this checkpoint. |
+| CP-26 | Volumetric resource closure and observability | Partial | `Reports/VolumetricResources.json` records 38 authored Black, VTA, texture, and Metal resources. The probe adds `silk`, `froxel`, and `all` modes; deterministic noise; local-volume/froxel/Mie diagnostics; and `VolumetricSlices`, `FroxelFog`, and `MieEnvironmentMap` products. | No volumetric visual result is accepted. Froxel submission is fail-closed on Metal after two host watchdog reboots, and the Silk fixture still needs an isolated finite validation. |
 
 ## Rung-model holes
 
@@ -98,15 +100,18 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | Rung 4B: shadows and AO | Native products require the client reflection/SH contract to compose correctly | RC-08A restores ultra dynamic reflections and client SH intensity before accepting RC-08; keep off/static controls and CP-18 products as regressions. |
 | Rung 4C: local-light shadows | A valid atlas and caster pass do not prove material consumption | Current macOS client parity disables the feature and ships no receiving material. Keep CP-21 explicit diagnostics, but do not block HDR composition on an unavailable reference-client capability. |
 | Rung 6B: authored distortion | Retained geometry and textures did not prove map generation or scene warping | RC-12A requires the native vector map, FP16 scene copy, compositor draw, matched off/on hashes, and byte-identical non-color products. |
+| Rung 6C: volumetrics | Shipped shaders and serialized fog objects do not prove a safe Metal compute contract | Require isolated local-volume and froxel products, finite shutdown, and no GPU watchdog event. Keep global froxels disabled until every 3D UAV/Mie pass is validated independently. |
 | Rung 8: background as an optional effect | Background drives reflections and exposure statistics | Move background to RC-03, before lighting and postprocess acceptance. |
 
 ## Active work queue
 
-1. Isolate volumetric/froxel effects under RC-12B.
-2. Reconstruct authored booster plumes and trails under RC-05D.
-3. Validate velocity and TAA under RC-13 with engine effects present.
+1. Audit RC-12B Metal 3D UAV bindings and isolate Mie, calculate, filter, raymarch, and apply passes without submitting the complete chain on this host.
+2. Validate the authored Silk local-volume path independently of global froxels.
+3. Reconstruct authored booster plumes and trails under RC-05D.
+4. Validate velocity and TAA under RC-13 with engine effects present.
 
-RC-12A distortion is accepted. Volumetrics remain active under RC-12B;
+RC-12A distortion is accepted. RC-12B is blocked on the Metal froxel compute
+contract and retains fail-closed explicit modes;
 booster/engine effects and velocity/TAA remain queued behind that unit.
 
 ## Evidence policy

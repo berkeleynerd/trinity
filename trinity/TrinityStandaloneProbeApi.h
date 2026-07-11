@@ -149,6 +149,40 @@ struct TrinityStandaloneDistortionDiagnostics
 	uint64_t authoredFinalHash = 0;
 };
 
+struct TrinityStandaloneVolumetricDiagnostics
+{
+	bool valid = false;
+	bool froxelEnabled = false;
+	bool temporalEnabled = false;
+	bool calculateSucceeded = false;
+	bool temporalFilterSucceeded = false;
+	bool raymarchSucceeded = false;
+	bool applySucceeded = false;
+	bool mieUpdateSucceeded = false;
+	bool localDepthDownsampleSucceeded = false;
+	bool localBlurSucceeded = false;
+	bool localBlitSucceeded = false;
+	uint32_t mode = 0;
+	uint32_t quality = 0;
+	uint32_t seed = 0;
+	uint32_t localRenderableCount = 0;
+	uint32_t froxelSettingsCount = 0;
+	uint32_t localBatchCount = 0;
+	uint32_t localLightmapUpdates = 0;
+	uint32_t volumeWidth = 0;
+	uint32_t volumeHeight = 0;
+	uint32_t volumeLayers = 0;
+	uint32_t volumeFormat = 0;
+	uint32_t froxelWidth = 0;
+	uint32_t froxelHeight = 0;
+	uint32_t froxelDepth = 0;
+	uint32_t froxelFormat = 0;
+	uint32_t mieWidth = 0;
+	uint32_t mieHeight = 0;
+	uint32_t mieFormat = 0;
+	uint32_t dynamicLightCount = 0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
@@ -173,3 +207,12 @@ extern "C" bool TrinityStandaloneProbeGetDistortionDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneDistortionDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateDistortion( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureVolumetrics(
+	void* opaqueProbe,
+	int mode,
+	int quality,
+	uint32_t seed );
+extern "C" bool TrinityStandaloneProbeGetVolumetricDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneVolumetricDiagnostics* diagnostics );
+extern "C" bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe );

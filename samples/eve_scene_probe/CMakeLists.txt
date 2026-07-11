@@ -62,6 +62,8 @@ set(EVE_SCENE_PROBE_ASTERO_PAINT_METADATA ${EVE_SCENE_PROBE_ASTERO_CMF}.p3.txt)
 set(EVE_SCENE_PROBE_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/AsteroPbr.fx)
 set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RenderProductVisualizer.fx)
 set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/ReflectionProductVisualizer.fx)
+set(EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/VolumeSlicesVisualizer.fx)
+set(EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/FroxelProductVisualizer.fx)
 set(EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_SOURCE ${CMAKE_CURRENT_SOURCE_DIR}/Shaders/RasterDynamicShadowResolve.fx)
 set(EVE_SCENE_PROBE_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/probe)
 set(EVE_SCENE_PROBE_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/asteropbr.sm_hi)
@@ -70,6 +72,10 @@ set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/renderpr
 set(EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/renderproductvisualizer.sm_depth)
 set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/reflectionproductvisualizer.sm_hi)
 set(EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/reflectionproductvisualizer.sm_depth)
+set(EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/volumeslicesvisualizer.sm_hi)
+set(EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/volumeslicesvisualizer.sm_depth)
+set(EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT ${EVE_SCENE_PROBE_EFFECT_DIR}/froxelproductvisualizer.sm_hi)
+set(EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_DEPTH ${EVE_SCENE_PROBE_EFFECT_DIR}/froxelproductvisualizer.sm_depth)
 set(EVE_SCENE_PROBE_POSTPROCESS_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/postprocess)
 set(EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/system)
 set(EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_EFFECT ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/rasterdynamicshadowresolve.sm_hi)
@@ -210,6 +216,15 @@ set(EVE_SCENE_PROBE_POST_FINISH_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/Pos
 set(EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/PostFinishInherited)
 set(EVE_SCENE_PROBE_DISTORTION_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroDistortionResources.json)
 set(EVE_SCENE_PROBE_DISTORTION_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/DistortionAssets/Inherited)
+set(EVE_SCENE_PROBE_VOLUMETRIC_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/VolumetricResources.json)
+set(EVE_SCENE_PROBE_VOLUMETRIC_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx/volumetric)
+set(EVE_SCENE_PROBE_FROXEL_DIR ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/fog)
+set(EVE_SCENE_PROBE_SILK_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/vdb/worldobjectcloud2/silkset_01)
+set(EVE_SCENE_PROBE_SILK_BLACK ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_graybrown.black)
+set(EVE_SCENE_PROBE_SILK_DENSITY ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_density.vta)
+set(EVE_SCENE_PROBE_SILK_DENSITY_LOW ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_density_lowdetail.vta)
+set(EVE_SCENE_PROBE_SILK_TEMPERATURE ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_temperature.vta)
+set(EVE_SCENE_PROBE_SILK_TEMPERATURE_LOW ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_temperature_lowdetail.vta)
 set(EVE_SCENE_PROBE_CLIENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroClientResources.json)
 set(EVE_SCENE_PROBE_ASTERO_MODEL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroModelResources.json)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
@@ -301,6 +316,10 @@ add_custom_command(
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
 		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
 		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT}
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_DEPTH}
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT}
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_DEPTH}
 		${EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_EFFECT}
 		${EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_EFFECT_DEPTH}
     COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_EFFECT_DIR}
@@ -340,6 +359,30 @@ add_custom_command(
 		/define PLATFORM 10
 		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE}
 		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 4
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 5
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_DEPTH}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 4
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT}
+	COMMAND $<TARGET_FILE:ShaderCompiler>
+		/single /O3
+		/define SHADERMODEL 5
+		/define PLATFORM 10
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_DEPTH}
 	COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}
 	COMMAND $<TARGET_FILE:ShaderCompiler>
 		/single /O3
@@ -358,6 +401,8 @@ add_custom_command(
 		${EVE_SCENE_PROBE_EFFECT_SOURCE}
 		${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_SOURCE}
 		${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_SOURCE}
+		${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_SOURCE}
 		${EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_SOURCE}
 	VERBATIM
 )
@@ -368,6 +413,10 @@ add_custom_target(TrinityEveSceneProbeEffect DEPENDS
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
 	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
 	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT}
+	${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_DEPTH}
 	${EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_EFFECT}
 	${EVE_SCENE_PROBE_RASTER_DYNAMIC_SHADOW_RESOLVE_EFFECT_DEPTH}
 )
@@ -845,6 +894,97 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
     add_custom_target(TrinityEveSceneProbePostFinishAssets
         DEPENDS ${EVE_SCENE_PROBE_POST_FINISH_OUTPUTS} ${EVE_SCENE_PROBE_POST_FINISH_MANIFEST})
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbePostFinishAssets)
+endif()
+
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_VOLUMETRIC_OUTPUTS
+        ${EVE_SCENE_PROBE_SILK_BLACK}
+        ${EVE_SCENE_PROBE_SILK_DENSITY}
+        ${EVE_SCENE_PROBE_SILK_DENSITY_LOW}
+        ${EVE_SCENE_PROBE_SILK_TEMPERATURE}
+        ${EVE_SCENE_PROBE_SILK_TEMPERATURE_LOW}
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/cloudbluenoise.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/cloud1_cube.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/ramp_vdb_color_04a.dds)
+    foreach(effect_name
+            basiccloud
+            basiccloudreflectionproxy
+            blurvolumetric
+            downsampledepth
+            volumeblit)
+        list(APPEND EVE_SCENE_PROBE_VOLUMETRIC_OUTPUTS
+            ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/${effect_name}.sm_hi
+            ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/${effect_name}.sm_lo
+            ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/${effect_name}.sm_depth)
+    endforeach()
+    foreach(effect_name
+            applyfroxels
+            calculatefroxels
+            filterfroxels
+            raymarchfroxels
+            updatemieenvironmentmap)
+        list(APPEND EVE_SCENE_PROBE_VOLUMETRIC_OUTPUTS
+            ${EVE_SCENE_PROBE_FROXEL_DIR}/${effect_name}.sm_hi
+            ${EVE_SCENE_PROBE_FROXEL_DIR}/${effect_name}.sm_lo
+            ${EVE_SCENE_PROBE_FROXEL_DIR}/${effect_name}.sm_depth)
+    endforeach()
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_VOLUMETRIC_OUTPUTS} ${EVE_SCENE_PROBE_VOLUMETRIC_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SILK_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_FROXEL_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black ${EVE_SCENE_PROBE_SILK_BLACK}
+            --copy-resource res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_density.vta ${EVE_SCENE_PROBE_SILK_DENSITY}
+            --copy-resource res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_density_lowdetail.vta ${EVE_SCENE_PROBE_SILK_DENSITY_LOW}
+            --copy-resource res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_temperature.vta ${EVE_SCENE_PROBE_SILK_TEMPERATURE}
+            --copy-resource res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_temperature_lowdetail.vta ${EVE_SCENE_PROBE_SILK_TEMPERATURE_LOW}
+            --copy-resource res:/texture/global/cloudbluenoise.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/cloudbluenoise.dds
+            --copy-resource res:/texture/global/cloud1_cube.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/cloud1_cube.dds
+            --copy-resource res:/texture/fx/gradients/ramp_vdb_color_04a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/ramp_vdb_color_04a.dds
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloud.sm_hi ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloud.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloud.sm_lo ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloud.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloud.sm_depth ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloud.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloudreflectionproxy.sm_hi ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloudreflectionproxy.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloudreflectionproxy.sm_lo ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloudreflectionproxy.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/basiccloudreflectionproxy.sm_depth ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/basiccloudreflectionproxy.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/blurvolumetric.sm_hi ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/blurvolumetric.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/blurvolumetric.sm_lo ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/blurvolumetric.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/blurvolumetric.sm_depth ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/blurvolumetric.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/downsampledepth.sm_hi ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/downsampledepth.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/downsampledepth.sm_lo ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/downsampledepth.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/downsampledepth.sm_depth ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/downsampledepth.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/volumeblit.sm_hi ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/volumeblit.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/volumeblit.sm_lo ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/volumeblit.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/volumeblit.sm_depth ${EVE_SCENE_PROBE_VOLUMETRIC_DIR}/volumeblit.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/applyfroxels.sm_hi ${EVE_SCENE_PROBE_FROXEL_DIR}/applyfroxels.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/applyfroxels.sm_lo ${EVE_SCENE_PROBE_FROXEL_DIR}/applyfroxels.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/applyfroxels.sm_depth ${EVE_SCENE_PROBE_FROXEL_DIR}/applyfroxels.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/calculatefroxels.sm_hi ${EVE_SCENE_PROBE_FROXEL_DIR}/calculatefroxels.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/calculatefroxels.sm_lo ${EVE_SCENE_PROBE_FROXEL_DIR}/calculatefroxels.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/calculatefroxels.sm_depth ${EVE_SCENE_PROBE_FROXEL_DIR}/calculatefroxels.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/filterfroxels.sm_hi ${EVE_SCENE_PROBE_FROXEL_DIR}/filterfroxels.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/filterfroxels.sm_lo ${EVE_SCENE_PROBE_FROXEL_DIR}/filterfroxels.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/filterfroxels.sm_depth ${EVE_SCENE_PROBE_FROXEL_DIR}/filterfroxels.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/raymarchfroxels.sm_hi ${EVE_SCENE_PROBE_FROXEL_DIR}/raymarchfroxels.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/raymarchfroxels.sm_lo ${EVE_SCENE_PROBE_FROXEL_DIR}/raymarchfroxels.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/raymarchfroxels.sm_depth ${EVE_SCENE_PROBE_FROXEL_DIR}/raymarchfroxels.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/updatemieenvironmentmap.sm_hi ${EVE_SCENE_PROBE_FROXEL_DIR}/updatemieenvironmentmap.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/updatemieenvironmentmap.sm_lo ${EVE_SCENE_PROBE_FROXEL_DIR}/updatemieenvironmentmap.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/volumetric/fog/updatemieenvironmentmap.sm_depth ${EVE_SCENE_PROBE_FROXEL_DIR}/updatemieenvironmentmap.sm_depth
+            --manifest ${EVE_SCENE_PROBE_VOLUMETRIC_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeVolumetricAssets
+        DEPENDS ${EVE_SCENE_PROBE_VOLUMETRIC_OUTPUTS} ${EVE_SCENE_PROBE_VOLUMETRIC_MANIFEST})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeVolumetricAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
@@ -1564,6 +1704,10 @@ set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
 	${EVE_SCENE_PROBE_RENDER_PRODUCT_EFFECT_DEPTH}
 	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT}
 	${EVE_SCENE_PROBE_REFLECTION_PRODUCT_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT}
+	${EVE_SCENE_PROBE_VOLUME_SLICES_EFFECT_DEPTH}
+	${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT}
+	${EVE_SCENE_PROBE_FROXEL_PRODUCT_EFFECT_DEPTH}
 )
 
 if(TARGET TrinityEveSceneProbePostProcessEffects)

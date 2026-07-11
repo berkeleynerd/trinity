@@ -75,28 +75,9 @@ Tr2VolumetricsRenderer::Tr2VolumetricsRenderer( IRoot* ) :
 	m_gameBackClip = 1E6f; //must match what the actual game uses; not what Graphite is currently set to, as the user can change the back clip.
 
 
-	int noiseResolution = 64;
 	{
 		USE_MAIN_THREAD_RENDER_CONTEXT();
-
-		int numTexels = noiseResolution * noiseResolution * noiseResolution;
-		Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_3D, Tr2RenderContextEnum::PIXEL_FORMAT_R8_SNORM, noiseResolution, noiseResolution, noiseResolution, 1, 1 );
-
-		int8_t* noiseData = new int8_t[numTexels];
-		for( int i = 0; i < numTexels; i++ )
-		{
-			noiseData[i] = (int8_t)TriRandInt( -127, +128 );
-		}
-
-		Tr2SubresourceData initialData;
-		initialData.m_sysMem = noiseData;
-		initialData.m_sysMemPitch = noiseResolution;
-		initialData.m_sysMemSlicePitch = noiseResolution * noiseResolution;
-
-		m_froxel3DNoise.CreateInstance();
-		m_froxel3DNoise->GetTexture()->Create( dimensions, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, &initialData, renderContext );
-
-		delete[] noiseData;
+		SetNoiseSeed( static_cast<uint32_t>( TriRandInt( 1, 0x7fffffff ) ), renderContext );
 	}
 
 	{
@@ -120,6 +101,58 @@ Tr2VolumetricsRenderer::Tr2VolumetricsRenderer( IRoot* ) :
 		m_updateMieEnvironmentMap.CreateInstance();
 		m_updateMieEnvironmentMap->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/SpecialFX/Volumetric/Fog/UpdateMieEnvironmentMap.fx" );
 	}
+}
+
+bool Tr2VolumetricsRenderer::SetNoiseSeed( uint32_t seed, Tr2RenderContext& renderContext )
+{
+	constexpr uint32_t noiseResolution = 64;
+	constexpr uint32_t numTexels = noiseResolution * noiseResolution * noiseResolution;
+	std::vector<int8_t> noiseData( numTexels );
+	uint32_t state = seed ? seed : 1;
+	for( int8_t& value : noiseData )
+	{
+		state = state * 1664525u + 1013904223u;
+		value = static_cast<int8_t>( static_cast<int32_t>( state >> 24 ) - 128 );
+	}
+
+	Tr2SubresourceData initialData;
+	initialData.m_sysMem = noiseData.data();
+	initialData.m_sysMemPitch = noiseResolution;
+	initialData.m_sysMemSlicePitch = noiseResolution * noiseResolution;
+	Tr2BitmapDimensions dimensions(
+		Tr2RenderContextEnum::TEX_TYPE_3D,
+		Tr2RenderContextEnum::PIXEL_FORMAT_R8_SNORM,
+		noiseResolution,
+		noiseResolution,
+		noiseResolution,
+		1,
+		1 );
+	if( !m_froxel3DNoise )
+	{
+		m_froxel3DNoise.CreateInstance();
+	}
+	if( !m_froxel3DNoise || FAILED( m_froxel3DNoise->GetTexture()->Create( dimensions, Tr2GpuUsage::SHADER_RESOURCE, Tr2CpuUsage::NONE, &initialData, renderContext ) ) )
+	{
+		return false;
+	}
+	m_noiseSeed = seed;
+	ResetTemporalHistory();
+	return true;
+}
+
+void Tr2VolumetricsRenderer::ResetTemporalHistory()
+{
+	m_fogResources.resetTemporalFroxels = true;
+	m_fogReflectionResources.resetTemporalFroxels = true;
+	m_fogResources.currentTemporalFroxels = false;
+	m_fogReflectionResources.currentTemporalFroxels = false;
+	m_fogResources.froxelJitter = Vector3( 0, 0, 0 );
+	m_fogReflectionResources.froxelJitter = Vector3( 0, 0, 0 );
+}
+
+const Tr2TextureAL* Tr2VolumetricsRenderer::GetMieEnvironmentMap() const
+{
+	return m_mieEnvironmentMap ? m_mieEnvironmentMap->GetTexture() : nullptr;
 }
 
 Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::GetEmptyVolumetricTexture( Tr2GpuResourcePool& gpuResourcePool )
@@ -169,6 +202,7 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 	auto height = std::min( originalHeight, std::max( 1u, uint32_t( originalHeight * m_scaleFactor ) ) );
 
 	auto volumetricsCount = registry.ComponentCount<ITr2VolumetricRenderable>();
+	m_lastDiagnostics.localRenderableCount = static_cast<uint32_t>( volumetricsCount );
 
 	if( volumetricsCount == 0 )
 	{
@@ -188,6 +222,12 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 				Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
 		}
 
+		return GetEmptyVolumetricTexture( gpuResourcePool );
+	}
+	if( !m_volumeBlit || !m_downsampleDepth || !m_hBlur || !m_vBlur ||
+		!m_volumeBlit->GetShaderStateInterface() || !m_downsampleDepth->GetShaderStateInterface() ||
+		!m_hBlur->GetShaderStateInterface() || !m_vBlur->GetShaderStateInterface() )
+	{
 		return GetEmptyVolumetricTexture( gpuResourcePool );
 	}
 
@@ -216,8 +256,11 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 
 	{
 		GPU_REGION( renderContext, "Lightmaps" );
-		registry.ProcessComponentsUntil<ITr2VolumetricRenderable>( [&renderContext]( ITr2VolumetricRenderable* volumetric ) -> bool {
-			return volumetric->UpdateVolumetricLightmap( renderContext );
+		registry.ProcessComponents<ITr2VolumetricRenderable>( [this, &renderContext]( ITr2VolumetricRenderable* volumetric ) -> void {
+			if( volumetric->UpdateVolumetricLightmap( renderContext ) )
+			{
+				++m_lastDiagnostics.localLightmapUpdates;
+			}
 		} );
 	}
 
@@ -234,6 +277,10 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 		Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
 	m_lastRequestedWidth = width;
 	m_lastRequestedHeight = height;
+	m_lastDiagnostics.volumeWidth = width;
+	m_lastDiagnostics.volumeHeight = height;
+	m_lastDiagnostics.volumeLayers = slices;
+	m_lastDiagnostics.volumeFormat = static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT );
 
 	renderContext.m_esm.PushRenderTarget( 0 );
 	renderContext.m_esm.PushRenderTarget( 1 );
@@ -255,6 +302,8 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 		renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL() );
 		m_downsampleDepth->SetParameter( BlueSharedString( "DepthSizes" ), Vector4( float( width ), float( height ), float( originalWidth ), float( originalHeight ) ) );
 		m_downsampleDepth->SetParameter( BlueSharedString( "DepthMap" ), sceneDepth );
+		m_lastDiagnostics.localDepthDownsampleSucceeded = m_downsampleDepth &&
+			m_downsampleDepth->GetShaderStateInterface();
 		Tr2GpuProfiler::GetProfiler().Begin( m_downsampleDepth->GetRawRoot(), "Pass #1", renderContext );
 		Tr2Renderer::DrawScreenQuad( renderContext, m_downsampleDepth );
 		Tr2GpuProfiler::GetProfiler().End( renderContext );
@@ -288,6 +337,7 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 
 	if( m_batches->GetBatchCount() )
 	{
+		m_lastDiagnostics.localBatchCount = static_cast<uint32_t>( m_batches->GetBatchCount() );
 		m_batches->Finalize();
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA );
 		renderContext.RenderBatches( m_batches.get() );
@@ -296,6 +346,8 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 
 	if( m_blur )
 	{
+		m_lastDiagnostics.localBlurSucceeded = m_hBlur && m_vBlur &&
+			m_hBlur->GetShaderStateInterface() && m_vBlur->GetShaderStateInterface();
 		auto blurScratch = gpuResourcePool.GetTempTexture( "VolumetricBlurScratch", width, height, Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT, Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
 
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
@@ -325,6 +377,7 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 	renderContext.m_esm.PopRenderTarget( 0 );
 
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA );
+	m_lastDiagnostics.localBlitSucceeded = m_volumeBlit && m_volumeBlit->GetShaderStateInterface();
 	Tr2GpuProfiler::GetProfiler().Begin( m_volumeBlit->GetRawRoot(), "Pass #1", renderContext );
 	m_volumeBlit->SetParameter( BlueSharedString( "DepthSizes" ), Vector4( float( width ), float( height ), float( originalWidth ), float( originalHeight ) ) );
 	m_volumeBlit->SetParameter( BlueSharedString( "EveSceneFogVolumeMap" ), volumeSlices );
@@ -405,6 +458,7 @@ bool Tr2VolumetricsRenderer::HasFog() const
 
 void Tr2VolumetricsRenderer::UpdateFogEnvironmentMap( Tr2RenderContext& renderContext )
 {
+	m_lastDiagnostics.mieUpdateSucceeded = false;
 	bool froxelsEnabled = m_froxelFogSettings.thickness.value > 0.0f;
 	bool environmentLightingEnabled = froxelsEnabled && m_froxelFogSettings.environmentIntensity.value > 0;
 
@@ -486,8 +540,20 @@ void Tr2VolumetricsRenderer::UpdateFogEnvironmentMap( Tr2RenderContext& renderCo
 		m_updateMieEnvironmentMap->SetParameter( BlueSharedString( "BlendWeight" ), blendWeight );
 		m_updateMieEnvironmentMap->SetParameter( BlueSharedString( "Random" ), m_environmentRandom );
 		m_updateMieEnvironmentMap->SetParameter( BlueSharedString( "PrecomputedMieEnvironmentMap" ), m_mieEnvironmentMap );
-		Tr2Renderer::RunComputeShader( m_updateMieEnvironmentMap, environmentMapResolution / 8, environmentMapResolution / 8, 6, renderContext );
+		m_lastDiagnostics.mieUpdateSucceeded = Tr2Renderer::RunComputeShader(
+			m_updateMieEnvironmentMap,
+			environmentMapResolution / 8,
+			environmentMapResolution / 8,
+			6,
+			renderContext );
 	}
+	else
+	{
+		m_lastDiagnostics.mieUpdateSucceeded = true;
+	}
+	m_lastDiagnostics.mieWidth = mieEnvironmentMap.GetWidth();
+	m_lastDiagnostics.mieHeight = mieEnvironmentMap.GetHeight();
+	m_lastDiagnostics.mieFormat = static_cast<uint32_t>( mieEnvironmentMap.GetFormat() );
 }
 
 
@@ -508,7 +574,17 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 	const Matrix& viewLast,
 	const Matrix& projectionLast )
 {
+	const bool mieUpdateSucceeded = m_lastDiagnostics.mieUpdateSucceeded;
+	m_lastDiagnostics = {};
+	m_lastDiagnostics.mieUpdateSucceeded = mieUpdateSucceeded;
+	m_lastDiagnostics.froxelEnabled = HasFog();
 	auto fog = RenderFog( m_fogResources, renderContext, gpuResourcePool, width, height, cascadedShadowMap, raytracingGeometry, shadowQuality, sunDirection, sunColor, origin, originShift, view, projection, viewLast, projectionLast );
+	if( const Tr2TextureAL* mie = GetMieEnvironmentMap(); mie && mie->IsValid() )
+	{
+		m_lastDiagnostics.mieWidth = mie->GetWidth();
+		m_lastDiagnostics.mieHeight = mie->GetHeight();
+		m_lastDiagnostics.mieFormat = static_cast<uint32_t>( mie->GetFormat() );
+	}
 	if( !fog.IsValid() )
 	{
 		return GetEmptyFogTexture( gpuResourcePool );
@@ -614,6 +690,7 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 
 
 	auto temporalFog = resources.useTemporalFroxels;
+	m_lastDiagnostics.temporalEnabled = temporalFog;
 
 
 	if( !froxelsEnabled )
@@ -677,6 +754,10 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 
 
 	Tr2BitmapDimensions dimensions( Tr2RenderContextEnum::TEX_TYPE_3D, Tr2RenderContextEnum::PIXEL_FORMAT_R11G11B10_FLOAT, width, height, depth, 1, 1 );
+	m_lastDiagnostics.froxelWidth = width;
+	m_lastDiagnostics.froxelHeight = height;
+	m_lastDiagnostics.froxelDepth = depth;
+	m_lastDiagnostics.froxelFormat = static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R11G11B10_FLOAT );
 	auto fogFroxels = gpuResourcePool.GetTempTexture(
 		"FogFroxels",
 		dimensions,
@@ -750,7 +831,16 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 				resources.calculateFroxels->SetParameter( BlueSharedString( "Noise3DTexture" ), m_froxel3DNoise );
 				resources.calculateFroxels->SetParameter( BlueSharedString( "RtFroxelOutputTexture" ), fogFroxels );
 
-				Tr2Renderer::RunComputeShader( resources.calculateFroxels, wgX, wgY, wgZ, renderContext );
+				m_lastDiagnostics.calculateSucceeded = Tr2Renderer::RunComputeShader(
+					resources.calculateFroxels,
+					wgX,
+					wgY,
+					wgZ,
+					renderContext );
+				if( !m_lastDiagnostics.calculateSucceeded )
+				{
+					return {};
+				}
 			}
 		}
 
@@ -783,7 +873,16 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 			resources.filterFroxels->SetParameter( BlueSharedString( "InputTexture" ), fogFroxels );
 			resources.filterFroxels->SetParameter( BlueSharedString( "PreviousTexture" ), temporalInput );
 			resources.filterFroxels->SetParameter( BlueSharedString( "OutputTexture" ), temporalOutput );
-			Tr2Renderer::RunComputeShader( resources.filterFroxels, wgX, wgY, wgZ, renderContext );
+			m_lastDiagnostics.temporalFilterSucceeded = Tr2Renderer::RunComputeShader(
+				resources.filterFroxels,
+				wgX,
+				wgY,
+				wgZ,
+				renderContext );
+			if( !m_lastDiagnostics.temporalFilterSucceeded )
+			{
+				return {};
+			}
 
 			resources.raymarchFroxels->SetParameter( BlueSharedString( "InputTexture" ), temporalOutput );
 		}
@@ -791,7 +890,16 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 		{
 			GPU_REGION( renderContext, "Raymarch" );
 			resources.raymarchFroxels->SetParameter( BlueSharedString( "OutputTexture" ), fogFroxels );
-			Tr2Renderer::RunComputeShader( resources.raymarchFroxels, ( width + 7 ) / 8, ( height + 3 ) / 4, 1, renderContext ); // 8x4 workgroup is faster here
+			m_lastDiagnostics.raymarchSucceeded = Tr2Renderer::RunComputeShader(
+				resources.raymarchFroxels,
+				( width + 7 ) / 8,
+				( height + 3 ) / 4,
+				1,
+				renderContext ); // 8x4 workgroup is faster here
+			if( !m_lastDiagnostics.raymarchSucceeded )
+			{
+				return {};
+			}
 		}
 	}
 
@@ -802,6 +910,12 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 
 		resources.applyFroxels->SetOption( BlueSharedString( "ENVIRONMENT_LIGHTING" ), BlueSharedString( m_froxelFogSettings.environmentIntensity.value > 0 ? "ENVIRONMENT_LIGHTING_ENABLED" : "ENVIRONMENT_LIGHTING_DISABLED" ) );
 		resources.applyFroxels->SetParameter( BlueSharedString( "EveSceneFroxelFogMap" ), fogFroxels );
+		m_lastDiagnostics.applySucceeded = resources.applyFroxels &&
+			resources.applyFroxels->GetShaderStateInterface();
+		if( !m_lastDiagnostics.applySucceeded )
+		{
+			return {};
+		}
 		Tr2Renderer::DrawScreenQuad( renderContext, resources.applyFroxels );
 		resources.applyFroxels->SetParameter( BlueSharedString( "EveSceneFroxelFogMap" ), Tr2TextureAL{} );
 	}
@@ -1022,6 +1136,7 @@ void Tr2VolumetricsRenderer::UpdatePerObjectData( FogPerObjectData* data, const 
 			CCP_ASSERT_M( lightManager->GetVolumetricLights().size() <= 16, "LightManager does not meet expectation of VolumetricsRenderer!" );
 
 			data->NumDynamicLights = (uint32_t)lightManager->GetVolumetricLights().size();
+			m_lastDiagnostics.dynamicLightCount = data->NumDynamicLights;
 			data->InverseShadowMapAtlasSize = lightManager->GetShadowMapAtlasSettings().actualTextureSize > 0 ?
 				1.f / lightManager->GetShadowMapAtlasSettings().actualTextureSize :
 				0.f;
@@ -1038,6 +1153,7 @@ void Tr2VolumetricsRenderer::UpdatePerObjectData( FogPerObjectData* data, const 
 		else
 		{
 			data->NumDynamicLights = 0;
+			m_lastDiagnostics.dynamicLightCount = 0;
 			data->InverseShadowMapAtlasSize = 0.f;
 			data->ShadowMapAtlasEntryMinSizeLog2 = 0;
 		}

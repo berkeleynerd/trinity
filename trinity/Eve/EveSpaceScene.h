@@ -187,7 +187,9 @@ public:
 		const Tr2TextureAL& velocityMap,
 		const Tr2TextureAL& opaqueColorMap,
 		Tr2GpuResourcePool& gpuResourcePool,
-		Tr2RenderContext& renderContext );
+		Tr2RenderContext& renderContext,
+		Tr2GpuResourcePool::Texture* froxelFogOutput = nullptr,
+		Tr2GpuResourcePool::Texture* volumetricSlicesOutput = nullptr );
 	void RunLensflareOcclusionQueries( const Tr2TextureAL& depthMap, Tr2RenderContext& renderContext );
 	void RenderDepthPass( const Tr2TextureAL& depthMap, const Tr2TextureAL& normalMap, const Tr2TextureAL& customStencil, Tr2RenderContext& renderContext, const BlueSharedString& techniqueName = BlueSharedString( "Depth" ) );
 
@@ -296,6 +298,10 @@ public:
 	ITr2TextureProviderPtr GetStaticEnvironmentMap() const
 	{
 		return m_staticEnvMapTextureRes;
+	}
+	Tr2VolumetricsRendererPtr GetVolumetricsRenderer() const
+	{
+		return m_volumetricsRenderer;
 	}
 	void SetReflectionSetting( EntityComponents::ReflectionSetting setting )
 	{
