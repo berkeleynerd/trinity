@@ -55,18 +55,29 @@ void DeleteUpscalingContext( Tr2UpscalingContextAL* context )
 	}
 }
 
-void ApplyDistortion( const Tr2TextureAL& destination, const Tr2TextureAL& distortion, Tr2GpuResourcePool& gpuResourcePool, const Tr2EffectPtr& effect, Tr2RenderContext& renderContext )
+bool ApplyDistortion(
+	const Tr2TextureAL& destination,
+	const Tr2TextureAL& distortion,
+	Tr2GpuResourcePool& gpuResourcePool,
+	const Tr2EffectPtr& effect,
+	Tr2RenderContext& renderContext,
+	bool& copySucceeded )
 {
 	auto backBufferCopy = gpuResourcePool.GetTempTexture( "backBufferCopy", destination.GetWidth(), destination.GetHeight(), destination.GetFormat(), Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::SHADER_RESOURCE );
-	backBufferCopy->CopySubresourceRegion( {}, destination, {}, renderContext );
+	copySucceeded = SUCCEEDED( backBufferCopy->CopySubresourceRegion( {}, destination, {}, renderContext ) );
+	if( !copySucceeded || !effect || !effect->GetShaderStateInterface() )
+	{
+		return false;
+	}
 
 	BeginRenderPass( renderContext, { destination }, {} );
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 	effect->SetParameter( BlueSharedString( "BlitCurrent" ), backBufferCopy );
 	effect->SetParameter( BlueSharedString( "TexDistortion" ), distortion );
-	Tr2Renderer::DrawFullScreenWithShader( renderContext, effect );
+	const bool compositeSucceeded = Tr2Renderer::DrawFullScreenWithShader( renderContext, effect );
 	effect->SetParameter( BlueSharedString( "BlitCurrent" ), Tr2TextureAL{} );
 	effect->SetParameter( BlueSharedString( "TexDistortion" ), Tr2TextureAL{} );
+	return compositeSucceeded;
 }
 
 struct TimeSection
@@ -360,7 +371,8 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "PreTonemapColor" ) != 0 &&
 			strcmp( output.c_str(), "BloomMap" ) != 0 &&
 			strcmp( output.c_str(), "PostTonemapColor" ) != 0 &&
-			strcmp( output.c_str(), "FinalPostProcessColor" ) != 0 )
+			strcmp( output.c_str(), "FinalPostProcessColor" ) != 0 &&
+			strcmp( output.c_str(), "DistortionMap" ) != 0 )
 		{
 			CCP_LOGERR( "EveSpaceSceneRenderDriver does not support the output '%s'", output.c_str() );
 			return false;
@@ -415,6 +427,8 @@ TextureSize2D EveSpaceSceneRenderDriver::GetRenderSize( const TextureSize2D& dis
 
 void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destinations, const Span<TempOutput>& outputs, Be::Time realTime, Be::Time simTime, const Tr2ProfileTimer& rootTimer, Tr2RenderContext& renderContext )
 {
+	m_lastDistortionDiagnostics = {};
+	m_lastDistortionDiagnostics.enabled = m_settings.enableDistortion;
 	const bool hasCamera = m_camera || ( m_view && m_projection );
 
 	if( !m_enableRendering )
@@ -510,6 +524,13 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	SetNamedOutput( outputs, "DepthMap", depthBuffer );
 
 	Tr2GpuResourcePool::Texture distortionMap = GetDistortionMapIfNeeded( renderSize );
+	if( distortionMap.IsValid() )
+	{
+		m_lastDistortionDiagnostics.mapCreated = true;
+		m_lastDistortionDiagnostics.mapWidth = distortionMap->GetWidth();
+		m_lastDistortionDiagnostics.mapHeight = distortionMap->GetHeight();
+		m_lastDistortionDiagnostics.mapFormat = static_cast<uint32_t>( distortionMap->GetFormat() );
+	}
 	Tr2GpuResourcePool::Texture velocityMap = GetVelocityMapIfNeeded( renderSize, outputs );
 
 	bool hasBackgroundDistortionBatches = false;
@@ -519,7 +540,13 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	}
 	if( m_settings.enableDistortion && hasBackgroundDistortionBatches )
 	{
-		ApplyDistortion( customBackBuffer, distortionMap, m_gpuResourcePool, m_distortionEffect, renderContext );
+		m_lastDistortionDiagnostics.backgroundBatches = true;
+		bool copySucceeded = false;
+		m_lastDistortionDiagnostics.compositeSucceeded =
+			ApplyDistortion( customBackBuffer, distortionMap, m_gpuResourcePool, m_distortionEffect, renderContext, copySucceeded );
+		m_lastDistortionDiagnostics.copySucceeded = copySucceeded;
+		m_lastDistortionDiagnostics.backgroundApplications = 1;
+		SetNamedOutput( outputs, "DistortionMap", distortionMap );
 
 		renderContext.m_esm.SetDepthStencilBuffer( depthBuffer );
 	}
@@ -575,7 +602,18 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 
 		if( m_settings.enableDistortion && hasDistortionBatches )
 		{
-			ApplyDistortion( customBackBuffer, distortionMap, m_gpuResourcePool, m_distortionEffect, renderContext );
+			m_lastDistortionDiagnostics.foregroundBatches = true;
+			bool copySucceeded = false;
+			const bool compositeSucceeded =
+				ApplyDistortion( customBackBuffer, distortionMap, m_gpuResourcePool, m_distortionEffect, renderContext, copySucceeded );
+			m_lastDistortionDiagnostics.copySucceeded =
+				m_lastDistortionDiagnostics.backgroundApplications == 0 ? copySucceeded :
+					m_lastDistortionDiagnostics.copySucceeded && copySucceeded;
+			m_lastDistortionDiagnostics.compositeSucceeded =
+				m_lastDistortionDiagnostics.backgroundApplications == 0 ? compositeSucceeded :
+					m_lastDistortionDiagnostics.compositeSucceeded && compositeSucceeded;
+			m_lastDistortionDiagnostics.foregroundApplications = 1;
+			SetNamedOutput( outputs, "DistortionMap", distortionMap );
 			renderContext.m_esm.SetDepthStencilBuffer( depthBuffer );
 		}
 		distortionMap = {};
@@ -717,6 +755,17 @@ void EveSpaceSceneRenderDriver::SetUseNewBloom( bool enabled )
 bool EveSpaceSceneRenderDriver::GetUseNewBloom() const
 {
 	return m_postProcess && m_postProcess->GetUseNewBloom();
+}
+
+bool EveSpaceSceneRenderDriver::GetLastDistortionExecutionSucceeded() const
+{
+	if( !m_lastDistortionDiagnostics.enabled ||
+		( !m_lastDistortionDiagnostics.backgroundBatches && !m_lastDistortionDiagnostics.foregroundBatches ) )
+	{
+		return true;
+	}
+	return m_lastDistortionDiagnostics.mapCreated && m_lastDistortionDiagnostics.copySucceeded &&
+		m_lastDistortionDiagnostics.compositeSucceeded;
 }
 
 void EveSpaceSceneRenderDriver::UpdateGpuParticleSystem( Tr2RenderContext& renderContext )

@@ -106,6 +106,7 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int reflectionSource,
 													  int reflectionCorrection,
 													  int normalMapMode,
+													  int distortionMode,
 													  int cameraView,
 													  int composition,
 													  int planetLayers,
@@ -282,6 +283,7 @@ enum class RenderProduct
 	PostTonemap,
 	Bloom,
 	FinalPostprocess,
+	Distortion,
 	All,
 };
 
@@ -354,6 +356,7 @@ constexpr int kCaptureToneContract = 1 << 12;
 constexpr int kCaptureBloom = 1 << 13;
 constexpr int kCaptureFinalPostprocess = 1 << 14;
 constexpr int kCapturePostFinishContract = 1 << 15;
+constexpr int kCaptureDistortion = 1 << 16;
 
 enum class DynamicExposure
 {
@@ -367,6 +370,13 @@ enum class PostFinishMode
 	Auto,
 	Off,
 	Client,
+};
+
+enum class DistortionMode
+{
+	Auto,
+	Off,
+	Authored,
 };
 
 enum class ExposureSequence
@@ -437,6 +447,7 @@ struct Options
 	bool validateComposition = false;
 	bool validateExposureTone = false;
 	bool validatePostFinish = false;
+	bool validateDistortion = false;
 	bool framePacingCheck = false;
 	uint32_t timingWarmup = 180;
 	DynamicExposure dynamicExposure = DynamicExposure::Auto;
@@ -445,6 +456,8 @@ struct Options
 	PostFinishMode resolvedBloom = PostFinishMode::Off;
 	PostFinishMode filmGrain = PostFinishMode::Auto;
 	PostFinishMode resolvedFilmGrain = PostFinishMode::Off;
+	DistortionMode distortion = DistortionMode::Auto;
+	DistortionMode resolvedDistortion = DistortionMode::Off;
 	ExposureSequence exposureSequence = ExposureSequence::None;
 	uint32_t exposureHold = 180;
 };
@@ -865,6 +878,8 @@ std::string RenderProductName( RenderProduct product )
 		return "bloom";
 	case RenderProduct::FinalPostprocess:
 		return "final-postprocess";
+	case RenderProduct::Distortion:
+		return "distortion";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -888,6 +903,7 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::PostTonemap,
 									 RenderProduct::Bloom,
 									 RenderProduct::FinalPostprocess,
+									 RenderProduct::Distortion,
 									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
@@ -932,6 +948,26 @@ bool ParsePostFinishMode( const std::string& value, PostFinishMode& result )
 	for( PostFinishMode candidate : { PostFinishMode::Auto, PostFinishMode::Off, PostFinishMode::Client } )
 	{
 		if( normalized == PostFinishModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string DistortionModeName( DistortionMode value )
+{
+	static const char* names[] = { "auto", "off", "authored" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseDistortionMode( const std::string& value, DistortionMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( DistortionMode candidate : { DistortionMode::Auto, DistortionMode::Off, DistortionMode::Authored } )
+	{
+		if( normalized == DistortionModeName( candidate ) )
 		{
 			result = candidate;
 			return true;
@@ -1234,6 +1270,8 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureBloom;
 	case RenderProduct::FinalPostprocess:
 		return kCaptureFinalPostprocess;
+	case RenderProduct::Distortion:
+		return kCaptureDistortion;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -1308,6 +1346,8 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=BloomMap format=R16G16B16A16_FLOAT dimensions=half-resolution visualization=reinhard-plus-gamma gpuVisualization=true rawValidation=true";
 	case RenderProduct::FinalPostprocess:
 		return "source=FinalPostProcessColor format=destination-8-bit-unorm visualization=identity gpuVisualization=true rawValidation=true";
+	case RenderProduct::Distortion:
+		return "source=DistortionMap format=B8G8R8A8_UNORM visualization=decoded-rg-vector gpuVisualization=true rawValidation=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1609,7 +1649,7 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
@@ -1618,6 +1658,7 @@ void PrintUsage( const char* executable )
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
+		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
@@ -1764,6 +1805,13 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--distortion" )
+		{
+			if( ++i >= argc || !ParseDistortionMode( argv[i], options.distortion ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--exposure-sequence" )
 		{
 			if( ++i >= argc || !ParseExposureSequence( argv[i], options.exposureSequence ) )
@@ -1778,6 +1826,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-post-finish" )
 		{
 			options.validatePostFinish = true;
+		}
+		else if( arg == "--validate-distortion" )
+		{
+			options.validateDistortion = true;
 		}
 		else if( arg == "--validate-composition" )
 		{
@@ -2216,6 +2268,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Client bloom and film grain require --quality-rung hdr-finish\n";
 		return false;
 	}
+	const bool distortionCompatible = options.qualityRung == QualityRung::HdrFinish &&
+		options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
+		options.shaderTier == ShaderTier::High &&
+		( options.areaView == AreaView::All || options.areaView == AreaView::Distortion );
+	options.resolvedDistortion = options.distortion == DistortionMode::Auto ?
+		( distortionCompatible ? DistortionMode::Authored : DistortionMode::Off ) :
+		options.distortion;
+	if( options.resolvedDistortion == DistortionMode::Authored && !distortionCompatible )
+	{
+		std::cerr << "Authored distortion requires high-tier Astero eve-v5 rendering at hdr-finish\n";
+		return false;
+	}
 	if( options.renderProduct == RenderProduct::HdrComposite && options.qualityRung < QualityRung::HdrPost )
 	{
 		std::cerr << "The hdr-composite render product requires --quality-rung hdr-post or hdr-exposure\n";
@@ -2230,6 +2294,12 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		options.qualityRung != QualityRung::HdrFinish )
 	{
 		std::cerr << "Bloom and final-postprocess products require --quality-rung hdr-finish\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::Distortion &&
+		options.resolvedDistortion != DistortionMode::Authored )
+	{
+		std::cerr << "The distortion render product requires authored distortion\n";
 		return false;
 	}
 	if( options.exposureSequence != ExposureSequence::None &&
@@ -2306,6 +2376,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.validatePostFinish && !ValidateCanonicalCompositionOptions( options ) )
+	{
+		return false;
+	}
+	if( options.validateDistortion &&
+		( options.resolvedDistortion != DistortionMode::Authored || options.maxFrames <= 0 ||
+		  options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-distortion requires authored distortion, finite frames, and --capture-prefix\n";
+		return false;
+	}
+	if( options.validateDistortion && static_cast<uint32_t>( options.maxFrames ) < options.exposureHold )
+	{
+		std::cerr << "--validate-distortion requires at least --exposure-hold frames for settled final-color validation\n";
+		return false;
+	}
+	if( options.validateDistortion && !ValidateCanonicalCompositionOptions( options ) )
 	{
 		return false;
 	}
@@ -2541,7 +2627,8 @@ std::string CaptureBasePath( const Options& options )
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
 	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
-		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain );
+		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
+		"_dist-" + DistortionModeName( options.resolvedDistortion );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -2644,6 +2731,10 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "filmGrainRequested=" << PostFinishModeName( options.filmGrain ) << "\n";
 	metadata << "filmGrainResolved=" << PostFinishModeName( options.resolvedFilmGrain ) << "\n";
 	metadata << "validatePostFinish=" << ( options.validatePostFinish ? "true" : "false" ) << "\n";
+	metadata << "distortionRequested=" << DistortionModeName( options.distortion ) << "\n";
+	metadata << "distortionResolved=" << DistortionModeName( options.resolvedDistortion ) << "\n";
+	metadata << "distortionClientPolicy=high-shader-tier\n";
+	metadata << "validateDistortion=" << ( options.validateDistortion ? "true" : "false" ) << "\n";
 	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
 	metadata << "exposureHold=" << options.exposureHold << "\n";
 	metadata << "framePacingCheck=" << ( options.framePacingCheck ? "true" : "false" ) << "\n";
@@ -3064,6 +3155,77 @@ bool WritePostFinishContractJson( const Options& options, const TrinityStandalon
 	return output.good();
 }
 
+bool WriteDistortionContractJson(
+	const Options& options,
+	const TrinityStandaloneDistortionDiagnostics& diagnostics )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_distortion-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/AsteroDistortionResources.json";
+	const std::string generatedCmfHashPath =
+		ExecutableDirectory() + "/../Reports/AsteroDistortionGeneratedCmf.sha256";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	std::ifstream generatedCmfHashInput( generatedCmfHashPath );
+	std::string generatedCmfHash;
+	std::getline( generatedCmfHashInput, generatedCmfHash );
+	if( !manifestInput || manifest.str().empty() || !generatedCmfHashInput || generatedCmfHash.empty() )
+	{
+		std::cerr << "RC-12A could not read distortion provenance reports: " << manifestPath << ", "
+				  << generatedCmfHashPath << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	output << "{\n"
+		   << "  \"profile\": \"RC-12A\",\n"
+		   << "  \"clientPolicy\": \"enabled exactly at high shader quality\",\n"
+		   << "  \"requestedMode\": \"" << DistortionModeName( options.distortion ) << "\",\n"
+		   << "  \"resolvedMode\": \"" << DistortionModeName( options.resolvedDistortion ) << "\",\n"
+		   << "  \"mapHash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+		   << diagnostics.mapHash << "\",\n"
+		   << "  \"offPreTonemapHash\": \"" << std::setw( 16 ) << diagnostics.offPreTonemapHash << "\",\n"
+		   << "  \"authoredPreTonemapHash\": \"" << std::setw( 16 ) << diagnostics.authoredPreTonemapHash
+		   << "\",\n"
+		   << "  \"offFinalHash\": \"" << std::setw( 16 ) << diagnostics.offFinalHash << "\",\n"
+		   << "  \"authoredFinalHash\": \"" << std::setw( 16 ) << diagnostics.authoredFinalHash << std::dec
+		   << "\",\n"
+		   << "  \"dimensions\": [" << diagnostics.mapWidth << ", " << diagnostics.mapHeight << "],\n"
+		   << "  \"format\": " << diagnostics.mapFormat << ",\n"
+		   << "  \"submittedBatches\": " << diagnostics.submittedBatches << ",\n"
+		   << "  \"submittedIndices\": " << diagnostics.submittedIndices << ",\n"
+		   << "  \"foregroundApplications\": " << diagnostics.foregroundApplications << ",\n"
+		   << "  \"backgroundApplications\": " << diagnostics.backgroundApplications << ",\n"
+		   << "  \"neutralPixels\": " << diagnostics.neutralPixels << ",\n"
+		   << "  \"nonNeutralPixels\": " << diagnostics.nonNeutralPixels << ",\n"
+		   << "  \"saturatedPixels\": " << diagnostics.saturatedPixels << ",\n"
+		   << "  \"redRange\": [" << static_cast<unsigned>( diagnostics.minimumRed ) << ", "
+		   << static_cast<unsigned>( diagnostics.maximumRed ) << "],\n"
+		   << "  \"greenRange\": [" << static_cast<unsigned>( diagnostics.minimumGreen ) << ", "
+		   << static_cast<unsigned>( diagnostics.maximumGreen ) << "],\n"
+		   << "  \"affectedBounds\": [" << diagnostics.affectedMinX << ", " << diagnostics.affectedMinY << ", "
+		   << diagnostics.affectedMaxX << ", " << diagnostics.affectedMaxY << "],\n"
+		   << "  \"mapCreated\": " << ( diagnostics.mapCreated ? "true" : "false" ) << ",\n"
+		   << "  \"sceneColorCopySucceeded\": "
+		   << ( diagnostics.copySucceeded ? "true" : "false" ) << ",\n"
+		   << "  \"compositorSucceeded\": " << ( diagnostics.compositeSucceeded ? "true" : "false" ) << ",\n"
+		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << ",\n"
+		   << "  \"generatedCmfHashPath\": \"" << generatedCmfHashPath << "\",\n"
+		   << "  \"generatedCmfHash\": \"" << generatedCmfHash << "\",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Distortion contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -3191,6 +3353,7 @@ int main( int argc, char** argv )
 												   ReflectionSourceApiValue( options.resolvedReflectionSource ),
 												   static_cast<int>( options.reflectionCorrection ),
 												   static_cast<int>( options.normalMapMode ),
+												   options.resolvedDistortion == DistortionMode::Authored ? 1 : 0,
 												   static_cast<int>( options.cameraView ),
 												   static_cast<int>( options.composition ),
 												   static_cast<int>( options.planetLayers ),
@@ -3214,6 +3377,7 @@ int main( int argc, char** argv )
 			return 1;
 		}
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
+			options.validateDistortion ||
 			options.exposureSequence != ExposureSequence::None;
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
@@ -3405,6 +3569,14 @@ int main( int argc, char** argv )
 				TrinityStandaloneProbeGetPostFinishValidation( probe, &postFinishValidation ) &&
 				postFinishValidation.valid;
 		}
+		TrinityStandaloneDistortionDiagnostics distortionDiagnostics;
+		bool distortionValidationSucceeded = true;
+		if( options.validateDistortion )
+		{
+			distortionValidationSucceeded = TrinityStandaloneProbeValidateDistortion( probe ) &&
+				TrinityStandaloneProbeGetDistortionDiagnostics( probe, &distortionDiagnostics ) &&
+				distortionDiagnostics.valid;
+		}
 		bool exposureReportsSucceeded = true;
 		if( collectExposureDiagnostics )
 		{
@@ -3435,6 +3607,11 @@ int main( int argc, char** argv )
 		{
 			exposureReportsSucceeded =
 				WritePostFinishContractJson( options, postFinishValidation ) && exposureReportsSucceeded;
+		}
+		if( options.validateDistortion )
+		{
+			exposureReportsSucceeded =
+				WriteDistortionContractJson( options, distortionDiagnostics ) && exposureReportsSucceeded;
 		}
 		bool captureSucceeded = true;
 		@autoreleasepool
@@ -3484,6 +3661,23 @@ int main( int argc, char** argv )
 					  << " validation=" << ( postFinishValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "postFinishValidation", stats.str() );
 			}
+			if( options.validateDistortion )
+			{
+				std::ostringstream stats;
+				stats << "mapHash=" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+					  << distortionDiagnostics.mapHash << " offPre=" << std::setw( 16 )
+					  << distortionDiagnostics.offPreTonemapHash << " authoredPre=" << std::setw( 16 )
+					  << distortionDiagnostics.authoredPreTonemapHash << " offFinal=" << std::setw( 16 )
+					  << distortionDiagnostics.offFinalHash << " authoredFinal=" << std::setw( 16 )
+					  << distortionDiagnostics.authoredFinalHash << std::dec << " map="
+					  << distortionDiagnostics.mapWidth << "x" << distortionDiagnostics.mapHeight
+					  << " nonNeutral=" << distortionDiagnostics.nonNeutralPixels
+					  << " affectedBounds=" << distortionDiagnostics.affectedMinX << ","
+					  << distortionDiagnostics.affectedMinY << "-" << distortionDiagnostics.affectedMaxX << ","
+					  << distortionDiagnostics.affectedMaxY
+					  << " validation=" << ( distortionValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "distortionValidation", stats.str() );
+			}
 			if( !options.capturePrefix.empty() )
 			{
 				ProcessEvents( window );
@@ -3506,6 +3700,10 @@ int main( int argc, char** argv )
 					{
 						diagnosticProducts.push_back( RenderProduct::Bloom );
 						diagnosticProducts.push_back( RenderProduct::FinalPostprocess );
+						if( options.resolvedDistortion == DistortionMode::Authored )
+						{
+							diagnosticProducts.push_back( RenderProduct::Distortion );
+						}
 					}
 					if( options.resolvedShadows != Shadows::Off )
 					{
@@ -3702,7 +3900,7 @@ int main( int argc, char** argv )
 		}
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			exposureReportsSucceeded;
+			distortionValidationSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

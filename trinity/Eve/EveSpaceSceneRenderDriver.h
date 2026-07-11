@@ -72,6 +72,20 @@ public:
 		bool showFPS = false;
 		EveSpaceScene::EveVisualizeMethod visualizeMethod = EveSpaceScene::VM_NONE;
 	};
+	struct DistortionDiagnostics
+	{
+		bool enabled = false;
+		bool mapCreated = false;
+		bool backgroundBatches = false;
+		bool foregroundBatches = false;
+		bool copySucceeded = false;
+		bool compositeSucceeded = false;
+		uint32_t backgroundApplications = 0;
+		uint32_t foregroundApplications = 0;
+		uint32_t mapWidth = 0;
+		uint32_t mapHeight = 0;
+		uint32_t mapFormat = 0;
+	};
 
 	EveSpaceSceneRenderDriver( IRoot* lockobj = nullptr );
 	~EveSpaceSceneRenderDriver();
@@ -120,6 +134,15 @@ public:
 	bool GetLastPostProcessExecutionSucceeded() const;
 	void SetUseNewBloom( bool enabled );
 	bool GetUseNewBloom() const;
+	Tr2Effect* GetDistortionEffect() const
+	{
+		return m_distortionEffect;
+	}
+	const DistortionDiagnostics& GetDistortionDiagnostics() const
+	{
+		return m_lastDistortionDiagnostics;
+	}
+	bool GetLastDistortionExecutionSucceeded() const;
 
 	EXPOSE_TO_BLUE();
 
@@ -159,6 +182,7 @@ private:
 	Settings m_settings;
 
 	Tr2EffectPtr m_distortionEffect;
+	DistortionDiagnostics m_lastDistortionDiagnostics;
 
 	PITr2SceneVector m_toolsScenes;
 

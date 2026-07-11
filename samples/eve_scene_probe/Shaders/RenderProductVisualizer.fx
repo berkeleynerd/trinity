@@ -56,6 +56,14 @@ float4 MainPS( VertexOutput input ) : SV_Target
 	{
 		return float4( value.rgb * 0.5 + 0.5, 1.0 );
 	}
+	if( RenderProductMode >= 7.5 )
+	{
+		float2 delta = value.rg - float2( 127.0 / 255.0, 127.0 / 255.0 );
+		float vectorLength = length( delta );
+		float magnitude = saturate( vectorLength * 16.0 );
+		float2 direction = delta / max( vectorLength, 1.0 / 255.0 ) * 0.5 + 0.5;
+		return float4( direction * magnitude, magnitude, 1.0 );
+	}
 	if( RenderProductMode >= 6.5 )
 	{
 		float3 hdr = max( value.rgb, 0.0 );

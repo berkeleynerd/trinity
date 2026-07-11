@@ -1277,6 +1277,8 @@ public:
 		m_shadowCullTests = 0;
 		m_shadowAcceptedCascades = 0;
 		m_shadowCommittedBatches = 0;
+		m_distortionSubmittedBatches = 0;
+		m_distortionSubmittedIndices = 0;
 		m_time = updateContext.GetTime();
 		if( !m_decalEntries.empty() )
 		{
@@ -1616,6 +1618,16 @@ public:
 	uint32_t GetCommittedOpaqueBatchCount() const
 	{
 		return ( m_reportedAreaBatch[1] ? 1u : 0u ) + ( m_reportedAreaBatch[2] ? 1u : 0u );
+	}
+
+	uint32_t GetDistortionSubmittedBatchCount() const
+	{
+		return m_distortionSubmittedBatches.load();
+	}
+
+	uint32_t GetDistortionSubmittedIndexCount() const
+	{
+		return m_distortionSubmittedIndices.load();
 	}
 
 	uint32_t GetAttachmentActiveCount( uint32_t family ) const
@@ -2504,6 +2516,11 @@ private:
 		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
 		batch.SetRenderingMode( renderMode );
 		batches->Commit( batch );
+		if( sourceGroup == 0 )
+		{
+			++m_distortionSubmittedBatches;
+			m_distortionSubmittedIndices += section.indexCount;
+		}
 		if( !m_reportedAreaBatch[sourceGroup] )
 		{
 			std::fprintf( stderr, "Astero area batch committed: group=%u indices=%u batch=%s\n", sourceGroup, section.indexCount, sourceGroup == 0 ? "distortion" : "opaque" );
@@ -2626,6 +2643,8 @@ private:
 	mutable std::atomic<uint32_t> m_shadowCullTests = 0;
 	mutable std::atomic<uint32_t> m_shadowAcceptedCascades = 0;
 	mutable std::atomic<uint32_t> m_shadowCommittedBatches = 0;
+	mutable std::atomic<uint32_t> m_distortionSubmittedBatches = 0;
+	mutable std::atomic<uint32_t> m_distortionSubmittedIndices = 0;
 	TrinityStandaloneCmfModel m_model;
 	TriGeometryResPtr m_decalGeometry;
 	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
@@ -2857,6 +2876,13 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_BLOOM = 1 << 13,
 	STANDALONE_CAPTURE_FINAL_POSTPROCESS = 1 << 14,
 	STANDALONE_CAPTURE_POST_FINISH_CONTRACT = 1 << 15,
+	STANDALONE_CAPTURE_DISTORTION = 1 << 16,
+};
+
+enum StandaloneDistortionMode
+{
+	STANDALONE_DISTORTION_OFF = 0,
+	STANDALONE_DISTORTION_AUTHORED = 1,
 };
 
 enum StandaloneDynamicExposureMode
@@ -2988,6 +3014,7 @@ struct StandaloneProbe
 		postTonemapReadback = Tr2TextureAL{};
 		bloomReadback = Tr2TextureAL{};
 		finalPostProcessReadback = Tr2TextureAL{};
+		distortionReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
 		dynamicLightShadowResolveEffect.Unlock();
@@ -3038,9 +3065,11 @@ struct StandaloneProbe
 	Tr2TextureAL postTonemapReadback;
 	Tr2TextureAL bloomReadback;
 	Tr2TextureAL finalPostProcessReadback;
+	Tr2TextureAL distortionReadback;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
 	TrinityStandaloneToneValidation toneValidation;
 	TrinityStandalonePostFinishValidation postFinishValidation;
+	TrinityStandaloneDistortionDiagnostics distortionDiagnostics;
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
 	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
 	Tr2PPTonemappingEffectPtr clientTonemapping;
@@ -3050,6 +3079,7 @@ struct StandaloneProbe
 	int dynamicExposureMode = STANDALONE_DYNAMIC_EXPOSURE_CLIENT;
 	int bloomMode = STANDALONE_POST_FINISH_OFF;
 	int filmGrainMode = STANDALONE_POST_FINISH_OFF;
+	int distortionMode = STANDALONE_DISTORTION_OFF;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
 	bool postProcessDiagnosticsEnabled = false;
 	int64_t lastRealTime = 0;
@@ -5411,6 +5441,133 @@ bool EnsureFinalPostProcessReadback(
 	return true;
 }
 
+bool EnsureDistortionReadback(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext,
+	Tr2RenderContextEnum::PixelFormat format )
+{
+	if( probe.distortionReadback.IsValid() && probe.distortionReadback.GetWidth() == probe.renderWidth &&
+		probe.distortionReadback.GetHeight() == probe.renderHeight && probe.distortionReadback.GetFormat() == format )
+	{
+		return true;
+	}
+	probe.distortionReadback = Tr2TextureAL{};
+	const HRESULT result = probe.distortionReadback.Create(
+		Tr2BitmapDimensions( probe.renderWidth, probe.renderHeight, 1, format ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create CPU-readable distortion map (HRESULT=0x%08x)\n", result );
+		return false;
+	}
+	probe.distortionReadback.SetName( "StandaloneProbeDistortionReadback" );
+	return true;
+}
+
+bool ReadDistortionMap( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	auto& result = probe.distortionDiagnostics;
+	const auto& driver = probe.driver->GetDistortionDiagnostics();
+	result = {};
+	result.enabled = driver.enabled;
+	result.mapCreated = driver.mapCreated;
+	result.backgroundBatches = driver.backgroundBatches;
+	result.foregroundBatches = driver.foregroundBatches;
+	result.copySucceeded = driver.copySucceeded;
+	result.compositeSucceeded = driver.compositeSucceeded;
+	result.backgroundApplications = driver.backgroundApplications;
+	result.foregroundApplications = driver.foregroundApplications;
+	result.mapWidth = probe.distortionReadback.GetWidth();
+	result.mapHeight = probe.distortionReadback.GetHeight();
+	result.mapFormat = static_cast<uint32_t>( probe.distortionReadback.GetFormat() );
+	result.submittedBatches = probe.renderable ? probe.renderable->GetDistortionSubmittedBatchCount() : 0;
+	result.submittedIndices = probe.renderable ? probe.renderable->GetDistortionSubmittedIndexCount() : 0;
+	result.affectedMinX = result.mapWidth;
+	result.affectedMinY = result.mapHeight;
+
+	const void* sourceData = nullptr;
+	uint32_t sourcePitch = 0;
+	if( FAILED( probe.distortionReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, sourceData, sourcePitch, renderContext ) ) ||
+		!sourceData )
+	{
+		return false;
+	}
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	result.mapHash = fnvOffset;
+	for( uint32_t y = 0; y < result.mapHeight; ++y )
+	{
+		const uint8_t* row = static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+		for( uint32_t x = 0; x < result.mapWidth; ++x )
+		{
+			const uint8_t* pixel = row + x * 4;
+			for( uint32_t channel = 0; channel < 4; ++channel )
+				result.mapHash = ( result.mapHash ^ pixel[channel] ) * fnvPrime;
+			const uint8_t red = pixel[2];
+			const uint8_t green = pixel[1];
+			result.minimumRed = std::min( result.minimumRed, red );
+			result.maximumRed = std::max( result.maximumRed, red );
+			result.minimumGreen = std::min( result.minimumGreen, green );
+			result.maximumGreen = std::max( result.maximumGreen, green );
+			const bool neutral = std::abs( static_cast<int>( red ) - 127 ) <= 1 &&
+				std::abs( static_cast<int>( green ) - 127 ) <= 1;
+			if( neutral )
+			{
+				++result.neutralPixels;
+			}
+			else
+			{
+				++result.nonNeutralPixels;
+				result.affectedMinX = std::min( result.affectedMinX, x );
+				result.affectedMinY = std::min( result.affectedMinY, y );
+				result.affectedMaxX = std::max( result.affectedMaxX, x );
+				result.affectedMaxY = std::max( result.affectedMaxY, y );
+			}
+			result.saturatedPixels += red == 0 || red == 255 || green == 0 || green == 255 ? 1 : 0;
+		}
+	}
+	probe.distortionReadback.UnmapForReading( renderContext );
+	const uint64_t pixelCount = static_cast<uint64_t>( result.mapWidth ) * result.mapHeight;
+	result.valid = result.enabled && result.mapCreated && result.foregroundBatches &&
+		result.copySucceeded && result.compositeSucceeded && result.submittedBatches == 1 &&
+		result.submittedIndices == 120 && result.foregroundApplications == 1 &&
+		result.backgroundApplications == 0 && result.mapWidth == probe.renderWidth &&
+		result.mapHeight == probe.renderHeight &&
+		result.mapFormat == Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM &&
+		result.nonNeutralPixels > 0 && result.nonNeutralPixels < pixelCount;
+	std::fprintf(
+		stderr,
+		"EVE RC-12A distortion map: batches=%u indices=%u applications=(background=%u foreground=%u) "
+		"map=%ux%u format=%u hash=%016llx neutral=%llu nonneutral=%llu saturated=%llu "
+		"rg=[%u,%u]/[%u,%u] bounds=[%u,%u]-[%u,%u] copy=%s composite=%s validation=%s\n",
+		result.submittedBatches,
+		result.submittedIndices,
+		result.backgroundApplications,
+		result.foregroundApplications,
+		result.mapWidth,
+		result.mapHeight,
+		result.mapFormat,
+		static_cast<unsigned long long>( result.mapHash ),
+		static_cast<unsigned long long>( result.neutralPixels ),
+		static_cast<unsigned long long>( result.nonNeutralPixels ),
+		static_cast<unsigned long long>( result.saturatedPixels ),
+		result.minimumRed,
+		result.maximumRed,
+		result.minimumGreen,
+		result.maximumGreen,
+		result.affectedMinX,
+		result.affectedMinY,
+		result.affectedMaxX,
+		result.affectedMaxY,
+		result.copySucceeded ? "success" : "failed",
+		result.compositeSucceeded ? "success" : "failed",
+		result.valid ? "pass" : "fail" );
+	return result.valid;
+}
+
 bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& renderContext )
 {
 	Tr2PostProcessRenderer::Diagnostics source;
@@ -6009,6 +6166,7 @@ bool ReadVisualizedRenderProduct(
 		captureProduct == STANDALONE_CAPTURE_HDR_COMPOSITE ||
 		captureProduct == STANDALONE_CAPTURE_BLOOM ||
 		captureProduct == STANDALONE_CAPTURE_FINAL_POSTPROCESS ||
+		captureProduct == STANDALONE_CAPTURE_DISTORTION ||
 		( captureProduct == STANDALONE_CAPTURE_REFLECTION &&
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
@@ -6102,6 +6260,12 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
+	if( captureProducts & STANDALONE_CAPTURE_DISTORTION )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "DistortionMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
 	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
@@ -6126,6 +6290,11 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			CCP_LOGERR( "EVE postprocess execution failed" );
 			ok = false;
 		}
+		if( !driver.GetLastDistortionExecutionSucceeded() )
+		{
+			CCP_LOGERR( "EVE distortion execution failed" );
+			ok = false;
+		}
 
 		const bool colorProduct = captureProducts == STANDALONE_CAPTURE_COLOR;
 		const bool reflectionProduct = captureProducts == STANDALONE_CAPTURE_REFLECTION;
@@ -6135,6 +6304,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool bloomProduct = captureProducts == STANDALONE_CAPTURE_BLOOM;
 		const bool finalPostProcessProduct = captureProducts == STANDALONE_CAPTURE_FINAL_POSTPROCESS;
 		const bool postFinishContractProduct = captureProducts == STANDALONE_CAPTURE_POST_FINISH_CONTRACT;
+		const bool distortionProduct = captureProducts == STANDALONE_CAPTURE_DISTORTION;
 		if( ok && toneContractProduct )
 		{
 			const Tr2TextureAL* preTonemap = nullptr;
@@ -6281,6 +6451,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			selectedName = "BloomMap";
 		else if( finalPostProcessProduct )
 			selectedName = "FinalPostProcessColor";
+		else if( distortionProduct )
+			selectedName = "DistortionMap";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -6337,7 +6509,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
 					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ||
-					hdrCompositeProduct || postTonemapProduct || finalPostProcessProduct;
+					hdrCompositeProduct || postTonemapProduct || finalPostProcessProduct || distortionProduct;
 				if( fullResolutionProduct &&
 					( selectedTexture->GetWidth() != probe.renderWidth || selectedTexture->GetHeight() != probe.renderHeight ) )
 				{
@@ -6415,6 +6587,12 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					std::fprintf( stderr, "Bloom product does not match the legacy half-resolution FP16 contract\n" );
 					ok = false;
 				}
+				if( distortionProduct &&
+					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM )
+				{
+					std::fprintf( stderr, "Distortion product is not B8G8R8A8_UNORM\n" );
+					ok = false;
+				}
 				const bool visualizerReady = reflectionProduct ?
 					PrepareReflectionProductVisualizer( probe ) :
 					PrepareRenderProductVisualizer( probe );
@@ -6423,7 +6601,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					probe.renderProductVisualizer;
 				if( ok && visualizerReady &&
 					EnsureRenderProductReadback( probe, renderContext ) &&
-					( !hdrCompositeProduct || EnsureHdrCompositeReadback( probe, renderContext ) ) )
+					( !hdrCompositeProduct || EnsureHdrCompositeReadback( probe, renderContext ) ) &&
+					( !distortionProduct ||
+					  EnsureDistortionReadback( probe, renderContext, selectedTexture->GetFormat() ) ) )
 				{
 					if( hdrCompositeProduct )
 					{
@@ -6432,11 +6612,18 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 								 "Resolve raw FP16 composition" ) &&
 							ok;
 					}
+					if( distortionProduct )
+					{
+						ok = CheckHresult(
+							selectedTexture->Resolve( probe.distortionReadback, renderContext ),
+							"Resolve raw distortion map" ) && ok;
+					}
 					if( !reflectionProduct )
 					{
 						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
-						const float visualizationMode = ( hdrCompositeProduct || bloomProduct ) ? 7.0f :
+						const float visualizationMode = distortionProduct ? 8.0f :
+							( hdrCompositeProduct || bloomProduct ) ? 7.0f :
 							postTonemapProduct                                                  ? 2.0f :
 							colorProduct                                                        ? 2.0f :
 																								  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
@@ -6471,6 +6658,10 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						if( hdrCompositeProduct )
 						{
 							ok = ReadRawHdrComposite( probe, renderContext );
+						}
+						if( distortionProduct )
+						{
+							ok = ReadDistortionMap( probe, renderContext ) && ok;
 						}
 						ok = ReadVisualizedRenderProduct( probe, captureProducts, renderContext ) && ok;
 						if( ok && captureProducts == STANDALONE_CAPTURE_AO )
@@ -6712,10 +6903,23 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 			 "high directional cascades" );
 	require( settings.aoQuality == EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High,
 			 "high ambient occlusion" );
-	require( !settings.enableDistortion && !settings.enableUpscaling &&
-				 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
-				 !settings.forceVelocityMap,
-			 "distortion, upscaling, TAA, and velocity disabled" );
+	require( settings.enableDistortion == ( probe.distortionMode == STANDALONE_DISTORTION_AUTHORED ),
+			 probe.distortionMode == STANDALONE_DISTORTION_AUTHORED ?
+				 "authored distortion enabled" :
+				 "distortion disabled" );
+	if( probe.distortionMode == STANDALONE_DISTORTION_AUTHORED )
+	{
+		const auto& distortion = probe.driver->GetDistortionDiagnostics();
+		require( distortion.foregroundBatches && distortion.foregroundApplications == 1 &&
+				 distortion.backgroundApplications == 0 && distortion.copySucceeded &&
+				 distortion.compositeSucceeded && probe.renderable->GetDistortionSubmittedBatchCount() == 1 &&
+				 probe.renderable->GetDistortionSubmittedIndexCount() == 120,
+			 "one native 40-triangle distortion batch and compositor application" );
+	}
+	require( !settings.enableUpscaling &&
+			 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
+			 !settings.forceVelocityMap,
+			 "upscaling, TAA, and velocity disabled" );
 	require( settings.forceOpaqueBuffer && settings.forceNormalMap,
 			 "opaque and normal products retained" );
 
@@ -6899,7 +7103,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	probe.qualityRung = qualityRung;
 	if( !std::isfinite( modelYawDegrees ) )
@@ -6932,6 +7136,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone normal-map mode" );
 		return false;
 	}
+	if( distortionMode < STANDALONE_DISTORTION_OFF || distortionMode > STANDALONE_DISTORTION_AUTHORED )
+	{
+		CCP_LOGERR( "Invalid standalone distortion mode" );
+		return false;
+	}
+	probe.distortionMode = distortionMode;
 	if( decals < STANDALONE_DECALS_OFF || decals > STANDALONE_DECALS_AUTHORED ||
 		decalView < STANDALONE_DECAL_VIEW_ALL || decalView > STANDALONE_DECAL_VIEW_KILLMARKS )
 	{
@@ -6982,6 +7192,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			5.2f * probe.modelWorldScale );
 	}
 	std::string qualityResourceError;
+	if( distortionMode == STANDALONE_DISTORTION_AUTHORED &&
+		!PrepareManagedEffectWithoutYield(
+			"res:/graphics/effect/managed/space/postprocess/Distortion.fx",
+			"distortion compositor",
+			{ "Main" },
+			qualityResourceError ) )
+	{
+		std::fprintf( stderr, "Failed to prepare distortion compositor: %s\n", qualityResourceError.c_str() );
+		return false;
+	}
 	if( shadows != STANDALONE_SHADOWS_OFF )
 	{
 		if( !PrepareManagedEffectWithoutYield(
@@ -7548,7 +7768,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.enableUpscaling = false;
 	settings.bypassPostProcessing = qualityRung < STANDALONE_PROBE_RUNG_HDR_BLIT;
 	settings.postProcessBlitOnly = qualityRung == STANDALONE_PROBE_RUNG_HDR_BLIT;
-	settings.enableDistortion = false;
+	settings.enableDistortion = distortionMode == STANDALONE_DISTORTION_AUTHORED;
 	settings.enableDirectionalShadows = shadows != STANDALONE_SHADOWS_OFF;
 	settings.shadowQuality = localShadows != STANDALONE_LOCAL_SHADOWS_OFF ? ShadowQuality::SHADOW_HIGH :
 																			( shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
@@ -7583,9 +7803,13 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		ReflectionSourceName( reflectionSource ),
 		sizeof( EveSpaceScene::PerFramePSData ),
 		sizeof( EveSpaceObjectPSData ) );
-	if( materialMode != 0 )
+	if( materialMode != 0 && distortionMode == STANDALONE_DISTORTION_OFF )
 	{
-		std::fprintf( stderr, "EVE distortion compositor disabled: Astero group 0 is validated but not submitted until RC-12\n" );
+		std::fprintf( stderr, "EVE distortion compositor disabled by probe control\n" );
+	}
+	else if( distortionMode == STANDALONE_DISTORTION_AUTHORED )
+	{
+		std::fprintf( stderr, "EVE distortion compositor enabled: policy=high-shader-tier mode=authored\n" );
 	}
 
 	probe.driver->SetSettings( settings );
@@ -8094,6 +8318,75 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetPostFinishValidation(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureDistortion(
+	void* opaqueProbe,
+	int distortionMode )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || distortionMode < STANDALONE_DISTORTION_OFF ||
+		distortionMode > STANDALONE_DISTORTION_AUTHORED )
+	{
+		return false;
+	}
+	auto settings = probe->driver->GetSettings();
+	settings.enableDistortion = distortionMode == STANDALONE_DISTORTION_AUTHORED;
+	probe->driver->SetSettings( settings );
+	probe->distortionMode = distortionMode;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetDistortionDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneDistortionDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderable || !diagnostics )
+	{
+		return false;
+	}
+	*diagnostics = probe->distortionDiagnostics;
+	return diagnostics->mapWidth != 0;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateDistortion( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderable ||
+		probe->distortionMode != STANDALONE_DISTORTION_AUTHORED )
+	{
+		return false;
+	}
+	const Be::Time realTime = static_cast<Be::Time>( probe->lastRealTime );
+	const Be::Time simTime = static_cast<Be::Time>( probe->lastSimTime );
+	bool ok = TrinityStandaloneProbeConfigureDistortion( probe, STANDALONE_DISTORTION_OFF );
+	ok = ok && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE );
+	const uint64_t offPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+	ok = ok && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_POST_FINISH_CONTRACT );
+	const uint64_t offFinalHash = probe->postFinishValidation.finalHash;
+	ok = TrinityStandaloneProbeConfigureDistortion( probe, STANDALONE_DISTORTION_AUTHORED ) && ok;
+	ok = ok && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_DISTORTION );
+	ok = ok && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE );
+	const uint64_t authoredPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+	ok = ok && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_POST_FINISH_CONTRACT );
+	const uint64_t authoredFinalHash = probe->postFinishValidation.finalHash;
+	probe->distortionDiagnostics.offPreTonemapHash = offPreTonemapHash;
+	probe->distortionDiagnostics.authoredPreTonemapHash = authoredPreTonemapHash;
+	probe->distortionDiagnostics.offFinalHash = offFinalHash;
+	probe->distortionDiagnostics.authoredFinalHash = authoredFinalHash;
+	probe->distortionDiagnostics.valid = probe->distortionDiagnostics.valid &&
+		offPreTonemapHash != authoredPreTonemapHash && offFinalHash != authoredFinalHash;
+	std::fprintf(
+		stderr,
+		"EVE RC-12A matched distortion: pre=(off=%016llx authored=%016llx) "
+		"final=(off=%016llx authored=%016llx) validation=%s\n",
+		static_cast<unsigned long long>( offPreTonemapHash ),
+		static_cast<unsigned long long>( authoredPreTonemapHash ),
+		static_cast<unsigned long long>( offFinalHash ),
+		static_cast<unsigned long long>( authoredFinalHash ),
+		ok && probe->distortionDiagnostics.valid ? "pass" : "fail" );
+	return ok && probe->distortionDiagnostics.valid;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -8105,14 +8398,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
@@ -8135,7 +8428,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_TONE_CONTRACT &&
 		captureProduct != STANDALONE_CAPTURE_BLOOM &&
 		captureProduct != STANDALONE_CAPTURE_FINAL_POSTPROCESS &&
-		captureProduct != STANDALONE_CAPTURE_POST_FINISH_CONTRACT )
+		captureProduct != STANDALONE_CAPTURE_POST_FINISH_CONTRACT &&
+		captureProduct != STANDALONE_CAPTURE_DISTORTION )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;

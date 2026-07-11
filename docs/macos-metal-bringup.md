@@ -1468,6 +1468,59 @@ TrinityALEveSceneProbe_metal_debug --windowed 640x480 --background-capture \
   --render-product final-postprocess --capture-prefix Captures/rc11/canonical
 ```
 
+### Authored Astero distortion composition (RC-12A)
+
+The installed client's `sceneRenderJobSpace.pyj` enables distortion exactly at
+high shader quality, and the maximum Jessica profile forces that quality on.
+The probe now mirrors that policy: `--distortion auto` resolves to `authored`
+only for a high-tier Astero V5 `hdr-finish` composition. Historical RC-11
+captures remain reproducible with `--distortion off`.
+
+Astero group 0 is retained as one native `TRIBATCHTYPE_DISTORTION` batch: 120
+indices and 40 triangles through `fxdistortionv5`, with the authored
+`warptunnel4_n.dds`, mask, transforms, scroll rates, Fresnel values, and
+`DistortionFactors=(8,0,500,0.5)`. The driver clears a full-resolution
+`B8G8R8A8_UNORM` vector map to `(127,127)`, depth-tests the batch, copies the
+current FP16 scene color, and applies the client `Distortion.fx` compositor
+before exposure, tone mapping, bloom, and grain. Copy and draw failures are
+fatal, and `DistortionMap` is published as a named product.
+
+The integrated 2560x1440 validation reported one foreground application,
+124,290 non-neutral pixels, no saturated pixels, R/G ranges `[124,140]` and
+`[125,145]`, and bounds `[911,373]-[1704,1132]`. Frozen matched captures changed
+the pre-tone hash from `2c84971898dc04ed` to `47047be7cda680be` and the final
+hash from `38b976e8065af70a` to `fcd3a0191b1ee4ec`. Depth, normal, reflection,
+directional shadow, cascade atlas, AO, and bent-normal PNGs remained
+byte-identical. RC-09, RC-10, and RC-11 validators all continued to pass.
+
+The separate 540-frame pacing run measured 360 post-warm-up frames: 8.2454 ms
+median, 9.2534 ms p95, 9.4335 ms p99, 9.6021 ms maximum, and no frames above
+twice median. Generated reports and captures remain under the ignored build
+tree. `Reports/AsteroDistortionResources.json` records the absolute SharedCache
+sources and checksums; `AsteroDistortionGeneratedCmf.sha256` records the open
+conversion output separately. The older
+`res:/fisfx/postprocess/distortion.black` is not used because it belongs to the
+client's legacy postprocess-job system.
+
+The native 4096x2304 full-screen inspection on 2026-07-11 retained the complete
+New Eden composition, kept the distortion localized to the rotating Astero,
+entered the camera orbit after frame 180, and closed cleanly after manual
+acceptance.
+
+Representative commands:
+
+```sh
+cmake --build .cmake-build-arm64-osx-debug --config Debug \
+  --target TrinityEveSceneProbeDistortionAssets TrinityALEveSceneProbe_metal
+
+TrinityALEveSceneProbe_metal --windowed 1280x720 --background-capture \
+  --frames 180 --quality-rung hdr-finish --asset astero \
+  --scene-fixture new-eden --composition cinematic \
+  --validate-composition --validate-exposure-tone --validate-post-finish \
+  --validate-distortion --render-product all \
+  --capture-prefix Captures/rc12a/full-validate
+```
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1487,6 +1540,7 @@ make those prerequisites explicit.
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
 | 3E | Visible SOF attachments | Accepted | Native sprite, spotlight, plane, haze, and banner paths render the exact active inventory with independent family/light controls and stable orbit/HDR captures. |
 | 3F | Indexed SOF decals | Accepted | Native standard, SoE logo, and kill-counter overlays preserve authored ordering, transforms, materials, and LOD0 indices without changing depth, normal, shadow, reflection, or AO products. |
+| 3G | Authored booster and engine effects | Queued | RC-05D must reconstruct booster locators, throttle-driven plumes, particles, and trails before velocity/TAA acceptance. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
 | 4C | Complete HDR scene composition | Accepted | The canonical New Eden composition passes direct FP16 validation, complete inventory checks, distinct controls, full product capture, and relative pacing at windowed and native resolutions. |
@@ -1665,6 +1719,13 @@ The following checks passed on the host snapshot above:
 - exact installed-client legacy-bloom selection and Black-value validation,
   atomic half-resolution FP16 bloom/post-tone/final readback, distinct
   off/bloom/grain controls, and a passing 180-frame integrated RC-11 run;
+- checksummed staging of eleven RC-12A distortion inputs plus a separate
+  generated-CMF hash; one 40-triangle native distortion batch produces a
+  localized full-resolution vector map and one successful client compositor
+  draw;
+- frozen matched distortion off/on captures with distinct pre-tone and final
+  hashes, byte-identical depth/normal/reflection/shadow/atlas/AO/bent-normal
+  products, and a passing 540-frame relative-pacing run;
 - visible-window render-plus-present pacing at 60.26 mean FPS with all relative
   gates passing; hidden-window pacing is excluded because WindowServer
   throttles fully occluded CAMetalLayer drawables;
@@ -1681,9 +1742,10 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Isolate authored distortion and volumetric/froxel effects under RC-12.
-2. Resume velocity and TAA only after those composition effects are accepted.
-3. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+1. Isolate volumetric/froxel effects under RC-12B.
+2. Reconstruct authored booster plumes, particles, and trails under RC-05D.
+3. Resume velocity and TAA only after RC-12B and RC-05D are accepted.
+4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

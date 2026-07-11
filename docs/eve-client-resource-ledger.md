@@ -304,3 +304,31 @@ client bytecode used to establish `newBloom=false` is
 `/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
 (30,935,325 bytes, SHA-256
 `232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`).
+
+### RC-12A authored distortion resources
+
+`Reports/AsteroDistortionResources.json` stages the native compositor and
+records inherited Astero inputs without copying client payloads into source:
+
+```text
+res:/graphics/effect.metal/managed/space/postprocess/distortion.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/distortion.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/distortion.sm_depth
+res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_*
+res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2
+res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black
+res:/dx9/model/spaceobjectfactory/factions/soebase.black
+res:/texture/sprite/warptunnel4_n.dds
+res:/dx9/model/ship/soe/frigate/soef1/soef1_t1_mask.dds
+```
+
+The authoritative indices are
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/resfileindex_macOS.txt`
+and `.../resfileindex.txt`; the generated manifest records every absolute
+hashed `ResFiles/` source, byte size, SHA-256, and ignored destination. The
+high compositor source is
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/91/91d41a4e03d2ae5f_e8217fbb46815c7f0c7638f187b4ac2b`
+(SHA-256 `c887ac26e00220a28a732f7f75ce03c870edf80e99a8df305eaf627172ee9fc9`).
+`Reports/AsteroDistortionGeneratedCmf.sha256` records the generated CMF hash
+separately. The older `res:/fisfx/postprocess/distortion.black` is intentionally
+excluded because it belongs to the legacy postprocess-job path.

@@ -115,6 +115,40 @@ struct TrinityStandalonePostFinishValidation
 	double grainMaximumAbsoluteError = 0.0;
 };
 
+struct TrinityStandaloneDistortionDiagnostics
+{
+	bool valid = false;
+	bool enabled = false;
+	bool mapCreated = false;
+	bool backgroundBatches = false;
+	bool foregroundBatches = false;
+	bool copySucceeded = false;
+	bool compositeSucceeded = false;
+	uint32_t submittedBatches = 0;
+	uint32_t submittedIndices = 0;
+	uint32_t backgroundApplications = 0;
+	uint32_t foregroundApplications = 0;
+	uint32_t mapWidth = 0;
+	uint32_t mapHeight = 0;
+	uint32_t mapFormat = 0;
+	uint64_t mapHash = 0;
+	uint64_t neutralPixels = 0;
+	uint64_t nonNeutralPixels = 0;
+	uint64_t saturatedPixels = 0;
+	uint8_t minimumRed = 255;
+	uint8_t maximumRed = 0;
+	uint8_t minimumGreen = 255;
+	uint8_t maximumGreen = 0;
+	uint32_t affectedMinX = 0;
+	uint32_t affectedMinY = 0;
+	uint32_t affectedMaxX = 0;
+	uint32_t affectedMaxY = 0;
+	uint64_t offPreTonemapHash = 0;
+	uint64_t authoredPreTonemapHash = 0;
+	uint64_t offFinalHash = 0;
+	uint64_t authoredFinalHash = 0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
@@ -134,3 +168,8 @@ extern "C" bool TrinityStandaloneProbeGetToneValidation(
 extern "C" bool TrinityStandaloneProbeGetPostFinishValidation(
 	void* opaqueProbe,
 	TrinityStandalonePostFinishValidation* validation );
+extern "C" bool TrinityStandaloneProbeConfigureDistortion( void* opaqueProbe, int distortionMode );
+extern "C" bool TrinityStandaloneProbeGetDistortionDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneDistortionDiagnostics* diagnostics );
+extern "C" bool TrinityStandaloneProbeValidateDistortion( void* opaqueProbe );
