@@ -679,6 +679,15 @@ void EveEffectRoot2::SetTransform( const Matrix& transform )
 	Decompose( m_scaling, m_rotation, m_translation, transform );
 }
 
+void EveEffectRoot2::SetDisplay( bool display )
+{
+	if( m_display != display )
+	{
+		m_display = display;
+		ReRegister();
+	}
+}
+
 // -----------------------------------------------------------------------------
 void EveEffectRoot2::PlayCurveSet( const std::string& name, const std::string& rangeName )
 {

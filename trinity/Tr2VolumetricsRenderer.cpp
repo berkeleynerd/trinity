@@ -260,6 +260,8 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 			if( volumetric->UpdateVolumetricLightmap( renderContext ) )
 			{
 				++m_lastDiagnostics.localLightmapUpdates;
+				++m_totalLocalLightmapUpdates;
+				m_lastDiagnostics.totalLocalLightmapUpdates = m_totalLocalLightmapUpdates;
 			}
 		} );
 	}
@@ -281,6 +283,27 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 	m_lastDiagnostics.volumeHeight = height;
 	m_lastDiagnostics.volumeLayers = slices;
 	m_lastDiagnostics.volumeFormat = static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT );
+	m_lastDiagnostics.localLayerPackSucceeded = true;
+
+#if TRINITY_PLATFORM == TRINITY_METAL
+	std::array<Tr2GpuResourcePool::Texture, slices> volumeRenderTargets;
+	for( uint32_t layer = 0; layer < slices; ++layer )
+	{
+		char name[32];
+		sprintf_s( name, "VolumetricSliceRT%u", layer );
+		volumeRenderTargets[layer] = gpuResourcePool.GetTempTexture(
+			name,
+			width,
+			height,
+			Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT,
+			Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
+		if( !volumeRenderTargets[layer].IsValid() )
+		{
+			m_lastDiagnostics.localLayerPackSucceeded = false;
+			return GetEmptyVolumetricTexture( gpuResourcePool );
+		}
+	}
+#endif
 
 	renderContext.m_esm.PushRenderTarget( 0 );
 	renderContext.m_esm.PushRenderTarget( 1 );
@@ -312,10 +335,17 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 
 	GlobalStore().RegisterVariable( "VolumetricDepthMap", volumetricDepth.IsValid() ? volumetricDepth.Get() : sceneDepth );
 
+#if TRINITY_PLATFORM == TRINITY_METAL
+	for( uint32_t layer = 0; layer < slices; ++layer )
+	{
+		renderContext.m_esm.SetRenderTarget( layer, volumeRenderTargets[layer] );
+	}
+#else
 	renderContext.m_esm.SetRenderTarget( 0, volumeSlices, true, 0 );
 	renderContext.m_esm.SetRenderTarget( 1, volumeSlices, true, 1 );
 	renderContext.m_esm.SetRenderTarget( 2, volumeSlices, true, 2 );
 	renderContext.m_esm.SetRenderTarget( 3, volumeSlices, true, 3 );
+#endif
 
 	renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0, 0, 0, 0 );
 	renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0, 0, 0, 1 );
@@ -343,6 +373,19 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderVolumetrics(
 		renderContext.RenderBatches( m_batches.get() );
 		m_batches->Clear();
 	}
+
+#if TRINITY_PLATFORM == TRINITY_METAL
+	for( uint32_t layer = 0; layer < slices; ++layer )
+	{
+		m_lastDiagnostics.localLayerPackSucceeded =
+			SUCCEEDED( volumeSlices->CopySubresourceRegion(
+				Tr2TextureSubresource( layer, 0 ),
+				volumeRenderTargets[layer],
+				Tr2TextureSubresource( 0, 0 ),
+				renderContext ) ) &&
+			m_lastDiagnostics.localLayerPackSucceeded;
+	}
+#endif
 
 	if( m_blur )
 	{
@@ -575,8 +618,14 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 	const Matrix& projectionLast )
 {
 	const bool mieUpdateSucceeded = m_lastDiagnostics.mieUpdateSucceeded;
+	const uint32_t localShadowBatchCount = m_lastDiagnostics.localShadowBatchCount;
+	const bool localOutputCopySucceeded = m_lastDiagnostics.localOutputCopySucceeded;
 	m_lastDiagnostics = {};
 	m_lastDiagnostics.mieUpdateSucceeded = mieUpdateSucceeded;
+	m_lastDiagnostics.localShadowBatchCount = localShadowBatchCount;
+	m_lastDiagnostics.localOutputCopySucceeded = localOutputCopySucceeded;
+	m_lastDiagnostics.totalLocalLightmapUpdates = m_totalLocalLightmapUpdates;
+	m_lastDiagnostics.totalLocalShadowBatches = m_totalLocalShadowBatches;
 	m_lastDiagnostics.froxelEnabled = HasFog();
 	auto fog = RenderFog( m_fogResources, renderContext, gpuResourcePool, width, height, cascadedShadowMap, raytracingGeometry, shadowQuality, sunDirection, sunColor, origin, originShift, view, projection, viewLast, projectionLast );
 	if( const Tr2TextureAL* mie = GetMieEnvironmentMap(); mie && mie->IsValid() )
@@ -1246,6 +1295,10 @@ void Tr2VolumetricsRenderer::RenderShadows(
 	{
 		GPU_REGION( renderContext, "Volumetric Shadows" );
 
+		const uint32_t batchCount = static_cast<uint32_t>( m_batches->GetBatchCount() );
+		m_lastDiagnostics.localShadowBatchCount = batchCount;
+		m_totalLocalShadowBatches += batchCount;
+		m_lastDiagnostics.totalLocalShadowBatches = m_totalLocalShadowBatches;
 		m_batches->Finalize();
 
 		renderContext.m_esm.PushRenderTarget( shadowMap );

@@ -88,6 +88,9 @@ EveChildCloud2::EveChildCloud2( IRoot* lockobj ) :
 	m_receiveShadows( true ),
 	m_lightmapDirty( true ),
 	m_renderedLastFrame( true ),
+	m_densityOverride( -1.0f ),
+	m_albedoOverride( 0, 0, 0, 0 ),
+	m_hasAlbedoOverride( false ),
 	m_declaration( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
 	m_sortingModifier( 1.0f ),
 	m_minScreenSize( 0.0f ),
@@ -705,6 +708,14 @@ void EveChildCloud2::UpdateAsyncronous( const EveUpdateContext& updateContext, c
 
 	m_adjustedMinScreenSize = m_minScreenSize * updateContext.GetLodFactor();
 	m_hasUpdated = true;
+	if( m_densityOverride >= 0.0f && m_effect )
+	{
+		m_effect->SetParameter( BlueSharedString( "Density" ), m_densityOverride );
+	}
+	if( m_hasAlbedoOverride && m_effect )
+	{
+		m_effect->SetParameter( BlueSharedString( "Albedo" ), m_albedoOverride );
+	}
 }
 
 void EveChildCloud2::GetDebugOptions( Tr2DebugRendererOptions& options )

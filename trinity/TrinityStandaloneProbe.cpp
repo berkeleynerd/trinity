@@ -57,6 +57,7 @@
 #include "Resources/TriGeometryRes.h"
 #include "Resources/Tr2LightProfileRes.h"
 #include "Shader/Tr2Effect.h"
+#include "Shader/Parameter/Tr2Vector4Parameter.h"
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "Shader/Tr2Shader.h"
 #include "TrinityStandaloneCmfModel.h"
@@ -3031,6 +3032,10 @@ struct StandaloneProbe
 		bloomReadback = Tr2TextureAL{};
 		finalPostProcessReadback = Tr2TextureAL{};
 		distortionReadback = Tr2TextureAL{};
+		for( Tr2TextureAL& readback : volumeSliceReadbacks )
+		{
+			readback = Tr2TextureAL{};
+		}
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
 		volumeSlicesVisualizer.Unlock();
@@ -3040,6 +3045,7 @@ struct StandaloneProbe
 		ssao.Unlock();
 		froxelVolume.Unlock();
 		froxelRoot.Unlock();
+		silkCloud.Unlock();
 		silkCloudRoot.Unlock();
 		scene.Unlock();
 		renderable.Unlock();
@@ -3074,6 +3080,7 @@ struct StandaloneProbe
 	EveSpaceSceneRenderDriverPtr driver;
 	Tr2SSAOPtr ssao;
 	EveEffectRoot2Ptr silkCloudRoot;
+	EveChildCloud2Ptr silkCloud;
 	EveEffectRoot2Ptr froxelRoot;
 	EveChildFogVolumePtr froxelVolume;
 	BluePtr<TrinityStandaloneRenderable> renderable;
@@ -3092,11 +3099,13 @@ struct StandaloneProbe
 	Tr2TextureAL bloomReadback;
 	Tr2TextureAL finalPostProcessReadback;
 	Tr2TextureAL distortionReadback;
+	std::array<Tr2TextureAL, 4> volumeSliceReadbacks;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
 	TrinityStandaloneToneValidation toneValidation;
 	TrinityStandalonePostFinishValidation postFinishValidation;
 	TrinityStandaloneDistortionDiagnostics distortionDiagnostics;
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
+	TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
 	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
 	Tr2PPTonemappingEffectPtr clientTonemapping;
 	Tr2PPBloomEffectPtr clientBloom;
@@ -3126,6 +3135,18 @@ struct StandaloneProbe
 	std::vector<uint8_t> capturedProductPixels;
 	uint32_t capturedProductWidth = 0;
 	uint32_t capturedProductHeight = 0;
+	uint64_t capturedProductHash = 0;
+	uint64_t capturedProductNonzeroPixels = 0;
+	uint8_t capturedProductMinimum = 255;
+	uint8_t capturedProductMaximum = 0;
+	uint32_t capturedProductMinX = 0;
+	uint32_t capturedProductMinY = 0;
+	uint32_t capturedProductMaxX = 0;
+	uint32_t capturedProductMaxY = 0;
+	uint64_t capturedVolumeRawHash = 0;
+	uint64_t capturedVolumeRawNonzeroPixels = 0;
+	double capturedVolumeRawMinimum = 0.0;
+	double capturedVolumeRawMaximum = 0.0;
 	bool reportedResolvedLights = false;
 	bool reportedLocalShadowStats = false;
 	bool aoProductValidated = false;
@@ -5397,6 +5418,114 @@ bool EnsureRenderProductReadback( StandaloneProbe& probe, Tr2RenderContext& rend
 	return true;
 }
 
+bool EnsureVolumeSliceReadbacks(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext,
+	uint32_t width,
+	uint32_t height )
+{
+	for( uint32_t layer = 0; layer < probe.volumeSliceReadbacks.size(); ++layer )
+	{
+		Tr2TextureAL& readback = probe.volumeSliceReadbacks[layer];
+		if( readback.IsValid() && readback.GetWidth() == width && readback.GetHeight() == height )
+		{
+			continue;
+		}
+		readback = Tr2TextureAL{};
+		const HRESULT result = readback.Create(
+			Tr2BitmapDimensions(
+				width,
+				height,
+				1,
+				Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ),
+			Tr2GpuUsage::COPY_DESTINATION,
+			Tr2CpuUsage::READ,
+			renderContext.GetPrimaryRenderContext() );
+		if( FAILED( result ) )
+		{
+			std::fprintf(
+				stderr,
+				"Failed to create CPU-readable volume layer %u (HRESULT=0x%08x)\n",
+				layer,
+				result );
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ReadRawVolumeSlices( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	uint64_t hash = fnvOffset;
+	uint64_t nonzeroPixels = 0;
+	double minimum = std::numeric_limits<double>::max();
+	double maximum = -std::numeric_limits<double>::max();
+
+	for( uint32_t layer = 0; layer < probe.volumeSliceReadbacks.size(); ++layer )
+	{
+		Tr2TextureAL& readback = probe.volumeSliceReadbacks[layer];
+		const void* sourceData = nullptr;
+		uint32_t sourcePitch = 0;
+		if( FAILED( readback.MapForReading(
+				Tr2TextureSubresource( 0 ), true, sourceData, sourcePitch, renderContext ) ) ||
+			!sourceData )
+		{
+			std::fprintf( stderr, "Failed to read raw volume layer %u\n", layer );
+			return false;
+		}
+		uint64_t layerNonzeroPixels = 0;
+		double layerMinimum = std::numeric_limits<double>::max();
+		double layerMaximum = -std::numeric_limits<double>::max();
+		const size_t rowBytes = static_cast<size_t>( readback.GetWidth() ) * sizeof( Float_16 ) * 4;
+		for( uint32_t y = 0; y < readback.GetHeight(); ++y )
+		{
+			const uint8_t* row = static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+			for( size_t byte = 0; byte < rowBytes; ++byte )
+			{
+				hash ^= row[byte];
+				hash *= fnvPrime;
+			}
+			const Float_16* pixels = reinterpret_cast<const Float_16*>( row );
+			for( uint32_t x = 0; x < readback.GetWidth(); ++x )
+			{
+				bool nonzero = false;
+				for( uint32_t channel = 0; channel < 4; ++channel )
+				{
+					const double value = static_cast<float>( pixels[x * 4 + channel] );
+					if( !std::isfinite( value ) )
+					{
+						readback.UnmapForReading( renderContext );
+						std::fprintf( stderr, "Volume layer %u contains non-finite values\n", layer );
+						return false;
+					}
+					nonzero = nonzero || value != 0.0;
+					layerMinimum = std::min( layerMinimum, value );
+					layerMaximum = std::max( layerMaximum, value );
+				}
+				layerNonzeroPixels += nonzero ? 1 : 0;
+			}
+		}
+		readback.UnmapForReading( renderContext );
+		nonzeroPixels += layerNonzeroPixels;
+		minimum = std::min( minimum, layerMinimum );
+		maximum = std::max( maximum, layerMaximum );
+		std::fprintf(
+			stderr,
+			"EVE raw volume layer %u: nonzero=%llu range=[%.8f,%.8f]\n",
+			layer,
+			static_cast<unsigned long long>( layerNonzeroPixels ),
+			layerMinimum,
+			layerMaximum );
+	}
+	probe.capturedVolumeRawHash = hash;
+	probe.capturedVolumeRawNonzeroPixels = nonzeroPixels;
+	probe.capturedVolumeRawMinimum = minimum;
+	probe.capturedVolumeRawMaximum = maximum;
+	return nonzeroPixels > 0 && maximum > minimum;
+}
+
 bool EnsureHdrCompositeReadback( StandaloneProbe& probe, Tr2RenderContext& renderContext )
 {
 	if( probe.hdrCompositeReadback.IsValid() &&
@@ -6208,6 +6337,14 @@ bool ReadVisualizedRenderProduct(
 
 	uint8_t minimum = 255;
 	uint8_t maximum = 0;
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	uint64_t hash = fnvOffset;
+	uint64_t nonzeroPixels = 0;
+	uint32_t minX = probe.capturedProductWidth;
+	uint32_t minY = probe.capturedProductHeight;
+	uint32_t maxX = 0;
+	uint32_t maxY = 0;
 	for( uint32_t y = 0; y < probe.capturedProductHeight; ++y )
 	{
 		const uint8_t* sourceRow = static_cast<const uint8_t*>( sourceData ) +
@@ -6215,6 +6352,11 @@ bool ReadVisualizedRenderProduct(
 		uint8_t* destinationRow = probe.capturedProductPixels.data() +
 			static_cast<size_t>( y ) * probe.capturedProductWidth * 4;
 		std::memcpy( destinationRow, sourceRow, static_cast<size_t>( probe.capturedProductWidth ) * 4 );
+		for( size_t byte = 0; byte < static_cast<size_t>( probe.capturedProductWidth ) * 4; ++byte )
+		{
+			hash ^= sourceRow[byte];
+			hash *= fnvPrime;
+		}
 		for( uint32_t x = 0; x < probe.capturedProductWidth; ++x )
 		{
 			const uint8_t* destination = destinationRow + x * 4;
@@ -6223,9 +6365,25 @@ bool ReadVisualizedRenderProduct(
 			const uint8_t blue = destination[2];
 			minimum = std::min( minimum, std::min( red, std::min( green, blue ) ) );
 			maximum = std::max( maximum, std::max( red, std::max( green, blue ) ) );
+			if( red != 0 || green != 0 || blue != 0 )
+			{
+				++nonzeroPixels;
+				minX = std::min( minX, x );
+				minY = std::min( minY, y );
+				maxX = std::max( maxX, x );
+				maxY = std::max( maxY, y );
+			}
 		}
 	}
 	probe.renderProductReadback.UnmapForReading( renderContext );
+	probe.capturedProductHash = hash;
+	probe.capturedProductNonzeroPixels = nonzeroPixels;
+	probe.capturedProductMinimum = minimum;
+	probe.capturedProductMaximum = maximum;
+	probe.capturedProductMinX = nonzeroPixels ? minX : 0;
+	probe.capturedProductMinY = nonzeroPixels ? minY : 0;
+	probe.capturedProductMaxX = nonzeroPixels ? maxX : 0;
+	probe.capturedProductMaxY = nonzeroPixels ? maxY : 0;
 
 	const bool requireVariation = captureProduct == STANDALONE_CAPTURE_SHADOW ||
 		captureProduct == STANDALONE_CAPTURE_SHADOW_ATLAS ||
@@ -6242,11 +6400,17 @@ bool ReadVisualizedRenderProduct(
 		  probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC );
 	std::fprintf(
 		stderr,
-		"EVE render-product readback: output=%ux%u range=[%u,%u]\n",
+		"EVE render-product readback: output=%ux%u hash=%016llx nonzero=%llu range=[%u,%u] bounds=[%u,%u-%u,%u]\n",
 		probe.capturedProductWidth,
 		probe.capturedProductHeight,
+		static_cast<unsigned long long>( hash ),
+		static_cast<unsigned long long>( nonzeroPixels ),
 		minimum,
-		maximum );
+		maximum,
+		probe.capturedProductMinX,
+		probe.capturedProductMinY,
+		probe.capturedProductMaxX,
+		probe.capturedProductMaxY );
 	if( requireVariation && minimum == maximum )
 	{
 		std::fprintf( stderr, "Enabled EVE render product is uniform and cannot satisfy its runtime contract\n" );
@@ -6714,6 +6878,38 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					std::fprintf( stderr, "MieEnvironmentMap does not match the 128x128 float cube contract\n" );
 					ok = false;
 				}
+				if( ok && volumeSlicesProduct )
+				{
+					if( Tr2VolumetricsRendererPtr volumetrics = probe.scene->GetVolumetricsRenderer() )
+					{
+						const auto& volumeDiagnostics = volumetrics->GetDiagnostics();
+						std::fprintf(
+							stderr,
+							"EVE volume source diagnostics: renderables=%u batches=%u lightmapUpdates=%u pack=%s blit=%s\n",
+							volumeDiagnostics.localRenderableCount,
+							volumeDiagnostics.localBatchCount,
+							volumeDiagnostics.localLightmapUpdates,
+							volumeDiagnostics.localLayerPackSucceeded ? "ok" : "failed",
+							volumeDiagnostics.localBlitSucceeded ? "ok" : "failed" );
+					}
+					ok = EnsureVolumeSliceReadbacks(
+							 probe,
+							 renderContext,
+							 selectedTexture->GetWidth(),
+							 selectedTexture->GetHeight() ) &&
+						ok;
+					for( uint32_t layer = 0; ok && layer < probe.volumeSliceReadbacks.size(); ++layer )
+					{
+						ok = CheckHresult(
+							 probe.volumeSliceReadbacks[layer].CopySubresourceRegion(
+								 Tr2TextureSubresource( 0, 0 ),
+								 *selectedTexture,
+								 Tr2TextureSubresource( layer, 0 ),
+								 renderContext ),
+							 "Copy raw volume layer" ) &&
+							ok;
+					}
+				}
 				const bool visualizerReady = cubeProduct ?
 					PrepareReflectionProductVisualizer( probe ) :
 					( volumeSlicesProduct ?
@@ -6778,11 +6974,25 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 							 "Clear render-product readback target" ) &&
 						ok;
 					renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
-					ok = Tr2Renderer::DrawTexture( renderContext, visualizer, *selectedTexture ) && ok;
+					if( volumeSlicesProduct )
+					{
+						visualizer->SetParameter( BlueSharedString( "BlitSource" ), *selectedTexture );
+						ok = Tr2Renderer::DrawTexture(
+							 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) && ok;
+						visualizer->SetParameter( BlueSharedString( "BlitSource" ), Tr2TextureAL{} );
+					}
+					else
+					{
+						ok = Tr2Renderer::DrawTexture( renderContext, visualizer, *selectedTexture ) && ok;
+					}
 					ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End render-product readback" ) && ok;
 					renderContextOpen = false;
 					if( ok )
 					{
+						if( volumeSlicesProduct )
+						{
+							ok = ReadRawVolumeSlices( probe, renderContext ) && ok;
+						}
 						if( hdrCompositeProduct )
 						{
 							ok = ReadRawHdrComposite( probe, renderContext );
@@ -6816,11 +7026,17 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						renderContext.m_esm.SetDepthStencilBuffer( {} );
 						renderContext.m_esm.SetFullScreenViewport();
 						renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
-						ok = Tr2Renderer::DrawTexture(
-								 renderContext,
-								 visualizer,
-								 *selectedTexture ) &&
-							ok;
+						if( volumeSlicesProduct )
+						{
+							visualizer->SetParameter( BlueSharedString( "BlitSource" ), *selectedTexture );
+							ok = Tr2Renderer::DrawTexture(
+								 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) && ok;
+							visualizer->SetParameter( BlueSharedString( "BlitSource" ), Tr2TextureAL{} );
+						}
+						else
+						{
+							ok = Tr2Renderer::DrawTexture( renderContext, visualizer, *selectedTexture ) && ok;
+						}
 					}
 				}
 				else
@@ -7030,6 +7246,18 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 			 expectsSilk ? "one authored Silk volumetric renderable" : "local volumetric renderables disabled" );
 	require( froxelSettingsCount == ( expectsFroxel ? 1u : 0u ) && froxelFogActive == expectsFroxel,
 			 expectsFroxel ? "one active native froxel settings component" : "froxel fog disabled" );
+	if( expectsSilk )
+	{
+		const auto& volume = probe.scene->m_volumetricsRenderer->GetDiagnostics();
+		require( probe.silkCloud && !probe.silkCloud->IsLightmapDirty() &&
+				 volume.localRenderableCount == 1 && volume.localBatchCount == 1 &&
+				 volume.volumeWidth > 1 && volume.volumeHeight > 1 && volume.volumeLayers == 4 &&
+				 volume.volumeFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+				 volume.localLayerPackSucceeded && volume.localDepthDownsampleSucceeded &&
+				 volume.localBlurSucceeded && volume.localBlitSucceeded &&
+				 volume.totalLocalLightmapUpdates > 0 && volume.totalLocalShadowBatches > 0,
+			 "settled native Silk local-volume composition" );
+	}
 
 	const auto& settings = probe.driver->GetSettings();
 	require( !settings.bypassPostProcessing && !settings.postProcessBlitOnly,
@@ -8039,6 +8267,7 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 	probe.volumetricMode = mode;
 	probe.volumetricQuality = qualities[quality];
 	probe.volumetricSeed = seed;
+	probe.volumetricDiagnostics = {};
 	Tr2VolumetricsRendererPtr renderer = probe.scene->GetVolumetricsRenderer();
 	if( !renderer )
 	{
@@ -8114,17 +8343,69 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 			return false;
 		}
 		uint32_t cloudChildren = 0;
-		for( IEveSpaceObjectChild* child : probe.silkCloudRoot->GetChildren() )
-		{
+		std::function<void( IEveSpaceObjectChild* )> countClouds = [&]( IEveSpaceObjectChild* child ) {
 			EveChildCloud2Ptr cloud = BlueCastPtr( child );
 			if( cloud )
 			{
 				++cloudChildren;
+				probe.silkCloud = cloud;
 			}
+			EveChildContainerPtr container = BlueCastPtr( child );
+			if( container )
+			{
+				for( IEveSpaceObjectChild* nested : container->m_objects )
+				{
+					countClouds( nested );
+				}
+			}
+		};
+		for( IEveSpaceObjectChild* child : probe.silkCloudRoot->GetChildren() )
+		{
+			countClouds( child );
 		}
 		if( cloudChildren != 1 )
 		{
 			error = "Silk fixture does not contain exactly one EveChildCloud2";
+			return false;
+		}
+		if( !probe.silkCloud->GetEffect() ||
+			!PrepareEffectResourcesWithoutYield( *probe.silkCloud->GetEffect(), "loaded Silk cloud", error ) ||
+			!probe.silkCloud->GetReflectionEffect() ||
+			!PrepareEffectResourcesWithoutYield(
+				*probe.silkCloud->GetReflectionEffect(), "loaded Silk reflection proxy", error ) ||
+			!probe.silkCloud->Initialize() || !probe.silkCloudRoot->Initialize() )
+		{
+			if( error.empty() )
+			{
+				error = "Silk EveChildCloud2 failed to initialize";
+			}
+			return false;
+		}
+		Vector4 authoredAlbedo( 0, 0, 0, 0 );
+		for( const char* colorName : { "CloudColor1", "CloudColor2" } )
+		{
+			Tr2Vector4ParameterPtr color = BlueCastPtr(
+				probe.silkCloud->GetReflectionEffect()->GetParameterByName( colorName ) );
+			if( color )
+			{
+				const Vector4 value = color->GetValue();
+				std::fprintf(
+					stderr,
+					"EVE Silk authored %s=(%.8f,%.8f,%.8f,%.8f)\n",
+					colorName,
+					value.x,
+					value.y,
+					value.z,
+					value.w );
+				if( strcmp( colorName, "CloudColor2" ) == 0 )
+				{
+					authoredAlbedo = value;
+				}
+			}
+		}
+		if( authoredAlbedo.x == 0.0f && authoredAlbedo.y == 0.0f && authoredAlbedo.z == 0.0f )
+		{
+			error = "Silk fixture has no usable authored CloudColor2 albedo";
 			return false;
 		}
 		Vector4 cloudSphere;
@@ -8138,21 +8419,28 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 			3.8f * probe.modelWorldScale );
 		probe.silkCloudRoot->SetTransform(
 			ScalingMatrix( fixtureScale, fixtureScale, fixtureScale ) * TranslationMatrix( fixturePosition ) );
-		probe.silkCloudRoot->SetControllerVariable( "Density", 2.0f );
-		probe.silkCloudRoot->SetControllerVariable( "TemperatureControl", 1.0f );
+		probe.silkCloudRoot->SetControllerVariable( "density", 2.0f );
+		probe.silkCloudRoot->SetControllerVariable( "brightness", 2.0f );
+		probe.silkCloud->SetDensityOverride( 2.0f );
+		probe.silkCloud->SetAlbedoOverride( authoredAlbedo );
 		probe.silkCloudRoot->StartControllers();
 		probe.silkCloudRoot->Start();
 		probe.scene->Objects().Insert( -1, probe.silkCloudRoot->GetRawRoot() );
 		std::fprintf(
 			stderr,
 			"EVE RC-12B Silk fixture: path=res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black "
-			"children=%u authoredRadius=%.6f scale=%.6f position=(%.6f,%.6f,%.6f) pointLights=0\n",
+			"children=%u authoredRadius=%.6f scale=%.6f position=(%.6f,%.6f,%.6f) "
+			"densityOverride=2.0 albedoOverride=(%.8f,%.8f,%.8f,%.8f) pointLights=0\n",
 			cloudChildren,
 			authoredRadius,
 			fixtureScale,
 			fixturePosition.x,
 			fixturePosition.y,
-			fixturePosition.z );
+			fixturePosition.z,
+			authoredAlbedo.x,
+			authoredAlbedo.y,
+			authoredAlbedo.z,
+			authoredAlbedo.w );
 	}
 
 	if( wantsFroxel )
@@ -8767,6 +9055,18 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetSilkEnabled( void* opaqueProbe, bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->silkCloudRoot || !probe->silkCloud ||
+		probe->volumetricMode != STANDALONE_VOLUMETRICS_SILK )
+	{
+		return false;
+	}
+	probe->silkCloudRoot->SetDisplay( enabled );
+	return probe->silkCloudRoot->GetDisplay() == enabled;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneVolumetricDiagnostics* diagnostics )
@@ -8776,6 +9076,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	{
 		return false;
 	}
+	if( probe->volumetricDiagnostics.validationAttempted )
+	{
+		*diagnostics = probe->volumetricDiagnostics;
+		return true;
+	}
+	*diagnostics = {};
 	Tr2VolumetricsRendererPtr renderer = probe->scene->GetVolumetricsRenderer();
 	if( !renderer )
 	{
@@ -8792,6 +9098,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	diagnostics->localDepthDownsampleSucceeded = source.localDepthDownsampleSucceeded;
 	diagnostics->localBlurSucceeded = source.localBlurSucceeded;
 	diagnostics->localBlitSucceeded = source.localBlitSucceeded;
+	diagnostics->localLayerPackSucceeded = source.localLayerPackSucceeded;
+	diagnostics->localOutputCopySucceeded = source.localOutputCopySucceeded;
+	diagnostics->localLightmapSettled = probe->silkCloud && !probe->silkCloud->IsLightmapDirty();
 	diagnostics->mode = static_cast<uint32_t>( probe->volumetricMode );
 	diagnostics->quality = static_cast<uint32_t>( probe->volumetricQuality );
 	diagnostics->seed = probe->volumetricSeed;
@@ -8801,6 +9110,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 		0;
 	diagnostics->localBatchCount = source.localBatchCount;
 	diagnostics->localLightmapUpdates = source.localLightmapUpdates;
+	diagnostics->localShadowBatchCount = source.localShadowBatchCount;
+	diagnostics->totalLocalLightmapUpdates = source.totalLocalLightmapUpdates;
+	diagnostics->totalLocalShadowBatches = source.totalLocalShadowBatches;
 	diagnostics->volumeWidth = source.volumeWidth;
 	diagnostics->volumeHeight = source.volumeHeight;
 	diagnostics->volumeLayers = source.volumeLayers;
@@ -8842,16 +9154,105 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe )
 {
-	TrinityStandaloneVolumetricDiagnostics diagnostics;
-	if( !TrinityStandaloneProbeGetVolumetricDiagnostics( opaqueProbe, &diagnostics ) )
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->silkCloudRoot || !probe->silkCloud ||
+		probe->volumetricMode != STANDALONE_VOLUMETRICS_SILK ||
+		probe->volumetricQuality != Tr2VolumerticQuality::High ||
+		probe->qualityRung != STANDALONE_PROBE_RUNG_HDR_FINISH )
 	{
 		return false;
 	}
+
+	const Be::Time realTime = static_cast<Be::Time>( probe->lastRealTime );
+	const Be::Time simTime = static_cast<Be::Time>( probe->lastSimTime );
+	bool ok = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_VOLUME_SLICES );
+	TrinityStandaloneVolumetricDiagnostics diagnostics;
+	if( !TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &diagnostics ) )
+	{
+		return false;
+	}
+	diagnostics.validationAttempted = true;
+	diagnostics.volumeProductHash = probe->capturedProductHash;
+	diagnostics.volumeProductNonzeroPixels = probe->capturedProductNonzeroPixels;
+	diagnostics.volumeRawHash = probe->capturedVolumeRawHash;
+	diagnostics.volumeRawNonzeroPixels = probe->capturedVolumeRawNonzeroPixels;
+	diagnostics.volumeRawMinimum = probe->capturedVolumeRawMinimum;
+	diagnostics.volumeRawMaximum = probe->capturedVolumeRawMaximum;
+	diagnostics.volumeProductMinimum = probe->capturedProductMinimum;
+	diagnostics.volumeProductMaximum = probe->capturedProductMaximum;
+	diagnostics.volumeProductMinX = probe->capturedProductMinX;
+	diagnostics.volumeProductMinY = probe->capturedProductMinY;
+	diagnostics.volumeProductMaxX = probe->capturedProductMaxX;
+	diagnostics.volumeProductMaxY = probe->capturedProductMaxY;
+
+	auto capturePairedProduct = [&]( int product, uint64_t& silkHash, uint64_t& offHash ) {
+		bool pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, true );
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, product ) && pairOk;
+		silkHash = probe->capturedProductHash;
+		pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, false ) && pairOk;
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, product ) && pairOk;
+		offHash = probe->capturedProductHash;
+		pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, true ) && pairOk;
+		return pairOk;
+	};
+	auto capturePairedHdr = [&]() {
+		bool pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, true );
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE ) && pairOk;
+		diagnostics.silkPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+		pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, false ) && pairOk;
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE ) && pairOk;
+		diagnostics.offPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+		pairOk = TrinityStandaloneProbeSetSilkEnabled( probe, true ) && pairOk;
+		return pairOk;
+	};
+
+	ok = capturePairedHdr() && ok;
+	ok = capturePairedProduct(
+			 STANDALONE_CAPTURE_FINAL_POSTPROCESS, diagnostics.silkFinalHash, diagnostics.offFinalHash ) &&
+		ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_SHADOW, diagnostics.silkShadowHash, diagnostics.offShadowHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_DEPTH, diagnostics.silkDepthHash, diagnostics.offDepthHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_NORMAL, diagnostics.silkNormalHash, diagnostics.offNormalHash ) && ok;
+	ok = capturePairedProduct(
+			 STANDALONE_CAPTURE_SHADOW_ATLAS,
+			 diagnostics.silkShadowAtlasHash,
+			 diagnostics.offShadowAtlasHash ) &&
+		ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_AO, diagnostics.silkAoHash, diagnostics.offAoHash ) && ok;
+	ok = capturePairedProduct(
+			 STANDALONE_CAPTURE_BENT_NORMAL,
+			 diagnostics.silkBentNormalHash,
+			 diagnostics.offBentNormalHash ) &&
+		ok;
+	const bool restored = TrinityStandaloneProbeSetSilkEnabled( probe, true );
+	ok = restored && DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_COLOR ) && ok;
+
+	const bool localContract = diagnostics.localRenderableCount == 1 && diagnostics.localBatchCount == 1 &&
+		diagnostics.volumeFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+		diagnostics.localDepthDownsampleSucceeded && diagnostics.localBlurSucceeded &&
+		diagnostics.localBlitSucceeded && diagnostics.localLayerPackSucceeded &&
+		diagnostics.localOutputCopySucceeded &&
+		diagnostics.totalLocalLightmapUpdates > 0 && diagnostics.localLightmapSettled &&
+		diagnostics.localShadowBatchCount > 0 && diagnostics.totalLocalShadowBatches > 0;
+	const bool productContract = diagnostics.volumeProductNonzeroPixels > 0 &&
+		diagnostics.volumeProductMinimum != diagnostics.volumeProductMaximum &&
+		diagnostics.volumeRawNonzeroPixels > 0 && diagnostics.volumeRawMaximum > diagnostics.volumeRawMinimum;
+	const bool affectedProducts = diagnostics.offPreTonemapHash != diagnostics.silkPreTonemapHash &&
+		diagnostics.offFinalHash != diagnostics.silkFinalHash &&
+		diagnostics.offShadowHash != diagnostics.silkShadowHash;
+	const bool preservedProducts = diagnostics.offDepthHash == diagnostics.silkDepthHash &&
+		diagnostics.offNormalHash == diagnostics.silkNormalHash &&
+		diagnostics.offShadowAtlasHash == diagnostics.silkShadowAtlasHash &&
+		diagnostics.offAoHash == diagnostics.silkAoHash &&
+		diagnostics.offBentNormalHash == diagnostics.silkBentNormalHash;
+	diagnostics.valid = ok && localContract && productContract && affectedProducts && preservedProducts;
+	probe->volumetricDiagnostics = diagnostics;
 	std::fprintf(
 		stderr,
-		"EVE RC-12B diagnostics: mode=%u quality=%u seed=%u local=%u batches=%u slices=%ux%ux%u/%u "
-		"froxelSettings=%u fog=%s grid=%ux%ux%u/%u temporal=%s passes=[%s,%s,%s,%s] "
-		"mie=%ux%u/%u lights=%u validation=%s\n",
+		"EVE RC-12B1 diagnostics: mode=%u quality=%u seed=%u local=%u batches=%u slices=%ux%ux%u/%u "
+		"copy=%s lightmap=[updates=%llu settled=%s] shadows=[batches=%u total=%llu] "
+		"product=[hash=%016llx nonzero=%llu range=%u-%u] "
+		"affected=[pre=%s final=%s shadow=%s] preserved=[depth=%s normal=%s atlas=%s ao=%s bent=%s] validation=%s\n",
 		diagnostics.mode,
 		diagnostics.quality,
 		diagnostics.seed,
@@ -8861,21 +9262,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateVolumetrics( void* 
 		diagnostics.volumeHeight,
 		diagnostics.volumeLayers,
 		diagnostics.volumeFormat,
-		diagnostics.froxelSettingsCount,
-		diagnostics.froxelEnabled ? "on" : "off",
-		diagnostics.froxelWidth,
-		diagnostics.froxelHeight,
-		diagnostics.froxelDepth,
-		diagnostics.froxelFormat,
-		diagnostics.temporalEnabled ? "on" : "off",
-		diagnostics.calculateSucceeded ? "calculate" : "FAILED",
-		diagnostics.temporalFilterSucceeded ? "filter" : "FAILED",
-		diagnostics.raymarchSucceeded ? "raymarch" : "FAILED",
-		diagnostics.applySucceeded ? "apply" : "FAILED",
-		diagnostics.mieWidth,
-		diagnostics.mieHeight,
-		diagnostics.mieFormat,
-		diagnostics.dynamicLightCount,
+		diagnostics.localOutputCopySucceeded ? "ok" : "FAILED",
+		static_cast<unsigned long long>( diagnostics.totalLocalLightmapUpdates ),
+		diagnostics.localLightmapSettled ? "yes" : "no",
+		diagnostics.localShadowBatchCount,
+		static_cast<unsigned long long>( diagnostics.totalLocalShadowBatches ),
+		static_cast<unsigned long long>( diagnostics.volumeProductHash ),
+		static_cast<unsigned long long>( diagnostics.volumeProductNonzeroPixels ),
+		static_cast<unsigned>( diagnostics.volumeProductMinimum ),
+		static_cast<unsigned>( diagnostics.volumeProductMaximum ),
+		diagnostics.offPreTonemapHash != diagnostics.silkPreTonemapHash ? "changed" : "SAME",
+		diagnostics.offFinalHash != diagnostics.silkFinalHash ? "changed" : "SAME",
+		diagnostics.offShadowHash != diagnostics.silkShadowHash ? "changed" : "SAME",
+		diagnostics.offDepthHash == diagnostics.silkDepthHash ? "same" : "CHANGED",
+		diagnostics.offNormalHash == diagnostics.silkNormalHash ? "same" : "CHANGED",
+		diagnostics.offShadowAtlasHash == diagnostics.silkShadowAtlasHash ? "same" : "CHANGED",
+		diagnostics.offAoHash == diagnostics.silkAoHash ? "same" : "CHANGED",
+		diagnostics.offBentNormalHash == diagnostics.silkBentNormalHash ? "same" : "CHANGED",
 		diagnostics.valid ? "pass" : "fail" );
 	return diagnostics.valid;
 }

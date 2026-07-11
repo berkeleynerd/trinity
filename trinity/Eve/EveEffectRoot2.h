@@ -163,6 +163,11 @@ public:
 	PIEveSpaceObjectChildVector& GetChildren();
 
 	void SetTransform( const Matrix& transform );
+	void SetDisplay( bool display );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
 
 	void FreezeHighDetailMesh();
 	void UpdateControllers( float updateFrequency );

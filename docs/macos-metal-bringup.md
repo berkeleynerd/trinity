@@ -1540,7 +1540,28 @@ serialized `EveChildCloud2` objects but none in these fixtures, no serialized
 `EveChildFogVolume`, and no client Python construction of one. Silk placement
 and global fog values are therefore sample-owned capability fixtures.
 
-Native froxel execution is unsafe in this Metal checkout. Runs with temporal
+RC-12B is split after local-volume acceptance. RC-12B1 recursively discovers
+the fixture's `EveEffectRoot2 -> EveChildContainer -> EveChildCloud2` graph and
+synchronously initializes the loaded effects and textures. Black loading has
+initialization disabled in this probe, so preparing separate shader resources
+was insufficient: unresolved controller state drove `Density` and `Albedo` to
+zero. The probe now records an explicit high-quality bootstrap: density `2.0`
+and the fixture's authored `CloudColor2=(0.0578054, 0.0193824, 0.0159963,
+0.1647059)`. Placement remains sample-owned at radius
+`2.2*modelWorldScale` and position `(-3.2,1.8,3.8)*modelWorldScale`.
+
+Metal also produced zero output when four pixel outputs targeted four slices
+of one texture array. The macOS path renders those outputs to four independent
+FP16 targets and packs them into Trinity's expected four-layer array before
+blur and composition. The retained `volume-slices` product now has raw and
+visualized hashes, per-layer ranges, and localized bounds. A 180-frame
+1280x720 paired validator reports one local batch, 52 lightmap updates followed
+by settled state, and native cloud-shadow submission. Silk changes pre-tone,
+final, and screen-shadow hashes while depth, normal, cascade atlas, AO, and
+bent normals remain identical. This accepts local VDB machinery as capability
+evidence, not New Eden fidelity.
+
+RC-12B2 global froxel execution is unsafe in this Metal checkout. Runs with temporal
 history enabled and disabled both stalled command-buffer completion and
 triggered host reboots at 21:34 and 21:46 on 2026-07-11. The retained report
 names `TrinityALEveSceneProbe_metal_debug`, shows 109 seconds blocked in Metal
@@ -1587,7 +1608,8 @@ make those prerequisites explicit.
 | 5 | Exposure and tone mapping | Accepted | Client histogram exposure and baked Uncharted2 output pass direct CPU, temporal, A/B, integrated, and manual gates. |
 | 6 | Bloom and film grain | Accepted | Client-selected legacy bloom and authored film grain pass exact-contract, native-pass, atomic readback, isolated A/B, and integrated composition gates. |
 | 6B | Authored distortion | Accepted | Native map generation and scene warping pass isolated and integrated gates. |
-| 6C | Volumetrics | Blocked | Resources and observability are present; global froxel Metal compute must pass isolated GPU-safety gates before visual validation. |
+| 6C | Authored local VDB volumetrics | Accepted as capability | Silk produces nonuniform four-layer FP16 data, settles its native lightmap, casts cloud shadows, and passes paired composition/product gates. Placement and quality bootstrap are probe-owned. |
+| 6D | Global froxel volumetrics | Blocked | Resources and observability are present; global froxel Metal compute must pass isolated GPU-safety gates before execution. |
 | 7 | Velocity and TAA | Missing | Publish correct current/previous transforms and validate velocity before TAA. |
 
 `hdr-post` now carries the accepted RC-09 composition contract.
@@ -1770,6 +1792,9 @@ The following checks passed on the host snapshot above:
 - checksummed staging of 38 RC-12B volumetric inputs, deterministic fixture
   controls, local/froxel/Mie named outputs, and a fail-closed global-froxel
   gate after two reproducible AGX/WindowServer watchdog reboots;
+- RC-12B1 recursive Silk graph discovery, loaded-effect initialization,
+  explicit high-density/authored-albedo bootstrap, Metal four-target packing,
+  nonuniform FP16 layer readback, and a passing 180-frame paired A/B contract;
 - visible-window render-plus-present pacing at 60.26 mean FPS with all relative
   gates passing; hidden-window pacing is excluded because WindowServer
   throttles fully occluded CAMetalLayer drawables;
@@ -1786,12 +1811,11 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Audit each RC-12B Mie and 3D UAV compute pass without running the complete
+1. Reconstruct authored booster plumes, particles, and trails under RC-05D.
+2. Resume velocity and TAA with Silk and engine-effect ghosting controls.
+3. Audit each RC-12B2 Mie and 3D UAV compute pass without running the complete
    froxel chain on this host.
-2. Validate the authored Silk local-volume fixture independently.
-3. Reconstruct authored booster plumes, particles, and trails under RC-05D.
-4. Resume velocity and TAA only after RC-12B and RC-05D are accepted.
-5. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

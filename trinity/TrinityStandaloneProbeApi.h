@@ -152,6 +152,7 @@ struct TrinityStandaloneDistortionDiagnostics
 struct TrinityStandaloneVolumetricDiagnostics
 {
 	bool valid = false;
+	bool validationAttempted = false;
 	bool froxelEnabled = false;
 	bool temporalEnabled = false;
 	bool calculateSucceeded = false;
@@ -162,6 +163,9 @@ struct TrinityStandaloneVolumetricDiagnostics
 	bool localDepthDownsampleSucceeded = false;
 	bool localBlurSucceeded = false;
 	bool localBlitSucceeded = false;
+	bool localLayerPackSucceeded = false;
+	bool localOutputCopySucceeded = false;
+	bool localLightmapSettled = false;
 	uint32_t mode = 0;
 	uint32_t quality = 0;
 	uint32_t seed = 0;
@@ -169,6 +173,9 @@ struct TrinityStandaloneVolumetricDiagnostics
 	uint32_t froxelSettingsCount = 0;
 	uint32_t localBatchCount = 0;
 	uint32_t localLightmapUpdates = 0;
+	uint32_t localShadowBatchCount = 0;
+	uint64_t totalLocalLightmapUpdates = 0;
+	uint64_t totalLocalShadowBatches = 0;
 	uint32_t volumeWidth = 0;
 	uint32_t volumeHeight = 0;
 	uint32_t volumeLayers = 0;
@@ -181,6 +188,34 @@ struct TrinityStandaloneVolumetricDiagnostics
 	uint32_t mieHeight = 0;
 	uint32_t mieFormat = 0;
 	uint32_t dynamicLightCount = 0;
+	uint64_t volumeProductHash = 0;
+	uint64_t volumeProductNonzeroPixels = 0;
+	uint64_t volumeRawHash = 0;
+	uint64_t volumeRawNonzeroPixels = 0;
+	double volumeRawMinimum = 0.0;
+	double volumeRawMaximum = 0.0;
+	uint8_t volumeProductMinimum = 255;
+	uint8_t volumeProductMaximum = 0;
+	uint32_t volumeProductMinX = 0;
+	uint32_t volumeProductMinY = 0;
+	uint32_t volumeProductMaxX = 0;
+	uint32_t volumeProductMaxY = 0;
+	uint64_t offPreTonemapHash = 0;
+	uint64_t silkPreTonemapHash = 0;
+	uint64_t offFinalHash = 0;
+	uint64_t silkFinalHash = 0;
+	uint64_t offShadowHash = 0;
+	uint64_t silkShadowHash = 0;
+	uint64_t offDepthHash = 0;
+	uint64_t silkDepthHash = 0;
+	uint64_t offNormalHash = 0;
+	uint64_t silkNormalHash = 0;
+	uint64_t offShadowAtlasHash = 0;
+	uint64_t silkShadowAtlasHash = 0;
+	uint64_t offAoHash = 0;
+	uint64_t silkAoHash = 0;
+	uint64_t offBentNormalHash = 0;
+	uint64_t silkBentNormalHash = 0;
 };
 
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
@@ -212,6 +247,7 @@ extern "C" bool TrinityStandaloneProbeConfigureVolumetrics(
 	int mode,
 	int quality,
 	uint32_t seed );
+extern "C" bool TrinityStandaloneProbeSetSilkEnabled( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneVolumetricDiagnostics* diagnostics );

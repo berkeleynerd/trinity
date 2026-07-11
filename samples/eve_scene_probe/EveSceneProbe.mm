@@ -2443,6 +2443,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		options.volumetrics == VolumetricMode::Auto ? VolumetricMode::Off : options.volumetrics;
 	options.resolvedVolumetricQuality =
 		options.volumetricQuality == VolumetricQuality::Auto ? VolumetricQuality::High : options.volumetricQuality;
+	if( options.resolvedVolumetrics == VolumetricMode::Froxel ||
+		options.resolvedVolumetrics == VolumetricMode::All )
+	{
+		std::cerr
+			<< "Global froxel volumetrics are blocked before Metal initialization: native AGX compute submission "
+				"triggered the macOS WindowServer watchdog. Use --volumetrics off or silk.\n";
+		return false;
+	}
 	if( options.resolvedVolumetrics != VolumetricMode::Off && options.qualityRung < QualityRung::Scene )
 	{
 		std::cerr << "Volumetric fixtures require the scene rung or higher\n";
@@ -2577,10 +2585,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.validateVolumetrics &&
-		( options.resolvedVolumetrics == VolumetricMode::Off || options.maxFrames <= 0 ||
+		( options.resolvedVolumetrics != VolumetricMode::Silk ||
+		  options.resolvedVolumetricQuality != VolumetricQuality::High ||
+		  options.qualityRung != QualityRung::HdrFinish || options.maxFrames <= 0 ||
 		  options.capturePrefix.empty() ) )
 	{
-		std::cerr << "--validate-volumetrics requires an explicit fixture, finite frames, and --capture-prefix\n";
+		std::cerr
+			<< "--validate-volumetrics requires --volumetrics silk --volumetric-quality high, hdr-finish, "
+				"finite frames, and --capture-prefix\n";
+		return false;
+	}
+	if( options.validateVolumetrics && !ValidateCanonicalCompositionOptions( options ) )
+	{
 		return false;
 	}
 	if( options.renderProduct != RenderProduct::Window &&
@@ -2931,6 +2947,8 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "volumetricSeed=" << options.volumetricSeed << "\n";
 	metadata << "volumetricClientPolicy=high; ultra-diagnostic-only\n";
 	metadata << "volumetricFixtureAuthorship=silk-client-authored; froxel-sample-owned\n";
+	metadata << "volumetricFixturePlacement=sample-authored radius=2.2*modelWorldScale position=(-3.2,1.8,3.8)*modelWorldScale\n";
+	metadata << "validateVolumetrics=" << ( options.validateVolumetrics ? "true" : "false" ) << "\n";
 	metadata << "validateDistortion=" << ( options.validateDistortion ? "true" : "false" ) << "\n";
 	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
 	metadata << "exposureHold=" << options.exposureHold << "\n";
@@ -3407,6 +3425,86 @@ bool WriteDistortionContractJson( const Options& options, const TrinityStandalon
 	return output.good();
 }
 
+bool WriteVolumetricContractJson( const Options& options, const TrinityStandaloneVolumetricDiagnostics& diagnostics )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_volumetric-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/VolumetricResources.json";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	if( !manifestInput || manifest.str().empty() )
+	{
+		std::cerr << "RC-12B1 could not read the volumetric resource manifest: " << manifestPath << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	output << "{\n"
+		   << "  \"profile\": \"RC-12B1\",\n"
+		   << "  \"fixture\": \"res:/fisfx/vdb/worldobjectcloud2/silkset_01/silk_01a_graybrown.black\",\n"
+		   << "  \"authorship\": \"client-authored cloud, sample-authored placement\",\n"
+		   << "  \"placement\": {\"targetRadiusScale\": 2.2, \"positionScale\": [-3.2, 1.8, 3.8]},\n"
+		   << "  \"quality\": \"" << VolumetricQualityName( options.resolvedVolumetricQuality ) << "\",\n"
+		   << "  \"resolutionScale\": 0.7,\n"
+		   << "  \"seed\": " << diagnostics.seed << ",\n"
+		   << "  \"volume\": {\"dimensions\": [" << diagnostics.volumeWidth << ", "
+		   << diagnostics.volumeHeight << ", " << diagnostics.volumeLayers << "], \"format\": "
+		   << diagnostics.volumeFormat << ", \"copySucceeded\": "
+		   << ( diagnostics.localOutputCopySucceeded ? "true" : "false" ) << "},\n"
+		   << "  \"passes\": {\"renderables\": " << diagnostics.localRenderableCount
+		   << ", \"batches\": " << diagnostics.localBatchCount
+		   << ", \"depthDownsample\": " << ( diagnostics.localDepthDownsampleSucceeded ? "true" : "false" )
+		   << ", \"blur\": " << ( diagnostics.localBlurSucceeded ? "true" : "false" )
+		   << ", \"composition\": " << ( diagnostics.localBlitSucceeded ? "true" : "false" ) << "},\n"
+		   << "  \"lightmap\": {\"updates\": " << diagnostics.totalLocalLightmapUpdates
+		   << ", \"settled\": " << ( diagnostics.localLightmapSettled ? "true" : "false" ) << "},\n"
+		   << "  \"cloudShadows\": {\"lastBatches\": " << diagnostics.localShadowBatchCount
+		   << ", \"totalBatches\": " << diagnostics.totalLocalShadowBatches << "},\n"
+		   << "  \"visualization\": {\"hash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+		   << diagnostics.volumeProductHash << std::dec << "\", \"nonzeroPixels\": "
+		   << diagnostics.volumeProductNonzeroPixels << ", \"range\": ["
+		   << static_cast<unsigned>( diagnostics.volumeProductMinimum ) << ", "
+		   << static_cast<unsigned>( diagnostics.volumeProductMaximum ) << "], \"bounds\": ["
+		   << diagnostics.volumeProductMinX << ", " << diagnostics.volumeProductMinY << ", "
+		   << diagnostics.volumeProductMaxX << ", " << diagnostics.volumeProductMaxY << "]},\n"
+		   << "  \"rawVolume\": {\"hash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
+		   << diagnostics.volumeRawHash << std::dec << "\", \"nonzeroPixels\": "
+		   << diagnostics.volumeRawNonzeroPixels << ", \"range\": [" << diagnostics.volumeRawMinimum << ", "
+		   << diagnostics.volumeRawMaximum << "]},\n"
+		   << "  \"matchedHashes\": {\n"
+		   << std::hex << std::setfill( '0' )
+		   << "    \"preTonemap\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offPreTonemapHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkPreTonemapHash << "\"},\n"
+		   << "    \"final\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offFinalHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkFinalHash << "\"},\n"
+		   << "    \"shadow\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offShadowHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkShadowHash << "\"},\n"
+		   << "    \"depth\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offDepthHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkDepthHash << "\"},\n"
+		   << "    \"normal\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offNormalHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkNormalHash << "\"},\n"
+		   << "    \"cascadeAtlas\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offShadowAtlasHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkShadowAtlasHash << "\"},\n"
+		   << "    \"ao\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offAoHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkAoHash << "\"},\n"
+		   << "    \"bentNormal\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offBentNormalHash
+		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkBentNormalHash << "\"}\n"
+		   << std::dec << "  },\n"
+		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << ",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Volumetric contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -3772,9 +3870,10 @@ int main( int argc, char** argv )
 		bool volumetricValidationSucceeded = true;
 		if( options.validateVolumetrics )
 		{
-			volumetricValidationSucceeded = TrinityStandaloneProbeValidateVolumetrics( probe ) &&
-				TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics ) &&
-				volumetricDiagnostics.valid;
+			const bool validationRan = TrinityStandaloneProbeValidateVolumetrics( probe );
+			const bool diagnosticsRead =
+				TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics );
+			volumetricValidationSucceeded = validationRan && diagnosticsRead && volumetricDiagnostics.valid;
 		}
 		bool exposureReportsSucceeded = true;
 		if( collectExposureDiagnostics )
@@ -3809,6 +3908,11 @@ int main( int argc, char** argv )
 		{
 			exposureReportsSucceeded =
 				WriteDistortionContractJson( options, distortionDiagnostics ) && exposureReportsSucceeded;
+		}
+		if( options.validateVolumetrics )
+		{
+			exposureReportsSucceeded =
+				WriteVolumetricContractJson( options, volumetricDiagnostics ) && exposureReportsSucceeded;
 		}
 		bool captureSucceeded = true;
 		@autoreleasepool
@@ -3883,9 +3987,13 @@ int main( int argc, char** argv )
 					  << " seed=" << options.volumetricSeed << " local=" << volumetricDiagnostics.localRenderableCount
 					  << " batches=" << volumetricDiagnostics.localBatchCount
 					  << " slices=" << volumetricDiagnostics.volumeWidth << "x" << volumetricDiagnostics.volumeHeight
-					  << "x" << volumetricDiagnostics.volumeLayers << " froxel=" << volumetricDiagnostics.froxelWidth
-					  << "x" << volumetricDiagnostics.froxelHeight << "x" << volumetricDiagnostics.froxelDepth
-					  << " mie=" << volumetricDiagnostics.mieWidth << "x" << volumetricDiagnostics.mieHeight
+					  << "x" << volumetricDiagnostics.volumeLayers << " volumeHash=" << std::hex
+					  << std::setw( 16 ) << std::setfill( '0' ) << volumetricDiagnostics.volumeProductHash << std::dec
+					  << " nonzero=" << volumetricDiagnostics.volumeProductNonzeroPixels
+					  << " lightmapUpdates=" << volumetricDiagnostics.totalLocalLightmapUpdates
+					  << " lightmapSettled=" << ( volumetricDiagnostics.localLightmapSettled ? "true" : "false" )
+					  << " shadowBatches=" << volumetricDiagnostics.localShadowBatchCount
+					  << " outputCopy=" << ( volumetricDiagnostics.localOutputCopySucceeded ? "true" : "false" )
 					  << " validation=" << ( volumetricValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "volumetricValidation", stats.str() );
 			}
@@ -3970,10 +4078,11 @@ int main( int argc, char** argv )
 				}
 				else
 				{
-					const bool capturedHdrOnFinalFrame = options.renderProduct == RenderProduct::HdrComposite &&
-						options.maxFrames > 0 && renderedFrames == options.maxFrames;
+					const bool capturedProductOnFinalFrame = options.renderProduct != RenderProduct::Window &&
+						options.renderProduct != RenderProduct::Color && options.maxFrames > 0 &&
+						renderedFrames == options.maxFrames;
 					if( options.renderProduct != RenderProduct::Window &&
-						options.renderProduct != RenderProduct::Color && !capturedHdrOnFinalFrame )
+						options.renderProduct != RenderProduct::Color && !capturedProductOnFinalFrame )
 					{
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;

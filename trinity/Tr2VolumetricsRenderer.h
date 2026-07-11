@@ -154,9 +154,14 @@ public:
 		bool localDepthDownsampleSucceeded = false;
 		bool localBlurSucceeded = false;
 		bool localBlitSucceeded = false;
+		bool localLayerPackSucceeded = false;
+		bool localOutputCopySucceeded = false;
 		uint32_t localRenderableCount = 0;
 		uint32_t localBatchCount = 0;
 		uint32_t localLightmapUpdates = 0;
+		uint32_t localShadowBatchCount = 0;
+		uint64_t totalLocalLightmapUpdates = 0;
+		uint64_t totalLocalShadowBatches = 0;
 		uint32_t volumeWidth = 0;
 		uint32_t volumeHeight = 0;
 		uint32_t volumeLayers = 0;
@@ -174,6 +179,10 @@ public:
 	const Diagnostics& GetDiagnostics() const
 	{
 		return m_lastDiagnostics;
+	}
+	void SetLocalOutputCopySucceeded( bool succeeded )
+	{
+		m_lastDiagnostics.localOutputCopySucceeded = succeeded;
 	}
 	bool SetNoiseSeed( uint32_t seed, Tr2RenderContext& renderContext );
 	void ResetTemporalHistory();
@@ -259,6 +268,8 @@ private:
 
 	Tr2EffectPtr m_updateMieEnvironmentMap;
 	Diagnostics m_lastDiagnostics;
+	uint64_t m_totalLocalLightmapUpdates = 0;
+	uint64_t m_totalLocalShadowBatches = 0;
 
 	struct FogPerObjectData
 	{

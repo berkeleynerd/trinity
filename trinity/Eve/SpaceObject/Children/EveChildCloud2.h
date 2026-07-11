@@ -113,6 +113,23 @@ public:
 
 	bool IsLightmapDirty() const;
 	void MarkLightmapDirty( bool );
+	Tr2EffectPtr GetEffect() const
+	{
+		return m_effect;
+	}
+	Tr2EffectPtr GetReflectionEffect() const
+	{
+		return m_reflectionEffect;
+	}
+	void SetDensityOverride( float density )
+	{
+		m_densityOverride = density;
+	}
+	void SetAlbedoOverride( const Vector4& albedo )
+	{
+		m_albedoOverride = albedo;
+		m_hasAlbedoOverride = true;
+	}
 
 	struct LightData
 	{
@@ -195,6 +212,9 @@ private:
 	bool m_receiveShadows;
 	bool m_lightmapDirty;
 	bool m_renderedLastFrame;
+	float m_densityOverride;
+	Vector4 m_albedoOverride;
+	bool m_hasAlbedoOverride;
 	// Has UpdateSyncronous/UpdateAsyncronous been called: until it has, the object cannot be rendered
 	bool m_hasUpdated = false;
 

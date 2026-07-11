@@ -367,6 +367,12 @@ The selected Silk Black resolves to:
 It is 4,699 bytes with SHA-256
 `5928f40112f8fc79519193ce16026c9e1ade072ec5396b122c345cce39dcc655`.
 The generated manifest carries the absolute hashed source, size, and checksum
-for every other input. No listed payload is source controlled. Global froxel
-execution remains blocked by the documented AGX watchdog incident; staging
-these shaders is resource evidence only.
+for every other input. No listed payload is source controlled.
+
+RC-12B1 uses the Black-authored `CloudColor2` endpoint
+`(0.0578054, 0.0193824, 0.0159963, 0.1647059)` to replace the unavailable
+client brightness bootstrap and selects high density `2.0`. These are runtime
+settings, not staged payloads. Local VDB composition is accepted as capability
+evidence; the New Eden fixture does not author this cloud. RC-12B2 global
+froxel execution remains blocked by the documented AGX watchdog incident, so
+its staged shaders remain resource evidence only.

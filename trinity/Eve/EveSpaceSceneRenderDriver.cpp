@@ -614,7 +614,25 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 				&volumetricSlices );
 		}
 		SetNamedOutput( outputs, "FroxelFog", froxelFog );
-		SetNamedOutput( outputs, "VolumetricSlices", volumetricSlices );
+		if( Tr2VolumetricsRendererPtr volumetrics = m_scene->GetVolumetricsRenderer() )
+		{
+			volumetrics->SetLocalOutputCopySucceeded( false );
+			auto volumeOutput = FindNamedOutput( outputs, "VolumetricSlices" );
+			if( volumeOutput && volumetricSlices.IsValid() )
+			{
+				volumeOutput->texture = m_gpuResourcePool.GetTempTexture(
+					"VolumetricSlicesOutput",
+					volumetricSlices->GetDesc(),
+					Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::SHADER_RESOURCE );
+				const bool copied = volumeOutput->texture.IsValid() &&
+					SUCCEEDED( volumetricSlices->Resolve( volumeOutput->texture, renderContext ) );
+				volumetrics->SetLocalOutputCopySucceeded( copied );
+				if( !copied )
+				{
+					volumeOutput->texture = {};
+				}
+			}
+		}
 		if( Tr2VolumetricsRendererPtr volumetrics = m_scene->GetVolumetricsRenderer() )
 		{
 			const Tr2TextureAL* mie = volumetrics->GetMieEnvironmentMap();
