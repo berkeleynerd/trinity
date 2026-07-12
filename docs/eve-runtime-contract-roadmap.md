@@ -119,10 +119,10 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Make the prepared CP-36 EVE Gate graph actually render: chase the zero
-   bounding sphere through visibility culling, then the state machine and
-   transform modifiers; gate any visual claim on a facing-framing gate-off A/B.
-2. Advance PL-11C native warp through the accepted motion/reference-frame seam.
+1. Advance PL-11C native warp through the accepted motion/reference-frame seam.
+   (CP-36 EVE Gate rendering is accepted: initialize-on-read plus the authored
+   camera-anchored skybox contract; the demo presentation is parked by operator
+   direction and re-enabled with `--eve-gate authored`.)
 3. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
 4. Complete native full-screen ghosting inspection after transient classification passes.
 5. Keep RC-12B2 global froxels deferred and fail-closed.
