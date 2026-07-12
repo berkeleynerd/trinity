@@ -2238,9 +2238,19 @@ at both anchors are pixel-identical, consistent with pure frustum
 culling rather than a submission failure. The zero root bounding sphere
 is exonerated for culling (defaults leave the root at `LOD HIGH` with
 dynamic selection off) and remains only the documented ball-radius
-fallback. The remaining step is a fixture whose camera provably faces
-the landmark — a fixed look-at framing rather than the sweeping chase —
-with the gate-off A/B as the acceptance gate.
+fallback.
+
+The frustum culprit is the probe's `10,000`-unit far plane: a `60 km`
+standoff can never enter any fixture frustum. Moving the site anchor to
+an `8 km` standoff produces the first proven rendered gate
+contribution: the chase-approach gate-off A/B diverges by 330 pixels
+with maximum delta `160` in one localized band — real, strong pixels
+from the authored graph. The visible contribution is still faint
+relative to the in-game reference because the `DistanceRatio` state
+machine remains in its fail-closed default state; driving the authored
+near-state appearance (and re-deriving the chase-frame reference
+offset) is the remaining bring-up work before the acceptance-scale
+gate-off A/B.
 
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position

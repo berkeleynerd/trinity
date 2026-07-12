@@ -269,10 +269,10 @@ enum StandaloneCelestialAnchor
 	STANDALONE_CELESTIAL_ANCHOR_EVE_GATE = 1,
 };
 
-// Gate-site anchor: the fixture origin moves to a 60 km standoff from the
-// landmark so the authored graph is viewed at site range, as the client's
-// own screenshots are. All celestial offsets stay authored-relative.
-constexpr double kNewEdenGateSiteStandoff = 60000.0;
+// Gate-site anchor: the fixture origin moves to an 8 km standoff from the
+// landmark so the authored graph is viewed at site range inside the probe's
+// 10,000-unit far plane. All celestial offsets stay authored-relative.
+constexpr double kNewEdenGateSiteStandoff = 8000.0;
 
 enum StandaloneEveGateMode
 {
