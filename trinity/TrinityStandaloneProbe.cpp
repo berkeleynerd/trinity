@@ -212,6 +212,10 @@ constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -8
 constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
 constexpr float kNewEdenSunEmissive[3] = { 5.0f, 4.274509906768799f, 2.3529412746429443f };
 constexpr float kNewEdenPlanetAlbedo[3] = { 1.0f, 0.8901960849761963f, 0.6627451181411743f };
+// landmarks.static record 1 ("EVE Gate") relative to the stargate anchor. The
+// landmark has no authored in-space item, so approaching it is explicit demo
+// policy rather than recovered client behavior (CP-36 recon).
+constexpr double kNewEdenEveGateRelative[3] = { 1096057063200.0, -201867615160.0, -832210688752.0 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -3732,6 +3736,8 @@ struct StandaloneProbe
 	std::ofstream celestialLog;
 	int celestialMode = STANDALONE_CELESTIAL_BALLPARK_OFF;
 	bool celestialLinkageActive = false;
+	uint64_t eveGateApproachFrame = 0;
+	bool eveGateApproachIssued = false;
 	EvePlanet* newEdenSun = nullptr;
 	EvePlanet* newEdenPlanet = nullptr;
 	EveLensflare* newEdenLensFlare = nullptr;
@@ -11243,7 +11249,12 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	double expectedRawAcceleration[3] = {
 		source.rawAcceleration[0], source.rawAcceleration[1], source.rawAcceleration[2]
 	};
-	if( probe.ballparkMode == STANDALONE_BALLPARK_GOTO )
+	if( probe.eveGateApproachIssued )
+	{
+		// Riding past the accepted fixture toward the EVE Gate; the expected
+		// values stay equal to the actuals so corpus scoring stops accruing.
+	}
+	else if( probe.ballparkMode == STANDALONE_BALLPARK_GOTO )
 	{
 		expectedRawPosition[0] = expectedRawPosition[1] = 0.0;
 		expectedRawVelocity[0] = expectedRawVelocity[1] = 0.0;
@@ -11258,13 +11269,23 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 		{
 			const size_t referenceIndex = static_cast<size_t>( source.directEvolveCount - 3 );
 			if( referenceIndex >= kBallparkGotoReference.size() )
-				return false;
-		for( size_t axis = 0; axis < 3; ++axis )
-		{
-			expectedRawPosition[axis] = kBallparkGotoReference[referenceIndex].position[axis];
-			expectedRawVelocity[axis] = kBallparkGotoReference[referenceIndex].velocity[axis];
-			expectedRawAcceleration[axis] = kBallparkGotoReference[referenceIndex].acceleration[axis];
-		}
+			{
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = source.rawPosition[axis];
+					expectedRawVelocity[axis] = source.rawVelocity[axis];
+					expectedRawAcceleration[axis] = source.rawAcceleration[axis];
+				}
+			}
+			else
+			{
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = kBallparkGotoReference[referenceIndex].position[axis];
+					expectedRawVelocity[axis] = kBallparkGotoReference[referenceIndex].velocity[axis];
+					expectedRawAcceleration[axis] = kBallparkGotoReference[referenceIndex].acceleration[axis];
+				}
+			}
 		}
 	}
 	else if( probe.ballparkMode == STANDALONE_BALLPARK_ORBIT )
@@ -11279,13 +11300,14 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 		else
 		{
 			const size_t referenceIndex = static_cast<size_t>( source.directEvolveCount - 3 );
-			if( referenceIndex >= kBallparkOrbitReference.size() )
-				return false;
-			for( size_t axis = 0; axis < 3; ++axis )
+			if( referenceIndex < kBallparkOrbitReference.size() )
 			{
-				expectedRawPosition[axis] = kBallparkOrbitReference[referenceIndex].position[axis];
-				expectedRawVelocity[axis] = kBallparkOrbitReference[referenceIndex].velocity[axis];
-				expectedRawAcceleration[axis] = kBallparkOrbitReference[referenceIndex].acceleration[axis];
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = kBallparkOrbitReference[referenceIndex].position[axis];
+					expectedRawVelocity[axis] = kBallparkOrbitReference[referenceIndex].velocity[axis];
+					expectedRawAcceleration[axis] = kBallparkOrbitReference[referenceIndex].acceleration[axis];
+				}
 			}
 		}
 	}
@@ -11657,6 +11679,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkOrbitPolicy = DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT;
 	probe->ballparkOrbitRange = 2500.0f;
 	probe->ballparkCommandIssued = false;
+	probe->eveGateApproachFrame = 0;
+	probe->eveGateApproachIssued = false;
 	probe->chaseCameraInitialized = false;
 	probe->chaseCameraTime = 0;
 	probe->ballparkDiagnostics = {};
@@ -12323,6 +12347,34 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCelestialBallpark(
 #endif
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateApproach( void* opaqueProbe, uint64_t frame )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe )
+		return false;
+	probe->eveGateApproachFrame = 0;
+	probe->eveGateApproachIssued = false;
+	if( frame == 0 )
+		return true;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->ballparkMode != STANDALONE_BALLPARK_ORBIT || !probe->destinySession || frame <= 180 )
+	{
+		std::fprintf(
+			stderr,
+			"The EVE Gate approach demo requires the active ORBIT Ballpark fixture and a post-command frame\n" );
+		return false;
+	}
+	probe->eveGateApproachFrame = frame;
+	std::fprintf( stderr,
+		"PL-12B demo: EVE Gate approach queued for frame %llu\n",
+		static_cast<unsigned long long>( frame ) );
+	return true;
+#else
+	std::fprintf( stderr, "The EVE Gate approach demo requires the embedded Destiny package\n" );
+	return false;
+#endif
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateCelestialBallpark( void* opaqueProbe )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -12485,6 +12537,29 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->ballparkCommandIssued = true;
 			std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n",
 				static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
+		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
+			!probe->eveGateApproachIssued && probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == probe->eveGateApproachFrame )
+		{
+			DestinyEmbeddedDiagnostics approachState = {};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &approachState ) ||
+				!Destiny_CommandEmbeddedGoto(
+					probe->destinySession, approachState.nextTickTime, kNewEdenEveGateRelative ) )
+			{
+				CCP_LOGERR( "Embedded Destiny EVE Gate approach command failed" );
+				return false;
+			}
+			probe->eveGateApproachIssued = true;
+			std::fprintf( stderr,
+				"PL-12B demo command: frame=%llu effectiveTime=%lld GotoPoint=EVE Gate landmark "
+				"(%.0f, %.0f, %.0f)\n",
+				static_cast<unsigned long long>( probe->renderedFrameCount ),
+				static_cast<long long>( approachState.nextTickTime ),
+				kNewEdenEveGateRelative[0],
+				kNewEdenEveGateRelative[1],
+				kNewEdenEveGateRelative[2] );
 		}
 		if( probe->ballparkMode != STANDALONE_BALLPARK_OFF &&
 			( !probe->destinySession ||

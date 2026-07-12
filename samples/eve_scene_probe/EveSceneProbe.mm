@@ -602,6 +602,7 @@ struct Options
 	CelestialBallparkMode celestialBallpark = CelestialBallparkMode::Off;
 	bool validateCelestialBallpark = false;
 	std::string celestialLogPath;
+	uint64_t eveGateApproachFrame = 0;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2155,6 +2156,7 @@ void PrintUsage( const char* executable )
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
+		<< "       [--eve-gate-approach FRAME]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2376,6 +2378,16 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-celestial-ballpark" )
 		{
 			options.validateCelestialBallpark = true;
+		}
+		else if( arg == "--eve-gate-approach" )
+		{
+			if( ++i >= argc )
+				return false;
+			char* end = nullptr;
+			const unsigned long long parsed = std::strtoull( argv[i], &end, 10 );
+			if( !end || *end != '\0' || parsed == 0 )
+				return false;
+			options.eveGateApproachFrame = parsed;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3341,6 +3353,15 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "--validate-celestial-ballpark requires the 3780-frame exact-system Frontier-new 2500m "
 					 "hdr-post orbit fixture with natural celestials, sun flare effects, --celestial-log, and "
 					 "--capture-prefix\n";
+		return false;
+	}
+	if( options.eveGateApproachFrame != 0 &&
+		( options.ballpark != BallparkMode::Orbit || options.eveGateApproachFrame <= 180 ||
+		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
+		  options.validateCelestialBallpark || options.validateChaseCamera ) )
+	{
+		std::cerr << "--eve-gate-approach is a post-command ORBIT demo option and is incompatible with "
+					 "Ballpark validation fixtures\n";
 		return false;
 	}
 	if( options.validateChaseCamera &&
@@ -5039,6 +5060,13 @@ int main( int argc, char** argv )
 					options.celestialLogPath.empty() ? nullptr : options.celestialLogPath.c_str() ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureCelestialBallpark failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeConfigureEveGateApproach( probe, options.eveGateApproachFrame ) )
+			{
+				std::cerr << "TrinityStandaloneProbeConfigureEveGateApproach failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;

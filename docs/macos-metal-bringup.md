@@ -2189,3 +2189,15 @@ explicitly synthetic). The one open behavioral question is authored
 appearance selection: `DistanceRatio` has no recovered driving policy, so
 the bring-up starts from the graph's default state, fail-closed, and
 records what executes.
+
+The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
+queues a second native `GotoPoint` toward the recovered landmark position
+through the accepted next-tick command seam after the ORBIT fixture
+completes, so an unbounded chase run finishes one orbit and then rides
+toward the EVE Gate at native maximum velocity. It is a demo profile, not
+a validation fixture: it refuses to combine with the Ballpark validators,
+and once the approach command is issued the diagnostics stop scoring
+against the committed corpora (expected values track actuals) while
+trajectory hashing continues. A 900-frame smoke run turns from the orbit
+and aligns velocity with the gate direction to `0.999884` at maximum
+native speed.
