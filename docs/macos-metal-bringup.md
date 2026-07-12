@@ -2048,3 +2048,29 @@ focus error `11.411` degrees, and orbit bounds `-25..25` degrees. Small decals
 may cross Trinity's native 10-pixel culling threshold during the arc; this is
 logged rather than replaced. CP-33 is accepted as presentation capability,
 not EVE camera-policy fidelity.
+
+## PL-11B native Frontier orbit integration (2026-07-12)
+
+The probe adds `--ballpark orbit`, `--orbit-solver legacy|new`,
+`--orbit-range`, and `--validate-ballpark-orbit`. The accepted fixture selects
+`new`, holds STOP through frame 179, and queues `Orbit(1, 3, 2500)` for tick 3.
+Ball 3 is fixed, nonrendered, and has a 35 m radius. Across 3,780 frames the
+Astero performs two STOP and 60 ORBIT evolves.
+
+Ego and fixed-observer validation share trajectory hash
+`fa0da4fbe311e3f8`. Accumulated phase is `6.278067342` radians, final center
+distance is `2643.012492`, settled distance is `2642.426662..2643.012492`, and
+raw corpus errors are zero apart from `8.53e-14` acceleration noise. Observer
+curve/root error is `0.000122039`; ego remains exact. Six frozen captures
+cover pre-command, acceleration, quarter, half, three-quarter, and full orbit.
+
+The opt-in helper exists in installed `code.ccp`, but no caller was recovered.
+CP-34 records capability rather than current-client policy. PL-12 celestial
+Ballpark linkage is next; PL-11C warp remains queued.
+
+Manual inspection used the native full-screen `hdr-finish` chase profile with
+High TAA, client exposure/bloom/grain, authored distortion and engines,
+dynamic reflections, high cascades/CORTAO, and all New Eden celestial effects.
+It was launched directly in a foreground PTY and closed normally. Silk was
+excluded because it is a sample-authored capability fixture rather than part
+of the standard New Eden scene.

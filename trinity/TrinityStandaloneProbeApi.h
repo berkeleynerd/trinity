@@ -348,6 +348,8 @@ struct TrinityStandaloneBallparkDiagnostics
 	bool available = false;
 	bool valid = false;
 	bool motionValid = false;
+	bool orbitValid = false;
+	bool frontierOrbitEnabled = false;
 	bool pythonInitialized = false;
 	bool destinyPythonModulesAbsent = false;
 	bool schedulerRegistered = false;
@@ -389,6 +391,19 @@ struct TrinityStandaloneBallparkDiagnostics
 	double velocity[3] = {};
 	double acceleration[3] = {};
 	double gotoPoint[3] = {};
+	int64_t orbitTargetBallId = 0;
+	int64_t followBallId = 0;
+	float followRange = 0.0f;
+	double orbitTargetPosition[3] = {};
+	double orbitTargetVelocity[3] = {};
+	double orbitNormal[3] = {};
+	double orbitCenterDistance = 0.0;
+	double orbitSurfaceDistance = 0.0;
+	double orbitRadialVelocity = 0.0;
+	double orbitTangentialVelocity = 0.0;
+	double orbitAccumulatedPhase = 0.0;
+	double orbitSettledMinimumDistance = 1.0e30;
+	double orbitSettledMaximumDistance = 0.0;
 	float rotation[4] = {};
 	double referencePoint[3] = {};
 	double origin[3] = {};
@@ -472,9 +487,12 @@ extern "C" bool TrinityStandaloneProbeConfigureBallparkEx(
 	void* opaqueProbe,
 	int mode,
 	int referenceFrame,
+	int orbitPolicy,
+	float orbitRange,
 	const char* logPath );
 extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeValidateBallparkOrbit( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateChaseCamera( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,

@@ -95,6 +95,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-31 | Embedded Destiny Ballpark and Trinity curve/origin contract | Accepted | An installed `destinyEmbedded` package registers ten module-free Blue classes. One STOP `ClientBall` drives the Astero through `EveRootTransform`; its Ballpark supplies 180 successful scene-origin updates. Frozen control/static matrices, raw hashes, and encoded color/depth pairs are exact; two 180-frame CSVs are byte-identical. | PL-10 pins the authored quaternion after native evolve to preserve the null test. Authentic motion/orientation is PL-11; Ballpark's remaining Python containers are PL-13. |
 | CP-32 | Native Destiny STOP/GOTO render and reference-frame contract | Accepted | A native-orientation Astero holds STOP for 180 frames, then executes one tick-aligned `GotoPoint` over 17 motion evolves. Ego and fixed-observer renders share trajectory hash `8ee43851a6c2f115`; raw errors are below `5e-10`, curve/root error is below `6.1e-5`, and booster inputs consume Destiny velocity/acceleration. | PL-11A is accepted. Fixed-observer decals may obey their native 10-pixel culling threshold. Orbit, warp, approach, and align remain PL-11 gates. |
 | CP-33 | Destiny chase-camera visual diagnostic | Accepted as capability | A fixed-observer Ballpark drives a damped 48-degree over-shoulder camera through the complete STOP/GOTO fixture. The 1,200-frame gate records 3,055.9 units of camera travel, 61.5–371.0 units of ship distance, 11.41 degrees maximum focus error, and the complete ±25-degree arc. | This is a sample-owned presentation camera, not recovered EVE camera policy. Native 10-pixel decal culling remains active and observable during the arc. |
+| CP-34 | Native Destiny Frontier orbit and reference-frame contract | Accepted | After 180 STOP frames, the Astero performs 60 ORBIT evolves around fixed ball 3 at a requested 2,500 m surface range. Ego and observer share trajectory hash `fa0da4fbe311e3f8`; phase is `6.278067342`, final center distance is `2643.012492`, and maximum curve/root error is `0.000122039`. | Frontier orbit is explicit PL policy. Installed-client activation is unverified and the navigation target is nonrendered. |
 
 ## Rung-model holes
 
@@ -116,7 +117,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Advance PL-11B native orbit through the accepted CP-32 seam.
+1. Advance PL-12 natural celestial Ballpark placement and sun-ball linkage through CP-34.
 2. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
 3. Complete native full-screen ghosting inspection after transient classification passes.
 4. Keep RC-12B2 global froxels deferred and fail-closed.
@@ -124,8 +125,8 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
 retains fail-closed explicit modes independently. RC-05D booster/engine effects
 are accepted, making RC-13 velocity and TAA the active direct-path unit.
-The cross-repository PL-11A STOP/GOTO contract is accepted under CP-32; PL-11B
-native orbit is the next simulation/render integration unit.
+The cross-repository PL-11B Frontier orbit contract is accepted under CP-34.
+PL-12 celestial Ballpark linkage is next; PL-11C warp remains queued.
 
 ## Evidence policy
 
