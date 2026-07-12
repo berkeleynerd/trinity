@@ -377,6 +377,7 @@ constexpr int kCaptureVelocity = 1 << 20;
 constexpr int kCaptureTaaInput = 1 << 21;
 constexpr int kCaptureTaaOutput = 1 << 22;
 constexpr int kCaptureTaaCooldown = 1 << 23;
+constexpr int kCaptureTemporalSample = 1 << 24;
 
 enum class DynamicExposure
 {
@@ -407,6 +408,16 @@ enum class MotionMode
 	Camera,
 	Object,
 	Combined,
+};
+
+enum class TemporalTest
+{
+	Contract,
+	Velocity,
+	Edges,
+	Silk,
+	Trails,
+	Integrated,
 };
 
 enum class PostFinishMode
@@ -552,6 +563,7 @@ struct Options
 	TaaDebug taaDebug = TaaDebug::Off;
 	MotionMode motion = MotionMode::Camera;
 	bool validateTemporal = false;
+	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
 	uint32_t exposureHold = 180;
 };
@@ -1103,6 +1115,31 @@ bool ParseMotionMode( const std::string& value, MotionMode& result )
 	for( MotionMode candidate : { MotionMode::Static, MotionMode::Camera, MotionMode::Object, MotionMode::Combined } )
 	{
 		if( normalized == MotionModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string TemporalTestName( TemporalTest value )
+{
+	static const char* names[] = { "contract", "velocity", "edges", "silk", "trails", "integrated" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseTemporalTest( const std::string& value, TemporalTest& result )
+{
+	const std::string normalized = ToLower( value );
+	for( TemporalTest candidate : { TemporalTest::Contract,
+									TemporalTest::Velocity,
+									TemporalTest::Edges,
+									TemporalTest::Silk,
+									TemporalTest::Trails,
+									TemporalTest::Integrated } )
+	{
+		if( normalized == TemporalTestName( candidate ) )
 		{
 			result = candidate;
 			return true;
@@ -1999,6 +2036,7 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
+		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
 		<< "       [--engine-throttle FLOAT] [--validate-engines]\n"
@@ -2149,6 +2187,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--motion" )
 		{
 			if( ++i >= argc || !ParseMotionMode( argv[i], options.motion ) )
+				return false;
+		}
+		else if( arg == "--temporal-test" )
+		{
+			if( ++i >= argc || !ParseTemporalTest( argv[i], options.temporalTest ) )
 				return false;
 		}
 		else if( arg == "--bloom" )
@@ -2847,16 +2890,73 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "--frame-pacing-check requires a finite --frames count greater than --timing-warmup\n";
 		return false;
 	}
-	if( options.validateTemporal &&
-		( options.maxFrames <= 0 || options.capturePrefix.empty() || options.qualityRung < QualityRung::HdrPost ) )
+	if( options.validateTemporal )
 	{
-		std::cerr << "--validate-temporal requires hdr-post or higher, finite frames, and --capture-prefix\n";
-		return false;
-	}
-	if( options.validateTemporal && options.resolvedTaa != TaaMode::High )
-	{
-		std::cerr << "--validate-temporal requires resolved High TAA\n";
-		return false;
+		if( options.maxFrames <= 0 || options.capturePrefix.empty() || options.qualityRung < QualityRung::Model )
+		{
+			std::cerr << "--validate-temporal requires model or higher, finite frames, and --capture-prefix\n";
+			return false;
+		}
+		const bool velocityTest = options.temporalTest == TemporalTest::Velocity;
+		if( !velocityTest && ( options.qualityRung < QualityRung::HdrPost || options.resolvedTaa != TaaMode::High ) )
+		{
+			std::cerr << "This temporal test requires hdr-post or higher with resolved High TAA\n";
+			return false;
+		}
+		const uint32_t frameCount = static_cast<uint32_t>( options.maxFrames );
+		if( velocityTest && frameCount < ( options.motion == MotionMode::Static ? 180u : 240u ) )
+		{
+			std::cerr << "Velocity validation requires 180 static frames or at least 240 moving frames\n";
+			return false;
+		}
+		if( options.temporalTest == TemporalTest::Edges &&
+			( frameCount < 184 || options.motion != MotionMode::Static ) )
+		{
+			std::cerr << "Edge validation requires --motion static and at least 184 frames\n";
+			return false;
+		}
+		if( ( options.temporalTest == TemporalTest::Silk || options.temporalTest == TemporalTest::Trails ) &&
+			( frameCount < 300 || options.motion != MotionMode::Camera ) )
+		{
+			std::cerr << "Transient validation requires --motion camera and at least 300 frames\n";
+			return false;
+		}
+		const bool isolatedEffectsOff = options.resolvedAttachments == Attachments::Off &&
+			options.resolvedDecals == Decals::Off && options.localLights == LocalLights::Off &&
+			options.resolvedLocalShadows == LocalShadows::Off && options.resolvedShadows == Shadows::Off &&
+			options.resolvedAmbientOcclusion == AmbientOcclusion::Off &&
+			options.resolvedReflectionSource == ReflectionSource::Off &&
+			options.resolvedDistortion == DistortionMode::Off && options.resolvedSunEffects == SunEffects::Off;
+		if( options.temporalTest == TemporalTest::Edges &&
+			( !isolatedEffectsOff || options.resolvedVolumetrics != VolumetricMode::Off ||
+			  options.resolvedEngines != EngineMode::Off ) )
+		{
+			std::cerr << "Edge validation requires isolated opaque rendering with scene effects disabled\n";
+			return false;
+		}
+		if( options.temporalTest == TemporalTest::Silk &&
+			( !isolatedEffectsOff || options.resolvedVolumetrics != VolumetricMode::Silk ||
+			  options.resolvedEngines != EngineMode::Off ) )
+		{
+			std::cerr << "Silk validation requires isolated Silk with engines and other scene effects disabled\n";
+			return false;
+		}
+		if( options.temporalTest == TemporalTest::Trails &&
+			( !isolatedEffectsOff || options.resolvedVolumetrics != VolumetricMode::Off ||
+			  options.resolvedEngines != EngineMode::Authored || options.engineView != EngineView::Trails ) )
+		{
+			std::cerr << "Trail validation requires isolated authored engines with --engine-view trails\n";
+			return false;
+		}
+		if( options.temporalTest == TemporalTest::Integrated &&
+			( frameCount < 1080 || options.motion != MotionMode::Camera ||
+			  options.resolvedVolumetrics != VolumetricMode::Silk || options.resolvedEngines != EngineMode::Authored ||
+			  options.resolvedDistortion != DistortionMode::Authored ||
+			  !ValidateCanonicalCompositionOptions( options ) ) )
+		{
+			std::cerr << "Integrated temporal validation requires the 1080-frame canonical RC-13 profile\n";
+			return false;
+		}
 	}
 	if( options.validateComposition && options.maxFrames >= 0 &&
 		static_cast<uint32_t>( options.maxFrames ) < std::max( options.timingWarmup, 2u ) )
@@ -3248,6 +3348,7 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "taaDebug=" << TaaDebugName( options.taaDebug ) << "\n";
 	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
 	metadata << "temporalValidation=" << ( options.validateTemporal ? "requested" : "off" ) << "\n";
+	metadata << "temporalTest=" << TemporalTestName( options.temporalTest ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
 	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
 	metadata << "planetLayers=" << PlanetLayersName( options.planetLayers ) << "\n";
@@ -3949,13 +4050,6 @@ bool EvaluateTemporalSamples( const Options& options,
 		}
 	}
 	const auto& final = samples.back();
-	const bool expectsMotion = samples.size() > 180 && options.motion != MotionMode::Static;
-	const bool expectsTransientCooldown = samples.size() > 180 &&
-		( options.resolvedVolumetrics == VolumetricMode::Silk || options.resolvedEngines == EngineMode::Authored );
-	valid = valid && final.velocityInvalidPixels == 0 &&
-		final.velocityFinitePixels == static_cast<uint64_t>( width ) * height;
-	valid = valid && ( expectsMotion ? final.velocityMovingPixels > 0 : final.velocityMaximumMagnitude <= 0.05 );
-	valid = valid && ( !expectsTransientCooldown || final.taaCooldownNonzeroPixels > 0 );
 	std::ostringstream stats;
 	stats << "validation=" << ( valid ? "pass" : "fail" ) << " samples=" << samples.size() << " resets=" << resetCount
 		  << " frameIndex=" << final.taaFrameIndex << " quality=" << final.taaQuality
@@ -3975,13 +4069,10 @@ bool EvaluateTemporalSamples( const Options& options,
 
 bool WriteTemporalContractJson( const Options& options,
 								const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
+								const TrinityStandaloneTemporalValidation& validation,
 								const std::string& validationSummary,
 								bool validationPassed )
 {
-	if( samples.empty() )
-	{
-		return false;
-	}
 	const std::string outputPath = CaptureBasePath( options ) + "_temporal-contract.json";
 	if( !EnsureParentDirectory( outputPath ) )
 	{
@@ -4012,9 +4103,11 @@ bool WriteTemporalContractJson( const Options& options,
 	{
 		return false;
 	}
-	const auto& final = samples.back();
+	const TrinityStandalonePostProcessDiagnostics emptyDiagnostics = {};
+	const auto& final = samples.empty() ? emptyDiagnostics : samples.back();
 	output << "{\n"
 		   << "  \"profile\": \"RC-13\",\n"
+		   << "  \"test\": \"" << TemporalTestName( options.temporalTest ) << "\",\n"
 		   << "  \"requestedTaa\": \"" << TaaModeName( options.taa ) << "\",\n"
 		   << "  \"resolvedTaa\": \"" << TaaModeName( options.resolvedTaa ) << "\",\n"
 		   << "  \"debugMode\": \"" << TaaDebugName( options.taaDebug ) << "\",\n"
@@ -4041,6 +4134,39 @@ bool WriteTemporalContractJson( const Options& options,
 		   << "  \"cooldownReadback\": {\"rawHash\": \"" << std::hex << final.taaCooldownRawHash << std::dec
 		   << "\", \"nonzeroPixels\": " << final.taaCooldownNonzeroPixels
 		   << ", \"minimum\": " << final.taaCooldownMinimum << ", \"maximum\": " << final.taaCooldownMaximum << "},\n"
+		   << "  \"atomicCapture\": {\n"
+		   << "    \"samples\": " << validation.sampleCount << ", \"width\": " << validation.width
+		   << ", \"height\": " << validation.height << ",\n"
+		   << "    \"formats\": {\"depth\": " << validation.depthFormat
+		   << ", \"velocity\": " << validation.velocityFormat << ", \"opaque\": " << validation.opaqueFormat
+		   << ", \"preTaa\": " << validation.preTaaFormat << ", \"postTaa\": " << validation.postTaaFormat
+		   << ", \"cooldown\": " << validation.cooldownFormat << "},\n"
+		   << "    \"hashes\": {\"depth\": \"" << std::hex << validation.depthHash << "\", \"velocity\": \""
+		   << validation.velocityHash << "\", \"opaque\": \"" << validation.opaqueHash << "\", \"preTaa\": \""
+		   << validation.preTaaHash << "\", \"postTaa\": \"" << validation.postTaaHash << "\", \"cooldown\": \""
+		   << validation.cooldownHash << std::dec << "\"},\n"
+		   << "    \"velocity\": {\"interiorSamples\": " << validation.velocityInteriorSamples
+		   << ", \"excludedDiscontinuities\": " << validation.velocityExcludedDiscontinuities
+		   << ", \"invalidSamples\": " << validation.velocityInvalidSamples
+		   << ", \"staticMaximum\": " << validation.velocityStaticMaximum
+		   << ", \"meanError\": " << validation.velocityMeanError << ", \"p99Error\": " << validation.velocityP99Error
+		   << ", \"maximumError\": " << validation.velocityMaximumError << "},\n"
+		   << "    \"edges\": {\"pixels\": " << validation.edgePixels
+		   << ", \"preVarianceP95\": " << validation.preTaaEdgeVarianceP95
+		   << ", \"postVarianceP95\": " << validation.postTaaEdgeVarianceP95
+		   << ", \"ratio\": " << validation.edgeVarianceRatio
+		   << ", \"preMaximumLuminance\": " << validation.preTaaMaximumLuminance
+		   << ", \"postMaximumLuminance\": " << validation.postTaaMaximumLuminance << "},\n"
+		   << "    \"transients\": {\"currentPixels\": " << validation.currentTransientPixels
+		   << ", \"previousOnlyPixels\": " << validation.previousOnlyTransientPixels
+		   << ", \"cooldownActivePixels\": " << validation.cooldownActivePixels
+		   << ", \"cooldownMaximum\": " << validation.cooldownMaximum
+		   << ", \"cooldownOverlapPixels\": " << validation.cooldownOverlapPixels
+		   << ", \"cooldownOverlapFraction\": " << validation.cooldownOverlapFraction
+		   << ", \"currentEnergy\": " << validation.currentTransientEnergy
+		   << ", \"previousOnlyResidualEnergy\": " << validation.previousOnlyResidualEnergy
+		   << ", \"residualRatio\": " << validation.transientResidualRatio << "}\n"
+		   << "  },\n"
 		   << "  \"validationSummary\": \"" << validationSummary << "\",\n"
 		   << "  \"validationPassed\": " << ( validationPassed ? "true" : "false" ) << ",\n"
 		   << "  \"codeCcpPath\": \"" << codePath << "\",\n"
@@ -4132,7 +4258,8 @@ int main( int argc, char** argv )
 				ResolveClientTaa( options.taa, renderWidth, renderHeight ) :
 				TaaMode::Off;
 		}
-		if( options.validateTemporal && options.resolvedTaa != TaaMode::High )
+		if( options.validateTemporal && options.temporalTest != TemporalTest::Velocity &&
+			options.resolvedTaa != TaaMode::High )
 		{
 			std::cerr << "The backing resolution resolves --taa auto to " << TaaModeName( options.resolvedTaa )
 					  << "; temporal acceptance requires explicit --taa high\n";
@@ -4236,8 +4363,17 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.validateTemporal &&
+			!TrinityStandaloneProbeConfigureTemporalValidation( probe, static_cast<int>( options.temporalTest ) ) )
+		{
+			std::cerr << "TrinityStandaloneProbeConfigureTemporalValidation failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
-			options.validateDistortion || options.validateEngines || options.validateTemporal ||
+			options.validateDistortion || options.validateEngines ||
+			( options.validateTemporal && options.resolvedTaa != TaaMode::Off ) ||
 			options.exposureSequence != ExposureSequence::None;
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
@@ -4303,12 +4439,30 @@ int main( int argc, char** argv )
 						return 1;
 					}
 				}
-				const int captureProducts = options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
-					RenderProductApiValue( options.validateTemporal ? RenderProduct::Velocity :
-																	  ( options.renderProduct == RenderProduct::All ?
-																			RenderProduct::Color :
-																			options.renderProduct ) ) :
-					0;
+				bool captureTemporalSample = false;
+				if( options.validateTemporal )
+				{
+					const int remainingFrames = options.maxFrames - renderedFrames;
+					switch( options.temporalTest )
+					{
+					case TemporalTest::Edges:
+						captureTemporalSample = remainingFrames <= 4;
+						break;
+					case TemporalTest::Silk:
+					case TemporalTest::Trails:
+						captureTemporalSample = remainingFrames <= 2;
+						break;
+					default:
+						captureTemporalSample = remainingFrames == 1;
+						break;
+					}
+				}
+				const int captureProducts = captureTemporalSample ?
+					kCaptureTemporalSample :
+					( options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
+						  RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
+																							   options.renderProduct ) :
+						  0 );
 				const auto frameStart = std::chrono::steady_clock::now();
 				const bool rendered =
 					TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts );
@@ -4358,26 +4512,6 @@ int main( int argc, char** argv )
 			compositionValidationAttempted = true;
 			compositionValidationSucceeded = validateCompositionAtTime( validationTime );
 		}
-		if( options.validateTemporal && !exposureSamples.empty() )
-		{
-			const int64_t validationTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
-			TrinityStandalonePostProcessDiagnostics cooldownDiagnostics;
-			if( !TrinityStandaloneProbeRenderFrame(
-					probe, qualityRung, validationTime, validationTime, kCaptureTaaCooldown | kCaptureFreezeScene ) ||
-				!TrinityStandaloneProbeGetPostProcessDiagnostics( probe, &cooldownDiagnostics ) )
-			{
-				std::cerr << "Failed to read the frozen RC-13 cooldown product\n";
-				TrinityStandaloneProbeDestroyDevice( probe );
-				[window close];
-				return 1;
-			}
-			auto& final = exposureSamples.back();
-			final.taaCooldownRawHash = cooldownDiagnostics.taaCooldownRawHash;
-			final.taaCooldownNonzeroPixels = cooldownDiagnostics.taaCooldownNonzeroPixels;
-			final.taaCooldownMinimum = cooldownDiagnostics.taaCooldownMinimum;
-			final.taaCooldownMaximum = cooldownDiagnostics.taaCooldownMaximum;
-		}
-
 		std::string framePacingStats;
 		const bool framePacingSucceeded =
 			!options.framePacingCheck || EvaluateFramePacing( framePacingSamples, framePacingStats );
@@ -4387,8 +4521,41 @@ int main( int argc, char** argv )
 		const bool exposureValidationSucceeded =
 			!validateExposureSamples || EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
 		std::string temporalValidationStats = "not-requested";
-		const bool temporalValidationSucceeded = !options.validateTemporal ||
-			EvaluateTemporalSamples( options, exposureSamples, renderWidth, renderHeight, temporalValidationStats );
+		TrinityStandaloneTemporalValidation temporalValidation;
+		bool temporalValidationSucceeded = true;
+		if( options.validateTemporal )
+		{
+			const bool quantitativeEvaluationPassed = TrinityStandaloneProbeEvaluateTemporalValidation( probe );
+			const bool quantitativeDiagnosticsRead =
+				TrinityStandaloneProbeGetTemporalValidation( probe, &temporalValidation );
+			const bool quantitativePassed =
+				quantitativeEvaluationPassed && quantitativeDiagnosticsRead && temporalValidation.valid;
+			bool nativeContractPassed = true;
+			std::string nativeSummary = "taa=off";
+			if( options.resolvedTaa != TaaMode::Off )
+			{
+				nativeContractPassed =
+					EvaluateTemporalSamples( options, exposureSamples, renderWidth, renderHeight, nativeSummary );
+			}
+			std::ostringstream stats;
+			stats << "validation=" << ( quantitativePassed && nativeContractPassed ? "pass" : "fail" )
+				  << " test=" << TemporalTestName( options.temporalTest )
+				  << " samples=" << temporalValidation.sampleCount
+				  << " velocityInterior=" << temporalValidation.velocityInteriorSamples
+				  << " velocityMeanError=" << temporalValidation.velocityMeanError
+				  << " velocityP99Error=" << temporalValidation.velocityP99Error
+				  << " velocityMaxError=" << temporalValidation.velocityMaximumError
+				  << " edgePixels=" << temporalValidation.edgePixels
+				  << " edgeRatio=" << temporalValidation.edgeVarianceRatio
+				  << " transientPixels=" << temporalValidation.currentTransientPixels
+				  << " previousOnly=" << temporalValidation.previousOnlyTransientPixels
+				  << " cooldownActive=" << temporalValidation.cooldownActivePixels
+				  << " cooldownOverlap=" << temporalValidation.cooldownOverlapPixels
+				  << " residualRatio=" << temporalValidation.transientResidualRatio << " native={" << nativeSummary
+				  << "}";
+			temporalValidationStats = stats.str();
+			temporalValidationSucceeded = quantitativePassed && nativeContractPassed;
+		}
 		TrinityStandaloneToneValidation toneValidation;
 		TrinityStandaloneToneValidation offToneValidation;
 		bool toneValidationSucceeded = true;
@@ -4526,9 +4693,11 @@ int main( int argc, char** argv )
 		}
 		if( options.validateTemporal )
 		{
-			exposureReportsSucceeded =
-				WriteTemporalContractJson(
-					options, exposureSamples, temporalValidationStats, temporalValidationSucceeded ) &&
+			exposureReportsSucceeded = WriteTemporalContractJson( options,
+																  exposureSamples,
+																  temporalValidation,
+																  temporalValidationStats,
+																  temporalValidationSucceeded ) &&
 				exposureReportsSucceeded;
 		}
 		bool captureSucceeded = true;

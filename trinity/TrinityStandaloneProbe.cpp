@@ -277,6 +277,14 @@ public:
 	{
 		m_objectMotionActive = active;
 	}
+	const Matrix& GetCurrentWorldTransform() const
+	{
+		return m_worldTransform;
+	}
+	const Matrix& GetPreviousWorldTransform() const
+	{
+		return m_previousWorldTransform;
+	}
 
 	bool ConfigureEngines( int mode, int view, float throttle, const EveSOFDataHull& hull, const EveSOFDataRace& race, std::string& error )
 	{
@@ -3251,6 +3259,17 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_TAA_INPUT = 1 << 21,
 	STANDALONE_CAPTURE_TAA_OUTPUT = 1 << 22,
 	STANDALONE_CAPTURE_TAA_COOLDOWN = 1 << 23,
+	STANDALONE_CAPTURE_TEMPORAL_SAMPLE = 1 << 24,
+};
+
+enum StandaloneTemporalTest
+{
+	STANDALONE_TEMPORAL_CONTRACT = 0,
+	STANDALONE_TEMPORAL_VELOCITY = 1,
+	STANDALONE_TEMPORAL_EDGES = 2,
+	STANDALONE_TEMPORAL_SILK = 3,
+	STANDALONE_TEMPORAL_TRAILS = 4,
+	STANDALONE_TEMPORAL_INTEGRATED = 5,
 };
 
 enum StandaloneDistortionMode
@@ -3376,6 +3395,38 @@ struct StandaloneProbe
 		double p95Luminance = 0.0;
 		double p99Luminance = 0.0;
 	};
+	struct TemporalColor
+	{
+		float r = 0;
+		float g = 0;
+		float b = 0;
+	};
+	struct TemporalSample
+	{
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t depthFormat = 0;
+		uint32_t velocityFormat = 0;
+		uint32_t opaqueFormat = 0;
+		uint32_t preTaaFormat = 0;
+		uint32_t postTaaFormat = 0;
+		uint32_t cooldownFormat = 0;
+		uint64_t depthHash = 0;
+		uint64_t velocityHash = 0;
+		uint64_t opaqueHash = 0;
+		uint64_t preTaaHash = 0;
+		uint64_t postTaaHash = 0;
+		uint64_t cooldownHash = 0;
+		std::vector<float> depth;
+		std::vector<Vector2> velocityPixels;
+		std::vector<TemporalColor> opaque;
+		std::vector<TemporalColor> preTaa;
+		std::vector<TemporalColor> postTaa;
+		std::vector<uint32_t> cooldown;
+		EveSpaceSceneRenderDriver::TemporalFrameSnapshot matrices;
+		Matrix currentWorld = IdentityMatrix();
+		Matrix previousWorld = IdentityMatrix();
+	};
 
 	~StandaloneProbe()
 	{
@@ -3391,6 +3442,10 @@ struct StandaloneProbe
 		distortionReadback = Tr2TextureAL{};
 		velocityReadback = Tr2TextureAL{};
 		taaCooldownReadback = Tr2TextureAL{};
+		depthReadback = Tr2TextureAL{};
+		opaqueReadback = Tr2TextureAL{};
+		preTaaReadback = Tr2TextureAL{};
+		postTaaReadback = Tr2TextureAL{};
 		for( Tr2TextureAL& readback : volumeSliceReadbacks )
 		{
 			readback = Tr2TextureAL{};
@@ -3460,6 +3515,10 @@ struct StandaloneProbe
 	Tr2TextureAL distortionReadback;
 	Tr2TextureAL velocityReadback;
 	Tr2TextureAL taaCooldownReadback;
+	Tr2TextureAL depthReadback;
+	Tr2TextureAL opaqueReadback;
+	Tr2TextureAL preTaaReadback;
+	Tr2TextureAL postTaaReadback;
 	std::array<Tr2TextureAL, 4> volumeSliceReadbacks;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
 	TrinityStandaloneToneValidation toneValidation;
@@ -3468,6 +3527,9 @@ struct StandaloneProbe
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
 	TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
 	TrinityStandaloneEngineDiagnostics engineDiagnostics;
+	TrinityStandaloneTemporalValidation temporalValidation;
+	std::vector<TemporalSample> temporalSamples;
+	int temporalTest = STANDALONE_TEMPORAL_CONTRACT;
 	uint64_t velocityRawHash = 0;
 	uint64_t velocityFinitePixels = 0;
 	uint64_t velocityInvalidPixels = 0;
@@ -5947,6 +6009,190 @@ bool CaptureRawTaaCooldown(
 	return true;
 }
 
+bool EnsureTemporalReadback(
+	Tr2TextureAL& readback,
+	const Tr2TextureAL& source,
+	const char* name,
+	Tr2RenderContext& renderContext )
+{
+	if( readback.IsValid() && readback.GetWidth() == source.GetWidth() &&
+		readback.GetHeight() == source.GetHeight() && readback.GetFormat() == source.GetFormat() )
+	{
+		return true;
+	}
+	readback = Tr2TextureAL{};
+	const HRESULT result = readback.Create(
+		Tr2BitmapDimensions( source.GetWidth(), source.GetHeight(), 1, source.GetFormat() ),
+		Tr2GpuUsage::COPY_DESTINATION,
+		Tr2CpuUsage::READ,
+		renderContext.GetPrimaryRenderContext() );
+	if( FAILED( result ) )
+	{
+		std::fprintf( stderr, "Failed to create temporal readback '%s' (HRESULT=0x%08x)\n", name, result );
+		return false;
+	}
+	readback.SetName( name );
+	return true;
+}
+
+uint64_t HashTextureRows(
+	const uint8_t* data,
+	uint32_t pitch,
+	uint32_t height,
+	size_t rowBytes )
+{
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	uint64_t hash = fnvOffset;
+	for( uint32_t y = 0; y < height; ++y )
+	{
+		const uint8_t* row = data + static_cast<size_t>( y ) * pitch;
+		for( size_t byte = 0; byte < rowBytes; ++byte )
+		{
+			hash = ( hash ^ row[byte] ) * fnvPrime;
+		}
+	}
+	return hash;
+}
+
+bool ReadTemporalDepth(
+	Tr2TextureAL& readback,
+	const Tr2TextureAL& source,
+	StandaloneProbe::TemporalSample& sample,
+	Tr2RenderContext& renderContext )
+{
+	if( source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+		!EnsureTemporalReadback( readback, source, "TemporalDepthReadback", renderContext ) ||
+		FAILED( source.Resolve( readback, renderContext ) ) )
+	{
+		return false;
+	}
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( readback.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) || !data )
+		return false;
+	const size_t count = static_cast<size_t>( source.GetWidth() ) * source.GetHeight();
+	sample.depth.resize( count );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		std::memcpy(
+			sample.depth.data() + static_cast<size_t>( y ) * source.GetWidth(),
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch,
+			static_cast<size_t>( source.GetWidth() ) * sizeof( float ) );
+	}
+	sample.depthHash = HashTextureRows(
+		static_cast<const uint8_t*>( data ), pitch, source.GetHeight(), source.GetWidth() * sizeof( float ) );
+	readback.UnmapForReading( renderContext );
+	sample.depthFormat = source.GetFormat();
+	return true;
+}
+
+bool ReadTemporalVelocity(
+	Tr2TextureAL& readback,
+	const Tr2TextureAL& source,
+	StandaloneProbe::TemporalSample& sample,
+	Tr2RenderContext& renderContext )
+{
+	if( source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16_FLOAT ||
+		!EnsureTemporalReadback( readback, source, "TemporalVelocityReadback", renderContext ) ||
+		FAILED( source.Resolve( readback, renderContext ) ) )
+		return false;
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( readback.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) || !data )
+		return false;
+	const size_t count = static_cast<size_t>( source.GetWidth() ) * source.GetHeight();
+	sample.velocityPixels.resize( count );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		const Float_16* row = reinterpret_cast<const Float_16*>(
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch );
+		for( uint32_t x = 0; x < source.GetWidth(); ++x )
+		{
+			sample.velocityPixels[static_cast<size_t>( y ) * source.GetWidth() + x] = Vector2(
+				static_cast<float>( row[x * 2] ) * source.GetWidth(),
+				static_cast<float>( row[x * 2 + 1] ) * source.GetHeight() );
+		}
+	}
+	sample.velocityHash = HashTextureRows(
+		static_cast<const uint8_t*>( data ),
+		pitch,
+		source.GetHeight(),
+		static_cast<size_t>( source.GetWidth() ) * sizeof( Float_16 ) * 2 );
+	readback.UnmapForReading( renderContext );
+	sample.velocityFormat = source.GetFormat();
+	return true;
+}
+
+bool ReadTemporalColor(
+	Tr2TextureAL& readback,
+	const Tr2TextureAL& source,
+	const char* name,
+	std::vector<StandaloneProbe::TemporalColor>& colors,
+	uint64_t& hash,
+	uint32_t& format,
+	Tr2RenderContext& renderContext )
+{
+	if( source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT ||
+		!EnsureTemporalReadback( readback, source, name, renderContext ) ||
+		FAILED( source.Resolve( readback, renderContext ) ) )
+		return false;
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( readback.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) || !data )
+		return false;
+	colors.resize( static_cast<size_t>( source.GetWidth() ) * source.GetHeight() );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		const Float_16* row = reinterpret_cast<const Float_16*>(
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch );
+		for( uint32_t x = 0; x < source.GetWidth(); ++x )
+		{
+			auto& color = colors[static_cast<size_t>( y ) * source.GetWidth() + x];
+			color.r = row[x * 4];
+			color.g = row[x * 4 + 1];
+			color.b = row[x * 4 + 2];
+		}
+	}
+	hash = HashTextureRows(
+		static_cast<const uint8_t*>( data ),
+		pitch,
+		source.GetHeight(),
+		static_cast<size_t>( source.GetWidth() ) * sizeof( Float_16 ) * 4 );
+	readback.UnmapForReading( renderContext );
+	format = source.GetFormat();
+	return true;
+}
+
+bool ReadTemporalCooldown(
+	Tr2TextureAL& readback,
+	const Tr2TextureAL& source,
+	StandaloneProbe::TemporalSample& sample,
+	Tr2RenderContext& renderContext )
+{
+	if( source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT ||
+		!EnsureTemporalReadback( readback, source, "TemporalCooldownReadback", renderContext ) ||
+		FAILED( source.Resolve( readback, renderContext ) ) )
+		return false;
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( readback.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) || !data )
+		return false;
+	sample.cooldown.resize( static_cast<size_t>( source.GetWidth() ) * source.GetHeight() );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		std::memcpy(
+			sample.cooldown.data() + static_cast<size_t>( y ) * source.GetWidth(),
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch,
+			static_cast<size_t>( source.GetWidth() ) * sizeof( uint32_t ) );
+	}
+	sample.cooldownHash = HashTextureRows(
+		static_cast<const uint8_t*>( data ), pitch, source.GetHeight(), source.GetWidth() * sizeof( uint32_t ) );
+	readback.UnmapForReading( renderContext );
+	sample.cooldownFormat = source.GetFormat();
+	return true;
+}
+
 bool EnsureVolumeSliceReadbacks(
 	StandaloneProbe& probe,
 	Tr2RenderContext& renderContext,
@@ -6997,7 +7243,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	std::array<BlueSharedString, 16> requestedNames;
 	std::array<ITr2RenderNode::TempOutput, 16> outputStorage;
 	size_t requestedCount = 0;
-	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
+	const bool temporalSampleRequested = ( captureProducts & STANDALONE_CAPTURE_TEMPORAL_SAMPLE ) != 0;
+	if( captureProducts & STANDALONE_CAPTURE_DEPTH || temporalSampleRequested )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "DepthMap" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
@@ -7087,27 +7334,33 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
-	if( captureProducts & STANDALONE_CAPTURE_VELOCITY )
+	if( captureProducts & STANDALONE_CAPTURE_VELOCITY || temporalSampleRequested )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "VelocityMap" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
-	if( captureProducts & STANDALONE_CAPTURE_TAA_INPUT )
+	if( captureProducts & STANDALONE_CAPTURE_TAA_INPUT || ( temporalSampleRequested && probe.taaMode != STANDALONE_TAA_OFF ) )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "PreTaaColor" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
-	if( captureProducts & STANDALONE_CAPTURE_TAA_OUTPUT )
+	if( captureProducts & STANDALONE_CAPTURE_TAA_OUTPUT || ( temporalSampleRequested && probe.taaMode != STANDALONE_TAA_OFF ) )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "PostTaaColor" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
-	if( captureProducts & STANDALONE_CAPTURE_TAA_COOLDOWN )
+	if( captureProducts & STANDALONE_CAPTURE_TAA_COOLDOWN || ( temporalSampleRequested && probe.taaMode != STANDALONE_TAA_OFF ) )
 	{
 		requestedNames[requestedCount] = BlueSharedString( "TaaCooldownMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( temporalSampleRequested && probe.taaMode != STANDALONE_TAA_OFF )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "OpaqueColorMap" );
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
@@ -7157,6 +7410,92 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool taaInputProduct = captureProducts == STANDALONE_CAPTURE_TAA_INPUT;
 		const bool taaOutputProduct = captureProducts == STANDALONE_CAPTURE_TAA_OUTPUT;
 		const bool taaCooldownProduct = captureProducts == STANDALONE_CAPTURE_TAA_COOLDOWN;
+		const bool temporalSampleProduct = temporalSampleRequested;
+		if( ok && temporalSampleProduct )
+		{
+			auto findOutput = [&]( const char* name ) -> const Tr2TextureAL* {
+				for( size_t outputIndex = 0; outputIndex < requestedCount; ++outputIndex )
+				{
+					if( outputStorage[outputIndex].name == BlueSharedString( name ) &&
+						outputStorage[outputIndex].texture.IsValid() )
+					{
+						return &outputStorage[outputIndex].texture.Get();
+					}
+				}
+				return nullptr;
+			};
+			const Tr2TextureAL* depth = findOutput( "DepthMap" );
+			const Tr2TextureAL* velocity = findOutput( "VelocityMap" );
+			const Tr2TextureAL* opaque = findOutput( "OpaqueColorMap" );
+			const Tr2TextureAL* preTaa = findOutput( "PreTaaColor" );
+			const Tr2TextureAL* postTaa = findOutput( "PostTaaColor" );
+			const Tr2TextureAL* cooldown = findOutput( "TaaCooldownMap" );
+			const bool taaRequired = probe.taaMode != STANDALONE_TAA_OFF;
+			if( !depth || !velocity || ( taaRequired && ( !opaque || !preTaa || !postTaa || !cooldown ) ) )
+			{
+				std::fprintf( stderr, "RC-13 atomic temporal outputs are incomplete\n" );
+				ok = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End RC-13 temporal source" );
+				renderContextOpen = false;
+			}
+			if( ok )
+			{
+				ok = CheckHresult( Tr2Renderer::BeginRenderContext(), "Begin RC-13 temporal readback" );
+				renderContextOpen = ok;
+			}
+			if( ok )
+			{
+				StandaloneProbe::TemporalSample sample;
+				sample.width = probe.renderWidth;
+				sample.height = probe.renderHeight;
+				sample.matrices = driver.GetTemporalFrameSnapshot();
+				if( probe.renderable )
+				{
+					sample.currentWorld = probe.renderable->GetCurrentWorldTransform();
+					sample.previousWorld = probe.renderable->GetPreviousWorldTransform();
+				}
+				ok = sample.matrices.valid &&
+					ReadTemporalDepth( probe.depthReadback, *depth, sample, renderContext ) &&
+					ReadTemporalVelocity( probe.velocityReadback, *velocity, sample, renderContext );
+				if( ok && taaRequired )
+				{
+					ok = ReadTemporalColor(
+							 probe.opaqueReadback,
+							 *opaque,
+							 "TemporalOpaqueReadback",
+							 sample.opaque,
+							 sample.opaqueHash,
+							 sample.opaqueFormat,
+							 renderContext ) &&
+						ReadTemporalColor(
+							 probe.preTaaReadback,
+							 *preTaa,
+							 "TemporalPreTaaReadback",
+							 sample.preTaa,
+							 sample.preTaaHash,
+							 sample.preTaaFormat,
+							 renderContext ) &&
+						ReadTemporalColor(
+							 probe.postTaaReadback,
+							 *postTaa,
+							 "TemporalPostTaaReadback",
+							 sample.postTaa,
+							 sample.postTaaHash,
+							 sample.postTaaFormat,
+							 renderContext ) &&
+						ReadTemporalCooldown( probe.taaCooldownReadback, *cooldown, sample, renderContext );
+				}
+				if( ok )
+				{
+					probe.temporalSamples.push_back( std::move( sample ) );
+					if( probe.temporalSamples.size() > 4 )
+						probe.temporalSamples.erase( probe.temporalSamples.begin() );
+				}
+			}
+		}
 		if( ok && toneContractProduct )
 		{
 			const Tr2TextureAL* preTonemap = nullptr;
@@ -9247,6 +9586,324 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 	return true;
 }
 
+double TemporalLuminance( const StandaloneProbe::TemporalColor& color )
+{
+	return 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+}
+
+double TemporalPercentile( std::vector<double>& values, double fraction )
+{
+	if( values.empty() )
+		return 0.0;
+	std::sort( values.begin(), values.end() );
+	const size_t index = static_cast<size_t>( std::ceil( fraction * values.size() ) ) - 1;
+	return values[std::min( index, values.size() - 1 )];
+}
+
+bool EvaluateTemporalVelocity( StandaloneProbe& probe )
+{
+	if( probe.temporalSamples.empty() )
+		return false;
+	const auto& sample = probe.temporalSamples.back();
+	auto& result = probe.temporalValidation;
+	const Matrix inverseCurrentViewProjection = Inverse( sample.matrices.currentViewProjection );
+	const Matrix inverseCurrentWorld = Inverse( sample.currentWorld );
+	std::vector<double> errors;
+	std::vector<double> reversedErrors;
+	double errorSum = 0.0;
+	double actualXSum = 0.0;
+	double actualYSum = 0.0;
+	double expectedXSum = 0.0;
+	double expectedYSum = 0.0;
+	double staticMaximum = 0.0;
+	auto reconstruct = [&]( uint32_t x, uint32_t y ) {
+		const size_t index = static_cast<size_t>( y ) * sample.width + x;
+		const float u = ( static_cast<float>( x ) + 0.5f ) / sample.width;
+		const float v = ( static_cast<float>( y ) + 0.5f ) / sample.height;
+		return TransformCoord(
+			Vector3( u * 2.0f - 1.0f, 1.0f - v * 2.0f, sample.depth[index] ),
+			inverseCurrentViewProjection );
+	};
+	for( uint32_t y = 1; y + 1 < sample.height; ++y )
+	{
+		for( uint32_t x = 1; x + 1 < sample.width; ++x )
+		{
+			const size_t index = static_cast<size_t>( y ) * sample.width + x;
+			if( !std::isfinite( sample.depth[index] ) || sample.depth[index] <= 0.0f )
+				continue;
+			const uint32_t nx[] = { x - 1, x + 1, x, x };
+			const uint32_t ny[] = { y, y, y - 1, y + 1 };
+			const Vector3 world = reconstruct( x, y );
+			const float centerViewDepth = std::abs( TransformCoord( world, sample.matrices.currentView ).z );
+			bool discontinuity = !std::isfinite( centerViewDepth ) || centerViewDepth <= 0.0f;
+			for( size_t neighbor = 0; !discontinuity && neighbor < 4; ++neighbor )
+			{
+				const size_t neighborIndex = static_cast<size_t>( ny[neighbor] ) * sample.width + nx[neighbor];
+				if( sample.depth[neighborIndex] <= 0.0f || !std::isfinite( sample.depth[neighborIndex] ) )
+				{
+					discontinuity = true;
+					break;
+				}
+				const float neighborDepth =
+					std::abs( TransformCoord( reconstruct( nx[neighbor], ny[neighbor] ), sample.matrices.currentView ).z );
+				discontinuity = !std::isfinite( neighborDepth ) ||
+					std::abs( neighborDepth - centerViewDepth ) > std::max( 0.01f, centerViewDepth * 0.01f );
+			}
+			if( discontinuity )
+			{
+				++result.velocityExcludedDiscontinuities;
+				continue;
+			}
+			const Vector2 actual = sample.velocityPixels[index];
+			if( !std::isfinite( actual.x ) || !std::isfinite( actual.y ) )
+			{
+				++result.velocityInvalidSamples;
+				continue;
+			}
+			const Vector3 local = TransformCoord( world, inverseCurrentWorld );
+			const Vector3 previousWorld = TransformCoord( local, sample.previousWorld );
+			const Vector3 previousNdc = TransformCoord( previousWorld, sample.matrices.previousViewProjection );
+			const float currentNdcX = ( static_cast<float>( x ) + 0.5f ) / sample.width * 2.0f - 1.0f;
+			const float currentNdcY = 1.0f - ( static_cast<float>( y ) + 0.5f ) / sample.height * 2.0f;
+			const Vector2 expected(
+				( previousNdc.x - currentNdcX ) * sample.width * 0.5f,
+				( currentNdcY - previousNdc.y ) * sample.height * 0.5f );
+			const double error = Length( actual - expected );
+			if( !std::isfinite( error ) )
+			{
+				++result.velocityInvalidSamples;
+				continue;
+			}
+			errors.push_back( error );
+			reversedErrors.push_back( Length( actual + expected ) );
+			errorSum += error;
+			actualXSum += actual.x;
+			actualYSum += actual.y;
+			expectedXSum += expected.x;
+			expectedYSum += expected.y;
+			staticMaximum = std::max( staticMaximum, static_cast<double>( Length( actual ) ) );
+		}
+	}
+	result.velocityInteriorSamples = errors.size();
+	result.velocityStaticMaximum = staticMaximum;
+	result.velocityMeanError = errors.empty() ? 0.0 : errorSum / errors.size();
+	result.velocityP99Error = TemporalPercentile( errors, 0.99 );
+	result.velocityMaximumError = errors.empty() ? 0.0 : errors.back();
+	std::fprintf(
+		stderr,
+		"EVE RC-13 velocity reference details: actualMean=(%.6f,%.6f) expectedMean=(%.6f,%.6f) reversedMean=%.6f\n",
+		errors.empty() ? 0.0 : actualXSum / errors.size(),
+		errors.empty() ? 0.0 : actualYSum / errors.size(),
+		errors.empty() ? 0.0 : expectedXSum / errors.size(),
+		errors.empty() ? 0.0 : expectedYSum / errors.size(),
+		reversedErrors.empty() ? 0.0 : std::accumulate( reversedErrors.begin(), reversedErrors.end(), 0.0 ) / reversedErrors.size() );
+	const bool staticMotion = probe.motionMode == STANDALONE_MOTION_STATIC;
+	return result.velocityInteriorSamples >= 10000 && result.velocityInvalidSamples == 0 &&
+		( staticMotion ? result.velocityStaticMaximum < 0.05 :
+						 result.velocityMeanError <= 0.25 && result.velocityP99Error <= 1.0 &&
+				  result.velocityMaximumError <= 2.0 );
+}
+
+bool EvaluateTemporalEdges( StandaloneProbe& probe )
+{
+	if( probe.temporalSamples.size() != 4 )
+		return false;
+	auto& result = probe.temporalValidation;
+	const auto& first = probe.temporalSamples.front();
+	std::vector<double> preVariances;
+	std::vector<double> postVariances;
+	for( uint32_t y = 1; y + 1 < first.height; ++y )
+	{
+		for( uint32_t x = 1; x + 1 < first.width; ++x )
+		{
+			const size_t index = static_cast<size_t>( y ) * first.width + x;
+			double center = 0.0;
+			for( const auto& sample : probe.temporalSamples )
+				center += TemporalLuminance( sample.preTaa[index] ) * 0.25;
+			double gradient = 0.0;
+			for( int oy = -1; oy <= 1; ++oy )
+			{
+				for( int ox = -1; ox <= 1; ++ox )
+				{
+					const size_t neighbor = static_cast<size_t>( static_cast<int>( y ) + oy ) * first.width +
+						static_cast<uint32_t>( static_cast<int>( x ) + ox );
+					double value = 0.0;
+					for( const auto& sample : probe.temporalSamples )
+						value += TemporalLuminance( sample.preTaa[neighbor] ) * 0.25;
+					gradient = std::max( gradient, std::abs( value - center ) );
+				}
+			}
+			if( !std::isfinite( gradient ) || gradient <= 0.02 )
+				continue;
+			double preMean = 0.0;
+			double postMean = 0.0;
+			for( const auto& sample : probe.temporalSamples )
+			{
+				const double pre = TemporalLuminance( sample.preTaa[index] );
+				const double post = TemporalLuminance( sample.postTaa[index] );
+				if( !std::isfinite( pre ) || !std::isfinite( post ) )
+					continue;
+				preMean += pre * 0.25;
+				postMean += post * 0.25;
+				result.preTaaMaximumLuminance = std::max( result.preTaaMaximumLuminance, pre );
+				result.postTaaMaximumLuminance = std::max( result.postTaaMaximumLuminance, post );
+			}
+			double preVariance = 0.0;
+			double postVariance = 0.0;
+			for( const auto& sample : probe.temporalSamples )
+			{
+				preVariance += std::pow( TemporalLuminance( sample.preTaa[index] ) - preMean, 2.0 ) * 0.25;
+				postVariance += std::pow( TemporalLuminance( sample.postTaa[index] ) - postMean, 2.0 ) * 0.25;
+			}
+			preVariances.push_back( preVariance );
+			postVariances.push_back( postVariance );
+		}
+	}
+	result.edgePixels = preVariances.size();
+	result.preTaaEdgeVarianceP95 = TemporalPercentile( preVariances, 0.95 );
+	result.postTaaEdgeVarianceP95 = TemporalPercentile( postVariances, 0.95 );
+	result.edgeVarianceRatio = result.preTaaEdgeVarianceP95 > 0.0 ?
+		result.postTaaEdgeVarianceP95 / result.preTaaEdgeVarianceP95 :
+		1.0;
+	return result.edgePixels >= 1000 && first.preTaaHash != first.postTaaHash &&
+		result.preTaaMaximumLuminance > 1.0 && result.postTaaMaximumLuminance > 1.0 &&
+		result.edgeVarianceRatio <= 0.75;
+}
+
+double TemporalDifference(
+	const StandaloneProbe::TemporalColor& left,
+	const StandaloneProbe::TemporalColor& right )
+{
+	return std::max( { std::abs( left.r - right.r ), std::abs( left.g - right.g ), std::abs( left.b - right.b ) } );
+}
+
+bool EvaluateTemporalTransient( StandaloneProbe& probe )
+{
+	if( probe.temporalSamples.size() != 2 )
+		return false;
+	auto& result = probe.temporalValidation;
+	const auto& previous = probe.temporalSamples[0];
+	const auto& current = probe.temporalSamples[1];
+	const size_t count = static_cast<size_t>( current.width ) * current.height;
+	std::vector<uint8_t> previousMask( count );
+	std::vector<uint8_t> currentMask( count );
+	for( size_t index = 0; index < count; ++index )
+	{
+		if( current.cooldown[index] != 0 )
+		{
+			++result.cooldownActivePixels;
+			result.cooldownMaximum = std::max( result.cooldownMaximum, current.cooldown[index] );
+		}
+		previousMask[index] = TemporalDifference( previous.preTaa[index], previous.opaque[index] ) > 0.01;
+		currentMask[index] = TemporalDifference( current.preTaa[index], current.opaque[index] ) > 0.01;
+		if( currentMask[index] )
+		{
+			++result.currentTransientPixels;
+			result.currentTransientEnergy += TemporalDifference( current.preTaa[index], current.opaque[index] );
+			if( current.cooldown[index] != 0 )
+				++result.cooldownOverlapPixels;
+		}
+	}
+	for( uint32_t y = 1; y + 1 < current.height; ++y )
+	{
+		for( uint32_t x = 1; x + 1 < current.width; ++x )
+		{
+			const size_t index = static_cast<size_t>( y ) * current.width + x;
+			if( !previousMask[index] )
+				continue;
+			bool nearCurrent = false;
+			for( int oy = -1; oy <= 1 && !nearCurrent; ++oy )
+				for( int ox = -1; ox <= 1; ++ox )
+					nearCurrent = nearCurrent || currentMask[static_cast<size_t>( static_cast<int>( y ) + oy ) * current.width + static_cast<uint32_t>( static_cast<int>( x ) + ox )];
+			if( nearCurrent )
+				continue;
+			++result.previousOnlyTransientPixels;
+			result.previousOnlyResidualEnergy +=
+				TemporalDifference( current.postTaa[index], current.opaque[index] );
+		}
+	}
+	result.cooldownOverlapFraction = result.currentTransientPixels ?
+		static_cast<double>( result.cooldownOverlapPixels ) / result.currentTransientPixels :
+		0.0;
+	result.transientResidualRatio = result.currentTransientEnergy > 0.0 ?
+		result.previousOnlyResidualEnergy / result.currentTransientEnergy :
+		1.0;
+	return result.currentTransientPixels > 0 && result.previousOnlyTransientPixels >= 64 &&
+		result.cooldownOverlapPixels > 0 && result.transientResidualRatio <= 0.15;
+}
+
+bool EvaluateTemporalValidation( StandaloneProbe& probe )
+{
+	probe.temporalValidation = {};
+	auto& result = probe.temporalValidation;
+	result.test = probe.temporalTest;
+	result.sampleCount = probe.temporalSamples.size();
+	if( probe.temporalSamples.empty() )
+		return false;
+	const auto& sample = probe.temporalSamples.back();
+	result.width = sample.width;
+	result.height = sample.height;
+	result.depthFormat = sample.depthFormat;
+	result.velocityFormat = sample.velocityFormat;
+	result.opaqueFormat = sample.opaqueFormat;
+	result.preTaaFormat = sample.preTaaFormat;
+	result.postTaaFormat = sample.postTaaFormat;
+	result.cooldownFormat = sample.cooldownFormat;
+	result.depthHash = sample.depthHash;
+	result.velocityHash = sample.velocityHash;
+	result.opaqueHash = sample.opaqueHash;
+	result.preTaaHash = sample.preTaaHash;
+	result.postTaaHash = sample.postTaaHash;
+	result.cooldownHash = sample.cooldownHash;
+	switch( probe.temporalTest )
+	{
+	case STANDALONE_TEMPORAL_VELOCITY:
+		result.valid = EvaluateTemporalVelocity( probe );
+		break;
+	case STANDALONE_TEMPORAL_EDGES:
+		result.valid = EvaluateTemporalEdges( probe );
+		break;
+	case STANDALONE_TEMPORAL_SILK:
+	case STANDALONE_TEMPORAL_TRAILS:
+		result.valid = EvaluateTemporalTransient( probe );
+		break;
+	case STANDALONE_TEMPORAL_INTEGRATED:
+	case STANDALONE_TEMPORAL_CONTRACT:
+		result.valid = sample.depthFormat == Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT &&
+			sample.velocityFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16_FLOAT &&
+			( probe.taaMode == STANDALONE_TAA_OFF ||
+			  ( sample.opaqueFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+				sample.preTaaFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+				sample.postTaaFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+				sample.cooldownFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT ) );
+		break;
+	default:
+		result.valid = false;
+	}
+	std::fprintf(
+		stderr,
+		"EVE RC-13 quantitative validation: test=%u samples=%u velocity=(interior=%llu mean=%.6f p99=%.6f max=%.6f) "
+		"edges=(pixels=%llu ratio=%.6f hdr=%.6f/%.6f) transient=(current=%llu previousOnly=%llu cooldown=%llu/%u overlap=%llu residual=%.6f) validation=%s\n",
+		result.test,
+		result.sampleCount,
+		static_cast<unsigned long long>( result.velocityInteriorSamples ),
+		result.velocityMeanError,
+		result.velocityP99Error,
+		result.velocityMaximumError,
+		static_cast<unsigned long long>( result.edgePixels ),
+		result.edgeVarianceRatio,
+		result.preTaaMaximumLuminance,
+		result.postTaaMaximumLuminance,
+		static_cast<unsigned long long>( result.currentTransientPixels ),
+		static_cast<unsigned long long>( result.previousOnlyTransientPixels ),
+		static_cast<unsigned long long>( result.cooldownActivePixels ),
+		result.cooldownMaximum,
+		static_cast<unsigned long long>( result.cooldownOverlapPixels ),
+		result.transientResidualRatio,
+		result.valid ? "pass" : "fail" );
+	return result.valid;
+}
+
 Tr2WindowHandle ToWindowHandle( void* windowHandle )
 {
 #ifdef __APPLE__
@@ -10175,6 +10832,34 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateEngines( void* opaq
 	return diagnostics.valid;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureTemporalValidation( void* opaqueProbe, int test )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || test < STANDALONE_TEMPORAL_CONTRACT || test > STANDALONE_TEMPORAL_INTEGRATED )
+		return false;
+	probe->temporalTest = test;
+	probe->temporalSamples.clear();
+	probe->temporalValidation = {};
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeEvaluateTemporalValidation( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	return probe && EvaluateTemporalValidation( *probe );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetTemporalValidation(
+	void* opaqueProbe,
+	TrinityStandaloneTemporalValidation* validation )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !validation || probe->temporalValidation.sampleCount == 0 )
+		return false;
+	*validation = probe->temporalValidation;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -10203,7 +10888,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_VELOCITY &&
 		captureProduct != STANDALONE_CAPTURE_TAA_INPUT &&
 		captureProduct != STANDALONE_CAPTURE_TAA_OUTPUT &&
-		captureProduct != STANDALONE_CAPTURE_TAA_COOLDOWN )
+		captureProduct != STANDALONE_CAPTURE_TAA_COOLDOWN &&
+		captureProduct != STANDALONE_CAPTURE_TEMPORAL_SAMPLE )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;

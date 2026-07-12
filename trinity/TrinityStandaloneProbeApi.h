@@ -300,6 +300,49 @@ struct TrinityStandaloneEngineDiagnostics
 	uint64_t authoredBentNormalHash = 0;
 };
 
+struct TrinityStandaloneTemporalValidation
+{
+	bool valid = false;
+	uint32_t test = 0;
+	uint32_t sampleCount = 0;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t depthFormat = 0;
+	uint32_t velocityFormat = 0;
+	uint32_t opaqueFormat = 0;
+	uint32_t preTaaFormat = 0;
+	uint32_t postTaaFormat = 0;
+	uint32_t cooldownFormat = 0;
+	uint64_t depthHash = 0;
+	uint64_t velocityHash = 0;
+	uint64_t opaqueHash = 0;
+	uint64_t preTaaHash = 0;
+	uint64_t postTaaHash = 0;
+	uint64_t cooldownHash = 0;
+	uint64_t velocityInteriorSamples = 0;
+	uint64_t velocityExcludedDiscontinuities = 0;
+	uint64_t velocityInvalidSamples = 0;
+	double velocityStaticMaximum = 0.0;
+	double velocityMeanError = 0.0;
+	double velocityP99Error = 0.0;
+	double velocityMaximumError = 0.0;
+	uint64_t edgePixels = 0;
+	double preTaaEdgeVarianceP95 = 0.0;
+	double postTaaEdgeVarianceP95 = 0.0;
+	double edgeVarianceRatio = 0.0;
+	double preTaaMaximumLuminance = 0.0;
+	double postTaaMaximumLuminance = 0.0;
+	uint64_t currentTransientPixels = 0;
+	uint64_t previousOnlyTransientPixels = 0;
+	uint64_t cooldownActivePixels = 0;
+	uint64_t cooldownOverlapPixels = 0;
+	uint32_t cooldownMaximum = 0;
+	double cooldownOverlapFraction = 0.0;
+	double currentTransientEnergy = 0.0;
+	double previousOnlyResidualEnergy = 0.0;
+	double transientResidualRatio = 0.0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
@@ -339,3 +382,8 @@ extern "C" bool TrinityStandaloneProbeGetEngineDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneEngineDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateEngines( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureTemporalValidation( void* opaqueProbe, int test );
+extern "C" bool TrinityStandaloneProbeEvaluateTemporalValidation( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetTemporalValidation(
+	void* opaqueProbe,
+	TrinityStandaloneTemporalValidation* validation );

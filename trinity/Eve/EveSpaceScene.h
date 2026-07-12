@@ -377,6 +377,10 @@ public:
 	{
 		return m_projectionLast;
 	}
+	Matrix GetPreviousJitteredProjection() const
+	{
+		return m_projectionLast * m_jitterMatrix;
+	}
 	const Matrix& GetJitteredProjection() const
 	{
 		return m_jitteredProjection;

@@ -29,6 +29,18 @@ BLUE_CLASS( EveSpaceSceneRenderDriver ) :
 	public Tr2DeviceResource
 {
 public:
+	struct TemporalFrameSnapshot
+	{
+		Matrix currentView = IdentityMatrix();
+		Matrix currentProjection = IdentityMatrix();
+		Matrix currentViewProjection = IdentityMatrix();
+		Matrix previousView = IdentityMatrix();
+		Matrix previousProjection = IdentityMatrix();
+		Matrix previousViewProjection = IdentityMatrix();
+		Vector4 jitter = Vector4( 0, 0, 0, 0 );
+		bool valid = false;
+	};
+
 	enum class AntiAliasingQuality
 	{
 		Disabled,
@@ -137,6 +149,10 @@ public:
 	bool GetLastPostProcessExecutionSucceeded() const;
 	void ResetTemporalHistory();
 	void SetTemporalHistoryFrozen( bool frozen );
+	const TemporalFrameSnapshot& GetTemporalFrameSnapshot() const
+	{
+		return m_temporalFrameSnapshot;
+	}
 	void SetUseNewBloom( bool enabled );
 	bool GetUseNewBloom() const;
 	Tr2Effect* GetDistortionEffect() const
@@ -208,6 +224,7 @@ private:
 	Matrix m_projectionLast = IdentityMatrix();
 	bool m_temporalResetPending = true;
 	TextureSize2D m_temporalRenderSize;
+	TemporalFrameSnapshot m_temporalFrameSnapshot;
 
 	bool m_reflectionCorrectionEnabled;
 	TriTextureResPtr m_reflectionCorrectionMap;

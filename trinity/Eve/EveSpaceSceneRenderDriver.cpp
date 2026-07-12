@@ -538,6 +538,16 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		TimeSection beginRenderSection( m_timers.beginRender, "BeginRender", rootTimer, renderContext );
 		m_scene->BeginRender( m_settings.enableDistortion, renderContext );
 	}
+	m_temporalFrameSnapshot.currentView = Tr2Renderer::GetViewTransform();
+	m_temporalFrameSnapshot.currentProjection = Tr2Renderer::GetReversedDepthProjectionTransform();
+	m_temporalFrameSnapshot.currentViewProjection =
+		m_temporalFrameSnapshot.currentView * m_temporalFrameSnapshot.currentProjection;
+	m_temporalFrameSnapshot.previousView = m_scene->GetPreviousView();
+	m_temporalFrameSnapshot.previousProjection = m_scene->GetPreviousJitteredProjection();
+	m_temporalFrameSnapshot.previousViewProjection =
+		m_temporalFrameSnapshot.previousView * m_temporalFrameSnapshot.previousProjection;
+	m_temporalFrameSnapshot.jitter = m_scene->GetJitter();
+	m_temporalFrameSnapshot.valid = true;
 	{
 		TimeSection reflectionsSection( m_timers.reflections, "RenderReflections", rootTimer, renderContext );
 		m_scene->RenderReflectionPass( m_gpuResourcePool, renderContext );

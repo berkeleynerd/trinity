@@ -1900,3 +1900,40 @@ partial: the CPU depth/matrix velocity reference, settled edge-variance ratio,
 previous-only Silk/engine residual energy, 1080-frame run, pacing run, and
 manual ghosting inspection are still required. Reports and PNGs remain in
 ignored build or `/tmp` paths.
+
+## RC-13 quantitative closeout (2026-07-12)
+
+The probe now captures `DepthMap`, `VelocityMap`, `OpaqueColorMap`,
+`PreTaaColor`, `PostTaaColor`, and `TaaCooldownMap` atomically. The snapshot
+retains the exact current/previous shader matrices and object transforms.
+Reverse-Z CPU reconstruction confirmed that V5 stores history in UV space:
+X/Y convert with the full target dimensions and Y uses texture-coordinate
+orientation.
+
+At 1280x720, static, object, camera, and combined velocity tests pass. At
+least 52,876 discontinuity-masked interior samples remain in every moving
+test. Mean error is at most `0.00133` pixel, p99 at most `0.00327`, maximum at
+most `0.00432`, and static measured velocity is zero with `0.000118` maximum
+reference error. CP-29 is accepted.
+
+Four settled High-TAA phases retain HDR headroom and reduce p95 edge variance
+to `0.000581x` input over 38,685 edge pixels. The canonical 1080-frame New
+Eden run preserves the full RC-09 inventory and finite FP16 composition. Its
+separate 900-frame pacing window reports median `8.5599 ms`, p95 `8.8892 ms`,
+p99 `9.0033 ms`, maximum `9.4987 ms`, and no frames above twice the median.
+
+Transient rejection does not yet pass. Isolated A01 Silk reports 1,093
+transient pixels, only 34 previous-only pixels, and no cooldown activity.
+Isolated trails report 6,028 transient pixels, 2,761 previous-only pixels,
+residual ratio `0.149529`, and no cooldown activity. Earlier engine cooldown
+evidence came from bright plume/glow pixels, not the trails. CP-30 and RC-13
+therefore remain partial; no velocity or reactive-mask approximation was
+added. Representative ignored reports are:
+
+```text
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/combined_astero_hdr-post_decal-off-all-kills-0_pl-all_date-2026-07-10_5855db16549a707a_temporal-contract.json
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/edges_astero_hdr-post_decal-off-all-kills-0_pl-all_date-2026-07-10_5a6641caff66c0ef_temporal-contract.json
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/silk-a01-final_astero_hdr-post_decal-off-all-kills-0_pl-all_date-2026-07-10_9ffb020b383da070_temporal-contract.json
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/trails-final_astero_hdr-post_decal-off-all-kills-0_pl-all_date-2026-07-10_54c1e908944ca2bc_temporal-contract.json
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/integrated_astero_hdr-finish_decal-authored-all-kills-0_pl-all_date-2026-07-10_86ee9e68b5696779_temporal-contract.json
+```

@@ -430,3 +430,16 @@ Policy evidence remains at
 it is checksummed in place and is not copied. The legacy
 `res:/fisfx/postprocess/taa.black` is unused because the current client creates
 `Tr2PPTaaEffect` through render-driver settings.
+
+RC-13 closeout required no additional client payload. Atomic temporal reports
+embed the existing manifest and `code.ccp` checksum, plus same-frame product
+formats and raw hashes. The accepted CP-29 and edge/integrated reports, and the
+fail-closed Silk/trail reports, remain under the ignored absolute directory:
+
+```text
+/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/
+```
+
+The isolated failures are runtime-contract evidence: both cooldown maps are
+uniform zero. They do not imply missing staged resources and do not authorize
+a sample-owned reactive mask.
