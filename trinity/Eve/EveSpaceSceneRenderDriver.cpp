@@ -239,6 +239,7 @@ void EveSpaceSceneRenderDriver::PropagateSettings()
 				m_scene->m_sceneDefaultPostProcess->SetTaa( taa );
 			}
 			m_scene->m_sceneDefaultPostProcess->GetTaaIfAvailable()->m_quality = (Tr2PPTaaEffect::Quality)m_settings.antiAliasingQuality;
+			m_scene->m_sceneDefaultPostProcess->GetTaaIfAvailable()->SetDebugMode( m_settings.taaDebugMode );
 		}
 	}
 
@@ -338,6 +339,11 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 
 	SetupUpscaling( displaySize );
 	const auto renderSize = GetRenderSize( displaySize );
+	if( renderSize != m_temporalRenderSize )
+	{
+		m_temporalRenderSize = renderSize;
+		m_temporalResetPending = true;
+	}
 
 	if( m_background )
 	{
@@ -369,6 +375,10 @@ bool EveSpaceSceneRenderDriver::Validate( const Span<const Tr2BitmapDimensions>&
 			strcmp( output.c_str(), "CascadedShadowDepth" ) != 0 &&
 			strcmp( output.c_str(), "DynamicLightShadowDepth" ) != 0 &&
 			strcmp( output.c_str(), "SSAOMap" ) != 0 &&
+			strcmp( output.c_str(), "OpaqueColorMap" ) != 0 &&
+			strcmp( output.c_str(), "PreTaaColor" ) != 0 &&
+			strcmp( output.c_str(), "PostTaaColor" ) != 0 &&
+			strcmp( output.c_str(), "TaaCooldownMap" ) != 0 &&
 			strcmp( output.c_str(), "PreTonemapColor" ) != 0 &&
 			strcmp( output.c_str(), "BloomMap" ) != 0 &&
 			strcmp( output.c_str(), "PostTonemapColor" ) != 0 &&
@@ -505,6 +515,15 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	renderContext.Clear( m_background ? Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER : ( Tr2RenderContextEnum::CLEARFLAGS_TARGET | Tr2RenderContextEnum::CLEARFLAGS_ZBUFFER ), m_settings.clearColor, 0 );
 
 	SetCameraToRenderer( renderContext );
+	if( m_temporalResetPending )
+	{
+		m_viewLast = Tr2Renderer::GetViewTransform();
+		m_projectionLast = Tr2Renderer::GetProjectionTransform();
+		m_scene->ResetTemporalHistory( m_viewLast, m_projectionLast );
+		if( m_postProcess )
+			m_postProcess->ResetTaaHistory();
+		m_temporalResetPending = false;
+	}
 	{
 		TimeSection updateSection( m_timers.update, "Update", rootTimer, renderContext );
 		m_scene->Update( realTime, simTime );
@@ -731,6 +750,9 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		else
 		{
 			auto preTonemapOutput = FindNamedOutput( outputs, "PreTonemapColor" );
+			auto preTaaOutput = FindNamedOutput( outputs, "PreTaaColor" );
+			auto postTaaOutput = FindNamedOutput( outputs, "PostTaaColor" );
+			auto taaCooldownOutput = FindNamedOutput( outputs, "TaaCooldownMap" );
 			auto bloomOutput = FindNamedOutput( outputs, "BloomMap" );
 			auto postTonemapOutput = FindNamedOutput( outputs, "PostTonemapColor" );
 			auto finalPostProcessOutput = FindNamedOutput( outputs, "FinalPostProcessColor" );
@@ -744,6 +766,9 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 				m_upscalingContext,
 				m_gpuResourcePool,
 				renderContext,
+				preTaaOutput ? &preTaaOutput->texture : nullptr,
+				postTaaOutput ? &postTaaOutput->texture : nullptr,
+				taaCooldownOutput ? &taaCooldownOutput->texture : nullptr,
 				preTonemapOutput ? &preTonemapOutput->texture : nullptr,
 				bloomOutput ? &bloomOutput->texture : nullptr,
 				postTonemapOutput ? &postTonemapOutput->texture : nullptr,
@@ -792,6 +817,23 @@ bool EveSpaceSceneRenderDriver::ReadPostProcessDiagnostics(
 bool EveSpaceSceneRenderDriver::GetLastPostProcessExecutionSucceeded() const
 {
 	return m_postProcess && m_postProcess->GetLastExecutionSucceeded();
+}
+
+void EveSpaceSceneRenderDriver::ResetTemporalHistory()
+{
+	m_temporalResetPending = true;
+}
+
+void EveSpaceSceneRenderDriver::SetTemporalHistoryFrozen( bool frozen )
+{
+	if( m_scene )
+	{
+		m_scene->SetTemporalHistoryFrozen( frozen );
+	}
+	if( m_postProcess )
+	{
+		m_postProcess->SetTaaHistoryFrozen( frozen );
+	}
 }
 
 void EveSpaceSceneRenderDriver::SetUseNewBloom( bool enabled )

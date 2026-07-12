@@ -31,6 +31,30 @@ public:
 	~Tr2PPTaaEffect();
 
 	void IncrementJitter();
+	void SetQuality( Quality quality )
+	{
+		m_quality = quality;
+	}
+	Quality GetQuality() const
+	{
+		return m_quality;
+	}
+	void SetDebugMode( Debug debugMode )
+	{
+		m_debugMode = debugMode;
+	}
+	Debug GetDebugMode() const
+	{
+		return m_debugMode;
+	}
+	void SetEarlyOutThreshold( float threshold )
+	{
+		m_earlyOutThreshold = threshold;
+	}
+	float GetEarlyOutThreshold() const
+	{
+		return m_earlyOutThreshold;
+	}
 
 	bool IsActive() override
 	{

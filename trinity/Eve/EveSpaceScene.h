@@ -369,6 +369,31 @@ public:
 	Tr2PostProcess2Ptr GetPostProcess();
 
 	Matrix GetReprojectionMatrix() const;
+	const Matrix& GetPreviousView() const
+	{
+		return m_viewLast;
+	}
+	const Matrix& GetPreviousProjection() const
+	{
+		return m_projectionLast;
+	}
+	const Matrix& GetJitteredProjection() const
+	{
+		return m_jitteredProjection;
+	}
+	const Vector4& GetJitter() const
+	{
+		return m_jitter;
+	}
+	void SetTemporalHistoryFrozen( bool frozen )
+	{
+		m_temporalHistoryFrozen = frozen;
+	}
+	void ResetTemporalHistory( const Matrix& view, const Matrix& projection )
+	{
+		m_viewLast = view;
+		m_projectionLast = projection;
+	}
 
 	// Per-frame pixel constants for rendering scene
 	struct SunData
@@ -780,6 +805,7 @@ protected:
 
 	float m_upscalingAmount;
 	Vector4 m_jitter; // xy: projection offset, zw: pixel offset
+	bool m_temporalHistoryFrozen = false;
 
 	void Jitter( Tr2RenderContext & renderContext );
 

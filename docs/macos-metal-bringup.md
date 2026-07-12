@@ -1875,3 +1875,28 @@ At each step, preserve the previous rung's image and finite-frame exit status.
 The central lesson from this bring-up is that visual quality is downstream of
 correct data products and resource ownership. The ladder should continue to
 make one new subsystem observable at a time.
+
+## RC-13 native velocity and TAA bring-up (2026-07-12)
+
+The canonical schedule now keeps the Astero fixed. Frames `0..179` hold the
+camera, then a 900-frame camera orbit begins. Object and combined motion remain
+diagnostic modes. Previous/current transforms, scene matrices, four-sample
+jitter, and reset-on-resize/mode-change state feed native High TAA. Frozen
+product captures preserve jitter and do not increment history.
+
+`VelocityMap`, `PreTaaColor`, `PostTaaColor`, and `TaaCooldownMap` are named
+outputs. Raw `RG16F` velocity is converted from clip displacement to pixels;
+raw `R32_UINT` cooldown is read without float reinterpretation. At 1280x960:
+
+- static: zero moving pixels and maximum velocity `0.0`;
+- camera frame 185: 1,227,193 moving pixels, mean `3.25269`, maximum `4.82236`;
+- full Silk/engine composition: 19,931 cooldown pixels, range `[0,185]`;
+- engine-only visualization: 1,851 localized pixels in bounds
+  `[81,268]-[213,317]` at 640x480.
+
+The integrated 185-frame `hdr-finish` run retained the complete RC-09
+inventory and emitted a passing native temporal contract. RC-13 remains
+partial: the CPU depth/matrix velocity reference, settled edge-variance ratio,
+previous-only Silk/engine residual energy, 1080-frame run, pacing run, and
+manual ghosting inspection are still required. Reports and PNGs remain in
+ignored build or `/tmp` paths.

@@ -55,6 +55,7 @@ public:
 	{
 		ShadowQuality shadowQuality = ShadowQuality::SHADOW_HIGH;
 		AntiAliasingQuality antiAliasingQuality = AntiAliasingQuality::High;
+		Tr2PPTaaEffect::Debug taaDebugMode = Tr2PPTaaEffect::TAA_DEBUG_OFF;
 		AmbientOcclusionQuality aoQuality = AmbientOcclusionQuality::High;
 		PostProcess::Quality postProcessingQuality = PostProcess::Quality::HIGH;
 		Tr2VolumerticQuality volumetricQuality = Tr2VolumerticQuality::High;
@@ -97,6 +98,8 @@ public:
 
 	void SetSettings( const Settings& settings )
 	{
+		if( m_settings.antiAliasingQuality != settings.antiAliasingQuality )
+			m_temporalResetPending = true;
 		m_settings = settings;
 	}
 	const Settings& GetSettings() const
@@ -130,8 +133,10 @@ public:
 		return m_reflectionCorrectionEnabled;
 	}
 	void SetPostProcessDiagnosticsEnabled( bool enabled );
-	bool ReadPostProcessDiagnostics( Tr2RenderContext& renderContext, Tr2PostProcessRenderer::Diagnostics& diagnostics ) const;
+	bool ReadPostProcessDiagnostics( Tr2RenderContext & renderContext, Tr2PostProcessRenderer::Diagnostics & diagnostics ) const;
 	bool GetLastPostProcessExecutionSucceeded() const;
+	void ResetTemporalHistory();
+	void SetTemporalHistoryFrozen( bool frozen );
 	void SetUseNewBloom( bool enabled );
 	bool GetUseNewBloom() const;
 	Tr2Effect* GetDistortionEffect() const
@@ -201,6 +206,8 @@ private:
 	// View and projection matrices from last frame, for velocity calculations
 	Matrix m_viewLast = IdentityMatrix();
 	Matrix m_projectionLast = IdentityMatrix();
+	bool m_temporalResetPending = true;
+	TextureSize2D m_temporalRenderSize;
 
 	bool m_reflectionCorrectionEnabled;
 	TriTextureResPtr m_reflectionCorrectionMap;

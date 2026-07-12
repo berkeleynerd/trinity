@@ -1,6 +1,7 @@
 // Copyright (c) 2026 CCP Games
 
 Texture2D BlitSource;
+Texture2D<uint> CooldownSource;
 
 SamplerState ProductSampler
 {
@@ -37,6 +38,12 @@ VertexOutput MainVS( VertexInput input )
 float4 MainPS( VertexOutput input ) : SV_Target
 {
 	float4 value = BlitSource.SampleLevel( ProductSampler, input.texcoord, 0.0 );
+	if( RenderProductMode >= 9.5 )
+	{
+		uint cooldown = CooldownSource.Load( int3( int2( input.position.xy ), 0 ) );
+		float normalizedCooldown = saturate( cooldown / 255.0 );
+		return float4( normalizedCooldown, normalizedCooldown, normalizedCooldown, 1.0 );
+	}
 	if( RenderProductMode < 1.5 || ( RenderProductMode >= 3.5 && RenderProductMode < 4.5 ) )
 	{
 		float depth = saturate( value.r );
@@ -55,6 +62,13 @@ float4 MainPS( VertexOutput input ) : SV_Target
 	if( RenderProductMode >= 5.5 && RenderProductMode < 6.5 )
 	{
 		return float4( value.rgb * 0.5 + 0.5, 1.0 );
+	}
+	if( RenderProductMode >= 8.5 )
+	{
+		float vectorLength = length( value.rg );
+		float magnitude = saturate( vectorLength * 64.0 );
+		float2 direction = value.rg / max( vectorLength, 0.000001 ) * 0.5 + 0.5;
+		return float4( direction * magnitude, magnitude, 1.0 );
 	}
 	if( RenderProductMode >= 7.5 )
 	{

@@ -123,6 +123,9 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int engineView,
 													  float engineThrottle,
 													  float modelYawDegrees,
+													  int taaMode,
+													  int taaDebug,
+													  int motionMode,
 													  int shadows,
 													  int ambientOcclusion,
 													  int aoMethod );
@@ -290,6 +293,10 @@ enum class RenderProduct
 	VolumeSlices,
 	FroxelFog,
 	MieEnvironment,
+	Velocity,
+	TaaInput,
+	TaaOutput,
+	TaaCooldown,
 	All,
 };
 
@@ -366,12 +373,40 @@ constexpr int kCaptureDistortion = 1 << 16;
 constexpr int kCaptureVolumeSlices = 1 << 17;
 constexpr int kCaptureFroxelFog = 1 << 18;
 constexpr int kCaptureMieEnvironment = 1 << 19;
+constexpr int kCaptureVelocity = 1 << 20;
+constexpr int kCaptureTaaInput = 1 << 21;
+constexpr int kCaptureTaaOutput = 1 << 22;
+constexpr int kCaptureTaaCooldown = 1 << 23;
 
 enum class DynamicExposure
 {
 	Auto,
 	Off,
 	Client,
+};
+
+enum class TaaMode
+{
+	Auto,
+	Off,
+	Low,
+	Medium,
+	High,
+};
+
+enum class TaaDebug
+{
+	Off,
+	MotionVectors,
+	EarlyOut,
+};
+
+enum class MotionMode
+{
+	Static,
+	Camera,
+	Object,
+	Combined,
 };
 
 enum class PostFinishMode
@@ -512,6 +547,11 @@ struct Options
 	VolumetricQuality resolvedVolumetricQuality = VolumetricQuality::High;
 	uint32_t volumetricSeed = 0x12b;
 	bool validateVolumetrics = false;
+	TaaMode taa = TaaMode::Auto;
+	TaaMode resolvedTaa = TaaMode::Off;
+	TaaDebug taaDebug = TaaDebug::Off;
+	MotionMode motion = MotionMode::Camera;
+	bool validateTemporal = false;
 	ExposureSequence exposureSequence = ExposureSequence::None;
 	uint32_t exposureHold = 180;
 };
@@ -940,6 +980,14 @@ std::string RenderProductName( RenderProduct product )
 		return "froxel-fog";
 	case RenderProduct::MieEnvironment:
 		return "mie-environment";
+	case RenderProduct::Velocity:
+		return "velocity";
+	case RenderProduct::TaaInput:
+		return "taa-input";
+	case RenderProduct::TaaOutput:
+		return "taa-output";
+	case RenderProduct::TaaCooldown:
+		return "taa-cooldown";
 	case RenderProduct::All:
 		return "all";
 	}
@@ -967,6 +1015,10 @@ bool ParseRenderProduct( const std::string& value, RenderProduct& product )
 									 RenderProduct::VolumeSlices,
 									 RenderProduct::FroxelFog,
 									 RenderProduct::MieEnvironment,
+									 RenderProduct::Velocity,
+									 RenderProduct::TaaInput,
+									 RenderProduct::TaaOutput,
+									 RenderProduct::TaaCooldown,
 									 RenderProduct::All };
 	for( RenderProduct candidate : values )
 	{
@@ -997,6 +1049,79 @@ bool ParseDynamicExposure( const std::string& value, DynamicExposure& result )
 		}
 	}
 	return false;
+}
+
+std::string TaaModeName( TaaMode value )
+{
+	static const char* names[] = { "auto", "off", "low", "medium", "high" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseTaaMode( const std::string& value, TaaMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( TaaMode candidate : { TaaMode::Auto, TaaMode::Off, TaaMode::Low, TaaMode::Medium, TaaMode::High } )
+	{
+		if( normalized == TaaModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string TaaDebugName( TaaDebug value )
+{
+	static const char* names[] = { "off", "motion-vectors", "early-out" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseTaaDebug( const std::string& value, TaaDebug& result )
+{
+	const std::string normalized = ToLower( value );
+	for( TaaDebug candidate : { TaaDebug::Off, TaaDebug::MotionVectors, TaaDebug::EarlyOut } )
+	{
+		if( normalized == TaaDebugName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string MotionModeName( MotionMode value )
+{
+	static const char* names[] = { "static", "camera", "object", "combined" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseMotionMode( const std::string& value, MotionMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( MotionMode candidate : { MotionMode::Static, MotionMode::Camera, MotionMode::Object, MotionMode::Combined } )
+	{
+		if( normalized == MotionModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+TaaMode ResolveClientTaa( TaaMode requested, uint32_t width, uint32_t height )
+{
+	if( requested != TaaMode::Auto )
+		return requested;
+	const uint32_t shortAxis = std::min( width, height );
+	return shortAxis >= 2160 ? TaaMode::Off : ( shortAxis >= 1800 ? TaaMode::Medium : TaaMode::High );
+}
+
+int TaaModeApiValue( TaaMode value )
+{
+	return value == TaaMode::Low ? 1 : ( value == TaaMode::Medium ? 2 : ( value == TaaMode::High ? 3 : 0 ) );
 }
 
 std::string PostFinishModeName( PostFinishMode value )
@@ -1464,6 +1589,14 @@ int RenderProductApiValue( RenderProduct product )
 		return kCaptureFroxelFog;
 	case RenderProduct::MieEnvironment:
 		return kCaptureMieEnvironment;
+	case RenderProduct::Velocity:
+		return kCaptureVelocity;
+	case RenderProduct::TaaInput:
+		return kCaptureTaaInput;
+	case RenderProduct::TaaOutput:
+		return kCaptureTaaOutput;
+	case RenderProduct::TaaCooldown:
+		return kCaptureTaaCooldown;
 	case RenderProduct::All:
 		return 0;
 	case RenderProduct::Window:
@@ -1546,6 +1679,14 @@ std::string RenderProductStats( const Options& options, RenderProduct product )
 		return "source=FroxelFog type=3d format=R11G11B10_FLOAT visualization=depth-projection gpuVisualization=true";
 	case RenderProduct::MieEnvironment:
 		return "source=MieEnvironmentMap type=cube format=R32G32B32A32_FLOAT layout=3x2 gpuVisualization=true";
+	case RenderProduct::Velocity:
+		return "source=VelocityMap format=R16G16_FLOAT units=pixels visualization=direction-magnitude gpuVisualization=true";
+	case RenderProduct::TaaInput:
+		return "source=PreTaaColor format=R16G16B16A16_FLOAT visualization=reinhard-plus-gamma gpuVisualization=true";
+	case RenderProduct::TaaOutput:
+		return "source=PostTaaColor format=R16G16B16A16_UNORM visualization=reinhard-plus-gamma gpuVisualization=true";
+	case RenderProduct::TaaCooldown:
+		return "source=TaaCooldownMap format=R32_UINT visualization=normalized-cooldown gpuVisualization=true";
 	case RenderProduct::Window:
 	case RenderProduct::All:
 		break;
@@ -1847,7 +1988,7 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-source auto|off|static|dynamic]\n"
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
-		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|volume-slices|froxel-fog|mie-environment|all]\n"
+		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|volume-slices|froxel-fog|mie-environment|velocity|taa-input|taa-output|taa-cooldown|all]\n"
 		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
@@ -1856,6 +1997,8 @@ void PrintUsage( const char* executable )
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
+		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
+		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
 		<< "       [--engine-throttle FLOAT] [--validate-engines]\n"
@@ -1993,6 +2136,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--taa" )
+		{
+			if( ++i >= argc || !ParseTaaMode( argv[i], options.taa ) )
+				return false;
+		}
+		else if( arg == "--taa-debug" )
+		{
+			if( ++i >= argc || !ParseTaaDebug( argv[i], options.taaDebug ) )
+				return false;
+		}
+		else if( arg == "--motion" )
+		{
+			if( ++i >= argc || !ParseMotionMode( argv[i], options.motion ) )
+				return false;
+		}
 		else if( arg == "--bloom" )
 		{
 			if( ++i >= argc || !ParsePostFinishMode( argv[i], options.bloom ) )
@@ -2073,6 +2231,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-exposure-tone" )
 		{
 			options.validateExposureTone = true;
+		}
+		else if( arg == "--validate-temporal" )
+		{
+			options.validateTemporal = true;
 		}
 		else if( arg == "--validate-post-finish" )
 		{
@@ -2365,6 +2527,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		options.localLights = LocalLights::Authored;
 	}
+	options.resolvedTaa = options.taa == TaaMode::Auto ?
+		( options.qualityRung >= QualityRung::HdrPost && options.shaderTier == ShaderTier::High ?
+			  ResolveClientTaa( options.taa, options.windowWidth, options.windowHeight ) :
+			  TaaMode::Off ) :
+		options.taa;
+	if( options.resolvedTaa != TaaMode::Off &&
+		( options.qualityRung < QualityRung::HdrPost || options.shaderTier != ShaderTier::High ) )
+	{
+		std::cerr << "TAA requires --quality-rung hdr-post or higher with --shader-tier high\n";
+		return false;
+	}
+	if( options.taaDebug != TaaDebug::Off && options.resolvedTaa == TaaMode::Off )
+	{
+		std::cerr << "TAA debug output requires enabled TAA\n";
+		return false;
+	}
 	if( options.lightingView == LightingView::Direct || options.lightingView == LightingView::Sh ||
 		options.lightingView == LightingView::Environment )
 	{
@@ -2569,6 +2747,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "The hdr-composite render product requires --quality-rung hdr-post or hdr-exposure\n";
 		return false;
 	}
+	if( ( options.renderProduct == RenderProduct::TaaInput || options.renderProduct == RenderProduct::TaaOutput ||
+		  options.renderProduct == RenderProduct::TaaCooldown ) &&
+		options.resolvedTaa == TaaMode::Off )
+	{
+		std::cerr << "TAA render products require enabled TAA\n";
+		return false;
+	}
+	if( options.renderProduct == RenderProduct::Velocity && options.qualityRung < QualityRung::Model )
+	{
+		std::cerr << "Velocity capture requires the model rung or higher\n";
+		return false;
+	}
 	if( options.renderProduct == RenderProduct::PostTonemap && options.qualityRung < QualityRung::HdrPost )
 	{
 		std::cerr << "The post-tonemap render product requires --quality-rung hdr-post or hdr-exposure\n";
@@ -2655,6 +2845,17 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( options.maxFrames <= 0 || static_cast<uint32_t>( options.maxFrames ) <= options.timingWarmup ) )
 	{
 		std::cerr << "--frame-pacing-check requires a finite --frames count greater than --timing-warmup\n";
+		return false;
+	}
+	if( options.validateTemporal &&
+		( options.maxFrames <= 0 || options.capturePrefix.empty() || options.qualityRung < QualityRung::HdrPost ) )
+	{
+		std::cerr << "--validate-temporal requires hdr-post or higher, finite frames, and --capture-prefix\n";
+		return false;
+	}
+	if( options.validateTemporal && options.resolvedTaa != TaaMode::High )
+	{
+		std::cerr << "--validate-temporal requires resolved High TAA\n";
 		return false;
 	}
 	if( options.validateComposition && options.maxFrames >= 0 &&
@@ -3042,6 +3243,11 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "aoResolved=" << AmbientOcclusionName( options.resolvedAmbientOcclusion ) << "\n";
 	metadata << "aoMethod=" << AoMethodName( options.aoMethod ) << "\n";
 	metadata << "renderProduct=" << RenderProductName( options.renderProduct ) << "\n";
+	metadata << "taaRequested=" << TaaModeName( options.taa ) << "\n";
+	metadata << "taaResolved=" << TaaModeName( options.resolvedTaa ) << "\n";
+	metadata << "taaDebug=" << TaaDebugName( options.taaDebug ) << "\n";
+	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
+	metadata << "temporalValidation=" << ( options.validateTemporal ? "requested" : "off" ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
 	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
 	metadata << "planetLayers=" << PlanetLayersName( options.planetLayers ) << "\n";
@@ -3700,6 +3906,152 @@ bool WriteEngineContractJson( const Options& options, const TrinityStandaloneEng
 	return output.good();
 }
 
+bool EvaluateTemporalSamples( const Options& options,
+							  const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
+							  uint32_t width,
+							  uint32_t height,
+							  std::string& summary )
+{
+	if( samples.size() < 4 )
+	{
+		summary = "validation=fail reason=insufficient-samples";
+		return false;
+	}
+
+	bool valid = true;
+	uint32_t resetCount = 0;
+	std::array<std::pair<float, float>, 4> phases = {};
+	const size_t phaseStart = samples.size() - phases.size();
+	for( size_t index = 0; index < samples.size(); ++index )
+	{
+		const auto& sample = samples[index];
+		resetCount += sample.taaReset ? 1u : 0u;
+		valid = valid && sample.taaActive && sample.taaAccumulationSucceeded && sample.taaCopySucceeded &&
+			sample.taaQuality == 3 && sample.velocityWidth == width && sample.velocityHeight == height &&
+			sample.velocityFormat != 0 && sample.opaqueWidth == width && sample.opaqueHeight == height &&
+			sample.opaqueFormat != 0 && sample.taaAccumulationWidth == width &&
+			sample.taaAccumulationHeight == height && sample.taaAccumulationFormat != 0 &&
+			sample.taaCooldownWidth == width && sample.taaCooldownHeight == height && sample.taaCooldownFormat != 0 &&
+			std::isfinite( sample.taaBlendWeight ) && sample.taaBlendWeight >= 0.0f &&
+			sample.taaBlendWeight <= 0.960001f && std::abs( sample.taaEarlyOutThreshold - 0.001f ) <= 0.000001f;
+		if( index >= phaseStart )
+		{
+			phases[index - phaseStart] = { sample.taaJitterPixelX, sample.taaJitterPixelY };
+		}
+	}
+	for( size_t left = 0; left < phases.size(); ++left )
+	{
+		for( size_t right = left + 1; right < phases.size(); ++right )
+		{
+			valid = valid &&
+				( std::abs( phases[left].first - phases[right].first ) > 0.0001f ||
+				  std::abs( phases[left].second - phases[right].second ) > 0.0001f );
+		}
+	}
+	const auto& final = samples.back();
+	const bool expectsMotion = samples.size() > 180 && options.motion != MotionMode::Static;
+	const bool expectsTransientCooldown = samples.size() > 180 &&
+		( options.resolvedVolumetrics == VolumetricMode::Silk || options.resolvedEngines == EngineMode::Authored );
+	valid = valid && final.velocityInvalidPixels == 0 &&
+		final.velocityFinitePixels == static_cast<uint64_t>( width ) * height;
+	valid = valid && ( expectsMotion ? final.velocityMovingPixels > 0 : final.velocityMaximumMagnitude <= 0.05 );
+	valid = valid && ( !expectsTransientCooldown || final.taaCooldownNonzeroPixels > 0 );
+	std::ostringstream stats;
+	stats << "validation=" << ( valid ? "pass" : "fail" ) << " samples=" << samples.size() << " resets=" << resetCount
+		  << " frameIndex=" << final.taaFrameIndex << " quality=" << final.taaQuality
+		  << " velocity=" << final.velocityWidth << "x" << final.velocityHeight << "/" << final.velocityFormat
+		  << " accumulation=" << final.taaAccumulationWidth << "x" << final.taaAccumulationHeight << "/"
+		  << final.taaAccumulationFormat << " cooldown=" << final.taaCooldownWidth << "x" << final.taaCooldownHeight
+		  << "/" << final.taaCooldownFormat << " blend=" << final.taaBlendWeight
+		  << " threshold=" << final.taaEarlyOutThreshold << " motion=" << MotionModeName( options.motion )
+		  << " velocityHash=" << std::hex << final.velocityRawHash << std::dec
+		  << " velocityMoving=" << final.velocityMovingPixels << " velocityMean=" << final.velocityMeanMagnitude
+		  << " velocityMax=" << final.velocityMaximumMagnitude << " cooldownHash=" << std::hex
+		  << final.taaCooldownRawHash << std::dec << " cooldownNonzero=" << final.taaCooldownNonzeroPixels
+		  << " cooldownRange=" << final.taaCooldownMinimum << "-" << final.taaCooldownMaximum;
+	summary = stats.str();
+	return valid;
+}
+
+bool WriteTemporalContractJson( const Options& options,
+								const std::vector<TrinityStandalonePostProcessDiagnostics>& samples,
+								const std::string& validationSummary,
+								bool validationPassed )
+{
+	if( samples.empty() )
+	{
+		return false;
+	}
+	const std::string outputPath = CaptureBasePath( options ) + "_temporal-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/AsteroTemporalResources.json";
+	const std::string codeHashPath = ExecutableDirectory() + "/../Reports/EveCodeCcp.sha256";
+	const char* home = std::getenv( "HOME" );
+	const std::string codePath = std::string( home ? home : "" ) +
+		"/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	std::ifstream codeHashInput( codeHashPath );
+	std::string codeHashLine;
+	std::getline( codeHashInput, codeHashLine );
+	std::istringstream codeHashStream( codeHashLine );
+	std::string codeHash;
+	codeHashStream >> codeHash;
+	if( !manifestInput || manifest.str().empty() || !codeHashInput || codeHash.empty() )
+	{
+		std::cerr << "RC-13 could not read temporal provenance reports: " << manifestPath << ", " << codeHashPath
+				  << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	const auto& final = samples.back();
+	output << "{\n"
+		   << "  \"profile\": \"RC-13\",\n"
+		   << "  \"requestedTaa\": \"" << TaaModeName( options.taa ) << "\",\n"
+		   << "  \"resolvedTaa\": \"" << TaaModeName( options.resolvedTaa ) << "\",\n"
+		   << "  \"debugMode\": \"" << TaaDebugName( options.taaDebug ) << "\",\n"
+		   << "  \"motion\": \"" << MotionModeName( options.motion ) << "\",\n"
+		   << "  \"motionSchedule\": \"frames 0-179 static; camera/object motion begins at frame 180\",\n"
+		   << "  \"samples\": " << samples.size() << ",\n"
+		   << "  \"frameIndex\": " << final.taaFrameIndex << ",\n"
+		   << "  \"quality\": " << final.taaQuality << ",\n"
+		   << "  \"blendWeight\": " << final.taaBlendWeight << ",\n"
+		   << "  \"earlyOutThreshold\": " << final.taaEarlyOutThreshold << ",\n"
+		   << "  \"jitterPixels\": [" << final.taaJitterPixelX << ", " << final.taaJitterPixelY << "],\n"
+		   << "  \"velocity\": {\"width\": " << final.velocityWidth << ", \"height\": " << final.velocityHeight
+		   << ", \"format\": " << final.velocityFormat << ", \"rawHash\": \"" << std::hex << final.velocityRawHash
+		   << std::dec << "\", \"finitePixels\": " << final.velocityFinitePixels
+		   << ", \"invalidPixels\": " << final.velocityInvalidPixels
+		   << ", \"movingPixels\": " << final.velocityMovingPixels
+		   << ", \"meanMagnitude\": " << final.velocityMeanMagnitude
+		   << ", \"maximumMagnitude\": " << final.velocityMaximumMagnitude << "},\n"
+		   << "  \"accumulation\": {\"width\": " << final.taaAccumulationWidth
+		   << ", \"height\": " << final.taaAccumulationHeight << ", \"format\": " << final.taaAccumulationFormat
+		   << "},\n"
+		   << "  \"cooldown\": {\"width\": " << final.taaCooldownWidth << ", \"height\": " << final.taaCooldownHeight
+		   << ", \"format\": " << final.taaCooldownFormat << "},\n"
+		   << "  \"cooldownReadback\": {\"rawHash\": \"" << std::hex << final.taaCooldownRawHash << std::dec
+		   << "\", \"nonzeroPixels\": " << final.taaCooldownNonzeroPixels
+		   << ", \"minimum\": " << final.taaCooldownMinimum << ", \"maximum\": " << final.taaCooldownMaximum << "},\n"
+		   << "  \"validationSummary\": \"" << validationSummary << "\",\n"
+		   << "  \"validationPassed\": " << ( validationPassed ? "true" : "false" ) << ",\n"
+		   << "  \"codeCcpPath\": \"" << codePath << "\",\n"
+		   << "  \"codeCcpSha256\": \"" << codeHash << "\",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Temporal contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -3773,6 +4125,23 @@ int main( int argc, char** argv )
 		const NSSize viewSize = view.bounds.size;
 		const uint32_t renderWidth = GetBackingDimension( viewSize.width, backingScale );
 		const uint32_t renderHeight = GetBackingDimension( viewSize.height, backingScale );
+		if( options.taa == TaaMode::Auto )
+		{
+			options.resolvedTaa =
+				options.qualityRung >= QualityRung::HdrPost && options.shaderTier == ShaderTier::High ?
+				ResolveClientTaa( options.taa, renderWidth, renderHeight ) :
+				TaaMode::Off;
+		}
+		if( options.validateTemporal && options.resolvedTaa != TaaMode::High )
+		{
+			std::cerr << "The backing resolution resolves --taa auto to " << TaaModeName( options.resolvedTaa )
+					  << "; temporal acceptance requires explicit --taa high\n";
+			[window close];
+			return 2;
+		}
+		std::cerr << "EVE temporal frontend: requested=" << TaaModeName( options.taa )
+				  << " resolved=" << TaaModeName( options.resolvedTaa ) << " backing=" << renderWidth << "x"
+				  << renderHeight << " motion=" << MotionModeName( options.motion ) << "\n";
 		if( [view.layer isKindOfClass:CAMetalLayer.class] )
 		{
 			CAMetalLayer* metalLayer = (CAMetalLayer*)view.layer;
@@ -3844,6 +4213,9 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.engineView ),
 												   options.engineThrottle,
 												   options.modelYawDegrees,
+												   TaaModeApiValue( options.resolvedTaa ),
+												   static_cast<int>( options.taaDebug ),
+												   static_cast<int>( options.motion ),
 												   ShadowsApiValue( options.resolvedShadows ),
 												   AmbientOcclusionApiValue( options.resolvedAmbientOcclusion ),
 												   static_cast<int>( options.aoMethod ) ) )
@@ -3865,7 +4237,8 @@ int main( int argc, char** argv )
 			return 1;
 		}
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
-			options.validateDistortion || options.validateEngines || options.exposureSequence != ExposureSequence::None;
+			options.validateDistortion || options.validateEngines || options.validateTemporal ||
+			options.exposureSequence != ExposureSequence::None;
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
 			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
@@ -3931,8 +4304,10 @@ int main( int argc, char** argv )
 					}
 				}
 				const int captureProducts = options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
-					RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
-																						 options.renderProduct ) :
+					RenderProductApiValue( options.validateTemporal ? RenderProduct::Velocity :
+																	  ( options.renderProduct == RenderProduct::All ?
+																			RenderProduct::Color :
+																			options.renderProduct ) ) :
 					0;
 				const auto frameStart = std::chrono::steady_clock::now();
 				const bool rendered =
@@ -3983,13 +4358,37 @@ int main( int argc, char** argv )
 			compositionValidationAttempted = true;
 			compositionValidationSucceeded = validateCompositionAtTime( validationTime );
 		}
+		if( options.validateTemporal && !exposureSamples.empty() )
+		{
+			const int64_t validationTime = static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+			TrinityStandalonePostProcessDiagnostics cooldownDiagnostics;
+			if( !TrinityStandaloneProbeRenderFrame(
+					probe, qualityRung, validationTime, validationTime, kCaptureTaaCooldown | kCaptureFreezeScene ) ||
+				!TrinityStandaloneProbeGetPostProcessDiagnostics( probe, &cooldownDiagnostics ) )
+			{
+				std::cerr << "Failed to read the frozen RC-13 cooldown product\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			auto& final = exposureSamples.back();
+			final.taaCooldownRawHash = cooldownDiagnostics.taaCooldownRawHash;
+			final.taaCooldownNonzeroPixels = cooldownDiagnostics.taaCooldownNonzeroPixels;
+			final.taaCooldownMinimum = cooldownDiagnostics.taaCooldownMinimum;
+			final.taaCooldownMaximum = cooldownDiagnostics.taaCooldownMaximum;
+		}
 
 		std::string framePacingStats;
 		const bool framePacingSucceeded =
 			!options.framePacingCheck || EvaluateFramePacing( framePacingSamples, framePacingStats );
 		std::string exposureValidationStats = "not-requested";
+		const bool validateExposureSamples =
+			options.validateExposureTone || options.exposureSequence != ExposureSequence::None;
 		const bool exposureValidationSucceeded =
-			!collectExposureDiagnostics || EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
+			!validateExposureSamples || EvaluateExposureSamples( options, exposureSamples, exposureValidationStats );
+		std::string temporalValidationStats = "not-requested";
+		const bool temporalValidationSucceeded = !options.validateTemporal ||
+			EvaluateTemporalSamples( options, exposureSamples, renderWidth, renderHeight, temporalValidationStats );
 		TrinityStandaloneToneValidation toneValidation;
 		TrinityStandaloneToneValidation offToneValidation;
 		bool toneValidationSucceeded = true;
@@ -4125,6 +4524,13 @@ int main( int argc, char** argv )
 			exposureReportsSucceeded =
 				WriteEngineContractJson( options, engineDiagnostics ) && exposureReportsSucceeded;
 		}
+		if( options.validateTemporal )
+		{
+			exposureReportsSucceeded =
+				WriteTemporalContractJson(
+					options, exposureSamples, temporalValidationStats, temporalValidationSucceeded ) &&
+				exposureReportsSucceeded;
+		}
 		bool captureSucceeded = true;
 		@autoreleasepool
 		{
@@ -4137,9 +4543,13 @@ int main( int argc, char** argv )
 			{
 				productStats.emplace_back( "compositionValidation", compositionValidationStats );
 			}
-			if( collectExposureDiagnostics )
+			if( validateExposureSamples )
 			{
 				productStats.emplace_back( "exposureValidation", exposureValidationStats );
+			}
+			if( options.validateTemporal )
+			{
+				productStats.emplace_back( "temporalValidation", temporalValidationStats );
 			}
 			if( captureToneSnapshot )
 			{
@@ -4243,6 +4653,13 @@ int main( int argc, char** argv )
 					if( options.qualityRung >= QualityRung::HdrPost )
 					{
 						diagnosticProducts.push_back( RenderProduct::HdrComposite );
+					}
+					if( options.resolvedTaa != TaaMode::Off )
+					{
+						diagnosticProducts.push_back( RenderProduct::Velocity );
+						diagnosticProducts.push_back( RenderProduct::TaaInput );
+						diagnosticProducts.push_back( RenderProduct::TaaOutput );
+						diagnosticProducts.push_back( RenderProduct::TaaCooldown );
 					}
 					if( options.qualityRung >= QualityRung::HdrExposure )
 					{
@@ -4465,7 +4882,7 @@ int main( int argc, char** argv )
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
 			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
-			exposureReportsSucceeded;
+			temporalValidationSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

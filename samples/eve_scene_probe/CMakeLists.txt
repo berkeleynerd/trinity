@@ -212,6 +212,15 @@ set(EVE_SCENE_PROBE_BACKGROUND_LO ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/backg
 set(EVE_SCENE_PROBE_BACKGROUND_DEPTH ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/background.sm_depth)
 set(EVE_SCENE_PROBE_A01_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/A01SceneResources.json)
 set(EVE_SCENE_PROBE_POSTPROCESS_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/PostProcessResources.json)
+set(EVE_SCENE_PROBE_TEMPORAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroTemporalResources.json)
+set(EVE_SCENE_PROBE_CODE_CCP ${EVE_SCENE_PROBE_SHARED_CACHE}/tq/EVE.app/Contents/Resources/build/code.ccp)
+set(EVE_SCENE_PROBE_CODE_CCP_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/EveCodeCcp.sha256)
+set(EVE_SCENE_PROBE_TAA_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taa.sm_hi)
+set(EVE_SCENE_PROBE_TAA_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taa.sm_lo)
+set(EVE_SCENE_PROBE_TAA_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taa.sm_depth)
+set(EVE_SCENE_PROBE_TAA_COPY_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taacopy.sm_hi)
+set(EVE_SCENE_PROBE_TAA_COPY_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taacopy.sm_lo)
+set(EVE_SCENE_PROBE_TAA_COPY_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/taacopy.sm_depth)
 set(EVE_SCENE_PROBE_POST_FINISH_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/PostFinishResources.json)
 set(EVE_SCENE_PROBE_POST_FINISH_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/PostFinishInherited)
 set(EVE_SCENE_PROBE_DISTORTION_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroDistortionResources.json)
@@ -793,6 +802,43 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
             ${EVE_SCENE_PROBE_POSTPROCESS_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbePostProcessEffects)
+endif()
+
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_CODE_CCP}")
+    set(EVE_SCENE_PROBE_TEMPORAL_OUTPUTS
+        ${EVE_SCENE_PROBE_TAA_HI}
+        ${EVE_SCENE_PROBE_TAA_LO}
+        ${EVE_SCENE_PROBE_TAA_DEPTH}
+        ${EVE_SCENE_PROBE_TAA_COPY_HI}
+        ${EVE_SCENE_PROBE_TAA_COPY_LO}
+        ${EVE_SCENE_PROBE_TAA_COPY_DEPTH})
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_TEMPORAL_OUTPUTS} ${EVE_SCENE_PROBE_TEMPORAL_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_POSTPROCESS_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taa.sm_hi ${EVE_SCENE_PROBE_TAA_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taa.sm_lo ${EVE_SCENE_PROBE_TAA_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taa.sm_depth ${EVE_SCENE_PROBE_TAA_DEPTH}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_hi ${EVE_SCENE_PROBE_TAA_COPY_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_lo ${EVE_SCENE_PROBE_TAA_COPY_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_depth ${EVE_SCENE_PROBE_TAA_COPY_DEPTH}
+            --manifest ${EVE_SCENE_PROBE_TEMPORAL_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_CODE_CCP_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_CODE_CCP}
+            -DOUTPUT=${EVE_SCENE_PROBE_CODE_CCP_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_CODE_CCP} ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeTemporalAssets
+        DEPENDS ${EVE_SCENE_PROBE_TEMPORAL_OUTPUTS} ${EVE_SCENE_PROBE_TEMPORAL_MANIFEST}
+            ${EVE_SCENE_PROBE_CODE_CCP_HASH})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeTemporalAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")

@@ -672,6 +672,12 @@ void Tr2PostProcessRenderer::SetPostProcessingQuality( PostProcess::Quality qual
 	m_quality = quality;
 }
 
+void Tr2PostProcessRenderer::ResetTaaHistory()
+{
+	m_taaFrameCounter = 0;
+	m_taaResetPending = true;
+}
+
 void Tr2PostProcessRenderer::SetDiagnosticsEnabled( bool enabled )
 {
 	m_diagnosticsEnabled = enabled;
@@ -744,6 +750,9 @@ void Tr2PostProcessRenderer::Execute(
 	Tr2UpscalingContextAL* upscalingContext,
 	Tr2GpuResourcePool& gpuResourcePool,
 	Tr2RenderContext& renderContext,
+	Tr2GpuResourcePool::Texture* preTaaOutput,
+	Tr2GpuResourcePool::Texture* postTaaOutput,
+	Tr2GpuResourcePool::Texture* taaCooldownOutput,
 	Tr2GpuResourcePool::Texture* preTonemapOutput,
 	Tr2GpuResourcePool::Texture* bloomOutput,
 	Tr2GpuResourcePool::Texture* postTonemapOutput,
@@ -828,7 +837,33 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( taa != nullptr && !upscalingInfo.temporal )
 		{
-			RenderTaa( nonMsaaSource, velocity, opaqueColor, gpuResourcePool, renderContext, taa, dynamicExposure );
+			if( preTaaOutput )
+			{
+				*preTaaOutput = gpuResourcePool.GetTempTexture(
+					"Pre-TAA Color",
+					nonMsaaSource->GetDesc(),
+					Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
+				if( !preTaaOutput->IsValid() || FAILED( nonMsaaSource->Resolve( *preTaaOutput, renderContext ) ) )
+				{
+					m_lastExecutionSucceeded = false;
+				}
+			}
+			if( !RenderTaa(
+					nonMsaaSource,
+					velocity,
+					opaqueColor,
+					gpuResourcePool,
+					renderContext,
+					taa,
+					dynamicExposure,
+					taaCooldownOutput ) )
+			{
+				m_lastExecutionSucceeded = false;
+			}
+			if( postTaaOutput )
+			{
+				*postTaaOutput = nonMsaaSource;
+			}
 			if( !upscalingContext )
 			{
 				velocity = {};
@@ -837,7 +872,9 @@ void Tr2PostProcessRenderer::Execute(
 		}
 		else
 		{
-			m_taaFrameCounter = 0;
+			ResetTaaHistory();
+			if( preTaaOutput )
+				*preTaaOutput = nonMsaaSource;
 		}
 
 		if( preTonemapOutput )
@@ -941,7 +978,6 @@ void Tr2PostProcessRenderer::Execute(
 		{
 			m_lastDiagnostics.tonemappingSucceeded = RenderTonemapping( output, upscaledSource, postProcess, renderContext );
 		}
-
 	}
 	else
 	{
@@ -1655,7 +1691,15 @@ void Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2Textu
 	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_fogCompositeEffect, renderContext );
 }
 
-void Tr2PostProcessRenderer::RenderTaa( const Tr2TextureAL& dest, const Tr2TextureAL& velocity, const Tr2TextureAL& opaqueColor, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPTaaEffect* taa, Tr2PPDynamicExposureEffect* dynamicExposure )
+bool Tr2PostProcessRenderer::RenderTaa(
+	const Tr2TextureAL& dest,
+	const Tr2TextureAL& velocity,
+	const Tr2TextureAL& opaqueColor,
+	Tr2GpuResourcePool& gpuResourcePool,
+	Tr2RenderContext& renderContext,
+	Tr2PPTaaEffect* taa,
+	Tr2PPDynamicExposureEffect* dynamicExposure,
+	Tr2GpuResourcePool::Texture* cooldownOutput )
 {
 	GPU_REGION( renderContext, "TAA" );
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
@@ -1691,12 +1735,31 @@ void Tr2PostProcessRenderer::RenderTaa( const Tr2TextureAL& dest, const Tr2Textu
 		Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT,
 		Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE,
 		ClearUav );
+	if( !accumulationBuffer0.IsValid() || !accumulationBuffer1.IsValid() || !cooldownBuffer.IsValid() ||
+		!velocity.IsValid() || ( taa->m_quality >= Tr2PPTaaEffect::TAA_MEDIUM && !opaqueColor.IsValid() ) )
+	{
+		return false;
+	}
+
+	const bool reset = m_taaResetPending || m_taaWidth != dest.GetWidth() ||
+		m_taaHeight != dest.GetHeight() || m_taaQuality != taa->m_quality;
+	if( reset )
+	{
+		Clear( accumulationBuffer0, renderContext );
+		Clear( accumulationBuffer1, renderContext );
+		ClearUav( cooldownBuffer, renderContext );
+		m_taaFrameCounter = 0;
+		m_taaWidth = dest.GetWidth();
+		m_taaHeight = dest.GetHeight();
+		m_taaQuality = taa->m_quality;
+		m_taaResetPending = false;
+	}
 
 
 	Tr2TextureAL input;
 	Tr2TextureAL output;
 
-	uint32_t frame_count = m_taaFrameCounter++;
+	uint32_t frame_count = m_taaHistoryFrozen ? m_taaFrameCounter : m_taaFrameCounter++;
 	if( ( frame_count & 1 ) == 0 )
 	{
 		input = accumulationBuffer0;
@@ -1742,13 +1805,38 @@ void Tr2PostProcessRenderer::RenderTaa( const Tr2TextureAL& dest, const Tr2Textu
 	float weight = min( (float)frame_count / ( (float)frame_count + 1.0f ), max_weight );
 	m_taaEffect->SetParameter( MEMOIZED_STRING( "BlendWeight" ), weight );
 
-	DrawInto( output, Tr2LoadAction::DONT_CARE, m_taaEffect, renderContext );
+	const bool accumulationSucceeded = DrawInto( output, Tr2LoadAction::DONT_CARE, m_taaEffect, renderContext );
 
 
 	TEMP_PARAM( m_taaCopyEffect, "AccumulationBuffer", output );
 	TEMP_PARAM( m_taaCopyEffect, "Exposure", dynamicExposure ? GetExposureBuffer( gpuResourcePool ) : Tr2BufferAL{} );
 
-	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_taaCopyEffect, renderContext );
+	const bool copySucceeded = DrawInto( dest, Tr2LoadAction::DONT_CARE, m_taaCopyEffect, renderContext );
+	if( cooldownOutput )
+		*cooldownOutput = cooldownBuffer;
+
+	m_lastDiagnostics.taaActive = true;
+	m_lastDiagnostics.taaReset = reset;
+	m_lastDiagnostics.taaAccumulationSucceeded = accumulationSucceeded;
+	m_lastDiagnostics.taaCopySucceeded = copySucceeded;
+	m_lastDiagnostics.taaFrameIndex = frame_count;
+	m_lastDiagnostics.taaQuality = static_cast<uint32_t>( taa->m_quality );
+	m_lastDiagnostics.taaDebugMode = static_cast<uint32_t>( taa->m_debugMode );
+	m_lastDiagnostics.taaBlendWeight = weight;
+	m_lastDiagnostics.taaEarlyOutThreshold = taa->m_earlyOutThreshold;
+	m_lastDiagnostics.velocityWidth = velocity.GetWidth();
+	m_lastDiagnostics.velocityHeight = velocity.GetHeight();
+	m_lastDiagnostics.velocityFormat = static_cast<uint32_t>( velocity.GetFormat() );
+	m_lastDiagnostics.opaqueWidth = opaqueColor.GetWidth();
+	m_lastDiagnostics.opaqueHeight = opaqueColor.GetHeight();
+	m_lastDiagnostics.opaqueFormat = static_cast<uint32_t>( opaqueColor.GetFormat() );
+	m_lastDiagnostics.taaAccumulationWidth = output.GetWidth();
+	m_lastDiagnostics.taaAccumulationHeight = output.GetHeight();
+	m_lastDiagnostics.taaAccumulationFormat = static_cast<uint32_t>( output.GetFormat() );
+	m_lastDiagnostics.taaCooldownWidth = cooldownBuffer->GetWidth();
+	m_lastDiagnostics.taaCooldownHeight = cooldownBuffer->GetHeight();
+	m_lastDiagnostics.taaCooldownFormat = static_cast<uint32_t>( cooldownBuffer->GetFormat() );
+	return accumulationSucceeded && copySucceeded;
 }
 
 bool Tr2PostProcessRenderer::RenderTonemapping(

@@ -153,6 +153,22 @@ enum StandaloneEngineView
 	STANDALONE_ENGINE_VIEW_LIGHTS = 4,
 };
 
+enum StandaloneTaaMode
+{
+	STANDALONE_TAA_OFF = 0,
+	STANDALONE_TAA_LOW = 1,
+	STANDALONE_TAA_MEDIUM = 2,
+	STANDALONE_TAA_HIGH = 3,
+};
+
+enum StandaloneMotionMode
+{
+	STANDALONE_MOTION_STATIC = 0,
+	STANDALONE_MOTION_CAMERA = 1,
+	STANDALONE_MOTION_OBJECT = 2,
+	STANDALONE_MOTION_COMBINED = 3,
+};
+
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
 public:
@@ -255,6 +271,11 @@ public:
 	{
 		m_modelYawOffset = degrees * 3.1415926535f / 180.0f;
 		std::fprintf( stderr, "Standalone model yaw offset: %.6f degrees\n", degrees );
+	}
+
+	void SetObjectMotionActive( bool active )
+	{
+		m_objectMotionActive = active;
 	}
 
 	bool ConfigureEngines( int mode, int view, float throttle, const EveSOFDataHull& hull, const EveSOFDataRace& race, std::string& error )
@@ -1523,6 +1544,8 @@ public:
 		m_shadowCommittedBatches = 0;
 		m_distortionSubmittedBatches = 0;
 		m_distortionSubmittedIndices = 0;
+		if( m_worldTransformInitialized && updateContext.GetTime() != m_time )
+			m_previousWorldTransform = m_worldTransform;
 		m_time = updateContext.GetTime();
 		if( !m_decalEntries.empty() )
 		{
@@ -2891,7 +2914,8 @@ private:
 			return;
 		}
 		const float seconds = static_cast<float>( m_time ) / 10000000.0f;
-		const float yaw = seconds * 0.38f - 0.8f + m_modelYawOffset;
+		const float motionSeconds = m_objectMotionActive ? std::max( 0.0f, seconds - 3.0f ) : 0.0f;
+		const float yaw = motionSeconds * 0.38f - 0.8f + m_modelYawOffset;
 		const float pitch = -0.28f;
 		if( m_useEveV5Material )
 		{
@@ -2902,10 +2926,16 @@ private:
 										Vector3( -centerScale[0], -centerScale[1], -centerScale[2] ) ) *
 				rotation;
 			m_worldTransform = m_decalWorldTransform;
+			if( !m_worldTransformInitialized )
+			{
+				m_previousWorldTransform = m_worldTransform;
+				m_worldTransformInitialized = true;
+			}
 			const Matrix world = Transpose( m_worldTransform );
+			const Matrix worldLast = Transpose( m_previousWorldTransform );
 			const Matrix inverseWorld = Transpose( Inverse( m_worldTransform ) );
 			m_eveV5PerObjectData.m_vsData.worldTransform = world;
-			m_eveV5PerObjectData.m_vsData.worldTransformLast = world;
+			m_eveV5PerObjectData.m_vsData.worldTransformLast = worldLast;
 			m_eveV5PerObjectData.m_vsData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_vsData.shipData = Vector4(
 				m_engineMode == STANDALONE_ENGINES_AUTHORED ? m_engineIntensity : 1.0f,
@@ -2916,7 +2946,7 @@ private:
 			m_eveV5PerObjectData.m_vsData.ellpsoidRadii = Vector4( -1.0f, -1.0f, -1.0f, 0.0f );
 			m_eveV5PerObjectData.m_vsData.ellpsoidCenter = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
 			m_eveV5PerObjectData.m_psData.worldTransform = world;
-			m_eveV5PerObjectData.m_psData.worldTransformLast = world;
+			m_eveV5PerObjectData.m_psData.worldTransformLast = worldLast;
 			m_eveV5PerObjectData.m_psData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_psData.shipData = m_eveV5PerObjectData.m_vsData.shipData;
 			m_eveV5PerObjectData.m_psData.clipSphereCenter = Vector3( 0.0f, 0.0f, 0.0f );
@@ -2958,6 +2988,8 @@ private:
 	bool m_enginesEnabled = false;
 	bool m_engineLightsEnabled = false;
 	bool m_engineLightingActive = false;
+	bool m_objectMotionActive = false;
+	bool m_worldTransformInitialized = false;
 	uint32_t m_shUpdateCount = 0;
 	uint32_t m_killCount = 0;
 	float m_modelYawOffset = 0.0f;
@@ -2967,6 +2999,7 @@ private:
 	uint32_t m_decalSourceVertexCount = 0;
 	int m_areaView = 0;
 	Matrix m_worldTransform = IdentityMatrix();
+	Matrix m_previousWorldTransform = IdentityMatrix();
 	Matrix m_decalWorldTransform = IdentityMatrix();
 	float m_shadowBoundingRadius = 0.0f;
 	float m_authoredWorldScale = 1.0f;
@@ -3214,6 +3247,10 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_VOLUME_SLICES = 1 << 17,
 	STANDALONE_CAPTURE_FROXEL_FOG = 1 << 18,
 	STANDALONE_CAPTURE_MIE_ENVIRONMENT = 1 << 19,
+	STANDALONE_CAPTURE_VELOCITY = 1 << 20,
+	STANDALONE_CAPTURE_TAA_INPUT = 1 << 21,
+	STANDALONE_CAPTURE_TAA_OUTPUT = 1 << 22,
+	STANDALONE_CAPTURE_TAA_COOLDOWN = 1 << 23,
 };
 
 enum StandaloneDistortionMode
@@ -3352,6 +3389,8 @@ struct StandaloneProbe
 		bloomReadback = Tr2TextureAL{};
 		finalPostProcessReadback = Tr2TextureAL{};
 		distortionReadback = Tr2TextureAL{};
+		velocityReadback = Tr2TextureAL{};
+		taaCooldownReadback = Tr2TextureAL{};
 		for( Tr2TextureAL& readback : volumeSliceReadbacks )
 		{
 			readback = Tr2TextureAL{};
@@ -3419,6 +3458,8 @@ struct StandaloneProbe
 	Tr2TextureAL bloomReadback;
 	Tr2TextureAL finalPostProcessReadback;
 	Tr2TextureAL distortionReadback;
+	Tr2TextureAL velocityReadback;
+	Tr2TextureAL taaCooldownReadback;
 	std::array<Tr2TextureAL, 4> volumeSliceReadbacks;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
 	TrinityStandaloneToneValidation toneValidation;
@@ -3427,6 +3468,16 @@ struct StandaloneProbe
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
 	TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
 	TrinityStandaloneEngineDiagnostics engineDiagnostics;
+	uint64_t velocityRawHash = 0;
+	uint64_t velocityFinitePixels = 0;
+	uint64_t velocityInvalidPixels = 0;
+	uint64_t velocityMovingPixels = 0;
+	double velocityMeanMagnitude = 0.0;
+	double velocityMaximumMagnitude = 0.0;
+	uint64_t taaCooldownRawHash = 0;
+	uint64_t taaCooldownNonzeroPixels = 0;
+	uint32_t taaCooldownMinimum = 0;
+	uint32_t taaCooldownMaximum = 0;
 	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
 	Tr2PPTonemappingEffectPtr clientTonemapping;
 	Tr2PPBloomEffectPtr clientBloom;
@@ -3440,6 +3491,9 @@ struct StandaloneProbe
 	Tr2VolumerticQuality volumetricQuality = Tr2VolumerticQuality::High;
 	uint32_t volumetricSeed = 0x12b;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
+	int taaMode = STANDALONE_TAA_OFF;
+	int taaDebug = Tr2PPTaaEffect::TAA_DEBUG_OFF;
+	int motionMode = STANDALONE_MOTION_CAMERA;
 	bool postProcessDiagnosticsEnabled = false;
 	int64_t lastRealTime = 0;
 	int64_t lastSimTime = 0;
@@ -5739,6 +5793,160 @@ bool EnsureRenderProductReadback( StandaloneProbe& probe, Tr2RenderContext& rend
 	return true;
 }
 
+bool CaptureRawVelocity(
+	StandaloneProbe& probe,
+	const Tr2TextureAL& velocity,
+	Tr2RenderContext& renderContext )
+{
+	if( !probe.velocityReadback.IsValid() || probe.velocityReadback.GetWidth() != velocity.GetWidth() ||
+		probe.velocityReadback.GetHeight() != velocity.GetHeight() )
+	{
+		probe.velocityReadback = Tr2TextureAL{};
+		const HRESULT result = probe.velocityReadback.Create(
+			Tr2BitmapDimensions(
+				velocity.GetWidth(),
+				velocity.GetHeight(),
+				1,
+				Tr2RenderContextEnum::PIXEL_FORMAT_R16G16_FLOAT ),
+			Tr2GpuUsage::RENDER_TARGET,
+			Tr2CpuUsage::READ,
+			renderContext.GetPrimaryRenderContext() );
+		if( FAILED( result ) )
+		{
+			return false;
+		}
+		probe.velocityReadback.SetName( "StandaloneProbeVelocityReadback" );
+	}
+	if( FAILED( velocity.Resolve( probe.velocityReadback, renderContext ) ) )
+	{
+		return false;
+	}
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( probe.velocityReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) ||
+		!data )
+	{
+		return false;
+	}
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	probe.velocityRawHash = fnvOffset;
+	probe.velocityFinitePixels = 0;
+	probe.velocityInvalidPixels = 0;
+	probe.velocityMovingPixels = 0;
+	probe.velocityMeanMagnitude = 0.0;
+	probe.velocityMaximumMagnitude = 0.0;
+	for( uint32_t y = 0; y < velocity.GetHeight(); ++y )
+	{
+		const uint8_t* row = static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch;
+		for( size_t byte = 0; byte < static_cast<size_t>( velocity.GetWidth() ) * sizeof( Float_16 ) * 2; ++byte )
+		{
+			probe.velocityRawHash = ( probe.velocityRawHash ^ row[byte] ) * fnvPrime;
+		}
+		const Float_16* pixels = reinterpret_cast<const Float_16*>( row );
+		for( uint32_t x = 0; x < velocity.GetWidth(); ++x )
+		{
+			const double vx = static_cast<float>( pixels[x * 2] ) * velocity.GetWidth() * 0.5;
+			const double vy = static_cast<float>( pixels[x * 2 + 1] ) * velocity.GetHeight() * 0.5;
+			if( !std::isfinite( vx ) || !std::isfinite( vy ) )
+			{
+				++probe.velocityInvalidPixels;
+				continue;
+			}
+			const double magnitude = std::sqrt( vx * vx + vy * vy );
+			++probe.velocityFinitePixels;
+			probe.velocityMovingPixels += magnitude > 0.05 ? 1u : 0u;
+			probe.velocityMeanMagnitude += magnitude;
+			probe.velocityMaximumMagnitude = std::max( probe.velocityMaximumMagnitude, magnitude );
+		}
+	}
+	probe.velocityReadback.UnmapForReading( renderContext );
+	if( probe.velocityFinitePixels )
+	{
+		probe.velocityMeanMagnitude /= static_cast<double>( probe.velocityFinitePixels );
+	}
+	std::fprintf(
+		stderr,
+		"EVE raw velocity: hash=%016llx finite=%llu invalid=%llu moving=%llu mean=%.6f maximum=%.6f\n",
+		static_cast<unsigned long long>( probe.velocityRawHash ),
+		static_cast<unsigned long long>( probe.velocityFinitePixels ),
+		static_cast<unsigned long long>( probe.velocityInvalidPixels ),
+		static_cast<unsigned long long>( probe.velocityMovingPixels ),
+		probe.velocityMeanMagnitude,
+		probe.velocityMaximumMagnitude );
+	return probe.velocityInvalidPixels == 0;
+}
+
+bool CaptureRawTaaCooldown(
+	StandaloneProbe& probe,
+	const Tr2TextureAL& cooldown,
+	Tr2RenderContext& renderContext )
+{
+	if( !probe.taaCooldownReadback.IsValid() || probe.taaCooldownReadback.GetWidth() != cooldown.GetWidth() ||
+		probe.taaCooldownReadback.GetHeight() != cooldown.GetHeight() )
+	{
+		probe.taaCooldownReadback = Tr2TextureAL{};
+		const HRESULT result = probe.taaCooldownReadback.Create(
+			Tr2BitmapDimensions(
+				cooldown.GetWidth(),
+				cooldown.GetHeight(),
+				1,
+				Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT ),
+			Tr2GpuUsage::RENDER_TARGET,
+			Tr2CpuUsage::READ,
+			renderContext.GetPrimaryRenderContext() );
+		if( FAILED( result ) )
+		{
+			return false;
+		}
+		probe.taaCooldownReadback.SetName( "StandaloneProbeTaaCooldownReadback" );
+	}
+	if( FAILED( cooldown.Resolve( probe.taaCooldownReadback, renderContext ) ) )
+	{
+		return false;
+	}
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( probe.taaCooldownReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) ||
+		!data )
+	{
+		return false;
+	}
+	constexpr uint64_t fnvOffset = 14695981039346656037ull;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	probe.taaCooldownRawHash = fnvOffset;
+	probe.taaCooldownNonzeroPixels = 0;
+	probe.taaCooldownMinimum = std::numeric_limits<uint32_t>::max();
+	probe.taaCooldownMaximum = 0;
+	for( uint32_t y = 0; y < cooldown.GetHeight(); ++y )
+	{
+		const uint8_t* row = static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch;
+		for( size_t byte = 0; byte < static_cast<size_t>( cooldown.GetWidth() ) * sizeof( uint32_t ); ++byte )
+		{
+			probe.taaCooldownRawHash = ( probe.taaCooldownRawHash ^ row[byte] ) * fnvPrime;
+		}
+		const uint32_t* pixels = reinterpret_cast<const uint32_t*>( row );
+		for( uint32_t x = 0; x < cooldown.GetWidth(); ++x )
+		{
+			const uint32_t value = pixels[x];
+			probe.taaCooldownNonzeroPixels += value != 0 ? 1u : 0u;
+			probe.taaCooldownMinimum = std::min( probe.taaCooldownMinimum, value );
+			probe.taaCooldownMaximum = std::max( probe.taaCooldownMaximum, value );
+		}
+	}
+	probe.taaCooldownReadback.UnmapForReading( renderContext );
+	std::fprintf(
+		stderr,
+		"EVE raw TAA cooldown: hash=%016llx nonzero=%llu range=[%u,%u]\n",
+		static_cast<unsigned long long>( probe.taaCooldownRawHash ),
+		static_cast<unsigned long long>( probe.taaCooldownNonzeroPixels ),
+		probe.taaCooldownMinimum,
+		probe.taaCooldownMaximum );
+	return true;
+}
+
 bool EnsureVolumeSliceReadbacks(
 	StandaloneProbe& probe,
 	Tr2RenderContext& renderContext,
@@ -6108,6 +6316,10 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 	destination.bloomSucceeded = source.bloomSucceeded;
 	destination.filmGrainActive = source.filmGrainActive;
 	destination.filmGrainSucceeded = source.filmGrainSucceeded;
+	destination.taaActive = source.taaActive;
+	destination.taaReset = source.taaReset;
+	destination.taaAccumulationSucceeded = source.taaAccumulationSucceeded;
+	destination.taaCopySucceeded = source.taaCopySucceeded;
 	destination.sourceWidth = source.sourceWidth;
 	destination.sourceHeight = source.sourceHeight;
 	destination.sourceFormat = source.sourceFormat;
@@ -6120,6 +6332,21 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 	destination.finalWidth = source.finalWidth;
 	destination.finalHeight = source.finalHeight;
 	destination.finalFormat = source.finalFormat;
+	destination.taaFrameIndex = source.taaFrameIndex;
+	destination.taaQuality = source.taaQuality;
+	destination.taaDebugMode = source.taaDebugMode;
+	destination.velocityWidth = source.velocityWidth;
+	destination.velocityHeight = source.velocityHeight;
+	destination.velocityFormat = source.velocityFormat;
+	destination.opaqueWidth = source.opaqueWidth;
+	destination.opaqueHeight = source.opaqueHeight;
+	destination.opaqueFormat = source.opaqueFormat;
+	destination.taaAccumulationWidth = source.taaAccumulationWidth;
+	destination.taaAccumulationHeight = source.taaAccumulationHeight;
+	destination.taaAccumulationFormat = source.taaAccumulationFormat;
+	destination.taaCooldownWidth = source.taaCooldownWidth;
+	destination.taaCooldownHeight = source.taaCooldownHeight;
+	destination.taaCooldownFormat = source.taaCooldownFormat;
 	std::copy( source.histogram.begin(), source.histogram.end(), destination.histogram );
 	std::copy( source.exposure.begin(), source.exposure.end(), destination.exposure );
 	destination.minBrightness = source.minBrightness;
@@ -6154,6 +6381,26 @@ bool ReadPostProcessDiagnostics( StandaloneProbe& probe, Tr2RenderContext& rende
 	destination.filmGrainDensity = source.filmGrainDensity;
 	destination.filmGrainContrast = source.filmGrainContrast;
 	destination.filmGrainBrightnessModifier = source.filmGrainBrightnessModifier;
+	destination.taaBlendWeight = source.taaBlendWeight;
+	destination.taaEarlyOutThreshold = source.taaEarlyOutThreshold;
+	if( probe.scene )
+	{
+		const Vector4& jitter = probe.scene->GetJitter();
+		destination.taaJitterX = jitter.x;
+		destination.taaJitterY = jitter.y;
+		destination.taaJitterPixelX = jitter.x * static_cast<float>( source.sourceWidth ) * 0.5f;
+		destination.taaJitterPixelY = jitter.y * static_cast<float>( source.sourceHeight ) * 0.5f;
+	}
+	destination.velocityRawHash = probe.velocityRawHash;
+	destination.velocityFinitePixels = probe.velocityFinitePixels;
+	destination.velocityInvalidPixels = probe.velocityInvalidPixels;
+	destination.velocityMovingPixels = probe.velocityMovingPixels;
+	destination.velocityMeanMagnitude = probe.velocityMeanMagnitude;
+	destination.velocityMaximumMagnitude = probe.velocityMaximumMagnitude;
+	destination.taaCooldownRawHash = probe.taaCooldownRawHash;
+	destination.taaCooldownNonzeroPixels = probe.taaCooldownNonzeroPixels;
+	destination.taaCooldownMinimum = probe.taaCooldownMinimum;
+	destination.taaCooldownMaximum = probe.taaCooldownMaximum;
 	return true;
 }
 
@@ -6840,6 +7087,30 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
+	if( captureProducts & STANDALONE_CAPTURE_VELOCITY )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "VelocityMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_TAA_INPUT )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "PreTaaColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_TAA_OUTPUT )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "PostTaaColor" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
+	if( captureProducts & STANDALONE_CAPTURE_TAA_COOLDOWN )
+	{
+		requestedNames[requestedCount] = BlueSharedString( "TaaCooldownMap" );
+		outputStorage[requestedCount].name = requestedNames[requestedCount];
+		++requestedCount;
+	}
 
 	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
 	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = { requestedNames.data(), requestedCount };
@@ -6882,6 +7153,10 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool volumeSlicesProduct = captureProducts == STANDALONE_CAPTURE_VOLUME_SLICES;
 		const bool froxelFogProduct = captureProducts == STANDALONE_CAPTURE_FROXEL_FOG;
 		const bool mieEnvironmentProduct = captureProducts == STANDALONE_CAPTURE_MIE_ENVIRONMENT;
+		const bool velocityProduct = captureProducts == STANDALONE_CAPTURE_VELOCITY;
+		const bool taaInputProduct = captureProducts == STANDALONE_CAPTURE_TAA_INPUT;
+		const bool taaOutputProduct = captureProducts == STANDALONE_CAPTURE_TAA_OUTPUT;
+		const bool taaCooldownProduct = captureProducts == STANDALONE_CAPTURE_TAA_COOLDOWN;
 		if( ok && toneContractProduct )
 		{
 			const Tr2TextureAL* preTonemap = nullptr;
@@ -7036,6 +7311,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			selectedName = "FroxelFog";
 		else if( mieEnvironmentProduct )
 			selectedName = "MieEnvironmentMap";
+		else if( velocityProduct )
+			selectedName = "VelocityMap";
+		else if( taaInputProduct )
+			selectedName = "PreTaaColor";
+		else if( taaOutputProduct )
+			selectedName = "PostTaaColor";
+		else if( taaCooldownProduct )
+			selectedName = "TaaCooldownMap";
 		if( selectedName )
 		{
 			ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End scene render-product source" ) && ok;
@@ -7093,7 +7376,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 				const bool fullResolutionProduct = captureProducts == STANDALONE_CAPTURE_SHADOW ||
 					captureProducts == STANDALONE_CAPTURE_AO || captureProducts == STANDALONE_CAPTURE_BENT_NORMAL ||
-					hdrCompositeProduct || postTonemapProduct || finalPostProcessProduct || distortionProduct;
+					hdrCompositeProduct || postTonemapProduct || finalPostProcessProduct || distortionProduct ||
+					velocityProduct || taaInputProduct || taaOutputProduct || taaCooldownProduct;
 				if( fullResolutionProduct &&
 					( selectedTexture->GetWidth() != probe.renderWidth || selectedTexture->GetHeight() != probe.renderHeight ) )
 				{
@@ -7151,6 +7435,22 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						stderr,
 						"Pre-tonemap composite has invalid format=%u; expected R16G16B16A16_FLOAT\n",
 						static_cast<uint32_t>( selectedTexture->GetFormat() ) );
+					ok = false;
+				}
+				if( velocityProduct && selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16_FLOAT )
+				{
+					std::fprintf( stderr, "Velocity product is not R16G16_FLOAT\n" );
+					ok = false;
+				}
+				if( ( taaInputProduct || taaOutputProduct ) &&
+					selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT )
+				{
+					std::fprintf( stderr, "TAA color product is not R16G16B16A16_FLOAT\n" );
+					ok = false;
+				}
+				if( taaCooldownProduct && selectedTexture->GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT )
+				{
+					std::fprintf( stderr, "TAA cooldown product is not R32_UINT\n" );
 					ok = false;
 				}
 				if( ( postTonemapProduct || finalPostProcessProduct ) &&
@@ -7249,6 +7549,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					( !distortionProduct ||
 					  EnsureDistortionReadback( probe, renderContext, selectedTexture->GetFormat() ) ) )
 				{
+					if( velocityProduct )
+					{
+						ok = CaptureRawVelocity( probe, *selectedTexture, renderContext ) && ok;
+					}
+					if( taaCooldownProduct )
+					{
+						ok = CaptureRawTaaCooldown( probe, *selectedTexture, renderContext ) && ok;
+					}
 					if( hdrCompositeProduct )
 					{
 						ok = CheckHresult(
@@ -7267,21 +7575,29 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					{
 						const bool depthAtlasProduct = captureProducts == STANDALONE_CAPTURE_SHADOW_ATLAS ||
 							captureProducts == STANDALONE_CAPTURE_LOCAL_SHADOW_ATLAS;
-						const float visualizationMode = distortionProduct ? 8.0f :
-							( hdrCompositeProduct || bloomProduct )       ? 7.0f :
-							postTonemapProduct                            ? 2.0f :
-							colorProduct                                  ? 2.0f :
-																			( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
-																															( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
-																																											 ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
-																																																							  ( depthAtlasProduct ? 4.0f :
-																																																													( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
+						const float visualizationMode = velocityProduct ? 9.0f :
+							taaCooldownProduct                          ? 10.0f :
+							distortionProduct                           ? 8.0f :
+							( hdrCompositeProduct || bloomProduct )     ? 7.0f :
+							( taaInputProduct || taaOutputProduct )     ? 7.0f :
+							postTonemapProduct                          ? 2.0f :
+							colorProduct                                ? 2.0f :
+																		  ( captureProducts == STANDALONE_CAPTURE_DEPTH ? 1.0f :
+																														  ( captureProducts == STANDALONE_CAPTURE_NORMAL ? 2.0f :
+																																										   ( captureProducts == STANDALONE_CAPTURE_SHADOW ? 3.0f :
+																																																							( depthAtlasProduct ? 4.0f :
+																																																												  ( captureProducts == STANDALONE_CAPTURE_AO ? 5.0f : 6.0f ) ) ) ) );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "RenderProductMode" ),
 							visualizationMode );
 						probe.renderProductVisualizer->SetParameter(
 							BlueSharedString( "AoUsesAlpha" ),
 							probe.aoMethod == STANDALONE_AO_CORTAO ? 1.0f : 0.0f );
+						if( taaCooldownProduct )
+						{
+							probe.renderProductVisualizer->SetParameter(
+								BlueSharedString( "CooldownSource" ), *selectedTexture );
+						}
 					}
 					renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
 					renderContext.m_esm.SetRenderTarget( 0, probe.renderProductReadback );
@@ -7306,6 +7622,11 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					else
 					{
 						ok = Tr2Renderer::DrawTexture( renderContext, visualizer, *selectedTexture ) && ok;
+					}
+					if( taaCooldownProduct )
+					{
+						probe.renderProductVisualizer->SetParameter(
+							BlueSharedString( "CooldownSource" ), Tr2TextureAL{} );
 					}
 					ok = CheckHresult( Tr2Renderer::EndRenderContext(), "End render-product readback" ) && ok;
 					renderContextOpen = false;
@@ -7559,7 +7880,9 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 					 probe.filmGrainMode == STANDALONE_POST_FINISH_CLIENT && !probe.driver->GetUseNewBloom(),
 				 "client legacy post-finish mode" );
 	}
-	require( postProcess && !postProcess->GetTaaIfAvailable( PostProcess::HIGH ), "TAA disabled" );
+	const bool expectsTaa = probe.taaMode != STANDALONE_TAA_OFF;
+	require( postProcess && static_cast<bool>( postProcess->GetTaaIfAvailable( PostProcess::HIGH ) ) == expectsTaa,
+			 expectsTaa ? "native TAA enabled" : "TAA disabled" );
 	require( postProcess && !postProcess->GetDepthOfFieldIfAvailable( PostProcess::HIGH ),
 			 "depth of field disabled" );
 	require( postProcess && !postProcess->GetFogIfAvailable( PostProcess::HIGH ), "postprocess fog disabled" );
@@ -7612,10 +7935,14 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 					 probe.renderable->GetDistortionSubmittedIndexCount() == 120,
 				 "one native 40-triangle distortion batch and compositor application" );
 	}
-	require( !settings.enableUpscaling &&
-				 settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
-				 !settings.forceVelocityMap,
-			 "upscaling, TAA, and velocity disabled" );
+	require( !settings.enableUpscaling, "temporal upscaling disabled" );
+	require( expectsTaa ?
+				 ( settings.antiAliasingQuality ==
+					   static_cast<EveSpaceSceneRenderDriver::AntiAliasingQuality>( probe.taaMode ) &&
+				   settings.forceVelocityMap ) :
+				 ( settings.antiAliasingQuality == EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled &&
+				   !settings.forceVelocityMap ),
+			 expectsTaa ? "native TAA and velocity enabled" : "TAA and velocity disabled" );
 	require( settings.forceOpaqueBuffer && settings.forceNormalMap,
 			 "opaque and normal products retained" );
 
@@ -7780,7 +8107,8 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	constexpr float kCameraRadius = 5.2f;
 	constexpr float kOrbitFrames = 900.0f;
 	if( probe.exposureSequenceActive || !probe.view || !probe.renderable ||
-		probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames )
+		probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames ||
+		( probe.motionMode != STANDALONE_MOTION_CAMERA && probe.motionMode != STANDALONE_MOTION_COMBINED ) )
 	{
 		return;
 	}
@@ -7799,9 +8127,24 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
 {
 	probe.qualityRung = qualityRung;
+	if( taaMode < STANDALONE_TAA_OFF || taaMode > STANDALONE_TAA_HIGH ||
+		taaDebug < Tr2PPTaaEffect::TAA_DEBUG_OFF || taaDebug > Tr2PPTaaEffect::TAA_DEBUG_EARLY_OUT_MASK ||
+		motionMode < STANDALONE_MOTION_STATIC || motionMode > STANDALONE_MOTION_COMBINED )
+	{
+		CCP_LOGERR( "Invalid standalone temporal mode" );
+		return false;
+	}
+	if( taaMode != STANDALONE_TAA_OFF && qualityRung < STANDALONE_PROBE_RUNG_HDR_POST )
+	{
+		CCP_LOGERR( "TAA requires the HDR postprocess rung" );
+		return false;
+	}
+	probe.taaMode = taaMode;
+	probe.taaDebug = taaDebug;
+	probe.motionMode = motionMode;
 	if( !std::isfinite( modelYawDegrees ) )
 	{
 		CCP_LOGERR( "Invalid standalone model yaw" );
@@ -8149,6 +8492,37 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			}
 			std::fprintf( stderr, "HDR/post effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
 		}
+		if( taaMode != STANDALONE_TAA_OFF )
+		{
+			const RequiredEffect temporalEffects[] = {
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/TAA.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/taa.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/taa.sm_hi" },
+				{ "res:/Graphics/Effect/Managed/Space/PostProcess/TAACopy.fx", Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_depth" : L"res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_hi" },
+			};
+			for( const RequiredEffect& required : temporalEffects )
+			{
+				if( !BePaths->FileExistsLocally( required.compiledPath ) )
+				{
+					CCP_LOGERR( "TAA requires compiled effect: %S", required.compiledPath );
+					return false;
+				}
+				Tr2EffectPtr effect;
+				effect.CreateInstance();
+				effect->SetEffectPathName( required.sourcePath );
+				Tr2EffectRes* resource = effect->GetEffectRes();
+				if( resource )
+				{
+					resource->ForceSynchronousLoad();
+					resource->Reload();
+				}
+				Tr2Shader* shader = effect->GetShaderStateInterface();
+				if( !resource || !resource->IsGood() || !shader || shader->GetPassCount( 0 ) == 0 )
+				{
+					CCP_LOGERR( "TAA effect failed to prepare: %s", required.sourcePath );
+					return false;
+				}
+				std::fprintf( stderr, "TAA effect ready: %s passes=%u\n", required.sourcePath, shader->GetPassCount( 0 ) );
+			}
+		}
 		if( enableGodRays )
 		{
 			const RequiredEffect godRayEffects[] = {
@@ -8387,6 +8761,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Failed to create EveSpaceScene" );
 		return false;
 	}
+	if( taaMode != STANDALONE_TAA_OFF && !probe.scene->m_sceneDefaultPostProcess )
+	{
+		Tr2PostProcess2Ptr temporalPostProcess;
+		if( !temporalPostProcess.CreateInstance() )
+		{
+			CCP_LOGERR( "Failed to create the TAA postprocess container" );
+			return false;
+		}
+		probe.scene->m_sceneDefaultPostProcess = temporalPostProcess;
+	}
 	probe.scene->SetDynamicLightShadowResolveEffect( probe.dynamicLightShadowResolveEffect );
 	std::string reflectionError;
 	if( !ConfigureReflectionSourceWithoutYield( probe, *probe.scene, reflectionSource, reflectionError ) )
@@ -8472,7 +8856,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.shadowQuality = localShadows != STANDALONE_LOCAL_SHADOWS_OFF ? ShadowQuality::SHADOW_HIGH :
 																			( shadows == STANDALONE_SHADOWS_HIGH ? ShadowQuality::SHADOW_HIGH :
 																												   ( shadows == STANDALONE_SHADOWS_LOW ? ShadowQuality::SHADOW_LOW : ShadowQuality::SHADOW_DISABLED ) );
-	settings.antiAliasingQuality = EveSpaceSceneRenderDriver::AntiAliasingQuality::Disabled;
+	settings.antiAliasingQuality = static_cast<EveSpaceSceneRenderDriver::AntiAliasingQuality>( taaMode );
+	settings.taaDebugMode = static_cast<Tr2PPTaaEffect::Debug>( taaDebug );
 	settings.aoQuality = ambientOcclusion == STANDALONE_AO_HIGH ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::High :
 																  ( ambientOcclusion == STANDALONE_AO_MEDIUM ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Medium :
 																											   ( ambientOcclusion == STANDALONE_AO_LOW ? EveSpaceSceneRenderDriver::AmbientOcclusionQuality::Low :
@@ -8481,7 +8866,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	settings.postProcessingQuality = qualityRung >= STANDALONE_PROBE_RUNG_HDR_POST ? PostProcess::HIGH : PostProcess::LOW;
 	settings.forceNormalMap = qualityRung >= STANDALONE_PROBE_RUNG_MODEL;
 	settings.forceOpaqueBuffer = true;
-	settings.forceVelocityMap = false;
+	settings.forceVelocityMap = taaMode != STANDALONE_TAA_OFF;
+	std::fprintf(
+		stderr,
+		"EVE RC-13 temporal settings: taa=%d debug=%d motion=%d velocity=%s opaque=%s jitter=4-sample\n",
+		taaMode,
+		taaDebug,
+		motionMode,
+		settings.forceVelocityMap ? "enabled" : "named-output-only",
+		settings.forceOpaqueBuffer ? "enabled" : "disabled" );
 	std::fprintf(
 		stderr,
 		"EVE RC-08B quality: directionalShadows=%s nativeShadowQuality=%s denoiser=%s "
@@ -8512,6 +8905,11 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 
 	probe.driver->SetSettings( settings );
+	if( taaMode != STANDALONE_TAA_OFF )
+	{
+		probe.postProcessDiagnosticsEnabled = true;
+		probe.driver->SetPostProcessDiagnosticsEnabled( true );
+	}
 	probe.driver->SetScene( probe.scene );
 	probe.driver->SetView( probe.view );
 	probe.driver->SetProjection( probe.projection );
@@ -9372,14 +9770,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, engines, engineView, engineThrottle, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, engines, engineView, engineThrottle, modelYawDegrees, taaMode, taaDebug, motionMode, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
@@ -9801,7 +10199,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_DISTORTION &&
 		captureProduct != STANDALONE_CAPTURE_VOLUME_SLICES &&
 		captureProduct != STANDALONE_CAPTURE_FROXEL_FOG &&
-		captureProduct != STANDALONE_CAPTURE_MIE_ENVIRONMENT )
+		captureProduct != STANDALONE_CAPTURE_MIE_ENVIRONMENT &&
+		captureProduct != STANDALONE_CAPTURE_VELOCITY &&
+		captureProduct != STANDALONE_CAPTURE_TAA_INPUT &&
+		captureProduct != STANDALONE_CAPTURE_TAA_OUTPUT &&
+		captureProduct != STANDALONE_CAPTURE_TAA_COOLDOWN )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
 		return false;
@@ -9819,11 +10221,21 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	if( !freezeScene )
 	{
 		UpdateProbeCamera( *probe );
+		if( probe->renderable )
+		{
+			const bool objectMotion = probe->renderedFrameCount >= 180 &&
+				( probe->motionMode == STANDALONE_MOTION_OBJECT ||
+				  probe->motionMode == STANDALONE_MOTION_COMBINED );
+			probe->renderable->SetObjectMotionActive( objectMotion );
+		}
 	}
 	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
 	probe->lastRealTime = realTime;
 	probe->lastSimTime = simTime;
-	const bool rendered = DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
+	probe->driver->SetTemporalHistoryFrozen( freezeScene );
+	const bool rendered =
+		DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
+	probe->driver->SetTemporalHistoryFrozen( false );
 	if( rendered && !freezeScene )
 	{
 		++probe->renderedFrameCount;

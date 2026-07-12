@@ -397,3 +397,36 @@ The ignored `Reports/AsteroEngineResources.json` records the full absolute
 source, source index, byte size, SHA-256, and destination for every entry. The
 generated trail CMF is recorded separately because it is derived output, not
 a client payload. No SharedCache file or generated CMF is source controlled.
+
+## RC-13 temporal resources
+
+`TrinityEveSceneProbeTemporalAssets` stages only six current Metal containers
+under the ignored build tree and writes
+`Reports/AsteroTemporalResources.json`:
+
+```text
+res:/graphics/effect.metal/managed/space/postprocess/taa.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/taa.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/taa.sm_depth
+res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_hi
+res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_lo
+res:/graphics/effect.metal/managed/space/postprocess/taacopy.sm_depth
+```
+
+The high TAA and TAA-copy sources resolve respectively to:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/f6/f6274030f42af48c_b43c06b6d260676a89d24058ac986236
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/71/71d620ab37108a3f_79b7bf6f2e4612be15a4938db5dd5e1a
+```
+
+Their SHA-256 values are
+`fa319e0546d80a9d0ade6a6f4615cf3ab597d989a65f19747b7794d2606b477c`
+and `265514e4e923d4519d6f8a56b90e3832bc1a539af414570a09b58362354e7d18`.
+The manifest records absolute sources, sizes, and checksums for all variants.
+Policy evidence remains at
+`/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
+(SHA-256 `232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`);
+it is checksummed in place and is not copied. The legacy
+`res:/fisfx/postprocess/taa.black` is unused because the current client creates
+`Tr2PPTaaEffect` through render-driver settings.

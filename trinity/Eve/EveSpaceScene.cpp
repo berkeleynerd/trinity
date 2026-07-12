@@ -1334,6 +1334,11 @@ bool EveSpaceScene::RenderDistortionBatches( BatchMap& batches, const Tr2Texture
 void EveSpaceScene::Jitter( Tr2RenderContext& renderContext )
 {
 	m_projection = Tr2Renderer::GetProjectionTransform();
+	if( m_temporalHistoryFrozen )
+	{
+		m_jitteredProjection = m_projection * m_jitterMatrix;
+		return;
+	}
 
 	auto upscalingInfo = renderContext.GetPrimaryRenderContext().GetUpscalingInfo( Tr2Renderer::GetUpscalingContextID() );
 	if( upscalingInfo.technique != Tr2UpscalingAL::NONE && upscalingInfo.temporal )

@@ -124,6 +124,10 @@ public:
 		bool bloomSucceeded = false;
 		bool filmGrainActive = false;
 		bool filmGrainSucceeded = false;
+		bool taaActive = false;
+		bool taaReset = false;
+		bool taaAccumulationSucceeded = false;
+		bool taaCopySucceeded = false;
 		uint32_t sourceWidth = 0;
 		uint32_t sourceHeight = 0;
 		uint32_t sourceFormat = 0;
@@ -136,6 +140,21 @@ public:
 		uint32_t finalWidth = 0;
 		uint32_t finalHeight = 0;
 		uint32_t finalFormat = 0;
+		uint32_t taaFrameIndex = 0;
+		uint32_t taaQuality = 0;
+		uint32_t taaDebugMode = 0;
+		uint32_t velocityWidth = 0;
+		uint32_t velocityHeight = 0;
+		uint32_t velocityFormat = 0;
+		uint32_t opaqueWidth = 0;
+		uint32_t opaqueHeight = 0;
+		uint32_t opaqueFormat = 0;
+		uint32_t taaAccumulationWidth = 0;
+		uint32_t taaAccumulationHeight = 0;
+		uint32_t taaAccumulationFormat = 0;
+		uint32_t taaCooldownWidth = 0;
+		uint32_t taaCooldownHeight = 0;
+		uint32_t taaCooldownFormat = 0;
 		std::array<uint32_t, 65> histogram = {};
 		std::array<float, 8> exposure = {};
 		float minBrightness = 0.0f;
@@ -170,6 +189,8 @@ public:
 		float filmGrainDensity = 0.0f;
 		float filmGrainContrast = 0.0f;
 		float filmGrainBrightnessModifier = 0.0f;
+		float taaBlendWeight = 0.0f;
+		float taaEarlyOutThreshold = 0.0f;
 	};
 
 	enum class BloomDebugMode
@@ -194,6 +215,9 @@ public:
 		Tr2UpscalingContextAL* upscalingContext,
 		Tr2GpuResourcePool& gpuResourcePool,
 		Tr2RenderContext& renderContext,
+		Tr2GpuResourcePool::Texture* preTaaOutput = nullptr,
+		Tr2GpuResourcePool::Texture* postTaaOutput = nullptr,
+		Tr2GpuResourcePool::Texture* taaCooldownOutput = nullptr,
 		Tr2GpuResourcePool::Texture* preTonemapOutput = nullptr,
 		Tr2GpuResourcePool::Texture* bloomOutput = nullptr,
 		Tr2GpuResourcePool::Texture* postTonemapOutput = nullptr,
@@ -201,8 +225,13 @@ public:
 
 	void SetDiagnosticsEnabled( bool enabled );
 	bool GetDiagnosticsEnabled() const;
-	bool ReadDiagnostics( Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Diagnostics& diagnostics ) const;
+	bool ReadDiagnostics( Tr2GpuResourcePool & gpuResourcePool, Tr2RenderContext & renderContext, Diagnostics & diagnostics ) const;
 	bool GetLastExecutionSucceeded() const;
+	void ResetTaaHistory();
+	void SetTaaHistoryFrozen( bool frozen )
+	{
+		m_taaHistoryFrozen = frozen;
+	}
 	void SetUseNewBloom( bool enabled );
 	bool GetUseNewBloom() const;
 
@@ -276,9 +305,22 @@ private:
 	Tr2EffectPtr m_fogCompositeEffect;
 
 	// TAA
-	void RenderTaa( const Tr2TextureAL& dest, const Tr2TextureAL& velocity, const Tr2TextureAL& opaqueColor, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPTaaEffect* taa, Tr2PPDynamicExposureEffect* dynamic_exposure );
+	bool RenderTaa(
+		const Tr2TextureAL& dest,
+		const Tr2TextureAL& velocity,
+		const Tr2TextureAL& opaqueColor,
+		Tr2GpuResourcePool& gpuResourcePool,
+		Tr2RenderContext& renderContext,
+		Tr2PPTaaEffect* taa,
+		Tr2PPDynamicExposureEffect* dynamicExposure,
+		Tr2GpuResourcePool::Texture* cooldownOutput );
 	Tr2EffectPtr m_taaEffect, m_taaCopyEffect;
 	uint32_t m_taaFrameCounter;
+	uint32_t m_taaWidth = 0;
+	uint32_t m_taaHeight = 0;
+	Tr2PPTaaEffect::Quality m_taaQuality = Tr2PPTaaEffect::TAA_HIGH;
+	bool m_taaResetPending = true;
+	bool m_taaHistoryFrozen = false;
 
 	// film grain
 	bool RenderFilmGrain( const Tr2TextureAL& destination, const Tr2TextureAL& source, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain );

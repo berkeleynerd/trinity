@@ -21,6 +21,10 @@ struct TrinityStandalonePostProcessDiagnostics
 	bool bloomSucceeded = false;
 	bool filmGrainActive = false;
 	bool filmGrainSucceeded = false;
+	bool taaActive = false;
+	bool taaReset = false;
+	bool taaAccumulationSucceeded = false;
+	bool taaCopySucceeded = false;
 	uint32_t sourceWidth = 0;
 	uint32_t sourceHeight = 0;
 	uint32_t sourceFormat = 0;
@@ -33,6 +37,21 @@ struct TrinityStandalonePostProcessDiagnostics
 	uint32_t finalWidth = 0;
 	uint32_t finalHeight = 0;
 	uint32_t finalFormat = 0;
+	uint32_t taaFrameIndex = 0;
+	uint32_t taaQuality = 0;
+	uint32_t taaDebugMode = 0;
+	uint32_t velocityWidth = 0;
+	uint32_t velocityHeight = 0;
+	uint32_t velocityFormat = 0;
+	uint32_t opaqueWidth = 0;
+	uint32_t opaqueHeight = 0;
+	uint32_t opaqueFormat = 0;
+	uint32_t taaAccumulationWidth = 0;
+	uint32_t taaAccumulationHeight = 0;
+	uint32_t taaAccumulationFormat = 0;
+	uint32_t taaCooldownWidth = 0;
+	uint32_t taaCooldownHeight = 0;
+	uint32_t taaCooldownFormat = 0;
 	uint32_t histogram[65] = {};
 	float exposure[8] = {};
 	float minBrightness = 0.0f;
@@ -67,6 +86,22 @@ struct TrinityStandalonePostProcessDiagnostics
 	float filmGrainDensity = 0.0f;
 	float filmGrainContrast = 0.0f;
 	float filmGrainBrightnessModifier = 0.0f;
+	float taaBlendWeight = 0.0f;
+	float taaEarlyOutThreshold = 0.0f;
+	float taaJitterX = 0.0f;
+	float taaJitterY = 0.0f;
+	float taaJitterPixelX = 0.0f;
+	float taaJitterPixelY = 0.0f;
+	uint64_t velocityRawHash = 0;
+	uint64_t velocityFinitePixels = 0;
+	uint64_t velocityInvalidPixels = 0;
+	uint64_t velocityMovingPixels = 0;
+	double velocityMeanMagnitude = 0.0;
+	double velocityMaximumMagnitude = 0.0;
+	uint64_t taaCooldownRawHash = 0;
+	uint64_t taaCooldownNonzeroPixels = 0;
+	uint32_t taaCooldownMinimum = 0;
+	uint32_t taaCooldownMaximum = 0;
 };
 
 struct TrinityStandaloneToneValidation
