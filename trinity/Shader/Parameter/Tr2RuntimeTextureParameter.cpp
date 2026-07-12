@@ -132,7 +132,12 @@ void Tr2RuntimeTextureParameter::SetUavMipLevel( uint32_t mipLevel )
 
 void Tr2RuntimeTextureParameter::OnAddedToMaterial( Tr2Material* material )
 {
-	m_materials.push_back( material );
+	// A material registers at most once; Initialize may run more than once
+	// for the same effect (read-time and preparation passes).
+	if( find( begin( m_materials ), end( m_materials ), material ) == end( m_materials ) )
+	{
+		m_materials.push_back( material );
+	}
 }
 
 void Tr2RuntimeTextureParameter::OnRemovedFromMaterial( Tr2Material* material )

@@ -174,6 +174,29 @@ public:
 		m_ballPosition = curve;
 	}
 
+	void SetBallRotationCurve( ITriQuaternionFunction* curve )
+	{
+		m_ballRotation = curve;
+	}
+
+	const Vector3& GetTranslation() const
+	{
+		return m_translation;
+	}
+
+	const Vector3& GetScaling() const
+	{
+		return m_scaling;
+	}
+
+	// Rotation of the ball frame alone (m_worldTransform), excluding the
+	// authored local rotation; this is what reorients the authored root
+	// translation.
+	Quaternion GetBallFrameRotation() const
+	{
+		return RotationQuaternion( m_worldTransform );
+	}
+
 	void FreezeHighDetailMesh();
 	void UpdateControllers( float updateFrequency );
 

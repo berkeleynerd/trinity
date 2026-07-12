@@ -58,6 +58,12 @@
 #include "Tr2ShLightingManager.h"
 #include "Tr2VolumetricsRenderer.h"
 #include "Resources/TriTextureRes.h"
+#include "Resources/Tr2LoadPrepareFence.h"
+
+#include <thread>
+
+// Defined in Resources/TriGeometryRes.cpp; no header declaration exists.
+extern int g_grannyDeprecationLevel;
 #include "Resources/TriGeometryRes.h"
 #include "Resources/Tr2LightProfileRes.h"
 #include "Shader/Tr2Effect.h"
@@ -167,6 +173,212 @@ const Be::ClassInfo* AudEmitter::ExposeToBlue()
 		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
 	EXPOSURE_END()
 }
+
+#if BLUE_WITH_PYTHON
+
+#include <IBluePython.h>
+
+// Verbatim copy of carbon's private PyScheduler.h definition; the public
+// header only forward-declares it and GetSchedulerStats returns a reference.
+struct SchedulerStats
+{
+	SchedulerStats() :
+		numberOfTaskletsInQueuePreTick( 0 ),
+		numberOfTaskletsInQueuePostTick( 0 ),
+		lastDurationMs( 0 ),
+		numberOfActiveScheduleManagers( 0 ),
+		numberOfActiveChannels( 0 ),
+		numberOfActiveTaskets( 0 ),
+		numberOfTaskletsCompletedLastTick( 0 ),
+		numberOfTaskletsSwitchedLastTick( 0 ),
+		maxTimeMs( 0 ),
+		overshootMs( 0 )
+	{}
+
+	int numberOfTaskletsInQueuePreTick;
+	int numberOfTaskletsInQueuePostTick;
+	double lastDurationMs;
+	int numberOfActiveScheduleManagers;
+	int numberOfActiveChannels;
+	int numberOfActiveTaskets;
+	int numberOfTaskletsCompletedLastTick;
+	int numberOfTaskletsSwitchedLastTick;
+	double maxTimeMs;
+	double overshootMs;
+};
+
+BLUE_DECLARE( TrinityProbeTaskletTimer );
+
+// AutoTasklet dereferences its timer without a null check under
+// CCP_STACKLESS, so the scheduler stub hands out this inert timer instead of
+// a null pointer.
+BLUE_CLASS( TrinityProbeTaskletTimer ) :
+	public ITaskletTimer
+{
+public:
+	EXPOSE_TO_BLUE();
+	TrinityProbeTaskletTimer( IRoot* lockobj = NULL );
+	~TrinityProbeTaskletTimer();
+
+	PyObject* GetCurrent() override;
+	float GetElapsed() override;
+	PyObject* EnterTasklet( PyObject* newContext ) override;
+	bool ReturnFromTasklet( PyObject* prevContext ) override;
+	PyObject* SwitchStack( intptr_t contextId ) override;
+	bool Reset() override;
+	void TimesliceReset() override;
+	PyObject* EnterTaskletEx( PyObject* newContext, TASKLETFLAGS flags ) override;
+	PyObject* EnterTaskletStr( const char* newContext, TASKLETFLAGS flags ) override;
+};
+TYPEDEF_BLUECLASS( TrinityProbeTaskletTimer );
+
+BLUE_DEFINE( TrinityProbeTaskletTimer );
+
+TrinityProbeTaskletTimer::TrinityProbeTaskletTimer( IRoot* lockobj )
+{
+}
+
+TrinityProbeTaskletTimer::~TrinityProbeTaskletTimer()
+{
+}
+
+PyObject* TrinityProbeTaskletTimer::GetCurrent() { return nullptr; }
+float TrinityProbeTaskletTimer::GetElapsed() { return 0.0f; }
+PyObject* TrinityProbeTaskletTimer::EnterTasklet( PyObject* ) { return nullptr; }
+bool TrinityProbeTaskletTimer::ReturnFromTasklet( PyObject* ) { return true; }
+PyObject* TrinityProbeTaskletTimer::SwitchStack( intptr_t ) { return nullptr; }
+bool TrinityProbeTaskletTimer::Reset() { return true; }
+void TrinityProbeTaskletTimer::TimesliceReset() {}
+PyObject* TrinityProbeTaskletTimer::EnterTaskletEx( PyObject*, TASKLETFLAGS ) { return nullptr; }
+PyObject* TrinityProbeTaskletTimer::EnterTaskletStr( const char*, TASKLETFLAGS ) { return nullptr; }
+
+const Be::ClassInfo* TrinityProbeTaskletTimer::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( TrinityProbeTaskletTimer, "" )
+		MAP_INTERFACE( ITaskletTimer )
+	EXPOSURE_END()
+}
+
+BLUE_DECLARE( TrinityProbePyOS );
+
+// The probe runs Blue without the stackless Python OS, leaving the exported
+// PyOS global null. Carbon's resource machinery gates its tasklet yields on
+// PyOS->CanYield() without a null check, so nested reads issued by read-time
+// Initialize (EveChildRef loading its referenced red file) crash. This inert
+// scheduler answers "cannot yield" to every gate, which routes all of those
+// paths to their synchronous in-line fallbacks — the same doctrine as the
+// AudEmitter stub above.
+BLUE_CLASS( TrinityProbePyOS ) :
+	public IBluePyOS
+{
+public:
+	EXPOSE_TO_BLUE();
+	TrinityProbePyOS( IRoot* lockobj = NULL );
+	~TrinityProbePyOS();
+
+	BluePythonObject* WrapBlueObject( IRoot* object ) override;
+	bool Startup() override;
+	void Shutdown( int level ) override;
+	int PumpPython( bool quit ) override;
+	PyObject* PyError( PyObject* exception ) override;
+	PyObject* CreateTasklet( PyObject* meth, PyObject* args, PyObject* kw ) override;
+	bool SendEvent( IRoot* caller, const char* context, const char* eventName, PyObject** pRetval, const char* format, ... ) override;
+	bool PostEvent( IRoot* caller, const char* context, const char* eventName, const char* format, ... ) override;
+	void FormatException( char** result ) override;
+	ITaskletTimer* GetTaskletTimer() override;
+	bool PyFlushError( const char* whence ) override;
+	void OnTaskletSwitch( PyObject* from, PyObject* to ) override;
+	PyObject* CallMethodWithTrap( PyObject* target, const char* method, const char* ctxt, const char* format, ... ) override;
+	bool PythonEvent( const char* event, PyObject* arg ) override;
+	bool IsPackaged() override;
+	void SetPackaged( bool packaged ) override;
+	void SetMarkupZonesInPython( bool markupZonesInPython ) override;
+	bool IsInterpreterMode() override;
+	bool CanYield() override;
+	bool Yield() override;
+	SchedulerStats& GetSchedulerStats() override;
+	PyObject* PyErr_BlueError() override;
+	PyObject* BlueModule() override;
+	void RebaseSimClock( Be::Time oldTime, Be::Time newTime ) override;
+
+private:
+	SchedulerStats m_stats;
+};
+TYPEDEF_BLUECLASS( TrinityProbePyOS );
+
+BLUE_DEFINE( TrinityProbePyOS );
+
+TrinityProbePyOS::TrinityProbePyOS( IRoot* lockobj ) :
+	m_stats()
+{
+}
+
+TrinityProbePyOS::~TrinityProbePyOS()
+{
+}
+
+BluePythonObject* TrinityProbePyOS::WrapBlueObject( IRoot* ) { return nullptr; }
+bool TrinityProbePyOS::Startup() { return false; }
+void TrinityProbePyOS::Shutdown( int ) {}
+int TrinityProbePyOS::PumpPython( bool ) { return 0; }
+PyObject* TrinityProbePyOS::PyError( PyObject* ) { return nullptr; }
+PyObject* TrinityProbePyOS::CreateTasklet( PyObject*, PyObject*, PyObject* ) { return nullptr; }
+bool TrinityProbePyOS::SendEvent( IRoot*, const char*, const char*, PyObject** pRetval, const char*, ... )
+{
+	if( pRetval )
+	{
+		*pRetval = nullptr;
+	}
+	return false;
+}
+bool TrinityProbePyOS::PostEvent( IRoot*, const char*, const char*, const char*, ... ) { return false; }
+void TrinityProbePyOS::FormatException( char** result )
+{
+	if( result )
+	{
+		*result = nullptr;
+	}
+}
+ITaskletTimer* TrinityProbePyOS::GetTaskletTimer()
+{
+	// Deliberately leaked: outlives any static-destruction ordering against
+	// Blue teardown, and AutoTasklet dereferences it without a null check.
+	static ITaskletTimer* s_timer = [] {
+		BluePtr<ITaskletTimer> timer;
+		if( !BeClasses->CreateInstanceFromName(
+				"TrinityProbeTaskletTimer",
+				BlueInterfaceIID<ITaskletTimer>(),
+				reinterpret_cast<void**>( &timer.p ) ) )
+		{
+			CCP_LOGERR( "TrinityProbeTaskletTimer failed to instantiate" );
+		}
+		return timer.Detach();
+	}();
+	return s_timer;
+}
+bool TrinityProbePyOS::PyFlushError( const char* ) { return false; }
+void TrinityProbePyOS::OnTaskletSwitch( PyObject*, PyObject* ) {}
+PyObject* TrinityProbePyOS::CallMethodWithTrap( PyObject*, const char*, const char*, const char*, ... ) { return nullptr; }
+bool TrinityProbePyOS::PythonEvent( const char*, PyObject* ) { return false; }
+bool TrinityProbePyOS::IsPackaged() { return false; }
+void TrinityProbePyOS::SetPackaged( bool ) {}
+void TrinityProbePyOS::SetMarkupZonesInPython( bool ) {}
+bool TrinityProbePyOS::IsInterpreterMode() { return false; }
+bool TrinityProbePyOS::CanYield() { return false; }
+bool TrinityProbePyOS::Yield() { return false; }
+SchedulerStats& TrinityProbePyOS::GetSchedulerStats() { return m_stats; }
+PyObject* TrinityProbePyOS::PyErr_BlueError() { return nullptr; }
+PyObject* TrinityProbePyOS::BlueModule() { return nullptr; }
+void TrinityProbePyOS::RebaseSimClock( Be::Time, Be::Time ) {}
+
+const Be::ClassInfo* TrinityProbePyOS::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( TrinityProbePyOS, "" )
+		MAP_INTERFACE( IBluePyOS )
+	EXPOSURE_END()
+}
+
+#endif // BLUE_WITH_PYTHON
 
 namespace
 {
@@ -3776,6 +3988,12 @@ struct StandaloneProbe
 	Tr2TextureAL postTaaReadback;
 	std::array<Tr2TextureAL, 4> volumeSliceReadbacks;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
+	// RC-09 headroom latch: true once any composite readback in this run has
+	// contained a pixel above 1.0. The composition contract's intent is that
+	// the pipeline RETAINS headroom capability, not that every camera framing
+	// contains a bright source; the per-frame form rejected dark-sky framings
+	// during long demo rides.
+	bool hdrHeadroomObserved = false;
 	TrinityStandaloneToneValidation toneValidation;
 	TrinityStandalonePostFinishValidation postFinishValidation;
 	TrinityStandaloneDistortionDiagnostics distortionDiagnostics;
@@ -4041,6 +4259,106 @@ void WriteAreaList( std::ostream& output, const char* label, const PEveSOFDataHu
 	output << "\n";
 }
 
+#if BLUE_WITH_PYTHON
+// Holds the inert probe scheduler in the exported PyOS global for exactly the
+// lifetime of a Black read and its settlement drain. Nested object loads
+// issued by read-time Initialize (EveChildRef pulling its referenced red
+// file) traverse carbon's tasklet yield gates, which dereference PyOS with no
+// null check; the stub answers "cannot yield" so every gate takes its
+// synchronous fallback. The stub must NOT stay installed globally: trinity's
+// frame paths treat a non-null PyOS as "the Python runtime is available"
+// (EveSpaceScene::Update block traps, device tasklet timers).
+class ScopedProbeScheduler
+{
+public:
+	ScopedProbeScheduler() :
+		m_previous( PyOS )
+	{
+		if( !PyOS )
+		{
+			PyOS = Instance();
+		}
+	}
+
+	~ScopedProbeScheduler()
+	{
+		PyOS = m_previous;
+	}
+
+private:
+	static IBluePyOS* Instance()
+	{
+		// Deliberately leaked: static destruction order against Blue teardown
+		// is unspecified, and the stub is load-bearing for every nested read.
+		static IBluePyOS* s_instance = [] {
+			BluePtr<IBluePyOS> instance;
+			if( !BeClasses->CreateInstanceFromName(
+					"TrinityProbePyOS",
+					BlueInterfaceIID<IBluePyOS>(),
+					reinterpret_cast<void**>( &instance.p ) ) ||
+				!instance )
+			{
+				CCP_LOGERR( "TrinityProbePyOS scheduler stub failed to instantiate; "
+					"nested reads will crash on carbon's unguarded PyOS gates" );
+			}
+			return instance.Detach();
+		}();
+		return s_instance;
+	}
+
+	IBluePyOS* m_previous;
+};
+#else
+class ScopedProbeScheduler
+{
+};
+#endif
+
+// Blocks until every resource requested so far has finished loading AND
+// preparing. Read-time Initialize kicks off asynchronous resource requests;
+// the probe's without-yield contract requires them settled before configure
+// code observes the graph. A prepare can request further resources, so the
+// drain repeats until two consecutive fence rounds complete with both queues
+// empty.
+void DrainResourceQueuesUntilSettled()
+{
+	// Generous bound: a stalled load (offline remote fetch, perpetually
+	// re-queued prepare) becomes a loud diagnostic instead of a silent
+	// 100%-core hang that a validator can only report as a bare timeout.
+	constexpr float kDrainBudgetSeconds = 120.0f;
+	BeTimer drainTimer;
+	for( int settledRounds = 0; settledRounds < 2; )
+	{
+		Tr2LoadPrepareFence fence;
+		fence.Put();
+		while( !fence.IsReached() )
+		{
+			BeResMan->PumpMainThreadQueue();
+			if( (float)drainTimer.GetSeconds() > kDrainBudgetSeconds )
+			{
+				CCP_LOGERR( "Resource drain exceeded %.0f s: pendingLoads=%u pendingPrepares=%u",
+					kDrainBudgetSeconds, BeResMan->GetPendingLoads(), BeResMan->GetPendingPrepares() );
+				return;
+			}
+			std::this_thread::yield();
+		}
+		if( BeResMan->GetPendingLoads() == 0 && BeResMan->GetPendingPrepares() == 0 )
+		{
+			++settledRounds;
+		}
+		else
+		{
+			settledRounds = 0;
+			if( (float)drainTimer.GetSeconds() > kDrainBudgetSeconds )
+			{
+				CCP_LOGERR( "Resource drain exceeded %.0f s without settling: pendingLoads=%u pendingPrepares=%u",
+					kDrainBudgetSeconds, BeResMan->GetPendingLoads(), BeResMan->GetPendingPrepares() );
+				return;
+			}
+		}
+	}
+}
+
 template <typename T>
 BluePtr<T> LoadBlackObjectWithoutYield( const char* path, std::string& error )
 {
@@ -4064,7 +4382,14 @@ BluePtr<T> LoadBlackObjectWithoutYield( const char* path, std::string& error )
 	}
 
 	reader->SetFileName( widePath.c_str() );
-	reader->SetDoInitialize( false );
+	// Every deserialized graph goes through the client's child-first
+	// Initialize contract: controllers link, controller variables adopt
+	// authored defaults, curve expressions compile, and curve sets apply
+	// their authored playOnLoad policy. Read-time resource requests are
+	// drained to settlement before this function returns, so the probe's
+	// without-yield doctrine holds at the cost of load-time latency.
+	reader->SetDoInitialize( true );
+	ScopedProbeScheduler scopedScheduler;
 
 #if BLUE_WITH_PYTHON
 	PyThreadState* pythonState = nullptr;
@@ -4073,12 +4398,19 @@ BluePtr<T> LoadBlackObjectWithoutYield( const char* path, std::string& error )
 		pythonState = PyEval_SaveThread();
 	}
 	IRoot* rawObject = reader->ReadFromStream( stream );
+	// Settle read-time resource requests before the GIL returns and on every
+	// path including read failure: pumped prepare callbacks must observe
+	// PyGILState_Check()==false so carbon's scheduler-touching gates stay
+	// closed, and a failed read must not leak in-flight loads past the
+	// scheduler-stub window.
+	DrainResourceQueuesUntilSettled();
 	if( pythonState )
 	{
 		PyEval_RestoreThread( pythonState );
 	}
 #else
 	IRoot* rawObject = reader->ReadFromStream( stream );
+	DrainResourceQueuesUntilSettled();
 #endif
 
 	if( !rawObject )
@@ -4093,6 +4425,7 @@ BluePtr<T> LoadBlackObjectWithoutYield( const char* path, std::string& error )
 
 	IRootPtr object;
 	object.Attach( rawObject );
+
 	auto typed = BluePtr<T>( BlueCastPtr( object ) );
 	if( !typed )
 	{
@@ -4752,7 +5085,12 @@ bool PrepareNewEdenLensFlareWithoutYield( EveLensflare& lensFlare, std::string& 
 		error = "New Eden lens flare failed to initialize";
 		return false;
 	}
-	lensFlare.StartControllers();
+	{
+		// Controller start can fire authored actions that load objects
+		// through carbon's unguarded PyOS gates.
+		ScopedProbeScheduler scopedScheduler;
+		lensFlare.StartControllers();
+	}
 	std::fprintf(
 		stderr,
 		"New Eden lens flare ready: graphicId=1247 path=res:/fisfx/lensflare/yellow_small.black "
@@ -7389,7 +7727,14 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 	const bool rangeValid = diagnostics.negativeComponents == 0 && diagnostics.saturatedComponents == 0;
 	const bool nonuniform = diagnostics.maximumLuminance - diagnostics.minimumLuminance > 0.000001;
 	const bool nonblack = diagnostics.maximumLuminance > 0.000001;
-	const bool hasHdrHeadroom = diagnostics.pixelsAboveOne != 0;
+	if( diagnostics.pixelsAboveOne != 0 )
+	{
+		probe.hdrHeadroomObserved = true;
+	}
+	// Headroom is a latched run property (observed at least once), not a
+	// per-frame demand: a gate-locked camera on a dark sky is a legitimate
+	// framing whose composite retains headroom capability.
+	const bool hasHdrHeadroom = probe.hdrHeadroomObserved;
 	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack && hasHdrHeadroom;
 
 	std::fprintf(
@@ -9924,8 +10269,13 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 		probe.silkCloudRoot->SetControllerVariable( "brightness", 2.0f );
 		probe.silkCloud->SetDensityOverride( 2.0f );
 		probe.silkCloud->SetAlbedoOverride( authoredAlbedo );
-		probe.silkCloudRoot->StartControllers();
-		probe.silkCloudRoot->Start();
+		{
+			// Controller/curve start can fire authored actions that load
+			// objects through carbon's unguarded PyOS gates.
+			ScopedProbeScheduler scopedScheduler;
+			probe.silkCloudRoot->StartControllers();
+			probe.silkCloudRoot->Start();
+		}
 		probe.scene->Objects().Insert( -1, probe.silkCloudRoot->GetRawRoot() );
 		std::fprintf(
 			stderr,
@@ -10389,6 +10739,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeStartup( int argc, const ch
 	}
 
 	TrinityStandaloneStartup();
+
+	// Read-time Initialize requests authored geometry paths before the probe's
+	// CMF redirects run. The probe links no granny code, so those requests must
+	// degrade to a logged failed load; the assert level is a client dev aid.
+	g_grannyDeprecationLevel = (int)GrannyDeprecationLevel::LOG_ERROR;
+
 	started = true;
 	return true;
 }
@@ -11775,19 +12131,35 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 		diagnostics.ballMode = state.mode;
 	}
 #endif
+	// Camera-anchored render contract: the ball-frame rotation must carry the
+	// authored root offset onto the anchored gate bearing. Measured from the
+	// live object every sample, so an engine regression in the rotation path
+	// fails the contract rather than the configure-time constant.
 	const double gateDistance = std::sqrt(
 		anchored[0] * anchored[0] + anchored[1] * anchored[1] + anchored[2] * anchored[2] );
-	const Vector3 world = probe.eveGateRoot->GetWorldPosition();
-	double worldError = 0.0;
-	for( size_t axis = 0; axis < 3; ++axis )
+	const Quaternion ballFrame = probe.eveGateRoot->GetBallFrameRotation();
+	const Vector3 authoredOffset = probe.eveGateRoot->GetTranslation();
+	// Rotation-only matrix, so TransformCoord applies no translation.
+	const Vector3 rotated = TransformCoord( authoredOffset, RotationMatrix( ballFrame ) );
+	const float rotatedLength = Length( rotated );
+	double bearingError = 1.0;
+	if( rotatedLength > 0.0f && gateDistance > 0.0 )
 	{
-		worldError = std::max(
-			worldError,
-			std::abs( static_cast<double>( ( &world.x )[axis] ) - anchored[axis] ) /
-				std::max( 1.0, gateDistance ) );
-		diagnostics.worldPosition[axis] = ( &world.x )[axis];
+		// Compared against the COMMANDED render bearing recorded at configure
+		// time (true bearing plus the composition offset), not the raw
+		// anchored direction.
+		double dot = 0.0;
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			const double achieved = static_cast<double>( ( &rotated.x )[axis] ) / rotatedLength;
+			diagnostics.bearingAchieved[axis] = achieved;
+			diagnostics.worldPosition[axis] = ( &rotated.x )[axis];
+			dot += achieved * diagnostics.bearingExpected[axis];
+		}
+		bearingError = 1.0 - dot;
 	}
-	diagnostics.maximumWorldError = std::max( diagnostics.maximumWorldError, worldError );
+	diagnostics.maximumBearingError = std::max( diagnostics.maximumBearingError, bearingError );
+	diagnostics.maximumWorldError = diagnostics.maximumBearingError;
 	diagnostics.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
 	if( countSample )
 	{
@@ -12682,14 +13054,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
 		kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
 	};
-	const Vector3 gatePosition(
-		static_cast<float>( gateAnchored[0] ),
-		static_cast<float>( gateAnchored[1] ),
-		static_cast<float>( gateAnchored[2] ) );
-	const char* placement = "static";
+	const char* placement = "authored-skybox";
+	bool navigationBall = false;
+	double renderBearing[3] = { 0.0, 0.0, 0.0 };
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	if( probe->celestialLinkageActive && probe->destinySession )
 	{
+		// Navigation truth only: ball 900001 carries the recovered position for
+		// GotoPoint targets, travel demos, and the placement contract. The
+		// RENDERED graph is deliberately not bound to it — see below.
 		char destinyError[512] = {};
 		DestinyEmbeddedCelestialConfig gateConfig = {};
 		gateConfig.ballId = kNewEdenEveGateBallId;
@@ -12703,54 +13076,188 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 			std::fprintf( stderr, "CP-36 EVE Gate celestial ball failed: %s\n", destinyError );
 			return false;
 		}
-		gate->SetBallPositionCurve( gateCurve );
 		probe->eveGateCurve = gateCurve;
-		placement = "ballpark";
+		navigationBall = true;
 	}
-	else
 #endif
+	// Authored placement contract (structural decode of the graph, verified):
+	// the container parenting all visible content carries an
+	// EveChildModifierTranslateWithCamera, so the graph is a camera-anchored
+	// sky overlay whose apparent range is the client-fed DistanceRatio, not
+	// real distance. The root therefore stays at its authored local transform
+	// and only receives a constant ball-frame rotation taking the authored
+	// root offset onto the true gate bearing. Driving the root to the
+	// recovered 9.3 AU position (the previous ball linkage) contradicts the
+	// authored contract: TranslateWithCamera adds the camera position on top,
+	// which kept the content a fixed anchor-offset from the eye forever.
 	{
-		gate->SetTransform( TranslationMatrix( gatePosition ) );
+		const double anchoredLength = std::sqrt(
+			gateAnchored[0] * gateAnchored[0] + gateAnchored[1] * gateAnchored[1] +
+			gateAnchored[2] * gateAnchored[2] );
+		if( anchoredLength <= 0.0 )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate bearing is degenerate\n" );
+			return false;
+		}
+		Vector3 bearing(
+			static_cast<float>( gateAnchored[0] / anchoredLength ),
+			static_cast<float>( gateAnchored[1] / anchoredLength ),
+			static_cast<float>( gateAnchored[2] / anchoredLength ) );
+		{
+			// Fixture composition (operator-directed): the RENDER bearing is
+			// aligned onto the brightest core of the scene fixture's baked
+			// nebula so the vortex sits embedded in its authored cloud — the
+			// pairing the client's scene authoring achieved in-game. Measured
+			// from matched 4096x2304 captures (chase fovY 48 deg): nebula core
+			// at (+403, +118) px screen offset from the vortex rendered at the
+			// true bearing. The navigation ball keeps the recovered true
+			// position; only the rendered graph is re-aimed.
+			const float kCoreYawDegrees = -0.65f;
+			const float kCorePitchDegrees = 4.11f;
+			const float kDegToRad = 3.14159265f / 180.0f;
+			Vector3 right = Cross( Vector3( 0.0f, 1.0f, 0.0f ), bearing );
+			const float rightLength = Length( right );
+			if( rightLength > 1e-4f )
+			{
+				right = right / rightLength;
+				const Vector3 up = Cross( bearing, right );
+				bearing = Normalize(
+					bearing + std::tan( kCoreYawDegrees * kDegToRad ) * right -
+					std::tan( kCorePitchDegrees * kDegToRad ) * up );
+			}
+		}
+		for( size_t axis = 0; axis < 3; ++axis )
+			renderBearing[axis] = static_cast<double>( ( &bearing.x )[axis] );
+		const Vector3 authoredOffset = gate->GetTranslation();
+		const float authoredLength = Length( authoredOffset );
+		if( authoredLength <= 0.0f )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate authored root offset is degenerate\n" );
+			return false;
+		}
+		const Vector3 from = authoredOffset / authoredLength;
+		// Shortest-arc quaternion taking the authored offset direction onto the
+		// gate bearing.
+		Quaternion bearingRotation( 0.0f, 0.0f, 0.0f, 1.0f );
+		const float fromDotTo = Dot( from, bearing );
+		if( fromDotTo < -0.999999f )
+		{
+			// Antiparallel: rotate half a turn about any axis orthogonal to from.
+			Vector3 axis = Cross( from, Vector3( 1.0f, 0.0f, 0.0f ) );
+			if( Length( axis ) < 1e-6f )
+			{
+				axis = Cross( from, Vector3( 0.0f, 1.0f, 0.0f ) );
+			}
+			axis = Normalize( axis );
+			bearingRotation = Quaternion( axis.x, axis.y, axis.z, 0.0f );
+		}
+		else
+		{
+			const Vector3 axis = Cross( from, bearing );
+			bearingRotation = Normalize(
+				Quaternion( axis.x, axis.y, axis.z, 1.0f + fromDotTo ) );
+		}
+		Tr2CurveConstantPtr rotationCurve;
+		if( !rotationCurve.CreateInstance() )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate bearing rotation curve failed to instantiate\n" );
+			return false;
+		}
+		rotationCurve->SetValue(
+			Vector4( bearingRotation.x, bearingRotation.y, bearingRotation.z, bearingRotation.w ) );
+		gate->SetBallRotationCurve( rotationCurve );
+		// The authored graph SELF-AIMS: the Vortex Billboard3D points the
+		// funnel mouth (Vortex-local +Z) at the camera, but only when the
+		// accumulated rotation entering it is identity — the modifier
+		// re-applies the accumulated rotation on top of its aim basis
+		// (Final = S * B * R_accum). The ball rotation above therefore
+		// post-rotates the aim off-axis by the full bearing arc. Cancel it
+		// with the conjugate in the root's LOCAL rotation: local S*R*T does
+		// not rotate the root translation, so sky placement is unchanged
+		// while the billboard aims the open end at the observer — the
+		// authored client behavior.
+		const Vector3 authoredScaling = gate->GetScaling();
+		const Quaternion counterRotation(
+			-bearingRotation.x, -bearingRotation.y, -bearingRotation.z, bearingRotation.w );
+		// Presentation distance (operator-directed): the camera-anchored offset
+		// is pushed out beyond the fixture's play space so perspective shrinks
+		// the whole presentation proportionally — sized so the outer disc
+		// (angular radius atan(24.5/offset)) fits within the backdrop's
+		// glowing nebular core (measured ~11.4 deg half-light radius).
+		// Authored proportions are untouched; only the fixture's anchor
+		// distance changes.
+		// k must exceed ~5.1 so the far-state BackgroundCover horn (scale_z
+		// 3.25 stretches its throat ~304 units toward the camera) fully
+		// clears the eye; 6.0 detaches the whole assembly and sizes the disc
+		// at ~3.9 deg, well inside the ~11.4 deg nebular glow.
+		const float kPresentationDistanceMultiplier = 6.0f;
+		gate->SetTransform( TransformationMatrix(
+			authoredScaling, counterRotation, authoredOffset * kPresentationDistanceMultiplier ) );
 	}
-	gate->StartControllers();
-	gate->Start();
-	if( distanceRatio >= 0.0f )
 	{
-		// Drives the authored appearance selection; the client-side policy that
-		// feeds this variable is unrecovered, so the value is explicit fixture
-		// input rather than recovered behavior.
-		gate->SetControllerVariable( "DistanceRatio", distanceRatio );
-		gate->SetControllerVariable( "ChangeDistanceRatio", distanceRatio );
-		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (explicit fixture input)\n",
-			distanceRatio );
+		// Controller start can fire authored actions that load objects
+		// through carbon's unguarded PyOS gates.
+		ScopedProbeScheduler scopedScheduler;
+		gate->StartControllers();
 	}
-	probe->scene->Objects().Insert( -1, gate->GetRawRoot() );
+	// No blanket Start(): initialize-on-read already applied each curve set's
+	// authored playOnLoad policy, and force-playing every root curve set would
+	// let a playing DistanceRatio_CS overwrite the controller-selected time
+	// (second-opinion Candidate C, verified).
+	{
+		// The client-side policy that feeds DistanceRatio is unrecovered, so
+		// the value is fixture input. Presentation default (operator-directed):
+		// the authored FAR state — below the graph's own 0.4 far/in-system
+		// boundary the curves flatten to the compact distant funnel (vortex
+		// scale 0.333, disc lane at its thinnest, wide flare dim) — showing
+		// the gate from the farthest visible presentation. The authored
+		// in-system state sits just above 0.4 (scale completes at 0.5) and
+		// the serialized variable default 1.0 is the fully opaque
+		// maximum-presence state; both remain selectable via --eve-gate-ratio.
+		const float kFarPresentationDistanceRatio = 0.1f;
+		const bool explicitRatio = distanceRatio >= 0.0f;
+		const float appliedRatio = explicitRatio ? distanceRatio : kFarPresentationDistanceRatio;
+		gate->SetControllerVariable( "DistanceRatio", appliedRatio );
+		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (%s)\n",
+			appliedRatio,
+			explicitRatio ? "explicit fixture input" : "far presentation default (operator-directed)" );
+	}
+	// The client's live analog (BackgroundObject for massive environments)
+	// appends to scene.backgroundObjects: fully updated each frame and
+	// rendered depth-isolated, which a sky-filling overlay requires.
+	probe->scene->BackgroundObjects().Insert( -1, gate->GetRawRoot() );
 	probe->eveGateRoot = gate;
 	probe->eveGateMode = STANDALONE_EVE_GATE_AUTHORED;
 	probe->eveGateAuthoredRadius = authoredRadius;
 	probe->eveGateMeshCount = meshCount;
 	probe->eveGateDiagnostics = {};
 	probe->eveGateDiagnostics.available = true;
-	probe->eveGateDiagnostics.linkageActive = std::strcmp( placement, "ballpark" ) == 0;
-	probe->eveGateDiagnostics.ballStateExact = probe->eveGateDiagnostics.linkageActive;
-	probe->eveGateDiagnostics.curveAttached = probe->eveGateDiagnostics.linkageActive;
+	probe->eveGateDiagnostics.linkageActive = navigationBall;
+	probe->eveGateDiagnostics.ballStateExact = navigationBall;
+	probe->eveGateDiagnostics.curveAttached = navigationBall;
 	probe->eveGateDiagnostics.meshCount = meshCount;
 	probe->eveGateDiagnostics.containerCount = containerCount;
 	probe->eveGateDiagnostics.ballId = kNewEdenEveGateBallId;
 	probe->eveGateDiagnostics.authoredRadius = authoredRadius;
 	probe->eveGateDiagnostics.ballRadius = std::max( 1.0f, authoredRadius );
+	// The contract expects the COMMANDED render bearing (true bearing plus the
+	// operator-directed nebula-core composition offset), verifying the
+	// rotation mechanism delivers what was configured.
+	for( size_t axis = 0; axis < 3; ++axis )
+		probe->eveGateDiagnostics.bearingExpected[axis] = renderBearing[axis];
 	std::fprintf(
 		stderr,
-		"CP-36 EVE Gate: mode=authored placement=%s ball=%lld meshes=%u containers=%u authoredRadius=%.3f "
-		"position=(%.0f, %.0f, %.0f) distanceRatioPolicy=default-state\n",
+		"CP-36 EVE Gate: mode=authored placement=%s navigationBall=%s ball=%lld meshes=%u containers=%u "
+		"authoredRadius=%.3f bearing=(%.6f, %.6f, %.6f) distanceRatioPolicy=in-system-default\n",
 		placement,
+		navigationBall ? "yes" : "no",
 		static_cast<long long>( kNewEdenEveGateBallId ),
 		meshCount,
 		containerCount,
 		authoredRadius,
-		kNewEdenEveGateRelative[0],
-		kNewEdenEveGateRelative[1],
-		kNewEdenEveGateRelative[2] );
+		probe->eveGateDiagnostics.bearingExpected[0],
+		probe->eveGateDiagnostics.bearingExpected[1],
+		probe->eveGateDiagnostics.bearingExpected[2] );
 	return true;
 }
 
@@ -12792,20 +13299,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateEveGate( void* opaq
 		( ballpark.directEvolveCount == 62 && ballpark.commandCount == 1 &&
 		  ballpark.maximumRawPositionError <= 1e-5 && ballpark.maximumRawVelocityError <= 1e-5 &&
 		  ballpark.maximumRawAccelerationError <= 1e-5 );
+	// Bearing bound: float32 quaternion rotation of the authored offset costs
+	// a few ULP in the unit-dot; 1e-5 rejects any real misorientation while
+	// tolerating single-precision arithmetic.
 	diagnostics.valid = diagnostics.available && diagnostics.meshCount == 9 && diagnostics.containerCount == 7 &&
 		diagnostics.sampleCount > 0 && diagnostics.sampleCount == probe->renderedFrameCount &&
-		diagnostics.maximumWorldError <= 1e-6 && diagnostics.linkageActive && diagnostics.ballStateExact &&
+		diagnostics.maximumBearingError <= 1e-5 && diagnostics.linkageActive && diagnostics.ballStateExact &&
 		diagnostics.curveAttached && orbitPreserved;
 	std::fprintf(
 		stderr,
 		"CP-36 EVE Gate validation: samples=%llu meshes=%u containers=%u ballExact=%s curve=%s "
-		"worldError=%.3g trajectory=%016llx orbitPreserved=%s validation=%s\n",
+		"bearingError=%.3g trajectory=%016llx orbitPreserved=%s validation=%s\n",
 		static_cast<unsigned long long>( diagnostics.sampleCount ),
 		diagnostics.meshCount,
 		diagnostics.containerCount,
 		diagnostics.ballStateExact ? "yes" : "no",
 		diagnostics.curveAttached ? "yes" : "no",
-		diagnostics.maximumWorldError,
+		diagnostics.maximumBearingError,
 		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
 		orbitPreserved ? "yes" : "no",
 		diagnostics.valid ? "pass" : "fail" );
@@ -13033,12 +13543,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->eveGateApproachIssued = true;
 			std::fprintf( stderr,
 				"PL-12B demo command: frame=%llu effectiveTime=%lld GotoPoint=EVE Gate landmark "
-				"(%.0f, %.0f, %.0f)\n",
+				"anchored (%.0f, %.0f, %.0f)\n",
 				static_cast<unsigned long long>( probe->renderedFrameCount ),
 				static_cast<long long>( approachState.nextTickTime ),
-				kNewEdenEveGateRelative[0],
-				kNewEdenEveGateRelative[1],
-				kNewEdenEveGateRelative[2] );
+				approachTarget[0],
+				approachTarget[1],
+				approachTarget[2] );
 		}
 		if( probe->ballparkMode != STANDALONE_BALLPARK_OFF &&
 			( !probe->destinySession ||

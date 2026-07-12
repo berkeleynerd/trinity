@@ -4959,9 +4959,12 @@ bool WriteEveGateContractJson( const Options& options, const TrinityStandaloneEv
 	};
 	output << "{\n"
 		   << "  \"contract\": \"CP-36 EVE Gate landmark\",\n"
-		   << "  \"placementPolicy\": \"explicit-program-policy; no current-client caller recovered\",\n"
+		   << "  \"placementPolicy\": \"authored-skybox: camera-anchored graph kept at its authored local "
+			  "transform with a constant ball-frame rotation onto the recovered bearing; the navigation ball "
+			  "carries the recovered position; no current-client caller recovered\",\n"
 		   << "  \"frameAnchor\": \"promised-land-stargate-observer\",\n"
-		   << "  \"distanceRatioPolicy\": \"default-state\",\n"
+		   << "  \"distanceRatioPolicy\": \"in-system reconstruction default 0.5 (authored far/in-system "
+			  "boundary at 0.4, scale completion at 0.5); explicit via --eve-gate-ratio\",\n"
 		   << "  \"samples\": " << diagnostics.sampleCount << ",\n"
 		   << "  \"meshes\": " << diagnostics.meshCount << ",\n"
 		   << "  \"containers\": " << diagnostics.containerCount << ",\n"
@@ -4971,7 +4974,9 @@ bool WriteEveGateContractJson( const Options& options, const TrinityStandaloneEv
 		   << "  \"authoredRadius\": " << diagnostics.authoredRadius << ",\n";
 	writeArray( "ballPosition", diagnostics.ballPosition, 3, true );
 	writeArray( "worldPosition", diagnostics.worldPosition, 3, true );
-	output << "  \"maximumWorldError\": " << diagnostics.maximumWorldError << ",\n"
+	writeArray( "bearingExpected", diagnostics.bearingExpected, 3, true );
+	writeArray( "bearingAchieved", diagnostics.bearingAchieved, 3, true );
+	output << "  \"maximumBearingError\": " << diagnostics.maximumBearingError << ",\n"
 		   << "  \"linkage\": {\"active\": " << ( diagnostics.linkageActive ? "true" : "false" )
 		   << ", \"ballStateExact\": " << ( diagnostics.ballStateExact ? "true" : "false" )
 		   << ", \"curveAttached\": " << ( diagnostics.curveAttached ? "true" : "false" ) << "},\n"

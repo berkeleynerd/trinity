@@ -259,6 +259,10 @@ public:
 	{
 		return m_objects;
 	}
+	PIEveSpaceObject2Vector& BackgroundObjects()
+	{
+		return m_backgroundObjects;
+	}
 	PEvePlanetVector& Planets()
 	{
 		return m_planets;

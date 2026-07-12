@@ -3473,6 +3473,10 @@ bool EveSpaceScene::Initialize()
 {
 	// the environment cubemap aka the nebula
 
+	// Initialize may run more than once (read-time and host passes); release
+	// any prior resolution first — the resource manager returns the cached
+	// instance, and BluePtr's operator& requires an empty pointer.
+	m_staticEnvMapTextureRes = nullptr;
 	if( !m_envMapResPath.empty() )
 	{
 		BeResMan->GetResource( m_envMapResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_staticEnvMapTextureRes );
@@ -3490,14 +3494,17 @@ bool EveSpaceScene::Initialize()
 		m_envMapTextureRes = m_staticEnvMapTextureRes;
 	}
 
+	m_envMap1 = nullptr;
 	if( !m_envMap1ResPath.empty() )
 	{
 		BeResMan->GetResource( m_envMap1ResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_envMap1 );
 	}
+	m_envMap2 = nullptr;
 	if( !m_envMap2ResPath.empty() )
 	{
 		BeResMan->GetResource( m_envMap2ResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_envMap2 );
 	}
+	m_envMap3 = nullptr;
 	if( !m_envMap3ResPath.empty() )
 	{
 		BeResMan->GetResource( m_envMap3ResPath.c_str(), "", BlueInterfaceIID<ITr2TextureProvider>(), (void**)&m_envMap3 );

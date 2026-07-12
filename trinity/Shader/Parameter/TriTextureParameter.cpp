@@ -306,12 +306,21 @@ bool TriTextureParameter::AssignTo( ICopierCustomAssignment* other,
 
 void TriTextureParameter::OnAddedToMaterial( Tr2Material* material )
 {
-	m_materials.push_back( material );
+	// A material registers at most once; Initialize may run more than once
+	// for the same effect (read-time and preparation passes).
+	if( find( begin( m_materials ), end( m_materials ), material ) == end( m_materials ) )
+	{
+		m_materials.push_back( material );
+	}
 }
 
 void TriTextureParameter::OnRemovedFromMaterial( Tr2Material* material )
 {
-	m_materials.erase( find( begin( m_materials ), end( m_materials ), material ), end( m_materials ) );
+	auto found = find( begin( m_materials ), end( m_materials ), material );
+	if( found != end( m_materials ) )
+	{
+		m_materials.erase( found );
+	}
 }
 
 void TriTextureParameter::RebuildEffectHandles( Tr2Shader* effectRes )

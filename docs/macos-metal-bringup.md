@@ -2277,6 +2277,18 @@ that the composition *retains* headroom capability rather than that
 every camera angle contains a bright source. Until then the
 direct-travel demo runs complete at `hdr-post`.
 
+**Resolved: the headroom-observed-at-least-once refinement is
+implemented.** The probe latches `hdrHeadroomObserved` on the first
+composite readback containing a pixel above `1.0`, and the per-frame
+requirement consumes the latch — the composition must demonstrate
+headroom capability once per run, and a gate-locked camera on a dark
+sky is a legitimate framing thereafter. With the latch in place the
+maxed demo profile runs at `hdr-finish` native full screen — TAA
+resolved high on a `4096x2304` backing, client dynamic exposure,
+client bloom and film grain, authored distortion and engines, high
+shadows and CORTAO, dynamic reflections — riding the authored-skybox
+gate indefinitely with no arrival-window failure.
+
 The first appearance-drive attempt is a measured negative:
 `--eve-gate-ratio` feeds `DistanceRatio` (and `ChangeDistanceRatio`)
 through `SetControllerVariable` after controller start, and site
@@ -2289,6 +2301,59 @@ is state-machine instrumentation — logging the current state, the
 transition evaluations, and the controller variable bindings — rather
 than further blind variable drives.
 
+**Both readings of that negative are corrected here.** The ratio
+captures were taken in framings whose gate-on/gate-off pairs are
+pixel-identical — the undriven default site capture equals the gate-off
+control exactly, and the 60 km chase pair is likewise identical — so
+the experiment measured a frame the gate never contributes to and could
+not have detected any appearance change. The control-image rule applies
+to negatives as much as positives: a variable drive is only testable in
+a framing whose gate-off A/B already diverges.
+
+The underlying defect was the deserialization contract, identified by
+an independent second opinion and adversarially verified in source
+(BlackReader `ReadIRootClass` initializes strictly child-first under
+`SetDoInitialize(true)`, and no post-hoc in-place initialization
+utility exists anywhere in the carbon or trinity trees — re-reading
+with initialization on is the only faithful option). The probe's Black
+loader called `SetDoInitialize(false)`, which suppresses the client's
+child-first `Initialize()` pass on every object in the deserialized
+graph: `Tr2CurveScalarExpression` never compiles its expression and
+outputs zero, `Tr2ControllerFloatVariable` never adopts its authored
+default, and `TriCurveSet` never applies its authored `playOnLoad`
+policy. `EveEffectRoot2::Initialize` links only the root's own
+controllers and does not cascade, so read-time initialization is the
+only path by which the children ever self-initialize. The gate loader
+now opts into initialize-on-read (the loader parameter defaults to
+deferred for every other caller), and the blanket `Start()` after
+preparation is dropped — read-time initialization already applies each
+curve set's authored play policy, and `Start()` force-plays every
+curve set including action-driven ones, where `Play()` zeroes the
+`Tr2ActionAnimateCurveSet`-selected time and the playing set fights the
+action's `ApplyTime` every frame (verified at the engine-mechanism
+level). `StartControllers()` is retained. The init-on-read run logs are
+clean — no read-time load failures and no granny requests — and the
+verified residual risks are recorded: the read-time and preparation
+passes both run `Tr2Effect::Initialize`, which duplicates
+`OnAddedToMaterial` registration (benign today, worth a guard), and
+`TriCurveSet::Initialize` must keep the reader as its sole caller
+(unguarded sim-time-rebase registration).
+
+The effect is measured in the proven 8 km chase-approach framing,
+identical profile and frame: the gate-off A/B grows from 330 pixels
+(max delta 160) to 1,548 pixels (max delta 181), the gate-off control
+itself is unchanged by the fix (20 single-code-value pixels of
+run-to-run noise), and the ratio drive is measurable for the first
+time — ratio `0.9` versus the undriven default differs by 360
+structured pixels where the pre-fix experiment recorded only noise.
+Initialization was the gate that kept both the authored brightness and
+the transition inputs dead. The remaining appearance work is framing,
+not initialization: at the current `1,600 m` demo standoff the
+chase-approach capture frames (240, 450, and 900) never face the gate —
+every A/B pair is pixel-identical — so the acceptance-scale gate-off
+A/B needs a gate-facing framing, either the direct-travel gate-locked
+camera at a pre-arrival frame or the re-derived chase reference offset.
+
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position
 through the accepted next-tick command seam after the ORBIT fixture
@@ -2300,3 +2365,211 @@ against the committed corpora (expected values track actuals) while
 trajectory hashing continues. A 900-frame smoke run turns from the orbit
 and aligns velocity with the gate direction to `0.999884` at maximum
 native speed.
+
+## Initialize-on-read as the standard loading policy (2026-07-12)
+
+The CP-36 initialization fix generalizes: every Black graph the probe
+deserializes now goes through the client's child-first `Initialize`
+contract (`SetDoInitialize(true)` in `LoadBlackObjectWithoutYield`,
+with the per-site opt-in removed). The decision is doctrinal — objects
+initialize through official machinery even at the cost of load-time
+latency — and it was preceded by a four-way audit: all eighteen loader
+call sites (no other Black/red deserialization path exists in the probe
+or sample), every reachable `Initialize` implementation and its
+idempotency, every overlap with the manual preparation machinery, and
+the full regression surface.
+
+Three mechanisms make the policy hold. First, a settlement drain: the
+loader blocks after each read until two consecutive
+`Tr2LoadPrepareFence` rounds complete with both resource queues empty
+(bounded by a 120 s watchdog that converts a stalled load into a loud
+diagnostic), so read-time resource requests resolve before any caller
+observes the graph. Second, an inert scheduler: nested object loads
+fired by read-time `Initialize` (`EveChildRef` pulling its referenced
+red file) traverse carbon yield gates that dereference the exported
+`PyOS` global without a null check; the probe registers an inert
+`IBluePyOS` whose `CanYield()` answers false — routing every gate to
+its synchronous fallback — installed only for the read+drain window
+and the configure-time controller starts, because trinity frame paths
+treat a non-null `PyOS` as "Python is available" (the block-trap in
+`EveSpaceScene::Update` crashes on a globally installed stub; both
+crash modes were reproduced and fixed at the instruction level).
+Third, engine idempotency: the three `OnAddedToMaterial`
+implementations gained duplicate guards (read-time plus preparation
+passes now both initialize effects), `OnRemovedFromMaterial` in
+`TriTextureParameter` lost a range-erase bug that wiped every material
+after the found one, and `EveSpaceScene::Initialize` releases its
+env-map resolutions before re-resolving so the probe's post-insertion
+re-initialization neither asserts nor leaks. Read-time requests for
+authored granny geometry paths degrade to a logged failed load
+(`grannyDeprecationLevel` is set to log-only in the probe; the staged
+CMF redirects then recover), and an adversarial three-lens review of
+the diff drove the drain inside the GIL-released window, onto every
+return path including read failure, and hardened the stub singletons.
+
+The measured consequences: PL-10, PL-11A, and PL-11B pass unchanged,
+every simulation product stays byte-exact (trajectory hash
+`fa0da4fbe311e3f8`, repeat CSVs, placement contracts), and one
+accepted gate legitimately loosened. With authored animation actually
+alive, the engine's parallel update path can flip quantization on a
+handful of gradient pixels between identical runs under CPU load — a
+chain run produced a 3-pixel, max-delta-1 divergence on the hull
+between ego repeats whose sim products were byte-identical, while an
+unloaded reproduction pair was byte-identical in full. The PL-12 and
+PL-12B repeat-capture gates therefore accept SHA equality **or** a
+bounded single-code-value parallelism allowance (at most 32 pixels at
+delta 1, measured by `cmake/compare_captures.py`); every other
+byte-identity gate is untouched.
+
+## CP-36 placement fidelity: the authored-skybox contract (2026-07-12)
+
+Prompted by the standing doubt that the fixture might not position the
+gate the way CCP does, three independent investigations settled the
+question. First, the static-data derivation is exact: `landmarks.static`
+record 1 is the unique "EVE Gate" (localization `60785`), its position
+is universe-frame, and (position − New Eden center − stargate
+`50013345` position) equals `kNewEdenEveGateRelative` with exact
+float64 equality — the sun and planet constants re-derive identically.
+Second, the current client provably never renders this asset: a
+byte-level scan of all 12,522 `code.ccp` modules finds zero references
+to the model or any `celestial/landmark` path, `graphicids.fsdbinary`
+has no EVE Gate record, and the landmarks schema cannot bind a model —
+the table feeds only star-map UI labels. In-space placement is
+therefore explicit fixture policy by necessity, now proven rather than
+assumed. Third — decisive — a structural decode of the authored graph
+shows it never wanted absolute placement: the container parenting all
+visible content carries `EveChildModifierTranslateWithCamera`, which
+adds the camera position to the accumulated translation every frame.
+The graph is a camera-anchored sky overlay — authored root offset
+~60 units from the eye, "Center" scaled 300×, billboard modifiers for
+facing — whose apparent range is the client-fed `DistanceRatio`
+scalar (default 1.0) driving authored scale/brightness curves, not
+real distance. The prior ball-driven placement inverted that contract:
+`TranslateWithCamera` added the camera position on top of the 9.3 AU
+(or demo-anchored) root, which kept the content a fixed anchor-offset
+from the eye forever — exactly the recorded "unexplained reference
+offset" in the chase diagnostics, and exactly why shrinking the demo
+standoff was what changed the apparent size.
+
+The placement now honors the authored contract. The root keeps its
+authored local transform and receives only a constant ball-frame
+rotation (a `Tr2CurveConstant` quaternion in the `m_ballRotation`
+slot) taking the authored offset direction onto the recovered gate
+bearing; the graph is inserted into the scene's background-object
+list — the same depth-isolated, fully-updated list the client's
+`BackgroundObject` path uses for massive environments — and ball
+`900001` remains untouched as navigation truth for GotoPoint targets,
+travel demos, and the placement contract. The `--validate-eve-gate`
+contract replaces the root-at-ball-position check with the bearing
+contract: the live ball-frame rotation must carry the authored offset
+onto the anchored bearing within `1e-5` (measured per sample from the
+object, reported as `bearingExpected`/`bearingAchieved`/
+`maximumBearingError`), while the ball-state, curve-identity, mesh
+census, and trajectory-hash checks are unchanged.
+
+The result is first real light in the canonical frame. With no anchor
+translation and no far-plane change, a 900-frame chase-approach
+gate-off A/B in the standard stargate-observer frame diverges by
+3,664,626 pixels — 99.41 % of the frame, maximum delta 185 — and the
+capture shows the authored vortex dominating the sky with the fixture
+ship riding toward it, matching in-game reference imagery of the
+landmark. The demo anchor (`--celestial-anchor evegate`) is no longer
+needed to see the gate and survives only as a close-inspection tool
+for the navigation ball; `DistanceRatio` remains the one explicit
+fixture input, since the client policy that drove it is unrecovered.
+
+## The disc lane and the in-system DistanceRatio default (2026-07-12)
+
+The dark elongated lane crossing the sky through the vortex prompted a
+prominence question against historical in-game imagery, and the full
+diagnosis recovers both the mechanism and the authored intent. The lane
+is not a shadow and not the two-color flare (which is additive ONE/ONE
+and can only add light — its dark `ColorOutter` merely contributes a
+dim rim): it is the straight-alpha attenuation of the two transparent
+wormhole discs, `BackgroundCover` (flat gray `0.251`, ubershader) and
+`ShaderCube2` (ubershadercube, alpha `0.502`), drawn
+`SRCALPHA/INVSRCALPHA` before the additive glows stack on top. None of
+the four compiled effect containers overrides blend state; the buckets
+decide it (additive areas ONE/ONE, transparent areas straight alpha).
+
+The decisive extraction is the `DistanceRatio_CS` key data — all six
+curves are `Tr2CurveScalar`, fully decoded. `BackgroundCover`'s
+`DiffuseColor.a` is bound to `ControlCurve`, whose keys run linearly
+from `0.25` at ratio 0 to `1.0` at ratio 1: at our previous pinned
+default of `1.0` the dark disc blends fully opaque **by authored
+construction** — the maximum-presence state no historical screenshot
+shows. The playback audit (byte-exact census: exactly two curve sets,
+both running; no orphaned sets or untriggered actions; the only inert
+authored behavior is the two sound events absorbed by the AudEmitter
+stub) confirms no mechanical gap: the prominence was purely the pinned
+ratio. A secondary, inherent contribution is quantified and accepted:
+the recovered RC-10 Uncharted2 toe has log-slope up to `1.222`, so an
+alpha-darkened lane gains up to ~22 % display contrast versus an
+LDR-era identity transfer — a property of the accepted pipeline, not a
+defect.
+
+The fixture therefore adopts the authored in-system appearance as its
+reconstruction default: `DistanceRatio = 0.5`, anchored on the graph's
+own semantics (the sound state machine switches far/in-system at
+`0.4`; the vortex scale curves complete at `0.5`), giving the
+full-size vortex with the disc lane at its authored in-system
+transparency (`alpha = 0.625`). `--eve-gate-ratio` remains the
+explicit override, and the setting of the nonexistent
+`ChangeDistanceRatio` variable (the state machine's name, not a
+variable; a proven no-op) is removed. The full decoded graph is
+preserved at the session scratchpad as `evegate.json` with its parser,
+and the curve keys, binding scales, and parameter defaults are now
+part of the recorded contract narrative.
+
+## Final CP-36 presentation: operator-directed composition (2026-07-12)
+
+The presentation settled through three operator directives, each landing
+on recovered machinery rather than taste constants. First, the funnel's
+open end aims at New Eden: forensics on the graph and mesh (funnel of
+revolution about mesh +Y, mouth remapped to Vortex-local +Z by the
+Tumbler quaternion and the negative instance scales) showed the authored
+`Billboard3D` self-aims the mouth at the camera whenever the accumulated
+rotation entering it is identity — the client never had an aim policy;
+the graph aims itself. The probe's bearing rotation had been
+post-rotating that aim 57° off-axis, which was also most of the dark
+disc lane (an oblique view of the discs). The fix keeps the ball-frame
+bearing rotation for sky placement and cancels it with its conjugate in
+the root's local rotation (local S·R·T leaves the root translation
+unrotated, so placement is unchanged) — the billboard aims the mouth at
+the observer from any camera thereafter. Second, the reconstruction
+default is the authored far state (`DistanceRatio 0.1`, superseding the
+briefly-adopted in-system 0.5): the compact distant funnel, per operator
+direction, with every other authored state selectable via
+`--eve-gate-ratio`. Third, the vortex origin is centered on the
+backdrop nebula's brightest core and the outer disc sized inside the
+glow: the core direction was measured from matched gate-off captures
+and calibrated with a probe rotation (screen response 47.3 px/°,
+confirming fovY 48°), landing at yaw `-0.65°`, pitch `+4.11°` applied
+to the render bearing (final residual 46 px of 4096); the
+camera-anchored offset carries a presentation-distance multiplier of
+`6.0`, which both places the disc (~3.9° angular radius in the far
+state) inside the glow's measured ~11.4° half-light radius and clears
+the far-state `BackgroundCover` horn — `scale_z 3.25` stretches its
+throat ~304 units toward the eye, so multipliers below ~5.1 leave the
+camera inside the horn (the failed 2.2 iteration is recorded here as
+the negative). The navigation ball still holds the recovered true
+position bit-exact; the bearing contract verifies the COMMANDED render
+bearing (true bearing plus the composition rotation) at ≤1e-5 per
+sample. All composition constants are explicit operator-directed
+fixture policy; nothing authored was altered.
+
+**Presentation status (2026-07-12, operator direction):** the EVE Gate is
+disabled in the standard demo profile for now — demos launch without
+`--eve-gate authored` pending further presentation direction. The
+camera-anchored placement, bearing contract, composition constants, and
+validation gates above remain the recorded state and continue to be
+exercised by `pl12b_validate`; re-enabling the presentation is one flag.
+
+**Chain verdict (2026-07-12, final tree):** `pl12b_validate` runs the full
+ladder green on this binary — PL-10, PL-11A, PL-11B, PL-12 accepted (PL-12
+ego repeat 3 px at delta 1, inside the allowance), and PL-12B passes its
+placement, bearing, and rendering contracts: the new rendering gate
+measures 241,570 divergent pixels (max delta 101) in the aimed gate-off
+A/B against a 10,000-pixel threshold, and the ego repeat lands at 3 px at
+delta 1 — under concurrent full-screen demo GPU load. CP-36 is accepted;
+the demo presentation remains parked per the operator note above.

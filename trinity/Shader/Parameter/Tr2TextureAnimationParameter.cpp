@@ -78,7 +78,12 @@ unsigned Tr2TextureAnimationParameter::GetHashValue( unsigned startingHash ) con
 
 void Tr2TextureAnimationParameter::OnAddedToMaterial( Tr2Material* material )
 {
-	m_materials.push_back( material );
+	// A material registers at most once; Initialize may run more than once
+	// for the same effect (read-time and preparation passes).
+	if( find( begin( m_materials ), end( m_materials ), material ) == end( m_materials ) )
+	{
+		m_materials.push_back( material );
+	}
 }
 
 void Tr2TextureAnimationParameter::OnRemovedFromMaterial( Tr2Material* material )

@@ -528,6 +528,11 @@ struct TrinityStandaloneEveGateDiagnostics
 	double ballPosition[3] = {};
 	double worldPosition[3] = {};
 	double maximumWorldError = 0.0;
+	// Camera-anchored render contract: the authored root offset, reoriented by
+	// the fixture bearing rotation, must point along the anchored gate bearing.
+	double bearingExpected[3] = {};
+	double bearingAchieved[3] = {};
+	double maximumBearingError = 0.0;
 	uint64_t trajectoryHash = 0;
 };
 
