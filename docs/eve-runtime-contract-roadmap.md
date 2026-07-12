@@ -96,6 +96,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-32 | Native Destiny STOP/GOTO render and reference-frame contract | Accepted | A native-orientation Astero holds STOP for 180 frames, then executes one tick-aligned `GotoPoint` over 17 motion evolves. Ego and fixed-observer renders share trajectory hash `8ee43851a6c2f115`; raw errors are below `5e-10`, curve/root error is below `6.1e-5`, and booster inputs consume Destiny velocity/acceleration. | PL-11A is accepted. Fixed-observer decals may obey their native 10-pixel culling threshold. Orbit, warp, approach, and align remain PL-11 gates. |
 | CP-33 | Destiny chase-camera visual diagnostic | Accepted as capability | A fixed-observer Ballpark drives a damped 48-degree over-shoulder camera through the complete STOP/GOTO fixture. The 1,200-frame gate records 3,055.9 units of camera travel, 61.5–371.0 units of ship distance, 11.41 degrees maximum focus error, and the complete ±25-degree arc. | This is a sample-owned presentation camera, not recovered EVE camera policy. Native 10-pixel decal culling remains active and observable during the arc. |
 | CP-34 | Native Destiny Frontier orbit and reference-frame contract | Accepted | After 180 STOP frames, the Astero performs 60 ORBIT evolves around fixed ball 3 at a requested 2,500 m surface range. Ego and observer share trajectory hash `fa0da4fbe311e3f8`; phase is `6.278067342`, final center distance is `2643.012492`, and maximum curve/root error is `0.000122039`. | Frontier orbit is explicit PL policy. Installed-client activation is unverified and the navigation target is nonrendered. |
+| CP-35 | Natural celestial Ballpark placement and sun-ball linkage | Accepted | Destiny balls `40334263`/`40334264` hold the authored sun and planet as RIGID, global, fixed, non-interactive balls at the exact stargate-anchored solarSystemContent positions and radii. The sun `EvePlanet` translation curve, `EveSpaceScene::sunBall`, and the lens flare share one `ClientBall` curve; the scene's pointer-equality predicate identifies the sun uniquely; the authored-distance flare size `0.606347` replaces the fallback `1.0`. Ego and observer 3,780-frame exact-system orbit runs retain trajectory hash `fa0da4fbe311e3f8`; direction error is below `6.9e-8` and world errors below `1.8e-8`. | The Ballpark frame is anchored at the Promised Land stargate observer; the star's authored map position is exactly the system origin. Celestial collision and cinematic-composition linkage remain out of scope. |
 
 ## Rung-model holes
 
@@ -117,7 +118,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Advance PL-12 natural celestial Ballpark placement and sun-ball linkage through CP-34.
+1. Advance PL-11C native warp through the accepted motion/reference-frame seam.
 2. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
 3. Complete native full-screen ghosting inspection after transient classification passes.
 4. Keep RC-12B2 global froxels deferred and fail-closed.
@@ -125,8 +126,9 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
 retains fail-closed explicit modes independently. RC-05D booster/engine effects
 are accepted, making RC-13 velocity and TAA the active direct-path unit.
-The cross-repository PL-11B Frontier orbit contract is accepted under CP-34.
-PL-12 celestial Ballpark linkage is next; PL-11C warp remains queued.
+The cross-repository PL-11B Frontier orbit contract is accepted under CP-34,
+and PL-12 natural celestial Ballpark placement is accepted under CP-35.
+PL-11C warp is the next cross-repository unit.
 
 ## Evidence policy
 

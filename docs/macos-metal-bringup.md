@@ -2074,3 +2074,61 @@ dynamic reflections, high cascades/CORTAO, and all New Eden celestial effects.
 It was launched directly in a foreground PTY and closed normally. Silk was
 excluded because it is a sample-authored capability fixture rather than part
 of the standard New Eden scene.
+
+## PL-12 natural celestial Ballpark placement (2026-07-12)
+
+The probe adds `--celestial-ballpark off|natural`, `--celestial-log`, and
+`--validate-celestial-ballpark`. Natural mode requires the exact-system New
+Eden fixture and an active Ballpark session. It creates two embedded Destiny
+celestial balls through the new `Destiny_AddEmbeddedCelestial` seam: sun
+`40334263` (radius `158,400,000 m`) and planet `40334264` (radius
+`2,630,000 m`), both RIGID, global, fixed, non-massive, and non-interactive.
+
+The Ballpark coordinate frame is explicitly the Promised Land stargate
+anchor: celestial ball positions are the exact observer-relative
+solarSystemContent meter values already accepted under RC-04B. The star's
+authored map position is exactly the system origin (its observer-relative
+position is the negated stargate coordinate), and the planet's authored map
+position is `(14271847166, -2703589237, 44588525763)`. The anchored frame
+preserves every accepted motion corpus bit-exactly; adopting raw map
+coordinates would put the ship at `1e12`-magnitude doubles, whose `1.2e-4 m`
+ULP cannot satisfy the accepted `<5e-10` raw-error gates. Map-frame adoption
+is deferred until a gate requires it.
+
+Because every ball in a client-mode park is an `OClientBall`, the celestial
+ball itself is the `ITriVectorFunction` curve. Natural mode zeroes the static
+`EvePlanet` translations, attaches each ball curve through the new
+`EveEffectRoot2::SetBallPositionCurve`, sets `EveSpaceScene::sunBall` to the
+sun curve, and rebinds the lens flare to `sun->GetTranslationCurve()`. This
+opens the authentic flare gate: the scene identifies the sun `EvePlanet` by
+pointer equality against `sunBall` (the volumetrics/planet-shadow predicate),
+per-frame sun direction derives from the ball position, and the lens flare's
+authored-distance size formula activates, replacing the previous
+constant-size fallback (`m_sunSize` `1.0` becomes `0.606347` at the authored
+`9.166 AU` distance). The A/B color change against the static-placement
+control is therefore an intended contract correction, not a regression, and
+the PL-12 gate requires the two captures to differ. Measured divergence: with
+the sun outside the model-view frustum the correction is two single-code-value
+pixels of hull shading; in the exact-system sun inspection view 2,693,627 of
+3,686,400 pixels shift by one or two 8-bit code values as the flare glow
+scales down to the authored-distance size.
+
+Validation runs the accepted 3,780-frame Frontier-orbit fixture in system
+composition with celestials present. Ego, repeated-ego, and observer runs
+all retain the accepted PL-11B trajectory hash `fa0da4fbe311e3f8`, proving
+celestial placement does not perturb accepted motion. Per-frame gates hold
+scene sun direction within `6.9e-8` of the accepted RC-04 value, world
+positions within `1.8e-8` relative error of the authored constants (float
+quantization at `1e12 m` is one part in `2^24`), flare size within `1e-4` of
+the authored formula, and celestial ball state bit-exact across all evolves.
+The `_celestial-contract.json` report and deterministic celestial CSV are
+asset-free superbuild evidence:
+
+```sh
+cd /Users/rebecca/src/github.com/berkeleynerd/promised-land
+cmake --build --preset arm64-osx-debug --target pl12_validate
+```
+
+Cinematic composition keeps static placement because its framing positions
+are not authored; celestial collision remains out of scope. CP-35 and PL-12
+are accepted. PL-11C native warp is the next cross-repository unit.

@@ -89,6 +89,14 @@ public:
 	{
 		m_translationCurve = curve;
 	}
+	ITriVectorFunction* GetTranslationCurve() const
+	{
+		return m_translationCurve.p;
+	}
+	float GetSunSize() const
+	{
+		return m_sunSize;
+	}
 	Tr2MeshPtr GetMesh() const
 	{
 		return m_mesh;

@@ -382,6 +382,14 @@ public:
 		m_sunData.DirWorld = direction;
 		m_sunColor = color;
 	}
+	void SetSunBall( ITriVectorFunction* sunBall )
+	{
+		m_sunBall = sunBall;
+	}
+	ITriVectorFunction* GetSunBall() const
+	{
+		return m_sunBall.p;
+	}
 	void SetStarfield( EveStarfield * starfield )
 	{
 		m_starfield = starfield;

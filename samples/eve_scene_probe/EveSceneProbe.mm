@@ -432,6 +432,12 @@ enum class BallparkFrame
 	Chase,
 };
 
+enum class CelestialBallparkMode
+{
+	Off,
+	Natural,
+};
+
 enum class TemporalTest
 {
 	Contract,
@@ -593,6 +599,9 @@ struct Options
 	float orbitRange = 2500.0f;
 	bool validateChaseCamera = false;
 	std::string ballparkLogPath;
+	CelestialBallparkMode celestialBallpark = CelestialBallparkMode::Off;
+	bool validateCelestialBallpark = false;
+	std::string celestialLogPath;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2145,6 +2154,7 @@ void PrintUsage( const char* executable )
 		<< "       [--ballpark off|static|goto|orbit] [--ballpark-frame ego|observer|chase]\n"
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
+		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2344,6 +2354,28 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-chase-camera" )
 		{
 			options.validateChaseCamera = true;
+		}
+		else if( arg == "--celestial-ballpark" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = argv[i];
+			if( value == "off" )
+				options.celestialBallpark = CelestialBallparkMode::Off;
+			else if( value == "natural" )
+				options.celestialBallpark = CelestialBallparkMode::Natural;
+			else
+				return false;
+		}
+		else if( arg == "--celestial-log" )
+		{
+			if( ++i >= argc )
+				return false;
+			options.celestialLogPath = argv[i];
+		}
+		else if( arg == "--validate-celestial-ballpark" )
+		{
+			options.validateCelestialBallpark = true;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3290,6 +3322,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			return false;
 		}
 	}
+	if( options.celestialBallpark == CelestialBallparkMode::Natural &&
+		( options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ||
+		  options.ballpark == BallparkMode::Off ) )
+	{
+		std::cerr << "--celestial-ballpark natural requires the exact-system New Eden fixture and an active "
+					 "Ballpark session\n";
+		return false;
+	}
+	if( options.validateCelestialBallpark &&
+		( options.celestialBallpark != CelestialBallparkMode::Natural || options.ballpark != BallparkMode::Orbit ||
+		  options.orbitSolver != OrbitSolver::New || std::abs( options.orbitRange - 2500.0f ) > 0.000001f ||
+		  options.maxFrames != 3780 || options.qualityRung != QualityRung::HdrPost ||
+		  options.motion != MotionMode::Static ||
+		  ( options.resolvedSunEffects != SunEffects::Flare && options.resolvedSunEffects != SunEffects::All ) ||
+		  options.celestialLogPath.empty() || options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-celestial-ballpark requires the 3780-frame exact-system Frontier-new 2500m "
+					 "hdr-post orbit fixture with natural celestials, sun flare effects, --celestial-log, and "
+					 "--capture-prefix\n";
+		return false;
+	}
 	if( options.validateChaseCamera &&
 		( options.ballpark != BallparkMode::Goto || options.ballparkFrame != BallparkFrame::Chase ||
 		  options.motion != MotionMode::Static || options.maxFrames != 1200 || options.qualityRung < QualityRung::Model ||
@@ -3643,6 +3696,10 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "validateBallparkMotion=" << ( options.validateBallparkMotion ? "true" : "false" ) << "\n";
 	metadata << "validateChaseCamera=" << ( options.validateChaseCamera ? "true" : "false" ) << "\n";
 	metadata << "ballparkLog=" << options.ballparkLogPath << "\n";
+	metadata << "celestialBallpark="
+			 << ( options.celestialBallpark == CelestialBallparkMode::Natural ? "natural" : "off" ) << "\n";
+	metadata << "validateCelestialBallpark=" << ( options.validateCelestialBallpark ? "true" : "false" ) << "\n";
+	metadata << "celestialLog=" << options.celestialLogPath << "\n";
 	metadata << "temporalValidation=" << ( options.validateTemporal ? "requested" : "off" ) << "\n";
 	metadata << "temporalTest=" << TemporalTestName( options.temporalTest ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
@@ -4722,6 +4779,57 @@ bool WriteChaseCameraContractJson(
 	return output.good();
 }
 
+bool WriteCelestialContractJson( const Options& options, const TrinityStandaloneCelestialDiagnostics& diagnostics )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_celestial-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+		return false;
+	std::ofstream output( outputPath.c_str() );
+	if( !output )
+		return false;
+	auto writeArray = [&]( const char* name, const auto* values, size_t count, bool comma ) {
+		output << "  \"" << name << "\": [";
+		for( size_t i = 0; i < count; ++i )
+			output << ( i ? ", " : "" ) << std::setprecision( 12 ) << values[i];
+		output << "]" << ( comma ? "," : "" ) << "\n";
+	};
+	output << "{\n"
+		   << "  \"contract\": \"PL-12 natural celestial Ballpark placement\",\n"
+		   << "  \"frameAnchor\": \"promised-land-stargate-observer\",\n"
+		   << "  \"referenceFrame\": \"" << BallparkFrameName( options.ballparkFrame ) << "\",\n"
+		   << "  \"csv\": \"" << options.celestialLogPath << "\",\n"
+		   << "  \"samples\": " << diagnostics.sampleCount << ",\n"
+		   << "  \"sunBallId\": " << diagnostics.sunBallId << ",\n"
+		   << "  \"planetBallId\": " << diagnostics.planetBallId << ",\n"
+		   << "  \"sunMode\": " << diagnostics.sunMode << ",\n"
+		   << "  \"planetMode\": " << diagnostics.planetMode << ",\n"
+		   << "  \"sunBallRadius\": " << std::setprecision( 12 ) << diagnostics.sunBallRadius << ",\n"
+		   << "  \"planetBallRadius\": " << std::setprecision( 12 ) << diagnostics.planetBallRadius << ",\n";
+	writeArray( "sunBallPosition", diagnostics.sunBallPosition, 3, true );
+	writeArray( "planetBallPosition", diagnostics.planetBallPosition, 3, true );
+	writeArray( "sunWorldPosition", diagnostics.sunWorldPosition, 3, true );
+	writeArray( "planetWorldPosition", diagnostics.planetWorldPosition, 3, true );
+	writeArray( "sunDirection", diagnostics.sunDirection, 3, true );
+	output << "  \"lensFlare\": {\"present\": " << ( diagnostics.lensFlarePresent ? "true" : "false" )
+		   << ", \"sunSize\": " << std::setprecision( 12 ) << diagnostics.lensFlareSunSize
+		   << ", \"expectedSunSize\": " << diagnostics.expectedLensFlareSunSize
+		   << ", \"maximumError\": " << diagnostics.maximumLensFlareSunSizeError << "},\n"
+		   << "  \"maximumErrors\": {\"sunDirection\": " << diagnostics.maximumSunDirectionError
+		   << ", \"sunWorld\": " << diagnostics.maximumSunWorldError
+		   << ", \"planetWorld\": " << diagnostics.maximumPlanetWorldError << "},\n"
+		   << "  \"linkage\": {\"active\": " << ( diagnostics.linkageActive ? "true" : "false" )
+		   << ", \"sceneSunBall\": " << ( diagnostics.sunCurveMatchesSceneSunBall ? "true" : "false" )
+		   << ", \"lensFlareCurve\": " << ( diagnostics.sunCurveMatchesLensFlare ? "true" : "false" )
+		   << ", \"planetCurve\": " << ( diagnostics.planetCurveAttached ? "true" : "false" )
+		   << ", \"sunIdentifiedUniquely\": " << ( diagnostics.sunIdentifiedUniquely ? "true" : "false" )
+		   << "},\n"
+		   << "  \"celestialStateExact\": " << ( diagnostics.celestialStateValid ? "true" : "false" ) << ",\n"
+		   << "  \"trajectoryHash\": \"" << std::hex << diagnostics.trajectoryHash << std::dec << "\",\n"
+		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << "\n}\n";
+	std::cout << "Celestial contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -4914,6 +5022,23 @@ int main( int argc, char** argv )
 					options.ballparkLogPath.empty() ? nullptr : options.ballparkLogPath.c_str() ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureBallparkEx failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !options.celestialLogPath.empty() && !EnsureParentDirectory( options.celestialLogPath ) )
+			{
+				std::cerr << "Failed to create the celestial Ballpark log directory\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeConfigureCelestialBallpark(
+					probe,
+					static_cast<int>( options.celestialBallpark ),
+					options.celestialLogPath.empty() ? nullptr : options.celestialLogPath.c_str() ) )
+			{
+				std::cerr << "TrinityStandaloneProbeConfigureCelestialBallpark failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
@@ -5160,6 +5285,17 @@ int main( int argc, char** argv )
 			chaseCameraValidationSucceeded =
 				validationRan && diagnosticsRead && ballparkDiagnostics.chaseCameraValid;
 			chaseCameraReportSucceeded = WriteChaseCameraContractJson( options, ballparkDiagnostics );
+		}
+		TrinityStandaloneCelestialDiagnostics celestialDiagnostics;
+		bool celestialValidationSucceeded = true;
+		bool celestialReportSucceeded = true;
+		if( options.validateCelestialBallpark )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateCelestialBallpark( probe );
+			const bool diagnosticsRead =
+				TrinityStandaloneProbeGetCelestialDiagnostics( probe, &celestialDiagnostics );
+			celestialValidationSucceeded = validationRan && diagnosticsRead && celestialDiagnostics.valid;
+			celestialReportSucceeded = WriteCelestialContractJson( options, celestialDiagnostics );
 		}
 
 		if( options.validateComposition && !compositionValidationAttempted )
@@ -5415,6 +5551,18 @@ int main( int argc, char** argv )
 					  << ballparkDiagnostics.orbitCenterDistance << " milestones=" << ballparkMilestoneCount
 					  << " validation=" << ( ballparkOrbitValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "ballparkOrbitValidation", stats.str() );
+			}
+			if( options.validateCelestialBallpark )
+			{
+				std::ostringstream stats;
+				stats << "samples=" << celestialDiagnostics.sampleCount
+					  << " directionError=" << celestialDiagnostics.maximumSunDirectionError
+					  << " worldErrors=" << celestialDiagnostics.maximumSunWorldError << "/"
+					  << celestialDiagnostics.maximumPlanetWorldError
+					  << " sunSize=" << celestialDiagnostics.lensFlareSunSize << " trajectory=" << std::hex
+					  << celestialDiagnostics.trajectoryHash << std::dec
+					  << " validation=" << ( celestialValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "celestialBallparkValidation", stats.str() );
 			}
 			if( options.validateChaseCamera )
 			{
@@ -5764,6 +5912,7 @@ int main( int argc, char** argv )
 			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
 			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
 			chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
+			celestialValidationSucceeded && celestialReportSucceeded &&
 			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{

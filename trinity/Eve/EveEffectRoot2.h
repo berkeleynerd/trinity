@@ -169,6 +169,11 @@ public:
 		return m_display;
 	}
 
+	void SetBallPositionCurve( ITriVectorFunction* curve )
+	{
+		m_ballPosition = curve;
+	}
+
 	void FreezeHighDetailMesh();
 	void UpdateControllers( float updateFrequency );
 

@@ -195,6 +195,24 @@ enum StandaloneBallparkReferenceFrame
 	STANDALONE_BALLPARK_CHASE = 2,
 };
 
+enum StandaloneCelestialBallparkMode
+{
+	STANDALONE_CELESTIAL_BALLPARK_OFF = 0,
+	STANDALONE_CELESTIAL_BALLPARK_NATURAL = 1,
+};
+
+// New Eden authored celestial fixture. The Ballpark frame is anchored at the
+// Promised Land stargate observer, so these are the exact observer-relative
+// solarSystemContent positions; the star's authored map position is the origin.
+constexpr int64_t kNewEdenSunBallId = 40334263;
+constexpr int64_t kNewEdenPlanetBallId = 40334264;
+constexpr double kNewEdenStarRadius = 158400000.0;
+constexpr double kNewEdenPlanetRadius = 2630000.0;
+constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -831868968960.0 };
+constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
+constexpr float kNewEdenSunEmissive[3] = { 5.0f, 4.274509906768799f, 2.3529412746429443f };
+constexpr float kNewEdenPlanetAlbedo[3] = { 1.0f, 0.8901960849761963f, 0.6627451181411743f };
+
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
 public:
@@ -3710,6 +3728,14 @@ struct StandaloneProbe
 	int64_t chaseCameraTime = 0;
 	Vector3 chaseCameraEye = Vector3( 0.0f, 0.0f, 0.0f );
 	Vector3 chaseCameraTarget = Vector3( 0.0f, 0.0f, 0.0f );
+	TrinityStandaloneCelestialDiagnostics celestialDiagnostics;
+	std::ofstream celestialLog;
+	int celestialMode = STANDALONE_CELESTIAL_BALLPARK_OFF;
+	bool celestialLinkageActive = false;
+	EvePlanet* newEdenSun = nullptr;
+	EvePlanet* newEdenPlanet = nullptr;
+	EveLensflare* newEdenLensFlare = nullptr;
+	bool newEdenSystemComposition = false;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
 	DestinyEmbeddedRegistration destinyRegistration = {};
@@ -4946,17 +4972,17 @@ bool ConfigureNewEdenSystem(
 	constexpr int32_t systemId = 30005286;
 	constexpr int32_t constellationId = 20000773;
 	constexpr float securityStatus = 0.2605538070201874f;
-	constexpr double starRadius = 158400000.0;
-	constexpr double planetRadius = 2630000.0;
+	constexpr double starRadius = kNewEdenStarRadius;
+	constexpr double planetRadius = kNewEdenPlanetRadius;
 	constexpr double asteroCollisionRadius = 35.0;
 	constexpr double asteroMeshRadius = 54.55741723174651;
 	constexpr double metersPerSceneUnit = 1000000.0;
-	constexpr double observerX = -1069486940160.0;
-	constexpr double observerY = 202669301760.0;
-	constexpr double observerZ = 831868968960.0;
-	constexpr float emissiveR = 5.0f;
-	constexpr float emissiveG = 4.274509906768799f;
-	constexpr float emissiveB = 2.3529412746429443f;
+	constexpr double observerX = -kNewEdenSunRelative[0];
+	constexpr double observerY = -kNewEdenSunRelative[1];
+	constexpr double observerZ = -kNewEdenSunRelative[2];
+	constexpr float emissiveR = kNewEdenSunEmissive[0];
+	constexpr float emissiveG = kNewEdenSunEmissive[1];
+	constexpr float emissiveB = kNewEdenSunEmissive[2];
 
 	const double observerDistance = std::sqrt(
 		observerX * observerX + observerY * observerY + observerZ * observerZ );
@@ -4974,8 +5000,14 @@ bool ConfigureNewEdenSystem(
 		closeHsv.x,
 		farSaturation + ( closeHsv.y - farSaturation ) * distanceRatio,
 		farValue + ( closeHsv.z - farValue ) * distanceRatio );
-	Vector3 sunPosition( 1069486940160.0f, -202669301760.0f, -831868968960.0f );
-	Vector3 planetPosition( 1083758787326.0f, -205372890997.0f, -787280443197.0f );
+	Vector3 sunPosition(
+		static_cast<float>( kNewEdenSunRelative[0] ),
+		static_cast<float>( kNewEdenSunRelative[1] ),
+		static_cast<float>( kNewEdenSunRelative[2] ) );
+	Vector3 planetPosition(
+		static_cast<float>( kNewEdenPlanetRelative[0] ),
+		static_cast<float>( kNewEdenPlanetRelative[1] ),
+		static_cast<float>( kNewEdenPlanetRelative[2] ) );
 	float celestialRadiusScale = 1.0f;
 	if( composition == STANDALONE_COMPOSITION_CINEMATIC )
 	{
@@ -5070,7 +5102,7 @@ bool ConfigureNewEdenSystem(
 	planet->SetStandalonePlacement(
 		planetPosition,
 		static_cast<float>( planetRadius ) * celestialRadiusScale,
-		Color( 1.0f, 0.8901960849761963f, 0.6627451181411743f, 1.0f ),
+		Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
 	if( !PrepareNewEdenCelestialsWithoutYield(
 			*sun,
@@ -5113,6 +5145,7 @@ bool ConfigureNewEdenSystem(
 		lensFlare->SetTranslationCurve( sun->GetTranslationCurve() );
 		scene.Lensflares().Insert( -1, lensFlare->GetRawRoot() );
 		probe.lensFlarePrepared = true;
+		probe.newEdenLensFlare = lensFlare.p;
 	}
 	else if( enableLensFlare )
 	{
@@ -5127,6 +5160,9 @@ bool ConfigureNewEdenSystem(
 		std::fprintf( stderr, "New Eden planet camera isolation: sun submission disabled\n" );
 	}
 	scene.Planets().Insert( -1, planet->GetRawRoot() );
+	probe.newEdenSun = cameraView != STANDALONE_CAMERA_PLANET ? sun.p : nullptr;
+	probe.newEdenPlanet = planet.p;
+	probe.newEdenSystemComposition = composition == STANDALONE_COMPOSITION_SYSTEM;
 	if( composition == STANDALONE_COMPOSITION_SYSTEM )
 	{
 		const float sixtyDegreeFov = 60.0f * 3.1415926535f / 180.0f;
@@ -11417,6 +11453,176 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 #endif
 }
 
+void DetachCelestialLinkage( StandaloneProbe& probe )
+{
+	if( probe.celestialLinkageActive )
+	{
+		if( probe.newEdenSun )
+		{
+			probe.newEdenSun->SetBallPositionCurve( nullptr );
+			probe.newEdenSun->SetStandalonePlacement(
+				Vector3(
+					static_cast<float>( kNewEdenSunRelative[0] ),
+					static_cast<float>( kNewEdenSunRelative[1] ),
+					static_cast<float>( kNewEdenSunRelative[2] ) ),
+				static_cast<float>( kNewEdenStarRadius ),
+				Color( 0.0f, 0.0f, 0.0f, 1.0f ),
+				Color( kNewEdenSunEmissive[0], kNewEdenSunEmissive[1], kNewEdenSunEmissive[2], 1.0f ) );
+		}
+		if( probe.newEdenPlanet )
+		{
+			probe.newEdenPlanet->SetBallPositionCurve( nullptr );
+			probe.newEdenPlanet->SetStandalonePlacement(
+				Vector3(
+					static_cast<float>( kNewEdenPlanetRelative[0] ),
+					static_cast<float>( kNewEdenPlanetRelative[1] ),
+					static_cast<float>( kNewEdenPlanetRelative[2] ) ),
+				static_cast<float>( kNewEdenPlanetRadius ),
+				Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
+				Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		}
+		if( probe.scene )
+			probe.scene->SetSunBall( nullptr );
+		if( probe.newEdenLensFlare )
+			probe.newEdenLensFlare->SetTranslationCurve( nullptr );
+	}
+	probe.celestialLog.close();
+	probe.celestialMode = STANDALONE_CELESTIAL_BALLPARK_OFF;
+	probe.celestialLinkageActive = false;
+	probe.celestialDiagnostics = {};
+}
+
+bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time time, bool writeLog )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	( void )time;
+	if( probe.celestialMode != STANDALONE_CELESTIAL_BALLPARK_NATURAL || !probe.celestialLinkageActive )
+		return true;
+	if( !probe.destinySession || !probe.scene || !probe.newEdenSun || !probe.newEdenPlanet )
+		return false;
+	auto& diagnostics = probe.celestialDiagnostics;
+	DestinyEmbeddedCelestialState sunState = {};
+	DestinyEmbeddedCelestialState planetState = {};
+	if( !Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenSunBallId, &sunState ) ||
+		!Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenPlanetBallId, &planetState ) )
+		return false;
+	const auto stateExact = []( const DestinyEmbeddedCelestialState& state, double radius, const double* position ) {
+		bool exact = state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
+			!state.isMassive && !state.isInteractive && state.radius == static_cast<float>( radius );
+		for( size_t axis = 0; axis < 3; ++axis )
+			exact = exact && state.position[axis] == position[axis] && state.velocity[axis] == 0.0;
+		return exact;
+	};
+	diagnostics.celestialStateValid = diagnostics.celestialStateValid &&
+		stateExact( sunState, kNewEdenStarRadius, kNewEdenSunRelative ) &&
+		stateExact( planetState, kNewEdenPlanetRadius, kNewEdenPlanetRelative );
+
+	ITriVectorFunction* sunCurve = Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenSunBallId );
+	ITriVectorFunction* planetCurve =
+		Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenPlanetBallId );
+	diagnostics.sunCurveMatchesSceneSunBall = sunCurve != nullptr && probe.scene->GetSunBall() == sunCurve &&
+		probe.newEdenSun->GetTranslationCurve().p == sunCurve;
+	diagnostics.planetCurveAttached =
+		planetCurve != nullptr && probe.newEdenPlanet->GetTranslationCurve().p == planetCurve;
+	diagnostics.lensFlarePresent = probe.newEdenLensFlare != nullptr;
+	diagnostics.sunCurveMatchesLensFlare =
+		probe.newEdenLensFlare && probe.newEdenLensFlare->GetTranslationCurve() == sunCurve;
+
+	uint32_t sunMatches = 0;
+	bool matchedAuthoredSun = false;
+	for( EvePlanet* planet : probe.scene->Planets() )
+	{
+		if( planet->GetTranslationCurve() != nullptr &&
+			planet->GetTranslationCurve().p == probe.scene->GetSunBall() )
+		{
+			++sunMatches;
+			matchedAuthoredSun = matchedAuthoredSun || planet == probe.newEdenSun;
+		}
+	}
+	diagnostics.sunIdentifiedUniquely = sunMatches == 1 && matchedAuthoredSun;
+
+	const double sunDistance = std::sqrt(
+		kNewEdenSunRelative[0] * kNewEdenSunRelative[0] + kNewEdenSunRelative[1] * kNewEdenSunRelative[1] +
+		kNewEdenSunRelative[2] * kNewEdenSunRelative[2] );
+	const double planetDistance = std::sqrt(
+		kNewEdenPlanetRelative[0] * kNewEdenPlanetRelative[0] +
+		kNewEdenPlanetRelative[1] * kNewEdenPlanetRelative[1] +
+		kNewEdenPlanetRelative[2] * kNewEdenPlanetRelative[2] );
+	const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
+	const Vector3 sunWorld = probe.newEdenSun->GetWorldPosition();
+	const Vector3 planetWorld = probe.newEdenPlanet->GetWorldPosition();
+	double directionError = 0.0;
+	double sunWorldError = 0.0;
+	double planetWorldError = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		const double expectedDirection = -kNewEdenSunRelative[axis] / sunDistance;
+		directionError = std::max(
+			directionError,
+			std::abs( static_cast<double>( ( &lighting.sunDirection.x )[axis] ) - expectedDirection ) );
+		sunWorldError = std::max(
+			sunWorldError,
+			std::abs( static_cast<double>( ( &sunWorld.x )[axis] ) - kNewEdenSunRelative[axis] ) / sunDistance );
+		planetWorldError = std::max(
+			planetWorldError,
+			std::abs( static_cast<double>( ( &planetWorld.x )[axis] ) - kNewEdenPlanetRelative[axis] ) /
+				planetDistance );
+		diagnostics.sunWorldPosition[axis] = ( &sunWorld.x )[axis];
+		diagnostics.planetWorldPosition[axis] = ( &planetWorld.x )[axis];
+		diagnostics.sunDirection[axis] = ( &lighting.sunDirection.x )[axis];
+		diagnostics.sunBallPosition[axis] = sunState.position[axis];
+		diagnostics.planetBallPosition[axis] = planetState.position[axis];
+	}
+	diagnostics.maximumSunDirectionError = std::max( diagnostics.maximumSunDirectionError, directionError );
+	diagnostics.maximumSunWorldError = std::max( diagnostics.maximumSunWorldError, sunWorldError );
+	diagnostics.maximumPlanetWorldError = std::max( diagnostics.maximumPlanetWorldError, planetWorldError );
+
+	float sunSize = 0.0f;
+	float expectedSunSize = 0.0f;
+	if( probe.newEdenLensFlare )
+	{
+		sunSize = probe.newEdenLensFlare->GetSunSize();
+		const float worldDistance = Length( sunWorld );
+		expectedSunSize = 1.5f / logf( worldDistance / 0.1495978707e12f + 2.71f );
+		diagnostics.maximumLensFlareSunSizeError = std::max(
+			diagnostics.maximumLensFlareSunSizeError,
+			static_cast<double>( std::abs( sunSize - expectedSunSize ) ) );
+	}
+	diagnostics.lensFlareSunSize = sunSize;
+	diagnostics.expectedLensFlareSunSize = expectedSunSize;
+	diagnostics.sunMode = sunState.mode;
+	diagnostics.planetMode = planetState.mode;
+	diagnostics.sunBallRadius = sunState.radius;
+	diagnostics.planetBallRadius = planetState.radius;
+	diagnostics.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
+	if( writeLog )
+	{
+		++diagnostics.sampleCount;
+		if( probe.celestialLog.is_open() )
+		{
+			probe.celestialLog << frame << ',' << diagnostics.sunDirection[0] << ','
+				<< diagnostics.sunDirection[1] << ',' << diagnostics.sunDirection[2] << ','
+				<< diagnostics.sunWorldPosition[0] << ',' << diagnostics.sunWorldPosition[1] << ','
+				<< diagnostics.sunWorldPosition[2] << ',' << diagnostics.planetWorldPosition[0] << ','
+				<< diagnostics.planetWorldPosition[1] << ',' << diagnostics.planetWorldPosition[2] << ','
+				<< diagnostics.lensFlareSunSize << ',' << diagnostics.expectedLensFlareSunSize << ','
+				<< directionError << ',' << sunWorldError << ',' << planetWorldError << ','
+				<< ( diagnostics.celestialStateValid ? 1 : 0 ) << ','
+				<< ( diagnostics.sunIdentifiedUniquely ? 1 : 0 ) << '\n';
+			if( !probe.celestialLog.good() )
+				return false;
+		}
+	}
+	return true;
+#else
+	( void )probe;
+	( void )frame;
+	( void )time;
+	( void )writeLog;
+	return true;
+#endif
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	void* opaqueProbe,
 	int mode,
@@ -11435,6 +11641,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		orbitPolicy > DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW || !std::isfinite( orbitRange ) || orbitRange < 0.0f )
 		return false;
 	probe->ballparkLog.close();
+	DetachCelestialLinkage( *probe );
 	probe->scene->SetBallpark( nullptr );
 	if( !probe->renderable->SetControlCurves() )
 		return false;
@@ -12006,6 +12213,173 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCelestialBallpark(
+	void* opaqueProbe,
+	int celestialMode,
+	const char* logPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || celestialMode < STANDALONE_CELESTIAL_BALLPARK_OFF ||
+		celestialMode > STANDALONE_CELESTIAL_BALLPARK_NATURAL )
+		return false;
+	DetachCelestialLinkage( *probe );
+	if( celestialMode == STANDALONE_CELESTIAL_BALLPARK_OFF )
+	{
+		std::fprintf( stderr, "PL-12 celestial ballpark: mode=off placement=static\n" );
+		return true;
+	}
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->ballparkMode == STANDALONE_BALLPARK_OFF || !probe->destinySession || !probe->newEdenSun ||
+		!probe->newEdenPlanet || !probe->newEdenSystemComposition )
+	{
+		std::fprintf(
+			stderr,
+			"Natural celestial Ballpark placement requires an active Destiny session and the exact-system "
+			"New Eden fixture\n" );
+		return false;
+	}
+	char error[512] = {};
+	DestinyEmbeddedCelestialConfig sunConfig = {};
+	sunConfig.ballId = kNewEdenSunBallId;
+	sunConfig.radius = static_cast<float>( kNewEdenStarRadius );
+	DestinyEmbeddedCelestialConfig planetConfig = {};
+	planetConfig.ballId = kNewEdenPlanetBallId;
+	planetConfig.radius = static_cast<float>( kNewEdenPlanetRadius );
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunConfig.position[axis] = kNewEdenSunRelative[axis];
+		planetConfig.position[axis] = kNewEdenPlanetRelative[axis];
+	}
+	if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &sunConfig, error, sizeof( error ) ) ||
+		!Destiny_AddEmbeddedCelestial( probe->destinySession, &planetConfig, error, sizeof( error ) ) )
+	{
+		std::fprintf( stderr, "Failed to add embedded Destiny celestials: %s\n", error );
+		return false;
+	}
+	ITriVectorFunction* sunCurve =
+		Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenSunBallId );
+	ITriVectorFunction* planetCurve =
+		Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenPlanetBallId );
+	if( !sunCurve || !planetCurve )
+	{
+		std::fprintf( stderr, "Embedded Destiny celestial curves are unavailable\n" );
+		return false;
+	}
+	probe->newEdenSun->SetStandalonePlacement(
+		Vector3( 0.0f, 0.0f, 0.0f ),
+		static_cast<float>( kNewEdenStarRadius ),
+		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
+		Color( kNewEdenSunEmissive[0], kNewEdenSunEmissive[1], kNewEdenSunEmissive[2], 1.0f ) );
+	probe->newEdenPlanet->SetStandalonePlacement(
+		Vector3( 0.0f, 0.0f, 0.0f ),
+		static_cast<float>( kNewEdenPlanetRadius ),
+		Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
+		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+	probe->newEdenSun->SetBallPositionCurve( sunCurve );
+	probe->newEdenPlanet->SetBallPositionCurve( planetCurve );
+	probe->scene->SetSunBall( sunCurve );
+	if( probe->newEdenLensFlare )
+		probe->newEdenLensFlare->SetTranslationCurve( probe->newEdenSun->GetTranslationCurve().p );
+	if( logPath && logPath[0] )
+	{
+		probe->celestialLog.open( logPath, std::ios::out | std::ios::trunc );
+		if( !probe->celestialLog )
+		{
+			std::fprintf( stderr, "Failed to open the celestial Ballpark log\n" );
+			return false;
+		}
+		probe->celestialLog << std::fixed << std::setprecision( 9 );
+		probe->celestialLog
+			<< "frame,sunDirX,sunDirY,sunDirZ,sunWorldX,sunWorldY,sunWorldZ,planetWorldX,planetWorldY,"
+			   "planetWorldZ,sunSize,expectedSunSize,directionError,sunWorldError,planetWorldError,"
+			   "stateValid,sunIdentified\n";
+	}
+	probe->celestialMode = STANDALONE_CELESTIAL_BALLPARK_NATURAL;
+	probe->celestialLinkageActive = true;
+	probe->celestialDiagnostics = {};
+	probe->celestialDiagnostics.available = true;
+	probe->celestialDiagnostics.linkageActive = true;
+	probe->celestialDiagnostics.celestialStateValid = true;
+	probe->celestialDiagnostics.sunBallId = kNewEdenSunBallId;
+	probe->celestialDiagnostics.planetBallId = kNewEdenPlanetBallId;
+	std::fprintf(
+		stderr,
+		"PL-12 celestial ballpark: mode=natural sunBall=%lld planetBall=%lld starRadius=%.0f planetRadius=%.0f "
+		"sunPosition=(%.0f, %.0f, %.0f) planetPosition=(%.0f, %.0f, %.0f) state=rigid-global-fixed\n",
+		static_cast<long long>( kNewEdenSunBallId ),
+		static_cast<long long>( kNewEdenPlanetBallId ),
+		kNewEdenStarRadius,
+		kNewEdenPlanetRadius,
+		kNewEdenSunRelative[0],
+		kNewEdenSunRelative[1],
+		kNewEdenSunRelative[2],
+		kNewEdenPlanetRelative[0],
+		kNewEdenPlanetRelative[1],
+		kNewEdenPlanetRelative[2] );
+	return true;
+#else
+	std::fprintf( stderr, "Natural celestial Ballpark placement requires the embedded Destiny package\n" );
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateCelestialBallpark( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || !probe->scene || probe->celestialMode != STANDALONE_CELESTIAL_BALLPARK_NATURAL ||
+		!probe->celestialLinkageActive || !probe->destinySession )
+		return false;
+	auto& diagnostics = probe->celestialDiagnostics;
+	const auto& ballpark = probe->ballparkDiagnostics;
+	const bool orbitPreserved = probe->ballparkMode != STANDALONE_BALLPARK_ORBIT ||
+		( ballpark.directEvolveCount == 62 && ballpark.commandCount == 1 &&
+		  ballpark.maximumRawPositionError <= 1e-5 && ballpark.maximumRawVelocityError <= 1e-5 &&
+		  ballpark.maximumRawAccelerationError <= 1e-5 );
+	diagnostics.valid = diagnostics.available && diagnostics.linkageActive && diagnostics.celestialStateValid &&
+		diagnostics.sunCurveMatchesSceneSunBall && diagnostics.planetCurveAttached &&
+		diagnostics.lensFlarePresent && diagnostics.sunCurveMatchesLensFlare &&
+		diagnostics.sunIdentifiedUniquely && diagnostics.sampleCount > 0 &&
+		diagnostics.sampleCount == probe->renderedFrameCount &&
+		diagnostics.maximumSunDirectionError <= 5e-6 && diagnostics.maximumSunWorldError <= 1e-6 &&
+		diagnostics.maximumPlanetWorldError <= 1e-6 && diagnostics.maximumLensFlareSunSizeError <= 1e-4 &&
+		orbitPreserved;
+	std::fprintf(
+		stderr,
+		"PL-12 celestial validation: samples=%llu stateExact=%s sunBallMatch=%s flareMatch=%s uniqueSun=%s "
+		"directionError=%.3g worldErrors=[%.3g,%.3g] sunSize=%.6f expected=%.6f trajectory=%016llx "
+		"orbitPreserved=%s validation=%s\n",
+		static_cast<unsigned long long>( diagnostics.sampleCount ),
+		diagnostics.celestialStateValid ? "yes" : "no",
+		diagnostics.sunCurveMatchesSceneSunBall ? "yes" : "no",
+		diagnostics.sunCurveMatchesLensFlare ? "yes" : "no",
+		diagnostics.sunIdentifiedUniquely ? "yes" : "no",
+		diagnostics.maximumSunDirectionError,
+		diagnostics.maximumSunWorldError,
+		diagnostics.maximumPlanetWorldError,
+		diagnostics.lensFlareSunSize,
+		diagnostics.expectedLensFlareSunSize,
+		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+		orbitPreserved ? "yes" : "no",
+		diagnostics.valid ? "pass" : "fail" );
+	return diagnostics.valid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCelestialDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneCelestialDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !diagnostics || !probe->celestialDiagnostics.available )
+		return false;
+	*diagnostics = probe->celestialDiagnostics;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkCapture(
 	void* opaqueProbe,
 	int staticMode,
@@ -12164,6 +12538,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
 		{
 			CCP_LOGERR( "Failed to record embedded Ballpark diagnostics" );
+			return false;
+		}
+		if( !UpdateCelestialDiagnostics(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
+		{
+			CCP_LOGERR( "Failed to record celestial Ballpark diagnostics" );
 			return false;
 		}
 		++probe->renderedFrameCount;

@@ -479,6 +479,38 @@ extern "C" bool TrinityStandaloneProbeEvaluateTemporalValidation( void* opaquePr
 extern "C" bool TrinityStandaloneProbeGetTemporalValidation(
 	void* opaqueProbe,
 	TrinityStandaloneTemporalValidation* validation );
+struct TrinityStandaloneCelestialDiagnostics
+{
+	bool available = false;
+	bool valid = false;
+	bool linkageActive = false;
+	bool celestialStateValid = false;
+	bool sunCurveMatchesSceneSunBall = false;
+	bool sunCurveMatchesLensFlare = false;
+	bool planetCurveAttached = false;
+	bool sunIdentifiedUniquely = false;
+	bool lensFlarePresent = false;
+	uint64_t sampleCount = 0;
+	int64_t sunBallId = 0;
+	int64_t planetBallId = 0;
+	int32_t sunMode = 0;
+	int32_t planetMode = 0;
+	float sunBallRadius = 0.0f;
+	float planetBallRadius = 0.0f;
+	double sunBallPosition[3] = {};
+	double planetBallPosition[3] = {};
+	double sunWorldPosition[3] = {};
+	double planetWorldPosition[3] = {};
+	float sunDirection[3] = {};
+	float lensFlareSunSize = 0.0f;
+	float expectedLensFlareSunSize = 0.0f;
+	double maximumSunDirectionError = 0.0;
+	double maximumSunWorldError = 0.0;
+	double maximumPlanetWorldError = 0.0;
+	double maximumLensFlareSunSizeError = 0.0;
+	uint64_t trajectoryHash = 0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigureBallpark(
 	void* opaqueProbe,
 	int mode,
@@ -490,6 +522,14 @@ extern "C" bool TrinityStandaloneProbeConfigureBallparkEx(
 	int orbitPolicy,
 	float orbitRange,
 	const char* logPath );
+extern "C" bool TrinityStandaloneProbeConfigureCelestialBallpark(
+	void* opaqueProbe,
+	int celestialMode,
+	const char* logPath );
+extern "C" bool TrinityStandaloneProbeValidateCelestialBallpark( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetCelestialDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneCelestialDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkOrbit( void* opaqueProbe );
