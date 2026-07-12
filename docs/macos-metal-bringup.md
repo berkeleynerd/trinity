@@ -2262,11 +2262,19 @@ and refuses validation fixtures. Verified through arrival at `hdr-post`,
 windowed and native full-screen. **Known limitation, reproduced and
 scoped:** with the gate present, `hdr-finish` runs fail at arrival
 (inside roughly the envelope range) while the gate-off control completes
-the identical flythrough — the authored specialfx content emits
-non-finite HDR values at point-blank range that the finish chain's
-contracts reject. Diagnosis starts from a `PreTonemapColor` capture
-during the close pass; authored-parameter recovery is the fix priority,
-a clamp at a named seam the documented last resort. Until then the
+the identical flythrough. The non-finite suspicion recorded here
+earlier is **measured and corrected**: the frame-920 `PreTonemapColor`
+capture reports `nan=0 inf=0`, maximum luminance `0.892` — the
+composite is perfectly finite and fails the per-frame **hdr-headroom**
+requirement instead. On the return pass the gate-locked camera points
+into empty dark sky with nothing brighter than `1.0`, and the RC-09
+composition contract, written for fixtures framed on bright content,
+rejects the frame. This is a fixture-contract interaction, not a gate
+defect. The fix decision for the next session: either waive the
+headroom component for sample-owned demo modes, or refine the contract
+to headroom-observed-at-least-once, which is closer to RC-09's intent
+that the composition *retains* headroom capability rather than that
+every camera angle contains a bright source. Until then the
 direct-travel demo runs complete at `hdr-post`.
 
 The first appearance-drive attempt is a measured negative:
