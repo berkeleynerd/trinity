@@ -2252,6 +2252,23 @@ near-state appearance (and re-deriving the chase-frame reference
 offset) is the remaining bring-up work before the acceptance-scale
 gate-off A/B.
 
+`--eve-gate-travel direct` is the sample-owned travel demo: it replaces
+the ORBIT fixture's frame-180 orbit command with a native `GotoPoint` at
+the anchored landmark, and the chase camera drops its shoulder sweep to
+lock the rig to the ship-to-landmark axis, reverting to velocity follow
+inside a 400 m arrival envelope. The mode requires the authored gate and
+natural celestials, suppresses corpus scoring like the approach demo,
+and refuses validation fixtures. Verified through arrival at `hdr-post`,
+windowed and native full-screen. **Known limitation, reproduced and
+scoped:** with the gate present, `hdr-finish` runs fail at arrival
+(inside roughly the envelope range) while the gate-off control completes
+the identical flythrough — the authored specialfx content emits
+non-finite HDR values at point-blank range that the finish chain's
+contracts reject. Diagnosis starts from a `PreTonemapColor` capture
+during the close pass; authored-parameter recovery is the fix priority,
+a clamp at a named seam the documented last resort. Until then the
+direct-travel demo runs complete at `hdr-post`.
+
 The first appearance-drive attempt is a measured negative:
 `--eve-gate-ratio` feeds `DistanceRatio` (and `ChangeDistanceRatio`)
 through `SetControllerVariable` after controller start, and site

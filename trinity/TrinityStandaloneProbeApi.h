@@ -556,6 +556,9 @@ extern "C" bool TrinityStandaloneProbeConfigureEveGate(
 	void* opaqueProbe,
 	int mode,
 	float distanceRatio );
+extern "C" bool TrinityStandaloneProbeConfigureEveGateTravel(
+	void* opaqueProbe,
+	int direct );
 extern "C" bool TrinityStandaloneProbeValidateEveGate( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetEveGateDiagnostics(
 	void* opaqueProbe,

@@ -607,6 +607,7 @@ struct Options
 	bool validateEveGate = false;
 	int celestialAnchor = 0;
 	float eveGateRatio = -1.0f;
+	int eveGateTravel = 0;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2161,7 +2162,7 @@ void PrintUsage( const char* executable )
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
-		<< "       [--celestial-anchor stargate|evegate] [--eve-gate-ratio FLOAT]\n"
+		<< "       [--celestial-anchor stargate|evegate] [--eve-gate-ratio FLOAT] [--eve-gate-travel orbit|direct]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2409,6 +2410,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-eve-gate" )
 		{
 			options.validateEveGate = true;
+		}
+		else if( arg == "--eve-gate-travel" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = argv[i];
+			if( value == "orbit" )
+				options.eveGateTravel = 0;
+			else if( value == "direct" )
+				options.eveGateTravel = 1;
+			else
+				return false;
 		}
 		else if( arg == "--eve-gate-ratio" )
 		{
@@ -3395,6 +3408,17 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "--validate-celestial-ballpark requires the 3780-frame exact-system Frontier-new 2500m "
 					 "hdr-post orbit fixture with natural celestials, sun flare effects, --celestial-log, and "
 					 "--capture-prefix\n";
+		return false;
+	}
+	if( options.eveGateTravel != 0 &&
+		( options.eveGate != 1 || options.celestialBallpark != CelestialBallparkMode::Natural ||
+		  options.ballpark != BallparkMode::Orbit || options.eveGateApproachFrame != 0 ||
+		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
+		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
+	{
+		std::cerr << "--eve-gate-travel direct is a demo mode requiring the authored gate, natural celestials, "
+					 "and the ORBIT fixture; it replaces the orbit command and is incompatible with validation "
+					 "fixtures and --eve-gate-approach\n";
 		return false;
 	}
 	if( options.eveGateApproachFrame != 0 &&
@@ -5187,6 +5211,13 @@ int main( int argc, char** argv )
 			if( !TrinityStandaloneProbeConfigureEveGate( probe, options.eveGate, options.eveGateRatio ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureEveGate failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeConfigureEveGateTravel( probe, options.eveGateTravel ) )
+			{
+				std::cerr << "TrinityStandaloneProbeConfigureEveGateTravel failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;

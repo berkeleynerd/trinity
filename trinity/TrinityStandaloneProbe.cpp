@@ -3803,6 +3803,7 @@ struct StandaloneProbe
 	bool celestialLinkageActive = false;
 	uint64_t eveGateApproachFrame = 0;
 	bool eveGateApproachIssued = false;
+	bool eveGateDirectTravel = false;
 	int celestialAnchorMode = STANDALONE_CELESTIAL_ANCHOR_STARGATE;
 	double celestialAnchorOffset[3] = { 0.0, 0.0, 0.0 };
 	int eveGateMode = STANDALONE_EVE_GATE_OFF;
@@ -8791,6 +8792,23 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	else
 		forward = Normalize( forward );
 	const Vector3 up( 0.0f, 1.0f, 0.0f );
+	bool gateAligned = false;
+	Vector3 gatePosition( 0.0f, 0.0f, 0.0f );
+	if( probe.eveGateDirectTravel )
+	{
+		gatePosition = Vector3(
+			static_cast<float>( kNewEdenEveGateRelative[0] - probe.celestialAnchorOffset[0] ),
+			static_cast<float>( kNewEdenEveGateRelative[1] - probe.celestialAnchorOffset[1] ),
+			static_cast<float>( kNewEdenEveGateRelative[2] - probe.celestialAnchorOffset[2] ) );
+		const Vector3 toGate = gatePosition - ship;
+		// Inside the arrival envelope the ship converges on the aim target and
+		// the locked rig degenerates, so the camera reverts to velocity follow.
+		if( Length( toGate ) > 400.0f )
+		{
+			forward = Normalize( toGate );
+			gateAligned = true;
+		}
+	}
 	Vector3 right = Cross( up, forward );
 	if( Length( right ) < 0.01f )
 		right = Vector3( 1.0f, 0.0f, 0.0f );
@@ -8799,11 +8817,12 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 
 	constexpr float pi = 3.1415926535f;
 	const float seconds = static_cast<float>( simulationTime ) / 10000000.0f;
-	const float shoulderAngle = 25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
+	const float shoulderAngle =
+		gateAligned ? 0.0f : 25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
 	const Vector3 shoulderDirection = Normalize(
 		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
 	const Vector3 desiredEye = ship - shoulderDirection * 150.0f + up * 55.0f;
-	const Vector3 desiredTarget = ship + forward * 25.0f + up * 5.0f;
+	const Vector3 desiredTarget = gateAligned ? gatePosition : ship + forward * 25.0f + up * 5.0f;
 	const Vector3 previousEye = probe.chaseCameraEye;
 	if( !probe.chaseCameraInitialized )
 	{
@@ -11829,6 +11848,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkCommandIssued = false;
 	probe->eveGateApproachFrame = 0;
 	probe->eveGateApproachIssued = false;
+	probe->eveGateDirectTravel = false;
 	probe->chaseCameraInitialized = false;
 	probe->chaseCameraTime = 0;
 	probe->ballparkDiagnostics = {};
@@ -12734,6 +12754,33 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateTravel( void* opaqueProbe, int direct )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe )
+		return false;
+	probe->eveGateDirectTravel = false;
+	if( direct == 0 )
+		return true;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->ballparkMode != STANDALONE_BALLPARK_ORBIT || !probe->destinySession ||
+		probe->eveGateMode != STANDALONE_EVE_GATE_AUTHORED )
+	{
+		std::fprintf( stderr,
+			"Direct-to-gate travel requires the ORBIT Ballpark fixture and the authored EVE Gate\n" );
+		return false;
+	}
+	probe->eveGateDirectTravel = true;
+	std::fprintf( stderr,
+		"CP-36 direct-to-gate travel armed: GotoPoint replaces the orbit command at frame 180; "
+		"chase camera aligns with the landmark\n" );
+	return true;
+#else
+	std::fprintf( stderr, "Direct-to-gate travel requires the embedded Destiny package\n" );
+	return false;
+#endif
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateEveGate( void* opaqueProbe )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -12928,16 +12975,42 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		{
 			DestinyEmbeddedDiagnostics commandState = {};
 			if( !probe->destinySession ||
-				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
-				!Destiny_CommandEmbeddedOrbit(
-					probe->destinySession, commandState.nextTickTime, 3, probe->ballparkOrbitRange ) )
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) )
+			{
+				CCP_LOGERR( "Embedded Destiny command state query failed" );
+				return false;
+			}
+			if( probe->eveGateDirectTravel )
+			{
+				const double travelTarget[3] = {
+					kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+					kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+					kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+				};
+				if( !Destiny_CommandEmbeddedGoto(
+						probe->destinySession, commandState.nextTickTime, travelTarget ) )
+				{
+					CCP_LOGERR( "Embedded Destiny direct-to-gate command failed" );
+					return false;
+				}
+				probe->eveGateApproachIssued = true;
+				std::fprintf( stderr,
+					"CP-36 direct-to-gate travel: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f)\n",
+					static_cast<long long>( commandState.nextTickTime ),
+					travelTarget[0], travelTarget[1], travelTarget[2] );
+			}
+			else if( !Destiny_CommandEmbeddedOrbit(
+						 probe->destinySession, commandState.nextTickTime, 3, probe->ballparkOrbitRange ) )
 			{
 				CCP_LOGERR( "Embedded Destiny ORBIT command failed" );
 				return false;
 			}
+			else
+			{
+				std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n",
+					static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
+			}
 			probe->ballparkCommandIssued = true;
-			std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n",
-				static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
 		}
 		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
 			!probe->eveGateApproachIssued && probe->ballparkCommandIssued &&
