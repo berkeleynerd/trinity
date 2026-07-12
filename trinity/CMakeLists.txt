@@ -1850,6 +1850,10 @@ else()
     find_package(CarbonMesh CONFIG REQUIRED)
 endif()
 
+if(BUILD_DESTINY_INTEGRATION)
+    find_package(carbon-destiny CONFIG REQUIRED)
+endif()
+
 # utility function that sets properties shared between all trinity targets
 function(set_shared_trinity_properties target package_name)
 
@@ -2045,6 +2049,20 @@ elseif(APPLE)
                 "-framework IOKit"
                 "-framework QuartzCore"
         )
+        if(BUILD_DESTINY_INTEGRATION)
+            target_link_libraries(${TRINITY_METAL_TARGET_NAME}
+                PRIVATE
+                    destinyEmbedded
+            )
+            target_link_options(${TRINITY_METAL_TARGET_NAME}
+                PRIVATE
+                    "LINKER:-force_load,$<TARGET_FILE:destinyEmbedded>"
+            )
+            target_compile_definitions(${TRINITY_METAL_TARGET_NAME}
+                PRIVATE
+                    TRINITY_WITH_DESTINY_EMBEDDED=1
+            )
+        endif()
 
         #[[
             FIXME because we're mixing objective-c++ and c++ headers in our precompiled headers then we need to force

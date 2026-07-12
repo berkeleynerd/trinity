@@ -343,6 +343,41 @@ struct TrinityStandaloneTemporalValidation
 	double transientResidualRatio = 0.0;
 };
 
+struct TrinityStandaloneBallparkDiagnostics
+{
+	bool available = false;
+	bool valid = false;
+	bool pythonInitialized = false;
+	bool destinyPythonModulesAbsent = false;
+	bool schedulerRegistered = false;
+	bool worldMatricesEqual = false;
+	bool colorHashesEqual = false;
+	bool depthHashesEqual = false;
+	uint32_t registeredClassCount = 0;
+	uint32_t loadedBlueImageCount = 0;
+	uint32_t loadedPythonImageCount = 0;
+	uint64_t directEvolveCount = 0;
+	uint64_t startCallCount = 0;
+	uint64_t onTickCallCount = 0;
+	uint64_t pythonCallbackCount = 0;
+	uint64_t originUpdateCount = 0;
+	uint64_t offColorHash = 0;
+	uint64_t staticColorHash = 0;
+	uint64_t offDepthHash = 0;
+	uint64_t staticDepthHash = 0;
+	double position[3] = {};
+	float rotation[4] = {};
+	double referencePoint[3] = {};
+	double origin[3] = {};
+	float originShift[3] = {};
+	float delta[3] = {};
+	float smoothedDelta[3] = {};
+	float deltaVelocity[3] = {};
+	float unitBase = 0.0f;
+	float offWorld[16] = {};
+	float staticWorld[16] = {};
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
@@ -387,3 +422,19 @@ extern "C" bool TrinityStandaloneProbeEvaluateTemporalValidation( void* opaquePr
 extern "C" bool TrinityStandaloneProbeGetTemporalValidation(
 	void* opaqueProbe,
 	TrinityStandaloneTemporalValidation* validation );
+extern "C" bool TrinityStandaloneProbeConfigureBallpark(
+	void* opaqueProbe,
+	int mode,
+	const char* logPath );
+extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneBallparkDiagnostics* diagnostics );
+extern "C" bool TrinityStandaloneProbeGetBallparkCapture(
+	void* opaqueProbe,
+	int staticMode,
+	int depthProduct,
+	const uint8_t** pixels,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* pitch );

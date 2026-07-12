@@ -2,6 +2,10 @@
 
 #include "StdAfx.h"
 
+#if TRINITY_WITH_DESTINY_EMBEDDED
+#include <DestinyEmbedded.h>
+#endif
+
 #include <Blue.h>
 #ifdef TRINITYBUILD
 
@@ -280,7 +284,32 @@ void InitializeTrinity()
 static void StartDLL()
 {
 	CCP_LOG( "Trinity (%s) module starting", CCP_STRINGIZE( TRINITYNAME ) );
+
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	static ClassRegsVector trinityClasses;
+	if( trinityClasses.empty() )
+	{
+		for( const Be::ClassRegistration& registration : BlueRegistration::GetClassRegs() )
+		{
+			const char* module = registration.mType->mClassId->GetModule();
+			if( !module || std::strcmp( module, "_destiny" ) != 0 )
+			{
+				trinityClasses.push_back( registration );
+			}
+		}
+	}
+	BeClasses->RegisterClasses( trinityClasses );
+
+	DestinyEmbeddedRegistration registration = {};
+	if( !Destiny_RegisterBlueClasses( &registration ) || !registration.valid ||
+		registration.discoveredClassCount != 10 )
+	{
+		CCP_LOGERR( "Embedded Destiny Blue registration failed" );
+		return;
+	}
+#else
 	BeClasses->RegisterClasses( BlueRegistration::GetClassRegs() );
+#endif
 
 	InitializeTrinity();
 }

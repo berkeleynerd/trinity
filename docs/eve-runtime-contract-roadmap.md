@@ -92,6 +92,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-28 | Native SOF booster, glow, light, and spline-trail rendering | Accepted | The exact two-locator Astero graph submits one 24-triangle procedural plume batch with two instances, six glow sprites, two tiled point lights, and one 1,200-triangle trail mesh batch with two instances. The 540-frame integrated run retains eight total lights and passes frozen composition/product and pacing gates. | Cruise kinematics are sample-owned. Native zero-acceleration gain reserves 20% for acceleration, so the bridge records raw `0.8` and normalized cruise intensity `1.0`. Engine velocity/TAA remains RC-13. |
 | CP-29 | V5 camera/object velocity observability | Accepted | Reverse-Z depth reconstruction uses the exact shader-uploaded current/previous view-projection and object matrices. Across 1280x720 static, object, camera, and combined tests, at least 52,876 interior pixels survive the 1% discontinuity mask; moving mean error is at most `0.00133` pixel, p99 at most `0.00327`, and maximum at most `0.00432`. Static measured velocity is zero and maximum reference error is `0.000118` pixel. | Additive/translucent effects intentionally receive no invented velocity. |
 | CP-30 | Native High TAA and transient cooldown | Partial: transient rejection blocked | Four settled jitter phases retain HDR headroom and reduce p95 edge variance to `0.000581x` input across 38,685 edge pixels. Native accumulation/copy and integrated composition pass. | Isolated Silk has 1,093 transient pixels, 34 previous-only pixels, and zero cooldown activity. Isolated trails have 6,028 transient pixels, 2,761 previous-only pixels, `0.149529` residual ratio, and zero cooldown activity. The earlier full-engine cooldown evidence came from plume/glow pixels, not trails. No reactive-mask approximation is added. |
+| CP-31 | Embedded Destiny Ballpark and Trinity curve/origin contract | Accepted | An installed `destinyEmbedded` package registers ten module-free Blue classes. One STOP `ClientBall` drives the Astero through `EveRootTransform`; its Ballpark supplies 180 successful scene-origin updates. Frozen control/static matrices, raw hashes, and encoded color/depth pairs are exact; two 180-frame CSVs are byte-identical. | PL-10 pins the authored quaternion after native evolve to preserve the null test. Authentic motion/orientation is PL-11; Ballpark's remaining Python containers are PL-13. |
 
 ## Rung-model holes
 
@@ -113,13 +114,16 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
-2. Complete native full-screen ghosting inspection after transient classification passes.
-3. Keep RC-12B2 global froxels deferred and fail-closed.
+1. Advance PL-11 authentic Destiny motion through the accepted CP-31 seam, one state at a time.
+2. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
+3. Complete native full-screen ghosting inspection after transient classification passes.
+4. Keep RC-12B2 global froxels deferred and fail-closed.
 
 RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
 retains fail-closed explicit modes independently. RC-05D booster/engine effects
 are accepted, making RC-13 velocity and TAA the active direct-path unit.
+The cross-repository PL-10 null contract is accepted under CP-31; PL-11 is the
+next simulation/render integration unit.
 
 ## Evidence policy
 

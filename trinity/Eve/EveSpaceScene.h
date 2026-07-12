@@ -267,6 +267,26 @@ public:
 	{
 		return m_lensflares;
 	}
+	void SetBallpark( IEveBallpark* ballpark )
+	{
+		m_ballpark = ballpark;
+	}
+	IEveBallpark* GetBallpark() const
+	{
+		return m_ballpark;
+	}
+	Vector3d GetOrigin() const
+	{
+		return m_updateContext.GetOrigin();
+	}
+	Vector3 GetOriginShift() const
+	{
+		return m_updateContext.GetOriginShift();
+	}
+	uint64_t GetSuccessfulOriginUpdateCount() const
+	{
+		return m_updateContext.GetSuccessfulOriginUpdateCount();
+	}
 	void SetPlanetScale( float value )
 	{
 		m_planetScale = value;

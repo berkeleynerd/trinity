@@ -47,6 +47,27 @@ public:
 	virtual void Update( const EveUpdateContext& updateContext ) override;
 	virtual void UpdateViewDependentData( const TriFrustum& frustum, const Matrix& parentTransform );
 
+	void SetBallPositionCurve( ITriVectorFunction* curve )
+	{
+		m_ballPosition = curve;
+	}
+	ITriVectorFunction* GetBallPositionCurve() const
+	{
+		return m_ballPosition;
+	}
+	void SetBallRotationCurve( ITriQuaternionFunction* curve )
+	{
+		m_ballRotation = curve;
+	}
+	ITriQuaternionFunction* GetBallRotationCurve() const
+	{
+		return m_ballRotation;
+	}
+	const Matrix& GetLastUpdateMatrix() const
+	{
+		return m_lastUpdateMatrix;
+	}
+
 protected:
 	ITriVectorFunctionPtr m_ballPosition;
 	ITriQuaternionFunctionPtr m_ballRotation;

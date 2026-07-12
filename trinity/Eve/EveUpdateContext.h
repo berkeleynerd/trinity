@@ -90,6 +90,7 @@ public:
 		if( refObject )
 		{
 			refObject->GetReferencePoint( &originNow, m_currentTime );
+			++m_successfulOriginUpdateCount;
 			if( m_origin.x != UNINITIALIZED_ORIGIN )
 			{
 				Vector3d originDelta = originNow - m_origin + m_originShiftRemainder;
@@ -99,6 +100,10 @@ public:
 			}
 			m_origin = originNow;
 		}
+	}
+	uint64_t GetSuccessfulOriginUpdateCount() const
+	{
+		return m_successfulOriginUpdateCount;
 	}
 	Vector3 GetOriginShift() const
 	{
@@ -204,6 +209,7 @@ private:
 	Vector3d m_origin;
 	Vector3 m_originShift;
 	Vector3d m_originShiftRemainder;
+	uint64_t m_successfulOriginUpdateCount = 0;
 	Tr2ParallelTaskGroup* m_taskGroup = nullptr;
 
 	// visibility attributes

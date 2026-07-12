@@ -59,6 +59,7 @@ else()
     option(BUILD_GLTF_IMPORTER "Build the glTF to CMF importer." ${BUILD_GLTF_IMPORTER_DEFAULT})
     option(BUILD_ANIMATED_MODEL_SAMPLE "Build the macOS TrinityAL animated model sample." ${BUILD_ANIMATED_MODEL_SAMPLE_DEFAULT})
     option(BUILD_EVE_SCENE_PROBE "Build the macOS EVE scene render driver probe sample." ${BUILD_EVE_SCENE_PROBE_DEFAULT})
+    option(BUILD_DESTINY_INTEGRATION "Link the embedded Destiny ballpark contract into Trinity." OFF)
 
     if(BUILD_GLTF_IMPORTER OR BUILD_ANIMATED_MODEL_SAMPLE OR BUILD_EVE_SCENE_PROBE)
         list(APPEND VCPKG_MANIFEST_FEATURES "gltf-importer")

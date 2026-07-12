@@ -1937,3 +1937,64 @@ added. Representative ignored reports are:
 /Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/trails-final_astero_hdr-post_decal-off-all-kills-0_pl-all_date-2026-07-10_54c1e908944ca2bc_temporal-contract.json
 /Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Captures/rc13-closeout/integrated_astero_hdr-finish_decal-authored-all-kills-0_pl-all_date-2026-07-10_86ee9e68b5696779_temporal-contract.json
 ```
+
+## PL-10 first Ballpark contract (2026-07-12)
+
+Promised Land now builds Destiny and Trinity as one asset-free superbuild.
+Destiny installs a curated `destinyEmbedded` static target first; Trinity then
+consumes that exact `carbon-destiny` package with the same system compilers,
+`arm64-osx-debug` triplet, registry baseline, and build-local vcpkg tree. On
+Apple, `-force_load` retains the embedded Blue registrations because CMake's
+generic whole-archive link feature is unavailable for Objective-C++.
+
+Trinity filters `_destiny` from its general registration pass, calls
+`Destiny_RegisterBlueClasses`, and requires exactly ten classes. Both
+`--ballpark off` and `static` now route the Astero through one internal
+`EveRootTransform`. Off uses sample-owned constant curves; static borrows the
+real `ClientBall` position/rotation interfaces. The local model transform
+remains `Translation(-modelCenter)`.
+
+The scene receives the real `Ballpark`. Instrumentation corrected an earlier
+architectural assumption: `EveUpdateContext::UpdateOrigin` calls only
+`GetReferencePoint`. The probe queries `Delta`, smoothed delta, `DeltaVel`, and
+`GetUnitBase` separately for deterministic CSV evidence.
+
+The accepted fixture is ball `1` in system `30005286`, free STOP mode, zero
+position/velocity/angular velocity, unit base `1`, maximum velocity `250`,
+CMF-derived radius, and the current Astero quaternion. Direct one-second
+advances produce exactly two evolves over frames `0..179`; `Start`, `OnTick`,
+scheduler registration, tasklets, and callbacks remain unused. Native
+free-ball evolve applies roll-upright behavior, so PL-10 restores the authored
+quaternion after each evolve. PL-11 removes this null-fixture constraint when
+orientation becomes an accepted motion output.
+
+CPython remains `initialized-required` because Trinity already starts it and
+Ballpark still creates legacy Python containers. No `_destiny` module is
+created, and `_destiny`/`_destiny_debug` remain absent from `sys.modules`.
+The integrated image contains one `blue_debug.so` and Trinity's existing one
+Python dylib, with no Destiny module initializer, timer, or thunker symbol.
+
+Exact commands:
+
+```sh
+cd /Users/rebecca/src/github.com/berkeleynerd/promised-land
+cmake --preset arm64-osx-debug
+cmake --build --preset arm64-osx-debug --target pl10_validate
+```
+
+The two 180-frame runs report 180 origin updates and zero reference point,
+origin, shift, delta, smoothed delta, delta velocity, position, and velocity.
+Frozen off/static world matrices, raw color/depth hashes, and encoded PNG
+pairs are byte-identical. Both CSVs have SHA-256
+`1b8398e9d987732353c265432335fedb75cd8c1561af15e18ddf0735958682a8`.
+Generated evidence remains ignored at:
+
+```text
+/Users/rebecca/src/github.com/berkeleynerd/promised-land/.cmake-build-arm64-osx-debug/pl10/reports/PL10Validation.txt
+/Users/rebecca/src/github.com/berkeleynerd/promised-land/.cmake-build-arm64-osx-debug/pl10/reports/captures/
+```
+
+Unified Trinity `all`, Destiny's 74 existing tests, a representative 185-frame
+RC-13 `hdr-finish --ballpark off` run, `git diff --check`, no-Granny linkage,
+and tracked-asset audits pass. CP-31 and PL-10 are accepted; PL-11 authentic
+motion is next.

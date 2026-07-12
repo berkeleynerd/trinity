@@ -307,7 +307,11 @@ set(EVE_SCENE_PROBE_LOCAL_SHADOW_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/As
 set(EVE_SCENE_PROBE_LOCAL_SHADOW_INHERITED_DIR ${CMAKE_CURRENT_BINARY_DIR}/LocalShadowAssets/Inherited)
 set(EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE_RESOURCE "res:/dx9/scene/cinematic/black_cube_refl.dds")
 set(EVE_SCENE_PROBE_BLACK_REFLECTION_CUBE ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/cinematic/black_cube_refl.dds)
-set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib)
+if(VCPKG_INSTALLED_DIR)
+    set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/lib)
+else()
+    set(EVE_SCENE_PROBE_VCPKG_LIB_DIR ${CMAKE_BINARY_DIR}/vcpkg_installed/${VCPKG_TARGET_TRIPLET}/lib)
+endif()
 
 function(add_eve_scene_probe_dds_conversion input output metadata)
     add_custom_command(

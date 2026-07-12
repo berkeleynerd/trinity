@@ -6,6 +6,7 @@
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cctype>
 #include <climits>
@@ -410,6 +411,12 @@ enum class MotionMode
 	Combined,
 };
 
+enum class BallparkMode
+{
+	Off,
+	Static,
+};
+
 enum class TemporalTest
 {
 	Contract,
@@ -562,6 +569,9 @@ struct Options
 	TaaMode resolvedTaa = TaaMode::Off;
 	TaaDebug taaDebug = TaaDebug::Off;
 	MotionMode motion = MotionMode::Camera;
+	BallparkMode ballpark = BallparkMode::Off;
+	bool validateBallpark = false;
+	std::string ballparkLogPath;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -1107,6 +1117,27 @@ std::string MotionModeName( MotionMode value )
 {
 	static const char* names[] = { "static", "camera", "object", "combined" };
 	return names[static_cast<int>( value )];
+}
+
+std::string BallparkModeName( BallparkMode value )
+{
+	return value == BallparkMode::Static ? "static" : "off";
+}
+
+bool ParseBallparkMode( const std::string& value, BallparkMode& result )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "off" )
+	{
+		result = BallparkMode::Off;
+		return true;
+	}
+	if( normalized == "static" )
+	{
+		result = BallparkMode::Static;
+		return true;
+	}
+	return false;
 }
 
 bool ParseMotionMode( const std::string& value, MotionMode& result )
@@ -2036,6 +2067,7 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
+		<< "       [--ballpark off|static] [--validate-ballpark] [--ballpark-log PATH]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
@@ -2188,6 +2220,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		{
 			if( ++i >= argc || !ParseMotionMode( argv[i], options.motion ) )
 				return false;
+		}
+		else if( arg == "--ballpark" )
+		{
+			if( ++i >= argc || !ParseBallparkMode( argv[i], options.ballpark ) )
+				return false;
+		}
+		else if( arg == "--ballpark-log" )
+		{
+			if( ++i >= argc )
+				return false;
+			options.ballparkLogPath = argv[i];
+		}
+		else if( arg == "--validate-ballpark" )
+		{
+			options.validateBallpark = true;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3020,6 +3067,39 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		return false;
 	}
+	if( options.ballpark == BallparkMode::Static &&
+		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		  options.qualityRung < QualityRung::Model ||
+		  ( options.motion != MotionMode::Static && options.motion != MotionMode::Camera ) ) )
+	{
+		std::cerr << "Static Ballpark mode requires an Astero eve-v5 model render with static or camera motion\n";
+		return false;
+	}
+	if( options.validateBallpark )
+	{
+		const bool canonical = options.ballpark == BallparkMode::Static && options.maxFrames == 180 &&
+			options.qualityRung == QualityRung::HdrPost && options.motion == MotionMode::Static &&
+			options.sceneFixture == SceneFixture::NewEden && options.composition == SceneComposition::Cinematic &&
+			options.resolvedTaa == TaaMode::Off && options.resolvedDynamicExposure == DynamicExposure::Off &&
+			options.resolvedBloom == PostFinishMode::Off && options.resolvedFilmGrain == PostFinishMode::Off &&
+			options.resolvedDistortion == DistortionMode::Off &&
+			options.resolvedVolumetrics == VolumetricMode::Off && options.resolvedEngines == EngineMode::Off &&
+			options.resolvedReflectionSource == ReflectionSource::Static &&
+			options.resolvedAttachments == Attachments::Authored && options.resolvedDecals == Decals::Authored &&
+			options.localLights == LocalLights::Authored &&
+			options.resolvedLocalShadows == LocalShadows::Off && options.resolvedShadows == Shadows::Off &&
+			options.resolvedAmbientOcclusion == AmbientOcclusion::Off &&
+			options.planetLayers == PlanetLayers::All && options.resolvedSunEffects == SunEffects::Flare &&
+			!options.ballparkLogPath.empty() && !options.capturePrefix.empty();
+		if( !canonical )
+		{
+			std::cerr
+				<< "--validate-ballpark requires the 180-frame PL-10 hdr-post fixture: static camera, static "
+					"reflection, authored attachments/decals/lights/planet/flare, all temporal and finish effects "
+					"off, --ballpark-log, and --capture-prefix\n";
+			return false;
+		}
+	}
 	if( options.renderProduct != RenderProduct::Window &&
 		( options.capturePrefix.empty() || options.maxFrames <= 0 || options.qualityRung == QualityRung::Shell ) )
 	{
@@ -3182,19 +3262,15 @@ bool CaptureWindowPng( NSWindow* window, const std::string& path )
 	return true;
 }
 
-bool CaptureProbeProductPng( void* probe, const std::string& path )
+bool CapturePixelBufferPng(
+	const uint8_t* pixels,
+	uint32_t width,
+	uint32_t height,
+	uint32_t pitch,
+	const std::string& path )
 {
-	if( !EnsureParentDirectory( path ) )
+	if( !pixels || !width || !height || !pitch || !EnsureParentDirectory( path ) )
 	{
-		return false;
-	}
-	const uint8_t* pixels = nullptr;
-	uint32_t width = 0;
-	uint32_t height = 0;
-	uint32_t pitch = 0;
-	if( !TrinityStandaloneProbeGetCapturedProduct( probe, &pixels, &width, &height, &pitch ) )
-	{
-		std::cerr << "No synchronized render-product readback is available\n";
 		return false;
 	}
 	CGDataProviderRef provider =
@@ -3232,6 +3308,20 @@ bool CaptureProbeProductPng( void* probe, const std::string& path )
 	return finalized;
 }
 
+bool CaptureProbeProductPng( void* probe, const std::string& path )
+{
+	const uint8_t* pixels = nullptr;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t pitch = 0;
+	if( !TrinityStandaloneProbeGetCapturedProduct( probe, &pixels, &width, &height, &pitch ) )
+	{
+		std::cerr << "No synchronized render-product readback is available\n";
+		return false;
+	}
+	return CapturePixelBufferPng( pixels, width, height, pitch, path );
+}
+
 std::string CaptureBasePath( const Options& options )
 {
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
@@ -3257,7 +3347,7 @@ std::string CaptureBasePath( const Options& options )
 		VolumetricModeName( options.resolvedVolumetrics ) + "-" +
 		VolumetricQualityName( options.resolvedVolumetricQuality ) + "_eng-" +
 		EngineModeName( options.resolvedEngines ) + "-" + EngineViewName( options.engineView ) + "-thr-" +
-		std::to_string( options.engineThrottle );
+		std::to_string( options.engineThrottle ) + "_bp-" + BallparkModeName( options.ballpark );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -3347,6 +3437,9 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "taaResolved=" << TaaModeName( options.resolvedTaa ) << "\n";
 	metadata << "taaDebug=" << TaaDebugName( options.taaDebug ) << "\n";
 	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
+	metadata << "ballpark=" << BallparkModeName( options.ballpark ) << "\n";
+	metadata << "validateBallpark=" << ( options.validateBallpark ? "true" : "false" ) << "\n";
+	metadata << "ballparkLog=" << options.ballparkLogPath << "\n";
 	metadata << "temporalValidation=" << ( options.validateTemporal ? "requested" : "off" ) << "\n";
 	metadata << "temporalTest=" << TemporalTestName( options.temporalTest ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
@@ -4178,6 +4271,109 @@ bool WriteTemporalContractJson( const Options& options,
 	return output.good();
 }
 
+bool CaptureBallparkValidationPngs(
+	void* probe,
+	const Options& options,
+	bool& colorEqual,
+	bool& depthEqual )
+{
+	const std::string base = CaptureBasePath( options );
+	std::array<std::string, 4> paths = {
+		base + "_ballpark-off-color.png",
+		base + "_ballpark-off-depth.png",
+		base + "_ballpark-static-color.png",
+		base + "_ballpark-static-depth.png",
+	};
+	for( int staticMode = 0; staticMode < 2; ++staticMode )
+	{
+		for( int depthProduct = 0; depthProduct < 2; ++depthProduct )
+		{
+			const uint8_t* pixels = nullptr;
+			uint32_t width = 0;
+			uint32_t height = 0;
+			uint32_t pitch = 0;
+			if( !TrinityStandaloneProbeGetBallparkCapture(
+					probe, staticMode, depthProduct, &pixels, &width, &height, &pitch ) ||
+				!CapturePixelBufferPng(
+					pixels, width, height, pitch, paths[staticMode * 2 + depthProduct] ) )
+			{
+				return false;
+			}
+		}
+	}
+	auto equalFiles = []( const std::string& left, const std::string& right ) {
+		NSData* leftData = [NSData dataWithContentsOfFile:[NSString stringWithUTF8String:left.c_str()]];
+		NSData* rightData = [NSData dataWithContentsOfFile:[NSString stringWithUTF8String:right.c_str()]];
+		return leftData && rightData && [leftData isEqualToData:rightData];
+	};
+	colorEqual = equalFiles( paths[0], paths[2] );
+	depthEqual = equalFiles( paths[1], paths[3] );
+	return colorEqual && depthEqual;
+}
+
+bool WriteBallparkContractJson(
+	const Options& options,
+	const TrinityStandaloneBallparkDiagnostics& diagnostics,
+	bool encodedColorEqual,
+	bool encodedDepthEqual )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_ballpark-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+		return false;
+	std::ofstream output( outputPath.c_str() );
+	if( !output )
+		return false;
+	auto writeArray = [&]( const char* name, const auto* values, size_t count, bool comma ) {
+		output << "  \"" << name << "\": [";
+		for( size_t i = 0; i < count; ++i )
+			output << ( i ? ", " : "" ) << std::setprecision( 12 ) << values[i];
+		output << "]" << ( comma ? "," : "" ) << "\n";
+	};
+	output << "{\n"
+		   << "  \"contract\": \"PL-10 first Ballpark\",\n"
+		   << "  \"mode\": \"" << BallparkModeName( options.ballpark ) << "\",\n"
+		   << "  \"csv\": \"" << options.ballparkLogPath << "\",\n"
+		   << "  \"pythonPolicy\": \"initialized-required; no Destiny module\",\n"
+		   << "  \"pythonInitialized\": " << ( diagnostics.pythonInitialized ? "true" : "false" ) << ",\n"
+		   << "  \"destinyPythonModulesAbsent\": "
+		   << ( diagnostics.destinyPythonModulesAbsent ? "true" : "false" ) << ",\n"
+		   << "  \"registeredClasses\": " << diagnostics.registeredClassCount << ",\n"
+		   << "  \"loadedBlueImages\": " << diagnostics.loadedBlueImageCount << ",\n"
+		   << "  \"loadedPythonImages\": " << diagnostics.loadedPythonImageCount << ",\n"
+		   << "  \"directEvolves\": " << diagnostics.directEvolveCount << ",\n"
+		   << "  \"originUpdates\": " << diagnostics.originUpdateCount << ",\n"
+		   << "  \"schedulerRegistered\": " << ( diagnostics.schedulerRegistered ? "true" : "false" )
+		   << ",\n"
+		   << "  \"startCalls\": " << diagnostics.startCallCount << ",\n"
+		   << "  \"onTickCalls\": " << diagnostics.onTickCallCount << ",\n"
+		   << "  \"pythonCallbacks\": " << diagnostics.pythonCallbackCount << ",\n"
+		   << "  \"unitBase\": " << diagnostics.unitBase << ",\n"
+		   << "  \"hashes\": {\"offColor\": \"" << std::hex << diagnostics.offColorHash
+		   << "\", \"staticColor\": \"" << diagnostics.staticColorHash << "\", \"offDepth\": \""
+		   << diagnostics.offDepthHash << "\", \"staticDepth\": \"" << diagnostics.staticDepthHash
+		   << "\"},\n" << std::dec
+		   << "  \"worldMatricesEqual\": " << ( diagnostics.worldMatricesEqual ? "true" : "false" )
+		   << ",\n"
+		   << "  \"colorHashesEqual\": " << ( diagnostics.colorHashesEqual ? "true" : "false" ) << ",\n"
+		   << "  \"depthHashesEqual\": " << ( diagnostics.depthHashesEqual ? "true" : "false" ) << ",\n";
+	output << "  \"encodedColorCapturesEqual\": " << ( encodedColorEqual ? "true" : "false" ) << ",\n"
+		   << "  \"encodedDepthCapturesEqual\": " << ( encodedDepthEqual ? "true" : "false" ) << ",\n";
+	writeArray( "position", diagnostics.position, 3, true );
+	writeArray( "rotation", diagnostics.rotation, 4, true );
+	writeArray( "referencePoint", diagnostics.referencePoint, 3, true );
+	writeArray( "origin", diagnostics.origin, 3, true );
+	writeArray( "originShift", diagnostics.originShift, 3, true );
+	writeArray( "delta", diagnostics.delta, 3, true );
+	writeArray( "smoothedDelta", diagnostics.smoothedDelta, 3, true );
+	writeArray( "deltaVelocity", diagnostics.deltaVelocity, 3, true );
+	writeArray( "offWorld", diagnostics.offWorld, 16, true );
+	writeArray( "staticWorld", diagnostics.staticWorld, 16, true );
+	output << "  \"validationPassed\": "
+		   << ( diagnostics.valid && encodedColorEqual && encodedDepthEqual ? "true" : "false" ) << "\n}\n";
+	std::cout << "Ballpark contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -4352,6 +4548,26 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.qualityRung != QualityRung::Shell )
+		{
+			if( !options.ballparkLogPath.empty() && !EnsureParentDirectory( options.ballparkLogPath ) )
+			{
+				std::cerr << "Failed to create the Ballpark log directory\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeConfigureBallpark(
+					probe,
+					options.ballpark == BallparkMode::Static ? 1 : 0,
+					options.ballparkLogPath.empty() ? nullptr : options.ballparkLogPath.c_str() ) )
+			{
+				std::cerr << "TrinityStandaloneProbeConfigureBallpark failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
 		if( options.qualityRung != QualityRung::Shell &&
 			!TrinityStandaloneProbeConfigureVolumetrics( probe,
 														 VolumetricModeApiValue( options.resolvedVolumetrics ),
@@ -4504,6 +4720,24 @@ int main( int argc, char** argv )
 					}
 				}
 			}
+		}
+
+		TrinityStandaloneBallparkDiagnostics ballparkDiagnostics;
+		bool ballparkValidationSucceeded = true;
+		bool ballparkReportSucceeded = true;
+		bool encodedBallparkColorEqual = false;
+		bool encodedBallparkDepthEqual = false;
+		if( options.validateBallpark )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateBallpark( probe );
+			const bool diagnosticsRead =
+				TrinityStandaloneProbeGetBallparkDiagnostics( probe, &ballparkDiagnostics );
+			const bool capturesWritten = CaptureBallparkValidationPngs(
+				probe, options, encodedBallparkColorEqual, encodedBallparkDepthEqual );
+			ballparkValidationSucceeded = validationRan && diagnosticsRead && ballparkDiagnostics.valid &&
+				capturesWritten && encodedBallparkColorEqual && encodedBallparkDepthEqual;
+			ballparkReportSucceeded = WriteBallparkContractJson(
+				options, ballparkDiagnostics, encodedBallparkColorEqual, encodedBallparkDepthEqual );
 		}
 
 		if( options.validateComposition && !compositionValidationAttempted )
@@ -4719,6 +4953,21 @@ int main( int argc, char** argv )
 			if( options.validateTemporal )
 			{
 				productStats.emplace_back( "temporalValidation", temporalValidationStats );
+			}
+			if( options.validateBallpark )
+			{
+				std::ostringstream stats;
+				stats << "classes=" << ballparkDiagnostics.registeredClassCount
+					  << " evolves=" << ballparkDiagnostics.directEvolveCount
+					  << " originUpdates=" << ballparkDiagnostics.originUpdateCount << " offColor=" << std::hex
+					  << ballparkDiagnostics.offColorHash << " staticColor=" << ballparkDiagnostics.staticColorHash
+					  << " offDepth=" << ballparkDiagnostics.offDepthHash << " staticDepth="
+					  << ballparkDiagnostics.staticDepthHash << std::dec
+					  << " world=" << ( ballparkDiagnostics.worldMatricesEqual ? "identical" : "different" )
+					  << " encodedColor=" << ( encodedBallparkColorEqual ? "identical" : "different" )
+					  << " encodedDepth=" << ( encodedBallparkDepthEqual ? "identical" : "different" )
+					  << " validation=" << ( ballparkValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "ballparkValidation", stats.str() );
 			}
 			if( captureToneSnapshot )
 			{
@@ -5051,7 +5300,8 @@ int main( int argc, char** argv )
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
 			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
-			temporalValidationSucceeded && exposureReportsSucceeded;
+			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
+			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

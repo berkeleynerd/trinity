@@ -22,6 +22,10 @@ public:
 	virtual float GetValueAt( Be::Time time );
 	virtual float GetValueAt( double time );
 	virtual void ScaleTime( float s );
+	void SetValue( const Vector4& value )
+	{
+		m_value = value;
+	}
 
 	virtual Vector3* Update( Vector3 * in, Be::Time time );
 	virtual Vector3* Update( Vector3 * in, double time );

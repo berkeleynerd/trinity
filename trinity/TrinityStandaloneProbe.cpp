@@ -10,6 +10,7 @@
 #include "Eve/EveEffectRoot2.h"
 #include "Eve/EveLensflare.h"
 #include "Eve/EveOccluder.h"
+#include "Eve/EveRootTransform.h"
 #include "Eve/EveStarfield.h"
 #include "Eve/IEveShadowCaster.h"
 #include "Eve/IEveSpaceObject2.h"
@@ -46,6 +47,7 @@
 #include "Lights/Tr2SpotLight.h"
 #include "Lights/Tr2TexturedPointLight.h"
 #include "PostProcess/Tr2PostProcess2.h"
+#include "Curves/Tr2CurveConstant.h"
 #include "Tr2Mesh.h"
 #include "Tr2ProfileTimer.h"
 #include "Tr2ReflectionProbe.h"
@@ -81,12 +83,21 @@
 #include <cmath>
 #include <fstream>
 #include <functional>
+#include <iomanip>
 #include <initializer_list>
 #include <map>
 #include <sstream>
 #include <set>
 #include <string>
 #include <vector>
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#endif
+
+#if TRINITY_WITH_DESTINY_EMBEDDED
+#include <DestinyEmbedded.h>
+#endif
 
 extern "C" void TrinityStandaloneStartup();
 extern "C" bool BlueInitializeResourceLoading();
@@ -167,6 +178,12 @@ enum StandaloneMotionMode
 	STANDALONE_MOTION_CAMERA = 1,
 	STANDALONE_MOTION_OBJECT = 2,
 	STANDALONE_MOTION_COMBINED = 3,
+};
+
+enum StandaloneBallparkMode
+{
+	STANDALONE_BALLPARK_OFF = 0,
+	STANDALONE_BALLPARK_STATIC = 1,
 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
@@ -254,7 +271,19 @@ public:
 			centerScale[2],
 			centerScale[3],
 			m_shadowBoundingRadius );
-		return m_shadowBoundingRadius > 0.0f;
+		if( m_shadowBoundingRadius <= 0.0f || !m_rootTransform.CreateInstance( GetEveRootTransformClsid() ) ||
+			!m_constantPosition.CreateInstance() || !m_constantRotation.CreateInstance() )
+		{
+			error = "Failed to create the shared EveRootTransform curve path";
+			return false;
+		}
+		m_constantPosition->SetValue( Vector4( 0.0f, 0.0f, 0.0f, 0.0f ) );
+		m_rootTransform->SetBallPositionCurve( m_constantPosition );
+		m_rootTransform->SetBallRotationCurve( m_constantRotation );
+		UpdateControlTransformCurve();
+		EveUpdateContext initialContext( 0 );
+		m_rootTransform->Update( initialContext );
+		return true;
 	}
 
 	void SetShadowCastingEnabled( bool enabled )
@@ -276,6 +305,50 @@ public:
 	void SetObjectMotionActive( bool active )
 	{
 		m_objectMotionActive = active;
+	}
+	Quaternion GetControlRotation() const
+	{
+		const float seconds = static_cast<float>( m_time ) / 10000000.0f;
+		const float motionSeconds = m_objectMotionActive ? std::max( 0.0f, seconds - 3.0f ) : 0.0f;
+		const float yaw = motionSeconds * 0.38f - 0.8f + m_modelYawOffset;
+		Quaternion rotation;
+		Vector3 scale, translation;
+		Decompose(
+			scale,
+			rotation,
+			translation,
+			RotationYMatrix( yaw ) * RotationXMatrix( -0.28f ) );
+		return Normalize( rotation );
+	}
+	float GetModelRadius() const
+	{
+		return m_shadowBoundingRadius;
+	}
+	bool SetBallparkCurves( ITriVectorFunction* position, ITriQuaternionFunction* rotation )
+	{
+		if( !m_rootTransform || !position || !rotation )
+			return false;
+		m_rootTransform->SetBallPositionCurve( position );
+		m_rootTransform->SetBallRotationCurve( rotation );
+		m_ballparkDriven = true;
+		return true;
+	}
+	bool SetControlCurves()
+	{
+		if( !m_rootTransform || !m_constantPosition || !m_constantRotation )
+			return false;
+		m_rootTransform->SetBallPositionCurve( m_constantPosition );
+		m_rootTransform->SetBallRotationCurve( m_constantRotation );
+		m_ballparkDriven = false;
+		UpdateControlTransformCurve();
+		return true;
+	}
+	void SetControlRotationOverride( const Quaternion& rotation )
+	{
+		m_controlRotationOverride = rotation;
+		m_hasControlRotationOverride = true;
+		m_constantRotation->SetValue(
+			Vector4( rotation.x, rotation.y, rotation.z, rotation.w ) );
 	}
 	const Matrix& GetCurrentWorldTransform() const
 	{
@@ -1555,6 +1628,9 @@ public:
 		if( m_worldTransformInitialized && updateContext.GetTime() != m_time )
 			m_previousWorldTransform = m_worldTransform;
 		m_time = updateContext.GetTime();
+		if( !m_ballparkDriven )
+			UpdateControlTransformCurve();
+		m_rootTransform->Update( updateContext );
 		if( !m_decalEntries.empty() )
 		{
 			++m_decalWarmupFrames;
@@ -2927,12 +3003,11 @@ private:
 		const float pitch = -0.28f;
 		if( m_useEveV5Material )
 		{
-			const Matrix rotation = RotationYMatrix( yaw ) * RotationXMatrix( pitch );
 			float centerScale[4];
 			m_model.GetCenterAndScale( centerScale );
 			m_decalWorldTransform = TranslationMatrix(
 										Vector3( -centerScale[0], -centerScale[1], -centerScale[2] ) ) *
-				rotation;
+				m_rootTransform->GetLastUpdateMatrix();
 			m_worldTransform = m_decalWorldTransform;
 			if( !m_worldTransformInitialized )
 			{
@@ -2972,6 +3047,13 @@ private:
 		}
 	}
 
+	void UpdateControlTransformCurve()
+	{
+		const Quaternion rotation =
+			m_hasControlRotationOverride ? m_controlRotationOverride : GetControlRotation();
+		m_constantRotation->SetValue( Vector4( rotation.x, rotation.y, rotation.z, rotation.w ) );
+	}
+
 	Be::Time m_time = 0;
 	float m_aspect = 1.0f;
 	bool m_drawFailed = false;
@@ -2997,10 +3079,13 @@ private:
 	bool m_engineLightsEnabled = false;
 	bool m_engineLightingActive = false;
 	bool m_objectMotionActive = false;
+	bool m_ballparkDriven = false;
+	bool m_hasControlRotationOverride = false;
 	bool m_worldTransformInitialized = false;
 	uint32_t m_shUpdateCount = 0;
 	uint32_t m_killCount = 0;
 	float m_modelYawOffset = 0.0f;
+	Quaternion m_controlRotationOverride = Quaternion( 0.0f, 0.0f, 0.0f, 1.0f );
 	uint32_t m_decalWarmupFrames = 0;
 	uint32_t m_decalDeclaredSetCount = 0;
 	uint32_t m_decalDeclaredItemCount = 0;
@@ -3020,6 +3105,9 @@ private:
 	mutable std::atomic<uint32_t> m_distortionSubmittedBatches = 0;
 	mutable std::atomic<uint32_t> m_distortionSubmittedIndices = 0;
 	TrinityStandaloneCmfModel m_model;
+	EveRootTransformPtr m_rootTransform;
+	Tr2CurveConstantPtr m_constantPosition;
+	Tr2CurveConstantPtr m_constantRotation;
 	TriGeometryResPtr m_decalGeometry;
 	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
 	std::array<bool, 3> m_reportedAreaBatch = {};
@@ -3433,6 +3521,7 @@ struct StandaloneProbe
 		if( scene )
 		{
 			scene->SetShLightingManager( nullptr );
+			scene->SetBallpark( nullptr );
 		}
 		renderProductReadback = Tr2TextureAL{};
 		hdrCompositeReadback = Tr2TextureAL{};
@@ -3463,6 +3552,13 @@ struct StandaloneProbe
 		silkCloudRoot.Unlock();
 		scene.Unlock();
 		renderable.Unlock();
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( destinySession )
+		{
+			Destiny_DestroyEmbeddedSession( destinySession );
+			destinySession = nullptr;
+		}
+#endif
 		secondaryLights.clear();
 		shLightingManager.Unlock();
 		g_eveSpaceSceneDynamicLighting = false;
@@ -3528,6 +3624,16 @@ struct StandaloneProbe
 	TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
 	TrinityStandaloneEngineDiagnostics engineDiagnostics;
 	TrinityStandaloneTemporalValidation temporalValidation;
+	TrinityStandaloneBallparkDiagnostics ballparkDiagnostics;
+	std::array<std::vector<uint8_t>, 4> ballparkCapturePixels;
+	uint32_t ballparkCaptureWidth = 0;
+	uint32_t ballparkCaptureHeight = 0;
+	std::ofstream ballparkLog;
+	int ballparkMode = STANDALONE_BALLPARK_OFF;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	DestinyEmbeddedSession* destinySession = nullptr;
+	DestinyEmbeddedRegistration destinyRegistration = {};
+#endif
 	std::vector<TemporalSample> temporalSamples;
 	int temporalTest = STANDALONE_TEMPORAL_CONTRACT;
 	uint64_t velocityRawHash = 0;
@@ -10860,6 +10966,346 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetTemporalValidation(
 	return true;
 }
 
+bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time time, bool writeLog )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe.ballparkMode != STANDALONE_BALLPARK_STATIC || !probe.destinySession || !probe.scene )
+		return true;
+	DestinyEmbeddedDiagnostics source = {};
+	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &source ) )
+		return false;
+	IEveBallpark* ballpark = Destiny_GetEmbeddedBallpark( probe.destinySession );
+	if( !ballpark )
+		return false;
+
+	Vector3d referencePoint;
+	Vector3 delta, smoothedDelta, deltaVelocity;
+	ballpark->GetReferencePoint( &referencePoint, time );
+	ballpark->Delta( &delta, &smoothedDelta, time );
+	ballpark->DeltaVel( &deltaVelocity, time );
+	const float unitBase = ballpark->GetUnitBase();
+	const Vector3d origin = probe.scene->GetOrigin();
+	const Vector3 originShift = probe.scene->GetOriginShift();
+	auto& diagnostics = probe.ballparkDiagnostics;
+	diagnostics.available = true;
+	diagnostics.schedulerRegistered = source.schedulerRegistered;
+	diagnostics.directEvolveCount = source.directEvolveCount;
+	diagnostics.startCallCount = source.startCallCount;
+	diagnostics.onTickCallCount = source.onTickCallCount;
+	diagnostics.pythonCallbackCount = source.pythonCallbackCount;
+	diagnostics.originUpdateCount = probe.scene->GetSuccessfulOriginUpdateCount();
+	for( size_t i = 0; i < 3; ++i )
+	{
+		diagnostics.position[i] = source.position[i];
+		diagnostics.referencePoint[i] = ( &referencePoint.x )[i];
+		diagnostics.origin[i] = ( &origin.x )[i];
+		diagnostics.originShift[i] = ( &originShift.x )[i];
+		diagnostics.delta[i] = ( &delta.x )[i];
+		diagnostics.smoothedDelta[i] = ( &smoothedDelta.x )[i];
+		diagnostics.deltaVelocity[i] = ( &deltaVelocity.x )[i];
+	}
+	for( size_t i = 0; i < 4; ++i )
+		diagnostics.rotation[i] = source.rotation[i];
+	diagnostics.unitBase = unitBase;
+
+	if( writeLog && probe.ballparkLog.is_open() )
+	{
+		probe.ballparkLog << frame << ',' << time << ',' << source.directEvolveCount << ','
+			<< source.position[0] << ',' << source.position[1] << ',' << source.position[2] << ','
+			<< source.rotation[0] << ',' << source.rotation[1] << ',' << source.rotation[2] << ','
+			<< source.rotation[3] << ',' << referencePoint.x << ',' << referencePoint.y << ','
+			<< referencePoint.z << ',' << origin.x << ',' << origin.y << ',' << origin.z << ','
+			<< originShift.x << ',' << originShift.y << ',' << originShift.z << ',' << delta.x << ','
+			<< delta.y << ',' << delta.z << ',' << smoothedDelta.x << ',' << smoothedDelta.y << ','
+			<< smoothedDelta.z << ',' << deltaVelocity.x << ',' << deltaVelocity.y << ','
+			<< deltaVelocity.z << ',' << unitBase << ',' << diagnostics.originUpdateCount << '\n';
+		if( !probe.ballparkLog.good() )
+			return false;
+	}
+	return true;
+#else
+	( void )probe;
+	( void )frame;
+	( void )time;
+	( void )writeLog;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
+	void* opaqueProbe,
+	int mode,
+	const char* logPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
+		mode > STANDALONE_BALLPARK_STATIC )
+		return false;
+	probe->ballparkLog.close();
+	probe->scene->SetBallpark( nullptr );
+	if( !probe->renderable->SetControlCurves() )
+		return false;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->destinySession )
+	{
+		Destiny_DestroyEmbeddedSession( probe->destinySession );
+		probe->destinySession = nullptr;
+	}
+#endif
+	probe->ballparkMode = STANDALONE_BALLPARK_OFF;
+	probe->ballparkDiagnostics = {};
+	for( auto& pixels : probe->ballparkCapturePixels )
+		pixels.clear();
+	probe->ballparkCaptureWidth = 0;
+	probe->ballparkCaptureHeight = 0;
+	if( mode == STANDALONE_BALLPARK_OFF )
+	{
+		std::fprintf( stderr, "PL-10 ballpark contract: mode=off curves=sample-owned sceneBallpark=none\n" );
+		return true;
+	}
+
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->motionMode != STANDALONE_MOTION_STATIC && probe->motionMode != STANDALONE_MOTION_CAMERA )
+	{
+		std::fprintf( stderr, "Static Ballpark mode is incompatible with object motion\n" );
+		return false;
+	}
+	DestinyEmbeddedBallConfig config = {};
+	config.ballId = 1;
+	config.solarSystemId = 30005286;
+	config.mass = 1.0;
+	config.radius = probe->renderable->GetModelRadius();
+	config.maximumVelocity = 250.0f;
+	config.maximumAngularVelocity = 1.0f;
+	config.agility = 1.0f;
+	config.rotationalAgility = 1.0f;
+	config.speedFraction = 0.0f;
+	config.isFree = true;
+	const Quaternion authoredRotation = probe->renderable->GetControlRotation();
+	config.rotation[0] = authoredRotation.x;
+	config.rotation[1] = authoredRotation.y;
+	config.rotation[2] = authoredRotation.z;
+	config.rotation[3] = authoredRotation.w;
+	char error[512] = {};
+	probe->destinySession = Destiny_CreateEmbeddedSession( &config, error, sizeof( error ) );
+	if( !probe->destinySession )
+	{
+		std::fprintf( stderr, "Failed to create embedded Destiny session: %s\n", error );
+		return false;
+	}
+	if( !Destiny_RegisterBlueClasses( &probe->destinyRegistration ) ||
+		probe->destinyRegistration.discoveredClassCount != 10 ||
+		!probe->renderable->SetBallparkCurves(
+			Destiny_GetEmbeddedPosition( probe->destinySession ),
+			Destiny_GetEmbeddedRotation( probe->destinySession ) ) )
+	{
+		std::fprintf( stderr, "Failed to bind Destiny ClientBall curves\n" );
+		return false;
+	}
+	probe->scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe->destinySession ) );
+	probe->ballparkMode = STANDALONE_BALLPARK_STATIC;
+	probe->ballparkDiagnostics.available = true;
+	probe->ballparkDiagnostics.registeredClassCount = probe->destinyRegistration.discoveredClassCount;
+#ifdef __APPLE__
+	for( uint32_t imageIndex = 0; imageIndex < _dyld_image_count(); ++imageIndex )
+	{
+		const char* imageName = _dyld_get_image_name( imageIndex );
+		if( imageName && std::strstr( imageName, "/blue_debug.so" ) )
+			++probe->ballparkDiagnostics.loadedBlueImageCount;
+		if( imageName && std::strstr( imageName, "/libpython" ) )
+			++probe->ballparkDiagnostics.loadedPythonImageCount;
+	}
+#endif
+#if BLUE_WITH_PYTHON
+	probe->ballparkDiagnostics.pythonInitialized = Py_IsInitialized();
+	PyObject* modules = PyImport_GetModuleDict();
+	probe->ballparkDiagnostics.destinyPythonModulesAbsent = modules &&
+		PyMapping_HasKeyString( modules, "_destiny" ) == 0 &&
+		PyMapping_HasKeyString( modules, "_destiny_debug" ) == 0;
+#else
+	probe->ballparkDiagnostics.pythonInitialized = false;
+	probe->ballparkDiagnostics.destinyPythonModulesAbsent = true;
+#endif
+	if( logPath && logPath[0] )
+	{
+		probe->ballparkLog.open( logPath, std::ios::out | std::ios::trunc );
+		if( !probe->ballparkLog )
+		{
+			std::fprintf( stderr, "Failed to open Ballpark CSV '%s'\n", logPath );
+			return false;
+		}
+		probe->ballparkLog << std::fixed << std::setprecision( 9 );
+		probe->ballparkLog
+			<< "frame,time,evolve_count,position_x,position_y,position_z,rotation_x,rotation_y,rotation_z,rotation_w,"
+				"reference_x,reference_y,reference_z,origin_x,origin_y,origin_z,origin_shift_x,origin_shift_y,"
+				"origin_shift_z,delta_x,delta_y,delta_z,smoothed_delta_x,smoothed_delta_y,smoothed_delta_z,"
+				"delta_velocity_x,delta_velocity_y,delta_velocity_z,unit_base,origin_update_count\n";
+	}
+	std::fprintf(
+		stderr,
+		"PL-10 ballpark contract: mode=static system=30005286 ball=1 mode=STOP isFree=true radius=%.8f "
+		"maxVelocity=250 classes=%u python=initialized-required modules=absent scheduler=disabled\n",
+		config.radius,
+		probe->destinyRegistration.discoveredClassCount );
+	return true;
+#else
+	std::fprintf( stderr, "This Trinity build does not include BUILD_DESTINY_INTEGRATION\n" );
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || probe->ballparkMode != STANDALONE_BALLPARK_STATIC || !probe->destinySession ||
+		!probe->renderable || !probe->scene || probe->renderedFrameCount != 180 )
+		return false;
+	const uint64_t acceptedOriginUpdates = probe->scene->GetSuccessfulOriginUpdateCount();
+	const Be::Time realTime = static_cast<Be::Time>( probe->lastRealTime );
+	const Be::Time simTime = static_cast<Be::Time>( probe->lastSimTime );
+	Quaternion frozenRotation;
+	if( !Destiny_GetEmbeddedRotation( probe->destinySession )->GetValueAt( &frozenRotation, simTime ) )
+		return false;
+	probe->renderable->SetControlRotationOverride( frozenRotation );
+	auto preserveCapture = [&]( size_t index ) {
+		if( probe->capturedProductPixels.empty() )
+			return false;
+		if( probe->ballparkCaptureWidth == 0 )
+		{
+			probe->ballparkCaptureWidth = probe->capturedProductWidth;
+			probe->ballparkCaptureHeight = probe->capturedProductHeight;
+		}
+		if( probe->capturedProductWidth != probe->ballparkCaptureWidth ||
+			probe->capturedProductHeight != probe->ballparkCaptureHeight )
+		{
+			return false;
+		}
+		probe->ballparkCapturePixels[index] = probe->capturedProductPixels;
+		return true;
+	};
+	auto capture = [&]( bool staticMode, uint64_t& colorHash, uint64_t& depthHash, float* world ) {
+		if( staticMode )
+		{
+			if( !probe->renderable->SetBallparkCurves(
+					Destiny_GetEmbeddedPosition( probe->destinySession ),
+					Destiny_GetEmbeddedRotation( probe->destinySession ) ) )
+				return false;
+			probe->scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe->destinySession ) );
+		}
+		else
+		{
+			if( !probe->renderable->SetControlCurves() )
+				return false;
+			probe->scene->SetBallpark( nullptr );
+		}
+		probe->driver->SetTemporalHistoryFrozen( true );
+		const bool colorOk = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_COLOR );
+		colorHash = probe->capturedProductHash;
+		const size_t captureBase = staticMode ? 2 : 0;
+		const bool colorPreserved = colorOk && preserveCapture( captureBase );
+		const Matrix matrix = probe->renderable->GetCurrentWorldTransform();
+		static_assert( sizeof( Matrix ) == sizeof( float ) * 16, "Ballpark matrix layout changed" );
+		std::memcpy( world, &matrix, sizeof( matrix ) );
+		std::fprintf( stderr, "PL-10 %s world:", staticMode ? "static" : "off" );
+		for( size_t value = 0; value < 16; ++value )
+			std::fprintf( stderr, " %.9g", world[value] );
+		std::fprintf( stderr, "\n" );
+		const bool depthOk = colorOk &&
+			DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_DEPTH );
+		depthHash = probe->capturedProductHash;
+		const bool depthPreserved = depthOk && preserveCapture( captureBase + 1 );
+		probe->driver->SetTemporalHistoryFrozen( false );
+		return colorPreserved && depthPreserved;
+	};
+	auto& diagnostics = probe->ballparkDiagnostics;
+	const bool offCaptured = capture(
+		false, diagnostics.offColorHash, diagnostics.offDepthHash, diagnostics.offWorld );
+	const bool staticCaptured = capture(
+		true, diagnostics.staticColorHash, diagnostics.staticDepthHash, diagnostics.staticWorld );
+	probe->driver->SetTemporalHistoryFrozen( true );
+	const bool finalColorRestored =
+		DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_COLOR );
+	probe->driver->SetTemporalHistoryFrozen( false );
+	probe->ballparkMode = STANDALONE_BALLPARK_STATIC;
+	diagnostics.worldMatricesEqual =
+		std::memcmp( diagnostics.offWorld, diagnostics.staticWorld, sizeof( diagnostics.offWorld ) ) == 0;
+	diagnostics.colorHashesEqual = diagnostics.offColorHash == diagnostics.staticColorHash;
+	diagnostics.depthHashesEqual = diagnostics.offDepthHash == diagnostics.staticDepthHash;
+	if( !UpdateBallparkDiagnostics( *probe, probe->renderedFrameCount - 1, simTime, false ) )
+		return false;
+	diagnostics.originUpdateCount = acceptedOriginUpdates;
+	const auto zero3 = []( const auto* values ) {
+		return values[0] == 0 && values[1] == 0 && values[2] == 0;
+	};
+	diagnostics.valid = offCaptured && staticCaptured && finalColorRestored && diagnostics.worldMatricesEqual &&
+		diagnostics.colorHashesEqual && diagnostics.depthHashesEqual && diagnostics.directEvolveCount == 2 &&
+		diagnostics.originUpdateCount == 180 && diagnostics.startCallCount == 0 &&
+		diagnostics.onTickCallCount == 0 && diagnostics.pythonCallbackCount == 0 &&
+		!diagnostics.schedulerRegistered && diagnostics.pythonInitialized &&
+		diagnostics.destinyPythonModulesAbsent && zero3( diagnostics.position ) &&
+		diagnostics.loadedBlueImageCount == 1 && diagnostics.loadedPythonImageCount == 1 &&
+		zero3( diagnostics.referencePoint ) && zero3( diagnostics.origin ) &&
+		zero3( diagnostics.originShift ) && zero3( diagnostics.delta ) &&
+		zero3( diagnostics.smoothedDelta ) && zero3( diagnostics.deltaVelocity ) &&
+		diagnostics.unitBase == 1.0f;
+	std::fprintf(
+		stderr,
+		"PL-10 frozen validation: world=%s color=%016llx/%016llx depth=%016llx/%016llx "
+		"evolves=%llu originUpdates=%llu scheduler=%s callbacks=%llu validation=%s\n",
+		diagnostics.worldMatricesEqual ? "identical" : "DIFFERENT",
+		static_cast<unsigned long long>( diagnostics.offColorHash ),
+		static_cast<unsigned long long>( diagnostics.staticColorHash ),
+		static_cast<unsigned long long>( diagnostics.offDepthHash ),
+		static_cast<unsigned long long>( diagnostics.staticDepthHash ),
+		static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+		static_cast<unsigned long long>( diagnostics.originUpdateCount ),
+		diagnostics.schedulerRegistered ? "ACTIVE" : "off",
+		static_cast<unsigned long long>( diagnostics.pythonCallbackCount ),
+		diagnostics.valid ? "pass" : "fail" );
+	return diagnostics.valid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneBallparkDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !diagnostics || !probe->ballparkDiagnostics.available )
+		return false;
+	*diagnostics = probe->ballparkDiagnostics;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkCapture(
+	void* opaqueProbe,
+	int staticMode,
+	int depthProduct,
+	const uint8_t** pixels,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* pitch )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !pixels || !width || !height || !pitch || staticMode < 0 || staticMode > 1 ||
+		depthProduct < 0 || depthProduct > 1 )
+	{
+		return false;
+	}
+	const auto& capture = probe->ballparkCapturePixels[static_cast<size_t>( staticMode * 2 + depthProduct )];
+	if( capture.empty() || probe->ballparkCaptureWidth == 0 || probe->ballparkCaptureHeight == 0 )
+		return false;
+	*pixels = capture.data();
+	*width = probe->ballparkCaptureWidth;
+	*height = probe->ballparkCaptureHeight;
+	*pitch = probe->ballparkCaptureWidth * 4;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -10906,6 +11352,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	}
 	if( !freezeScene )
 	{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( probe->ballparkMode == STANDALONE_BALLPARK_STATIC &&
+			( !probe->destinySession ||
+			  !Destiny_AdvanceEmbeddedSession( probe->destinySession, static_cast<Be::Time>( simTime ) ) ) )
+		{
+			CCP_LOGERR( "Embedded Destiny direct evolve failed" );
+			return false;
+		}
+#endif
 		UpdateProbeCamera( *probe );
 		if( probe->renderable )
 		{
@@ -10924,6 +11379,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	probe->driver->SetTemporalHistoryFrozen( false );
 	if( rendered && !freezeScene )
 	{
+		if( !UpdateBallparkDiagnostics(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
+		{
+			CCP_LOGERR( "Failed to record embedded Ballpark diagnostics" );
+			return false;
+		}
 		++probe->renderedFrameCount;
 	}
 	if( rendered && !freezeScene && probe->celestialInspectionTarget &&
