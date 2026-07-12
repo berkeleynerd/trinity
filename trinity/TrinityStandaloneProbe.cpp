@@ -263,6 +263,17 @@ constexpr double kNewEdenEveGateRelative[3] = { 1096057063200.0, -201867615160.0
 // Synthetic fixture identifier: no authored in-space item id exists for the landmark.
 constexpr int64_t kNewEdenEveGateBallId = 900001;
 
+enum StandaloneCelestialAnchor
+{
+	STANDALONE_CELESTIAL_ANCHOR_STARGATE = 0,
+	STANDALONE_CELESTIAL_ANCHOR_EVE_GATE = 1,
+};
+
+// Gate-site anchor: the fixture origin moves to a 60 km standoff from the
+// landmark so the authored graph is viewed at site range, as the client's
+// own screenshots are. All celestial offsets stay authored-relative.
+constexpr double kNewEdenGateSiteStandoff = 60000.0;
+
 enum StandaloneEveGateMode
 {
 	STANDALONE_EVE_GATE_OFF = 0,
@@ -3791,6 +3802,8 @@ struct StandaloneProbe
 	bool celestialLinkageActive = false;
 	uint64_t eveGateApproachFrame = 0;
 	bool eveGateApproachIssued = false;
+	int celestialAnchorMode = STANDALONE_CELESTIAL_ANCHOR_STARGATE;
+	double celestialAnchorOffset[3] = { 0.0, 0.0, 0.0 };
 	int eveGateMode = STANDALONE_EVE_GATE_OFF;
 	EveEffectRoot2Ptr eveGateRoot;
 	float eveGateAuthoredRadius = 0.0f;
@@ -11587,6 +11600,16 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 	if( !Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenSunBallId, &sunState ) ||
 		!Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenPlanetBallId, &planetState ) )
 		return false;
+	const double sunAnchored[3] = {
+		kNewEdenSunRelative[0] - probe.celestialAnchorOffset[0],
+		kNewEdenSunRelative[1] - probe.celestialAnchorOffset[1],
+		kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2],
+	};
+	const double planetAnchored[3] = {
+		kNewEdenPlanetRelative[0] - probe.celestialAnchorOffset[0],
+		kNewEdenPlanetRelative[1] - probe.celestialAnchorOffset[1],
+		kNewEdenPlanetRelative[2] - probe.celestialAnchorOffset[2],
+	};
 	const auto stateExact = []( const DestinyEmbeddedCelestialState& state, double radius, const double* position ) {
 		bool exact = state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
 			!state.isMassive && !state.isInteractive && state.radius == static_cast<float>( radius );
@@ -11595,8 +11618,8 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 		return exact;
 	};
 	diagnostics.celestialStateValid = diagnostics.celestialStateValid &&
-		stateExact( sunState, kNewEdenStarRadius, kNewEdenSunRelative ) &&
-		stateExact( planetState, kNewEdenPlanetRadius, kNewEdenPlanetRelative );
+		stateExact( sunState, kNewEdenStarRadius, sunAnchored ) &&
+		stateExact( planetState, kNewEdenPlanetRadius, planetAnchored );
 
 	ITriVectorFunction* sunCurve = Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenSunBallId );
 	ITriVectorFunction* planetCurve =
@@ -11623,12 +11646,10 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 	diagnostics.sunIdentifiedUniquely = sunMatches == 1 && matchedAuthoredSun;
 
 	const double sunDistance = std::sqrt(
-		kNewEdenSunRelative[0] * kNewEdenSunRelative[0] + kNewEdenSunRelative[1] * kNewEdenSunRelative[1] +
-		kNewEdenSunRelative[2] * kNewEdenSunRelative[2] );
+		sunAnchored[0] * sunAnchored[0] + sunAnchored[1] * sunAnchored[1] + sunAnchored[2] * sunAnchored[2] );
 	const double planetDistance = std::sqrt(
-		kNewEdenPlanetRelative[0] * kNewEdenPlanetRelative[0] +
-		kNewEdenPlanetRelative[1] * kNewEdenPlanetRelative[1] +
-		kNewEdenPlanetRelative[2] * kNewEdenPlanetRelative[2] );
+		planetAnchored[0] * planetAnchored[0] + planetAnchored[1] * planetAnchored[1] +
+		planetAnchored[2] * planetAnchored[2] );
 	const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
 	const Vector3 sunWorld = probe.newEdenSun->GetWorldPosition();
 	const Vector3 planetWorld = probe.newEdenPlanet->GetWorldPosition();
@@ -11637,16 +11658,16 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 	double planetWorldError = 0.0;
 	for( size_t axis = 0; axis < 3; ++axis )
 	{
-		const double expectedDirection = -kNewEdenSunRelative[axis] / sunDistance;
+		const double expectedDirection = -sunAnchored[axis] / sunDistance;
 		directionError = std::max(
 			directionError,
 			std::abs( static_cast<double>( ( &lighting.sunDirection.x )[axis] ) - expectedDirection ) );
 		sunWorldError = std::max(
 			sunWorldError,
-			std::abs( static_cast<double>( ( &sunWorld.x )[axis] ) - kNewEdenSunRelative[axis] ) / sunDistance );
+			std::abs( static_cast<double>( ( &sunWorld.x )[axis] ) - sunAnchored[axis] ) / sunDistance );
 		planetWorldError = std::max(
 			planetWorldError,
-			std::abs( static_cast<double>( ( &planetWorld.x )[axis] ) - kNewEdenPlanetRelative[axis] ) /
+			std::abs( static_cast<double>( ( &planetWorld.x )[axis] ) - planetAnchored[axis] ) /
 				planetDistance );
 		diagnostics.sunWorldPosition[axis] = ( &sunWorld.x )[axis];
 		diagnostics.planetWorldPosition[axis] = ( &planetWorld.x )[axis];
@@ -11709,6 +11730,11 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 	if( probe.eveGateMode != STANDALONE_EVE_GATE_AUTHORED || !probe.eveGateRoot )
 		return true;
 	auto& diagnostics = probe.eveGateDiagnostics;
+	const double anchored[3] = {
+		kNewEdenEveGateRelative[0] - probe.celestialAnchorOffset[0],
+		kNewEdenEveGateRelative[1] - probe.celestialAnchorOffset[1],
+		kNewEdenEveGateRelative[2] - probe.celestialAnchorOffset[2],
+	};
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	if( diagnostics.linkageActive )
 	{
@@ -11719,7 +11745,7 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 			state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
 			!state.isMassive && !state.isInteractive && state.radius == diagnostics.ballRadius;
 		for( size_t axis = 0; exact && axis < 3; ++axis )
-			exact = state.position[axis] == kNewEdenEveGateRelative[axis] && state.velocity[axis] == 0.0;
+			exact = state.position[axis] == anchored[axis] && state.velocity[axis] == 0.0;
 		diagnostics.ballStateExact = diagnostics.ballStateExact && exact;
 		diagnostics.curveAttached = diagnostics.curveAttached && probe.eveGateCurve != nullptr &&
 			Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenEveGateBallId ) ==
@@ -11730,22 +11756,39 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 	}
 #endif
 	const double gateDistance = std::sqrt(
-		kNewEdenEveGateRelative[0] * kNewEdenEveGateRelative[0] +
-		kNewEdenEveGateRelative[1] * kNewEdenEveGateRelative[1] +
-		kNewEdenEveGateRelative[2] * kNewEdenEveGateRelative[2] );
+		anchored[0] * anchored[0] + anchored[1] * anchored[1] + anchored[2] * anchored[2] );
 	const Vector3 world = probe.eveGateRoot->GetWorldPosition();
 	double worldError = 0.0;
 	for( size_t axis = 0; axis < 3; ++axis )
 	{
 		worldError = std::max(
 			worldError,
-			std::abs( static_cast<double>( ( &world.x )[axis] ) - kNewEdenEveGateRelative[axis] ) / gateDistance );
+			std::abs( static_cast<double>( ( &world.x )[axis] ) - anchored[axis] ) /
+				std::max( 1.0, gateDistance ) );
 		diagnostics.worldPosition[axis] = ( &world.x )[axis];
 	}
 	diagnostics.maximumWorldError = std::max( diagnostics.maximumWorldError, worldError );
 	diagnostics.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
 	if( countSample )
+	{
 		++diagnostics.sampleCount;
+		if( diagnostics.sampleCount == 120 )
+		{
+			std::vector<ITr2Renderable*> renderables;
+			probe.eveGateRoot->GetRenderables( renderables, nullptr );
+			Vector4 sphere( 0.0f, 0.0f, 0.0f, 0.0f );
+			probe.eveGateRoot->GetBoundingSphere( sphere );
+			std::fprintf(
+				stderr,
+				"CP-36 EVE Gate frame-120 state: renderables=%zu world=(%.1f, %.1f, %.1f) "
+				"boundingRadius=%.3f\n",
+				renderables.size(),
+				diagnostics.worldPosition[0],
+				diagnostics.worldPosition[1],
+				diagnostics.worldPosition[2],
+				sphere.w );
+		}
+	}
 	return true;
 }
 
@@ -12375,8 +12418,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCelestialBallpark(
 	planetConfig.radius = static_cast<float>( kNewEdenPlanetRadius );
 	for( size_t axis = 0; axis < 3; ++axis )
 	{
-		sunConfig.position[axis] = kNewEdenSunRelative[axis];
-		planetConfig.position[axis] = kNewEdenPlanetRelative[axis];
+		sunConfig.position[axis] = kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis];
+		planetConfig.position[axis] = kNewEdenPlanetRelative[axis] - probe->celestialAnchorOffset[axis];
 	}
 	if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &sunConfig, error, sizeof( error ) ) ||
 		!Destiny_AddEmbeddedCelestial( probe->destinySession, &planetConfig, error, sizeof( error ) ) )
@@ -12479,6 +12522,40 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateApproach( v
 #endif
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* opaqueProbe, int anchor )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || anchor < STANDALONE_CELESTIAL_ANCHOR_STARGATE || anchor > STANDALONE_CELESTIAL_ANCHOR_EVE_GATE )
+		return false;
+	probe->celestialAnchorMode = anchor;
+	if( anchor == STANDALONE_CELESTIAL_ANCHOR_EVE_GATE )
+	{
+		const double gateDistance = std::sqrt(
+			kNewEdenEveGateRelative[0] * kNewEdenEveGateRelative[0] +
+			kNewEdenEveGateRelative[1] * kNewEdenEveGateRelative[1] +
+			kNewEdenEveGateRelative[2] * kNewEdenEveGateRelative[2] );
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			probe->celestialAnchorOffset[axis] = kNewEdenEveGateRelative[axis] -
+				kNewEdenEveGateRelative[axis] / gateDistance * kNewEdenGateSiteStandoff;
+		}
+		std::fprintf(
+			stderr,
+			"CP-36 celestial anchor: mode=eve-gate-site standoff=%.0f m offset=(%.0f, %.0f, %.0f)\n",
+			kNewEdenGateSiteStandoff,
+			probe->celestialAnchorOffset[0],
+			probe->celestialAnchorOffset[1],
+			probe->celestialAnchorOffset[2] );
+	}
+	else
+	{
+		probe->celestialAnchorOffset[0] = 0.0;
+		probe->celestialAnchorOffset[1] = 0.0;
+		probe->celestialAnchorOffset[2] = 0.0;
+	}
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opaqueProbe, int mode )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -12578,10 +12655,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	Vector4 boundingSphere( 0.0f, 0.0f, 0.0f, 0.0f );
 	gate->GetBoundingSphere( boundingSphere );
 	const float authoredRadius = boundingSphere.w > 0.0f ? boundingSphere.w : 1.0f;
+	const double gateAnchored[3] = {
+		kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+		kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+		kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+	};
 	const Vector3 gatePosition(
-		static_cast<float>( kNewEdenEveGateRelative[0] ),
-		static_cast<float>( kNewEdenEveGateRelative[1] ),
-		static_cast<float>( kNewEdenEveGateRelative[2] ) );
+		static_cast<float>( gateAnchored[0] ),
+		static_cast<float>( gateAnchored[1] ),
+		static_cast<float>( gateAnchored[2] ) );
 	const char* placement = "static";
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	if( probe->celestialLinkageActive && probe->destinySession )
@@ -12591,7 +12673,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		gateConfig.ballId = kNewEdenEveGateBallId;
 		gateConfig.radius = std::max( 1.0f, authoredRadius );
 		for( size_t axis = 0; axis < 3; ++axis )
-			gateConfig.position[axis] = kNewEdenEveGateRelative[axis];
+			gateConfig.position[axis] = gateAnchored[axis];
 		ITriVectorFunction* gateCurve = nullptr;
 		if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &gateConfig, destinyError, sizeof( destinyError ) ) ||
 			!( gateCurve = Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenEveGateBallId ) ) )
@@ -12850,10 +12932,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->renderedFrameCount == probe->eveGateApproachFrame )
 		{
 			DestinyEmbeddedDiagnostics approachState = {};
+			const double approachTarget[3] = {
+				kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+			};
 			if( !probe->destinySession ||
 				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &approachState ) ||
 				!Destiny_CommandEmbeddedGoto(
-					probe->destinySession, approachState.nextTickTime, kNewEdenEveGateRelative ) )
+					probe->destinySession, approachState.nextTickTime, approachTarget ) )
 			{
 				CCP_LOGERR( "Embedded Destiny EVE Gate approach command failed" );
 				return false;

@@ -605,6 +605,7 @@ struct Options
 	uint64_t eveGateApproachFrame = 0;
 	int eveGate = 0;
 	bool validateEveGate = false;
+	int celestialAnchor = 0;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2159,6 +2160,7 @@ void PrintUsage( const char* executable )
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
+		<< "       [--celestial-anchor stargate|evegate]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2406,6 +2408,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-eve-gate" )
 		{
 			options.validateEveGate = true;
+		}
+		else if( arg == "--celestial-anchor" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = argv[i];
+			if( value == "stargate" )
+				options.celestialAnchor = 0;
+			else if( value == "evegate" )
+				options.celestialAnchor = 1;
+			else
+				return false;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3386,6 +3400,15 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ) )
 	{
 		std::cerr << "--eve-gate authored requires the exact-system New Eden fixture\n";
+		return false;
+	}
+	if( options.celestialAnchor != 0 &&
+		( options.celestialBallpark != CelestialBallparkMode::Natural ||
+		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
+		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
+	{
+		std::cerr << "--celestial-anchor evegate is a demo anchor requiring natural celestials, and is "
+					 "incompatible with validation fixtures\n";
 		return false;
 	}
 	if( options.validateEveGate &&
@@ -5116,6 +5139,13 @@ int main( int argc, char** argv )
 					options.ballparkLogPath.empty() ? nullptr : options.ballparkLogPath.c_str() ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureBallparkEx failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) )
+			{
+				std::cerr << "TrinityStandaloneProbeSetCelestialAnchor failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;

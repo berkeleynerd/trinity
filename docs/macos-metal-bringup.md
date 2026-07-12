@@ -2222,6 +2222,26 @@ acceptance is claimed. Any future visual claim must gate on a gate-off
 A/B in a framing that faces the gate — the check whose omission allowed
 the misreading.
 
+The follow-up instrumented session narrows the failure to camera
+framing. `--celestial-anchor evegate` re-anchors the fixture at a 60 km
+standoff from the landmark (an exact double translation; validators
+remain stargate-anchored and refuse the demo anchor). Per-child
+visibility instrumentation at the site shows the authored graph
+executing correctly: mesh children update at exactly the anchored
+position, carry real transformed bounds (radii up to `1,130 m`, screen
+sizes `5..47` pixels), and pass every visibility condition — LOD parent
+`HIGH` versus lowest `LOW`, screen size versus authored minimum — except
+frustum inclusion, which failed in every framing tested (model view,
+and a chase-approach run whose gate-frame world positions also recorded
+an unexplained reference offset worth re-deriving). Gate-off A/B pairs
+at both anchors are pixel-identical, consistent with pure frustum
+culling rather than a submission failure. The zero root bounding sphere
+is exonerated for culling (defaults leave the root at `LOD HIGH` with
+dynamic selection off) and remains only the documented ball-radius
+fallback. The remaining step is a fixture whose camera provably faces
+the landmark — a fixed look-at framing rather than the sweeping chase —
+with the gate-off A/B as the acceptance gate.
+
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position
 through the accepted next-tick command seam after the ORBIT fixture

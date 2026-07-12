@@ -549,6 +549,9 @@ extern "C" bool TrinityStandaloneProbeConfigureCelestialBallpark(
 extern "C" bool TrinityStandaloneProbeConfigureEveGateApproach(
 	void* opaqueProbe,
 	uint64_t frame );
+extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
+	void* opaqueProbe,
+	int anchor );
 extern "C" bool TrinityStandaloneProbeConfigureEveGate(
 	void* opaqueProbe,
 	int mode );
