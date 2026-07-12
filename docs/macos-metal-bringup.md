@@ -2252,6 +2252,18 @@ near-state appearance (and re-deriving the chase-frame reference
 offset) is the remaining bring-up work before the acceptance-scale
 gate-off A/B.
 
+The first appearance-drive attempt is a measured negative:
+`--eve-gate-ratio` feeds `DistanceRatio` (and `ChangeDistanceRatio`)
+through `SetControllerVariable` after controller start, and site
+captures at ratios `0.1` and `0.9` differ from the undriven default by
+zero and eleven single-code-value pixels respectively. Either the
+variable is not the transition input the authored expressions read, or
+the state switch does not gate the dominant content. The option remains
+as explicit fixture input with the default fail-closed; the next probe
+is state-machine instrumentation — logging the current state, the
+transition evaluations, and the controller variable bindings — rather
+than further blind variable drives.
+
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position
 through the accepted next-tick command seam after the ORBIT fixture

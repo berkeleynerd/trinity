@@ -606,6 +606,7 @@ struct Options
 	int eveGate = 0;
 	bool validateEveGate = false;
 	int celestialAnchor = 0;
+	float eveGateRatio = -1.0f;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2160,7 +2161,7 @@ void PrintUsage( const char* executable )
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
-		<< "       [--celestial-anchor stargate|evegate]\n"
+		<< "       [--celestial-anchor stargate|evegate] [--eve-gate-ratio FLOAT]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2408,6 +2409,15 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-eve-gate" )
 		{
 			options.validateEveGate = true;
+		}
+		else if( arg == "--eve-gate-ratio" )
+		{
+			if( ++i >= argc )
+				return false;
+			char* end = nullptr;
+			options.eveGateRatio = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( options.eveGateRatio ) || options.eveGateRatio < 0.0f )
+				return false;
 		}
 		else if( arg == "--celestial-anchor" )
 		{
@@ -5174,7 +5184,7 @@ int main( int argc, char** argv )
 				[window close];
 				return 1;
 			}
-			if( !TrinityStandaloneProbeConfigureEveGate( probe, options.eveGate ) )
+			if( !TrinityStandaloneProbeConfigureEveGate( probe, options.eveGate, options.eveGateRatio ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureEveGate failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );

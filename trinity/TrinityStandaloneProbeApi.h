@@ -554,7 +554,8 @@ extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
 	int anchor );
 extern "C" bool TrinityStandaloneProbeConfigureEveGate(
 	void* opaqueProbe,
-	int mode );
+	int mode,
+	float distanceRatio );
 extern "C" bool TrinityStandaloneProbeValidateEveGate( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetEveGateDiagnostics(
 	void* opaqueProbe,

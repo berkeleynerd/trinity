@@ -12557,10 +12557,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* o
 	return true;
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opaqueProbe, int mode )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opaqueProbe, int mode, float distanceRatio )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
-	if( !probe || !probe->scene || mode < STANDALONE_EVE_GATE_OFF || mode > STANDALONE_EVE_GATE_AUTHORED )
+	if( !probe || !probe->scene || mode < STANDALONE_EVE_GATE_OFF || mode > STANDALONE_EVE_GATE_AUTHORED ||
+		( distanceRatio >= 0.0f && !std::isfinite( distanceRatio ) ) )
 		return false;
 	if( mode == STANDALONE_EVE_GATE_OFF )
 	{
@@ -12693,6 +12694,16 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	}
 	gate->StartControllers();
 	gate->Start();
+	if( distanceRatio >= 0.0f )
+	{
+		// Drives the authored appearance selection; the client-side policy that
+		// feeds this variable is unrecovered, so the value is explicit fixture
+		// input rather than recovered behavior.
+		gate->SetControllerVariable( "DistanceRatio", distanceRatio );
+		gate->SetControllerVariable( "ChangeDistanceRatio", distanceRatio );
+		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (explicit fixture input)\n",
+			distanceRatio );
+	}
 	probe->scene->Objects().Insert( -1, gate->GetRawRoot() );
 	probe->eveGateRoot = gate;
 	probe->eveGateMode = STANDALONE_EVE_GATE_AUTHORED;
