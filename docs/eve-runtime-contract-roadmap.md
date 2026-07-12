@@ -97,6 +97,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-33 | Destiny chase-camera visual diagnostic | Accepted as capability | A fixed-observer Ballpark drives a damped 48-degree over-shoulder camera through the complete STOP/GOTO fixture. The 1,200-frame gate records 3,055.9 units of camera travel, 61.5–371.0 units of ship distance, 11.41 degrees maximum focus error, and the complete ±25-degree arc. | This is a sample-owned presentation camera, not recovered EVE camera policy. Native 10-pixel decal culling remains active and observable during the arc. |
 | CP-34 | Native Destiny Frontier orbit and reference-frame contract | Accepted | After 180 STOP frames, the Astero performs 60 ORBIT evolves around fixed ball 3 at a requested 2,500 m surface range. Ego and observer share trajectory hash `fa0da4fbe311e3f8`; phase is `6.278067342`, final center distance is `2643.012492`, and maximum curve/root error is `0.000122039`. | Frontier orbit is explicit PL policy. Installed-client activation is unverified and the navigation target is nonrendered. |
 | CP-35 | Natural celestial Ballpark placement and sun-ball linkage | Accepted | Destiny balls `40334263`/`40334264` hold the authored sun and planet as RIGID, global, fixed, non-interactive balls at the exact stargate-anchored solarSystemContent positions and radii. The sun `EvePlanet` translation curve, `EveSpaceScene::sunBall`, and the lens flare share one `ClientBall` curve; the scene's pointer-equality predicate identifies the sun uniquely; the authored-distance flare size `0.606347` replaces the fallback `1.0`. Ego and observer 3,780-frame exact-system orbit runs retain trajectory hash `fa0da4fbe311e3f8`; direction error is below `6.9e-8` and world errors below `1.8e-8`. | The Ballpark frame is anchored at the Promised Land stargate observer; the star's authored map position is exactly the system origin. Celestial collision and cinematic-composition linkage remain out of scope. |
+| CP-36 | EVE Gate landmark placement and rendering | Active | Recon accepted: `landmark_evegate_01a.black` is an `EveEffectRoot2` graph (billboard/halo/translate-with-camera modifiers, `DistanceRatio` state machine, four specialfx effects with shipped Metal containers, two GR2 meshes, sixteen textures). Authored position recovered from `landmarks.static` record `1` against the system center: system-local `(26570123040, 801686600, -341719792)` m, `0.178 AU` from the star, `9.30 AU` from the accepted observer. `tools/fsd_read` is the committed reader; the journal records the full derivation. | No current-client caller exists for the asset (no code reference, no graphicids record, no `secondarySun`/`visualEffect` for `30005286`); in-space placement is explicit Promised Land policy, mirroring the PL-11B solver posture. `DistanceRatio` driving policy is unrecovered; bring-up starts from the graph default state, fail-closed. |
 
 ## Rung-model holes
 
@@ -118,10 +119,12 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Advance PL-11C native warp through the accepted motion/reference-frame seam.
-2. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
-3. Complete native full-screen ghosting inspection after transient classification passes.
-4. Keep RC-12B2 global froxels deferred and fail-closed.
+1. Implement CP-36 EVE Gate landmark staging, rendering, and Ballpark linkage
+   from the accepted recon (PL-12B).
+2. Advance PL-11C native warp through the accepted motion/reference-frame seam.
+3. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
+4. Complete native full-screen ghosting inspection after transient classification passes.
+5. Keep RC-12B2 global froxels deferred and fail-closed.
 
 RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
 retains fail-closed explicit modes independently. RC-05D booster/engine effects

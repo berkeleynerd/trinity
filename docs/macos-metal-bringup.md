@@ -2132,3 +2132,60 @@ cmake --build --preset arm64-osx-debug --target pl12_validate
 Cinematic composition keeps static placement because its framing positions
 are not authored; celestial collision remains out of scope. CP-35 and PL-12
 are accepted. PL-11C native warp is the next cross-repository unit.
+
+## PL-12B EVE Gate landmark reconnaissance (2026-07-12)
+
+The EVE Gate landmark is the one iconic New Eden celestial the scene still
+omits; this recon settles what it is, where it belongs, and how the current
+client treats it. The authored asset is
+`res:/dx9/model/celestial/landmark/landmark_evegate_01a.black` (10,909
+bytes), an `EveEffectRoot2` graph named `EVE_GATE`: billboard flare quads
+and a vortex mesh under `EveChildModifierBillboard2D/3D`, `Halo`, and
+`TranslateWithCamera` transform modifiers, a `Tr2StateMachine` switching
+appearance on a `DistanceRatio` controller, curve sets, and one audio child
+to prune. Its closure is four specialfx effects (`lensflares/flare`,
+`twocolorflare`, `ubershader`, `ubershadercube` — all four ship Metal
+containers in `resfileindex_macOS.txt`), two GR2 meshes (`unit_plane`,
+`vortex/wormhole_normalized`), and sixteen textures including one cube map.
+All the transform-modifier and state-machine classes already exist in this
+repository; none has yet been executed on the macOS Metal path.
+
+**The current client has no recovered caller for this asset.** All 12,502
+installed `code.ccp` modules were decompiled: no module references the
+model, `graphicids.fsdbinary` has no record resolving to it,
+`landmarks.static` is star-map marker data (its only consumer is
+`mapMarkerLandmark`), and New Eden's `solarSystemContent.static` record
+carries neither a `secondarySun` nor a `visualEffect` entry. The schema
+supports `secondarySun` (`itemID`, `typeID`, `effectBeaconTypeID`,
+`position`), but system `30005286` does not use it. In-space placement is
+therefore explicit Promised Land policy — the same posture as the PL-11B
+Frontier solver — not recovered current-client behavior.
+
+The authored position is still recoverable. `landmarks.static` record `1`
+is the EVE Gate (localization `60785` "EVE Gate", description `60740`
+naming New Eden). Its universe-frame position minus New Eden's system
+`center` gives the system-local position `(26570123040, 801686600,
+-341719792)` meters — `0.178 AU` from the star — and the stargate-anchored
+position `(1096057063200, -201867615160, -832210688752)` meters, `9.30 AU`
+from the accepted observer and about one degree from the sun direction.
+The full system-record decode also re-derives every previously accepted
+New Eden constant from primary data: planet preset `4321`, height graphics
+`3843`/`3903`, star `40334263` type `45041` radius `158,400,000`,
+`sunFlareGraphicID` `1247`, and one stargate `50013345` (destination
+`50012941`) at exactly the accepted observer position.
+
+`tools/fsd_read/fsd_read.py` is the committed reader for embedded-schema
+FSD statics (uint64 optional bitfield at `endOfFixedSizeData`, uint32
+offset table, dict body/footer layout). It reads local SharedCache payloads
+in place and copies no client bytes.
+
+The implementation unit (CP-36) is now fully specified: stage the
+manifest, convert both GR2s, prepare the graph synchronously with the
+audio child pruned, insert it as a scene object, and drive it through a
+third embedded celestial ball via the accepted PL-12 seam (the Destiny
+celestial capacity of four already accommodates it; the landmark has no
+authored in-space item identifier, so the fixture ball id will be
+explicitly synthetic). The one open behavioral question is authored
+appearance selection: `DistanceRatio` has no recovered driving policy, so
+the bring-up starts from the graph's default state, fail-closed, and
+records what executes.
