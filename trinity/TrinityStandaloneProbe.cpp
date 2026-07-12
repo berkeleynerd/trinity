@@ -124,6 +124,50 @@ BLUE_DEFINE_INTERFACE_IMPL( IRootReader );
 #define TRINITY_STANDALONE_EXPORT extern "C" __attribute__( ( visibility( "default" ) ) )
 #endif
 
+BLUE_DECLARE( AudEmitter );
+
+// The audio package is absent from this build, so authored emitters deserialize
+// into this inert placement sink instead of failing the Black reader.
+BLUE_CLASS( AudEmitter ) :
+	public IBluePlacementObserver
+{
+public:
+	EXPOSE_TO_BLUE();
+	AudEmitter( IRoot* lockobj = NULL );
+	~AudEmitter();
+
+	void UpdatePlacement( const Vector3& front, const Vector3& top, const Vector3& position ) override;
+
+	BlueSharedString m_name;
+};
+TYPEDEF_BLUECLASS( AudEmitter );
+
+BLUE_DEFINE( AudEmitter );
+
+AudEmitter::AudEmitter( IRoot* lockobj ) :
+	m_name()
+{
+}
+
+AudEmitter::~AudEmitter()
+{
+}
+
+void AudEmitter::UpdatePlacement( const Vector3& front, const Vector3& top, const Vector3& position )
+{
+	( void )front;
+	( void )top;
+	( void )position;
+}
+
+const Be::ClassInfo* AudEmitter::ExposeToBlue()
+{
+	EXPOSURE_BEGIN( AudEmitter, "" )
+		MAP_INTERFACE( IBluePlacementObserver )
+		MAP_ATTRIBUTE( "name", m_name, "", Be::READWRITE | Be::PERSIST )
+	EXPOSURE_END()
+}
+
 namespace
 {
 struct StandaloneProbe;
@@ -216,6 +260,14 @@ constexpr float kNewEdenPlanetAlbedo[3] = { 1.0f, 0.8901960849761963f, 0.6627451
 // landmark has no authored in-space item, so approaching it is explicit demo
 // policy rather than recovered client behavior (CP-36 recon).
 constexpr double kNewEdenEveGateRelative[3] = { 1096057063200.0, -201867615160.0, -832210688752.0 };
+// Synthetic fixture identifier: no authored in-space item id exists for the landmark.
+constexpr int64_t kNewEdenEveGateBallId = 900001;
+
+enum StandaloneEveGateMode
+{
+	STANDALONE_EVE_GATE_OFF = 0,
+	STANDALONE_EVE_GATE_AUTHORED = 1,
+};
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
 {
@@ -3644,6 +3696,7 @@ struct StandaloneProbe
 		froxelRoot.Unlock();
 		silkCloud.Unlock();
 		silkCloudRoot.Unlock();
+		eveGateRoot.Unlock();
 		scene.Unlock();
 		renderable.Unlock();
 #if TRINITY_WITH_DESTINY_EMBEDDED
@@ -3738,6 +3791,10 @@ struct StandaloneProbe
 	bool celestialLinkageActive = false;
 	uint64_t eveGateApproachFrame = 0;
 	bool eveGateApproachIssued = false;
+	int eveGateMode = STANDALONE_EVE_GATE_OFF;
+	EveEffectRoot2Ptr eveGateRoot;
+	float eveGateAuthoredRadius = 0.0f;
+	uint32_t eveGateMeshCount = 0;
 	EvePlanet* newEdenSun = nullptr;
 	EvePlanet* newEdenPlanet = nullptr;
 	EveLensflare* newEdenLensFlare = nullptr;
@@ -12373,6 +12430,156 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateApproach( v
 	std::fprintf( stderr, "The EVE Gate approach demo requires the embedded Destiny package\n" );
 	return false;
 #endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opaqueProbe, int mode )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || mode < STANDALONE_EVE_GATE_OFF || mode > STANDALONE_EVE_GATE_AUTHORED )
+		return false;
+	if( mode == STANDALONE_EVE_GATE_OFF )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate: mode=off\n" );
+		return true;
+	}
+	if( probe->eveGateRoot )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate: already configured\n" );
+		return false;
+	}
+	if( !probe->newEdenSystemComposition )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate requires the exact-system New Eden fixture\n" );
+		return false;
+	}
+	std::string error;
+	auto gate = LoadBlackObjectWithoutYield<EveEffectRoot2>(
+		"res:/dx9/model/celestial/landmark/landmark_evegate_01a.black",
+		error );
+	if( !gate )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate Black failed to load: %s\n", error.c_str() );
+		return false;
+	}
+	uint32_t meshCount = 0;
+	uint32_t containerCount = 0;
+	std::function<bool( IEveSpaceObjectChild*, int )> prepareChild =
+		[&]( IEveSpaceObjectChild* child, int depth ) -> bool {
+		if( !child )
+			return true;
+		EveChildContainerPtr container = BlueCastPtr( child );
+		if( container )
+		{
+			++containerCount;
+			for( IEveSpaceObjectChild* nested : container->m_objects )
+			{
+				if( !prepareChild( nested, depth + 1 ) )
+					return false;
+			}
+			return true;
+		}
+		EveChildMeshPtr meshChild = BlueCastPtr( child );
+		if( meshChild )
+		{
+			Tr2MeshPtr mesh = BlueCastPtr( meshChild->GetMesh() );
+			if( !mesh )
+			{
+				error = std::string( "EVE Gate mesh child has no serialized Tr2Mesh: " ) + child->GetName();
+				return false;
+			}
+			const std::string authored = mesh->GetMeshResPath() ? mesh->GetMeshResPath() : "";
+			const char* cmfPath = nullptr;
+			if( authored.find( "unit_plane" ) != std::string::npos )
+			{
+				cmfPath = "res:/graphics/generic/unit_plane.cmf";
+			}
+			else if( authored.find( "wormhole_normalized" ) != std::string::npos )
+			{
+				cmfPath = "res:/graphics/generic/vortex/wormhole_normalized.cmf";
+			}
+			else
+			{
+				error = "EVE Gate mesh child uses unstaged geometry: " + authored;
+				return false;
+			}
+			if( !PrepareCelestialMeshWithoutYield( *meshChild, cmfPath, "EVE Gate mesh", error ) )
+				return false;
+			++meshCount;
+			return true;
+		}
+		error = std::string( "EVE Gate graph contains an unprepared child type: " ) + child->GetName();
+		return false;
+	};
+	for( IEveSpaceObjectChild* child : gate->GetChildren() )
+	{
+		if( !prepareChild( child, 0 ) )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate graph preparation failed: %s\n", error.c_str() );
+			return false;
+		}
+	}
+	if( meshCount == 0 )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate graph contains no mesh children\n" );
+		return false;
+	}
+	if( !gate->Initialize() )
+	{
+		std::fprintf( stderr, "CP-36 EVE Gate root failed to initialize\n" );
+		return false;
+	}
+	Vector4 boundingSphere( 0.0f, 0.0f, 0.0f, 0.0f );
+	gate->GetBoundingSphere( boundingSphere );
+	const float authoredRadius = boundingSphere.w > 0.0f ? boundingSphere.w : 1.0f;
+	const Vector3 gatePosition(
+		static_cast<float>( kNewEdenEveGateRelative[0] ),
+		static_cast<float>( kNewEdenEveGateRelative[1] ),
+		static_cast<float>( kNewEdenEveGateRelative[2] ) );
+	const char* placement = "static";
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->celestialLinkageActive && probe->destinySession )
+	{
+		char destinyError[512] = {};
+		DestinyEmbeddedCelestialConfig gateConfig = {};
+		gateConfig.ballId = kNewEdenEveGateBallId;
+		gateConfig.radius = std::max( 1.0f, authoredRadius );
+		for( size_t axis = 0; axis < 3; ++axis )
+			gateConfig.position[axis] = kNewEdenEveGateRelative[axis];
+		ITriVectorFunction* gateCurve = nullptr;
+		if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &gateConfig, destinyError, sizeof( destinyError ) ) ||
+			!( gateCurve = Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenEveGateBallId ) ) )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate celestial ball failed: %s\n", destinyError );
+			return false;
+		}
+		gate->SetBallPositionCurve( gateCurve );
+		placement = "ballpark";
+	}
+	else
+#endif
+	{
+		gate->SetTransform( TranslationMatrix( gatePosition ) );
+	}
+	gate->StartControllers();
+	gate->Start();
+	probe->scene->Objects().Insert( -1, gate->GetRawRoot() );
+	probe->eveGateRoot = gate;
+	probe->eveGateMode = STANDALONE_EVE_GATE_AUTHORED;
+	probe->eveGateAuthoredRadius = authoredRadius;
+	probe->eveGateMeshCount = meshCount;
+	std::fprintf(
+		stderr,
+		"CP-36 EVE Gate: mode=authored placement=%s ball=%lld meshes=%u containers=%u authoredRadius=%.3f "
+		"position=(%.0f, %.0f, %.0f) distanceRatioPolicy=default-state\n",
+		placement,
+		static_cast<long long>( kNewEdenEveGateBallId ),
+		meshCount,
+		containerCount,
+		authoredRadius,
+		kNewEdenEveGateRelative[0],
+		kNewEdenEveGateRelative[1],
+		kNewEdenEveGateRelative[2] );
+	return true;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateCelestialBallpark( void* opaqueProbe )

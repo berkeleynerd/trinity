@@ -271,6 +271,18 @@ set(EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Re
 set(EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/planet)
 set(EVE_SCENE_PROBE_CELESTIAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenCelestialResources.json)
 set(EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenAtmosphereResources.json)
+set(EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/EveGateAssets)
+set(EVE_SCENE_PROBE_EVE_GATE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/EveGateResources.json)
+set(EVE_SCENE_PROBE_EVE_GATE_BLACK ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/landmark/landmark_evegate_01a.black)
+set(EVE_SCENE_PROBE_EVE_GATE_PLANE_GLTF ${EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR}/UnitPlane.gltf)
+set(EVE_SCENE_PROBE_EVE_GATE_PLANE_BIN ${EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR}/UnitPlane.bin)
+set(EVE_SCENE_PROBE_EVE_GATE_PLANE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unit_plane.cmf)
+set(EVE_SCENE_PROBE_EVE_GATE_PLANE_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/EveGatePlaneGeometry.json)
+set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_GLTF ${EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR}/WormholeNormalized.gltf)
+set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_BIN ${EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR}/WormholeNormalized.bin)
+set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/wormhole_normalized.cmf)
+set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/EveGateVortexGeometry.json)
+set(EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx)
 set(EVE_SCENE_PROBE_SUN_FX_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/SunFxAssets)
 set(EVE_SCENE_PROBE_SUN_FX_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunFxResources.json)
 set(EVE_SCENE_PROBE_SUN_FX_NOISE ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/Inherited/texture/global/noise.dds)
@@ -1687,6 +1699,131 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets AND EXISTS "${EVE_SCENE_PROBE_SHARED
     )
     add_dependencies(TrinityEveSceneProbeNewEdenSunFxAssets TrinityEveSceneProbeNewEdenCelestialAssets)
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenSunFxAssets)
+
+    set(EVE_SCENE_PROBE_EVE_GATE_RESOURCE_OUTPUTS
+        ${EVE_SCENE_PROBE_EVE_GATE_BLACK}
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_depth
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_depth
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_depth
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_06.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_15_n.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_20a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_22a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_24a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_wave_01b_hd.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/cubemap/cynocube_brightbw_01.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/capmask_tight_01c.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/floatingpoint/shieldimpactgradient_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/floatingpoint/v_lineargradient_01b.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/gradpattern_05a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/sphere_capmask_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_em_01f.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_energydrain_01c.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_energydrain_01d.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whitesharp2_gradient.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/wormholegradient.dds
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_EVE_GATE_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_EVE_GATE_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/dx9/model/celestial/landmark/landmark_evegate_01a.black ${EVE_SCENE_PROBE_EVE_GATE_BLACK}
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/flare.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/flare.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/lensflares/flare.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/lensflares/flare.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/twocolorflare.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/twocolorflare.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/twocolorflare.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/twocolorflare.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershader.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershader.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershader.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershader.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershadercube.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershadercube.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/ubershadercube.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/ubershadercube.sm_depth
+            --copy-resource res:/texture/fx/caustics/caustic_06.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_06.dds
+            --copy-resource res:/texture/fx/caustics/caustic_15_n.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_15_n.dds
+            --copy-resource res:/texture/fx/caustics/caustic_20a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_20a.dds
+            --copy-resource res:/texture/fx/caustics/caustic_22a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_22a.dds
+            --copy-resource res:/texture/fx/caustics/caustic_24a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_24a.dds
+            --copy-resource res:/texture/fx/caustics/caustic_wave_01b_hd.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/caustics/caustic_wave_01b_hd.dds
+            --copy-resource res:/texture/fx/cubemap/cynocube_brightbw_01.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/cubemap/cynocube_brightbw_01.dds
+            --copy-resource res:/texture/fx/gradients/capmask_tight_01c.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/capmask_tight_01c.dds
+            --copy-resource res:/texture/fx/gradients/floatingpoint/shieldimpactgradient_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/floatingpoint/shieldimpactgradient_01a.dds
+            --copy-resource res:/texture/fx/gradients/floatingpoint/v_lineargradient_01b.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/floatingpoint/v_lineargradient_01b.dds
+            --copy-resource res:/texture/fx/gradients/gradpattern_05a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/gradpattern_05a.dds
+            --copy-resource res:/texture/fx/gradients/sphere_capmask_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/sphere_capmask_01a.dds
+            --copy-resource res:/texture/fx/gradients/vertical_em_01f.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_em_01f.dds
+            --copy-resource res:/texture/fx/gradients/vertical_energydrain_01c.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_energydrain_01c.dds
+            --copy-resource res:/texture/fx/gradients/vertical_energydrain_01d.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/fx/gradients/vertical_energydrain_01d.dds
+            --copy-resource res:/texture/particle/whitesharp2_gradient.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/particle/whitesharp2_gradient.dds
+            --copy-resource res:/texture/sprite/wormholegradient.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/wormholegradient.dds
+            --manifest ${EVE_SCENE_PROBE_EVE_GATE_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GLTF} ${EVE_SCENE_PROBE_EVE_GATE_PLANE_BIN} ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model res:/graphics/generic/unit_plane.gr2
+            --output ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GLTF}
+            --manifest ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_EVE_GATE_PLANE_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GLTF}
+            --output ${EVE_SCENE_PROBE_EVE_GATE_PLANE_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GLTF} ${EVE_SCENE_PROBE_EVE_GATE_PLANE_BIN}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GLTF} ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_BIN} ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model res:/graphics/generic/vortex/wormhole_normalized.gr2
+            --output ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GLTF}
+            --manifest ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GLTF}
+            --output ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GLTF} ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_BIN}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeEveGateAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_EVE_GATE_RESOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_EVE_GATE_MANIFEST}
+            ${EVE_SCENE_PROBE_EVE_GATE_PLANE_CMF}
+            ${EVE_SCENE_PROBE_EVE_GATE_PLANE_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_CMF}
+            ${EVE_SCENE_PROBE_EVE_GATE_VORTEX_GEOMETRY_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeEveGateAssets TrinityEveSceneProbeNewEdenSunFxAssets)
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeEveGateAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHIP_SOURCE}")

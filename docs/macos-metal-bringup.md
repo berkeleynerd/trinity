@@ -2190,6 +2190,25 @@ appearance selection: `DistanceRatio` has no recovered driving policy, so
 the bring-up starts from the graph's default state, fail-closed, and
 records what executes.
 
+First light (2026-07-12): the staged manifest, both CMF conversions, and
+`--eve-gate authored` bring the complete authored graph up on Metal — nine
+mesh children and seven containers prepare synchronously, and all four
+specialfx programs (`lensflares/flare`, `twocolorflare`, `ubershader`,
+`ubershadercube`) validate and render. Deserialization required one piece
+of doctrine: the graph's authored audio emitter references the absent
+audio package's `AudEmitter` class by name, so the probe registers an
+inert `IBluePlacementObserver` stub under that name — the Black reader
+cannot skip unknown classes, and the stub simply absorbs placement
+updates. The gate is placed through the accepted PL-12 celestial seam as
+fixed ball `900001` (synthetic identifier; no authored in-space item
+exists) at the recovered landmark position, and the approach-demo capture
+shows the authored vortex and flare structure dominating the sky in the
+gate's direction from `9.3 AU`. The root bounding sphere reports zero
+before update, so the ball radius falls back to a documented `1.0 m`;
+the `DistanceRatio` state machine runs its default state. The CP-36
+validation contract (placement gates, curve identity, A/B controls,
+trajectory preservation with the third celestial ball) remains open.
+
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position
 through the accepted next-tick command seam after the ORBIT fixture

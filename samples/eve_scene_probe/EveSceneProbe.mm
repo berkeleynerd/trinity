@@ -603,6 +603,7 @@ struct Options
 	bool validateCelestialBallpark = false;
 	std::string celestialLogPath;
 	uint64_t eveGateApproachFrame = 0;
+	int eveGate = 0;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2156,7 +2157,7 @@ void PrintUsage( const char* executable )
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
-		<< "       [--eve-gate-approach FRAME]\n"
+		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2388,6 +2389,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			if( !end || *end != '\0' || parsed == 0 )
 				return false;
 			options.eveGateApproachFrame = parsed;
+		}
+		else if( arg == "--eve-gate" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = argv[i];
+			if( value == "off" )
+				options.eveGate = 0;
+			else if( value == "authored" )
+				options.eveGate = 1;
+			else
+				return false;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3362,6 +3375,12 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		std::cerr << "--eve-gate-approach is a post-command ORBIT demo option and is incompatible with "
 					 "Ballpark validation fixtures\n";
+		return false;
+	}
+	if( options.eveGate != 0 &&
+		( options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ) )
+	{
+		std::cerr << "--eve-gate authored requires the exact-system New Eden fixture\n";
 		return false;
 	}
 	if( options.validateChaseCamera &&
@@ -5067,6 +5086,13 @@ int main( int argc, char** argv )
 			if( !TrinityStandaloneProbeConfigureEveGateApproach( probe, options.eveGateApproachFrame ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureEveGateApproach failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeConfigureEveGate( probe, options.eveGate ) )
+			{
+				std::cerr << "TrinityStandaloneProbeConfigureEveGate failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
