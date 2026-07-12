@@ -415,6 +415,13 @@ enum class BallparkMode
 {
 	Off,
 	Static,
+	Goto,
+};
+
+enum class BallparkFrame
+{
+	Ego,
+	Observer,
 };
 
 enum class TemporalTest
@@ -570,7 +577,9 @@ struct Options
 	TaaDebug taaDebug = TaaDebug::Off;
 	MotionMode motion = MotionMode::Camera;
 	BallparkMode ballpark = BallparkMode::Off;
+	BallparkFrame ballparkFrame = BallparkFrame::Ego;
 	bool validateBallpark = false;
+	bool validateBallparkMotion = false;
 	std::string ballparkLogPath;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
@@ -1121,7 +1130,13 @@ std::string MotionModeName( MotionMode value )
 
 std::string BallparkModeName( BallparkMode value )
 {
-	return value == BallparkMode::Static ? "static" : "off";
+	static const char* names[] = { "off", "static", "goto" };
+	return names[static_cast<int>( value )];
+}
+
+std::string BallparkFrameName( BallparkFrame value )
+{
+	return value == BallparkFrame::Observer ? "observer" : "ego";
 }
 
 bool ParseBallparkMode( const std::string& value, BallparkMode& result )
@@ -1135,6 +1150,27 @@ bool ParseBallparkMode( const std::string& value, BallparkMode& result )
 	if( normalized == "static" )
 	{
 		result = BallparkMode::Static;
+		return true;
+	}
+	if( normalized == "goto" )
+	{
+		result = BallparkMode::Goto;
+		return true;
+	}
+	return false;
+}
+
+bool ParseBallparkFrame( const std::string& value, BallparkFrame& result )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "ego" )
+	{
+		result = BallparkFrame::Ego;
+		return true;
+	}
+	if( normalized == "observer" )
+	{
+		result = BallparkFrame::Observer;
 		return true;
 	}
 	return false;
@@ -2067,7 +2103,8 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
-		<< "       [--ballpark off|static] [--validate-ballpark] [--ballpark-log PATH]\n"
+		<< "       [--ballpark off|static|goto] [--ballpark-frame ego|observer]\n"
+		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--ballpark-log PATH]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
@@ -2226,6 +2263,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			if( ++i >= argc || !ParseBallparkMode( argv[i], options.ballpark ) )
 				return false;
 		}
+		else if( arg == "--ballpark-frame" )
+		{
+			if( ++i >= argc || !ParseBallparkFrame( argv[i], options.ballparkFrame ) )
+				return false;
+		}
 		else if( arg == "--ballpark-log" )
 		{
 			if( ++i >= argc )
@@ -2235,6 +2277,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-ballpark" )
 		{
 			options.validateBallpark = true;
+		}
+		else if( arg == "--validate-ballpark-motion" )
+		{
+			options.validateBallparkMotion = true;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3075,6 +3121,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Static Ballpark mode requires an Astero eve-v5 model render with static or camera motion\n";
 		return false;
 	}
+	if( options.ballpark == BallparkMode::Goto &&
+		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
+	{
+		std::cerr << "GOTO Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
+		return false;
+	}
+	if( options.ballparkFrame == BallparkFrame::Observer && options.ballpark != BallparkMode::Goto )
+	{
+		std::cerr << "The fixed-observer Ballpark frame is available only with --ballpark goto\n";
+		return false;
+	}
 	if( options.validateBallpark )
 	{
 		const bool canonical = options.ballpark == BallparkMode::Static && options.maxFrames == 180 &&
@@ -3097,6 +3155,34 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				<< "--validate-ballpark requires the 180-frame PL-10 hdr-post fixture: static camera, static "
 					"reflection, authored attachments/decals/lights/planet/flare, all temporal and finish effects "
 					"off, --ballpark-log, and --capture-prefix\n";
+			return false;
+		}
+	}
+	if( options.validateBallparkMotion )
+	{
+		const bool engineFixture = options.ballparkFrame == BallparkFrame::Observer ?
+			options.resolvedEngines == EngineMode::Authored : options.resolvedEngines == EngineMode::Off;
+		const bool canonical = options.ballpark == BallparkMode::Goto && options.maxFrames == 1200 &&
+			options.qualityRung == QualityRung::HdrPost && options.motion == MotionMode::Static &&
+			options.sceneFixture == SceneFixture::NewEden && options.composition == SceneComposition::Cinematic &&
+			options.resolvedTaa == TaaMode::Off && options.resolvedDynamicExposure == DynamicExposure::Off &&
+			options.resolvedBloom == PostFinishMode::Off && options.resolvedFilmGrain == PostFinishMode::Off &&
+			options.resolvedDistortion == DistortionMode::Off &&
+			options.resolvedVolumetrics == VolumetricMode::Off && engineFixture &&
+			options.resolvedReflectionSource == ReflectionSource::Static &&
+			options.resolvedAttachments == Attachments::Authored && options.resolvedDecals == Decals::Authored &&
+			options.localLights == LocalLights::Authored &&
+			options.resolvedLocalShadows == LocalShadows::Off && options.resolvedShadows == Shadows::Off &&
+			options.resolvedAmbientOcclusion == AmbientOcclusion::Off &&
+			options.planetLayers == PlanetLayers::All && options.resolvedSunEffects == SunEffects::Flare &&
+			!options.ballparkLogPath.empty() && !options.capturePrefix.empty();
+		if( !canonical )
+		{
+			std::cerr
+				<< "--validate-ballpark-motion requires the 1200-frame PL-11A hdr-post fixture: goto/static "
+					"sample motion, static reflection, authored attachments/decals/lights/planet/flare, all temporal "
+					"and finish effects off, engines off for ego or authored for observer, --ballpark-log, and "
+					"--capture-prefix\n";
 			return false;
 		}
 	}
@@ -3347,7 +3433,8 @@ std::string CaptureBasePath( const Options& options )
 		VolumetricModeName( options.resolvedVolumetrics ) + "-" +
 		VolumetricQualityName( options.resolvedVolumetricQuality ) + "_eng-" +
 		EngineModeName( options.resolvedEngines ) + "-" + EngineViewName( options.engineView ) + "-thr-" +
-		std::to_string( options.engineThrottle ) + "_bp-" + BallparkModeName( options.ballpark );
+		std::to_string( options.engineThrottle ) + "_bp-" + BallparkModeName( options.ballpark ) + "-" +
+		BallparkFrameName( options.ballparkFrame );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -3438,7 +3525,9 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "taaDebug=" << TaaDebugName( options.taaDebug ) << "\n";
 	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
 	metadata << "ballpark=" << BallparkModeName( options.ballpark ) << "\n";
+	metadata << "ballparkFrame=" << BallparkFrameName( options.ballparkFrame ) << "\n";
 	metadata << "validateBallpark=" << ( options.validateBallpark ? "true" : "false" ) << "\n";
+	metadata << "validateBallparkMotion=" << ( options.validateBallparkMotion ? "true" : "false" ) << "\n";
 	metadata << "ballparkLog=" << options.ballparkLogPath << "\n";
 	metadata << "temporalValidation=" << ( options.validateTemporal ? "requested" : "off" ) << "\n";
 	metadata << "temporalTest=" << TemporalTestName( options.temporalTest ) << "\n";
@@ -4374,6 +4463,70 @@ bool WriteBallparkContractJson(
 	return output.good();
 }
 
+bool WriteBallparkMotionContractJson(
+	const Options& options,
+	const TrinityStandaloneBallparkDiagnostics& diagnostics,
+	bool milestonesCaptured )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_ballpark-motion-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+		return false;
+	std::ofstream output( outputPath.c_str() );
+	if( !output )
+		return false;
+	auto writeArray = [&]( const char* name, const auto* values, size_t count, bool comma ) {
+		output << "  \"" << name << "\": [";
+		for( size_t i = 0; i < count; ++i )
+			output << ( i ? ", " : "" ) << std::setprecision( 12 ) << values[i];
+		output << "]" << ( comma ? "," : "" ) << "\n";
+	};
+	output << "{\n"
+		   << "  \"contract\": \"PL-11A native STOP and linear GOTO\",\n"
+		   << "  \"mode\": \"" << BallparkModeName( options.ballpark ) << "\",\n"
+		   << "  \"referenceFrame\": \"" << BallparkFrameName( options.ballparkFrame ) << "\",\n"
+		   << "  \"csv\": \"" << options.ballparkLogPath << "\",\n"
+		   << "  \"primaryBallId\": " << diagnostics.primaryBallId << ",\n"
+		   << "  \"egoBallId\": " << diagnostics.egoBallId << ",\n"
+		   << "  \"directEvolves\": " << diagnostics.directEvolveCount << ",\n"
+		   << "  \"commands\": " << diagnostics.commandCount << ",\n"
+		   << "  \"lastCommandTime\": " << diagnostics.lastCommandTime << ",\n"
+		   << "  \"orientationPins\": " << diagnostics.orientationPinCount << ",\n"
+		   << "  \"originUpdates\": " << diagnostics.originUpdateCount << ",\n"
+		   << "  \"trajectoryHash\": \"" << std::hex << diagnostics.trajectoryHash << std::dec << "\",\n"
+		   << "  \"maximumErrors\": {\"position\": " << diagnostics.maximumRawPositionError
+		   << ", \"velocity\": " << diagnostics.maximumRawVelocityError
+		   << ", \"acceleration\": " << diagnostics.maximumRawAccelerationError
+		   << ", \"curve\": " << diagnostics.maximumCurveError << ", \"root\": "
+		   << diagnostics.maximumRootError << ", \"origin\": " << diagnostics.maximumOriginError << "},\n"
+		   << "  \"initialRoll\": " << diagnostics.initialRoll << ",\n"
+		   << "  \"finalRoll\": " << diagnostics.finalRoll << ",\n"
+		   << "  \"overshootObserved\": " << ( diagnostics.overshootObserved ? "true" : "false" ) << ",\n"
+		   << "  \"reversalObserved\": " << ( diagnostics.reversalObserved ? "true" : "false" ) << ",\n"
+		   << "  \"nativeOrientationChanged\": "
+		   << ( diagnostics.nativeOrientationChanged ? "true" : "false" ) << ",\n"
+		   << "  \"milestonesCaptured\": " << ( milestonesCaptured ? "true" : "false" ) << ",\n"
+		   << "  \"runtimeCounters\": {\"scheduler\": "
+		   << ( diagnostics.schedulerRegistered ? "true" : "false" ) << ", \"start\": "
+		   << diagnostics.startCallCount << ", \"onTick\": " << diagnostics.onTickCallCount
+		   << ", \"pythonCallbacks\": " << diagnostics.pythonCallbackCount << "},\n"
+		   << "  \"engine\": {\"active\": " << ( diagnostics.engineKinematicsActive ? "true" : "false" )
+		   << ", \"speed\": " << diagnostics.engineParentSpeed << ", \"maximumVelocity\": "
+		   << diagnostics.engineMaximumVelocity << "},\n";
+	writeArray( "rawPosition", diagnostics.rawPosition, 3, true );
+	writeArray( "rawVelocity", diagnostics.rawVelocity, 3, true );
+	writeArray( "rawAcceleration", diagnostics.rawAcceleration, 3, true );
+	writeArray( "renderRelativePosition", diagnostics.position, 3, true );
+	writeArray( "referencePoint", diagnostics.referencePoint, 3, true );
+	writeArray( "origin", diagnostics.origin, 3, true );
+	writeArray( "rotation", diagnostics.rotation, 4, true );
+	writeArray( "gotoPoint", diagnostics.gotoPoint, 3, true );
+	writeArray( "engineAcceleration", diagnostics.engineParentAcceleration, 3, true );
+	output << "  \"validationPassed\": "
+		   << ( diagnostics.motionValid && milestonesCaptured ? "true" : "false" ) << "\n}\n";
+	std::cout << "Ballpark motion contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -4557,12 +4710,13 @@ int main( int argc, char** argv )
 				[window close];
 				return 1;
 			}
-			if( !TrinityStandaloneProbeConfigureBallpark(
+			if( !TrinityStandaloneProbeConfigureBallparkEx(
 					probe,
-					options.ballpark == BallparkMode::Static ? 1 : 0,
+					static_cast<int>( options.ballpark ),
+					static_cast<int>( options.ballparkFrame ),
 					options.ballparkLogPath.empty() ? nullptr : options.ballparkLogPath.c_str() ) )
 			{
-				std::cerr << "TrinityStandaloneProbeConfigureBallpark failed\n";
+				std::cerr << "TrinityStandaloneProbeConfigureBallparkEx failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
@@ -4630,6 +4784,8 @@ int main( int argc, char** argv )
 		const uint32_t compositionWarmupFrames = std::max( options.timingWarmup, 2u );
 		std::vector<double> framePacingSamples;
 		std::vector<TrinityStandalonePostProcessDiagnostics> exposureSamples;
+		bool ballparkMilestonesCaptured = true;
+		uint32_t ballparkMilestoneCount = 0;
 		while( !g_shouldQuit && ( options.maxFrames < 0 || renderedFrames < options.maxFrames ) )
 		{
 			@autoreleasepool
@@ -4673,7 +4829,23 @@ int main( int argc, char** argv )
 						break;
 					}
 				}
-				const int captureProducts = captureTemporalSample ?
+				const std::array<std::pair<int, const char*>, 5> ballparkMilestones = { {
+					{ 179, "pre-command" },
+					{ 359, "acceleration" },
+					{ 719, "overshoot" },
+					{ 1019, "reversal" },
+					{ 1199, "final" },
+				} };
+				const char* ballparkMilestone = nullptr;
+				if( options.validateBallparkMotion )
+				{
+					for( const auto& milestone : ballparkMilestones )
+					{
+						if( renderedFrames == milestone.first )
+							ballparkMilestone = milestone.second;
+					}
+				}
+				const int captureProducts = ballparkMilestone ? kCaptureColor : captureTemporalSample ?
 					kCaptureTemporalSample :
 					( options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
 						  RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
@@ -4689,6 +4861,13 @@ int main( int argc, char** argv )
 					TrinityStandaloneProbeDestroyDevice( probe );
 					[window close];
 					return 1;
+				}
+				if( ballparkMilestone )
+				{
+					const std::string path = CaptureBasePath( options ) + "_ballpark-" + ballparkMilestone + ".png";
+					const bool captured = EnsureParentDirectory( path ) && CaptureProbeProductPng( probe, path );
+					ballparkMilestonesCaptured = captured && ballparkMilestonesCaptured;
+					ballparkMilestoneCount += captured ? 1u : 0u;
 				}
 				if( collectExposureDiagnostics )
 				{
@@ -4725,6 +4904,8 @@ int main( int argc, char** argv )
 		TrinityStandaloneBallparkDiagnostics ballparkDiagnostics;
 		bool ballparkValidationSucceeded = true;
 		bool ballparkReportSucceeded = true;
+		bool ballparkMotionValidationSucceeded = true;
+		bool ballparkMotionReportSucceeded = true;
 		bool encodedBallparkColorEqual = false;
 		bool encodedBallparkDepthEqual = false;
 		if( options.validateBallpark )
@@ -4738,6 +4919,17 @@ int main( int argc, char** argv )
 				capturesWritten && encodedBallparkColorEqual && encodedBallparkDepthEqual;
 			ballparkReportSucceeded = WriteBallparkContractJson(
 				options, ballparkDiagnostics, encodedBallparkColorEqual, encodedBallparkDepthEqual );
+		}
+		if( options.validateBallparkMotion )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateBallparkMotion( probe );
+			const bool diagnosticsRead =
+				TrinityStandaloneProbeGetBallparkDiagnostics( probe, &ballparkDiagnostics );
+			ballparkMilestonesCaptured = ballparkMilestonesCaptured && ballparkMilestoneCount == 5;
+			ballparkMotionValidationSucceeded =
+				validationRan && diagnosticsRead && ballparkDiagnostics.motionValid && ballparkMilestonesCaptured;
+			ballparkMotionReportSucceeded = WriteBallparkMotionContractJson(
+				options, ballparkDiagnostics, ballparkMilestonesCaptured );
 		}
 
 		if( options.validateComposition && !compositionValidationAttempted )
@@ -4968,6 +5160,20 @@ int main( int argc, char** argv )
 					  << " encodedDepth=" << ( encodedBallparkDepthEqual ? "identical" : "different" )
 					  << " validation=" << ( ballparkValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "ballparkValidation", stats.str() );
+			}
+			if( options.validateBallparkMotion )
+			{
+				std::ostringstream stats;
+				stats << "frame=" << BallparkFrameName( options.ballparkFrame )
+					  << " evolves=" << ballparkDiagnostics.directEvolveCount
+					  << " command=" << ballparkDiagnostics.commandCount << " trajectory=" << std::hex
+					  << ballparkDiagnostics.trajectoryHash << std::dec
+					  << " positionError=" << ballparkDiagnostics.maximumRawPositionError
+					  << " velocityError=" << ballparkDiagnostics.maximumRawVelocityError
+					  << " rootError=" << ballparkDiagnostics.maximumRootError
+					  << " milestones=" << ballparkMilestoneCount
+					  << " validation=" << ( ballparkMotionValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "ballparkMotionValidation", stats.str() );
 			}
 			if( captureToneSnapshot )
 			{
@@ -5301,6 +5507,7 @@ int main( int argc, char** argv )
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
 			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
 			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
+			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
 			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{

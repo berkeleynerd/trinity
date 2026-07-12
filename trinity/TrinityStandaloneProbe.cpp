@@ -184,6 +184,13 @@ enum StandaloneBallparkMode
 {
 	STANDALONE_BALLPARK_OFF = 0,
 	STANDALONE_BALLPARK_STATIC = 1,
+	STANDALONE_BALLPARK_GOTO = 2,
+};
+
+enum StandaloneBallparkReferenceFrame
+{
+	STANDALONE_BALLPARK_EGO = 0,
+	STANDALONE_BALLPARK_OBSERVER = 1,
 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
@@ -357,6 +364,42 @@ public:
 	const Matrix& GetPreviousWorldTransform() const
 	{
 		return m_previousWorldTransform;
+	}
+	const Matrix& GetRootTransform() const
+	{
+		return m_rootTransform->GetLastUpdateMatrix();
+	}
+	void SetAllowDecalDistanceCulling( bool allow )
+	{
+		m_allowDecalDistanceCulling = allow;
+	}
+	void SetBallparkEngineKinematicsEnabled( bool enabled, float maximumVelocity )
+	{
+		m_ballparkEngineKinematics = enabled;
+		m_ballparkEngineMaximumVelocity = enabled ? maximumVelocity : 0.0f;
+		if( m_engines && enabled )
+			m_engines->SetMaxVelocity( maximumVelocity );
+	}
+	void SetBallparkEngineKinematics( float speed, const Vector3& acceleration )
+	{
+		m_ballparkEngineSpeed = std::max( 0.0f, speed );
+		m_ballparkEngineAcceleration = acceleration;
+	}
+	bool HasBallparkEngineKinematics() const
+	{
+		return m_ballparkEngineKinematics;
+	}
+	float GetBallparkEngineSpeed() const
+	{
+		return m_ballparkEngineSpeed;
+	}
+	const Vector3& GetBallparkEngineAcceleration() const
+	{
+		return m_ballparkEngineAcceleration;
+	}
+	float GetBallparkEngineMaximumVelocity() const
+	{
+		return m_ballparkEngineMaximumVelocity;
 	}
 
 	bool ConfigureEngines( int mode, int view, float throttle, const EveSOFDataHull& hull, const EveSOFDataRace& race, std::string& error )
@@ -1645,12 +1688,18 @@ public:
 			Vector3 scale, translation;
 			Quaternion rotation;
 			Decompose( scale, rotation, translation, m_worldTransform );
+			const float parentSpeed = m_ballparkEngineKinematics ?
+				m_ballparkEngineSpeed * m_engineThrottle :
+				m_engineThrottle * m_engines->GetMaxVelocity();
+			const Vector3 parentAcceleration = m_ballparkEngineKinematics ?
+				m_ballparkEngineAcceleration * m_engineThrottle :
+				Vector3( 0.f, 0.f, 0.f );
 			m_engines->Update(
 				updateContext.GetDeltaT(),
 				updateContext.GetTime(),
 				m_worldTransform,
-				m_engineThrottle * m_engines->GetMaxVelocity(),
-				Vector3( 0.f, 0.f, 0.f ),
+				parentSpeed,
+				parentAcceleration,
 				rotation );
 			m_engines->UpdateTrails( updateContext.GetDeltaT(), updateContext.GetTime() );
 			m_engineNativeIntensity = m_engines->GetBoosterIntensity();
@@ -1778,7 +1827,22 @@ public:
 			}
 			minimumVisibility = std::min( minimumVisibility, entry.decal->GetResolvedVisibility() );
 		}
-		if( m_decalWarmupFrames >= 2 && ( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) )
+		if( m_decalWarmupFrames >= 2 && ( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) &&
+			m_allowDecalDistanceCulling )
+		{
+			if( !m_reportedDecalDistanceCulling )
+			{
+				std::fprintf(
+					stderr,
+					"Astero indexed decals distance-culled in the PL-11A fixed-observer diagnostic: configured=%zu submitted=%u committed=%u nativeThreshold=10px\n",
+					m_decalEntries.size(),
+					submitted,
+					committed );
+				m_reportedDecalDistanceCulling = true;
+			}
+		}
+		else if( m_decalWarmupFrames >= 2 &&
+			( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) )
 		{
 			if( !m_reportedDecalFailure )
 			{
@@ -3080,11 +3144,16 @@ private:
 	bool m_engineLightingActive = false;
 	bool m_objectMotionActive = false;
 	bool m_ballparkDriven = false;
+	bool m_ballparkEngineKinematics = false;
+	bool m_allowDecalDistanceCulling = false;
 	bool m_hasControlRotationOverride = false;
 	bool m_worldTransformInitialized = false;
 	uint32_t m_shUpdateCount = 0;
 	uint32_t m_killCount = 0;
 	float m_modelYawOffset = 0.0f;
+	float m_ballparkEngineSpeed = 0.0f;
+	float m_ballparkEngineMaximumVelocity = 0.0f;
+	Vector3 m_ballparkEngineAcceleration = Vector3( 0.0f, 0.0f, 0.0f );
 	Quaternion m_controlRotationOverride = Quaternion( 0.0f, 0.0f, 0.0f, 1.0f );
 	uint32_t m_decalWarmupFrames = 0;
 	uint32_t m_decalDeclaredSetCount = 0;
@@ -3099,6 +3168,7 @@ private:
 	bool m_reportedMissingDecalAoMap = false;
 	bool m_reportedDecalSubmission = false;
 	bool m_reportedDecalFailure = false;
+	bool m_reportedDecalDistanceCulling = false;
 	mutable std::atomic<uint32_t> m_shadowCullTests = 0;
 	mutable std::atomic<uint32_t> m_shadowAcceptedCascades = 0;
 	mutable std::atomic<uint32_t> m_shadowCommittedBatches = 0;
@@ -3630,6 +3700,8 @@ struct StandaloneProbe
 	uint32_t ballparkCaptureHeight = 0;
 	std::ofstream ballparkLog;
 	int ballparkMode = STANDALONE_BALLPARK_OFF;
+	int ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
+	bool ballparkCommandIssued = false;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
 	DestinyEmbeddedRegistration destinyRegistration = {};
@@ -10966,10 +11038,45 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetTemporalValidation(
 	return true;
 }
 
+struct BallparkMotionReference
+{
+	std::array<double, 3> position;
+	std::array<double, 3> velocity;
+	std::array<double, 3> acceleration;
+};
+
+constexpr std::array<BallparkMotionReference, 17> kBallparkGotoReference = { {
+	{ { 0.0, 0.0, -950.338512501807 }, { 0.0, 0.0, 93.750922169292 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, -821.848571821185 }, { 0.0, 0.0, 159.331217580536 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, -638.216845578388 }, { 0.0, 0.0, 205.205701230521 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, -416.012543162518 }, { 0.0, 0.0, 237.295648934414 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, -166.826096126938 }, { 0.0, 0.0, 259.743089465745 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, 101.234800077196 }, { 0.0, 0.0, 275.445439343572 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, 382.498680567322 }, { 0.0, 0.0, 286.429488564752 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, 672.998263381760 }, { 0.0, 0.0, 294.113009708533 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, 969.958370239524 }, { 0.0, 0.0, 299.487757761654 }, { 0.0, 0.0, 111.498260498047 } },
+	{ { 0.0, 0.0, 1221.780499978782 }, { 0.0, 0.0, 209.504617747156 }, { 0.0, 0.0, 0.009583931053 } },
+	{ { 0.0, 0.0, 1397.937966694282 }, { 0.0, 0.0, 146.551888813087 }, { 0.0, 0.0, 0.0 } },
+	{ { 0.0, 0.0, 1521.162980793216 }, { 0.0, 0.0, 102.515430665131 }, { 0.0, 0.0, 0.0 } },
+	{ { 0.0, 0.0, 1607.360883060996 }, { 0.0, 0.0, 71.711211705099 }, { 0.0, 0.0, 0.0 } },
+	{ { 0.0, 4.167816118, 1666.364082975111 }, { 0.0, 7.868000420, 47.721035728468 }, { 0.0, 9.357437134, -2.904425144196 } },
+	{ { 0.0, 29.613168112, 1676.950937928500 }, { 0.0, 41.050512713, -22.380845367856 }, { 0.0, 42.275821686, -66.318496704102 } },
+	{ { -0.000000248, 68.978244188, 1609.729661906773 }, { -0.000000467, 37.868746581, -107.030579720285 }, { -0.000000556, 10.885982513, -108.672348022461 } },
+	{ { -0.000000983, 96.843372796, 1470.285527174581 }, { -0.000000974, 18.983923405, -168.220866726125 }, { -0.000000769, -8.926767349, -111.022911071777 } },
+} };
+
+void HashBallparkValue( uint64_t& hash, double value )
+{
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	const auto* bytes = reinterpret_cast<const uint8_t*>( &value );
+	for( size_t byte = 0; byte < sizeof( value ); ++byte )
+		hash = ( hash ^ bytes[byte] ) * fnvPrime;
+}
+
 bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time time, bool writeLog )
 {
 #if TRINITY_WITH_DESTINY_EMBEDDED
-	if( probe.ballparkMode != STANDALONE_BALLPARK_STATIC || !probe.destinySession || !probe.scene )
+	if( probe.ballparkMode == STANDALONE_BALLPARK_OFF || !probe.destinySession || !probe.scene )
 		return true;
 	DestinyEmbeddedDiagnostics source = {};
 	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &source ) )
@@ -10986,17 +11093,61 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	const float unitBase = ballpark->GetUnitBase();
 	const Vector3d origin = probe.scene->GetOrigin();
 	const Vector3 originShift = probe.scene->GetOriginShift();
+	const Vector3 rootTranslation = probe.renderable ?
+		probe.renderable->GetRootTransform().GetTranslation() : Vector3( 0.0f, 0.0f, 0.0f );
+	double expectedRawPosition[3] = { source.rawPosition[0], source.rawPosition[1], source.rawPosition[2] };
+	double expectedRawVelocity[3] = { source.rawVelocity[0], source.rawVelocity[1], source.rawVelocity[2] };
+	double expectedRawAcceleration[3] = {
+		source.rawAcceleration[0], source.rawAcceleration[1], source.rawAcceleration[2]
+	};
+	if( probe.ballparkMode == STANDALONE_BALLPARK_GOTO )
+	{
+		expectedRawPosition[0] = expectedRawPosition[1] = 0.0;
+		expectedRawVelocity[0] = expectedRawVelocity[1] = 0.0;
+		expectedRawAcceleration[0] = expectedRawAcceleration[1] = 0.0;
+		if( source.directEvolveCount <= 2 )
+		{
+			expectedRawPosition[2] = -1000.0;
+			expectedRawVelocity[2] = 0.0;
+			expectedRawAcceleration[2] = 0.0;
+		}
+		else
+		{
+			const size_t referenceIndex = static_cast<size_t>( source.directEvolveCount - 3 );
+			if( referenceIndex >= kBallparkGotoReference.size() )
+				return false;
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			expectedRawPosition[axis] = kBallparkGotoReference[referenceIndex].position[axis];
+			expectedRawVelocity[axis] = kBallparkGotoReference[referenceIndex].velocity[axis];
+			expectedRawAcceleration[axis] = kBallparkGotoReference[referenceIndex].acceleration[axis];
+		}
+		}
+	}
 	auto& diagnostics = probe.ballparkDiagnostics;
 	diagnostics.available = true;
+	diagnostics.observerFrame = probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER;
 	diagnostics.schedulerRegistered = source.schedulerRegistered;
 	diagnostics.directEvolveCount = source.directEvolveCount;
 	diagnostics.startCallCount = source.startCallCount;
 	diagnostics.onTickCallCount = source.onTickCallCount;
 	diagnostics.pythonCallbackCount = source.pythonCallbackCount;
+	diagnostics.commandCount = source.commandCount;
+	diagnostics.orientationPinCount = source.orientationPinCount;
+	diagnostics.lastCommandTime = source.lastCommandTime;
+	diagnostics.primaryBallId = source.primaryBallId;
+	diagnostics.egoBallId = source.egoBallId;
 	diagnostics.originUpdateCount = probe.scene->GetSuccessfulOriginUpdateCount();
 	for( size_t i = 0; i < 3; ++i )
 	{
 		diagnostics.position[i] = source.position[i];
+		diagnostics.rawPosition[i] = source.rawPosition[i];
+		diagnostics.rawVelocity[i] = source.rawVelocity[i];
+		diagnostics.rawAcceleration[i] = source.rawAcceleration[i];
+		diagnostics.absolutePosition[i] = source.absolutePosition[i];
+		diagnostics.velocity[i] = source.velocity[i];
+		diagnostics.acceleration[i] = source.acceleration[i];
+		diagnostics.gotoPoint[i] = source.gotoPoint[i];
 		diagnostics.referencePoint[i] = ( &referencePoint.x )[i];
 		diagnostics.origin[i] = ( &origin.x )[i];
 		diagnostics.originShift[i] = ( &originShift.x )[i];
@@ -11007,18 +11158,96 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	for( size_t i = 0; i < 4; ++i )
 		diagnostics.rotation[i] = source.rotation[i];
 	diagnostics.unitBase = unitBase;
+	diagnostics.engineKinematicsActive = probe.renderable && probe.renderable->HasBallparkEngineKinematics();
+	if( probe.renderable )
+	{
+		diagnostics.engineParentSpeed = probe.renderable->GetBallparkEngineSpeed();
+		const Vector3& acceleration = probe.renderable->GetBallparkEngineAcceleration();
+		diagnostics.engineParentAcceleration[0] = acceleration.x;
+		diagnostics.engineParentAcceleration[1] = acceleration.y;
+		diagnostics.engineParentAcceleration[2] = acceleration.z;
+		diagnostics.engineMaximumVelocity = diagnostics.engineKinematicsActive ? 312.0f : 0.0f;
+	}
+
+	if( probe.ballparkMode == STANDALONE_BALLPARK_GOTO && probe.renderable )
+	{
+		const double roll = 2.0 * std::atan2( std::abs( source.rotation[2] ), std::abs( source.rotation[3] ) );
+		if( diagnostics.lastValidatedEvolveCount == 0 )
+			diagnostics.initialRoll = roll;
+		diagnostics.finalRoll = roll;
+		diagnostics.nativeOrientationChanged = diagnostics.initialRoll - diagnostics.finalRoll > 1e-4;
+
+		for( size_t i = 0; i < 3; ++i )
+		{
+			const double expectedRelative = source.absolutePosition[i] - source.referencePoint[i];
+			diagnostics.maximumCurveError = std::max(
+				diagnostics.maximumCurveError, std::abs( source.position[i] - expectedRelative ) );
+			diagnostics.maximumRootError = std::max(
+				diagnostics.maximumRootError, std::abs( static_cast<double>( ( &rootTranslation.x )[i] ) - expectedRelative ) );
+			diagnostics.maximumOriginError = std::max(
+				diagnostics.maximumOriginError, std::abs( ( &origin.x )[i] - source.referencePoint[i] ) );
+		}
+
+		if( source.directEvolveCount != diagnostics.lastValidatedEvolveCount )
+		{
+			for( double value : source.rawPosition )
+				HashBallparkValue( diagnostics.trajectoryHash, value );
+			for( double value : source.rawVelocity )
+				HashBallparkValue( diagnostics.trajectoryHash, value );
+			for( double value : source.rawAcceleration )
+				HashBallparkValue( diagnostics.trajectoryHash, value );
+
+			for( size_t i = 0; i < 3; ++i )
+			{
+				diagnostics.maximumRawPositionError = std::max(
+					diagnostics.maximumRawPositionError, std::abs( source.rawPosition[i] - expectedRawPosition[i] ) );
+				diagnostics.maximumRawVelocityError = std::max(
+					diagnostics.maximumRawVelocityError, std::abs( source.rawVelocity[i] - expectedRawVelocity[i] ) );
+				diagnostics.maximumRawAccelerationError = std::max(
+					diagnostics.maximumRawAccelerationError,
+					std::abs( source.rawAcceleration[i] - expectedRawAcceleration[i] ) );
+			}
+			diagnostics.lastValidatedEvolveCount = source.directEvolveCount;
+		}
+		diagnostics.overshootObserved = diagnostics.overshootObserved || source.rawPosition[2] > 1000.0;
+		diagnostics.reversalObserved = diagnostics.reversalObserved ||
+			( diagnostics.overshootObserved && source.rawVelocity[2] < 0.0 );
+	}
 
 	if( writeLog && probe.ballparkLog.is_open() )
 	{
 		probe.ballparkLog << frame << ',' << time << ',' << source.directEvolveCount << ','
+			<< source.primaryBallId << ',' << source.egoBallId << ',' << source.mode << ','
+			<< source.commandCount << ',' << source.lastCommandTime << ','
+			<< source.rawPosition[0] << ',' << source.rawPosition[1] << ',' << source.rawPosition[2] << ','
+			<< source.rawVelocity[0] << ',' << source.rawVelocity[1] << ',' << source.rawVelocity[2] << ','
+			<< source.rawAcceleration[0] << ',' << source.rawAcceleration[1] << ',' << source.rawAcceleration[2] << ','
+			<< expectedRawPosition[0] << ',' << expectedRawPosition[1] << ',' << expectedRawPosition[2] << ','
+			<< expectedRawVelocity[0] << ',' << expectedRawVelocity[1] << ',' << expectedRawVelocity[2] << ','
+			<< expectedRawAcceleration[0] << ',' << expectedRawAcceleration[1] << ',' << expectedRawAcceleration[2] << ','
+			<< std::abs( source.rawPosition[0] - expectedRawPosition[0] ) << ','
+			<< std::abs( source.rawPosition[1] - expectedRawPosition[1] ) << ','
+			<< std::abs( source.rawPosition[2] - expectedRawPosition[2] ) << ','
+			<< std::abs( source.rawVelocity[0] - expectedRawVelocity[0] ) << ','
+			<< std::abs( source.rawVelocity[1] - expectedRawVelocity[1] ) << ','
+			<< std::abs( source.rawVelocity[2] - expectedRawVelocity[2] ) << ','
+			<< std::abs( source.rawAcceleration[0] - expectedRawAcceleration[0] ) << ','
+			<< std::abs( source.rawAcceleration[1] - expectedRawAcceleration[1] ) << ','
+			<< std::abs( source.rawAcceleration[2] - expectedRawAcceleration[2] ) << ','
 			<< source.position[0] << ',' << source.position[1] << ',' << source.position[2] << ','
+			<< source.absolutePosition[0] << ',' << source.absolutePosition[1] << ',' << source.absolutePosition[2] << ','
+			<< source.velocity[0] << ',' << source.velocity[1] << ',' << source.velocity[2] << ','
+			<< source.acceleration[0] << ',' << source.acceleration[1] << ',' << source.acceleration[2] << ','
+			<< rootTranslation.x << ',' << rootTranslation.y << ',' << rootTranslation.z << ','
 			<< source.rotation[0] << ',' << source.rotation[1] << ',' << source.rotation[2] << ','
 			<< source.rotation[3] << ',' << referencePoint.x << ',' << referencePoint.y << ','
 			<< referencePoint.z << ',' << origin.x << ',' << origin.y << ',' << origin.z << ','
 			<< originShift.x << ',' << originShift.y << ',' << originShift.z << ',' << delta.x << ','
 			<< delta.y << ',' << delta.z << ',' << smoothedDelta.x << ',' << smoothedDelta.y << ','
 			<< smoothedDelta.z << ',' << deltaVelocity.x << ',' << deltaVelocity.y << ','
-			<< deltaVelocity.z << ',' << unitBase << ',' << diagnostics.originUpdateCount << '\n';
+			<< deltaVelocity.z << ',' << unitBase << ',' << diagnostics.originUpdateCount << ','
+			<< diagnostics.engineParentSpeed << ',' << diagnostics.engineParentAcceleration[0] << ','
+			<< diagnostics.engineParentAcceleration[1] << ',' << diagnostics.engineParentAcceleration[2] << '\n';
 		if( !probe.ballparkLog.good() )
 			return false;
 	}
@@ -11032,14 +11261,17 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 #endif
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	void* opaqueProbe,
 	int mode,
+	int referenceFrame,
 	const char* logPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
-		mode > STANDALONE_BALLPARK_STATIC )
+		mode > STANDALONE_BALLPARK_GOTO || referenceFrame < STANDALONE_BALLPARK_EGO ||
+		referenceFrame > STANDALONE_BALLPARK_OBSERVER ||
+		( mode != STANDALONE_BALLPARK_GOTO && referenceFrame != STANDALONE_BALLPARK_EGO ) )
 		return false;
 	probe->ballparkLog.close();
 	probe->scene->SetBallpark( nullptr );
@@ -11053,7 +11285,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
 	}
 #endif
 	probe->ballparkMode = STANDALONE_BALLPARK_OFF;
+	probe->ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
+	probe->ballparkCommandIssued = false;
 	probe->ballparkDiagnostics = {};
+	probe->ballparkDiagnostics.trajectoryHash = 1469598103934665603ull;
+	probe->renderable->SetBallparkEngineKinematicsEnabled( false, 0.0f );
+	probe->renderable->SetAllowDecalDistanceCulling( false );
 	for( auto& pixels : probe->ballparkCapturePixels )
 		pixels.clear();
 	probe->ballparkCaptureWidth = 0;
@@ -11065,29 +11302,60 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
 	}
 
 #if TRINITY_WITH_DESTINY_EMBEDDED
-	if( probe->motionMode != STANDALONE_MOTION_STATIC && probe->motionMode != STANDALONE_MOTION_CAMERA )
+	if( mode == STANDALONE_BALLPARK_STATIC && probe->motionMode != STANDALONE_MOTION_STATIC &&
+		probe->motionMode != STANDALONE_MOTION_CAMERA )
 	{
 		std::fprintf( stderr, "Static Ballpark mode is incompatible with object motion\n" );
 		return false;
 	}
+	if( mode == STANDALONE_BALLPARK_GOTO && probe->motionMode != STANDALONE_MOTION_STATIC )
+	{
+		std::fprintf( stderr, "GOTO Ballpark mode requires sample motion=static\n" );
+		return false;
+	}
+	const bool gotoMode = mode == STANDALONE_BALLPARK_GOTO;
 	DestinyEmbeddedBallConfig config = {};
 	config.ballId = 1;
 	config.solarSystemId = 30005286;
-	config.mass = 1.0;
-	config.radius = probe->renderable->GetModelRadius();
-	config.maximumVelocity = 250.0f;
+	config.mass = gotoMode ? 975000.0 : 1.0;
+	config.radius = gotoMode ? 35.0f : probe->renderable->GetModelRadius();
+	config.maximumVelocity = gotoMode ? 312.0f : 250.0f;
 	config.maximumAngularVelocity = 1.0f;
-	config.agility = 1.0f;
+	config.position[2] = gotoMode ? -1000.0 : 0.0;
+	config.agility = gotoMode ? 2.87f : 1.0f;
 	config.rotationalAgility = 1.0f;
-	config.speedFraction = 0.0f;
+	config.speedFraction = gotoMode ? 1.0f : 0.0f;
 	config.isFree = true;
-	const Quaternion authoredRotation = probe->renderable->GetControlRotation();
-	config.rotation[0] = authoredRotation.x;
-	config.rotation[1] = authoredRotation.y;
-	config.rotation[2] = authoredRotation.z;
-	config.rotation[3] = authoredRotation.w;
+	config.isMassive = gotoMode;
+	config.isInteractive = gotoMode;
+	if( gotoMode )
+	{
+		config.rotation[2] = 0.3826834323650898f;
+		config.rotation[3] = 0.9238795325112867f;
+	}
+	else
+	{
+		const Quaternion authoredRotation = probe->renderable->GetControlRotation();
+		config.rotation[0] = authoredRotation.x;
+		config.rotation[1] = authoredRotation.y;
+		config.rotation[2] = authoredRotation.z;
+		config.rotation[3] = authoredRotation.w;
+	}
 	char error[512] = {};
-	probe->destinySession = Destiny_CreateEmbeddedSession( &config, error, sizeof( error ) );
+	if( gotoMode )
+	{
+		DestinyEmbeddedSessionOptions options = {};
+		options.orientationPolicy = DESTINY_EMBEDDED_NATIVE_ORIENTATION;
+		options.referenceFrame = referenceFrame == STANDALONE_BALLPARK_OBSERVER ?
+			DESTINY_EMBEDDED_FIXED_OBSERVER : DESTINY_EMBEDDED_PRIMARY_EGO;
+		options.observerBallId = 2;
+		probe->destinySession = Destiny_CreateEmbeddedSessionWithOptions(
+			&config, &options, error, sizeof( error ) );
+	}
+	else
+	{
+		probe->destinySession = Destiny_CreateEmbeddedSession( &config, error, sizeof( error ) );
+	}
 	if( !probe->destinySession )
 	{
 		std::fprintf( stderr, "Failed to create embedded Destiny session: %s\n", error );
@@ -11103,9 +11371,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
 		return false;
 	}
 	probe->scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe->destinySession ) );
-	probe->ballparkMode = STANDALONE_BALLPARK_STATIC;
+	probe->ballparkMode = mode;
+	probe->ballparkReferenceFrame = referenceFrame;
 	probe->ballparkDiagnostics.available = true;
+	probe->ballparkDiagnostics.observerFrame = referenceFrame == STANDALONE_BALLPARK_OBSERVER;
 	probe->ballparkDiagnostics.registeredClassCount = probe->destinyRegistration.discoveredClassCount;
+	probe->renderable->SetBallparkEngineKinematicsEnabled(
+		gotoMode && probe->renderable->HasAuthoredEngines(), config.maximumVelocity );
+	if( gotoMode && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
+	{
+		probe->renderable->SetAllowDecalDistanceCulling( true );
+		probe->view->SetLookAtPosition(
+			Vector3( 1800.0f, 0.0f, 0.0f ),
+			Vector3( 0.0f, 0.0f, 0.0f ),
+			Vector3( 0.0f, 1.0f, 0.0f ) );
+		probe->projection->PerspectiveFov( 60.0f * 3.1415926535f / 180.0f,
+			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 10000.0f );
+	}
 #ifdef __APPLE__
 	for( uint32_t imageIndex = 0; imageIndex < _dyld_image_count(); ++imageIndex )
 	{
@@ -11136,22 +11418,55 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
 		}
 		probe->ballparkLog << std::fixed << std::setprecision( 9 );
 		probe->ballparkLog
-			<< "frame,time,evolve_count,position_x,position_y,position_z,rotation_x,rotation_y,rotation_z,rotation_w,"
+			<< "frame,time,evolve_count,primary_ball_id,ego_ball_id,mode,command_count,last_command_time,"
+				"raw_position_x,raw_position_y,raw_position_z,raw_velocity_x,raw_velocity_y,raw_velocity_z,"
+				"raw_acceleration_x,raw_acceleration_y,raw_acceleration_z,expected_position_x,expected_position_y,"
+				"expected_position_z,expected_velocity_x,expected_velocity_y,expected_velocity_z,"
+				"expected_acceleration_x,expected_acceleration_y,expected_acceleration_z,position_error_x,"
+				"position_error_y,position_error_z,velocity_error_x,velocity_error_y,velocity_error_z,"
+				"acceleration_error_x,acceleration_error_y,acceleration_error_z,position_x,position_y,position_z,"
+				"absolute_position_x,absolute_position_y,absolute_position_z,velocity_x,velocity_y,velocity_z,"
+				"acceleration_x,acceleration_y,acceleration_z,"
+				"root_x,root_y,root_z,"
+				"rotation_x,rotation_y,rotation_z,rotation_w,"
 				"reference_x,reference_y,reference_z,origin_x,origin_y,origin_z,origin_shift_x,origin_shift_y,"
 				"origin_shift_z,delta_x,delta_y,delta_z,smoothed_delta_x,smoothed_delta_y,smoothed_delta_z,"
-				"delta_velocity_x,delta_velocity_y,delta_velocity_z,unit_base,origin_update_count\n";
+				"delta_velocity_x,delta_velocity_y,delta_velocity_z,unit_base,origin_update_count,engine_speed,"
+				"engine_acceleration_x,engine_acceleration_y,engine_acceleration_z\n";
 	}
-	std::fprintf(
-		stderr,
-		"PL-10 ballpark contract: mode=static system=30005286 ball=1 mode=STOP isFree=true radius=%.8f "
-		"maxVelocity=250 classes=%u python=initialized-required modules=absent scheduler=disabled\n",
-		config.radius,
-		probe->destinyRegistration.discoveredClassCount );
+	if( gotoMode )
+	{
+		std::fprintf(
+			stderr,
+			"PL-11A Ballpark contract: mode=goto frame=%s system=30005286 type=33468 ball=1 observer=%s "
+			"start=(0,0,-1000) target=(0,0,1000) mass=975000 radius=35 maxVelocity=312 agility=2.87 "
+			"orientation=native scheduler=disabled\n",
+			referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego",
+			referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "ball=2" : "none" );
+	}
+	else
+	{
+		std::fprintf(
+			stderr,
+			"PL-10 ballpark contract: mode=static system=30005286 ball=1 mode=STOP isFree=true radius=%.8f "
+			"maxVelocity=250 classes=%u python=initialized-required modules=absent scheduler=disabled\n",
+			config.radius,
+			probe->destinyRegistration.discoveredClassCount );
+	}
 	return true;
 #else
 	std::fprintf( stderr, "This Trinity build does not include BUILD_DESTINY_INTEGRATION\n" );
 	return false;
 #endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallpark(
+	void* opaqueProbe,
+	int mode,
+	const char* logPath )
+{
+	return TrinityStandaloneProbeConfigureBallparkEx(
+		opaqueProbe, mode, STANDALONE_BALLPARK_EGO, logPath );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe )
@@ -11270,6 +11585,92 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallpark( void* opa
 #endif
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || probe->ballparkMode != STANDALONE_BALLPARK_GOTO || !probe->destinySession ||
+		!probe->renderable || !probe->scene || probe->renderedFrameCount != 1200 )
+	{
+		return false;
+	}
+	if( !UpdateBallparkDiagnostics(
+			*probe, probe->renderedFrameCount - 1, static_cast<Be::Time>( probe->lastSimTime ), false ) )
+	{
+		return false;
+	}
+
+	auto& diagnostics = probe->ballparkDiagnostics;
+	const auto nearZero3 = []( const auto* values, double tolerance ) {
+		return std::abs( values[0] ) <= tolerance && std::abs( values[1] ) <= tolerance &&
+			std::abs( values[2] ) <= tolerance;
+	};
+	const bool observer = probe->ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER;
+	const bool referenceFrameValid = observer ?
+		( diagnostics.egoBallId == 2 && nearZero3( diagnostics.referencePoint, 1e-5 ) &&
+		  nearZero3( diagnostics.origin, 1e-3 ) ) :
+		( diagnostics.egoBallId == 1 && nearZero3( diagnostics.position, 1e-5 ) );
+	const double expectedEngineSpeed = std::sqrt(
+		diagnostics.velocity[0] * diagnostics.velocity[0] +
+		diagnostics.velocity[1] * diagnostics.velocity[1] +
+		diagnostics.velocity[2] * diagnostics.velocity[2] );
+	const bool engineValid = !probe->renderable->HasAuthoredEngines() ||
+		( diagnostics.engineKinematicsActive && diagnostics.engineMaximumVelocity == 312.0f &&
+		  std::abs( diagnostics.engineParentSpeed - expectedEngineSpeed ) <= 1e-3 &&
+		  std::abs( diagnostics.engineParentAcceleration[0] - diagnostics.acceleration[0] ) <= 1e-3 &&
+		  std::abs( diagnostics.engineParentAcceleration[1] - diagnostics.acceleration[1] ) <= 1e-3 &&
+		  std::abs( diagnostics.engineParentAcceleration[2] - diagnostics.acceleration[2] ) <= 1e-3 );
+	const double quaternionLength = std::sqrt(
+		diagnostics.rotation[0] * diagnostics.rotation[0] +
+		diagnostics.rotation[1] * diagnostics.rotation[1] +
+		diagnostics.rotation[2] * diagnostics.rotation[2] +
+		diagnostics.rotation[3] * diagnostics.rotation[3] );
+	diagnostics.motionValid = diagnostics.directEvolveCount == 19 &&
+		diagnostics.lastValidatedEvolveCount == 19 && diagnostics.commandCount == 1 &&
+		diagnostics.lastCommandTime == 30000000 && diagnostics.primaryBallId == 1 &&
+		diagnostics.originUpdateCount == 1200 && diagnostics.orientationPinCount == 0 &&
+		diagnostics.startCallCount == 0 && diagnostics.onTickCallCount == 0 &&
+		diagnostics.pythonCallbackCount == 0 && !diagnostics.schedulerRegistered &&
+		diagnostics.pythonInitialized && diagnostics.destinyPythonModulesAbsent &&
+		diagnostics.loadedBlueImageCount == 1 && diagnostics.loadedPythonImageCount == 1 &&
+		diagnostics.maximumRawPositionError <= 1e-5 &&
+		diagnostics.maximumRawVelocityError <= 1e-5 &&
+		diagnostics.maximumRawAccelerationError <= 1e-5 &&
+		diagnostics.maximumCurveError <= 1e-3 && diagnostics.maximumRootError <= 1e-3 &&
+		diagnostics.maximumOriginError <= 1e-3 && diagnostics.overshootObserved &&
+		diagnostics.reversalObserved && diagnostics.nativeOrientationChanged &&
+		diagnostics.finalRoll < diagnostics.initialRoll && std::isfinite( quaternionLength ) &&
+		std::abs( quaternionLength - 1.0 ) <= 1e-4 && diagnostics.unitBase == 1.0f &&
+		referenceFrameValid && engineValid;
+	diagnostics.valid = diagnostics.motionValid;
+	std::fprintf(
+		stderr,
+		"PL-11A motion validation: frame=%s evolves=%llu command=%llu trajectory=%016llx "
+		"errors=[position=%.9g velocity=%.9g acceleration=%.9g curve=%.9g root=%.9g origin=%.9g] "
+		"roll=%.9g->%.9g overshoot=%s reversal=%s engine=%s validation=%s\n",
+		observer ? "observer" : "ego",
+		static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+		static_cast<unsigned long long>( diagnostics.commandCount ),
+		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+		diagnostics.maximumRawPositionError,
+		diagnostics.maximumRawVelocityError,
+		diagnostics.maximumRawAccelerationError,
+		diagnostics.maximumCurveError,
+		diagnostics.maximumRootError,
+		diagnostics.maximumOriginError,
+		diagnostics.initialRoll,
+		diagnostics.finalRoll,
+		diagnostics.overshootObserved ? "yes" : "no",
+		diagnostics.reversalObserved ? "yes" : "no",
+		engineValid ? "pass" : "fail",
+		diagnostics.motionValid ? "pass" : "fail" );
+	return diagnostics.motionValid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneBallparkDiagnostics* diagnostics )
@@ -11353,12 +11754,46 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	if( !freezeScene )
 	{
 #if TRINITY_WITH_DESTINY_EMBEDDED
-		if( probe->ballparkMode == STANDALONE_BALLPARK_STATIC &&
+		if( probe->ballparkMode == STANDALONE_BALLPARK_GOTO && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			const double target[3] = { 0.0, 0.0, 1000.0 };
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+				!Destiny_CommandEmbeddedGoto( probe->destinySession, commandState.nextTickTime, target ) )
+			{
+				CCP_LOGERR( "Embedded Destiny GOTO command failed" );
+				return false;
+			}
+			probe->ballparkCommandIssued = true;
+			std::fprintf(
+				stderr,
+				"PL-11A command: frame=180 effectiveTime=%lld target=(0,0,1000)\n",
+				static_cast<long long>( commandState.nextTickTime ) );
+		}
+		if( probe->ballparkMode != STANDALONE_BALLPARK_OFF &&
 			( !probe->destinySession ||
 			  !Destiny_AdvanceEmbeddedSession( probe->destinySession, static_cast<Be::Time>( simTime ) ) ) )
 		{
 			CCP_LOGERR( "Embedded Destiny direct evolve failed" );
 			return false;
+		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_GOTO && probe->renderable )
+		{
+			DestinyEmbeddedDiagnostics kinematics = {};
+			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )
+				return false;
+			const float speed = static_cast<float>( std::sqrt(
+				kinematics.velocity[0] * kinematics.velocity[0] +
+				kinematics.velocity[1] * kinematics.velocity[1] +
+				kinematics.velocity[2] * kinematics.velocity[2] ) );
+			probe->renderable->SetBallparkEngineKinematics(
+				speed,
+				Vector3(
+					static_cast<float>( kinematics.acceleration[0] ),
+					static_cast<float>( kinematics.acceleration[1] ),
+					static_cast<float>( kinematics.acceleration[2] ) ) );
 		}
 #endif
 		UpdateProbeCamera( *probe );

@@ -1998,3 +1998,37 @@ Unified Trinity `all`, Destiny's 74 existing tests, a representative 185-frame
 RC-13 `hdr-finish --ballpark off` run, `git diff --check`, no-Granny linkage,
 and tracked-asset audits pass. CP-31 and PL-10 are accepted; PL-11 authentic
 motion is next.
+
+## PL-11A native STOP/GOTO integration (2026-07-12)
+
+The probe adds `--ballpark goto`, `--ballpark-frame ego|observer`, and
+`--validate-ballpark-motion`. The pinned Astero holds a native-orientation
+STOP state for frames `0..179`; frame 180 queues `GotoPoint(0,0,1000)` for
+Destiny's reported next tick. A 1,200-frame run performs 19 direct evolves:
+two STOP evolves and 17 GOTO evolves with target overshoot and velocity
+reversal. No quaternion pin, scheduler, `Start`, `OnTick`, tasklet, Destiny
+Python module, or Python callback is used.
+
+Primary-ego mode keeps the root translation at zero while the Ballpark
+reference point drives Trinity's scene origin. Fixed-observer mode uses ball
+`2` at the origin and places the Astero root at its absolute trajectory. Its
+camera is fixed at `(1800,0,0)`, with a 60-degree FOV and 10,000-unit far
+plane. At that diagnostic distance native decals can fall below Trinity's
+10-pixel threshold; this is logged as distance culling rather than treated as
+an attachment failure.
+
+Both modes produce trajectory hash `8ee43851a6c2f115`. Maximum raw
+position/velocity/acceleration errors are below `5e-10`; observer float
+curve/root error is `6.09835e-5`. Native roll decreases from `0.785398` to
+`0.562532` radians. Observer boosters consume Destiny speed and acceleration
+with maximum velocity `312`; ego keeps engines off as the control. The
+asset-free validator is:
+
+```sh
+cd /Users/rebecca/src/github.com/berkeleynerd/promised-land
+cmake --build --preset arm64-osx-debug --target pl11a_validate
+```
+
+Ignored evidence is under
+`/Users/rebecca/src/github.com/berkeleynerd/promised-land/.cmake-build-arm64-osx-debug/pl11a/reports/`.
+CP-32 and PL-11A are accepted. PL-11B native orbit is next.

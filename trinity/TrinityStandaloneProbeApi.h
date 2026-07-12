@@ -347,9 +347,15 @@ struct TrinityStandaloneBallparkDiagnostics
 {
 	bool available = false;
 	bool valid = false;
+	bool motionValid = false;
 	bool pythonInitialized = false;
 	bool destinyPythonModulesAbsent = false;
 	bool schedulerRegistered = false;
+	bool observerFrame = false;
+	bool overshootObserved = false;
+	bool reversalObserved = false;
+	bool nativeOrientationChanged = false;
+	bool engineKinematicsActive = false;
 	bool worldMatricesEqual = false;
 	bool colorHashesEqual = false;
 	bool depthHashesEqual = false;
@@ -361,11 +367,25 @@ struct TrinityStandaloneBallparkDiagnostics
 	uint64_t onTickCallCount = 0;
 	uint64_t pythonCallbackCount = 0;
 	uint64_t originUpdateCount = 0;
+	uint64_t commandCount = 0;
+	uint64_t orientationPinCount = 0;
+	uint64_t lastValidatedEvolveCount = 0;
+	uint64_t trajectoryHash = 0;
+	int64_t lastCommandTime = 0;
+	int64_t primaryBallId = 0;
+	int64_t egoBallId = 0;
 	uint64_t offColorHash = 0;
 	uint64_t staticColorHash = 0;
 	uint64_t offDepthHash = 0;
 	uint64_t staticDepthHash = 0;
 	double position[3] = {};
+	double rawPosition[3] = {};
+	double rawVelocity[3] = {};
+	double rawAcceleration[3] = {};
+	double absolutePosition[3] = {};
+	double velocity[3] = {};
+	double acceleration[3] = {};
+	double gotoPoint[3] = {};
 	float rotation[4] = {};
 	double referencePoint[3] = {};
 	double origin[3] = {};
@@ -374,6 +394,17 @@ struct TrinityStandaloneBallparkDiagnostics
 	float smoothedDelta[3] = {};
 	float deltaVelocity[3] = {};
 	float unitBase = 0.0f;
+	double maximumRawPositionError = 0.0;
+	double maximumRawVelocityError = 0.0;
+	double maximumRawAccelerationError = 0.0;
+	double maximumCurveError = 0.0;
+	double maximumRootError = 0.0;
+	double maximumOriginError = 0.0;
+	double initialRoll = 0.0;
+	double finalRoll = 0.0;
+	float engineParentSpeed = 0.0f;
+	float engineParentAcceleration[3] = {};
+	float engineMaximumVelocity = 0.0f;
 	float offWorld[16] = {};
 	float staticWorld[16] = {};
 };
@@ -426,7 +457,13 @@ extern "C" bool TrinityStandaloneProbeConfigureBallpark(
 	void* opaqueProbe,
 	int mode,
 	const char* logPath );
+extern "C" bool TrinityStandaloneProbeConfigureBallparkEx(
+	void* opaqueProbe,
+	int mode,
+	int referenceFrame,
+	const char* logPath );
 extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneBallparkDiagnostics* diagnostics );
