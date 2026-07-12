@@ -14,6 +14,8 @@
 #include "Eve/IEveShadowCaster.h"
 #include "Eve/IEveSpaceObject2.h"
 #include "Eve/SpaceObject/Attachments/EveSpaceObjectDecal.h"
+#include "Eve/SpaceObject/Attachments/EveBoosterSet2.h"
+#include "Eve/SpaceObject/Attachments/EveTrailsSet.h"
 #include "Eve/SpaceObject/Attachments/IEveSpaceObjectDecalOwner.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
 #include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
@@ -117,6 +119,7 @@ struct StandaloneProbe;
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
 std::string ToNarrowPath( const wchar_t* path );
 bool PrepareTextureResourceWithoutYield( const std::string& logicalPath, const char* role, std::string& error );
+bool PrepareEffectResourcesWithoutYield( Tr2Effect& effect, const char* role, std::string& error );
 bool PrepareReflectionProductVisualizer( StandaloneProbe& probe );
 bool PrepareVolumetricProductVisualizer( StandaloneProbe& probe, bool froxel );
 
@@ -133,6 +136,21 @@ enum StandaloneVolumetricMode
 	STANDALONE_VOLUMETRICS_SILK = 1,
 	STANDALONE_VOLUMETRICS_FROXEL = 2,
 	STANDALONE_VOLUMETRICS_ALL = 3,
+};
+
+enum StandaloneEngineMode
+{
+	STANDALONE_ENGINES_OFF = 0,
+	STANDALONE_ENGINES_AUTHORED = 1,
+};
+
+enum StandaloneEngineView
+{
+	STANDALONE_ENGINE_VIEW_ALL = 0,
+	STANDALONE_ENGINE_VIEW_PLUMES = 1,
+	STANDALONE_ENGINE_VIEW_GLOWS = 2,
+	STANDALONE_ENGINE_VIEW_TRAILS = 3,
+	STANDALONE_ENGINE_VIEW_LIGHTS = 4,
 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
@@ -237,6 +255,218 @@ public:
 	{
 		m_modelYawOffset = degrees * 3.1415926535f / 180.0f;
 		std::fprintf( stderr, "Standalone model yaw offset: %.6f degrees\n", degrees );
+	}
+
+	bool ConfigureEngines( int mode, int view, float throttle, const EveSOFDataHull& hull, const EveSOFDataRace& race, std::string& error )
+	{
+		m_engineMode = mode;
+		m_engineView = view;
+		m_engineThrottle = throttle;
+		m_enginesEnabled = mode == STANDALONE_ENGINES_AUTHORED;
+		if( mode == STANDALONE_ENGINES_OFF )
+		{
+			std::fprintf( stderr, "Astero authored engines disabled; legacy shipData.x=1 baseline retained\n" );
+			return true;
+		}
+		if( mode != STANDALONE_ENGINES_AUTHORED || view < STANDALONE_ENGINE_VIEW_ALL ||
+			view > STANDALONE_ENGINE_VIEW_LIGHTS || !std::isfinite( throttle ) || throttle < 0.f || throttle > 1.f )
+		{
+			error = "Invalid authored engine mode, view, or throttle";
+			return false;
+		}
+		if( !hull.m_booster || !race.m_booster )
+		{
+			error = "Astero hull or SOE race is missing its authored booster descriptor";
+			return false;
+		}
+		const EveSOFDataHullBooster& hullBooster = *hull.m_booster;
+		const EveSOFDataBooster& raceBooster = *race.m_booster;
+		if( hullBooster.m_items.size() != 2 || !hullBooster.m_hasTrails )
+		{
+			error = "Astero authored engine inventory must contain two trail-enabled locators";
+			return false;
+		}
+		for( const auto& item : hullBooster.m_items )
+		{
+			if( !item || !item->m_hasTrail || item->m_atlasIndex0 != 2 || item->m_atlasIndex1 != 0 ||
+				std::abs( item->m_transform._43 + 21.85731315612793f ) > 0.001f ||
+				std::abs( item->m_functionality.x ) > 0.0001f ||
+				std::abs( item->m_functionality.y - 1.f ) > 0.0001f ||
+				std::abs( item->m_functionality.z - 1.f ) > 0.0001f ||
+				std::abs( item->m_functionality.w - 1.f ) > 0.0001f )
+			{
+				error = "Astero authored engine locator contract changed";
+				return false;
+			}
+		}
+
+		const bool wantsPlumes = view == STANDALONE_ENGINE_VIEW_ALL || view == STANDALONE_ENGINE_VIEW_PLUMES;
+		const bool wantsGlows = view == STANDALONE_ENGINE_VIEW_ALL || view == STANDALONE_ENGINE_VIEW_GLOWS;
+		const bool wantsTrails = view == STANDALONE_ENGINE_VIEW_ALL || view == STANDALONE_ENGINE_VIEW_TRAILS;
+		m_engineLightsEnabled = view == STANDALONE_ENGINE_VIEW_ALL || view == STANDALONE_ENGINE_VIEW_LIGHTS;
+
+		auto createBoosterEffect = [&]( const BlueSharedString& lod, const char* role, Tr2EffectPtr& effect ) {
+			if( !effect.CreateInstance() )
+			{
+				error = std::string( "Failed to create " ) + role;
+				return false;
+			}
+			effect->StartUpdate();
+			effect->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/Booster/BoosterVolumetric.fx" );
+			effect->SetOption( BlueSharedString( "BOOSTER_LOD" ), lod );
+			effect->AddParameterFloat( BlueSharedString( "NoiseSpeed0" ), raceBooster.m_shape0->m_noiseSpeed );
+			effect->AddParameterVector4( BlueSharedString( "NoiseAmplitudeStart0" ), &raceBooster.m_shape0->m_noiseAmplitureStart );
+			effect->AddParameterVector4( BlueSharedString( "NoiseAmplitudeEnd0" ), &raceBooster.m_shape0->m_noiseAmplitureEnd );
+			effect->AddParameterVector4( BlueSharedString( "NoiseFrequency0" ), &raceBooster.m_shape0->m_noiseFrequency );
+			effect->AddParameterColor( BlueSharedString( "Color0" ), &raceBooster.m_shape0->m_color );
+			effect->AddParameterFloat( BlueSharedString( "NoiseSpeed1" ), raceBooster.m_shape1->m_noiseSpeed );
+			effect->AddParameterVector4( BlueSharedString( "NoiseAmplitudeStart1" ), &raceBooster.m_shape1->m_noiseAmplitureStart );
+			effect->AddParameterVector4( BlueSharedString( "NoiseAmplitudeEnd1" ), &raceBooster.m_shape1->m_noiseAmplitureEnd );
+			effect->AddParameterColor( BlueSharedString( "Color1" ), &raceBooster.m_shape1->m_color );
+			effect->AddParameterFloat( BlueSharedString( "WarpNoiseSpeed0" ), raceBooster.m_warpShape0->m_noiseSpeed );
+			effect->AddParameterVector4( BlueSharedString( "WarpNoiseAmplitudeStart0" ), &raceBooster.m_warpShape0->m_noiseAmplitureStart );
+			effect->AddParameterVector4( BlueSharedString( "WarpNoiseAmplitudeEnd0" ), &raceBooster.m_warpShape0->m_noiseAmplitureEnd );
+			effect->AddParameterVector4( BlueSharedString( "WarpNoiseFrequency0" ), &raceBooster.m_warpShape0->m_noiseFrequency );
+			effect->AddParameterColor( BlueSharedString( "WarpColor0" ), &raceBooster.m_warpShape0->m_color );
+			effect->AddParameterFloat( BlueSharedString( "WarpNoiseSpeed1" ), raceBooster.m_warpShape1->m_noiseSpeed );
+			effect->AddParameterVector4( BlueSharedString( "WarpNoiseAmplitudeStart1" ), &raceBooster.m_warpShape1->m_noiseAmplitureStart );
+			effect->AddParameterVector4( BlueSharedString( "WarpNoiseAmplitudeEnd1" ), &raceBooster.m_warpShape1->m_noiseAmplitureEnd );
+			effect->AddParameterColor( BlueSharedString( "WarpColor1" ), &raceBooster.m_warpShape1->m_color );
+			const Vector4 atlasSize( float( raceBooster.m_shapeAtlasHeight ), float( raceBooster.m_shapeAtlasCount ), 0.f, 0.f );
+			effect->AddParameterVector4( BlueSharedString( "ShapeAtlasSize" ), &atlasSize );
+			effect->AddParameterVector4( BlueSharedString( "BoosterScale" ), &raceBooster.m_scale );
+			effect->AddResourceTexture2D( BlueSharedString( "ShapeMap" ), raceBooster.m_shapeAtlasResPath.c_str() );
+			effect->AddResourceTexture2D( BlueSharedString( "GradientMap0" ), raceBooster.m_gradient0ResPath.c_str() );
+			effect->AddResourceTexture2D( BlueSharedString( "GradientMap1" ), raceBooster.m_gradient1ResPath.c_str() );
+			effect->AddResourceTexture2D( BlueSharedString( "NoiseMap" ), "res:/Texture/Global/noise32cube_volume.dds" );
+			effect->EndUpdate();
+			return PrepareEffectResourcesWithoutYield( *effect, role, error );
+		};
+
+		EveBoosterSet2Ptr set;
+		if( !set.CreateInstance() )
+		{
+			error = "Failed to create native Astero booster set";
+			return false;
+		}
+		set->SetData(
+			raceBooster.m_glowScale,
+			&raceBooster.m_glowColor,
+			&raceBooster.m_warpGlowColor,
+			raceBooster.m_symHaloScale,
+			raceBooster.m_haloScaleX,
+			raceBooster.m_haloScaleY,
+			&raceBooster.m_haloColor,
+			&raceBooster.m_warpHaloColor,
+			hullBooster.m_alwaysOn );
+		set->SetMaxVelocity( 250.f );
+		if( m_engineLightsEnabled )
+		{
+			set->SetLightData(
+				raceBooster.m_lightOffset,
+				raceBooster.m_lightFlickerAmplitude,
+				raceBooster.m_lightFlickerFrequency,
+				raceBooster.m_lightRadius,
+				raceBooster.m_lightColor,
+				raceBooster.m_lightWarpRadius,
+				raceBooster.m_lightWarpColor );
+		}
+
+		if( wantsPlumes )
+		{
+			Tr2EffectPtr nearEffect, farEffect;
+			if( !createBoosterEffect( BlueSharedString( "BOOSTER_LOD_HIGH" ), "Astero high-detail booster plume", nearEffect ) ||
+				!createBoosterEffect( BlueSharedString( "BOOSTER_LOD_LOW" ), "Astero low-detail booster plume", farEffect ) )
+			{
+				return false;
+			}
+			set->SetEffect( nearEffect, farEffect );
+		}
+
+		EveSpriteSetPtr glow;
+		if( wantsGlows )
+		{
+			Tr2EffectPtr glowEffect;
+			if( !glow.CreateInstance() || !glowEffect.CreateInstance() )
+			{
+				error = "Failed to create native Astero booster glow";
+				return false;
+			}
+			glowEffect->StartUpdate();
+			glowEffect->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/Booster/BoosterGlowAnimated.fx" );
+			glowEffect->AddResourceTexture2D( BlueSharedString( "NoiseMap" ), "res:/Texture/global/noise.dds" );
+			glowEffect->AddResourceTexture2D( BlueSharedString( "DiffuseMap" ), "res:/Texture/Particle/whitesharp.dds" );
+			glowEffect->EndUpdate();
+			if( !PrepareEffectResourcesWithoutYield( *glowEffect, "Astero booster glow", error ) )
+			{
+				return false;
+			}
+			glow->SetEffect( glowEffect );
+			set->SetGlow( glow );
+		}
+
+		if( wantsTrails )
+		{
+			Tr2EffectPtr trailEffect;
+			EveTrailsSetPtr trail;
+			if( !trail.CreateInstance() || !trailEffect.CreateInstance() )
+			{
+				error = "Failed to create native Astero booster trails";
+				return false;
+			}
+			trailEffect->StartUpdate();
+			trailEffect->SetEffectPathName( "res:/Graphics/Effect/Managed/Space/Booster/VolumetricTrails.fx" );
+			trailEffect->AddParameterVector4( BlueSharedString( "TrailSize" ), &raceBooster.m_trailSize );
+			trailEffect->AddParameterColor( BlueSharedString( "TrailColor" ), &raceBooster.m_trailColor );
+			trailEffect->EndUpdate();
+			if( !PrepareEffectResourcesWithoutYield( *trailEffect, "Astero volumetric trails", error ) )
+			{
+				return false;
+			}
+			trail->SetEffect( trailEffect );
+			trail->SetMeshResPath( "res:/dx9/model/ship/booster/volumetrictrail.cmf" );
+			TriGeometryRes* geometry = trail->GetGeometryResource();
+			if( geometry )
+			{
+				geometry->ForceSynchronousLoad();
+				geometry->Reload();
+			}
+			if( !geometry || !geometry->IsGood() || trail->GetPrimitiveCount() != 1200 )
+			{
+				error = "Astero volumetric trail CMF must expose 1,200 high-detail triangles";
+				return false;
+			}
+			set->SetTrail( trail );
+		}
+
+		for( const auto& item : hullBooster.m_items )
+		{
+			set->Add(
+				&item->m_transform,
+				&item->m_functionality,
+				item->m_hasTrail,
+				item->m_atlasIndex0,
+				item->m_atlasIndex1,
+				item->m_lightScale );
+		}
+		if( glow )
+		{
+			glow->Rebuild();
+		}
+		set->SetCount( 1 );
+		set->PrepareResources();
+		m_engines = set;
+		m_engineNativeIntensity = 0.f;
+		m_engineIntensity = 0.f;
+		std::fprintf(
+			stderr,
+			"Astero authored engine graph: locators=2 plumes=%s glows=%s trails=%s lights=%s throttle=%.3f maxVelocity=250.0 kinematics=camera-follow-cruise particleBranch=none\n",
+			wantsPlumes ? "2" : "off",
+			wantsGlows ? "6" : "off",
+			wantsTrails ? "2" : "off",
+			m_engineLightsEnabled ? "2" : "off",
+			m_engineThrottle );
+		return true;
 	}
 
 	bool ConfigureLocalLights( int mode, int localShadowMode, const EveSOFDataHull& hull, const EveSOFDataFaction& faction, std::string& error )
@@ -1299,11 +1529,30 @@ public:
 			++m_decalWarmupFrames;
 		}
 		UpdateEffectParameters();
-		UpdateAttachmentLights();
 	}
 
-	void UpdateAsyncronous( const EveUpdateContext& ) override
+	void UpdateAsyncronous( const EveUpdateContext& updateContext ) override
 	{
+		if( m_engines )
+		{
+			Vector3 scale, translation;
+			Quaternion rotation;
+			Decompose( scale, rotation, translation, m_worldTransform );
+			m_engines->Update(
+				updateContext.GetDeltaT(),
+				updateContext.GetTime(),
+				m_worldTransform,
+				m_engineThrottle * m_engines->GetMaxVelocity(),
+				Vector3( 0.f, 0.f, 0.f ),
+				rotation );
+			m_engines->UpdateTrails( updateContext.GetDeltaT(), updateContext.GetTime() );
+			m_engineNativeIntensity = m_engines->GetBoosterIntensity();
+			// Native cruise gain reserves 20% for acceleration. Normalize the zero-acceleration
+			// fixture so throttle 1 remains the sample's full cruise intensity contract.
+			m_engineIntensity = std::min( m_engineNativeIntensity / 0.8f, 1.0f );
+			UpdateEffectParameters();
+		}
+		UpdateAttachmentLights();
 	}
 
 	void UpdateVisibility( const EveUpdateContext& updateContext, const Matrix& ) override
@@ -1320,6 +1569,8 @@ public:
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
 		for( const auto& set : m_bannerAttachmentSets )
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
+		if( m_engines )
+			m_engines->UpdateVisibility( updateContext );
 
 		if( !m_decalEntries.empty() )
 		{
@@ -1342,23 +1593,32 @@ public:
 			set->RegisterWithQuadRenderer( quadRenderer );
 		for( const auto& set : m_planeAttachmentSets )
 			set->RegisterWithQuadRenderer( quadRenderer );
+		if( m_engines )
+			m_engines->RegisterWithQuadRenderer( quadRenderer );
 	}
 
 	void AddQuadsToQuadRenderer( const TriFrustum&, Tr2QuadRenderer& quadRenderer ) override
 	{
+		const float boosterGain = GetAttachmentBoosterGain();
 		for( const auto& set : m_spriteAttachmentSets )
-			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
 		for( const auto& set : m_spriteLineAttachmentSets )
-			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
 		for( const auto& set : m_spotlightAttachmentSets )
-			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
 		for( const auto& set : m_planeAttachmentSets )
-			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, 1.0f, nullptr, 0 );
+			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
+		if( m_engines )
+			m_engines->AddToQuadRenderer( quadRenderer, m_worldTransform );
 	}
 
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
 	{
 		renderables.push_back( this );
+		if( m_engines )
+		{
+			m_engines->GetRenderables( renderables );
+		}
 		if( !m_decalGeometry || m_decalEntries.empty() )
 		{
 			return;
@@ -1674,6 +1934,47 @@ public:
 		return TotalConstructedLights();
 	}
 
+	void SetEngineLightingActive( bool active )
+	{
+		m_engineLightingActive = active && m_engineLightsEnabled;
+	}
+
+	bool SetEnginesEnabled( bool enabled )
+	{
+		if( !m_engines )
+		{
+			return false;
+		}
+		m_enginesEnabled = enabled;
+		m_engines->SetDisplay( enabled );
+		return true;
+	}
+
+	bool HasAuthoredEngines() const
+	{
+		return m_engineMode == STANDALONE_ENGINES_AUTHORED && m_engines;
+	}
+
+	bool AreEnginesEnabled() const
+	{
+		return m_enginesEnabled;
+	}
+
+	EveBoosterSet2Diagnostics GetEngineDiagnostics() const
+	{
+		return m_engines ? m_engines->GetDiagnostics() : EveBoosterSet2Diagnostics{};
+	}
+
+	float GetEngineThrottle() const
+	{
+		return m_engineThrottle;
+	}
+
+	int GetEngineView() const
+	{
+		return m_engineView;
+	}
+
 	void SetShLightingEnabled( bool enabled )
 	{
 		m_shLightingEnabled = enabled;
@@ -1754,6 +2055,10 @@ public:
 			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
 			direct.light->AddLight( lightManager, m_worldTransform, 1.0f );
 			m_lightStats[direct.family].frustumAccepted += static_cast<uint32_t>( lightManager.GetCurrentThreadPendingLightCount() - before );
+		}
+		if( m_engines && m_enginesEnabled && m_engineLightingActive )
+		{
+			m_engines->GetLights( lightManager );
 		}
 		if( !m_reportedAcceptedLights )
 		{
@@ -2385,18 +2690,24 @@ private:
 
 	void UpdateAttachmentLights()
 	{
+		const float boosterGain = GetAttachmentBoosterGain();
 		for( const auto& set : m_spriteLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
 		for( const auto& set : m_spriteLineLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
 		for( const auto& set : m_spotlightLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
 		for( const auto& set : m_planeLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
 		for( const auto& set : m_hazeLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
 		for( const auto& set : m_bannerLightSets )
-			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, 1.0f );
+			set->UpdateLights( m_worldTransform, nullptr, 0, 1.0f, boosterGain );
+	}
+
+	float GetAttachmentBoosterGain() const
+	{
+		return m_engineMode == STANDALONE_ENGINES_AUTHORED ? m_engineIntensity : 1.f;
 	}
 
 	void RegisterComponents() override
@@ -2405,7 +2716,7 @@ private:
 		{
 			return;
 		}
-		if( TotalConstructedLights() > 0 )
+		if( TotalConstructedLights() > 0 || ( m_engines && m_engineLightingActive ) )
 		{
 			GetComponentRegistry()->RegisterComponent<ITr2LightOwner>( this );
 		}
@@ -2597,7 +2908,7 @@ private:
 			m_eveV5PerObjectData.m_vsData.worldTransformLast = world;
 			m_eveV5PerObjectData.m_vsData.invWorldTransform = inverseWorld;
 			m_eveV5PerObjectData.m_vsData.shipData = Vector4(
-				1.0f,
+				m_engineMode == STANDALONE_ENGINES_AUTHORED ? m_engineIntensity : 1.0f,
 				1.0f,
 				0.0f,
 				m_shadowBoundingRadius );
@@ -2638,7 +2949,15 @@ private:
 	int m_attachmentView = 0;
 	int m_decalMode = 0;
 	int m_decalView = 0;
+	int m_engineMode = STANDALONE_ENGINES_OFF;
+	int m_engineView = STANDALONE_ENGINE_VIEW_ALL;
 	int m_normalMapMode = 0;
+	float m_engineThrottle = 1.0f;
+	float m_engineNativeIntensity = 0.0f;
+	float m_engineIntensity = 0.0f;
+	bool m_enginesEnabled = false;
+	bool m_engineLightsEnabled = false;
+	bool m_engineLightingActive = false;
 	uint32_t m_shUpdateCount = 0;
 	uint32_t m_killCount = 0;
 	float m_modelYawOffset = 0.0f;
@@ -2672,6 +2991,7 @@ private:
 	Tr2EffectPtr m_hullEffect;
 	Tr2EffectPtr m_boosterEffect;
 	Tr2EffectPtr m_distortionEffect;
+	EveBoosterSet2Ptr m_engines;
 	Tr2TextureAL m_baseColorTexture;
 	Tr2TextureAL m_normalTexture;
 	Tr2TextureAL m_roughnessTexture;
@@ -3106,6 +3426,7 @@ struct StandaloneProbe
 	TrinityStandaloneDistortionDiagnostics distortionDiagnostics;
 	TrinityStandalonePostProcessDiagnostics postProcessDiagnostics;
 	TrinityStandaloneVolumetricDiagnostics volumetricDiagnostics;
+	TrinityStandaloneEngineDiagnostics engineDiagnostics;
 	Tr2PPDynamicExposureEffectPtr clientDynamicExposure;
 	Tr2PPTonemappingEffectPtr clientTonemapping;
 	Tr2PPBloomEffectPtr clientBloom;
@@ -6901,12 +7222,12 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					for( uint32_t layer = 0; ok && layer < probe.volumeSliceReadbacks.size(); ++layer )
 					{
 						ok = CheckHresult(
-							 probe.volumeSliceReadbacks[layer].CopySubresourceRegion(
-								 Tr2TextureSubresource( 0, 0 ),
-								 *selectedTexture,
-								 Tr2TextureSubresource( layer, 0 ),
-								 renderContext ),
-							 "Copy raw volume layer" ) &&
+								 probe.volumeSliceReadbacks[layer].CopySubresourceRegion(
+									 Tr2TextureSubresource( 0, 0 ),
+									 *selectedTexture,
+									 Tr2TextureSubresource( layer, 0 ),
+									 renderContext ),
+								 "Copy raw volume layer" ) &&
 							ok;
 					}
 				}
@@ -6978,7 +7299,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					{
 						visualizer->SetParameter( BlueSharedString( "BlitSource" ), *selectedTexture );
 						ok = Tr2Renderer::DrawTexture(
-							 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) && ok;
+								 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) &&
+							ok;
 						visualizer->SetParameter( BlueSharedString( "BlitSource" ), Tr2TextureAL{} );
 					}
 					else
@@ -7030,7 +7352,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 						{
 							visualizer->SetParameter( BlueSharedString( "BlitSource" ), *selectedTexture );
 							ok = Tr2Renderer::DrawTexture(
-								 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) && ok;
+									 renderContext, visualizer, Vector2( 0, 0 ), Vector2( 1, 1 ) ) &&
+								ok;
 							visualizer->SetParameter( BlueSharedString( "BlitSource" ), Tr2TextureAL{} );
 						}
 						else
@@ -7167,8 +7490,17 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 	require( attachmentCounts[5] == 4, "four active banners" );
 	require( decalCount == 11 && decalTriangles == 28 && probe.renderable->HaveDecalsCommitted(),
 			 "11 committed decals containing 28 LOD0 triangles" );
-	require( probe.renderable->GetConstructedLightCount() == 6 && resolvedLights == 6,
-			 "six authored and resolved local lights" );
+	const bool enginesActive = probe.renderable->HasAuthoredEngines() && probe.renderable->AreEnginesEnabled();
+	require( probe.renderable->GetConstructedLightCount() == 6 && resolvedLights == ( enginesActive ? 8 : 6 ),
+			 enginesActive ? "six attachment plus two booster lights" : "six authored and resolved local lights" );
+	if( enginesActive )
+	{
+		const EveBoosterSet2Diagnostics engines = probe.renderable->GetEngineDiagnostics();
+		require( engines.boosterCount == 2 && engines.glowCount == 6 && engines.trailCount == 2,
+				 "two authored boosters, six glows, and two trails" );
+		require( engines.ready && engines.plumeBatchCount == 1 && engines.trailBatchCount == 1,
+				 "prepared native engine plume and trail batches" );
+	}
 	require( probe.localShadows == STANDALONE_LOCAL_SHADOWS_OFF,
 			 "client-parity local-light shadows disabled" );
 	require( acceptedCascades == 3 && directionalShadowBatches == 6,
@@ -7250,13 +7582,13 @@ bool ValidateRc09Composition( StandaloneProbe& probe )
 	{
 		const auto& volume = probe.scene->m_volumetricsRenderer->GetDiagnostics();
 		require( probe.silkCloud && !probe.silkCloud->IsLightmapDirty() &&
-				 volume.localRenderableCount == 1 && volume.localBatchCount == 1 &&
-				 volume.volumeWidth > 1 && volume.volumeHeight > 1 && volume.volumeLayers == 4 &&
-				 volume.volumeFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
-				 volume.localLayerPackSucceeded && volume.localDepthDownsampleSucceeded &&
-				 volume.localBlurSucceeded && volume.localBlitSucceeded &&
-				 volume.totalLocalLightmapUpdates > 0 && volume.totalLocalShadowBatches > 0,
-			 "settled native Silk local-volume composition" );
+					 volume.localRenderableCount == 1 && volume.localBatchCount == 1 &&
+					 volume.volumeWidth > 1 && volume.volumeHeight > 1 && volume.volumeLayers == 4 &&
+					 volume.volumeFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+					 volume.localLayerPackSucceeded && volume.localDepthDownsampleSucceeded &&
+					 volume.localBlurSucceeded && volume.localBlitSucceeded &&
+					 volume.totalLocalLightmapUpdates > 0 && volume.totalLocalShadowBatches > 0,
+				 "settled native Silk local-volume composition" );
 	}
 
 	const auto& settings = probe.driver->GetSettings();
@@ -7467,7 +7799,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
-bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	probe.qualityRung = qualityRung;
 	if( !std::isfinite( modelYawDegrees ) )
@@ -7696,7 +8028,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 	probe.localLights = localLights;
 	probe.localShadows = localShadows;
-	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+	const bool engineLightsRequested = engines == STANDALONE_ENGINES_AUTHORED &&
+		( engineView == STANDALONE_ENGINE_VIEW_ALL || engineView == STANDALONE_ENGINE_VIEW_LIGHTS ) &&
+		( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_LOCAL );
+	if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || engineLightsRequested )
 	{
 		const wchar_t* compiledPath = Tr2Renderer::GetShaderModel() == TR2SM_3_0_DEPTH ? L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_depth" : L"res:/graphics/effect.metal/managed/space/system/computelightlists.sm_hi";
 		const char* effectPath = "res:/graphics/effect/managed/space/system/computelightlists.fx";
@@ -8187,7 +8522,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		probe.renderable->SetModelYawDegrees( modelYawDegrees );
 		probe.renderable->SetShadowCastingEnabled(
 			shadows != STANDALONE_SHADOWS_OFF || localShadows != STANDALONE_LOCAL_SHADOWS_OFF );
-		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 || decals == STANDALONE_DECALS_AUTHORED )
+		if( localLights != STANDALONE_LOCAL_LIGHTS_OFF || attachments == 2 || decals == STANDALONE_DECALS_AUTHORED || engines == STANDALONE_ENGINES_AUTHORED )
 		{
 			auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
 				"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black", loadError );
@@ -8225,6 +8560,18 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			{
 				std::fprintf( stderr, "Failed to configure Astero indexed decals: %s\n", loadError.c_str() );
 				return false;
+			}
+			if( engines == STANDALONE_ENGINES_AUTHORED )
+			{
+				auto race = LoadBlackObjectWithoutYield<EveSOFDataRace>(
+					"res:/dx9/model/spaceobjectfactory/races/soe.black", loadError );
+				if( !race || !probe.renderable->ConfigureEngines( engines, engineView, engineThrottle, *hull, *race, loadError ) )
+				{
+					std::fprintf( stderr, "Failed to configure Astero authored engines: %s\n", loadError.c_str() );
+					return false;
+				}
+				probe.renderable->SetEngineLightingActive(
+					lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_LOCAL );
 			}
 		}
 		Tr2PrimaryRenderContext& primaryRenderContext = Tr2RenderContext_GetMainThreadRenderContext();
@@ -9025,14 +9372,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
-TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int shadows, int ambientOcclusion, int aoMethod )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
 	{
 		return false;
 	}
-	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
+	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, engines, engineView, engineThrottle, modelYawDegrees, shadows, ambientOcclusion, aoMethod );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
@@ -9283,6 +9630,153 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateVolumetrics( void* 
 	return diagnostics.valid;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetEnginesEnabled( void* opaqueProbe, bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	return probe && probe->renderable && probe->renderable->SetEnginesEnabled( enabled );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetEngineDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneEngineDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderable || !diagnostics || !probe->renderable->HasAuthoredEngines() )
+	{
+		return false;
+	}
+	const EveBoosterSet2Diagnostics source = probe->renderable->GetEngineDiagnostics();
+	*diagnostics = probe->engineDiagnostics;
+	diagnostics->configured = true;
+	diagnostics->enabled = probe->renderable->AreEnginesEnabled();
+	diagnostics->ready = source.ready;
+	diagnostics->boosterCount = source.boosterCount;
+	diagnostics->renderableCount = source.renderableCount;
+	diagnostics->glowCount = source.glowCount;
+	diagnostics->trailCount = source.trailCount;
+	diagnostics->trailPrimitiveCount = source.trailPrimitiveCount;
+	diagnostics->plumeBatchCount = source.plumeBatchCount;
+	diagnostics->plumeInstanceCount = source.plumeInstanceCount;
+	diagnostics->glowSubmissionCount = source.glowSubmissionCount;
+	diagnostics->trailBatchCount = source.trailBatchCount;
+	diagnostics->trailInstanceCount = source.trailInstanceCount;
+	diagnostics->lightSubmissionCount = source.lightSubmissionCount;
+	diagnostics->throttle = probe->renderable->GetEngineThrottle();
+	diagnostics->nativeIntensity = source.intensity;
+	diagnostics->intensity = std::min( source.intensity / 0.8f, 1.0f );
+	diagnostics->trailIntensity = source.trailIntensity;
+	diagnostics->trailLength = source.trailLength;
+	diagnostics->boostersVisible = source.boostersVisible;
+	diagnostics->trailsVisible = source.trailsVisible;
+	diagnostics->highLod = source.highLod;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateEngines( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderable ||
+		!probe->renderable->HasAuthoredEngines() ||
+		probe->renderable->GetEngineView() != STANDALONE_ENGINE_VIEW_ALL ||
+		std::abs( probe->renderable->GetEngineThrottle() - 1.f ) > 0.0001f ||
+		probe->qualityRung != STANDALONE_PROBE_RUNG_HDR_FINISH ||
+		probe->distortionMode != STANDALONE_DISTORTION_AUTHORED )
+	{
+		return false;
+	}
+
+	TrinityStandaloneEngineDiagnostics diagnostics;
+	if( !TrinityStandaloneProbeGetEngineDiagnostics( probe, &diagnostics ) )
+	{
+		return false;
+	}
+	const Be::Time realTime = static_cast<Be::Time>( probe->lastRealTime );
+	const Be::Time simTime = static_cast<Be::Time>( probe->lastSimTime );
+	auto capturePairedProduct = [&]( int product, uint64_t& authoredHash, uint64_t& offHash ) {
+		bool pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, true );
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, product ) && pairOk;
+		authoredHash = probe->capturedProductHash;
+		pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, false ) && pairOk;
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, product ) && pairOk;
+		offHash = probe->capturedProductHash;
+		pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, true ) && pairOk;
+		return pairOk;
+	};
+	auto capturePairedHdr = [&]() {
+		bool pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, true );
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE ) && pairOk;
+		diagnostics.authoredPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+		pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, false ) && pairOk;
+		pairOk = DrawDriverFrame( *probe, realTime, simTime, STANDALONE_CAPTURE_HDR_COMPOSITE ) && pairOk;
+		diagnostics.offPreTonemapHash = probe->hdrCompositeDiagnostics.rawHash;
+		pairOk = TrinityStandaloneProbeSetEnginesEnabled( probe, true ) && pairOk;
+		return pairOk;
+	};
+
+	bool ok = capturePairedHdr();
+	ok = capturePairedProduct( STANDALONE_CAPTURE_BLOOM, diagnostics.authoredBloomHash, diagnostics.offBloomHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_FINAL_POSTPROCESS, diagnostics.authoredFinalHash, diagnostics.offFinalHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_DEPTH, diagnostics.authoredDepthHash, diagnostics.offDepthHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_NORMAL, diagnostics.authoredNormalHash, diagnostics.offNormalHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_DISTORTION, diagnostics.authoredDistortionHash, diagnostics.offDistortionHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_SHADOW, diagnostics.authoredShadowHash, diagnostics.offShadowHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_SHADOW_ATLAS, diagnostics.authoredShadowAtlasHash, diagnostics.offShadowAtlasHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_AO, diagnostics.authoredAoHash, diagnostics.offAoHash ) && ok;
+	ok = capturePairedProduct( STANDALONE_CAPTURE_BENT_NORMAL, diagnostics.authoredBentNormalHash, diagnostics.offBentNormalHash ) && ok;
+	ok = TrinityStandaloneProbeSetEnginesEnabled( probe, true ) && ok;
+
+	const bool inventory = diagnostics.ready && diagnostics.boosterCount == 2 &&
+		diagnostics.renderableCount == 1 && diagnostics.glowCount == 6 && diagnostics.trailCount == 2 &&
+		diagnostics.trailPrimitiveCount == 1200 && diagnostics.plumeBatchCount == 1 &&
+		diagnostics.plumeInstanceCount == 2 && diagnostics.glowSubmissionCount == 6 &&
+		diagnostics.trailBatchCount == 1 && diagnostics.trailInstanceCount == 2 &&
+		diagnostics.lightSubmissionCount == 2 && diagnostics.highLod;
+	const bool kinematics = std::abs( diagnostics.intensity - diagnostics.throttle ) <= 0.01f &&
+		diagnostics.trailLength > 200.f && diagnostics.trailIntensity > 0.f;
+	const bool affected = diagnostics.offPreTonemapHash != diagnostics.authoredPreTonemapHash &&
+		diagnostics.offBloomHash != diagnostics.authoredBloomHash &&
+		diagnostics.offFinalHash != diagnostics.authoredFinalHash;
+	const bool preserved = diagnostics.offDepthHash == diagnostics.authoredDepthHash &&
+		diagnostics.offNormalHash == diagnostics.authoredNormalHash &&
+		diagnostics.offDistortionHash == diagnostics.authoredDistortionHash &&
+		diagnostics.offShadowHash == diagnostics.authoredShadowHash &&
+		diagnostics.offShadowAtlasHash == diagnostics.authoredShadowAtlasHash &&
+		diagnostics.offAoHash == diagnostics.authoredAoHash &&
+		diagnostics.offBentNormalHash == diagnostics.authoredBentNormalHash;
+	diagnostics.valid = ok && inventory && kinematics && affected && preserved;
+	probe->engineDiagnostics = diagnostics;
+	std::fprintf(
+		stderr,
+		"EVE RC-05D diagnostics: inventory=[boosters=%u plumes=%u/%u glows=%u/%u trails=%u/%u primitives=%u lights=%u] "
+		"kinematics=[throttle=%.3f intensity=%.3f length=%.3f trailIntensity=%.3f] affected=[pre=%s bloom=%s final=%s] "
+		"preserved=[depth=%s normal=%s distortion=%s shadow=%s atlas=%s ao=%s bent=%s] validation=%s\n",
+		diagnostics.boosterCount,
+		diagnostics.plumeBatchCount,
+		diagnostics.plumeInstanceCount,
+		diagnostics.glowCount,
+		diagnostics.glowSubmissionCount,
+		diagnostics.trailBatchCount,
+		diagnostics.trailInstanceCount,
+		diagnostics.trailPrimitiveCount,
+		diagnostics.lightSubmissionCount,
+		diagnostics.throttle,
+		diagnostics.intensity,
+		diagnostics.trailLength,
+		diagnostics.trailIntensity,
+		diagnostics.offPreTonemapHash != diagnostics.authoredPreTonemapHash ? "changed" : "SAME",
+		diagnostics.offBloomHash != diagnostics.authoredBloomHash ? "changed" : "SAME",
+		diagnostics.offFinalHash != diagnostics.authoredFinalHash ? "changed" : "SAME",
+		diagnostics.offDepthHash == diagnostics.authoredDepthHash ? "same" : "CHANGED",
+		diagnostics.offNormalHash == diagnostics.authoredNormalHash ? "same" : "CHANGED",
+		diagnostics.offDistortionHash == diagnostics.authoredDistortionHash ? "same" : "CHANGED",
+		diagnostics.offShadowHash == diagnostics.authoredShadowHash ? "same" : "CHANGED",
+		diagnostics.offShadowAtlasHash == diagnostics.authoredShadowAtlasHash ? "same" : "CHANGED",
+		diagnostics.offAoHash == diagnostics.authoredAoHash ? "same" : "CHANGED",
+		diagnostics.offBentNormalHash == diagnostics.authoredBentNormalHash ? "same" : "CHANGED",
+		diagnostics.valid ? "pass" : "fail" );
+	return diagnostics.valid;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -9357,7 +9851,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		}
 		probe->celestialInspectionValidated = true;
 	}
-	if( rendered && probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF )
+	const bool engineLightsActive = probe->renderable && probe->renderable->HasAuthoredEngines() &&
+		( probe->renderable->GetEngineView() == STANDALONE_ENGINE_VIEW_ALL ||
+		  probe->renderable->GetEngineView() == STANDALONE_ENGINE_VIEW_LIGHTS );
+	if( rendered && ( probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF || engineLightsActive ) )
 	{
 		Tr2LightManager* manager = Tr2LightManager::GetInstance();
 		if( !manager || FAILED( manager->GetLastUpdateResult() ) )
@@ -9369,6 +9866,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( probe->localLights == STANDALONE_LOCAL_LIGHTS_VALIDATION && resolved == 0 )
 		{
 			CCP_LOGERR( "Synthetic validation light resolved to zero tiled lights" );
+			return false;
+		}
+		if( engineLightsActive && probe->localLights == STANDALONE_LOCAL_LIGHTS_OFF && resolved != 2 )
+		{
+			CCP_LOGERR( "Astero isolated booster-light fixture must resolve exactly two tiled lights" );
 			return false;
 		}
 		if( !probe->reportedResolvedLights )

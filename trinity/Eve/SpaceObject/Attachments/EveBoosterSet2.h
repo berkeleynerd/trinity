@@ -31,6 +31,28 @@ BLUE_DECLARE_INTERFACE( ITriVectorFunction );
 BLUE_DECLARE_INTERFACE( ITriQuaternionFunction );
 BLUE_DECLARE( Tr2DebugRenderer );
 
+struct EveBoosterSet2Diagnostics
+{
+	uint32_t boosterCount = 0;
+	uint32_t renderableCount = 0;
+	uint32_t glowCount = 0;
+	uint32_t trailCount = 0;
+	uint32_t trailPrimitiveCount = 0;
+	uint32_t plumeBatchCount = 0;
+	uint32_t plumeInstanceCount = 0;
+	uint32_t glowSubmissionCount = 0;
+	uint32_t trailBatchCount = 0;
+	uint32_t trailInstanceCount = 0;
+	uint32_t lightSubmissionCount = 0;
+	float intensity = 0.f;
+	float trailIntensity = 0.f;
+	float trailLength = 0.f;
+	bool boostersVisible = false;
+	bool trailsVisible = false;
+	bool highLod = false;
+	bool ready = false;
+};
+
 // constants
 // maximum number of spline control points per trail
 const unsigned int EVE_MAX_CONTROL_POINT_COUNT = 5;
@@ -156,6 +178,8 @@ public:
 	float m_trailsTimeDelta;
 
 	bool m_isVisible;
+	uint32_t m_lastPlumeBatchCount;
+	uint32_t m_lastPlumeInstanceCount;
 };
 TYPEDEF_BLUECLASS( EveBoosterSet2Renderable );
 BLUE_DECLARE_VECTOR( EveBoosterSet2Renderable );
@@ -256,6 +280,15 @@ public:
 	void SetEffect( Tr2Effect * effect, Tr2Effect * effectFar );
 	void SetGlow( EveSpriteSetPtr glow );
 	void SetTrail( EveTrailsSetPtr trail );
+	void SetDisplay( bool display );
+	bool GetDisplay() const;
+	void SetMaxVelocity( float velocity );
+	float GetMaxVelocity() const;
+	Tr2Effect* GetEffect() const;
+	Tr2Effect* GetFarEffect() const;
+	EveSpriteSet* GetGlow() const;
+	EveTrailsSet* GetTrail() const;
+	EveBoosterSet2Diagnostics GetDiagnostics() const;
 	// rendering
 	void UpdateVisibility( const EveUpdateContext& updateContext );
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables );
@@ -355,6 +388,8 @@ private:
 	float m_lightFlickerFrequency;
 	Color m_lightColor;
 	Color m_lightWarpColor;
+	uint32_t m_lastGlowSubmissionCount;
+	mutable uint32_t m_lastLightSubmissionCount;
 };
 
 TYPEDEF_BLUECLASS( EveBoosterSet2 );

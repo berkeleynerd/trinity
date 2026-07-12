@@ -218,6 +218,53 @@ struct TrinityStandaloneVolumetricDiagnostics
 	uint64_t silkBentNormalHash = 0;
 };
 
+struct TrinityStandaloneEngineDiagnostics
+{
+	bool valid = false;
+	bool configured = false;
+	bool enabled = false;
+	bool ready = false;
+	uint32_t boosterCount = 0;
+	uint32_t renderableCount = 0;
+	uint32_t glowCount = 0;
+	uint32_t trailCount = 0;
+	uint32_t trailPrimitiveCount = 0;
+	uint32_t plumeBatchCount = 0;
+	uint32_t plumeInstanceCount = 0;
+	uint32_t glowSubmissionCount = 0;
+	uint32_t trailBatchCount = 0;
+	uint32_t trailInstanceCount = 0;
+	uint32_t lightSubmissionCount = 0;
+	float throttle = 0.0f;
+	float nativeIntensity = 0.0f;
+	float intensity = 0.0f;
+	float trailIntensity = 0.0f;
+	float trailLength = 0.0f;
+	bool boostersVisible = false;
+	bool trailsVisible = false;
+	bool highLod = false;
+	uint64_t offPreTonemapHash = 0;
+	uint64_t authoredPreTonemapHash = 0;
+	uint64_t offBloomHash = 0;
+	uint64_t authoredBloomHash = 0;
+	uint64_t offFinalHash = 0;
+	uint64_t authoredFinalHash = 0;
+	uint64_t offDepthHash = 0;
+	uint64_t authoredDepthHash = 0;
+	uint64_t offNormalHash = 0;
+	uint64_t authoredNormalHash = 0;
+	uint64_t offDistortionHash = 0;
+	uint64_t authoredDistortionHash = 0;
+	uint64_t offShadowHash = 0;
+	uint64_t authoredShadowHash = 0;
+	uint64_t offShadowAtlasHash = 0;
+	uint64_t authoredShadowAtlasHash = 0;
+	uint64_t offAoHash = 0;
+	uint64_t authoredAoHash = 0;
+	uint64_t offBentNormalHash = 0;
+	uint64_t authoredBentNormalHash = 0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	void* opaqueProbe,
 	int dynamicExposureMode,
@@ -252,3 +299,8 @@ extern "C" bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneVolumetricDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeSetEnginesEnabled( void* opaqueProbe, bool enabled );
+extern "C" bool TrinityStandaloneProbeGetEngineDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneEngineDiagnostics* diagnostics );
+extern "C" bool TrinityStandaloneProbeValidateEngines( void* opaqueProbe );

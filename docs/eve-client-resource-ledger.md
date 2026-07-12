@@ -376,3 +376,24 @@ settings, not staged payloads. Local VDB composition is accepted as capability
 evidence; the New Eden fixture does not author this cloud. RC-12B2 global
 froxel execution remains blocked by the documented AGX watchdog incident, so
 its staged shaders remain resource evidence only.
+
+## RC-05D Astero engine resources
+
+`TrinityEveSceneProbeAsteroEngineAssets` resolves 18 external inputs through
+the Tranquility indexes. The graph includes the SOE race Black, three Metal
+variants each of `boostervolumetric`, `boosterglowanimated`, and
+`volumetrictrails`, shape/gradient/noise textures, the inherited hull Black,
+and `res:/dx9/model/ship/booster/volumetrictrail.gr2`. Representative absolute
+sources are:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/8f/8f063a9a8b4ee381_39ac532e847500f025ac11277f5ef235
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/4c/4ce22ba77e1395d7_b902cc875dd42801d40ea9ecfd64a80f
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/fe/fe06b70c077d30a3_20f671bacd1642e70b19c687d6a1f822
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/67/6775ce43676c8f48_5e63e7b7e4a21eb4eef23a2737f5ede8
+```
+
+The ignored `Reports/AsteroEngineResources.json` records the full absolute
+source, source index, byte size, SHA-256, and destination for every entry. The
+generated trail CMF is recorded separately because it is derived output, not
+a client payload. No SharedCache file or generated CMF is source controlled.

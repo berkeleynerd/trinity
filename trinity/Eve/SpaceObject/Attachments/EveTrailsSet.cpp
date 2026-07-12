@@ -19,7 +19,9 @@ EveTrailsSet::EveTrailsSet( IRoot* lockobj ) :
 	m_display( true ),
 	m_trailVertexDeclElementCount( 0 ),
 	m_vertexDeclHandle( Tr2EffectStateManager::UNINITIALIZED_DECLARATION ),
-	m_fadeSpeed( 1.f )
+	m_fadeSpeed( 1.f ),
+	m_lastBatchCount( 0 ),
+	m_lastInstanceCount( 0 )
 {
 	PrepareResources();
 }
@@ -99,6 +101,51 @@ void EveTrailsSet::Cleanup()
 void EveTrailsSet::SetEffect( Tr2EffectPtr effect )
 {
 	m_effect = effect;
+}
+
+Tr2Effect* EveTrailsSet::GetEffect() const
+{
+	return m_effect;
+}
+
+TriGeometryRes* EveTrailsSet::GetGeometryResource() const
+{
+	return m_geometryResource;
+}
+
+size_t EveTrailsSet::GetTrailCount() const
+{
+	return m_trailData.size();
+}
+
+uint32_t EveTrailsSet::GetPrimitiveCount() const
+{
+	if( !m_geometryResource || !m_geometryResource->IsGood() || !m_geometryResource->GetMeshCount() )
+	{
+		return 0;
+	}
+	const TriGeometryResMeshData* meshData = m_geometryResource->GetMeshData( 0 );
+	if( !meshData || meshData->m_lods.empty() || !meshData->m_lods[0] )
+	{
+		return 0;
+	}
+	return meshData->m_lods[0]->m_primitiveCount;
+}
+
+uint32_t EveTrailsSet::GetLastBatchCount() const
+{
+	return m_lastBatchCount;
+}
+
+uint32_t EveTrailsSet::GetLastInstanceCount() const
+{
+	return m_lastInstanceCount;
+}
+
+bool EveTrailsSet::IsReady() const
+{
+	return m_effect && m_effect->GetShaderStateInterface() && m_geometryResource && m_geometryResource->IsGood() &&
+		m_instanceBuffer.IsValid() && m_vertexDeclHandle != Tr2EffectStateManager::UNINITIALIZED_DECLARATION;
 }
 
 // --------------------------------------------------------------------------------------
@@ -305,6 +352,8 @@ void EveTrailsSet::InitializeInstanceBuffer()
 // --------------------------------------------------------------------------------
 void EveTrailsSet::GetBatches( ITriRenderBatchAccumulator* accumulator, const Tr2PerObjectData* perObjectData )
 {
+	m_lastBatchCount = 0;
+	m_lastInstanceCount = 0;
 	if( !m_display )
 	{
 		return;
@@ -344,4 +393,6 @@ void EveTrailsSet::GetBatches( ITriRenderBatchAccumulator* accumulator, const Tr
 		lodData->m_vertexAllocation.GetOffset() / lodData->m_vertexAllocation.GetStride(),
 		m_instanceBuffer.GetOffset() / m_instanceBuffer.GetStride() );
 	accumulator->Commit( batch );
+	m_lastBatchCount = 1;
+	m_lastInstanceCount = uint32_t( m_trailData.size() );
 }

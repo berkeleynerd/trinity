@@ -81,6 +81,13 @@ public:
 	// set internal visual data
 	void SetEffect( Tr2EffectPtr effect );
 	void SetMeshResPath( const char* path );
+	Tr2Effect* GetEffect() const;
+	TriGeometryRes* GetGeometryResource() const;
+	size_t GetTrailCount() const;
+	uint32_t GetPrimitiveCount() const;
+	uint32_t GetLastBatchCount() const;
+	uint32_t GetLastInstanceCount() const;
+	bool IsReady() const;
 
 
 private:
@@ -116,6 +123,8 @@ private:
 
 	// fade in/out co-efficient
 	float m_fadeSpeed;
+	uint32_t m_lastBatchCount;
+	uint32_t m_lastInstanceCount;
 
 	// indivual data of each trail
 	std::vector<SingleTrailData> m_trailData;

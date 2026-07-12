@@ -63,7 +63,9 @@ EveBoosterSet2Renderable::EveBoosterSet2Renderable( IRoot* lockobj ) :
 	m_trailsTimeDelta( 1.f ),
 	m_trailsOffsetLatest( 0 ),
 	m_trailsOffsetAccu( 0.f, 0.f, 0.f ),
-	m_parentTransform( IdentityMatrix() )
+	m_parentTransform( IdentityMatrix() ),
+	m_lastPlumeBatchCount( 0 ),
+	m_lastPlumeInstanceCount( 0 )
 {
 	BoundingBoxInitialize( m_trailsBoundsMin, m_trailsBoundsMax );
 	// "invalidate" all trail control positions
@@ -181,6 +183,8 @@ void EveBoosterSet2Renderable::GetBatches( ITriRenderBatchAccumulator* batches, 
 	{
 		return;
 	}
+	m_lastPlumeBatchCount = 0;
+	m_lastPlumeInstanceCount = 0;
 	if( !m_boosterSet->m_display )
 	{
 		return;
@@ -195,7 +199,7 @@ void EveBoosterSet2Renderable::GetBatches( ITriRenderBatchAccumulator* batches, 
 	}
 
 	// boosters visible based on LOD?
-	if( m_boostersVisible )
+	if( m_boostersVisible && m_boosterSet->m_effect )
 	{
 		auto shape = Tr2Renderer::GetShaderModel() >= TR2SM_3_0_HI ? EveBoosterSet2::BOX : EveBoosterSet2::STAR;
 		auto& indexBuffer = Tr2Renderer::GetQuadListIndexBuffer();
@@ -220,6 +224,8 @@ void EveBoosterSet2Renderable::GetBatches( ITriRenderBatchAccumulator* batches, 
 			vb.GetOffset() / vb.GetStride(),
 			m_boosterSet->m_instanceBuffer.GetOffset() / m_boosterSet->m_instanceBuffer.GetStride() );
 		batches->Commit( batch );
+		m_lastPlumeBatchCount = 1;
+		m_lastPlumeInstanceCount = uint32_t( m_boosterSet->m_singleBoosters.size() );
 	}
 
 	if( m_trailsVisible )
@@ -688,6 +694,8 @@ EveBoosterSet2::EveBoosterSet2( IRoot* lockobj ) :
 	m_lightFlickerFrequency( 0.f ),
 	m_lightColor( 0.f, 0.f, 0.f, 0.f ),
 	m_lightWarpColor( 0.f, 0.f, 0.f, 0.f ),
+	m_lastGlowSubmissionCount( 0 ),
+	m_lastLightSubmissionCount( 0 ),
 	m_vertexBuffer( BlueSharedString( "BoosterBoxVB" ), GetBoxVB )
 {
 	BoundingSphereInitialize( m_boosterBoundingSphere );
@@ -991,6 +999,83 @@ void EveBoosterSet2::SetTrail( EveTrailsSetPtr trail )
 	m_trails = trail;
 }
 
+void EveBoosterSet2::SetDisplay( bool display )
+{
+	m_display = display;
+}
+
+bool EveBoosterSet2::GetDisplay() const
+{
+	return m_display;
+}
+
+void EveBoosterSet2::SetMaxVelocity( float velocity )
+{
+	m_maxVel = velocity;
+}
+
+float EveBoosterSet2::GetMaxVelocity() const
+{
+	return m_maxVel;
+}
+
+Tr2Effect* EveBoosterSet2::GetEffect() const
+{
+	return m_effect;
+}
+
+Tr2Effect* EveBoosterSet2::GetFarEffect() const
+{
+	return m_effectFar;
+}
+
+EveSpriteSet* EveBoosterSet2::GetGlow() const
+{
+	return m_glows;
+}
+
+EveTrailsSet* EveBoosterSet2::GetTrail() const
+{
+	return m_trails;
+}
+
+EveBoosterSet2Diagnostics EveBoosterSet2::GetDiagnostics() const
+{
+	EveBoosterSet2Diagnostics diagnostics;
+	diagnostics.boosterCount = uint32_t( m_singleBoosters.size() );
+	diagnostics.renderableCount = uint32_t( m_boosterRenderables.size() );
+	diagnostics.glowCount = m_glows && m_glows->GetSprites() ? uint32_t( m_glows->GetSprites()->size() ) : 0;
+	diagnostics.trailCount = m_trails ? uint32_t( m_trails->GetTrailCount() ) : 0;
+	diagnostics.trailPrimitiveCount = m_trails ? m_trails->GetPrimitiveCount() : 0;
+	diagnostics.glowSubmissionCount = m_lastGlowSubmissionCount;
+	diagnostics.lightSubmissionCount = m_lastLightSubmissionCount;
+	for( const auto& renderable : m_boosterRenderables )
+	{
+		diagnostics.plumeBatchCount += renderable->m_lastPlumeBatchCount;
+		diagnostics.plumeInstanceCount += renderable->m_lastPlumeInstanceCount;
+		diagnostics.intensity += renderable->m_overallIntensity;
+		diagnostics.trailIntensity = std::max( diagnostics.trailIntensity, renderable->m_trailIntensity );
+		diagnostics.trailLength = std::max( diagnostics.trailLength, renderable->m_trailsTotalLength );
+		diagnostics.boostersVisible = diagnostics.boostersVisible || renderable->m_boostersVisible;
+		diagnostics.trailsVisible = diagnostics.trailsVisible || renderable->m_trailsVisible;
+		diagnostics.highLod = diagnostics.highLod || renderable->m_boosterHighLod;
+	}
+	if( diagnostics.renderableCount )
+	{
+		diagnostics.intensity /= float( diagnostics.renderableCount );
+	}
+	if( m_trails )
+	{
+		diagnostics.trailBatchCount = m_trails->GetLastBatchCount();
+		diagnostics.trailInstanceCount = m_trails->GetLastInstanceCount();
+	}
+	diagnostics.ready = m_effect && m_effect->GetShaderStateInterface() && m_instanceBuffer.IsValid() &&
+		m_vertexDeclHandle != Tr2EffectStateManager::UNINITIALIZED_DECLARATION &&
+		( !m_glows || ( m_glows->GetEffect() && m_glows->GetEffect()->GetShaderStateInterface() ) ) &&
+		( !m_trails || m_trails->IsReady() );
+	return diagnostics;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   We have to free all device stuff, so release vertex declaration and free
@@ -1136,7 +1221,7 @@ void EveBoosterSet2::GetRenderables( std::vector<ITr2Renderable*>& renderables )
 	}
 
 	// add this object (which is a renderable), if it is visible
-	if( m_effect )
+	if( m_effect || m_trails )
 	{
 		for( auto it = m_boosterRenderables.begin(); it != m_boosterRenderables.end(); it++ )
 		{
@@ -1254,6 +1339,7 @@ void EveBoosterSet2::RegisterWithQuadRenderer( Tr2QuadRenderer& quadRenderer )
 // --------------------------------------------------------------------------------
 void EveBoosterSet2::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Matrix& world )
 {
+	m_lastGlowSubmissionCount = 0;
 	if( !m_glows || !m_glowsVisible || !m_display )
 	{
 		return;
@@ -1264,6 +1350,7 @@ void EveBoosterSet2::AddToQuadRenderer( Tr2QuadRenderer& quadRenderer, const Mat
 		if( ( *it )->m_boostersVisible || !m_flareLodEnabled )
 		{
 			m_glows->AddBoosterGlowToQuadRenderer( quadRenderer, ( *it )->m_parentTransform, ( *it )->m_overallIntensity, m_warpIntensity );
+			m_lastGlowSubmissionCount += uint32_t( m_singleBoosters.size() * 3 );
 		}
 	}
 }
@@ -1286,6 +1373,11 @@ void EveBoosterSet2::RegisterComponents()
 // --------------------------------------------------------------------------------
 void EveBoosterSet2::GetLights( Tr2LightManager& lightManager ) const
 {
+	m_lastLightSubmissionCount = 0;
+	if( !m_display )
+	{
+		return;
+	}
 	if( ( m_lightRadius <= 0.f && m_lightWarpRadius <= 0.f ) )
 	{
 		return;
@@ -1314,6 +1406,7 @@ void EveBoosterSet2::GetLights( Tr2LightManager& lightManager ) const
 				Vector3( XMVector3TransformCoord( it->lightPosition, transform ) ),
 				it->lightRadius * radiusFactor,
 				color * flicker );
+			++m_lastLightSubmissionCount;
 		}
 	}
 }

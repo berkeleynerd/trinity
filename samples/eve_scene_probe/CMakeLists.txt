@@ -225,6 +225,16 @@ set(EVE_SCENE_PROBE_SILK_DENSITY ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_density.vt
 set(EVE_SCENE_PROBE_SILK_DENSITY_LOW ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_density_lowdetail.vta)
 set(EVE_SCENE_PROBE_SILK_TEMPERATURE ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_temperature.vta)
 set(EVE_SCENE_PROBE_SILK_TEMPERATURE_LOW ${EVE_SCENE_PROBE_SILK_DIR}/silk_01a_temperature_lowdetail.vta)
+set(EVE_SCENE_PROBE_ENGINE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/EngineAssets)
+set(EVE_SCENE_PROBE_ENGINE_INHERITED_DIR ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/Inherited)
+set(EVE_SCENE_PROBE_ENGINE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroEngineResources.json)
+set(EVE_SCENE_PROBE_ENGINE_CMF_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroEngineTrailCmf.sha256)
+set(EVE_SCENE_PROBE_ENGINE_RACE_BLACK ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/races/soe.black)
+set(EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/VolumetricTrail.gltf)
+set(EVE_SCENE_PROBE_ENGINE_TRAIL_BIN ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/VolumetricTrail.bin)
+set(EVE_SCENE_PROBE_ENGINE_TRAIL_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/booster/volumetrictrail.cmf)
+set(EVE_SCENE_PROBE_ENGINE_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/booster)
+set(EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/booster)
 set(EVE_SCENE_PROBE_CLIENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroClientResources.json)
 set(EVE_SCENE_PROBE_ASTERO_MODEL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroModelResources.json)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
@@ -988,6 +998,92 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_ENGINE_OUTPUTS
+        ${EVE_SCENE_PROBE_ENGINE_RACE_BLACK}
+        ${EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF}
+        ${EVE_SCENE_PROBE_ENGINE_TRAIL_BIN}
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_hi
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_lo
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_depth
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_hi
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_lo
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_depth
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_hi
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_lo
+        ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_depth
+        ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/shape01.dds
+        ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/gradient01.dds
+        ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/gradient02.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/noise32cube_volume.dds
+        ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/soef1_t1.black
+        ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/noise.dds
+        ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/whitesharp.dds)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ENGINE_OUTPUTS} ${EVE_SCENE_PROBE_ENGINE_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}
+		COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model res:/dx9/model/ship/booster/volumetrictrail.gr2
+            --output ${EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF}
+            --lod 0
+            --copy-resource res:/dx9/model/spaceobjectfactory/races/soe.black ${EVE_SCENE_PROBE_ENGINE_RACE_BLACK}
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boostervolumetric.sm_hi ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boostervolumetric.sm_lo ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boostervolumetric.sm_depth ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boostervolumetric.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boosterglowanimated.sm_hi ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boosterglowanimated.sm_lo ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/boosterglowanimated.sm_depth ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/boosterglowanimated.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/volumetrictrails.sm_hi ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/volumetrictrails.sm_lo ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/booster/volumetrictrails.sm_depth ${EVE_SCENE_PROBE_ENGINE_EFFECT_DIR}/volumetrictrails.sm_depth
+            --copy-resource res:/dx9/model/booster/shape01.dds ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/shape01.dds
+            --copy-resource res:/dx9/model/booster/gradient01.dds ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/gradient01.dds
+            --copy-resource res:/dx9/model/booster/gradient02.dds ${EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR}/gradient02.dds
+            --copy-resource res:/texture/global/noise32cube_volume.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/noise32cube_volume.dds
+            --copy-resource ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK_RESOURCE} ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/soef1_t1.black
+            --copy-resource res:/texture/global/noise.dds ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/noise.dds
+            --copy-resource res:/texture/particle/whitesharp.dds ${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/whitesharp.dds
+            --manifest ${EVE_SCENE_PROBE_ENGINE_MANIFEST}
+            --summary
+		COMMAND ${CMAKE_COMMAND} -E copy_if_different
+			${EVE_SCENE_PROBE_ENGINE_INHERITED_DIR}/noise.dds
+			${EVE_SCENE_PROBE_ASSETS_DIR}/texture/global/noise.dds
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/booster
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF}
+            --output ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF} ${EVE_SCENE_PROBE_ENGINE_TRAIL_BIN}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ENGINE_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_ENGINE_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF} ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeAsteroEngineAssets
+        DEPENDS ${EVE_SCENE_PROBE_ENGINE_OUTPUTS} ${EVE_SCENE_PROBE_ENGINE_MANIFEST}
+            ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF} ${EVE_SCENE_PROBE_ENGINE_CMF_HASH})
+    if(TARGET TrinityEveSceneProbeAsteroAttachmentAssets)
+        add_dependencies(TrinityEveSceneProbeAsteroEngineAssets TrinityEveSceneProbeAsteroAttachmentAssets)
+    endif()
+    if(TARGET TrinityEveSceneProbeNewEdenAtmosphereAssets)
+        add_dependencies(TrinityEveSceneProbeAsteroEngineAssets TrinityEveSceneProbeNewEdenAtmosphereAssets)
+    endif()
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroEngineAssets)
+endif()
+
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
     add_custom_command(
         OUTPUT
             ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK}
@@ -1369,6 +1465,9 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
             ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeNewEdenAtmosphereAssets)
+	if(TARGET TrinityEveSceneProbeAsteroEngineAssets)
+		add_dependencies(TrinityEveSceneProbeAsteroEngineAssets TrinityEveSceneProbeNewEdenAtmosphereAssets)
+	endif()
 endif()
 
 if(TARGET TrinityEveSceneProbeNewEdenAssets AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
@@ -1923,6 +2022,14 @@ if(TARGET TrinityEveSceneProbeLocalShadowAssets)
 	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
 		${EVE_SCENE_PROBE_LOCAL_SHADOW_OUTPUTS}
 		${EVE_SCENE_PROBE_LOCAL_SHADOW_MANIFEST})
+endif()
+
+if(TARGET TrinityEveSceneProbeAsteroEngineAssets)
+	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+		${EVE_SCENE_PROBE_ENGINE_OUTPUTS}
+		${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
+		${EVE_SCENE_PROBE_ENGINE_MANIFEST}
+		${EVE_SCENE_PROBE_ENGINE_CMF_HASH})
 endif()
 
 add_custom_command(

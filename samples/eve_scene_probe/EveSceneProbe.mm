@@ -119,6 +119,9 @@ extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int decals,
 													  int decalView,
 													  uint32_t killCount,
+													  int engines,
+													  int engineView,
+													  float engineThrottle,
 													  float modelYawDegrees,
 													  int shadows,
 													  int ambientOcclusion,
@@ -385,6 +388,22 @@ enum class DistortionMode
 	Authored,
 };
 
+enum class EngineMode
+{
+	Auto,
+	Off,
+	Authored,
+};
+
+enum class EngineView
+{
+	All,
+	Plumes,
+	Glows,
+	Trails,
+	Lights,
+};
+
 enum class VolumetricMode
 {
 	Auto,
@@ -440,6 +459,10 @@ struct Options
 	Decals resolvedDecals = Decals::Off;
 	DecalView decalView = DecalView::All;
 	uint32_t killCount = 0;
+	EngineMode engines = EngineMode::Auto;
+	EngineMode resolvedEngines = EngineMode::Off;
+	EngineView engineView = EngineView::All;
+	float engineThrottle = 1.0f;
 	float modelYawDegrees = 0.0f;
 	ShaderTier shaderTier = ShaderTier::High;
 	ReflectionCorrection reflectionCorrection = ReflectionCorrection::Client;
@@ -472,6 +495,7 @@ struct Options
 	bool validateExposureTone = false;
 	bool validatePostFinish = false;
 	bool validateDistortion = false;
+	bool validateEngines = false;
 	bool framePacingCheck = false;
 	uint32_t timingWarmup = 180;
 	DynamicExposure dynamicExposure = DynamicExposure::Auto;
@@ -1007,6 +1031,47 @@ bool ParseDistortionMode( const std::string& value, DistortionMode& result )
 	for( DistortionMode candidate : { DistortionMode::Auto, DistortionMode::Off, DistortionMode::Authored } )
 	{
 		if( normalized == DistortionModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string EngineModeName( EngineMode value )
+{
+	static const char* names[] = { "auto", "off", "authored" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseEngineMode( const std::string& value, EngineMode& result )
+{
+	const std::string normalized = ToLower( value );
+	for( EngineMode candidate : { EngineMode::Auto, EngineMode::Off, EngineMode::Authored } )
+	{
+		if( normalized == EngineModeName( candidate ) )
+		{
+			result = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string EngineViewName( EngineView value )
+{
+	static const char* names[] = { "all", "plumes", "glows", "trails", "lights" };
+	return names[static_cast<int>( value )];
+}
+
+bool ParseEngineView( const std::string& value, EngineView& result )
+{
+	const std::string normalized = ToLower( value );
+	for( EngineView candidate :
+		 { EngineView::All, EngineView::Plumes, EngineView::Glows, EngineView::Trails, EngineView::Lights } )
+	{
+		if( normalized == EngineViewName( candidate ) )
 		{
 			result = candidate;
 			return true;
@@ -1792,6 +1857,8 @@ void PrintUsage( const char* executable )
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
+		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
+		<< "       [--engine-throttle FLOAT] [--validate-engines]\n"
 		<< "       [--volumetrics auto|off|silk|froxel|all] [--volumetric-quality auto|low|medium|high|ultra]\n"
 		<< "       [--volumetric-seed N] [--validate-volumetrics]\n"
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
@@ -1947,6 +2014,34 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--engines" )
+		{
+			if( ++i >= argc || !ParseEngineMode( argv[i], options.engines ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--engine-view" )
+		{
+			if( ++i >= argc || !ParseEngineView( argv[i], options.engineView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--engine-throttle" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) || parsed < 0.0f || parsed > 1.0f )
+			{
+				return false;
+			}
+			options.engineThrottle = parsed;
+		}
 		else if( arg == "--volumetrics" )
 		{
 			if( ++i >= argc || !ParseVolumetricMode( argv[i], options.volumetrics ) )
@@ -1986,6 +2081,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-distortion" )
 		{
 			options.validateDistortion = true;
+		}
+		else if( arg == "--validate-engines" )
+		{
+			options.validateEngines = true;
 		}
 		else if( arg == "--validate-volumetrics" )
 		{
@@ -2439,16 +2538,25 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Authored distortion requires high-tier Astero eve-v5 rendering at hdr-finish\n";
 		return false;
 	}
+	const bool engineCompatible = options.qualityRung >= QualityRung::Model && options.asset == "astero" &&
+		options.materialMode == MaterialMode::EveV5 && options.materialView == MaterialView::Lit &&
+		options.areaView == AreaView::All && options.shaderTier == ShaderTier::High;
+	options.resolvedEngines = options.engines == EngineMode::Auto ?
+		( engineCompatible && options.qualityRung == QualityRung::HdrFinish ? EngineMode::Authored : EngineMode::Off ) :
+		options.engines;
+	if( options.resolvedEngines == EngineMode::Authored && !engineCompatible )
+	{
+		std::cerr << "Authored engines require a lit, all-area, high-tier Astero eve-v5 render at model or higher\n";
+		return false;
+	}
 	options.resolvedVolumetrics =
 		options.volumetrics == VolumetricMode::Auto ? VolumetricMode::Off : options.volumetrics;
 	options.resolvedVolumetricQuality =
 		options.volumetricQuality == VolumetricQuality::Auto ? VolumetricQuality::High : options.volumetricQuality;
-	if( options.resolvedVolumetrics == VolumetricMode::Froxel ||
-		options.resolvedVolumetrics == VolumetricMode::All )
+	if( options.resolvedVolumetrics == VolumetricMode::Froxel || options.resolvedVolumetrics == VolumetricMode::All )
 	{
-		std::cerr
-			<< "Global froxel volumetrics are blocked before Metal initialization: native AGX compute submission "
-				"triggered the macOS WindowServer watchdog. Use --volumetrics off or silk.\n";
+		std::cerr << "Global froxel volumetrics are blocked before Metal initialization: native AGX compute submission "
+					 "triggered the macOS WindowServer watchdog. Use --volumetrics off or silk.\n";
 		return false;
 	}
 	if( options.resolvedVolumetrics != VolumetricMode::Off && options.qualityRung < QualityRung::Scene )
@@ -2587,15 +2695,27 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.validateVolumetrics &&
 		( options.resolvedVolumetrics != VolumetricMode::Silk ||
 		  options.resolvedVolumetricQuality != VolumetricQuality::High ||
-		  options.qualityRung != QualityRung::HdrFinish || options.maxFrames <= 0 ||
-		  options.capturePrefix.empty() ) )
+		  options.qualityRung != QualityRung::HdrFinish || options.maxFrames <= 0 || options.capturePrefix.empty() ) )
 	{
-		std::cerr
-			<< "--validate-volumetrics requires --volumetrics silk --volumetric-quality high, hdr-finish, "
-				"finite frames, and --capture-prefix\n";
+		std::cerr << "--validate-volumetrics requires --volumetrics silk --volumetric-quality high, hdr-finish, "
+					 "finite frames, and --capture-prefix\n";
 		return false;
 	}
 	if( options.validateVolumetrics && !ValidateCanonicalCompositionOptions( options ) )
+	{
+		return false;
+	}
+	if( options.validateEngines &&
+		( options.resolvedEngines != EngineMode::Authored || options.engineView != EngineView::All ||
+		  std::abs( options.engineThrottle - 1.0f ) > 0.000001f || options.qualityRung != QualityRung::HdrFinish ||
+		  options.maxFrames <= 0 || static_cast<uint32_t>( options.maxFrames ) < options.exposureHold ||
+		  options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-engines requires authored all-family engines at throttle 1, hdr-finish, "
+					 "at least --exposure-hold frames, and --capture-prefix\n";
+		return false;
+	}
+	if( options.validateEngines && !ValidateCanonicalCompositionOptions( options ) )
 	{
 		return false;
 	}
@@ -2834,7 +2954,9 @@ std::string CaptureBasePath( const Options& options )
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
 		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
 		VolumetricModeName( options.resolvedVolumetrics ) + "-" +
-		VolumetricQualityName( options.resolvedVolumetricQuality );
+		VolumetricQualityName( options.resolvedVolumetricQuality ) + "_eng-" +
+		EngineModeName( options.resolvedEngines ) + "-" + EngineViewName( options.engineView ) + "-thr-" +
+		std::to_string( options.engineThrottle );
 	const size_t filenameOffset = fullPath.find_last_of( "/\\" );
 	const size_t filenameLength = fullPath.size() - ( filenameOffset == std::string::npos ? 0 : filenameOffset + 1 );
 	if( filenameLength <= 220 )
@@ -2947,9 +3069,17 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "volumetricSeed=" << options.volumetricSeed << "\n";
 	metadata << "volumetricClientPolicy=high; ultra-diagnostic-only\n";
 	metadata << "volumetricFixtureAuthorship=silk-client-authored; froxel-sample-owned\n";
-	metadata << "volumetricFixturePlacement=sample-authored radius=2.2*modelWorldScale position=(-3.2,1.8,3.8)*modelWorldScale\n";
+	metadata
+		<< "volumetricFixturePlacement=sample-authored radius=2.2*modelWorldScale position=(-3.2,1.8,3.8)*modelWorldScale\n";
 	metadata << "validateVolumetrics=" << ( options.validateVolumetrics ? "true" : "false" ) << "\n";
 	metadata << "validateDistortion=" << ( options.validateDistortion ? "true" : "false" ) << "\n";
+	metadata << "enginesRequested=" << EngineModeName( options.engines ) << "\n";
+	metadata << "enginesResolved=" << EngineModeName( options.resolvedEngines ) << "\n";
+	metadata << "engineView=" << EngineViewName( options.engineView ) << "\n";
+	metadata << "engineThrottle=" << options.engineThrottle << "\n";
+	metadata << "engineKinematics=sample-owned-camera-follow-cruise-max-velocity-250mps-zero-acceleration\n";
+	metadata << "engineParticles=none-client-builder-has-no-separate-astero-particle-branch\n";
+	metadata << "validateEngines=" << ( options.validateEngines ? "true" : "false" ) << "\n";
 	metadata << "exposureSequence=" << ExposureSequenceName( options.exposureSequence ) << "\n";
 	metadata << "exposureHold=" << options.exposureHold << "\n";
 	metadata << "framePacingCheck=" << ( options.framePacingCheck ? "true" : "false" ) << "\n";
@@ -3454,10 +3584,9 @@ bool WriteVolumetricContractJson( const Options& options, const TrinityStandalon
 		   << "  \"quality\": \"" << VolumetricQualityName( options.resolvedVolumetricQuality ) << "\",\n"
 		   << "  \"resolutionScale\": 0.7,\n"
 		   << "  \"seed\": " << diagnostics.seed << ",\n"
-		   << "  \"volume\": {\"dimensions\": [" << diagnostics.volumeWidth << ", "
-		   << diagnostics.volumeHeight << ", " << diagnostics.volumeLayers << "], \"format\": "
-		   << diagnostics.volumeFormat << ", \"copySucceeded\": "
-		   << ( diagnostics.localOutputCopySucceeded ? "true" : "false" ) << "},\n"
+		   << "  \"volume\": {\"dimensions\": [" << diagnostics.volumeWidth << ", " << diagnostics.volumeHeight << ", "
+		   << diagnostics.volumeLayers << "], \"format\": " << diagnostics.volumeFormat
+		   << ", \"copySucceeded\": " << ( diagnostics.localOutputCopySucceeded ? "true" : "false" ) << "},\n"
 		   << "  \"passes\": {\"renderables\": " << diagnostics.localRenderableCount
 		   << ", \"batches\": " << diagnostics.localBatchCount
 		   << ", \"depthDownsample\": " << ( diagnostics.localDepthDownsampleSucceeded ? "true" : "false" )
@@ -3468,32 +3597,31 @@ bool WriteVolumetricContractJson( const Options& options, const TrinityStandalon
 		   << "  \"cloudShadows\": {\"lastBatches\": " << diagnostics.localShadowBatchCount
 		   << ", \"totalBatches\": " << diagnostics.totalLocalShadowBatches << "},\n"
 		   << "  \"visualization\": {\"hash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
-		   << diagnostics.volumeProductHash << std::dec << "\", \"nonzeroPixels\": "
-		   << diagnostics.volumeProductNonzeroPixels << ", \"range\": ["
+		   << diagnostics.volumeProductHash << std::dec
+		   << "\", \"nonzeroPixels\": " << diagnostics.volumeProductNonzeroPixels << ", \"range\": ["
 		   << static_cast<unsigned>( diagnostics.volumeProductMinimum ) << ", "
 		   << static_cast<unsigned>( diagnostics.volumeProductMaximum ) << "], \"bounds\": ["
 		   << diagnostics.volumeProductMinX << ", " << diagnostics.volumeProductMinY << ", "
 		   << diagnostics.volumeProductMaxX << ", " << diagnostics.volumeProductMaxY << "]},\n"
 		   << "  \"rawVolume\": {\"hash\": \"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
-		   << diagnostics.volumeRawHash << std::dec << "\", \"nonzeroPixels\": "
-		   << diagnostics.volumeRawNonzeroPixels << ", \"range\": [" << diagnostics.volumeRawMinimum << ", "
-		   << diagnostics.volumeRawMaximum << "]},\n"
+		   << diagnostics.volumeRawHash << std::dec << "\", \"nonzeroPixels\": " << diagnostics.volumeRawNonzeroPixels
+		   << ", \"range\": [" << diagnostics.volumeRawMinimum << ", " << diagnostics.volumeRawMaximum << "]},\n"
 		   << "  \"matchedHashes\": {\n"
-		   << std::hex << std::setfill( '0' )
-		   << "    \"preTonemap\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offPreTonemapHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkPreTonemapHash << "\"},\n"
-		   << "    \"final\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offFinalHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkFinalHash << "\"},\n"
-		   << "    \"shadow\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offShadowHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkShadowHash << "\"},\n"
-		   << "    \"depth\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offDepthHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkDepthHash << "\"},\n"
-		   << "    \"normal\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offNormalHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkNormalHash << "\"},\n"
+		   << std::hex << std::setfill( '0' ) << "    \"preTonemap\": {\"off\": \"" << std::setw( 16 )
+		   << diagnostics.offPreTonemapHash << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkPreTonemapHash
+		   << "\"},\n"
+		   << "    \"final\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offFinalHash << "\", \"silk\": \""
+		   << std::setw( 16 ) << diagnostics.silkFinalHash << "\"},\n"
+		   << "    \"shadow\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offShadowHash << "\", \"silk\": \""
+		   << std::setw( 16 ) << diagnostics.silkShadowHash << "\"},\n"
+		   << "    \"depth\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offDepthHash << "\", \"silk\": \""
+		   << std::setw( 16 ) << diagnostics.silkDepthHash << "\"},\n"
+		   << "    \"normal\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offNormalHash << "\", \"silk\": \""
+		   << std::setw( 16 ) << diagnostics.silkNormalHash << "\"},\n"
 		   << "    \"cascadeAtlas\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offShadowAtlasHash
 		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkShadowAtlasHash << "\"},\n"
-		   << "    \"ao\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offAoHash
-		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkAoHash << "\"},\n"
+		   << "    \"ao\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offAoHash << "\", \"silk\": \""
+		   << std::setw( 16 ) << diagnostics.silkAoHash << "\"},\n"
 		   << "    \"bentNormal\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offBentNormalHash
 		   << "\", \"silk\": \"" << std::setw( 16 ) << diagnostics.silkBentNormalHash << "\"}\n"
 		   << std::dec << "  },\n"
@@ -3502,6 +3630,73 @@ bool WriteVolumetricContractJson( const Options& options, const TrinityStandalon
 		   << "  \"resourceManifest\": " << manifest.str() << "\n"
 		   << "}\n";
 	std::cout << "Volumetric contract report: " << outputPath << "\n";
+	return output.good();
+}
+
+bool WriteEngineContractJson( const Options& options, const TrinityStandaloneEngineDiagnostics& diagnostics )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_engine-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+	{
+		return false;
+	}
+	const std::string manifestPath = ExecutableDirectory() + "/../Reports/AsteroEngineResources.json";
+	const std::string generatedCmfHashPath = ExecutableDirectory() + "/../Reports/AsteroEngineTrailCmf.sha256";
+	std::ifstream manifestInput( manifestPath );
+	std::ostringstream manifest;
+	manifest << manifestInput.rdbuf();
+	std::ifstream generatedCmfHashInput( generatedCmfHashPath );
+	std::string generatedCmfHash;
+	std::getline( generatedCmfHashInput, generatedCmfHash );
+	if( !manifestInput || manifest.str().empty() || !generatedCmfHashInput || generatedCmfHash.empty() )
+	{
+		std::cerr << "RC-05D could not read engine provenance reports: " << manifestPath << ", " << generatedCmfHashPath
+				  << "\n";
+		return false;
+	}
+	std::ofstream output( outputPath );
+	if( !output )
+	{
+		return false;
+	}
+	output << "{\n"
+		   << "  \"profile\": \"RC-05D\",\n"
+		   << "  \"requestedMode\": \"" << EngineModeName( options.engines ) << "\",\n"
+		   << "  \"resolvedMode\": \"" << EngineModeName( options.resolvedEngines ) << "\",\n"
+		   << "  \"view\": \"" << EngineViewName( options.engineView ) << "\",\n"
+		   << "  \"kinematics\": {\"authorship\": \"sample-owned camera-follow cruise\", "
+			  "\"maximumVelocity\": 250, \"throttle\": "
+		   << diagnostics.throttle << ", \"nativeIntensity\": " << diagnostics.nativeIntensity
+		   << ", \"normalizedIntensity\": " << diagnostics.intensity
+		   << ", \"nativeCruiseSpeedWeight\": 0.8, \"acceleration\": [0, 0, 0]},\n"
+		   << "  \"inventory\": {\"boosters\": " << diagnostics.boosterCount
+		   << ", \"plumeBatches\": " << diagnostics.plumeBatchCount
+		   << ", \"plumeInstances\": " << diagnostics.plumeInstanceCount << ", \"glows\": " << diagnostics.glowCount
+		   << ", \"glowSubmissions\": " << diagnostics.glowSubmissionCount << ", \"trails\": " << diagnostics.trailCount
+		   << ", \"trailPrimitives\": " << diagnostics.trailPrimitiveCount
+		   << ", \"trailBatches\": " << diagnostics.trailBatchCount
+		   << ", \"trailInstances\": " << diagnostics.trailInstanceCount
+		   << ", \"lights\": " << diagnostics.lightSubmissionCount << "},\n"
+		   << "  \"trail\": {\"length\": " << diagnostics.trailLength
+		   << ", \"intensity\": " << diagnostics.trailIntensity << "},\n"
+		   << "  \"separateParticleBranch\": false,\n"
+		   << "  \"matchedHashes\": {\n"
+		   << std::hex << std::setfill( '0' ) << "    \"preTonemap\": {\"off\": \"" << std::setw( 16 )
+		   << diagnostics.offPreTonemapHash << "\", \"authored\": \"" << std::setw( 16 )
+		   << diagnostics.authoredPreTonemapHash << "\"},\n"
+		   << "    \"bloom\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offBloomHash << "\", \"authored\": \""
+		   << std::setw( 16 ) << diagnostics.authoredBloomHash << "\"},\n"
+		   << "    \"final\": {\"off\": \"" << std::setw( 16 ) << diagnostics.offFinalHash << "\", \"authored\": \""
+		   << std::setw( 16 ) << diagnostics.authoredFinalHash << "\"}\n"
+		   << std::dec << "  },\n"
+		   << "  \"ready\": " << ( diagnostics.ready ? "true" : "false" ) << ",\n"
+		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << ",\n"
+		   << "  \"generatedTrailCmfHashPath\": \"" << generatedCmfHashPath << "\",\n"
+		   << "  \"generatedTrailCmfHash\": \"" << generatedCmfHash << "\",\n"
+		   << "  \"resourceManifestPath\": \"" << manifestPath << "\",\n"
+		   << "  \"resourceManifest\": " << manifest.str() << "\n"
+		   << "}\n";
+	std::cout << "Engine contract report: " << outputPath << "\n";
 	return output.good();
 }
 
@@ -3645,6 +3840,9 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.resolvedDecals ),
 												   static_cast<int>( options.decalView ),
 												   options.killCount,
+												   options.resolvedEngines == EngineMode::Authored ? 1 : 0,
+												   static_cast<int>( options.engineView ),
+												   options.engineThrottle,
 												   options.modelYawDegrees,
 												   ShadowsApiValue( options.resolvedShadows ),
 												   AmbientOcclusionApiValue( options.resolvedAmbientOcclusion ),
@@ -3667,7 +3865,7 @@ int main( int argc, char** argv )
 			return 1;
 		}
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
-			options.validateDistortion || options.exposureSequence != ExposureSequence::None;
+			options.validateDistortion || options.validateEngines || options.exposureSequence != ExposureSequence::None;
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
 			!options.capturePrefix.empty() &&
 			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
@@ -3875,6 +4073,14 @@ int main( int argc, char** argv )
 				TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics );
 			volumetricValidationSucceeded = validationRan && diagnosticsRead && volumetricDiagnostics.valid;
 		}
+		TrinityStandaloneEngineDiagnostics engineDiagnostics;
+		bool engineValidationSucceeded = true;
+		if( options.validateEngines )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateEngines( probe );
+			const bool diagnosticsRead = TrinityStandaloneProbeGetEngineDiagnostics( probe, &engineDiagnostics );
+			engineValidationSucceeded = validationRan && diagnosticsRead && engineDiagnostics.valid;
+		}
 		bool exposureReportsSucceeded = true;
 		if( collectExposureDiagnostics )
 		{
@@ -3913,6 +4119,11 @@ int main( int argc, char** argv )
 		{
 			exposureReportsSucceeded =
 				WriteVolumetricContractJson( options, volumetricDiagnostics ) && exposureReportsSucceeded;
+		}
+		if( options.validateEngines )
+		{
+			exposureReportsSucceeded =
+				WriteEngineContractJson( options, engineDiagnostics ) && exposureReportsSucceeded;
 		}
 		bool captureSucceeded = true;
 		@autoreleasepool
@@ -3987,8 +4198,8 @@ int main( int argc, char** argv )
 					  << " seed=" << options.volumetricSeed << " local=" << volumetricDiagnostics.localRenderableCount
 					  << " batches=" << volumetricDiagnostics.localBatchCount
 					  << " slices=" << volumetricDiagnostics.volumeWidth << "x" << volumetricDiagnostics.volumeHeight
-					  << "x" << volumetricDiagnostics.volumeLayers << " volumeHash=" << std::hex
-					  << std::setw( 16 ) << std::setfill( '0' ) << volumetricDiagnostics.volumeProductHash << std::dec
+					  << "x" << volumetricDiagnostics.volumeLayers << " volumeHash=" << std::hex << std::setw( 16 )
+					  << std::setfill( '0' ) << volumetricDiagnostics.volumeProductHash << std::dec
 					  << " nonzero=" << volumetricDiagnostics.volumeProductNonzeroPixels
 					  << " lightmapUpdates=" << volumetricDiagnostics.totalLocalLightmapUpdates
 					  << " lightmapSettled=" << ( volumetricDiagnostics.localLightmapSettled ? "true" : "false" )
@@ -3997,10 +4208,32 @@ int main( int argc, char** argv )
 					  << " validation=" << ( volumetricValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "volumetricValidation", stats.str() );
 			}
+			if( options.validateEngines )
+			{
+				std::ostringstream stats;
+				stats << "view=" << EngineViewName( options.engineView ) << " throttle=" << engineDiagnostics.throttle
+					  << " nativeIntensity=" << engineDiagnostics.nativeIntensity
+					  << " intensity=" << engineDiagnostics.intensity << " boosters=" << engineDiagnostics.boosterCount
+					  << " plumeBatches=" << engineDiagnostics.plumeBatchCount
+					  << " plumeInstances=" << engineDiagnostics.plumeInstanceCount
+					  << " glows=" << engineDiagnostics.glowSubmissionCount
+					  << " trailBatches=" << engineDiagnostics.trailBatchCount
+					  << " trailInstances=" << engineDiagnostics.trailInstanceCount
+					  << " trailLength=" << engineDiagnostics.trailLength
+					  << " lights=" << engineDiagnostics.lightSubmissionCount
+					  << " validation=" << ( engineValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "engineValidation", stats.str() );
+			}
 			if( !options.capturePrefix.empty() )
 			{
 				ProcessEvents( window );
-				if( options.renderProduct == RenderProduct::All )
+				if( options.validateEngines && options.renderProduct == RenderProduct::Window )
+				{
+					productStats.emplace_back(
+						"windowCapture",
+						"skipped-after-named-product-validation; use a separate no-readback visual run" );
+				}
+				else if( options.renderProduct == RenderProduct::All )
 				{
 					captureSucceeded = CapturePresentedProduct( probe, window, options, RenderProduct::Color );
 					productStats.emplace_back( "color", RenderProductStats( options, RenderProduct::Color ) );
@@ -4231,7 +4464,8 @@ int main( int argc, char** argv )
 		}
 		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			distortionValidationSucceeded && volumetricValidationSucceeded && exposureReportsSucceeded;
+			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
+			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

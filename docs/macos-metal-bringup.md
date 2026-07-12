@@ -1582,6 +1582,56 @@ nonzero before GPU submission with the watchdog reason, while `auto` remains
 safe and off. Do not execute the complete froxel chain on this host until each
 3D UAV and cube pass has an isolated resource-usage audit.
 
+### Authored Astero engines (RC-05D)
+
+The standalone bridge now mirrors `EveSOF::SetupBoosters` from
+`soef1_t1.black` and the SOE race Black. The active graph has exactly two
+trail-enabled locators at authored `z=-21.857313`, atlas slot 2, and default
+functionality `(0,1,1,1)`. Native `EveBoosterSet2`, `EveSpriteSet`, and
+`EveTrailsSet` produce one 24-triangle plume batch with two instances, six
+glow submissions, two point lights, and one 1,200-triangle trail batch with
+two instances. The current SOF builder has no separate Astero exhaust-particle
+branch, so none is approximated.
+
+The fixture supplies sample-owned camera-follow cruise kinematics: maximum
+velocity 250 m/s, speed `throttle*250`, and zero acceleration. Trinity's gain
+equation weights speed by `0.8` and reserves `0.2` for acceleration. Full
+cruise therefore settles at raw gain `0.8`; the bridge records that value and
+normalizes it to `1.0` for throttle, V5 `shipData.x`, and attachment booster
+gain. Native plume/trail damping remains intact.
+
+`TrinityEveSceneProbeAsteroEngineAssets` stages 18 checksummed inputs and
+converts mesh 0 of `volumetrictrail.gr2` (800 vertices, 1,200 triangles) to
+CMF. The source model resolves to:
+
+```text
+/Users/rebecca/Library/Application Support/EVE Online/SharedCache/ResFiles/8f/8f063a9a8b4ee381_39ac532e847500f025ac11277f5ef235
+```
+
+`Reports/AsteroEngineResources.json` records every absolute source, while
+`Reports/AsteroEngineTrailCmf.sha256` records generated CMF hash
+`bae4ad5063f2fd9015a7ddb4cf443f46455f1fd065901c4430483f158046cdb3`.
+All payloads and reports remain in the ignored build tree.
+
+The first trails-only isolation run exposed a null plume-material batch after
+trail renderables were forwarded without a plume effect. Plume submission is
+now independently gated. Off, plumes, glows, trails, and lights produce
+distinct hashes; throttle zero matches off, and isolated lights resolve
+exactly two tiled lights.
+
+A 540-frame 1280x720 integrated run with Silk and the complete accepted scene
+passes all retained contracts. Frozen engine off/on hashes differ for
+pre-tone, bloom, and final color while depth, normal, distortion, screen
+shadow, cascade atlas, AO, and bent normals remain byte-identical. The separate
+360-sample backing-resolution pacing run reports median 8.4539 ms, p95 9.1855
+ms, p99 9.5920 ms, maximum 9.9221 ms, and zero frames above twice median.
+Named-product validation intentionally emits reports rather than a window PNG;
+the visually accepted integrated image comes from a separate no-readback run.
+The native full-screen inspection on 2026-07-12 rendered at a 4096x2304
+backing resolution, entered the 15-second camera orbit after 180 frames, and
+closed manually with status 0. Dynamic reflections, eight tiled lights,
+celestials, Silk, and the authored engine graph remained active throughout.
+
 ## Revised rung model
 
 The original ladder treated model submission, HDR, and postprocess as a linear
@@ -1601,7 +1651,7 @@ make those prerequisites explicit.
 | 3D | Object lighting contract | Accepted | High-tier Trinity SH and tiled local-light transport through opaque V5 are accepted by distinct A/B captures. Exact New Eden celestials correctly contribute zero SH, while six authored lights resolve and remain attached as the ship rotates. |
 | 3E | Visible SOF attachments | Accepted | Native sprite, spotlight, plane, haze, and banner paths render the exact active inventory with independent family/light controls and stable orbit/HDR captures. |
 | 3F | Indexed SOF decals | Accepted | Native standard, SoE logo, and kill-counter overlays preserve authored ordering, transforms, materials, and LOD0 indices without changing depth, normal, shadow, reflection, or AO products. |
-| 3G | Authored booster and engine effects | Queued | RC-05D must reconstruct booster locators, throttle-driven plumes, particles, and trails before velocity/TAA acceptance. |
+| 3G | Authored booster and engine effects | Accepted | Exact SOF locators drive native plumes, glows, lights, and spline trails; isolated, frozen A/B, integrated Silk, and pacing gates pass. The client authors no separate Astero exhaust-particle branch. |
 | 4A | Depth and normal products | Accepted | Named driver outputs produce coherent reverse-Z depth and packed normals. Authored legacy-packed tangents show detailed normal response, while the flat-normal control preserves camera/silhouette and removes that detail. |
 | 4B | Shadows and AO | Accepted | Native cascades, denoising, CORTAO, ultra dynamic reflections, and named diagnostics pass with readable shadow-side V5 detail. |
 | 4C | Complete HDR scene composition | Accepted | The canonical New Eden composition passes direct FP16 validation, complete inventory checks, distinct controls, full product capture, and relative pacing at windowed and native resolutions. |
@@ -1795,6 +1845,10 @@ The following checks passed on the host snapshot above:
 - RC-12B1 recursive Silk graph discovery, loaded-effect initialization,
   explicit high-density/authored-albedo bootstrap, Metal four-target packing,
   nonuniform FP16 layer readback, and a passing 180-frame paired A/B contract;
+- checksummed staging of 18 RC-05D inputs and conversion of the 800-vertex,
+  1,200-triangle trail mesh to CMF; exact two-locator native plumes, six glows,
+  two lights, and two trail instances; isolated family captures and a passing
+  540-frame integrated frozen-product contract;
 - visible-window render-plus-present pacing at 60.26 mean FPS with all relative
   gates passing; hidden-window pacing is excluded because WindowServer
   throttles fully occluded CAMetalLayer drawables;
@@ -1811,11 +1865,10 @@ The following checks passed on the host snapshot above:
 
 The direct path now takes precedence over additional postprocess checkpoints:
 
-1. Reconstruct authored booster plumes, particles, and trails under RC-05D.
-2. Resume velocity and TAA with Silk and engine-effect ghosting controls.
-3. Audit each RC-12B2 Mie and 3D UAV compute pass without running the complete
+1. Resume velocity and TAA with Silk and engine-effect ghosting controls.
+2. Audit each RC-12B2 Mie and 3D UAV compute pass without running the complete
    froxel chain on this host.
-4. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
+3. Promote finite-frame checkpoints to macOS CI so lifecycle and resource
    regressions are detected automatically.
 
 At each step, preserve the previous rung's image and finite-frame exit status.

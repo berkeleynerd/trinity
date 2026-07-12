@@ -40,7 +40,7 @@ This table is the authoritative implementation order.
 | RC-05 | Complete the ship object/material-area contract | Accepted | RC-02 | Groups 0/1/2 remain distinct CMF sections. Hull and booster render through authored `quadv5`/`quadheatv5` batches; distortion geometry/effect/maps are validated and explicitly deferred to RC-12. `AsteroClientAssets.md` classifies every per-object default and absent area. |
 | RC-05B | Render authored visible SOF attachments | Accepted | RC-05 | The active `primary`/`soe` visibility groups produce 83 sprites, 4 spotlights, 16 planes, 2 hazes, and 4 banners through native attachment and quad-renderer paths. Every isolated family differs from off, a 540-frame orbit is stable, and lights remain independently selectable. |
 | RC-05C | Render indexed SOF decal sets | Accepted | RC-05B | Eleven active decals submit through native `EveSpaceObjectDecal`: six standard markings (14 triangles), four SoE logos (12 triangles), and one kill counter (2 triangles). Isolated family captures, integrated HDR/exposure runs, and byte-identical decal-off/on depth, normal, reflection, shadow, atlas, AO, and bent-normal products pass. |
-| RC-05D | Render authored booster and engine effects | Queued | RC-05B, RC-12A, RC-12B1 | Reconstruct Astero booster locators, throttle-driven glow and plume geometry, exhaust particles, and trails through native Trinity machinery. Validate additive/transparent/distortion composition, attachment during rotation, and an explicit velocity/TAA policy. |
+| RC-05D | Render authored booster and engine effects | Accepted | RC-05B, RC-12A, RC-12B1 | Two authored locators drive native `EveBoosterSet2`, six glow sprites, two lights, and two `EveTrailsSet` instances. Isolated family captures, frozen off/on validation, a complete 540-frame Silk composition, and pacing pass. The current SOF builder has no separate Astero exhaust-particle branch. |
 | RC-06 | Supply object SH and local/secondary lighting | Accepted | RC-04, RC-05 | The probe uses the client's high `SM_3_0_DEPTH` tier. Exact New Eden sun/planet inputs correctly produce zero secondary SH after Trinity's cutoff; the synthetic control proves the same upload path. Six authored `primary`/`soe` haze/banner lights resolve and rotate with the ship, and local off/authored/validation captures are distinct. |
 | RC-07 | Validate depth and normal products | Accepted | RC-05 | The driver publishes reverse-Z `D32_FLOAT` depth and `R10G10B10A2_UNORM` normals through named outputs. A sample-owned GPU visualizer produces coherent 180-frame Astero captures; authored and flat-normal controls preserve silhouette/camera while differing in expected surface detail. |
 | RC-08 | Add sun shadows and AO | Accepted | RC-06, RC-07, RC-08A | Native cascades and CORTAO consume the accepted depth/normal products. Three cascades commit six V5 batches, all named products remain nonuniform, and the dynamic environment probe preserves readable detail in fully sun-shadowed regions without shadow-lightness or synthetic ambient. |
@@ -89,6 +89,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-25 | Native authored distortion composition | Accepted | Astero group 0 submits 120 indices through `TRIBATCHTYPE_DISTORTION`; `DistortionMap` reports 124,290 non-neutral pixels in localized bounds at the integrated gate. Scene-color copy and one foreground compositor draw succeed, and a frozen matched validator proves distinct pre-tone and final output. | Cloaking, warp tunnels, camera distortion, particles, and volumetric/froxel effects remain outside this checkpoint. |
 | CP-26 | Native local VDB composition and observability | Accepted as capability | `Reports/VolumetricResources.json` records the authored Silk graph. Raw and visualized `VolumetricSlices` are nonuniform; native lightmap, blur, composition, and cloud-shadow passes succeed; paired off/on validation passes at 1280x720. | Silk is not authored by New Eden. Placement and the missing client quality bootstrap are sample-owned, using authored `CloudColor2` for albedo. |
 | CP-27 | Global froxel resource closure and fail-closed safety | Blocked | The same manifest stages calculate/filter/raymarch/apply/Mie shaders, while frontend and bridge guards reject complete submission before Metal initialization. | No global froxel visual or safety result is accepted after two host watchdog reboots. |
+| CP-28 | Native SOF booster, glow, light, and spline-trail rendering | Accepted | The exact two-locator Astero graph submits one 24-triangle procedural plume batch with two instances, six glow sprites, two tiled point lights, and one 1,200-triangle trail mesh batch with two instances. The 540-frame integrated run retains eight total lights and passes frozen composition/product and pacing gates. | Cruise kinematics are sample-owned. Native zero-acceleration gain reserves 20% for acceleration, so the bridge records raw `0.8` and normalized cruise intensity `1.0`. Engine velocity/TAA remains RC-13. |
 
 ## Rung-model holes
 
@@ -97,6 +98,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | Rung 3: model through EVE scene | Representative scene/background, complete object construction, SH/local lights, and effect areas | Split into 3A geometry, 3B object/material, 3C in-space scene, and 3D object lighting. |
 | Rung 3E: visible SOF attachments | Authored additive and quad geometry was absent from the light-only bridge | Require independent family controls and native lifecycle submission before HDR composition. |
 | Rung 3F: indexed SOF decals | Authored projected markings, faction logos, and kill state were absent | Require native indexed overlay batches and prove that all non-color products remain unchanged. |
+| Rung 3G: authored booster and engine effects | A fixed hull booster scalar did not prove the SOF engine graph | Require exact locators, native plume/glow/light/trail submission, throttle settling, isolated family captures, and unchanged geometry products. Accepted under RC-05D/CP-28. |
 | Rung 4: HDR/postprocess | Complete HDR composition before exposure; representative background luminance | RC-09 accepts FP16 composition, RC-10 accepts client exposure/tone output, and RC-11 accepts the client-selected legacy bloom and film-grain finish. |
 | Rung 5: depth/normal after post | Depth/normal are prerequisites for AO, shadows, and complete composition | Validate products before accepting postprocess fidelity. |
 | Rung 4B: shadows and AO | Native products require the client reflection/SH contract to compose correctly | RC-08A restores ultra dynamic reflections and client SH intensity before accepting RC-08; keep off/static controls and CP-18 products as regressions. |
@@ -108,13 +110,12 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Reconstruct authored booster plumes and trails under RC-05D.
-2. Validate velocity and TAA under RC-13 with Silk and engine effects present.
-3. Audit RC-12B2 Metal 3D UAV bindings per pass without submitting the complete chain on this host.
+1. Validate velocity and TAA under RC-13 with Silk and engine effects present.
+2. Audit RC-12B2 Metal 3D UAV bindings per pass without submitting the complete chain on this host.
 
 RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
-retains fail-closed explicit modes independently; booster/engine effects are
-now the active direct-path unit.
+retains fail-closed explicit modes independently. RC-05D booster/engine effects
+are accepted, making RC-13 velocity and TAA the active direct-path unit.
 
 ## Evidence policy
 
