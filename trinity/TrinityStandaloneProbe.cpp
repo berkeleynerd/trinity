@@ -3795,6 +3795,8 @@ struct StandaloneProbe
 	EveEffectRoot2Ptr eveGateRoot;
 	float eveGateAuthoredRadius = 0.0f;
 	uint32_t eveGateMeshCount = 0;
+	ITriVectorFunction* eveGateCurve = nullptr;
+	TrinityStandaloneEveGateDiagnostics eveGateDiagnostics;
 	EvePlanet* newEdenSun = nullptr;
 	EvePlanet* newEdenPlanet = nullptr;
 	EveLensflare* newEdenLensFlare = nullptr;
@@ -11702,6 +11704,51 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 #endif
 }
 
+bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
+{
+	if( probe.eveGateMode != STANDALONE_EVE_GATE_AUTHORED || !probe.eveGateRoot )
+		return true;
+	auto& diagnostics = probe.eveGateDiagnostics;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( diagnostics.linkageActive )
+	{
+		if( !probe.destinySession )
+			return false;
+		DestinyEmbeddedCelestialState state = {};
+		bool exact = Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenEveGateBallId, &state ) &&
+			state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
+			!state.isMassive && !state.isInteractive && state.radius == diagnostics.ballRadius;
+		for( size_t axis = 0; exact && axis < 3; ++axis )
+			exact = state.position[axis] == kNewEdenEveGateRelative[axis] && state.velocity[axis] == 0.0;
+		diagnostics.ballStateExact = diagnostics.ballStateExact && exact;
+		diagnostics.curveAttached = diagnostics.curveAttached && probe.eveGateCurve != nullptr &&
+			Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenEveGateBallId ) ==
+				probe.eveGateCurve;
+		for( size_t axis = 0; axis < 3; ++axis )
+			diagnostics.ballPosition[axis] = state.position[axis];
+		diagnostics.ballMode = state.mode;
+	}
+#endif
+	const double gateDistance = std::sqrt(
+		kNewEdenEveGateRelative[0] * kNewEdenEveGateRelative[0] +
+		kNewEdenEveGateRelative[1] * kNewEdenEveGateRelative[1] +
+		kNewEdenEveGateRelative[2] * kNewEdenEveGateRelative[2] );
+	const Vector3 world = probe.eveGateRoot->GetWorldPosition();
+	double worldError = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		worldError = std::max(
+			worldError,
+			std::abs( static_cast<double>( ( &world.x )[axis] ) - kNewEdenEveGateRelative[axis] ) / gateDistance );
+		diagnostics.worldPosition[axis] = ( &world.x )[axis];
+	}
+	diagnostics.maximumWorldError = std::max( diagnostics.maximumWorldError, worldError );
+	diagnostics.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
+	if( countSample )
+		++diagnostics.sampleCount;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	void* opaqueProbe,
 	int mode,
@@ -12553,6 +12600,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 			return false;
 		}
 		gate->SetBallPositionCurve( gateCurve );
+		probe->eveGateCurve = gateCurve;
 		placement = "ballpark";
 	}
 	else
@@ -12567,6 +12615,16 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	probe->eveGateMode = STANDALONE_EVE_GATE_AUTHORED;
 	probe->eveGateAuthoredRadius = authoredRadius;
 	probe->eveGateMeshCount = meshCount;
+	probe->eveGateDiagnostics = {};
+	probe->eveGateDiagnostics.available = true;
+	probe->eveGateDiagnostics.linkageActive = std::strcmp( placement, "ballpark" ) == 0;
+	probe->eveGateDiagnostics.ballStateExact = probe->eveGateDiagnostics.linkageActive;
+	probe->eveGateDiagnostics.curveAttached = probe->eveGateDiagnostics.linkageActive;
+	probe->eveGateDiagnostics.meshCount = meshCount;
+	probe->eveGateDiagnostics.containerCount = containerCount;
+	probe->eveGateDiagnostics.ballId = kNewEdenEveGateBallId;
+	probe->eveGateDiagnostics.authoredRadius = authoredRadius;
+	probe->eveGateDiagnostics.ballRadius = std::max( 1.0f, authoredRadius );
 	std::fprintf(
 		stderr,
 		"CP-36 EVE Gate: mode=authored placement=%s ball=%lld meshes=%u containers=%u authoredRadius=%.3f "
@@ -12579,6 +12637,48 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		kNewEdenEveGateRelative[0],
 		kNewEdenEveGateRelative[1],
 		kNewEdenEveGateRelative[2] );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateEveGate( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->eveGateMode != STANDALONE_EVE_GATE_AUTHORED || !probe->eveGateRoot )
+		return false;
+	auto& diagnostics = probe->eveGateDiagnostics;
+	const auto& ballpark = probe->ballparkDiagnostics;
+	const bool orbitPreserved = probe->ballparkMode != STANDALONE_BALLPARK_ORBIT || probe->eveGateApproachIssued ||
+		( ballpark.directEvolveCount == 62 && ballpark.commandCount == 1 &&
+		  ballpark.maximumRawPositionError <= 1e-5 && ballpark.maximumRawVelocityError <= 1e-5 &&
+		  ballpark.maximumRawAccelerationError <= 1e-5 );
+	diagnostics.valid = diagnostics.available && diagnostics.meshCount == 9 && diagnostics.containerCount == 7 &&
+		diagnostics.sampleCount > 0 && diagnostics.sampleCount == probe->renderedFrameCount &&
+		diagnostics.maximumWorldError <= 1e-6 && diagnostics.linkageActive && diagnostics.ballStateExact &&
+		diagnostics.curveAttached && orbitPreserved;
+	std::fprintf(
+		stderr,
+		"CP-36 EVE Gate validation: samples=%llu meshes=%u containers=%u ballExact=%s curve=%s "
+		"worldError=%.3g trajectory=%016llx orbitPreserved=%s validation=%s\n",
+		static_cast<unsigned long long>( diagnostics.sampleCount ),
+		diagnostics.meshCount,
+		diagnostics.containerCount,
+		diagnostics.ballStateExact ? "yes" : "no",
+		diagnostics.curveAttached ? "yes" : "no",
+		diagnostics.maximumWorldError,
+		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+		orbitPreserved ? "yes" : "no",
+		diagnostics.valid ? "pass" : "fail" );
+	return diagnostics.valid;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetEveGateDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneEveGateDiagnostics* diagnostics )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !diagnostics || !probe->eveGateDiagnostics.available )
+		return false;
+	*diagnostics = probe->eveGateDiagnostics;
 	return true;
 }
 
@@ -12826,6 +12926,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
 		{
 			CCP_LOGERR( "Failed to record celestial Ballpark diagnostics" );
+			return false;
+		}
+		if( !UpdateEveGateDiagnostics( *probe, true ) )
+		{
+			CCP_LOGERR( "Failed to record EVE Gate diagnostics" );
 			return false;
 		}
 		++probe->renderedFrameCount;

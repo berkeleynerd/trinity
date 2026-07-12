@@ -2202,12 +2202,25 @@ cannot skip unknown classes, and the stub simply absorbs placement
 updates. The gate is placed through the accepted PL-12 celestial seam as
 fixed ball `900001` (synthetic identifier; no authored in-space item
 exists) at the recovered landmark position, and the approach-demo capture
-shows the authored vortex and flare structure dominating the sky in the
-gate's direction from `9.3 AU`. The root bounding sphere reports zero
-before update, so the ball radius falls back to a documented `1.0 m`;
-the `DistanceRatio` state machine runs its default state. The CP-36
-validation contract (placement gates, curve identity, A/B controls,
-trajectory preservation with the third celestial ball) remains open.
+was initially read as the authored vortex dominating the sky from
+`9.3 AU`. **That reading was wrong and is corrected here.** The gate-off
+control in the identical aimed framing differs by 12 single-code-value
+pixels out of 3,686,400: the dramatic structure in the capture is the
+baked `wormhole_a01` nebula backdrop plus the accepted sun flare and god
+rays, and the prepared gate graph currently contributes nothing visible.
+The root bounding sphere reporting zero is the prime suspect — a
+zero-extent bound feeds visibility estimation, so every child is likely
+culled before batch submission; the unentered `DistanceRatio` state
+machine and unexecuted transform modifiers are the secondary suspects.
+CP-36 therefore remains **Active**: graph deserialization, synchronous
+preparation, and all four effect validations are real, the Ballpark
+placement contract holds (ball state bit-exact, curve identity, world
+placement within `2.5e-8`, trajectory hash `fa0da4fbe311e3f8` retained
+with three celestial balls present, PL-12 celestial contract unchanged
+in the same runs), but rendering is not yet demonstrated and no
+acceptance is claimed. Any future visual claim must gate on a gate-off
+A/B in a framing that faces the gate — the check whose omission allowed
+the misreading.
 
 The recon also feeds a sample-owned demo option: `--eve-gate-approach N`
 queues a second native `GotoPoint` toward the recovered landmark position

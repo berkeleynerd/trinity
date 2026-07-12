@@ -604,6 +604,7 @@ struct Options
 	std::string celestialLogPath;
 	uint64_t eveGateApproachFrame = 0;
 	int eveGate = 0;
+	bool validateEveGate = false;
 	bool validateTemporal = false;
 	TemporalTest temporalTest = TemporalTest::Contract;
 	ExposureSequence exposureSequence = ExposureSequence::None;
@@ -2157,7 +2158,7 @@ void PrintUsage( const char* executable )
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit] [--ballpark-log PATH]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
-		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored]\n"
+		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
 		<< "       [--validate-chase-camera]\n"
 		<< "       [--temporal-test contract|velocity|edges|silk|trails|integrated]\n"
 		<< "       [--distortion auto|off|authored] [--validate-distortion]\n"
@@ -2401,6 +2402,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				options.eveGate = 1;
 			else
 				return false;
+		}
+		else if( arg == "--validate-eve-gate" )
+		{
+			options.validateEveGate = true;
 		}
 		else if( arg == "--temporal-test" )
 		{
@@ -3371,7 +3376,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.eveGateApproachFrame != 0 &&
 		( options.ballpark != BallparkMode::Orbit || options.eveGateApproachFrame <= 180 ||
 		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
-		  options.validateCelestialBallpark || options.validateChaseCamera ) )
+		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
 	{
 		std::cerr << "--eve-gate-approach is a post-command ORBIT demo option and is incompatible with "
 					 "Ballpark validation fixtures\n";
@@ -3381,6 +3386,17 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ) )
 	{
 		std::cerr << "--eve-gate authored requires the exact-system New Eden fixture\n";
+		return false;
+	}
+	if( options.validateEveGate &&
+		( options.eveGate != 1 || options.celestialBallpark != CelestialBallparkMode::Natural ||
+		  options.ballpark != BallparkMode::Orbit || options.orbitSolver != OrbitSolver::New ||
+		  std::abs( options.orbitRange - 2500.0f ) > 0.000001f || options.maxFrames != 3780 ||
+		  options.qualityRung != QualityRung::HdrPost || options.motion != MotionMode::Static ||
+		  options.capturePrefix.empty() ) )
+	{
+		std::cerr << "--validate-eve-gate requires the 3780-frame exact-system Frontier-new orbit fixture "
+					 "with the authored gate, natural celestials, and --capture-prefix\n";
 		return false;
 	}
 	if( options.validateChaseCamera &&
@@ -4870,6 +4886,44 @@ bool WriteCelestialContractJson( const Options& options, const TrinityStandalone
 	return output.good();
 }
 
+bool WriteEveGateContractJson( const Options& options, const TrinityStandaloneEveGateDiagnostics& diagnostics )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_eve-gate-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+		return false;
+	std::ofstream output( outputPath.c_str() );
+	if( !output )
+		return false;
+	auto writeArray = [&]( const char* name, const double* values, size_t count, bool comma ) {
+		output << "  \"" << name << "\": [";
+		for( size_t i = 0; i < count; ++i )
+			output << ( i ? ", " : "" ) << std::setprecision( 12 ) << values[i];
+		output << "]" << ( comma ? "," : "" ) << "\n";
+	};
+	output << "{\n"
+		   << "  \"contract\": \"CP-36 EVE Gate landmark\",\n"
+		   << "  \"placementPolicy\": \"explicit-program-policy; no current-client caller recovered\",\n"
+		   << "  \"frameAnchor\": \"promised-land-stargate-observer\",\n"
+		   << "  \"distanceRatioPolicy\": \"default-state\",\n"
+		   << "  \"samples\": " << diagnostics.sampleCount << ",\n"
+		   << "  \"meshes\": " << diagnostics.meshCount << ",\n"
+		   << "  \"containers\": " << diagnostics.containerCount << ",\n"
+		   << "  \"ballId\": " << diagnostics.ballId << ",\n"
+		   << "  \"ballMode\": " << diagnostics.ballMode << ",\n"
+		   << "  \"ballRadius\": " << std::setprecision( 12 ) << diagnostics.ballRadius << ",\n"
+		   << "  \"authoredRadius\": " << diagnostics.authoredRadius << ",\n";
+	writeArray( "ballPosition", diagnostics.ballPosition, 3, true );
+	writeArray( "worldPosition", diagnostics.worldPosition, 3, true );
+	output << "  \"maximumWorldError\": " << diagnostics.maximumWorldError << ",\n"
+		   << "  \"linkage\": {\"active\": " << ( diagnostics.linkageActive ? "true" : "false" )
+		   << ", \"ballStateExact\": " << ( diagnostics.ballStateExact ? "true" : "false" )
+		   << ", \"curveAttached\": " << ( diagnostics.curveAttached ? "true" : "false" ) << "},\n"
+		   << "  \"trajectoryHash\": \"" << std::hex << diagnostics.trajectoryHash << std::dec << "\",\n"
+		   << "  \"validationPassed\": " << ( diagnostics.valid ? "true" : "false" ) << "\n}\n";
+	std::cout << "EVE Gate contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool CapturePresentedProduct( void* probe, NSWindow* window, const Options& options, RenderProduct product )
 {
 	const std::string basePath = CaptureBasePath( options );
@@ -5350,6 +5404,16 @@ int main( int argc, char** argv )
 				TrinityStandaloneProbeGetCelestialDiagnostics( probe, &celestialDiagnostics );
 			celestialValidationSucceeded = validationRan && diagnosticsRead && celestialDiagnostics.valid;
 			celestialReportSucceeded = WriteCelestialContractJson( options, celestialDiagnostics );
+		}
+		TrinityStandaloneEveGateDiagnostics eveGateDiagnostics;
+		bool eveGateValidationSucceeded = true;
+		bool eveGateReportSucceeded = true;
+		if( options.validateEveGate )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateEveGate( probe );
+			const bool diagnosticsRead = TrinityStandaloneProbeGetEveGateDiagnostics( probe, &eveGateDiagnostics );
+			eveGateValidationSucceeded = validationRan && diagnosticsRead && eveGateDiagnostics.valid;
+			eveGateReportSucceeded = WriteEveGateContractJson( options, eveGateDiagnostics );
 		}
 
 		if( options.validateComposition && !compositionValidationAttempted )
@@ -5967,6 +6031,7 @@ int main( int argc, char** argv )
 			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
 			chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
 			celestialValidationSucceeded && celestialReportSucceeded &&
+			eveGateValidationSucceeded && eveGateReportSucceeded &&
 			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{

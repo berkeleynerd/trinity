@@ -511,6 +511,26 @@ struct TrinityStandaloneCelestialDiagnostics
 	uint64_t trajectoryHash = 0;
 };
 
+struct TrinityStandaloneEveGateDiagnostics
+{
+	bool available = false;
+	bool valid = false;
+	bool linkageActive = false;
+	bool ballStateExact = false;
+	bool curveAttached = false;
+	uint32_t meshCount = 0;
+	uint32_t containerCount = 0;
+	uint64_t sampleCount = 0;
+	int64_t ballId = 0;
+	int32_t ballMode = 0;
+	float ballRadius = 0.0f;
+	float authoredRadius = 0.0f;
+	double ballPosition[3] = {};
+	double worldPosition[3] = {};
+	double maximumWorldError = 0.0;
+	uint64_t trajectoryHash = 0;
+};
+
 extern "C" bool TrinityStandaloneProbeConfigureBallpark(
 	void* opaqueProbe,
 	int mode,
@@ -532,6 +552,10 @@ extern "C" bool TrinityStandaloneProbeConfigureEveGateApproach(
 extern "C" bool TrinityStandaloneProbeConfigureEveGate(
 	void* opaqueProbe,
 	int mode );
+extern "C" bool TrinityStandaloneProbeValidateEveGate( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetEveGateDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneEveGateDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateCelestialBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetCelestialDiagnostics(
 	void* opaqueProbe,
