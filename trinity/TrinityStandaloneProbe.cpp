@@ -191,6 +191,7 @@ enum StandaloneBallparkReferenceFrame
 {
 	STANDALONE_BALLPARK_EGO = 0,
 	STANDALONE_BALLPARK_OBSERVER = 1,
+	STANDALONE_BALLPARK_CHASE = 2,
 };
 
 class StandaloneEveV5PerObjectData : public Tr2PerObjectData
@@ -1834,7 +1835,7 @@ public:
 			{
 				std::fprintf(
 					stderr,
-					"Astero indexed decals distance-culled in the PL-11A fixed-observer diagnostic: configured=%zu submitted=%u committed=%u nativeThreshold=10px\n",
+					"Astero indexed decals distance-culled in the PL-11A observer/chase diagnostic: configured=%zu submitted=%u committed=%u nativeThreshold=10px\n",
 					m_decalEntries.size(),
 					submitted,
 					committed );
@@ -3702,6 +3703,10 @@ struct StandaloneProbe
 	int ballparkMode = STANDALONE_BALLPARK_OFF;
 	int ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
 	bool ballparkCommandIssued = false;
+	bool chaseCameraInitialized = false;
+	int64_t chaseCameraTime = 0;
+	Vector3 chaseCameraEye = Vector3( 0.0f, 0.0f, 0.0f );
+	Vector3 chaseCameraTarget = Vector3( 0.0f, 0.0f, 0.0f );
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
 	DestinyEmbeddedRegistration destinyRegistration = {};
@@ -8644,6 +8649,103 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	}
 }
 
+bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe.ballparkReferenceFrame != STANDALONE_BALLPARK_CHASE )
+		return true;
+	if( !probe.destinySession || !probe.view )
+		return false;
+	DestinyEmbeddedDiagnostics diagnostics = {};
+	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &diagnostics ) )
+		return false;
+
+	const Vector3 ship(
+		static_cast<float>( diagnostics.absolutePosition[0] ),
+		static_cast<float>( diagnostics.absolutePosition[1] ),
+		static_cast<float>( diagnostics.absolutePosition[2] ) );
+	Vector3 forward(
+		static_cast<float>( diagnostics.velocity[0] ),
+		static_cast<float>( diagnostics.velocity[1] ),
+		static_cast<float>( diagnostics.velocity[2] ) );
+	if( Length( forward ) < 1.0f )
+		forward = Vector3( 0.0f, 0.0f, 1.0f );
+	else
+		forward = Normalize( forward );
+	const Vector3 up( 0.0f, 1.0f, 0.0f );
+	Vector3 right = Cross( up, forward );
+	if( Length( right ) < 0.01f )
+		right = Vector3( 1.0f, 0.0f, 0.0f );
+	else
+		right = Normalize( right );
+
+	constexpr float pi = 3.1415926535f;
+	const float seconds = static_cast<float>( simulationTime ) / 10000000.0f;
+	const float shoulderAngle = 25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
+	const Vector3 shoulderDirection = Normalize(
+		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
+	const Vector3 desiredEye = ship - shoulderDirection * 150.0f + up * 55.0f;
+	const Vector3 desiredTarget = ship + forward * 25.0f + up * 5.0f;
+	const Vector3 previousEye = probe.chaseCameraEye;
+	if( !probe.chaseCameraInitialized )
+	{
+		probe.chaseCameraEye = desiredEye;
+		probe.chaseCameraTarget = desiredTarget;
+		probe.chaseCameraInitialized = true;
+		std::fprintf(
+			stderr,
+			"PL-11A chase camera: distance=150 height=55 lookAhead=25 fov=48 orbit=+/-25deg period=20s damping=0.75s\n" );
+	}
+	else
+	{
+		const float deltaSeconds = std::max(
+			0.0f, static_cast<float>( simulationTime - probe.chaseCameraTime ) / 10000000.0f );
+		const float eyeAlpha = 1.0f - std::exp( -deltaSeconds / 0.75f );
+		const float targetAlpha = 1.0f - std::exp( -deltaSeconds / 0.2f );
+		probe.chaseCameraEye += ( desiredEye - probe.chaseCameraEye ) * eyeAlpha;
+		probe.chaseCameraTarget += ( desiredTarget - probe.chaseCameraTarget ) * targetAlpha;
+	}
+	probe.chaseCameraTime = simulationTime;
+	probe.view->SetLookAtPosition( probe.chaseCameraEye, probe.chaseCameraTarget, up );
+	auto& output = probe.ballparkDiagnostics;
+	const double shipDistance = static_cast<double>( Length( probe.chaseCameraEye - ship ) );
+	const Vector3 viewToShip = ship - probe.chaseCameraEye;
+	const Vector3 viewDirection = probe.chaseCameraTarget - probe.chaseCameraEye;
+	const double focusDot = std::clamp(
+		static_cast<double>( Dot( Normalize( viewDirection ), Normalize( viewToShip ) ) ), -1.0, 1.0 );
+	const double focusErrorDegrees = std::acos( focusDot ) * 180.0 / pi;
+	const double orbitDegrees = shoulderAngle * 180.0 / pi;
+	if( output.chaseCameraUpdates == 0 )
+	{
+		output.chaseCameraMinimumDistance = shipDistance;
+		output.chaseCameraMinimumOrbitDegrees = orbitDegrees;
+		output.chaseCameraMaximumOrbitDegrees = orbitDegrees;
+	}
+	else
+	{
+		output.chaseCameraTravel += static_cast<double>( Length( probe.chaseCameraEye - previousEye ) );
+		output.chaseCameraMinimumDistance = std::min( output.chaseCameraMinimumDistance, shipDistance );
+		output.chaseCameraMinimumOrbitDegrees = std::min( output.chaseCameraMinimumOrbitDegrees, orbitDegrees );
+		output.chaseCameraMaximumOrbitDegrees = std::max( output.chaseCameraMaximumOrbitDegrees, orbitDegrees );
+	}
+	output.chaseCameraActive = true;
+	++output.chaseCameraUpdates;
+	output.chaseCameraMaximumDistance = std::max( output.chaseCameraMaximumDistance, shipDistance );
+	output.chaseCameraMaximumFocusErrorDegrees = std::max(
+		output.chaseCameraMaximumFocusErrorDegrees, focusErrorDegrees );
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		output.chaseCameraEye[axis] = ( &probe.chaseCameraEye.x )[axis];
+		output.chaseCameraTarget[axis] = ( &probe.chaseCameraTarget.x )[axis];
+	}
+	return true;
+#else
+	( void )probe;
+	( void )simulationTime;
+	return false;
+#endif
+}
+
 bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
 {
 	probe.qualityRung = qualityRung;
@@ -11126,7 +11228,7 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	}
 	auto& diagnostics = probe.ballparkDiagnostics;
 	diagnostics.available = true;
-	diagnostics.observerFrame = probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER;
+	diagnostics.observerFrame = probe.ballparkReferenceFrame != STANDALONE_BALLPARK_EGO;
 	diagnostics.schedulerRegistered = source.schedulerRegistered;
 	diagnostics.directEvolveCount = source.directEvolveCount;
 	diagnostics.startCallCount = source.startCallCount;
@@ -11270,7 +11372,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
 		mode > STANDALONE_BALLPARK_GOTO || referenceFrame < STANDALONE_BALLPARK_EGO ||
-		referenceFrame > STANDALONE_BALLPARK_OBSERVER ||
+		referenceFrame > STANDALONE_BALLPARK_CHASE ||
 		( mode != STANDALONE_BALLPARK_GOTO && referenceFrame != STANDALONE_BALLPARK_EGO ) )
 		return false;
 	probe->ballparkLog.close();
@@ -11287,6 +11389,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkMode = STANDALONE_BALLPARK_OFF;
 	probe->ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
 	probe->ballparkCommandIssued = false;
+	probe->chaseCameraInitialized = false;
+	probe->chaseCameraTime = 0;
 	probe->ballparkDiagnostics = {};
 	probe->ballparkDiagnostics.trajectoryHash = 1469598103934665603ull;
 	probe->renderable->SetBallparkEngineKinematicsEnabled( false, 0.0f );
@@ -11346,7 +11450,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	{
 		DestinyEmbeddedSessionOptions options = {};
 		options.orientationPolicy = DESTINY_EMBEDDED_NATIVE_ORIENTATION;
-		options.referenceFrame = referenceFrame == STANDALONE_BALLPARK_OBSERVER ?
+		options.referenceFrame = referenceFrame != STANDALONE_BALLPARK_EGO ?
 			DESTINY_EMBEDDED_FIXED_OBSERVER : DESTINY_EMBEDDED_PRIMARY_EGO;
 		options.observerBallId = 2;
 		probe->destinySession = Destiny_CreateEmbeddedSessionWithOptions(
@@ -11374,7 +11478,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkMode = mode;
 	probe->ballparkReferenceFrame = referenceFrame;
 	probe->ballparkDiagnostics.available = true;
-	probe->ballparkDiagnostics.observerFrame = referenceFrame == STANDALONE_BALLPARK_OBSERVER;
+	probe->ballparkDiagnostics.observerFrame = referenceFrame != STANDALONE_BALLPARK_EGO;
 	probe->ballparkDiagnostics.registeredClassCount = probe->destinyRegistration.discoveredClassCount;
 	probe->renderable->SetBallparkEngineKinematicsEnabled(
 		gotoMode && probe->renderable->HasAuthoredEngines(), config.maximumVelocity );
@@ -11386,6 +11490,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			Vector3( 0.0f, 0.0f, 0.0f ),
 			Vector3( 0.0f, 1.0f, 0.0f ) );
 		probe->projection->PerspectiveFov( 60.0f * 3.1415926535f / 180.0f,
+			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 10000.0f );
+	}
+	else if( gotoMode && referenceFrame == STANDALONE_BALLPARK_CHASE )
+	{
+		probe->renderable->SetAllowDecalDistanceCulling( true );
+		probe->projection->PerspectiveFov( 48.0f * 3.1415926535f / 180.0f,
 			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 10000.0f );
 	}
 #ifdef __APPLE__
@@ -11441,8 +11551,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			"PL-11A Ballpark contract: mode=goto frame=%s system=30005286 type=33468 ball=1 observer=%s "
 			"start=(0,0,-1000) target=(0,0,1000) mass=975000 radius=35 maxVelocity=312 agility=2.87 "
 			"orientation=native scheduler=disabled\n",
-			referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego",
-			referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "ball=2" : "none" );
+			referenceFrame == STANDALONE_BALLPARK_CHASE ? "chase" :
+				( referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego" ),
+			referenceFrame != STANDALONE_BALLPARK_EGO ? "ball=2" : "none" );
 	}
 	else
 	{
@@ -11605,7 +11716,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkMotion( voi
 		return std::abs( values[0] ) <= tolerance && std::abs( values[1] ) <= tolerance &&
 			std::abs( values[2] ) <= tolerance;
 	};
-	const bool observer = probe->ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER;
+	const bool observer = probe->ballparkReferenceFrame != STANDALONE_BALLPARK_EGO;
 	const bool referenceFrameValid = observer ?
 		( diagnostics.egoBallId == 2 && nearZero3( diagnostics.referencePoint, 1e-5 ) &&
 		  nearZero3( diagnostics.origin, 1e-3 ) ) :
@@ -11665,6 +11776,53 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkMotion( voi
 		engineValid ? "pass" : "fail",
 		diagnostics.motionValid ? "pass" : "fail" );
 	return diagnostics.motionValid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateChaseCamera( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || probe->ballparkMode != STANDALONE_BALLPARK_GOTO ||
+		probe->ballparkReferenceFrame != STANDALONE_BALLPARK_CHASE || !probe->destinySession ||
+		probe->renderedFrameCount != 1200 )
+	{
+		return false;
+	}
+	if( !UpdateBallparkDiagnostics(
+			*probe, probe->renderedFrameCount - 1, static_cast<Be::Time>( probe->lastSimTime ), false ) )
+	{
+		return false;
+	}
+	auto& diagnostics = probe->ballparkDiagnostics;
+	diagnostics.chaseCameraValid = diagnostics.chaseCameraActive &&
+		diagnostics.chaseCameraUpdates == 1200 && diagnostics.directEvolveCount == 19 &&
+		diagnostics.commandCount == 1 && diagnostics.lastCommandTime == 30000000 &&
+		diagnostics.originUpdateCount == 1200 && diagnostics.maximumRawPositionError <= 1e-5 &&
+		diagnostics.maximumRawVelocityError <= 1e-5 && diagnostics.maximumRawAccelerationError <= 1e-5 &&
+		diagnostics.chaseCameraTravel > 1000.0 && diagnostics.chaseCameraMinimumDistance > 50.0 &&
+		diagnostics.chaseCameraMaximumDistance < 600.0 &&
+		diagnostics.chaseCameraMaximumFocusErrorDegrees < 20.0 &&
+		diagnostics.chaseCameraMinimumOrbitDegrees < -24.0 &&
+		diagnostics.chaseCameraMaximumOrbitDegrees > 24.0 && !diagnostics.schedulerRegistered &&
+		diagnostics.startCallCount == 0 && diagnostics.onTickCallCount == 0 &&
+		diagnostics.pythonCallbackCount == 0;
+	std::fprintf(
+		stderr,
+		"PL-11A chase-camera validation: updates=%llu travel=%.3f distance=[%.3f,%.3f] "
+		"focusErrorMax=%.3fdeg orbit=[%.3f,%.3f]deg validation=%s\n",
+		static_cast<unsigned long long>( diagnostics.chaseCameraUpdates ),
+		diagnostics.chaseCameraTravel,
+		diagnostics.chaseCameraMinimumDistance,
+		diagnostics.chaseCameraMaximumDistance,
+		diagnostics.chaseCameraMaximumFocusErrorDegrees,
+		diagnostics.chaseCameraMinimumOrbitDegrees,
+		diagnostics.chaseCameraMaximumOrbitDegrees,
+		diagnostics.chaseCameraValid ? "pass" : "fail" );
+	return diagnostics.chaseCameraValid;
 #else
 	( void )probe;
 	return false;
@@ -11796,6 +11954,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					static_cast<float>( kinematics.acceleration[2] ) ) );
 		}
 #endif
+		if( !UpdateBallparkChaseCamera( *probe, static_cast<Be::Time>( simTime ) ) )
+		{
+			CCP_LOGERR( "Embedded Destiny chase-camera update failed" );
+			return false;
+		}
 		UpdateProbeCamera( *probe );
 		if( probe->renderable )
 		{

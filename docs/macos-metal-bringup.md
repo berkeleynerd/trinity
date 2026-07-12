@@ -2032,3 +2032,19 @@ cmake --build --preset arm64-osx-debug --target pl11a_validate
 Ignored evidence is under
 `/Users/rebecca/src/github.com/berkeleynerd/promised-land/.cmake-build-arm64-osx-debug/pl11a/reports/`.
 CP-32 and PL-11A are accepted. PL-11B native orbit is next.
+
+### PL-11A chase-camera capability
+
+`--ballpark-frame chase` uses the fixed-observer Ballpark while following the
+Astero's absolute Destiny position. The sample-owned rig uses a 150-unit
+trailing distance, 55-unit height, 25-unit look-ahead, 48-degree FOV,
+0.75-second camera damping, 0.2-second target damping, and a restrained
+±25-degree 20-second sweep around the velocity direction. STOP uses +Z until
+native velocity provides a direction.
+
+The 1,200-frame `--validate-chase-camera` gate reports 1,200 updates,
+3,055.925 units of camera travel, ship distance `61.504..370.959`, maximum
+focus error `11.411` degrees, and orbit bounds `-25..25` degrees. Small decals
+may cross Trinity's native 10-pixel culling threshold during the arc; this is
+logged rather than replaced. CP-33 is accepted as presentation capability,
+not EVE camera-policy fidelity.

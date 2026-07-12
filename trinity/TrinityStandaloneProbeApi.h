@@ -356,6 +356,8 @@ struct TrinityStandaloneBallparkDiagnostics
 	bool reversalObserved = false;
 	bool nativeOrientationChanged = false;
 	bool engineKinematicsActive = false;
+	bool chaseCameraActive = false;
+	bool chaseCameraValid = false;
 	bool worldMatricesEqual = false;
 	bool colorHashesEqual = false;
 	bool depthHashesEqual = false;
@@ -371,6 +373,7 @@ struct TrinityStandaloneBallparkDiagnostics
 	uint64_t orientationPinCount = 0;
 	uint64_t lastValidatedEvolveCount = 0;
 	uint64_t trajectoryHash = 0;
+	uint64_t chaseCameraUpdates = 0;
 	int64_t lastCommandTime = 0;
 	int64_t primaryBallId = 0;
 	int64_t egoBallId = 0;
@@ -405,6 +408,14 @@ struct TrinityStandaloneBallparkDiagnostics
 	float engineParentSpeed = 0.0f;
 	float engineParentAcceleration[3] = {};
 	float engineMaximumVelocity = 0.0f;
+	double chaseCameraEye[3] = {};
+	double chaseCameraTarget[3] = {};
+	double chaseCameraTravel = 0.0;
+	double chaseCameraMinimumDistance = 0.0;
+	double chaseCameraMaximumDistance = 0.0;
+	double chaseCameraMaximumFocusErrorDegrees = 0.0;
+	double chaseCameraMinimumOrbitDegrees = 0.0;
+	double chaseCameraMaximumOrbitDegrees = 0.0;
 	float offWorld[16] = {};
 	float staticWorld[16] = {};
 };
@@ -464,6 +475,7 @@ extern "C" bool TrinityStandaloneProbeConfigureBallparkEx(
 	const char* logPath );
 extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeValidateChaseCamera( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneBallparkDiagnostics* diagnostics );
