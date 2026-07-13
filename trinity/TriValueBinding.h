@@ -39,9 +39,23 @@ public:
 		return m_destinationAttribute;
 	}
 
+	const std::string& GetName() const
+	{
+		return m_name;
+	}
+
+	IRootPtr GetBindingSourceObject() const
+	{
+		return GetSourceObject();
+	}
+
 	void SetSource( const std::string& sourceAttribute, IRootPtr sourceObject );
 	void SetDestination( const std::string& destAttribute, IRootPtr destination );
 	void SetScale( float scale );
+	float GetScale() const
+	{
+		return m_scale;
+	}
 
 	void CreateWeakBinding( IRoot * source, const char* sourceAttr, IRoot* dest, const char* destAttr, float scale = 1.0f, const Vector4& offset = Vector4( 0.0f, 0.0f, 0.0f, 0.0f ) );
 

@@ -11,6 +11,9 @@
 #include "Eve/EveLensflare.h"
 #include "Eve/EveOccluder.h"
 #include "Eve/EveRootTransform.h"
+#include "Eve/EveTransform.h"
+#include "TriFloat.h"
+#include "TriValueBinding.h"
 #include "Eve/EveStarfield.h"
 #include "Eve/IEveShadowCaster.h"
 #include "Eve/IEveSpaceObject2.h"
@@ -442,6 +445,7 @@ enum StandaloneBallparkMode
 	STANDALONE_BALLPARK_STATIC = 1,
 	STANDALONE_BALLPARK_GOTO = 2,
 	STANDALONE_BALLPARK_ORBIT = 3,
+	STANDALONE_BALLPARK_WARP = 4,
 };
 
 enum StandaloneBallparkReferenceFrame
@@ -4026,6 +4030,11 @@ struct StandaloneProbe
 	double celestialAnchorOffset[3] = { 0.0, 0.0, 0.0 };
 	int eveGateMode = STANDALONE_EVE_GATE_OFF;
 	EveEffectRoot2Ptr eveGateRoot;
+	EveTransformPtr warpTunnelRoot;
+	TriFloatPtr warpTunnelSpeedSource;
+	TriCurveSetPtr warpTunnelFadeOutSet;
+	bool warpTunnelAligned = false;
+	bool warpTunnelDetached = false;
 	float eveGateAuthoredRadius = 0.0f;
 	uint32_t eveGateMeshCount = 0;
 	ITriVectorFunction* eveGateCurve = nullptr;
@@ -9124,10 +9133,20 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &diagnostics ) )
 		return false;
 
-	const Vector3 ship(
-		static_cast<float>( diagnostics.absolutePosition[0] ),
-		static_cast<float>( diagnostics.absolutePosition[1] ),
-		static_cast<float>( diagnostics.absolutePosition[2] ) );
+	// The warp chase is ego-referenced, so the rig works in origin-relative
+	// coordinates (the origin tracks the warping ship; float precision at the
+	// 1.4e12 m leg scale cannot express the camera offset in absolute space).
+	// GOTO/ORBIT chase keeps the accepted absolute-space rig.
+	const bool warpChase = probe.ballparkMode == STANDALONE_BALLPARK_WARP;
+	const Vector3 ship = warpChase ?
+		Vector3(
+			static_cast<float>( diagnostics.position[0] ),
+			static_cast<float>( diagnostics.position[1] ),
+			static_cast<float>( diagnostics.position[2] ) ) :
+		Vector3(
+			static_cast<float>( diagnostics.absolutePosition[0] ),
+			static_cast<float>( diagnostics.absolutePosition[1] ),
+			static_cast<float>( diagnostics.absolutePosition[2] ) );
 	Vector3 forward(
 		static_cast<float>( diagnostics.velocity[0] ),
 		static_cast<float>( diagnostics.velocity[1] ),
@@ -11640,6 +11659,55 @@ struct BallparkMotionReference
 	std::array<double, 3> acceleration;
 };
 
+// PL-11C warp corpus (destiny tests/data/pl11c-warp.csv, 42 ticks):
+// stargate anchor to the New Eden planet at warpFactor 5000, minRange 1e7.
+constexpr double kBallparkWarpMinimumRange = 1e7;
+constexpr int32_t kBallparkWarpFactor = 5000;
+constexpr std::array<BallparkMotionReference, 42> kBallparkWarpReference = { {
+	{ { 0, 0, -1000 }, { 0, 0, 0 }, { 0, 0, 0 } },
+	{ { 0, 0, -1000 }, { 0, 0, 0 }, { 0, 0, 0 } },
+	{ { 11.809758150973357, -2.2379550331059357, -994.75810253020575 }, { 22.294453368726586, -4.2248099824783463, 9.8956504621004235 }, { 26.514862060546875, -5.0245795249938965, 11.768927574157715 } },
+	{ { 69.518534369273596, -13.173800670197965, -993.20163409916302 }, { 89.149587848324259, -16.893898506134061, -5.8470516786217459 }, { 87.478302001953125, -16.577190399169922, -15.18647289276123 } },
+	{ { 186.38649739185331, -35.320350050346725, -1022.5914719061896 }, { 141.47631756449334, -26.809849237374877, -50.291107246886313 }, { 94.091392517089844, -17.830379486083984, -54.946990966796875 } },
+	{ { 345.05878818264313, -65.388851433028293, -1093.7280008049072 }, { 173.93886407243687, -32.961530530903552, -89.643079999172912 }, { 89.166664123535156, -16.897148132324219, -64.773765563964844 } },
+	{ { 531.02653909719072, -100.62987065411775, -1197.9528331881202 }, { 196.64698843457913, -37.264747722840752, -117.17050218719662 }, { 89.166717529296875, -16.897167205810547, -64.773857116699219 } },
+	{ { 736.08792279490569, -139.48915780366454, -1325.3234880282976 }, { 212.53167806343083, -40.274918163152712, -136.42634339652975 }, { 89.166702270507812, -16.897167205810547, -64.773811340332031 } },
+	{ { 736.8875732421875, -139.64068603515625, -1325.9044189453125 }, { 204.52035221779127, -38.756720124344227, -148.57076616874591 }, { 0, 0, 0 } },
+	{ { 854.77587890625, -161.9805908203125, -1411.542724609375 }, { 593.4402815447977, -112.45726233568949, -431.09586086874106 }, { 0, 0, 0 } },
+	{ { 18350.957153320312, -3477.5166320800781, -14121.383178710938 }, { 88074.346922785931, -16690.137567266884, -63980.298587574711 }, { 0, 0, 0 } },
+	{ { 2615014.5004882812, -495546.69757080078, -1900428.9702148438 }, { 13071392.062706955, -2477036.0422146707, -9495518.2337080818 }, { 0, 0, 0 } },
+	{ { 387994054.06689453, -73525088.336334229, -281853296.99963379 }, { 1939966589.8946841, -367624744.23602253, -1409259858.3807347 }, { 0, 0, 0 } },
+	{ { 57583314768.032471, -10912070070.758087, -41830542841.070435 }, { 287916570159.72278, -54560349656.344849, -209152707578.73459 }, { 0, 0, 0 } },
+	{ { 630333458114.96948, -119448539748.04958, -457896360729.44354 }, { 598177432806.69092, -113354955125.93256, -434537093904.01013 }, { 0, 0, 0 } },
+	{ { 995540358809.26306, -188655449887.80551, -723195478679.74158 }, { 147017385632.01389, -27859876078.665813, -106798591859.52544 }, { 0, 0, 0 } },
+	{ { 1067089991785.1617, -202214145001.40228, -775171644743.6543 }, { 27767997338.84893, -5262050889.3377781, -20171648419.670589 }, { 0, 0, 0 } },
+	{ { 1080603971846.2913, -204775051714.67365, -784988674442.16125 }, { 5244697236.9669113, -993873033.88560426, -3809932255.4926291 }, { 0, 0, 0 } },
+	{ { 1083156432977.0717, -205258744513.95349, -786842871844.54089 }, { 990595352.33261847, -187718368.41914126, -719603251.526443 }, { 0, 0, 0 } },
+	{ { 1083638530611.8673, -205350102283.00568, -787193084496.69519 }, { 187099294.33991775, -35455419.998851009, -135915497.93591607 }, { 0, 0, 0 } },
+	{ { 1083729587093.2657, -205367357536.70929, -787259231122.49207 }, { 35338492.008935466, -6696663.8261414804, -25671121.607612208 }, { 0, 0, 0 } },
+	{ { 1083746785441.0824, -205370616633.15469, -787271724606.31531 }, { 6674578.9815601669, -1264836.4171575683, -4848648.5691525899 }, { 0, 0, 0 } },
+	{ { 1083750033789.3939, -205371232196.96051, -787274084320.60388 }, { 1260665.12883053, -238896.74078513053, -915791.42144326714 }, { 0, 0, 0 } },
+	{ { 1083750647323.1395, -205371348461.94543, -787274530013.06262 }, { 238108.88619079316, -45121.76593162214, -172970.65678945713 }, { 0, 0, 0 } },
+	{ { 1083750763204.6956, -205371370421.56451, -787274614193.49438 }, { 44972.959417300364, -8522.40073695912, -32669.937079567109 }, { 0, 0, 0 } },
+	{ { 1083750785091.8943, -205371374569.20084, -787274630093.12427 }, { 8494.2948115352265, -1609.673580746037, -6170.5540730292405 }, { 0, 0, 0 } },
+	{ { 1083750789225.8522, -205371375352.58813, -787274633096.17639 }, { 1604.3650597734381, -304.02806408977608, -1165.4671123513606 }, { 0, 0, 0 } },
+	{ { 1083750790006.6559, -205371375500.55087, -787274633663.37964 }, { 303.0254123644641, -57.423483419511143, -220.12831108636342 }, { 0, 0, 0 } },
+	{ { 1083750790202.2549, -205371375537.61697, -787274633805.46973 }, { 40.036187961344027, -7.586879231311487, -29.083697401986488 }, { 0, 0, 0 } },
+	{ { 1083750790235.9185, -205371375543.99625, -787274633829.92419 }, { 28.00596487897884, -5.3071454629575721, -20.34451953261182 }, { 0, 0, 0 } },
+	{ { 1083750790259.4667, -205371375548.45865, -787274633847.03052 }, { 19.590628097757239, -3.7124346000855386, -14.231322424106693 }, { 0, 0, 0 } },
+	{ { 1083750790275.9391, -205371375551.58017, -787274633858.99658 }, { 13.703963099400605, -2.5969084051130813, -9.955041583274058 }, { 0, 0, 0 } },
+	{ { 1083750790287.4618, -205371375553.7637, -787274633867.36707 }, { 9.586145155357876, -1.81657968180546, -6.9637135588217411 }, { 0, 0, 0 } },
+	{ { 1083750790295.5221, -205371375555.29114, -787274633873.22229 }, { 6.7056645054459194, -1.2707270436843654, -4.8712309359705426 }, { 0, 0, 0 } },
+	{ { 1083750790301.1604, -205371375556.35962, -787274633877.31824 }, { 4.6907214246036073, -0.88889424214298374, -3.4075052960063701 }, { 0, 0, 0 } },
+	{ { 1083750790305.1045, -205371375557.10699, -787274633880.18335 }, { 3.2812359558647692, -0.62179598493790289, -2.3836053956243135 }, { 0, 0, 0 } },
+	{ { 1083750790307.8634, -205371375557.62982, -787274633882.1875 }, { 2.2952779377576484, -0.43495640825931353, -1.6673707561682154 }, { 0, 0, 0 } },
+	{ { 1083750790309.7932, -205371375557.99551, -787274633883.5896 }, { 1.6055842622779448, -0.30425908444027061, -1.1663529725300006 }, { 0, 0, 0 } },
+	{ { 1083750790311.1432, -205371375558.25134, -787274633884.57031 }, { 1.1231323147701537, -0.21283417994669696, -0.81588288117506391 }, { 0, 0, 0 } },
+	{ { 1083750790312.0875, -205371375558.4303, -787274633885.25623 }, { 0.78564932785981456, -0.14888097174457759, -0.57072335002550134 }, { 0, 0, 0 } },
+	{ { 1083750790312.7482, -205371375558.55548, -787274633885.73608 }, { 0.54957448757308347, -0.10414466207054217, -0.39923026917197946 }, { 0, 0, 0 } },
+	{ { 1083750790313.2103, -205371375558.64307, -787274633886.07178 }, { 0.38443629578858335, -0.0728508855812358, -0.279268068874367 }, { 0, 0, 0 } },
+} };
+
 constexpr std::array<BallparkMotionReference, 17> kBallparkGotoReference = { {
 	{ { 0.0, 0.0, -950.338512501807 }, { 0.0, 0.0, 93.750922169292 }, { 0.0, 0.0, 111.498260498047 } },
 	{ { 0.0, 0.0, -821.848571821185 }, { 0.0, 0.0, 159.331217580536 }, { 0.0, 0.0, 111.498260498047 } },
@@ -11759,6 +11827,40 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 			}
 		}
 	}
+	else if( probe.ballparkMode == STANDALONE_BALLPARK_WARP )
+	{
+		if( source.directEvolveCount <= 2 )
+		{
+			expectedRawPosition[0] = expectedRawPosition[1] = 0.0;
+			expectedRawPosition[2] = -1000.0;
+			for( size_t axis = 0; axis < 3; ++axis )
+				expectedRawVelocity[axis] = expectedRawAcceleration[axis] = 0.0;
+		}
+		else
+		{
+			const size_t referenceIndex = static_cast<size_t>( source.directEvolveCount - 3 );
+			if( referenceIndex < kBallparkWarpReference.size() )
+			{
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = kBallparkWarpReference[referenceIndex].position[axis];
+					expectedRawVelocity[axis] = kBallparkWarpReference[referenceIndex].velocity[axis];
+					expectedRawAcceleration[axis] = kBallparkWarpReference[referenceIndex].acceleration[axis];
+				}
+			}
+			else
+			{
+				// Post-corpus settle ticks: expected tracks actual, matching
+				// the GOTO convention beyond its table.
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = source.rawPosition[axis];
+					expectedRawVelocity[axis] = source.rawVelocity[axis];
+					expectedRawAcceleration[axis] = source.rawAcceleration[axis];
+				}
+			}
+		}
+	}
 	auto& diagnostics = probe.ballparkDiagnostics;
 	diagnostics.available = true;
 	diagnostics.observerFrame = probe.ballparkReferenceFrame != STANDALONE_BALLPARK_EGO;
@@ -11787,6 +11889,36 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 			diagnostics.orbitSettledMinimumDistance, source.orbitCenterDistance );
 		diagnostics.orbitSettledMaximumDistance = std::max(
 			diagnostics.orbitSettledMaximumDistance, source.orbitCenterDistance );
+	}
+	if( probe.ballparkMode == STANDALONE_BALLPARK_WARP )
+	{
+		diagnostics.warpEffectStamp = source.warpEffectStamp;
+		if( source.mode == DESTINY_EMBEDDED_BALL_MODE_WARP )
+		{
+			diagnostics.warpFactor = source.warpFactor;
+			diagnostics.warpMinRange = source.warpMinRange;
+			if( source.warpTotalDistance > 0.0 )
+				diagnostics.warpTotalDistance = source.warpTotalDistance;
+			if( source.warpEffectStamp < 0 )
+			{
+				if( diagnostics.lastValidatedEvolveCount != source.directEvolveCount )
+					++diagnostics.warpAligningTicks;
+			}
+			else
+			{
+				if( diagnostics.warpActivationEvolve < 0 )
+					diagnostics.warpActivationEvolve = static_cast<int64_t>( source.directEvolveCount );
+				diagnostics.warpSuspensionObserved = true;
+				if( source.isMassive || source.sensorActive )
+					diagnostics.warpSuspensionViolated = true;
+			}
+		}
+		else if( diagnostics.warpSuspensionObserved && diagnostics.warpDropoutEvolve < 0 &&
+				 source.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+		{
+			diagnostics.warpDropoutEvolve = static_cast<int64_t>( source.directEvolveCount );
+			diagnostics.warpParticipationRestored = source.isMassive && source.sensorActive;
+		}
 	}
 	diagnostics.originUpdateCount = probe.scene->GetSuccessfulOriginUpdateCount();
 	for( size_t i = 0; i < 3; ++i )
@@ -11824,7 +11956,8 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	}
 
 	if( ( probe.ballparkMode == STANDALONE_BALLPARK_GOTO ||
-		  probe.ballparkMode == STANDALONE_BALLPARK_ORBIT ) && probe.renderable )
+		  probe.ballparkMode == STANDALONE_BALLPARK_ORBIT ||
+		  probe.ballparkMode == STANDALONE_BALLPARK_WARP ) && probe.renderable )
 	{
 		const double roll = 2.0 * std::atan2( std::abs( source.rotation[2] ), std::abs( source.rotation[3] ) );
 		if( diagnostics.lastValidatedEvolveCount == 0 )
@@ -12194,10 +12327,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
-		mode > STANDALONE_BALLPARK_ORBIT || referenceFrame < STANDALONE_BALLPARK_EGO ||
+		mode > STANDALONE_BALLPARK_WARP || referenceFrame < STANDALONE_BALLPARK_EGO ||
 		referenceFrame > STANDALONE_BALLPARK_CHASE ||
 		( mode != STANDALONE_BALLPARK_GOTO && mode != STANDALONE_BALLPARK_ORBIT &&
-		  referenceFrame != STANDALONE_BALLPARK_EGO ) ||
+		  mode != STANDALONE_BALLPARK_WARP && referenceFrame != STANDALONE_BALLPARK_EGO ) ||
 		orbitPolicy < DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT ||
 		orbitPolicy > DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW || !std::isfinite( orbitRange ) || orbitRange < 0.0f )
 		return false;
@@ -12254,9 +12387,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		std::fprintf( stderr, "ORBIT Ballpark mode requires sample motion=static\n" );
 		return false;
 	}
+	if( mode == STANDALONE_BALLPARK_WARP && probe->motionMode != STANDALONE_MOTION_STATIC )
+	{
+		std::fprintf( stderr, "WARP Ballpark mode requires sample motion=static\n" );
+		return false;
+	}
 	const bool gotoMode = mode == STANDALONE_BALLPARK_GOTO;
 	const bool orbitMode = mode == STANDALONE_BALLPARK_ORBIT;
-	const bool movingMode = gotoMode || orbitMode;
+	const bool warpMode = mode == STANDALONE_BALLPARK_WARP;
+	const bool movingMode = gotoMode || orbitMode || warpMode;
 	DestinyEmbeddedBallConfig config = {};
 	config.ballId = 1;
 	config.solarSystemId = 30005286;
@@ -12264,7 +12403,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	config.radius = movingMode ? 35.0f : probe->renderable->GetModelRadius();
 	config.maximumVelocity = movingMode ? 312.0f : 250.0f;
 	config.maximumAngularVelocity = 1.0f;
-	config.position[2] = orbitMode ? -2570.0 : ( gotoMode ? -1000.0 : 0.0 );
+	// The warp fixture starts at the PL-11A GOTO position: the D-07 corpus
+	// records the leg from (0, 0, -1000) to the New Eden planet.
+	config.position[2] = orbitMode ? -2570.0 : ( ( gotoMode || warpMode ) ? -1000.0 : 0.0 );
 	config.agility = movingMode ? 2.87f : 1.0f;
 	config.rotationalAgility = 1.0f;
 	config.speedFraction = movingMode ? 1.0f : 0.0f;
@@ -12289,8 +12430,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	{
 		DestinyEmbeddedSessionOptions options = {};
 		options.orientationPolicy = DESTINY_EMBEDDED_NATIVE_ORIENTATION;
-		options.referenceFrame = referenceFrame != STANDALONE_BALLPARK_EGO ?
-			DESTINY_EMBEDDED_FIXED_OBSERVER : DESTINY_EMBEDDED_PRIMARY_EGO;
+		// The warp chase rides the ego reference: the origin must track the
+		// warping ship, because at the ~1.4e12 m leg scale a fixed-observer
+		// frame quantizes the 150 m camera offset out of float existence.
+		// GOTO/ORBIT chase keeps the accepted fixed-observer wiring.
+		const bool egoReferenced = referenceFrame == STANDALONE_BALLPARK_EGO ||
+			( warpMode && referenceFrame == STANDALONE_BALLPARK_CHASE );
+		options.referenceFrame = egoReferenced ?
+			DESTINY_EMBEDDED_PRIMARY_EGO : DESTINY_EMBEDDED_FIXED_OBSERVER;
 		options.orbitPolicy = static_cast<DestinyEmbeddedOrbitPolicy>( orbitPolicy );
 		options.observerBallId = 2;
 		probe->destinySession = Destiny_CreateEmbeddedSessionWithOptions(
@@ -12343,8 +12490,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		probe->projection->PerspectiveFov( 45.0f * 3.1415926535f / 180.0f,
 			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 15000.0f );
 	}
-	else if( gotoMode && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
+	else if( ( gotoMode || warpMode ) && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
 	{
+		// The warp observer shares the GOTO departure framing: the numeric
+		// contract pins the reference point to the observer ball; the ship
+		// leaves the frustum shortly after warp activation by design.
 		probe->renderable->SetAllowDecalDistanceCulling( true );
 		probe->view->SetLookAtPosition(
 			Vector3( 1800.0f, 0.0f, 0.0f ),
@@ -12713,6 +12863,97 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkOrbit( void
 		diagnostics.maximumRawVelocityError, diagnostics.maximumRawAccelerationError, diagnostics.maximumCurveError,
 		diagnostics.maximumRootError, diagnostics.maximumOriginError, diagnostics.orbitValid ? "pass" : "fail" );
 	return diagnostics.orbitValid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkWarp( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || probe->ballparkMode != STANDALONE_BALLPARK_WARP || !probe->destinySession ||
+		!probe->renderable || !probe->scene || probe->renderedFrameCount != 3780 )
+		return false;
+	if( !UpdateBallparkDiagnostics(
+			*probe, probe->renderedFrameCount - 1, static_cast<Be::Time>( probe->lastSimTime ), false ) )
+		return false;
+	auto& diagnostics = probe->ballparkDiagnostics;
+	const auto nearZero3 = []( const auto* values, double tolerance ) {
+		return std::abs( values[0] ) <= tolerance && std::abs( values[1] ) <= tolerance &&
+			std::abs( values[2] ) <= tolerance;
+	};
+	const bool observer = probe->ballparkReferenceFrame != STANDALONE_BALLPARK_EGO;
+	const bool referenceFrameValid = observer ?
+		( diagnostics.egoBallId == 2 && nearZero3( diagnostics.referencePoint, 1e-5 ) &&
+		  nearZero3( diagnostics.origin, 1e-3 ) ) :
+		( diagnostics.egoBallId == 1 && nearZero3( diagnostics.position, 1e-5 ) );
+	const double expectedEngineSpeed = std::sqrt(
+		diagnostics.velocity[0] * diagnostics.velocity[0] + diagnostics.velocity[1] * diagnostics.velocity[1] +
+		diagnostics.velocity[2] * diagnostics.velocity[2] );
+	const bool engineValid = !probe->renderable->HasAuthoredEngines() ||
+		( diagnostics.engineKinematicsActive && diagnostics.engineMaximumVelocity == 312.0f &&
+		  std::abs( diagnostics.engineParentSpeed - expectedEngineSpeed ) <= 1e-3 );
+	const double quaternionLength = std::sqrt(
+		diagnostics.rotation[0] * diagnostics.rotation[0] + diagnostics.rotation[1] * diagnostics.rotation[1] +
+		diagnostics.rotation[2] * diagnostics.rotation[2] + diagnostics.rotation[3] * diagnostics.rotation[3] );
+	// The warp leg spans ~1.4e12 m; the float-typed display curves carry that
+	// scale's quantization (~2^17 m ULP) in the observer frame, where relative
+	// positions reach the full leg length. The ego frame keeps relative
+	// positions near zero, so the standard gates hold there. Raw corpus
+	// scoring stays bit-exact-tight in both frames (same-library doubles).
+	const double displayGate = observer ? 3.0e5 : 1e-3;
+	const double startDelta[3] = {
+		kNewEdenPlanetRelative[0] - 0.0,
+		kNewEdenPlanetRelative[1] - 0.0,
+		kNewEdenPlanetRelative[2] - ( -1000.0 ),
+	};
+	const double expectedWarpLeg = std::sqrt(
+		startDelta[0] * startDelta[0] + startDelta[1] * startDelta[1] + startDelta[2] * startDelta[2] ) -
+		kBallparkWarpMinimumRange;
+	// Alignment drifts the ship a couple of kilometres before RealWarp fixes
+	// the leg, so mirror the destiny contract gate: max(1e6 abs, 1e-3 rel).
+	const bool warpLegValid = std::abs( diagnostics.warpTotalDistance - expectedWarpLeg ) <=
+		std::max( 1e6, 1e-3 * expectedWarpLeg );
+	diagnostics.warpValid = diagnostics.directEvolveCount == 62 &&
+		diagnostics.lastValidatedEvolveCount == 62 && diagnostics.commandCount == 1 &&
+		diagnostics.lastCommandTime == 30000000 && diagnostics.primaryBallId == 1 &&
+		diagnostics.warpFactor == kBallparkWarpFactor &&
+		std::abs( diagnostics.warpMinRange - kBallparkWarpMinimumRange ) <= 1e-6 &&
+		diagnostics.warpAligningTicks == 8 && diagnostics.warpActivationEvolve == 11 &&
+		diagnostics.warpDropoutEvolve == 31 && warpLegValid &&
+		diagnostics.warpSuspensionObserved && !diagnostics.warpSuspensionViolated &&
+		diagnostics.warpParticipationRestored && diagnostics.originUpdateCount == 3780 &&
+		diagnostics.orientationPinCount == 0 && diagnostics.startCallCount == 0 &&
+		diagnostics.onTickCallCount == 0 && diagnostics.pythonCallbackCount == 0 &&
+		!diagnostics.schedulerRegistered && diagnostics.pythonInitialized &&
+		diagnostics.destinyPythonModulesAbsent && diagnostics.loadedBlueImageCount == 1 &&
+		diagnostics.loadedPythonImageCount == 1 && diagnostics.maximumRawPositionError <= 1e-5 &&
+		diagnostics.maximumRawVelocityError <= 1e-5 && diagnostics.maximumRawAccelerationError <= 1e-5 &&
+		diagnostics.maximumCurveError <= displayGate && diagnostics.maximumRootError <= displayGate &&
+		diagnostics.maximumOriginError <= 1e-3 && std::isfinite( quaternionLength ) &&
+		std::abs( quaternionLength - 1.0 ) <= 1e-4 && diagnostics.unitBase == 1.0f &&
+		referenceFrameValid && engineValid;
+	diagnostics.motionValid = diagnostics.warpValid;
+	diagnostics.valid = diagnostics.warpValid;
+	std::fprintf( stderr,
+		"PL-11C warp validation: frame=%s evolves=%llu trajectory=%016llx align=%llu activation=%lld "
+		"dropout=%lld leg=%.6f suspension=%s/%s/%s errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
+		observer ? "observer" : "ego", static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+		static_cast<unsigned long long>( diagnostics.warpAligningTicks ),
+		static_cast<long long>( diagnostics.warpActivationEvolve ),
+		static_cast<long long>( diagnostics.warpDropoutEvolve ),
+		diagnostics.warpTotalDistance,
+		diagnostics.warpSuspensionObserved ? "observed" : "missing",
+		diagnostics.warpSuspensionViolated ? "violated" : "held",
+		diagnostics.warpParticipationRestored ? "restored" : "unrestored",
+		diagnostics.maximumRawPositionError, diagnostics.maximumRawVelocityError,
+		diagnostics.maximumRawAccelerationError, diagnostics.maximumCurveError,
+		diagnostics.maximumRootError, diagnostics.maximumOriginError,
+		diagnostics.warpValid ? "pass" : "fail" );
+	return diagnostics.warpValid;
 #else
 	( void )probe;
 	return false;
@@ -13261,6 +13502,121 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureWarpTunnel( void* opaqueProbe, int mode )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene || mode < 0 || mode > 1 )
+		return false;
+	if( mode == 0 )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel: mode=off\n" );
+		return true;
+	}
+	if( probe->warpTunnelRoot )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel: already configured\n" );
+		return false;
+	}
+	// The client-recovered generic warp tunnel: effects.Warping ->
+	// graphicID 21048 -> res:/model/effect3/warptunnel. The root EveTransform
+	// carries modifier TR2TM_TRANSLATE_WITH_CAMERA (decoded from the binary),
+	// so the graph is natively camera-anchored; the scene's warpTunnel slot
+	// renders it in the background pass with depth isolation.
+	std::string error;
+	auto tunnel = LoadBlackObjectWithoutYield<EveTransform>( "res:/model/effect3/warptunnel.black", error );
+	if( !tunnel )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel Black failed to load: %s\n", error.c_str() );
+		return false;
+	}
+	Tr2MeshPtr mesh = BlueCastPtr( tunnel->GetMesh() );
+	if( !mesh )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel has no serialized mesh\n" );
+		return false;
+	}
+	if( !PrepareMeshWithoutYield( *mesh, "res:/graphics/generic/vortex/sphere4k.cmf", "warp tunnel", error ) )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel preparation failed: %s\n", error.c_str() );
+		return false;
+	}
+	if( !tunnel->Initialize() )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel failed to initialize\n" );
+		return false;
+	}
+	// The tunnel is a speed-driven effect: the authored 'SpeedBinding' set
+	// routes a host-fed TriFloat ('BindToShipSpeed') into 'SpeedModifier',
+	// which scales intensity and scroll. The client feeds the warping
+	// ship's speed per frame (Warp.py, scale 1/(3*AU*warpSpeedModifier));
+	// zero input renders the tunnel authored-invisible. First light feeds a
+	// cruise-representative constant; the per-frame ball feed is the warp
+	// integration step's work.
+	TriFloat* shipSpeedSource = nullptr;
+	TriCurveSet* fadeOutSet = nullptr;
+	constexpr float kAuMeters = 0.1495978707e12f;
+	// The client's tunnel visibility is purely speed-driven: SetupTunnelBindings
+	// (Warp.py) multiplies every authored 'SpeedBinding' scale by
+	// 1/(3*AU*warpSpeedModifier) and feeds the ship's raw speed each frame —
+	// align/dropout speeds are authored-invisible; cruise at warpFactor
+	// reaches ~1/3. First light (no warp Ballpark) keeps its explicit fixture
+	// input instead: a cruise-representative constant plus the entry fade.
+	const bool warpBallparkDriven = probe->ballparkMode == STANDALONE_BALLPARK_WARP;
+	const float warpSpeedModifier = static_cast<float>( kBallparkWarpFactor ) / 1000.0f;
+	const float clientSpeedScale = 1.0f / ( 3.0f * kAuMeters * warpSpeedModifier );
+	for( TriCurveSet* curveSet : tunnel->GetCurveSets() )
+	{
+		if( !curveSet )
+			continue;
+		if( curveSet->GetName() == "FadeOutCurveSet" )
+			fadeOutSet = curveSet;
+		if( curveSet->GetName() != "SpeedBinding" )
+			continue;
+		for( size_t i = 0; i < curveSet->GetBindingsCount(); ++i )
+		{
+			TriValueBindingPtr binding = BlueCastPtr( curveSet->GetBinding( static_cast<unsigned int>( i ) ) );
+			if( !binding )
+				continue;
+			if( warpBallparkDriven )
+				binding->SetScale( binding->GetScale() * clientSpeedScale );
+			if( binding->GetName() == "BindToShipSpeed" )
+			{
+				TriFloatPtr source = BlueCastPtr( binding->GetBindingSourceObject() );
+				if( source )
+					shipSpeedSource = source;
+			}
+		}
+		if( warpBallparkDriven )
+		{
+			ScopedProbeScheduler scopedScheduler;
+			curveSet->Play();
+		}
+	}
+	if( !shipSpeedSource )
+	{
+		std::fprintf( stderr, "CP-37 warp tunnel: BindToShipSpeed TriFloat source not found\n" );
+		return false;
+	}
+	shipSpeedSource->m_value = warpBallparkDriven ? 0.0f : 3.0f * kAuMeters;
+	if( !warpBallparkDriven )
+	{
+		ScopedProbeScheduler scopedScheduler;
+		tunnel->PlayCurveSet( "FadeInCurveSet", "" );
+	}
+	probe->scene->SetWarpTunnel( tunnel );
+	probe->warpTunnelRoot = tunnel;
+	probe->warpTunnelSpeedSource = shipSpeedSource;
+	probe->warpTunnelFadeOutSet = fadeOutSet;
+	const Quaternion& authoredRotation = tunnel->GetRotation();
+	std::fprintf(
+		stderr,
+		"CP-37 warp tunnel: mode=authored root=WarpTunnelFinal modifier=translate-with-camera "
+		"geometry=sphere4k.cmf drive=%s authoredRotation=(%.6f, %.6f, %.6f, %.6f)\n",
+		warpBallparkDriven ? "ballpark" : "constant, fadeIn=played",
+		authoredRotation.x, authoredRotation.y, authoredRotation.z, authoredRotation.w );
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateTravel( void* opaqueProbe, int direct )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -13447,6 +13803,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		captureProduct != STANDALONE_CAPTURE_TEMPORAL_SAMPLE )
 	{
 		CCP_LOGERR( "Invalid standalone render-product selection" );
+		std::fprintf( stderr, "RenderFrame failure: render-product selection (frame=%llu, product=%d)\n", static_cast<unsigned long long>( probe->renderedFrameCount ), captureProduct );
 		return false;
 	}
 
@@ -13522,6 +13879,31 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			}
 			probe->ballparkCommandIssued = true;
 		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_WARP && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			const double warpTarget[3] = {
+				kNewEdenPlanetRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenPlanetRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenPlanetRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+				!Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime,
+					warpTarget, kBallparkWarpMinimumRange, kBallparkWarpFactor ) )
+			{
+				CCP_LOGERR( "Embedded Destiny WARP command failed" );
+				return false;
+			}
+			probe->ballparkCommandIssued = true;
+			std::fprintf( stderr,
+				"PL-11C command: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f) "
+				"minRange=%.0f warpFactor=%d\n",
+				static_cast<long long>( commandState.nextTickTime ),
+				warpTarget[0], warpTarget[1], warpTarget[2],
+				kBallparkWarpMinimumRange, kBallparkWarpFactor );
+		}
 		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
 			!probe->eveGateApproachIssued && probe->ballparkCommandIssued &&
 			probe->renderedFrameCount == probe->eveGateApproachFrame )
@@ -13555,14 +13937,20 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			  !Destiny_AdvanceEmbeddedSession( probe->destinySession, static_cast<Be::Time>( simTime ) ) ) )
 		{
 			CCP_LOGERR( "Embedded Destiny direct evolve failed" );
+			std::fprintf( stderr, "RenderFrame failure: direct evolve (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		if( ( probe->ballparkMode == STANDALONE_BALLPARK_GOTO ||
-			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ) && probe->renderable )
+			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
+			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ) && probe->renderable )
 		{
 			DestinyEmbeddedDiagnostics kinematics = {};
 			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )
+			{
+				std::fprintf( stderr, "RenderFrame failure: kinematics diagnostics (frame=%llu)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				return false;
+			}
 			const float speed = static_cast<float>( std::sqrt(
 				kinematics.velocity[0] * kinematics.velocity[0] +
 				kinematics.velocity[1] * kinematics.velocity[1] +
@@ -13573,11 +13961,92 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					static_cast<float>( kinematics.acceleration[0] ),
 					static_cast<float>( kinematics.acceleration[1] ),
 					static_cast<float>( kinematics.acceleration[2] ) ) );
+			if( probe->ballparkMode == STANDALONE_BALLPARK_WARP && probe->warpTunnelRoot &&
+				probe->warpTunnelSpeedSource && !probe->warpTunnelDetached )
+			{
+				// The client feeds the warping ship's raw speed into the ship
+				// model's speed TriFloat each frame; the configure-time
+				// binding rescale (1/(3*AU*warpSpeedModifier), Warp.py
+				// SetupTunnelBindings) makes visibility purely speed-driven —
+				// invisible while aligning, ~1/3 at cruise, gone by dropout.
+				probe->warpTunnelSpeedSource->m_value = static_cast<float>( std::sqrt(
+					kinematics.rawVelocity[0] * kinematics.rawVelocity[0] +
+					kinematics.rawVelocity[1] * kinematics.rawVelocity[1] +
+					kinematics.rawVelocity[2] * kinematics.rawVelocity[2] ) );
+				if( !probe->warpTunnelAligned && kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_WARP )
+				{
+					// Client AlignToDirection (Warp.py): computed once when
+					// the warp effect starts (warp state entry, before the
+					// aligning phase completes). The tunnel's +Z spans the
+					// leg pointing from the destination back at the ship,
+					// basis built against world up. The default 21048 tunnel
+					// takes the legacy path — no pitch flip; the minRange
+					// pull-in is along the same line, so the direction is
+					// identical either side of it.
+					const double leg[3] = {
+						kinematics.rawPosition[0] - kinematics.gotoPoint[0],
+						kinematics.rawPosition[1] - kinematics.gotoPoint[1],
+						kinematics.rawPosition[2] - kinematics.gotoPoint[2],
+					};
+					const double legLength = std::sqrt(
+						leg[0] * leg[0] + leg[1] * leg[1] + leg[2] * leg[2] );
+					if( legLength > 0.0 )
+					{
+						const double zAxis[3] = { leg[0] / legLength, leg[1] / legLength, leg[2] / legLength };
+						double xAxis[3] = { zAxis[2], 0.0, -zAxis[0] };  // cross((0,1,0), z)
+						const double xLength = std::sqrt(
+							xAxis[0] * xAxis[0] + xAxis[1] * xAxis[1] + xAxis[2] * xAxis[2] );
+						if( xLength > 0.0 )
+						{
+							xAxis[0] /= xLength;
+							xAxis[1] /= xLength;
+							xAxis[2] /= xLength;
+							const double yAxis[3] = {
+								zAxis[1] * xAxis[2] - zAxis[2] * xAxis[1],
+								zAxis[2] * xAxis[0] - zAxis[0] * xAxis[2],
+								zAxis[0] * xAxis[1] - zAxis[1] * xAxis[0],
+							};
+							const Matrix alignment(
+								static_cast<float>( xAxis[0] ), static_cast<float>( xAxis[1] ),
+								static_cast<float>( xAxis[2] ), 0.0f,
+								static_cast<float>( yAxis[0] ), static_cast<float>( yAxis[1] ),
+								static_cast<float>( yAxis[2] ), 0.0f,
+								static_cast<float>( zAxis[0] ), static_cast<float>( zAxis[1] ),
+								static_cast<float>( zAxis[2] ), 0.0f,
+								0.0f, 0.0f, 0.0f, 1.0f );
+							// The client leaves the authored local rotation on
+							// the EveTransform and puts the alignment on a
+							// wrapping root; composing (authored first, then
+							// alignment) on the single node is equivalent.
+							probe->warpTunnelRoot->SetRotation(
+								probe->warpTunnelRoot->GetRotation() * RotationQuaternion( alignment ) );
+						}
+					}
+					probe->warpTunnelAligned = true;
+					std::fprintf( stderr,
+						"CP-37b warp tunnel: leg-aligned at frame=%llu (warp state start)\n",
+						static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				}
+				else if( probe->warpTunnelAligned &&
+						 kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+				{
+					// The client tears the effect down when the warp ends
+					// (ShipEffect.Stop -> _CleanUp -> scene.warpTunnel = None);
+					// speed scaling has already taken the tunnel to
+					// authored-invisible before dropout, so removal is clean.
+					probe->scene->SetWarpTunnel( nullptr );
+					probe->warpTunnelDetached = true;
+					std::fprintf( stderr,
+						"CP-37b warp tunnel: detached at frame=%llu (warp end)\n",
+						static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				}
+			}
 		}
 #endif
 		if( !UpdateBallparkChaseCamera( *probe, static_cast<Be::Time>( simTime ) ) )
 		{
 			CCP_LOGERR( "Embedded Destiny chase-camera update failed" );
+			std::fprintf( stderr, "RenderFrame failure: chase-camera update (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		UpdateProbeCamera( *probe );
@@ -13602,17 +14071,20 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
 		{
 			CCP_LOGERR( "Failed to record embedded Ballpark diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: ballpark diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		if( !UpdateCelestialDiagnostics(
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
 		{
 			CCP_LOGERR( "Failed to record celestial Ballpark diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: celestial diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		if( !UpdateEveGateDiagnostics( *probe, true ) )
 		{
 			CCP_LOGERR( "Failed to record EVE Gate diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: EVE Gate diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		++probe->renderedFrameCount;
@@ -13649,6 +14121,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( !manager || FAILED( manager->GetLastUpdateResult() ) )
 		{
 			CCP_LOGERR( "Trinity tiled local-light list generation failed" );
+			std::fprintf( stderr, "RenderFrame failure: tiled light update (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		const size_t resolved = manager->GetResolvedLightCount();
@@ -13809,6 +14282,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( !diagnostics )
 		{
 			CCP_LOGERR( "Astero directional shadow diagnostics are unavailable" );
+			std::fprintf( stderr, "RenderFrame failure: directional shadow diagnostics unavailable (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		const uint32_t cullTests = diagnostics->tests;
@@ -13822,6 +14296,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				acceptedCascades,
 				committedBatches,
 				acceptedCascades * 2 );
+			std::fprintf( stderr,
+				"RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u)\n",
+				static_cast<unsigned long long>( probe->renderedFrameCount ), cullTests, acceptedCascades,
+				committedBatches );
 			return false;
 		}
 		if( !probe->reportedShadowStats )
@@ -13835,5 +14313,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->reportedShadowStats = true;
 		}
 	}
+	if( !rendered )
+		std::fprintf( stderr, "RenderFrame failure: DrawDriverFrame (frame=%llu)\n",
+			static_cast<unsigned long long>( probe->renderedFrameCount ) );
+	else if( probe->renderable && probe->renderable->DrawFailed() )
+		std::fprintf( stderr, "RenderFrame failure: renderable draw contract (frame=%llu)\n",
+			static_cast<unsigned long long>( probe->renderedFrameCount ) );
 	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );
 }

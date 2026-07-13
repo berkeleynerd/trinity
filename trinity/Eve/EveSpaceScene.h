@@ -263,6 +263,16 @@ public:
 	{
 		return m_backgroundObjects;
 	}
+	// The client sets this from Python via the 'warpTunnel' Blue attribute;
+	// the standalone host needs the same seam in C++.
+	void SetWarpTunnel( IEveSpaceObject2* warpTunnel )
+	{
+		m_warpTunnel = warpTunnel;
+	}
+	IEveSpaceObject2* GetWarpTunnel() const
+	{
+		return m_warpTunnel;
+	}
 	PEvePlanetVector& Planets()
 	{
 		return m_planets;

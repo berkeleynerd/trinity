@@ -98,6 +98,7 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-34 | Native Destiny Frontier orbit and reference-frame contract | Accepted | After 180 STOP frames, the Astero performs 60 ORBIT evolves around fixed ball 3 at a requested 2,500 m surface range. Ego and observer share trajectory hash `fa0da4fbe311e3f8`; phase is `6.278067342`, final center distance is `2643.012492`, and maximum curve/root error is `0.000122039`. | Frontier orbit is explicit PL policy. Installed-client activation is unverified and the navigation target is nonrendered. |
 | CP-35 | Natural celestial Ballpark placement and sun-ball linkage | Accepted | Destiny balls `40334263`/`40334264` hold the authored sun and planet as RIGID, global, fixed, non-interactive balls at the exact stargate-anchored solarSystemContent positions and radii. The sun `EvePlanet` translation curve, `EveSpaceScene::sunBall`, and the lens flare share one `ClientBall` curve; the scene's pointer-equality predicate identifies the sun uniquely; the authored-distance flare size `0.606347` replaces the fallback `1.0`. Ego and observer 3,780-frame exact-system orbit runs retain trajectory hash `fa0da4fbe311e3f8`; direction error is below `6.9e-8` and world errors below `1.8e-8`. | The Ballpark frame is anchored at the Promised Land stargate observer; the star's authored map position is exactly the system origin. Celestial collision and cinematic-composition linkage remain out of scope. |
 | CP-36 | EVE Gate landmark placement and rendering | Accepted | The authored `EVE_GATE` graph (nine meshes, seven containers, four specialfx Metal effects, two converted CMFs, seventeen staged textures under `Reports/EveGateResources.json`) deserializes with read-time initialization and renders through its **authored-skybox contract**: the graph is camera-anchored by its own `EveChildModifierTranslateWithCamera`, the root keeps its authored local transform plus a constant ball-frame rotation onto the recovered bearing (validated to `1e-5` per sample), and it renders from the background-object list. Navigation ball `900001` holds the recovered `landmarks.static` position bit-exact through the PL-12 celestial seam (position verified against static data with exact float64 equality; trajectory hash `fa0da4fbe311e3f8` retained with three celestial balls present). Canonical-frame first light: the 900-frame chase-approach gate-off A/B in the standard stargate-observer frame diverges by 99.41 % of the frame (max delta 185), showing the authored vortex sky-dominant with no anchor translation and no far-plane change. The current client provably never renders this asset (full `code.ccp` byte scan; no `graphicids` record; the landmarks schema binds no model), so in-space placement is explicit Promised Land policy by necessity. | Accepted on the final tree: the full PL chain runs green (PL-12B rendering gate 241,570 divergent pixels, max delta 101, against a 10,000-pixel threshold; ego repeats 3 px at delta 1 under demo GPU load), the PL-12B narrative records the placement/bearing/rendering contracts, and the `DistanceRatio` policy is decided (operator-directed far presentation default `0.1`, authored far/in-system boundary `0.4`, explicit override; client driving policy unrecovered). Demo presentation currently parked by operator direction — re-enable with `--eve-gate authored`. The audio stub, inert probe scheduler, and `1.0 m` ball-radius fallback stand. |
+| CP-37 | Native warp render integration and warp tunnel | Accepted | The D-07 embedded warp seam drives the probe end to end: one tick-aligned `WarpTo` toward the New Eden planet (warpFactor 5000, minRange `1e7`, 9.0588 AU leg) over 62 evolves, scored bit-exact against the compiled-in 42-tick PL-11C corpus with the phase timeline gated (align 8 ticks, activation evolve 11, dropout evolve 31), the suspension contract held (massless/sensor-off through warp proper, restored at dropout), and the D-07 precision doctrine applied render-side (observer float display-curve gate `3e5` at the `1.4e12` m leg scale, measured `32745.65`; ego exact under standard gates). The client-recovered warp tunnel (`effects.Warping` → graphicID `21048`, CP-37a nine-resource closure, natively camera-anchored via its serialized `TR2TM_TRANSLATE_WITH_CAMERA`) is speed-driven exactly as Warp.py drives it: authored-invisible at zero speed, raw ball speed into `BindToShipSpeed` per frame, `FadeInCurveSet` at activation, `FadeOutCurveSet` at dropout, detached from the scene when the exit fade completes. Milestone A/B: pre-command and arrival byte-identical to the tunnel-off lane, cruise diverges by ~3.42 M pixels. | Accepted with PL-11C: four quantitative lanes (ego, repeat ego, observer, tunnel) share trajectory hash `56c3973a912c8b26` on one binary; the celestial hash-invariance control and chase smoke pass; GOTO/ORBIT lanes revalidate with their canonical hashes. Visual arrival is a natural-celestial demo-profile concern — canonical cinematic celestials are compositional dressing. |
 
 ## Rung-model holes
 
@@ -119,10 +120,9 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 
 ## Active work queue
 
-1. Advance PL-11C native warp through the accepted motion/reference-frame seam.
-   (CP-36 EVE Gate rendering is accepted: initialize-on-read plus the authored
-   camera-anchored skybox contract; the demo presentation is parked by operator
-   direction and re-enabled with `--eve-gate authored`.)
+1. EVE Gate presentation tweaks when re-enabled (parked by operator direction;
+   capability remains gated by `pl12b_validate` and re-enabled with
+   `--eve-gate authored`).
 3. Investigate the installed client's native transient-classification path for Silk and engine trails; do not synthesize velocity or reactive masks.
 4. Complete native full-screen ghosting inspection after transient classification passes.
 5. Keep RC-12B2 global froxels deferred and fail-closed.
@@ -131,8 +131,9 @@ RC-12A distortion and RC-12B1 local VDB composition are accepted. RC-12B2
 retains fail-closed explicit modes independently. RC-05D booster/engine effects
 are accepted, making RC-13 velocity and TAA the active direct-path unit.
 The cross-repository PL-11B Frontier orbit contract is accepted under CP-34,
-and PL-12 natural celestial Ballpark placement is accepted under CP-35.
-PL-11C warp is the next cross-repository unit.
+PL-12 natural celestial Ballpark placement is accepted under CP-35, and
+PL-11C native warp — completing the PL-11 motion-state set — is accepted
+under CP-37.
 
 ## Evidence policy
 

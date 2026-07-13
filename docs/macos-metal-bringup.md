@@ -2573,3 +2573,176 @@ measures 241,570 divergent pixels (max delta 101) in the aimed gate-off
 A/B against a 10,000-pixel threshold, and the ego repeat lands at 3 px at
 delta 1 — under concurrent full-screen demo GPU load. CP-36 is accepted;
 the demo presentation remains parked per the operator note above.
+
+## CP-37a warp tunnel staging and first light (2026-07-12)
+
+The client-recovered generic warp tunnel — `effects.Warping` →
+graphicID `21048` → `res:/model/effect3/warptunnel.black` — renders
+natively. The staged closure is exactly nine resources recorded in
+`Reports/WarpTunnelResources.json`: the graph, `Sphere4k.gr2` converted
+GR2→CMF through the accepted pipeline, the three warp-tunnel Metal
+effects in all shader-model permutations from the macOS index, and five
+textures (the graph's own string table is the authoritative closure; the
+previously "unresolved NoiseMap" was string dedupe). Before wiring, the
+root's serialized `modifier` enum was decoded from the binary:
+`TR2TM_TRANSLATE_WITH_CAMERA` — the tunnel is natively camera-anchored,
+confirming the render contract (identity-parent update, Z-cleared
+background pass) without any probe-side transform work. The scene gains
+a C++ `SetWarpTunnel` seam mirroring the client's Python-only
+`warpTunnel` Blue attribute, and `--warp-tunnel authored` configures the
+graph through the standard initialize-on-read loader.
+
+Two findings shape the driving contract. First, a recorded negative:
+loaded, prepared, initialized, and fade-played, the tunnel contributes
+NOTHING (nine single-code-value pixels against the tunnel-off control) —
+because it is a speed-driven effect. The authored `SpeedBinding` curve
+set routes a host-fed `TriFloat` (`BindToShipSpeed`) into
+`SpeedModifier`, which scales every intensity and scroll rate; at zero
+input the tunnel is authored-invisible, exactly as the client's Warp.py
+implies (it feeds the warping ship's speed every frame with binding
+scale `1/(3·AU·warpSpeedModifier)`). Second, with a
+cruise-representative constant fed into the source (`3·AU` m/s) and
+`FadeInCurveSet` played as explicit fixture input (`EveTransform`
+carries no controllers; curve sets are the whole driving surface), the
+tunnel-off A/B diverges by 3,575,219 pixels — 96.98 % of the frame,
+maximum delta 240 — the authored tunnel interior with scrolling
+lightning streaks and the exit mouth ahead. The per-frame ball-speed
+feed and the fade-out/arrival choreography belong to the warp
+integration step (CP-37b), where the tunnel activates on
+`DSTBALL_WARP` and reads the native warp velocity.
+
+## CP-37b native warp integration (2026-07-12)
+
+The D-07 embedded warp seam drives the probe end to end. `--ballpark
+warp` configures the standard moving fixture at `(0, 0, -1000)`; frame
+180 issues one `Destiny_CommandEmbeddedWarp` at effective time
+`30000000` toward the New Eden planet (anchor-relative
+`kNewEdenPlanetRelative`, minimum range `1e7`, warp factor `5000` from
+the Astero's `warpSpeedMultiplier`), and the 42-tick PL-11C corpus
+(`pl11c-warp.csv`) is compiled in as `kBallparkWarpReference` with the
+GOTO/ORBIT `evolve - 3` indexing convention.
+`TrinityStandaloneProbeValidateBallparkWarp` gates the 62-evolve run
+on: bit-exact corpus scoring (`1e-5` raw gates; measured `0`), the
+phase timeline (eight aligning ticks, activation at evolve 11, dropout
+at evolve 31), the warp leg (`|target - start| - minRange` within the
+destiny contract tolerance; measured `1355173244422.5659` m ≈ 9.0588
+AU), the suspension contract (`isMassive`/`mSensor.active` cleared for
+the entire warp proper and restored at dropout), and the standard
+scheduler-free/audit/reference-frame gates. Three lanes pass on one
+binary: ego, repeated ego (byte-identical 3,781-line CSVs, SHA-256
+`914cabc5…`), and fixed observer — all three share trajectory hash
+`56c3973a912c8b26`. The observer lane reuses the GOTO departure
+framing (the ship leaves the frustum after activation by design) and
+records the doctrine-anticipated float display-curve quantization at
+the `1.4e12` m leg scale: maximum curve/root error `32,745.65` m
+against the `3e5` observer gate (raw doubles stay bit-exact; the ego
+frame keeps relative positions near zero and holds the standard `1e-3`
+gates exactly).
+
+The warp tunnel rides the same diagnostics. With `--warp-tunnel
+authored` under a warp Ballpark the configure step skips the
+first-light constant and fade: the tunnel starts at authored-invisible
+zero speed, `BindToShipSpeed` is fed the raw ball speed every frame,
+`FadeInCurveSet` plays on the first frame whose diagnostics carry a
+non-negative `warpEffectStamp` (frame 660 = evolve 11), and
+`FadeOutCurveSet` plays at the WARP→STOP transition (frame 1860 =
+evolve 31). Because `TriCurveSet::Play` never clears its own playing
+flag, fade completion is timed from the authored duration
+(`GetMaxCurveDuration`, measured `0.0` s for the exit fade, plus a
+six-frame margin) and the tunnel is then detached from the scene —
+mirroring the client, which removes the warp tunnel after the exit
+fade; a rest-state tunnel left attached measurably veils the frame
+(3,420,109 pixels at maximum delta 46). Milestone A/B against the
+tunnel-off lane: pre-command byte-identical (invisible before warp),
+cruise diverges by 3,420,414 pixels at maximum delta 171 (the authored
+interior at native 5 AU/s), arrival byte-identical (tunnel fully gone
+after the fade). The motion contract is indifferent to the tunnel:
+validation passes with the identical trajectory hash in both lanes.
+Warp phase milestones (pre-command 179, aligning 599, activation 719,
+cruise 1019, deceleration 1799, arrival 3779) are captured per lane
+and the `_ballpark-warp-contract.json` report mirrors the orbit
+writer. The destiny embedded API gained `DESTINY_EMBEDDED_BALL_MODE_WARP`
+in its `DSTBALLMODE` mirror so the probe reads warp state without
+destiny internals. Remaining cross-repository work is the PL-11C lane
+in Promised Land: the validation ladder entry, the bare-celestial
+hash-invariance control, and the milestone record.
+
+### Demo-profile corrections (operator inspection, 2026-07-12/13)
+
+Fullscreen inspection surfaced four defects the numeric lanes could
+not see, each now fixed and root-caused against the decompiled client
+(`code.ccp` → `eve/client/script/environment/effects/Warp.py` and
+`GenericEffect.py`, zlib-wrapped 2.7 bytecode):
+
+1. **Tunnel orientation.** The tunnel rendered camera-anchored but not
+   leg-aligned. `AlignToDirection` builds a basis whose +Z is
+   `normalize(ship − goto)` (pointing from the destination back at the
+   ship) crossed against world up, converts it to a quaternion, and
+   applies it via a wrapping root's `modelRotationCurve` — computed
+   once when the warp effect starts (warp state entry, before the
+   aligning phase completes); the pitch+π flip applies only to
+   per-system `warpTunnelOverwrite` tunnels, not the default 21048
+   graph. The probe composes that alignment with the authored root
+   rotation (which is NOT identity — the serialized root carries a
+   ~90° X rotation, `(0.7067, 0, 0, 0.7075)`) on the first frame the
+   ball reports `DSTBALL_WARP` (frame 180). The exit mouth sits exactly
+   on the travel line; the leg's bearing lies within a few degrees of
+   the EVE Gate nebula, which is geometrically correct for the
+   stargate-to-planet leg.
+1b. **Tunnel visibility is speed-scaled, not fade-choreographed.** The
+   operator saw the tunnel visible (sideways) from align start and
+   persisting through the post-arrival drag tail. Cause: CP-37b fed
+   the raw ball speed unscaled, saturating the authored intensity at
+   any speed. The client contract (`SetupTunnelBindings`) multiplies
+   every authored `SpeedBinding` scale by
+   `1/(3·AU·warpSpeedModifier)` and feeds raw ship speed — align
+   (≤234 m/s) and dropout (<100 m/s) speeds are authored-invisible,
+   and cruise at warpFactor 5000 reaches ~1/3 intensity. The
+   `FadeInCurveSet`/`FadeOutCurveSet` plays were a first-light
+   improvisation (they drive the client's warp lighting rig, not the
+   tunnel's entry/exit): the legacy-tunnel end path is
+   `ShipEffect.Stop → _CleanUp → scene.warpTunnel = None` with no
+   fade — the probe now attaches the rescaled tunnel at configure,
+   aligns it at warp state entry, and removes it at the WARP→STOP
+   transition; visibility rises and falls purely with the ball's
+   speed. First light (no warp Ballpark) keeps its explicit
+   constant + entry-fade fixture input.
+2. **Chase visibility at warp scale.** The ship left the frame at
+   activation. The chase frame used the fixed-observer reference, so
+   ship and camera raced to ~1.4e12 m absolute float coordinates where
+   the 150 m camera offset is far below the float ULP (~16–131 km) —
+   unrepresentable. Warp chase now runs the ego reference (the origin
+   tracks the warping ship, exactly why the ego lanes hold `1e-3`
+   gates) and the rig works in origin-relative coordinates;
+   GOTO/ORBIT chase keeps the accepted fixed-observer wiring and the
+   PL-11A chase contract is untouched.
+3. **Directional-shadow contract during chase warp.** Runs without
+   `--shadows off` died mid-warp with no stderr cause. The probe's
+   fail-closed per-frame Astero shadow contract
+   (`acceptedCascades == 0` → fail) fires when the fixed-observer-frame
+   caster leaves the cascade regime at warp displacement — every
+   canonical lane runs `--shadows off`, so the ladder never saw it.
+   The RenderFrame failure surfaces (shadow contract, diagnostics
+   recording, tiled lights, silent early returns) now mirror to stderr
+   with the frame number; the demo profile keeps shadows off (matching
+   every accepted composition fixture), and absolute-frame cascade
+   fitting at warp scale is recorded as the underlying limitation.
+
+The align phase itself is authentic destiny: the ship enters warp
+within the recovered `IsAlignedForWarp` tolerance (dot error `0.01` ≈
+8°, 75 % of maximum velocity) after eight aligning ticks, with
+orientation tracking velocity — any residual turn visible at
+activation is the simulation's own contract, interpolated across the
+one-second evolve cadence.
+
+For recording, the sample gained `--capture-every N`: every Nth frame
+renders with the color product and writes a numbered PNG
+(`_frame-%06d.png`) under `--capture-prefix`, suitable for piping into
+an encoder as a deterministic 60 fps sequence (a 1920×1080 window
+reads back at the 2× retina backing, 3840×2160). One caveat is
+recorded: one-time in-frame diagnostics (the dynamic-reflection
+runtime contract on the first captured frame past warm-up) reuse the
+readback target and stomp that single frame's capture; the sample
+reports and skips it rather than aborting, and an encoder feeder holds
+the previous frame. Recorded evidence (frame sequences, masters,
+deliverables) stays outside the repositories like all other captures.

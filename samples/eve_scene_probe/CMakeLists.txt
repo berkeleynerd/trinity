@@ -283,6 +283,13 @@ set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_BIN ${EVE_SCENE_PROBE_EVE_GATE_BUILD_DIR}/Wo
 set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/wormhole_normalized.cmf)
 set(EVE_SCENE_PROBE_EVE_GATE_VORTEX_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/EveGateVortexGeometry.json)
 set(EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/specialfx)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/WarpTunnelResources.json)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_BLACK ${EVE_SCENE_PROBE_ASSETS_DIR}/model/effect3/warptunnel.black)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/WarpTunnelAssets)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GLTF ${EVE_SCENE_PROBE_WARP_TUNNEL_BUILD_DIR}/Sphere4k.gltf)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_BIN ${EVE_SCENE_PROBE_WARP_TUNNEL_BUILD_DIR}/Sphere4k.bin)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/sphere4k.cmf)
+set(EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/WarpTunnelSphereGeometry.json)
 set(EVE_SCENE_PROBE_SUN_FX_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/SunFxAssets)
 set(EVE_SCENE_PROBE_SUN_FX_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunFxResources.json)
 set(EVE_SCENE_PROBE_SUN_FX_NOISE ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/Inherited/texture/global/noise.dds)
@@ -1824,6 +1831,82 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets AND EXISTS "${EVE_SCENE_PROBE_SHARED
     )
     add_dependencies(TrinityEveSceneProbeEveGateAssets TrinityEveSceneProbeNewEdenSunFxAssets)
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeEveGateAssets)
+
+    # CP-37a warp tunnel: the client-recovered generic warp tunnel graph
+    # (effects.Warping -> graphicID 21048 -> res:/model/effect3/warptunnel),
+    # its complete nine-resource closure (one geometry converted GR2->CMF,
+    # three Metal effects in all shader-model permutations, five textures).
+    set(EVE_SCENE_PROBE_WARP_TUNNEL_RESOURCE_OUTPUTS
+        ${EVE_SCENE_PROBE_WARP_TUNNEL_BLACK}
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_depth
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_depth
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_hi
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_lo
+        ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/lightningwarp_d.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/sphere_capmask.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/clouds.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/thunderstorm/lightning01_g_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/lightningwarp_tunnel_d.dds
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_WARP_TUNNEL_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_WARP_TUNNEL_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/model/effect3/warptunnel.black ${EVE_SCENE_PROBE_WARP_TUNNEL_BLACK}
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneltransparent.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneltransparent.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneltransparent.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneltransparent.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneladditive.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneladditive.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneladditive.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneladditive.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneldistortion.sm_hi ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneldistortion.sm_lo ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/specialfx/warptunneldistortion.sm_depth ${EVE_SCENE_PROBE_SPECIALFX_EFFECT_DIR}/warptunneldistortion.sm_depth
+            --copy-resource res:/texture/sprite/lightningwarp_d.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/lightningwarp_d.dds
+            --copy-resource res:/texture/sprite/sphere_capmask.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/sphere_capmask.dds
+            --copy-resource res:/texture/sprite/clouds.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/clouds.dds
+            --copy-resource res:/dx9/model/worldobject/planet/thunderstorm/lightning01_g_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/thunderstorm/lightning01_g_hi.dds
+            --copy-resource res:/texture/sprite/lightningwarp_tunnel_d.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite/lightningwarp_tunnel_d.dds
+            --manifest ${EVE_SCENE_PROBE_WARP_TUNNEL_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GLTF} ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_BIN} ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model res:/graphics/generic/vortex/sphere4k.gr2
+            --output ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GLTF}
+            --manifest ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GLTF}
+            --output ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GLTF} ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_BIN}
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeWarpTunnelAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_WARP_TUNNEL_RESOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_WARP_TUNNEL_MANIFEST}
+            ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_CMF}
+            ${EVE_SCENE_PROBE_WARP_TUNNEL_SPHERE_GEOMETRY_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeWarpTunnelAssets TrinityEveSceneProbeEveGateAssets)
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeWarpTunnelAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHIP_SOURCE}")

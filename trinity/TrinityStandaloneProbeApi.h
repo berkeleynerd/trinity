@@ -404,6 +404,20 @@ struct TrinityStandaloneBallparkDiagnostics
 	double orbitAccumulatedPhase = 0.0;
 	double orbitSettledMinimumDistance = 1.0e30;
 	double orbitSettledMaximumDistance = 0.0;
+	// PL-11C warp contract: phase timeline observed from the embedded warp
+	// state (aligning while the effect stamp is negative), command echo, and
+	// the collision/sensor suspension observation.
+	int64_t warpEffectStamp = 0;
+	int32_t warpFactor = 0;
+	double warpMinRange = 0.0;
+	double warpTotalDistance = 0.0;
+	uint64_t warpAligningTicks = 0;
+	int64_t warpActivationEvolve = -1;
+	int64_t warpDropoutEvolve = -1;
+	bool warpSuspensionObserved = false;
+	bool warpSuspensionViolated = false;
+	bool warpParticipationRestored = false;
+	bool warpValid = false;
 	float rotation[4] = {};
 	double referencePoint[3] = {};
 	double origin[3] = {};
@@ -561,6 +575,9 @@ extern "C" bool TrinityStandaloneProbeConfigureEveGate(
 	void* opaqueProbe,
 	int mode,
 	float distanceRatio );
+extern "C" bool TrinityStandaloneProbeConfigureWarpTunnel(
+	void* opaqueProbe,
+	int mode );
 extern "C" bool TrinityStandaloneProbeConfigureEveGateTravel(
 	void* opaqueProbe,
 	int direct );
@@ -575,6 +592,7 @@ extern "C" bool TrinityStandaloneProbeGetCelestialDiagnostics(
 extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkOrbit( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeValidateBallparkWarp( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateChaseCamera( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,

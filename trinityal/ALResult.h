@@ -89,7 +89,7 @@ void BreakInDebugger();
 		}                                                      \
 	}
 #else
-#define CR( x ) x
+#define CR( x ) ( ( void )( x ) )
 #define CR_RETURN( x )    \
 	{                     \
 		if( FAILED( x ) ) \

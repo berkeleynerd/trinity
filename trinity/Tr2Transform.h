@@ -58,6 +58,10 @@ public:
 	{
 		m_rotation = rotation;
 	};
+	const Quaternion& GetRotation() const
+	{
+		return m_rotation;
+	};
 	void SetTranslation( Vector3 translation )
 	{
 		m_translation = translation;
@@ -101,6 +105,12 @@ protected:
 	PTriCurveSetVector m_curveSets;
 
 	float m_sortValueMultiplier;
+
+public:
+	PTriCurveSetVector& GetCurveSets()
+	{
+		return m_curveSets;
+	}
 };
 
 TYPEDEF_BLUECLASS( Tr2Transform );
