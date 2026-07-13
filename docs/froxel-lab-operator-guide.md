@@ -7,6 +7,13 @@ Client froxel kernels can stall AGX, freeze WindowServer, and force a reboot. Ru
 operator present. Never run them through `launchctl`, remote-only access, or an
 automatic restart loop. The production scene probe remains fail-closed.
 
+After the immutable ladder passes, `D00 visual` may be run as a bounded visual
+demonstration. It retains the same enrollment, nonce, confirmation, sentinel,
+collection, and recovery requirements; it is not part of the promotion ladder.
+The lab executable must be configured with `BUILD_DESTINY_INTEGRATION=ON`
+against `carbon-destiny` commit `c20c8a6` or a compatible package that exports
+the embedded warp and follow contracts.
+
 Use a dedicated local account without iCloud, credentials, private data, network
 mounts, or attached writable media. Verify a disposable installation or backup,
 FileVault recovery credentials, and at least 75 GiB free. A matching M4 Pro,

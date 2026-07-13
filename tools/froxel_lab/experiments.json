@@ -155,6 +155,16 @@
       "temporal": "on",
       "profiles": ["incident"],
       "requiresClientResources": true
+    },
+    {
+      "id": "D00",
+      "title": "Post-ladder visual warp demo with authored EVE Gate and temporal froxels",
+      "risk": "incident-equivalent",
+      "kernelSet": "client-scene",
+      "stage": "visual-demo",
+      "temporal": "on",
+      "profiles": ["visual"],
+      "requiresClientResources": true
     }
   ],
   "profiles": {
@@ -163,6 +173,7 @@
     "32x32x16": {"dimensions": "32x32x16"},
     "divisible": {"dimensions": "64x48x32"},
     "odd": {"dimensions": "65x47x33"},
-    "incident": {"dimensions": "160x90x128"}
+    "incident": {"dimensions": "160x90x128"},
+    "visual": {"dimensions": "320x180x128"}
   }
 }

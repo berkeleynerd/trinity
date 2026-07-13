@@ -40,7 +40,8 @@ class FroxelLabTest(unittest.TestCase):
         identifiers = [item["id"] for item in catalog["experiments"]]
         self.assertEqual(len(identifiers), len(set(identifiers)))
         self.assertEqual(identifiers[:2], ["A00", "S10"])
-        self.assertEqual(identifiers[-2:], ["R00", "R01"])
+        self.assertEqual(identifiers[-3:-1], ["R00", "R01"])
+        self.assertEqual(identifiers[-1], "D00")
         self.assertEqual(set(LAB.CLIENT_STAGE_SPECS), {
             "apply_vs", "apply_ps", "mie", "calculate", "filter",
             "raymarch_out", "raymarch_in",
@@ -78,6 +79,30 @@ class FroxelLabTest(unittest.TestCase):
         temporal_index = command.index("--froxel-temporal")
         self.assertEqual(command[temporal_index + 1], "on")
         self.assertEqual(command[-2:], ["--taa", "off"])
+
+    def test_visual_demo_is_bounded_visible_and_gated(self):
+        experiment = {"id": "D00", "kernelSet": "client-scene", "temporal": "on"}
+        args = type("Args", (), {"binary": None})()
+        run_dir = self.root / "runs" / "D00-visual-test"
+        with mock.patch.object(LAB, "resolve_executable", return_value=pathlib.Path("/tmp/probe")):
+            command = LAB.build_worker_command(experiment, "visual", args, run_dir)
+
+        self.assertNotIn("--background-capture", command)
+        self.assertEqual(command[command.index("--frames") + 1], "3780")
+        self.assertEqual(command[command.index("--composition") + 1], "system")
+        self.assertEqual(command[command.index("--ballpark") + 1], "warp")
+        self.assertEqual(command[command.index("--ballpark-frame") + 1], "chase")
+        self.assertEqual(command[command.index("--celestial-ballpark") + 1], "natural")
+        self.assertEqual(command[command.index("--celestial-anchor") + 1], "evegate")
+        self.assertEqual(command[command.index("--eve-gate") + 1], "authored")
+        self.assertEqual(command[command.index("--warp-tunnel") + 1], "authored")
+        self.assertEqual(command[command.index("--volumetrics") + 1], "froxel")
+        self.assertEqual(command[command.index("--froxel-temporal") + 1], "on")
+        self.assertEqual(command[command.index("--render-product") + 1], "hdr-composite")
+        self.assertEqual(command[command.index("--capture-prefix") + 1],
+                         str(run_dir / "capture/demo"))
+        self.assertEqual(command[command.index("--taa") + 1], "off")
+        self.assertIn("--client-kernels", command)
 
     def test_atomic_transition_is_durable_and_ordered(self):
         run_dir = LAB.RUNS_ROOT / "run"

@@ -587,6 +587,31 @@ def build_worker_command(experiment: dict, profile: str, args, run_dir: Path) ->
         ]
     binary = resolve_executable(Path(args.binary or default_binary(experiment["kernelSet"])))
     if experiment["kernelSet"] == "client-scene":
+        if experiment["id"] == "D00":
+            return [
+                str(binary),
+                "--windowed", "1280x720",
+                "--frames", "3780",
+                "--quality-rung", "hdr-post",
+                "--asset", "astero",
+                "--scene-fixture", "new-eden",
+                "--composition", "system",
+                "--motion", "static",
+                "--ballpark", "warp",
+                "--ballpark-frame", "chase",
+                "--celestial-ballpark", "natural",
+                "--celestial-anchor", "evegate",
+                "--eve-gate", "authored",
+                "--warp-tunnel", "authored",
+                "--volumetrics", "froxel",
+                "--volumetric-quality", "high",
+                "--froxel-temporal", "on",
+                "--render-product", "hdr-composite",
+                "--client-kernels",
+                "--froxel-lab-ledger", str(ledger_path(run_dir)),
+                "--capture-prefix", str(run_dir / "capture/demo"),
+                "--taa", "off",
+            ]
         command = [
             str(binary),
             "--windowed", "1280x720",
