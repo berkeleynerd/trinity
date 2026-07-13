@@ -418,6 +418,12 @@ struct TrinityStandaloneBallparkDiagnostics
 	bool warpSuspensionViolated = false;
 	bool warpParticipationRestored = false;
 	bool warpValid = false;
+	// PL-11D approach (FOLLOW station-keeping) observations: the deepest
+	// overshoot past the center setpoint and the terminal settle state.
+	double approachMinimumCenterDistance = 0.0;
+	double approachFinalCenterDistance = 0.0;
+	double approachFinalSpeed = 0.0;
+	bool approachValid = false;
 	float rotation[4] = {};
 	double referencePoint[3] = {};
 	double origin[3] = {};
@@ -593,6 +599,7 @@ extern "C" bool TrinityStandaloneProbeValidateBallpark( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkMotion( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkOrbit( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateBallparkWarp( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeValidateBallparkApproach( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeValidateChaseCamera( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeGetBallparkDiagnostics(
 	void* opaqueProbe,

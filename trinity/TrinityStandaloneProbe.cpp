@@ -446,6 +446,7 @@ enum StandaloneBallparkMode
 	STANDALONE_BALLPARK_GOTO = 2,
 	STANDALONE_BALLPARK_ORBIT = 3,
 	STANDALONE_BALLPARK_WARP = 4,
+	STANDALONE_BALLPARK_APPROACH = 5,
 };
 
 enum StandaloneBallparkReferenceFrame
@@ -11659,6 +11660,73 @@ struct BallparkMotionReference
 	std::array<double, 3> acceleration;
 };
 
+// PL-11D approach corpus (destiny tests/data/pl11d-approach.csv, 60 ticks):
+// FollowBall(1, 3, 500) — station-keeping at the 570 m center setpoint.
+constexpr double kBallparkApproachRange = 500.0;
+constexpr int64_t kBallparkApproachTargetBallId = 3;
+constexpr std::array<BallparkMotionReference, 60> kBallparkApproachReference = { {
+	{ { 0.0, 0.0, -2520.338512501807 }, { 0.0, 0.0, 93.7509221692917 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -2391.848571821185 }, { 0.0, 0.0, 159.33121758053647 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -2208.216845578388 }, { 0.0, 0.0, 205.20570123052087 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -1986.0125431625174 }, { 0.0, 0.0, 237.29564893441366 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -1736.826096126938 }, { 0.0, 0.0, 259.74308946574536 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -1468.7651999228035 }, { 0.0, 0.0, 275.4454393435717 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -1187.5013194326775 }, { 0.0, 0.0, 286.4294885647523 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -897.0017366182395 }, { 0.0, 0.0, 294.1130097085329 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -600.0416297604752 }, { 0.0, 0.0, 299.48775776165365 }, { 0.0, 0.0, 111.49826049804688 } },
+	{ { 0.0, 0.0, -348.21950002121787 }, { 0.0, 0.0, 209.5046177471565 }, { 0.0, 0.0, 0.00958393105307379 } },
+	{ { 0.0, 0.0, -172.06203330571753 }, { 0.0, 0.0, 146.55188881308726 }, { 0.0, 0.0, 0.0 } },
+	{ { 0.0, 0.0, -48.837019206783594 }, { 0.0, 0.0, 102.51543066513145 }, { 0.0, 0.0, 0.0 } },
+	{ { 0.0, 0.0, 37.36088306099675 }, { 0.0, 0.0, 71.7112117050986 }, { 0.0, 0.0, 0.0 } },
+	{ { -4.084183324263582e-18, 0.015004872318530007, 97.65797903912093 }, { -7.710118489142845e-18, 0.028326187711269258, 50.16365183408582 }, { -9.169667667064736e-18, 0.03368842229247093, 0.0005857137148268521 } },
+	{ { 7.691909183335123e-17, 0.12846096332900966, 139.8408100071437 }, { 1.5976296542630659e-16, 0.18903436099693655, 35.097463655800496 }, { 1.9642091859341286e-16, 0.20125354826450348, 0.008530896157026291 } },
+	{ { 1.626584908577912e-08, 6.092519860828954, 171.5389443774425 }, { 3.070665850391041e-08, 11.09112173538627, 28.680212153125353 }, { 3.651952340533171e-08, 13.033440589904785, 4.910591125488281 } },
+	{ { -9.191091412062063e-07, 35.33001983975758, 219.89919196491033 }, { -1.7930616180452095e-06, 45.34784218554944, 65.83216960025334 }, { -2.158039706046111e-06, 44.70521545410156, 54.43427658081055 } },
+	{ { -3.834172580241141e-06, 86.73726508733759, 322.42682064107794 }, { -3.911175889133818e-06, 56.786779146136176, 135.10583217263684 }, { -3.1598594887327636e-06, 29.810150146484375, 105.91357421875 } },
+	{ { -7.192437917564979e-06, 137.9379373222893, 451.90576209854197 }, { -2.8673917271873273e-06, 46.24133033575052, 124.48339172494644 }, { -1.5634644512374507e-07, 7.751942157745361, 35.64896011352539 } },
+	{ { -9.610635576108068e-06, 176.95729696953663, 557.028138157792 }, { -2.01940347129979e-06, 32.60769900420002, 87.93367957910715 }, { -1.6193913314086866e-08, 0.31056993822163476, 1.01747457836073 } },
+	{ { -1.1308603927002206e-05, 204.37471228644375, 630.9650692016022 }, { -1.4125984706093917e-06, 22.809485005442017, 61.51062725705334 }, { 8.460495479224604e-12, -0.00015578016658424334, -0.0004903665327193025 } },
+	{ { -1.2489603547348574e-05, 223.43152578253975, 682.308147872614 }, { -9.753863193161722e-07, 15.725194294004522, 42.31633598301208 }, { 1.5162774919202473e-08, -0.27402920657400676, -0.8460090554006225 } },
+	{ { -1.3309736224744059e-05, 236.6537183061624, 717.88893185536 }, { -6.822986001709273e-07, 11.000029261982334, 29.600965518784133 }, { 0.0, 0.0, 0.0 } },
+	{ { -1.3883432376371122e-05, 245.9028571052211, 742.778269160636 }, { -4.772789720093507e-07, 7.694699442321104, 20.706356996409262 }, { 0.0, 0.0, 0.0 } },
+	{ { -1.4284742168631712e-05, 252.3727801812477, 760.1887655621825 }, { -3.3386440638341634e-07, 5.382567454823904, 14.48443361723013 }, { 0.0, 0.0, 0.0 } },
+	{ { -1.3088605650565887e-05, 258.9902416348359, 770.2947341640679 }, { 2.554470293462304e-06, 7.7137995019850605, 6.218770352723777 }, { 3.3157934922201093e-06, 4.696089267730713, -4.6541314125061035 } },
+	{ { -7.378427806775976e-06, 267.5748663583467, 761.2326869592227 }, { 8.511812850923446e-06, 9.357742760214828, -22.628346592271296 }, { 7.99796725914348e-06, 4.711798191070557, -32.08558654785156 } },
+	{ { 1.694598989774132e-06, 271.7511866188274, 726.3231177727722 }, { 9.57127215404401e-06, -0.4237430947239362, -45.81283021476711 }, { 4.301852641219739e-06, -8.289010047912598, -35.65998458862305 } },
+	{ { 1.028056568433387e-05, 268.2027212601198, 679.0195630027932 }, { 7.711213180811494e-06, -6.322591649794716, -48.62701901160107 }, { 1.2082755347364582e-06, -7.166950225830078, -19.718881607055664 } },
+	{ { 1.6752167834394472e-05, 261.65001784907736, 634.922171340559 }, { 5.371076323888898e-06, -6.756996475460828, -40.0759915962053 }, { -2.7404825075905137e-08, -2.7761197090148926, -7.20789098739624 } },
+	{ { 2.1218333928796597e-05, 255.60415382268616, 600.3232381400677 }, { 3.6627874109179103e-06, -5.414521123968163, -29.736404498820512 }, { -1.1223199436471987e-07, -0.8181122541427612, -2.0249030590057373 } },
+	{ { 2.429022515527389e-05, 250.95648348942396, 575.0969308015098 }, { 2.5472939976439063e-06, -3.9668607252023897, -21.222246161072285 }, { -1.7703241213392078e-08, -0.21326000455327102, -0.500871893451296 } },
+	{ { 2.6429849944028983e-05, 247.59817233809397, 557.2002705306104 }, { 1.7776963436319778e-06, -2.818041255420281, -14.944207389715622 }, { -4.96801975037723e-09, -0.05132750966657792, -0.11762315467804108 } },
+	{ { 2.792402149436572e-05, 245.22337747592144, 544.6228149814352 }, { 1.2424584325594654e-06, -1.9812810170826438, -10.4762548821592 }, { -1.2714642158488028e-09, -0.011911237358673443, -0.026805305612452007 } },
+	{ { 2.8968580249044957e-05, 243.5562673765835, 535.811432346834 }, { 8.688635558664914e-07, -1.3881893732124964, -7.333310190695821 }, { -3.04857455629281e-10, -0.0026771994475513574, -0.005945860114969386 } },
+	{ { 2.9699114875882107e-05, 242.38878025264373, 529.6448084237614 }, { 6.077262981541999e-07, -0.9715478178240095, -5.1308406517815355 }, { -6.885568704925524e-11, -0.0005789111506740001, -0.0012735751626731244 } },
+	{ { 3.021010203617649e-05, 241.57182229398052, 525.330535670738 }, { 4.2510221979669427e-07, -0.6797131873193264, -3.5893243304028655 }, { -1.4525719272633484e-11, -0.00011855139089162407, -0.00025904717475667873 } },
+	{ { 3.056753887957754e-05, 241.0002900736892, 522.3125075970672 }, { 2.9736356846743787e-07, -0.4754892316753865, -2.5108316472657455 }, { -2.7958289247146267e-12, -2.235654442201988e-05, -4.861732359941221e-05 } },
+	{ { 3.081757045295313e-05, 240.60048350130643, 520.201325065788 }, { 2.080102604712925e-07, -0.3326155591707449, -1.7563743191553969 }, { -4.684194190723764e-13, -3.6931077872289837e-06, -8.003958786041423e-06 } },
+	{ { 3.099247139373247e-05, 240.32081062269472, 518.7245149038254 }, { 1.4550650937782566e-07, -0.232670402983004, -1.2286132942109762 }, { -6.20901626993708e-14, -4.847534359968189e-07, -1.048083428869634e-06 } },
+	{ { 3.1114817420626427e-05, 240.12517468410263, 517.6914617142049 }, { 1.0178416636851914e-07, -0.16275676640859835, -0.8594350623757188 }, { -5.200857951102035e-15, -4.032832305832273e-08, -8.704735041925255e-08 } },
+	{ { 3.1200400454928725e-05, 239.9883241456138, 516.9688241646196 }, { 7.119968032286991e-08, -0.11385100704131486, -0.6011888111930148 }, { -1.294829745670618e-16, -9.992705875856217e-10, -2.154350754000367e-09 } },
+	{ { 3.126026717983198e-05, 239.89259496694905, 516.463327440317 }, { 4.980533482463821e-08, -0.0796406318132351, -0.42054135494023154 }, { 2.170124879623069e-21, 1.6692241940947693e-14, 3.595745217859843e-14 } },
+	{ { 3.130214492797499e-05, 239.8256308491225, 516.1097242575028 }, { 3.4839642103359326e-08, -0.05570991737008249, -0.2941755193343328 }, { 5.559271669269625e-17, 4.2662082802919333e-10, 9.184694193235277e-10 } },
+	{ { 3.133143909436702e-05, 239.77878836073552, 515.8623730812535 }, { 2.4370896844308618e-08, -0.03896999099417333, -0.20578055644963777 }, { 4.0703917909488767e-16, 3.118585903022229e-09, 6.711261447675367e-09 } },
+	{ { 3.135193084102185e-05, 239.74602128286222, 515.6893469195235 }, { 1.7047839766917977e-08, -0.027260135842556547, -0.14394683247650017 }, { 1.073928870030789e-15, 8.218753133745787e-09, 1.7681903909550677e-08 } },
+	{ { 3.136626515247678e-05, 239.72310018842407, 515.5683123249971 }, { 1.1925242873492439e-08, -0.019068896443829246, -0.10069312532838114 }, { 1.8831353077755477e-15, 1.4400203925741785e-08, 3.097457767281238e-08 } },
+	{ { 3.1376292238498645e-05, 239.70706652473035, 515.4836466886875 }, { 8.341903665851563e-09, -0.013338986131889781, -0.07043644250912413 }, { 2.674497532193403e-15, 2.0440394696244678e-08, 4.396080222772147e-08 } },
+	{ { 3.138330635086885e-05, 239.6958507356225, 515.4244217405302 }, { 5.835300165104037e-09, -0.009330816240461538, -0.04927139113174386 }, { 3.3606448161789337e-15, 2.5674490293321305e-08, 5.5212305899664974e-08 } },
+	{ { 3.1388212839665466e-05, 239.6880051321239, 515.3829929761495 }, { 4.081890698261243e-09, -0.006527032641112457, -0.03446608570951287 }, { 3.913757342854485e-15, 2.989205105988943e-08, 6.427767975497968e-08 } },
+	{ { 3.1391645011889045e-05, 239.68251703140584, 515.3540129385603 }, { 2.8553526056653394e-09, -0.004565737666571163, -0.02410952781598127 }, { 4.339438581593168e-15, 3.3137005357026736e-08, 7.125199690221305e-08 } },
+	{ { 3.139404587599212e-05, 239.67867804460195, 515.3337409929827 }, { 1.9973695209889015e-09, -0.0031937778845063805, -0.016864942688447845 }, { 4.657236451172183e-15, 3.5559084418945554e-08, 7.645746164007324e-08 } },
+	{ { 3.139572532351443e-05, 239.67599264155936, 515.3195605032042 }, { 1.3971965891029396e-09, -0.002234068205218973, -0.011797234319091736 }, { 4.889710572276689e-15, 3.733062538715936e-08, 8.026467348419129e-08 } },
+	{ { 3.139690012856749e-05, 239.67411419039672, 515.3096410885958 }, { 9.77365999293559e-10, -0.0015627345952378454, -0.00825228755238422 }, { 5.057434365815449e-15, 3.860861914658719e-08, 8.301113695608307e-08 } },
+	{ { 3.1397721928122335e-05, 239.67280021611552, 515.3027023673577 }, { 6.836877717481415e-10, -0.0010931250443562241, -0.005772537961542632 }, { 5.177301621059602e-15, 3.952190104254604e-08, 8.497378496701171e-08 } },
+	{ { 3.1398296794672985e-05, 239.67188110324705, 515.2978486910258 }, { 4.782551449138635e-10, -0.0007646249776305901, -0.00403791160489308 }, { 5.2624092874133625e-15, 4.0170314670757016e-08, 8.636721265876946e-08 } },
+	{ { 3.1398698927629985e-05, 239.67123820282177, 515.2944535385196 }, { 3.345517305766429e-10, -0.0005348334508254705, -0.002824511417473316 }, { 5.322564085933775e-15, 4.0628603363760895e-08, 8.735205737233356e-08 } },
+	{ { 3.1398980230670464e-05, 239.67078851781966, 515.2920786478586 }, { 2.340288897907158e-10, -0.00037409026755239006, -0.0019757176605713954 }, { 5.364948298011113e-15, 4.0951499437671404e-08, 8.804594444686448e-08 } },
+	{ { 3.1399177011248434e-05, 239.67047399037847, 515.29041744745 }, { 1.6371155218091468e-10, -0.000261647604644079, -0.0013819722073332092 }, { 5.394746045569383e-15, 4.117850417740736e-08, 8.853376393681254e-08 } },
+	{ { 3.139931466700977e-05, 239.67025400801094, 515.2892554853302 }, { 1.1452344802742324e-10, -0.00018299199848359292, -0.0009666373144685637 }, { 5.415662782268917e-15, 4.1337849891207764e-08, 8.887618725899569e-08 } },
+} };
+
 // PL-11C warp corpus (destiny tests/data/pl11c-warp.csv, 42 ticks):
 // stargate anchor to the New Eden planet at warpFactor 5000, minRange 1e7.
 constexpr double kBallparkWarpMinimumRange = 1e7;
@@ -11827,6 +11895,38 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 			}
 		}
 	}
+	else if( probe.ballparkMode == STANDALONE_BALLPARK_APPROACH )
+	{
+		if( source.directEvolveCount <= 2 )
+		{
+			expectedRawPosition[0] = expectedRawPosition[1] = 0.0;
+			expectedRawPosition[2] = -2570.0;
+			for( size_t axis = 0; axis < 3; ++axis )
+				expectedRawVelocity[axis] = expectedRawAcceleration[axis] = 0.0;
+		}
+		else
+		{
+			const size_t referenceIndex = static_cast<size_t>( source.directEvolveCount - 3 );
+			if( referenceIndex < kBallparkApproachReference.size() )
+			{
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = kBallparkApproachReference[referenceIndex].position[axis];
+					expectedRawVelocity[axis] = kBallparkApproachReference[referenceIndex].velocity[axis];
+					expectedRawAcceleration[axis] = kBallparkApproachReference[referenceIndex].acceleration[axis];
+				}
+			}
+			else
+			{
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					expectedRawPosition[axis] = source.rawPosition[axis];
+					expectedRawVelocity[axis] = source.rawVelocity[axis];
+					expectedRawAcceleration[axis] = source.rawAcceleration[axis];
+				}
+			}
+		}
+	}
 	else if( probe.ballparkMode == STANDALONE_BALLPARK_WARP )
 	{
 		if( source.directEvolveCount <= 2 )
@@ -11920,6 +12020,24 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 			diagnostics.warpParticipationRestored = source.isMassive && source.sensorActive;
 		}
 	}
+	if( probe.ballparkMode == STANDALONE_BALLPARK_APPROACH &&
+		diagnostics.lastValidatedEvolveCount != source.directEvolveCount &&
+		source.mode == DESTINY_EMBEDDED_BALL_MODE_FOLLOW )
+	{
+		const double centerDistance = std::sqrt(
+			source.rawPosition[0] * source.rawPosition[0] +
+			source.rawPosition[1] * source.rawPosition[1] +
+			source.rawPosition[2] * source.rawPosition[2] );
+		if( diagnostics.approachMinimumCenterDistance == 0.0 )
+			diagnostics.approachMinimumCenterDistance = centerDistance;
+		diagnostics.approachMinimumCenterDistance =
+			std::min( diagnostics.approachMinimumCenterDistance, centerDistance );
+		diagnostics.approachFinalCenterDistance = centerDistance;
+		diagnostics.approachFinalSpeed = std::sqrt(
+			source.rawVelocity[0] * source.rawVelocity[0] +
+			source.rawVelocity[1] * source.rawVelocity[1] +
+			source.rawVelocity[2] * source.rawVelocity[2] );
+	}
 	diagnostics.originUpdateCount = probe.scene->GetSuccessfulOriginUpdateCount();
 	for( size_t i = 0; i < 3; ++i )
 	{
@@ -11957,7 +12075,8 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 
 	if( ( probe.ballparkMode == STANDALONE_BALLPARK_GOTO ||
 		  probe.ballparkMode == STANDALONE_BALLPARK_ORBIT ||
-		  probe.ballparkMode == STANDALONE_BALLPARK_WARP ) && probe.renderable )
+		  probe.ballparkMode == STANDALONE_BALLPARK_WARP ||
+		  probe.ballparkMode == STANDALONE_BALLPARK_APPROACH ) && probe.renderable )
 	{
 		const double roll = 2.0 * std::atan2( std::abs( source.rotation[2] ), std::abs( source.rotation[3] ) );
 		if( diagnostics.lastValidatedEvolveCount == 0 )
@@ -12327,10 +12446,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
-		mode > STANDALONE_BALLPARK_WARP || referenceFrame < STANDALONE_BALLPARK_EGO ||
+		mode > STANDALONE_BALLPARK_APPROACH || referenceFrame < STANDALONE_BALLPARK_EGO ||
 		referenceFrame > STANDALONE_BALLPARK_CHASE ||
 		( mode != STANDALONE_BALLPARK_GOTO && mode != STANDALONE_BALLPARK_ORBIT &&
-		  mode != STANDALONE_BALLPARK_WARP && referenceFrame != STANDALONE_BALLPARK_EGO ) ||
+		  mode != STANDALONE_BALLPARK_WARP && mode != STANDALONE_BALLPARK_APPROACH &&
+		  referenceFrame != STANDALONE_BALLPARK_EGO ) ||
 		orbitPolicy < DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT ||
 		orbitPolicy > DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW || !std::isfinite( orbitRange ) || orbitRange < 0.0f )
 		return false;
@@ -12392,10 +12512,16 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		std::fprintf( stderr, "WARP Ballpark mode requires sample motion=static\n" );
 		return false;
 	}
+	if( mode == STANDALONE_BALLPARK_APPROACH && probe->motionMode != STANDALONE_MOTION_STATIC )
+	{
+		std::fprintf( stderr, "APPROACH Ballpark mode requires sample motion=static\n" );
+		return false;
+	}
 	const bool gotoMode = mode == STANDALONE_BALLPARK_GOTO;
 	const bool orbitMode = mode == STANDALONE_BALLPARK_ORBIT;
 	const bool warpMode = mode == STANDALONE_BALLPARK_WARP;
-	const bool movingMode = gotoMode || orbitMode || warpMode;
+	const bool approachMode = mode == STANDALONE_BALLPARK_APPROACH;
+	const bool movingMode = gotoMode || orbitMode || warpMode || approachMode;
 	DestinyEmbeddedBallConfig config = {};
 	config.ballId = 1;
 	config.solarSystemId = 30005286;
@@ -12405,7 +12531,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	config.maximumAngularVelocity = 1.0f;
 	// The warp fixture starts at the PL-11A GOTO position: the D-07 corpus
 	// records the leg from (0, 0, -1000) to the New Eden planet.
-	config.position[2] = orbitMode ? -2570.0 : ( ( gotoMode || warpMode ) ? -1000.0 : 0.0 );
+	config.position[2] = ( orbitMode || approachMode ) ? -2570.0 : ( ( gotoMode || warpMode ) ? -1000.0 : 0.0 );
 	config.agility = movingMode ? 2.87f : 1.0f;
 	config.rotationalAgility = 1.0f;
 	config.speedFraction = movingMode ? 1.0f : 0.0f;
@@ -12452,7 +12578,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		std::fprintf( stderr, "Failed to create embedded Destiny session: %s\n", error );
 		return false;
 	}
-	if( orbitMode )
+	if( orbitMode || approachMode )
 	{
 		DestinyEmbeddedFixedTargetConfig target = {};
 		target.ballId = 3;
@@ -12482,7 +12608,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkDiagnostics.registeredClassCount = probe->destinyRegistration.discoveredClassCount;
 	probe->renderable->SetBallparkEngineKinematicsEnabled(
 		movingMode && probe->renderable->HasAuthoredEngines(), config.maximumVelocity );
-	if( orbitMode && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
+	if( ( orbitMode || approachMode ) && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
 	{
 		probe->renderable->SetAllowDecalDistanceCulling( true );
 		probe->view->SetLookAtPosition(
@@ -12954,6 +13080,79 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkWarp( void*
 		diagnostics.maximumRootError, diagnostics.maximumOriginError,
 		diagnostics.warpValid ? "pass" : "fail" );
 	return diagnostics.warpValid;
+#else
+	( void )probe;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkApproach( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe || probe->ballparkMode != STANDALONE_BALLPARK_APPROACH || !probe->destinySession ||
+		!probe->renderable || !probe->scene || probe->renderedFrameCount != 3780 )
+		return false;
+	if( !UpdateBallparkDiagnostics(
+			*probe, probe->renderedFrameCount - 1, static_cast<Be::Time>( probe->lastSimTime ), false ) )
+		return false;
+	auto& diagnostics = probe->ballparkDiagnostics;
+	const auto nearZero3 = []( const auto* values, double tolerance ) {
+		return std::abs( values[0] ) <= tolerance && std::abs( values[1] ) <= tolerance &&
+			std::abs( values[2] ) <= tolerance;
+	};
+	const bool observer = probe->ballparkReferenceFrame != STANDALONE_BALLPARK_EGO;
+	const bool referenceFrameValid = observer ?
+		( diagnostics.egoBallId == 2 && nearZero3( diagnostics.referencePoint, 1e-5 ) &&
+		  nearZero3( diagnostics.origin, 1e-3 ) ) :
+		( diagnostics.egoBallId == 1 && nearZero3( diagnostics.position, 1e-5 ) );
+	const double expectedEngineSpeed = std::sqrt(
+		diagnostics.velocity[0] * diagnostics.velocity[0] + diagnostics.velocity[1] * diagnostics.velocity[1] +
+		diagnostics.velocity[2] * diagnostics.velocity[2] );
+	const bool engineValid = !probe->renderable->HasAuthoredEngines() ||
+		( diagnostics.engineKinematicsActive && diagnostics.engineMaximumVelocity == 312.0f &&
+		  std::abs( diagnostics.engineParentSpeed - expectedEngineSpeed ) <= 1e-3 );
+	const double quaternionLength = std::sqrt(
+		diagnostics.rotation[0] * diagnostics.rotation[0] + diagnostics.rotation[1] * diagnostics.rotation[1] +
+		diagnostics.rotation[2] * diagnostics.rotation[2] + diagnostics.rotation[3] * diagnostics.rotation[3] );
+	// Station-keeping contract at the 570 m center setpoint: the deepest
+	// overshoot carries the center to ~37.36 m (fixture fact at recording;
+	// the fixed target is non-massive), the ball settles back from inside to
+	// ~568.3 m, and the mode never leaves FOLLOW — the terminal creep speed
+	// is the settle gate, not a STOP transition.
+	diagnostics.approachValid = diagnostics.directEvolveCount == 62 &&
+		diagnostics.lastValidatedEvolveCount == 62 && diagnostics.commandCount == 1 &&
+		diagnostics.lastCommandTime == 30000000 && diagnostics.primaryBallId == 1 &&
+		diagnostics.followBallId == kBallparkApproachTargetBallId &&
+		std::abs( diagnostics.followRange - kBallparkApproachRange ) <= 1e-6 &&
+		diagnostics.approachMinimumCenterDistance >= 30.0 &&
+		diagnostics.approachMinimumCenterDistance <= 50.0 &&
+		diagnostics.approachFinalCenterDistance >= 560.0 &&
+		diagnostics.approachFinalCenterDistance <= 580.0 &&
+		diagnostics.approachFinalSpeed < 0.01 && diagnostics.originUpdateCount == 3780 &&
+		diagnostics.orientationPinCount == 0 && diagnostics.startCallCount == 0 &&
+		diagnostics.onTickCallCount == 0 && diagnostics.pythonCallbackCount == 0 &&
+		!diagnostics.schedulerRegistered && diagnostics.pythonInitialized &&
+		diagnostics.destinyPythonModulesAbsent && diagnostics.loadedBlueImageCount == 1 &&
+		diagnostics.loadedPythonImageCount == 1 && diagnostics.maximumRawPositionError <= 1e-5 &&
+		diagnostics.maximumRawVelocityError <= 1e-5 && diagnostics.maximumRawAccelerationError <= 1e-5 &&
+		diagnostics.maximumCurveError <= 1e-3 && diagnostics.maximumRootError <= 1e-3 &&
+		diagnostics.maximumOriginError <= 1e-3 && std::isfinite( quaternionLength ) &&
+		std::abs( quaternionLength - 1.0 ) <= 1e-4 && diagnostics.unitBase == 1.0f &&
+		referenceFrameValid && engineValid;
+	diagnostics.motionValid = diagnostics.approachValid;
+	diagnostics.valid = diagnostics.approachValid;
+	std::fprintf( stderr,
+		"PL-11D approach validation: frame=%s evolves=%llu trajectory=%016llx min-center=%.6f "
+		"final-center=%.6f final-speed=%.9f errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
+		observer ? "observer" : "ego", static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+		diagnostics.approachMinimumCenterDistance, diagnostics.approachFinalCenterDistance,
+		diagnostics.approachFinalSpeed, diagnostics.maximumRawPositionError,
+		diagnostics.maximumRawVelocityError, diagnostics.maximumRawAccelerationError,
+		diagnostics.maximumCurveError, diagnostics.maximumRootError, diagnostics.maximumOriginError,
+		diagnostics.approachValid ? "pass" : "fail" );
+	return diagnostics.approachValid;
 #else
 	( void )probe;
 	return false;
@@ -13870,6 +14069,27 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				warpTarget[0], warpTarget[1], warpTarget[2],
 				kBallparkWarpMinimumRange, kBallparkWarpFactor );
 		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_APPROACH && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+				!Destiny_CommandEmbeddedFollow( probe->destinySession, commandState.nextTickTime,
+					kBallparkApproachTargetBallId, static_cast<float>( kBallparkApproachRange ) ) )
+			{
+				CCP_LOGERR( "Embedded Destiny FOLLOW command failed" );
+				std::fprintf( stderr, "RenderFrame failure: FOLLOW command (frame=%llu)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				return false;
+			}
+			probe->ballparkCommandIssued = true;
+			std::fprintf( stderr,
+				"PL-11D command: frame=180 effectiveTime=%lld FollowBall target=%lld range=%.1f\n",
+				static_cast<long long>( commandState.nextTickTime ),
+				static_cast<long long>( kBallparkApproachTargetBallId ), kBallparkApproachRange );
+		}
+
 		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
 			!probe->eveGateApproachIssued && probe->ballparkCommandIssued &&
 			probe->renderedFrameCount == probe->eveGateApproachFrame )
@@ -13908,7 +14128,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		}
 		if( ( probe->ballparkMode == STANDALONE_BALLPARK_GOTO ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
-			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ) && probe->renderable )
+			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ||
+			  probe->ballparkMode == STANDALONE_BALLPARK_APPROACH ) && probe->renderable )
 		{
 			DestinyEmbeddedDiagnostics kinematics = {};
 			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )

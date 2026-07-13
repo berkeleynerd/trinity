@@ -418,6 +418,7 @@ enum class BallparkMode
 	Goto,
 	Orbit,
 	Warp,
+	Approach,
 };
 
 enum class OrbitSolver
@@ -597,6 +598,7 @@ struct Options
 	bool validateBallparkMotion = false;
 	bool validateBallparkOrbit = false;
 	bool validateBallparkWarp = false;
+	bool validateBallparkApproach = false;
 	int captureEvery = 0;
 	OrbitSolver orbitSolver = OrbitSolver::New;
 	float orbitRange = 2500.0f;
@@ -1161,7 +1163,7 @@ std::string MotionModeName( MotionMode value )
 
 std::string BallparkModeName( BallparkMode value )
 {
-	static const char* names[] = { "off", "static", "goto", "orbit", "warp" };
+	static const char* names[] = { "off", "static", "goto", "orbit", "warp", "approach" };
 	return names[static_cast<int>( value )];
 }
 
@@ -1197,6 +1199,11 @@ bool ParseBallparkMode( const std::string& value, BallparkMode& result )
 	if( normalized == "warp" )
 	{
 		result = BallparkMode::Warp;
+		return true;
+	}
+	if( normalized == "approach" )
+	{
+		result = BallparkMode::Approach;
 		return true;
 	}
 	return false;
@@ -2166,10 +2173,10 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
-		<< "       [--ballpark off|static|goto|orbit|warp] [--ballpark-frame ego|observer|chase]\n"
+		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--ballpark-frame ego|observer|chase]\n"
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit]\n"
-		<< "       [--validate-ballpark-warp] [--ballpark-log PATH] [--capture-every N]\n"
+		<< "       [--validate-ballpark-warp] [--validate-ballpark-approach] [--ballpark-log PATH] [--capture-every N]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
 		<< "       [--warp-tunnel off|authored]\n"
@@ -2373,6 +2380,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--validate-ballpark-warp" )
 		{
 			options.validateBallparkWarp = true;
+		}
+		else if( arg == "--validate-ballpark-approach" )
+		{
+			options.validateBallparkApproach = true;
 		}
 		else if( arg == "--capture-every" )
 		{
@@ -3339,10 +3350,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "WARP Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
-	if( options.ballparkFrame != BallparkFrame::Ego && options.ballpark != BallparkMode::Goto &&
-		options.ballpark != BallparkMode::Orbit && options.ballpark != BallparkMode::Warp )
+	if( options.ballpark == BallparkMode::Approach &&
+		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
-		std::cerr << "Observer and chase Ballpark frames require --ballpark goto, orbit, or warp\n";
+		std::cerr << "APPROACH Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
+		return false;
+	}
+	if( options.ballparkFrame != BallparkFrame::Ego && options.ballpark != BallparkMode::Goto &&
+		options.ballpark != BallparkMode::Orbit && options.ballpark != BallparkMode::Warp &&
+		options.ballpark != BallparkMode::Approach )
+	{
+		std::cerr << "Observer and chase Ballpark frames require --ballpark goto, orbit, warp, or approach\n";
 		return false;
 	}
 	if( options.validateBallpark )
@@ -3458,6 +3477,33 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			return false;
 		}
 	}
+	if( options.validateBallparkApproach )
+	{
+		if( options.ballparkFrame == BallparkFrame::Chase )
+		{
+			std::cerr << "The PL-11D quantitative contract accepts ego or fixed-observer frames; chase is visual-only\n";
+			return false;
+		}
+		const bool engineFixture = options.ballparkFrame == BallparkFrame::Observer ?
+			options.resolvedEngines == EngineMode::Authored : options.resolvedEngines == EngineMode::Off;
+		const bool canonical = options.ballpark == BallparkMode::Approach && options.maxFrames == 3780 &&
+			options.qualityRung == QualityRung::HdrPost && options.motion == MotionMode::Static &&
+			options.sceneFixture == SceneFixture::NewEden && options.composition == SceneComposition::Cinematic &&
+			options.resolvedTaa == TaaMode::Off && options.resolvedDynamicExposure == DynamicExposure::Off &&
+			options.resolvedBloom == PostFinishMode::Off && options.resolvedFilmGrain == PostFinishMode::Off &&
+			options.resolvedDistortion == DistortionMode::Off && options.resolvedVolumetrics == VolumetricMode::Off &&
+			engineFixture && options.resolvedReflectionSource == ReflectionSource::Static &&
+			options.resolvedAttachments == Attachments::Authored && options.resolvedDecals == Decals::Authored &&
+			options.localLights == LocalLights::Authored && options.resolvedLocalShadows == LocalShadows::Off &&
+			options.resolvedShadows == Shadows::Off && options.resolvedAmbientOcclusion == AmbientOcclusion::Off &&
+			options.planetLayers == PlanetLayers::All && options.resolvedSunEffects == SunEffects::Flare &&
+			!options.ballparkLogPath.empty() && !options.capturePrefix.empty();
+		if( !canonical )
+		{
+			std::cerr << "--validate-ballpark-approach requires the 3780-frame PL-11D hdr-post approach fixture\n";
+			return false;
+		}
+	}
 	if( options.celestialBallpark == CelestialBallparkMode::Natural &&
 		( options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ||
 		  options.ballpark == BallparkMode::Off ) )
@@ -3483,7 +3529,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( options.eveGate != 1 || options.celestialBallpark != CelestialBallparkMode::Natural ||
 		  options.ballpark != BallparkMode::Orbit || options.eveGateApproachFrame != 0 ||
 		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
-		  options.validateBallparkWarp ||
+		  options.validateBallparkWarp || options.validateBallparkApproach ||
 		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
 	{
 		std::cerr << "--eve-gate-travel direct is a demo mode requiring the authored gate, natural celestials, "
@@ -3494,7 +3540,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.eveGateApproachFrame != 0 &&
 		( options.ballpark != BallparkMode::Orbit || options.eveGateApproachFrame <= 180 ||
 		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
-		  options.validateBallparkWarp ||
+		  options.validateBallparkWarp || options.validateBallparkApproach ||
 		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
 	{
 		std::cerr << "--eve-gate-approach is a post-command ORBIT demo option and is incompatible with "
@@ -3510,7 +3556,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.celestialAnchor != 0 &&
 		( options.celestialBallpark != CelestialBallparkMode::Natural ||
 		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
-		  options.validateBallparkWarp ||
+		  options.validateBallparkWarp || options.validateBallparkApproach ||
 		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
 	{
 		std::cerr << "--celestial-anchor evegate is a demo anchor requiring natural celestials, and is "
@@ -4987,6 +5033,51 @@ bool WriteBallparkWarpContractJson(
 	return output.good();
 }
 
+bool WriteBallparkApproachContractJson(
+	const Options& options,
+	const TrinityStandaloneBallparkDiagnostics& diagnostics,
+	bool milestonesCaptured )
+{
+	const std::string outputPath = CaptureBasePath( options ) + "_ballpark-approach-contract.json";
+	if( !EnsureParentDirectory( outputPath ) )
+		return false;
+	std::ofstream output( outputPath.c_str() );
+	if( !output )
+		return false;
+	auto writeArray = [&]( const char* name, const auto* values, size_t count, bool comma ) {
+		output << "  \"" << name << "\": [";
+		for( size_t i = 0; i < count; ++i )
+			output << ( i ? ", " : "" ) << std::setprecision( 12 ) << values[i];
+		output << "]" << ( comma ? "," : "" ) << "\n";
+	};
+	output << "{\n"
+		   << "  \"contract\": \"PL-11D native approach\",\n"
+		   << "  \"referenceFrame\": \"" << BallparkFrameName( options.ballparkFrame ) << "\",\n"
+		   << "  \"csv\": \"" << options.ballparkLogPath << "\",\n"
+		   << "  \"directEvolves\": " << diagnostics.directEvolveCount << ",\n"
+		   << "  \"commands\": " << diagnostics.commandCount << ",\n"
+		   << "  \"trajectoryHash\": \"" << std::hex << diagnostics.trajectoryHash << std::dec << "\",\n"
+		   << "  \"followBallId\": " << diagnostics.followBallId << ",\n"
+		   << "  \"surfaceRange\": " << std::setprecision( 12 ) << diagnostics.followRange << ",\n"
+		   << "  \"minimumCenterDistance\": " << diagnostics.approachMinimumCenterDistance << ",\n"
+		   << "  \"finalCenterDistance\": " << diagnostics.approachFinalCenterDistance << ",\n"
+		   << "  \"finalSpeed\": " << diagnostics.approachFinalSpeed << ",\n"
+		   << "  \"maximumErrors\": {\"position\": " << diagnostics.maximumRawPositionError
+		   << ", \"velocity\": " << diagnostics.maximumRawVelocityError << ", \"acceleration\": "
+		   << diagnostics.maximumRawAccelerationError << ", \"curve\": " << diagnostics.maximumCurveError
+		   << ", \"root\": " << diagnostics.maximumRootError << ", \"origin\": "
+		   << diagnostics.maximumOriginError << "},\n"
+		   << "  \"milestonesCaptured\": " << ( milestonesCaptured ? "true" : "false" ) << ",\n";
+	writeArray( "rawPosition", diagnostics.rawPosition, 3, true );
+	writeArray( "rawVelocity", diagnostics.rawVelocity, 3, true );
+	writeArray( "referencePoint", diagnostics.referencePoint, 3, true );
+	writeArray( "origin", diagnostics.origin, 3, true );
+	output << "  \"validationPassed\": "
+		   << ( diagnostics.approachValid && milestonesCaptured ? "true" : "false" ) << "\n}\n";
+	std::cout << "Ballpark approach contract report: " << outputPath << "\n";
+	return output.good();
+}
+
 bool WriteChaseCameraContractJson(
 	const Options& options,
 	const TrinityStandaloneBallparkDiagnostics& diagnostics )
@@ -5481,9 +5572,17 @@ int main( int argc, char** argv )
 					{ 179, "pre-command" }, { 599, "aligning" }, { 719, "activation" },
 					{ 1019, "cruise" }, { 1799, "deceleration" }, { 3779, "arrival" },
 				} };
+				// Approach phase frames follow the PL-11D corpus: command at
+				// tick 3, full thrust through tick 9, range crossing near tick
+				// 10, deepest overshoot near tick 12, settled under 1 m/s by
+				// tick 34, terminal station-keeping.
+				const std::array<std::pair<int, const char*>, 6> approachMilestones = { {
+					{ 179, "pre-command" }, { 539, "acceleration" }, { 659, "crossing" },
+					{ 779, "overshoot" }, { 2039, "settling" }, { 3779, "station-keeping" },
+				} };
 				const char* ballparkMilestone = nullptr;
 				if( options.validateBallparkMotion || options.validateBallparkOrbit ||
-					options.validateBallparkWarp )
+					options.validateBallparkWarp || options.validateBallparkApproach )
 				{
 					const auto captureMilestone = [&]( const auto& milestones ) {
 						for( const auto& milestone : milestones )
@@ -5494,6 +5593,8 @@ int main( int argc, char** argv )
 						captureMilestone( orbitMilestones );
 					else if( options.validateBallparkWarp )
 						captureMilestone( warpMilestones );
+					else if( options.validateBallparkApproach )
+						captureMilestone( approachMilestones );
 					else
 					{
 						captureMilestone( ballparkMilestones );
@@ -5580,6 +5681,8 @@ int main( int argc, char** argv )
 		bool ballparkOrbitReportSucceeded = true;
 		bool ballparkWarpValidationSucceeded = true;
 		bool ballparkWarpReportSucceeded = true;
+		bool ballparkApproachValidationSucceeded = true;
+		bool ballparkApproachReportSucceeded = true;
 		bool chaseCameraValidationSucceeded = true;
 		bool chaseCameraReportSucceeded = true;
 		bool encodedBallparkColorEqual = false;
@@ -5625,6 +5728,16 @@ int main( int argc, char** argv )
 			ballparkWarpValidationSucceeded =
 				validationRan && diagnosticsRead && ballparkDiagnostics.warpValid && ballparkMilestonesCaptured;
 			ballparkWarpReportSucceeded = WriteBallparkWarpContractJson(
+				options, ballparkDiagnostics, ballparkMilestonesCaptured );
+		}
+		if( options.validateBallparkApproach )
+		{
+			const bool validationRan = TrinityStandaloneProbeValidateBallparkApproach( probe );
+			const bool diagnosticsRead = TrinityStandaloneProbeGetBallparkDiagnostics( probe, &ballparkDiagnostics );
+			ballparkMilestonesCaptured = ballparkMilestonesCaptured && ballparkMilestoneCount == 6;
+			ballparkApproachValidationSucceeded =
+				validationRan && diagnosticsRead && ballparkDiagnostics.approachValid && ballparkMilestonesCaptured;
+			ballparkApproachReportSucceeded = WriteBallparkApproachContractJson(
 				options, ballparkDiagnostics, ballparkMilestonesCaptured );
 		}
 		if( options.validateChaseCamera )
@@ -5924,6 +6037,18 @@ int main( int argc, char** argv )
 					  << ballparkDiagnostics.warpTotalDistance << " milestones=" << ballparkMilestoneCount
 					  << " validation=" << ( ballparkWarpValidationSucceeded ? "pass" : "fail" );
 				productStats.emplace_back( "ballparkWarpValidation", stats.str() );
+			}
+			if( options.validateBallparkApproach )
+			{
+				std::ostringstream stats;
+				stats << "frame=" << BallparkFrameName( options.ballparkFrame )
+					  << " evolves=" << ballparkDiagnostics.directEvolveCount << " trajectory=" << std::hex
+					  << ballparkDiagnostics.trajectoryHash << std::dec << " min-center="
+					  << ballparkDiagnostics.approachMinimumCenterDistance << " final-center="
+					  << ballparkDiagnostics.approachFinalCenterDistance << " final-speed="
+					  << ballparkDiagnostics.approachFinalSpeed << " milestones=" << ballparkMilestoneCount
+					  << " validation=" << ( ballparkApproachValidationSucceeded ? "pass" : "fail" );
+				productStats.emplace_back( "ballparkApproachValidation", stats.str() );
 			}
 			if( options.validateCelestialBallpark )
 			{
@@ -6285,6 +6410,7 @@ int main( int argc, char** argv )
 			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
 			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
 			ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded &&
+			ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
 			chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
 			celestialValidationSucceeded && celestialReportSucceeded &&
 			eveGateValidationSucceeded && eveGateReportSucceeded &&
