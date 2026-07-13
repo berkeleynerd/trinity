@@ -98,6 +98,37 @@ class FroxelLabTest(unittest.TestCase):
 
         self.assertEqual(LAB.resolve_run("latest").name, runs[-1][0])
 
+    def test_closed_profiles_excludes_closed_failed_runs(self):
+        for name, transitions in (
+                ("passed", [{"state": "completed", "workerExitCode": 0}]),
+                ("failed", [{"state": "failed", "workerExitCode": 1}])):
+            run_dir = LAB.RUNS_ROOT / name
+            run_dir.mkdir()
+            LAB.atomic_write_json(run_dir / "ledger.json", {
+                "experimentId": "C10",
+                "profile": name,
+                "currentState": "closed",
+                "stateTransitions": transitions,
+            })
+
+        self.assertEqual(LAB.closed_profiles("C10"), {"passed"})
+
+    def test_closed_profiles_requires_incident_report_for_scene_runs(self):
+        for name, report in (("legacy", None), ("contract", {"sha256": "abc"})):
+            run_dir = LAB.RUNS_ROOT / name
+            run_dir.mkdir()
+            completed = {"state": "completed", "workerExitCode": 0}
+            if report:
+                completed["incidentReport"] = report
+            LAB.atomic_write_json(run_dir / "ledger.json", {
+                "experimentId": "R00",
+                "profile": name,
+                "currentState": "closed",
+                "stateTransitions": [completed],
+            })
+
+        self.assertEqual(LAB.closed_profiles("R00"), {"contract"})
+
     def test_controlling_tty_uses_nonseekable_read_and_write_handles(self):
         class NonSeekableTTY(io.StringIO):
             def isatty(self):
@@ -172,6 +203,24 @@ class FroxelLabTest(unittest.TestCase):
         self.assertNotIn(str(pathlib.Path.home()), redacted)
         self.assertNotIn("192.0.2.5", redacted)
         self.assertNotIn("12345678-1234-1234-1234-123456789abc", redacted)
+
+    def test_focused_tree_includes_incident_contract_without_binary_capture(self):
+        run_dir = LAB.RUNS_ROOT / "R00-incident-test"
+        capture_dir = run_dir / "capture"
+        capture_dir.mkdir(parents=True)
+        LAB.atomic_write_json(run_dir / "ledger.json", {"runId": run_dir.name})
+        LAB.atomic_write_json(run_dir / "submission-preflight.json", {"resourcePreparationComplete": True})
+        LAB.atomic_write_json(run_dir / "incident-report.json", {"passed": True})
+        (capture_dir / "incident.txt").write_text("rawHash=1234\n", encoding="utf-8")
+        (capture_dir / "incident.png").write_bytes(b"\x89PNG\x00binary")
+
+        output = self.root / "focused"
+        LAB.build_redacted_tree(run_dir, output)
+
+        self.assertTrue((output / "submission-preflight.json").is_file())
+        self.assertTrue((output / "incident-report.json").is_file())
+        self.assertTrue((output / "capture/incident.txt").is_file())
+        self.assertFalse((output / "capture/incident.png").exists())
 
 
 if __name__ == "__main__":

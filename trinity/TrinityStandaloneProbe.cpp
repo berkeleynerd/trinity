@@ -4083,6 +4083,9 @@ struct StandaloneProbe
 	Tr2TextureAL postTaaReadback;
 	std::array<Tr2TextureAL, 4> volumeSliceReadbacks;
 	HdrCompositeDiagnostics hdrCompositeDiagnostics;
+	bool hdrCompositeReadbackCanariesIntact = false;
+	bool visualizedReadbackCanariesIntact = false;
+	std::string incidentDiagnosticsJson;
 	// RC-09 headroom latch: true once any composite readback in this run has
 	// contained a pixel above 1.0. The composition contract's intent is that
 	// the pipeline RETAINS headroom capability, not that every camera framing
@@ -7740,6 +7743,7 @@ double HdrPercentile( const std::vector<float>& sorted, double percentile )
 
 bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContext )
 {
+	probe.hdrCompositeReadbackCanariesIntact = false;
 	auto& diagnostics = probe.hdrCompositeDiagnostics;
 	diagnostics = {};
 	diagnostics.format = static_cast<uint32_t>( probe.hdrCompositeReadback.GetFormat() );
@@ -7756,10 +7760,26 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 		return false;
 	}
 
+	const size_t rowBytes = static_cast<size_t>( diagnostics.width ) * sizeof( Float_16 ) * 4;
+	constexpr size_t guardSize = 64;
+	std::vector<uint8_t> guardedReadback( rowBytes * diagnostics.height + guardSize * 2, 0xa5 );
+	uint8_t* readbackBytes = guardedReadback.data() + guardSize;
+	for( uint32_t y = 0; y < diagnostics.height; ++y )
+	{
+		const uint8_t* sourceRow =
+			static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+		std::memcpy( readbackBytes + static_cast<size_t>( y ) * rowBytes, sourceRow, rowBytes );
+	}
+	probe.hdrCompositeReadback.UnmapForReading( renderContext );
+	probe.hdrCompositeReadbackCanariesIntact =
+		std::all_of( guardedReadback.begin(), guardedReadback.begin() + guardSize,
+			[]( uint8_t value ) { return value == 0xa5; } ) &&
+		std::all_of( guardedReadback.end() - guardSize, guardedReadback.end(),
+			[]( uint8_t value ) { return value == 0xa5; } );
+
 	constexpr uint64_t fnvOffset = 14695981039346656037ull;
 	constexpr uint64_t fnvPrime = 1099511628211ull;
 	constexpr float halfMaximum = 65504.0f;
-	const size_t rowBytes = static_cast<size_t>( diagnostics.width ) * sizeof( Float_16 ) * 4;
 	std::vector<float> luminances;
 	luminances.reserve( static_cast<size_t>( diagnostics.width ) * diagnostics.height );
 	uint64_t rawHash = fnvOffset;
@@ -7767,7 +7787,7 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 
 	for( uint32_t y = 0; y < diagnostics.height; ++y )
 	{
-		const uint8_t* sourceRow = static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+		const uint8_t* sourceRow = readbackBytes + static_cast<size_t>( y ) * rowBytes;
 		for( size_t byte = 0; byte < rowBytes; ++byte )
 		{
 			rawHash ^= sourceRow[byte];
@@ -7813,8 +7833,6 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 			}
 		}
 	}
-	probe.hdrCompositeReadback.UnmapForReading( renderContext );
-
 	diagnostics.rawHash = rawHash;
 	if( !luminances.empty() )
 	{
@@ -7841,7 +7859,8 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 	// per-frame demand: a gate-locked camera on a dark sky is a legitimate
 	// framing whose composite retains headroom capability.
 	const bool hasHdrHeadroom = probe.hdrHeadroomObserved;
-	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack && hasHdrHeadroom;
+	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack &&
+		hasHdrHeadroom && probe.hdrCompositeReadbackCanariesIntact;
 
 	std::fprintf(
 		stderr,
@@ -7886,10 +7905,10 @@ bool ReadVisualizedRenderProduct(
 	int captureProduct,
 	Tr2RenderContext& renderContext )
 {
+	probe.visualizedReadbackCanariesIntact = false;
 	probe.capturedProductWidth = probe.renderProductReadback.GetWidth();
 	probe.capturedProductHeight = probe.renderProductReadback.GetHeight();
-	probe.capturedProductPixels.resize(
-		static_cast<size_t>( probe.capturedProductWidth ) * probe.capturedProductHeight * 4 );
+	probe.capturedProductPixels.clear();
 
 	const void* sourceData = nullptr;
 	uint32_t sourcePitch = 0;
@@ -7901,6 +7920,23 @@ bool ReadVisualizedRenderProduct(
 		probe.capturedProductPixels.clear();
 		return false;
 	}
+	const size_t rowBytes = static_cast<size_t>( probe.capturedProductWidth ) * 4;
+	constexpr size_t guardSize = 64;
+	std::vector<uint8_t> guardedReadback( rowBytes * probe.capturedProductHeight + guardSize * 2, 0xa5 );
+	uint8_t* readbackBytes = guardedReadback.data() + guardSize;
+	for( uint32_t y = 0; y < probe.capturedProductHeight; ++y )
+	{
+		const uint8_t* sourceRow =
+			static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
+		std::memcpy( readbackBytes + static_cast<size_t>( y ) * rowBytes, sourceRow, rowBytes );
+	}
+	probe.renderProductReadback.UnmapForReading( renderContext );
+	probe.visualizedReadbackCanariesIntact =
+		std::all_of( guardedReadback.begin(), guardedReadback.begin() + guardSize,
+			[]( uint8_t value ) { return value == 0xa5; } ) &&
+		std::all_of( guardedReadback.end() - guardSize, guardedReadback.end(),
+			[]( uint8_t value ) { return value == 0xa5; } );
+	probe.capturedProductPixels.assign( readbackBytes, readbackBytes + rowBytes * probe.capturedProductHeight );
 
 	uint8_t minimum = 255;
 	uint8_t maximum = 0;
@@ -7914,14 +7950,11 @@ bool ReadVisualizedRenderProduct(
 	uint32_t maxY = 0;
 	for( uint32_t y = 0; y < probe.capturedProductHeight; ++y )
 	{
-		const uint8_t* sourceRow = static_cast<const uint8_t*>( sourceData ) +
-			static_cast<size_t>( y ) * sourcePitch;
 		uint8_t* destinationRow = probe.capturedProductPixels.data() +
-			static_cast<size_t>( y ) * probe.capturedProductWidth * 4;
-		std::memcpy( destinationRow, sourceRow, static_cast<size_t>( probe.capturedProductWidth ) * 4 );
+			static_cast<size_t>( y ) * rowBytes;
 		for( size_t byte = 0; byte < static_cast<size_t>( probe.capturedProductWidth ) * 4; ++byte )
 		{
-			hash ^= sourceRow[byte];
+			hash ^= destinationRow[byte];
 			hash *= fnvPrime;
 		}
 		for( uint32_t x = 0; x < probe.capturedProductWidth; ++x )
@@ -7942,7 +7975,6 @@ bool ReadVisualizedRenderProduct(
 			}
 		}
 	}
-	probe.renderProductReadback.UnmapForReading( renderContext );
 	probe.capturedProductHash = hash;
 	probe.capturedProductNonzeroPixels = nonzeroPixels;
 	probe.capturedProductMinimum = minimum;
@@ -7984,7 +8016,7 @@ bool ReadVisualizedRenderProduct(
 		probe.capturedProductPixels.clear();
 		return false;
 	}
-	return true;
+	return probe.visualizedReadbackCanariesIntact;
 }
 
 bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts )
@@ -11438,6 +11470,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	diagnostics->mieHeight = source.mieHeight;
 	diagnostics->mieFormat = source.mieFormat;
 	diagnostics->dynamicLightCount = source.dynamicLightCount;
+	diagnostics->raymarchThreadGroupX = source.raymarchThreadGroupX;
+	diagnostics->raymarchThreadGroupY = source.raymarchThreadGroupY;
+	diagnostics->raymarchThreadGroupZ = source.raymarchThreadGroupZ;
+	diagnostics->raymarchDispatchX = source.raymarchDispatchX;
+	diagnostics->raymarchDispatchY = source.raymarchDispatchY;
+	diagnostics->raymarchDispatchZ = source.raymarchDispatchZ;
 
 	const bool wantsSilk = probe->volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
 		probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL;
@@ -11454,7 +11492,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 		  diagnostics->froxelWidth > 1 && diagnostics->froxelHeight > 1 &&
 		  diagnostics->froxelDepth >= 64 &&
 		  diagnostics->froxelFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R11G11B10_FLOAT &&
-		  diagnostics->calculateSucceeded && diagnostics->temporalFilterSucceeded &&
+		  diagnostics->calculateSucceeded &&
+		  ( !diagnostics->temporalEnabled || diagnostics->temporalFilterSucceeded ) &&
 		  diagnostics->raymarchSucceeded && diagnostics->applySucceeded &&
 		  diagnostics->mieUpdateSucceeded && diagnostics->mieWidth == 128 && diagnostics->mieHeight == 128 &&
 		  diagnostics->mieFormat == Tr2RenderContextEnum::PIXEL_FORMAT_R32G32B32A32_FLOAT );
@@ -11463,6 +11502,223 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 		  !diagnostics->froxelEnabled );
 	diagnostics->valid = localValid && froxelValid && offValid;
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSubmissionDiagnostics(
+	void* opaqueProbe,
+	bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	probe->renderContext->SetSubmissionDiagnosticsEnabled( enabled );
+	return true;
+#else
+	( void )enabled;
+	return false;
+#endif
+}
+
+std::string IncidentJsonString( const std::string& value )
+{
+	std::ostringstream output;
+	output << '"';
+	for( const unsigned char character : value )
+	{
+		switch( character )
+		{
+		case '"':
+			output << "\\\"";
+			break;
+		case '\\':
+			output << "\\\\";
+			break;
+		case '\n':
+			output << "\\n";
+			break;
+		case '\r':
+			output << "\\r";
+			break;
+		case '\t':
+			output << "\\t";
+			break;
+		default:
+			if( character < 0x20 )
+			{
+				output << "\\u" << std::hex << std::setw( 4 ) << std::setfill( '0' )
+					   << static_cast<unsigned>( character ) << std::dec;
+			}
+			else
+			{
+				output << character;
+			}
+		}
+	}
+	output << '"';
+	return output.str();
+}
+
+std::string IncidentHex64( uint64_t value )
+{
+	std::ostringstream output;
+	output << std::hex << std::setw( 16 ) << std::setfill( '0' ) << value;
+	return output.str();
+}
+
+TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosticsJson( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return nullptr;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	std::vector<Tr2MetalSubmissionDiagnostics> submissions;
+	if( FAILED( probe->renderContext->GetCompletedSubmissionDiagnostics( &submissions ) ) || submissions.empty() )
+	{
+		return nullptr;
+	}
+
+	TrinityStandaloneVolumetricDiagnostics volumetrics;
+	if( !TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetrics ) )
+	{
+		return nullptr;
+	}
+	bool commandsCompleted = true;
+	bool bindingPreflightPassed = true;
+	bool bindingInventoryPresent = false;
+	bool calculateEncoder = false;
+	bool filterEncoder = !volumetrics.temporalEnabled;
+	bool raymarchEncoder = false;
+	bool applyEncoder = false;
+	bool calculatePipeline = false;
+	bool filterPipeline = !volumetrics.temporalEnabled;
+	bool raymarchPipeline = false;
+	for( const auto& submission : submissions )
+	{
+		commandsCompleted = commandsCompleted && submission.completedSuccessfully;
+		bindingPreflightPassed = bindingPreflightPassed && submission.bindingPreflightPassed;
+		for( const auto& encoder : submission.encoders )
+		{
+			calculateEncoder = calculateEncoder || encoder.label == "Calculate froxels";
+			filterEncoder = filterEncoder || encoder.label == "Temporal filter";
+			raymarchEncoder = raymarchEncoder || encoder.label == "Raymarch";
+			applyEncoder = applyEncoder || encoder.label == "Apply to scene";
+			calculatePipeline = calculatePipeline ||
+				( encoder.label == "Calculate froxels" && encoder.pipelineUid != 0 );
+			filterPipeline = filterPipeline ||
+				( encoder.label == "Temporal filter" && encoder.pipelineUid != 0 );
+			raymarchPipeline = raymarchPipeline ||
+				( encoder.label == "Raymarch" && encoder.pipelineUid != 0 );
+		}
+		for( const auto& binding : submission.bindings )
+		{
+			bindingInventoryPresent = true;
+			bindingPreflightPassed = bindingPreflightPassed && binding.valid;
+		}
+	}
+	const bool encoderCoveragePassed = calculateEncoder && filterEncoder && raymarchEncoder && applyEncoder;
+	const bool pipelineCoveragePassed = calculatePipeline && filterPipeline && raymarchPipeline;
+	const bool canariesIntact = probe->hdrCompositeReadbackCanariesIntact &&
+		probe->visualizedReadbackCanariesIntact;
+	const bool outputPassed = probe->hdrCompositeDiagnostics.valid &&
+		probe->capturedProductNonzeroPixels != 0 &&
+		probe->capturedProductMinimum != probe->capturedProductMaximum;
+	const bool passed = commandsCompleted && bindingPreflightPassed && bindingInventoryPresent &&
+		encoderCoveragePassed && pipelineCoveragePassed && canariesIntact && outputPassed && volumetrics.valid;
+
+	std::ostringstream json;
+	json << "{\n"
+		 << "  \"schemaVersion\": 1,\n"
+		 << "  \"passed\": " << ( passed ? "true" : "false" ) << ",\n"
+		 << "  \"commandsCompleted\": " << ( commandsCompleted ? "true" : "false" ) << ",\n"
+		 << "  \"bindingPreflightPassed\": " << ( bindingPreflightPassed ? "true" : "false" ) << ",\n"
+		 << "  \"bindingInventoryPresent\": " << ( bindingInventoryPresent ? "true" : "false" ) << ",\n"
+		 << "  \"encoderCoveragePassed\": " << ( encoderCoveragePassed ? "true" : "false" ) << ",\n"
+		 << "  \"pipelineCoveragePassed\": " << ( pipelineCoveragePassed ? "true" : "false" ) << ",\n"
+		 << "  \"canariesIntact\": " << ( canariesIntact ? "true" : "false" ) << ",\n"
+		 << "  \"output\": {\n"
+		 << "    \"rawHashFNV1a64\": " << IncidentJsonString( IncidentHex64( probe->hdrCompositeDiagnostics.rawHash ) ) << ",\n"
+		 << "    \"visualizedHashFNV1a64\": " << IncidentJsonString( IncidentHex64( probe->capturedProductHash ) ) << ",\n"
+		 << "    \"nonzeroPixels\": " << probe->capturedProductNonzeroPixels << ",\n"
+		 << "    \"nonuniform\": "
+		 << ( probe->capturedProductMinimum != probe->capturedProductMaximum ? "true" : "false" ) << ",\n"
+		 << "    \"range\": [" << static_cast<unsigned>( probe->capturedProductMinimum ) << ", "
+		 << static_cast<unsigned>( probe->capturedProductMaximum ) << "],\n"
+		 << "    \"rawValidationPassed\": " << ( probe->hdrCompositeDiagnostics.valid ? "true" : "false" ) << ",\n"
+		 << "    \"rawReadbackCanariesIntact\": "
+		 << ( probe->hdrCompositeReadbackCanariesIntact ? "true" : "false" ) << ",\n"
+		 << "    \"visualizedReadbackCanariesIntact\": "
+		 << ( probe->visualizedReadbackCanariesIntact ? "true" : "false" ) << "\n"
+		 << "  },\n"
+		 << "  \"volumetrics\": {\n"
+		 << "    \"valid\": " << ( volumetrics.valid ? "true" : "false" ) << ",\n"
+		 << "    \"temporalEnabled\": " << ( volumetrics.temporalEnabled ? "true" : "false" ) << ",\n"
+		 << "    \"calculateSucceeded\": " << ( volumetrics.calculateSucceeded ? "true" : "false" ) << ",\n"
+		 << "    \"temporalFilterSucceeded\": " << ( volumetrics.temporalFilterSucceeded ? "true" : "false" ) << ",\n"
+		 << "    \"raymarchSucceeded\": " << ( volumetrics.raymarchSucceeded ? "true" : "false" ) << ",\n"
+		 << "    \"applySucceeded\": " << ( volumetrics.applySucceeded ? "true" : "false" ) << ",\n"
+		 << "    \"mieUpdateSucceeded\": " << ( volumetrics.mieUpdateSucceeded ? "true" : "false" ) << ",\n"
+		 << "    \"dimensions\": [" << volumetrics.froxelWidth << ", " << volumetrics.froxelHeight << ", "
+		 << volumetrics.froxelDepth << "],\n"
+		 << "    \"raymarchThreadgroup\": [" << volumetrics.raymarchThreadGroupX << ", "
+		 << volumetrics.raymarchThreadGroupY << ", " << volumetrics.raymarchThreadGroupZ << "],\n"
+		 << "    \"raymarchDispatch\": [" << volumetrics.raymarchDispatchX << ", "
+		 << volumetrics.raymarchDispatchY << ", " << volumetrics.raymarchDispatchZ << "]\n"
+		 << "  },\n"
+		 << "  \"submissions\": [\n";
+	for( size_t submissionIndex = 0; submissionIndex < submissions.size(); ++submissionIndex )
+	{
+		const auto& submission = submissions[submissionIndex];
+		json << "    {\n"
+			 << "      \"commandStatus\": " << submission.commandStatus << ",\n"
+			 << "      \"completedSuccessfully\": "
+			 << ( submission.completedSuccessfully ? "true" : "false" ) << ",\n"
+			 << "      \"errorCode\": " << submission.errorCode << ",\n"
+			 << "      \"errorDomain\": " << IncidentJsonString( submission.errorDomain ) << ",\n"
+			 << "      \"errorDescription\": " << IncidentJsonString( submission.errorDescription ) << ",\n"
+			 << "      \"bindingPreflightPassed\": "
+			 << ( submission.bindingPreflightPassed ? "true" : "false" ) << ",\n"
+			 << "      \"encoders\": [\n";
+		for( size_t encoderIndex = 0; encoderIndex < submission.encoders.size(); ++encoderIndex )
+		{
+			const auto& encoder = submission.encoders[encoderIndex];
+			json << "        {\"label\": " << IncidentJsonString( encoder.label )
+				 << ", \"pipelineUid\": " << IncidentJsonString( IncidentHex64( encoder.pipelineUid ) )
+				 << ", \"errorState\": " << encoder.errorState << "}"
+				 << ( encoderIndex + 1 == submission.encoders.size() ? "\n" : ",\n" );
+		}
+		json << "      ],\n"
+			 << "      \"bindings\": [\n";
+		for( size_t bindingIndex = 0; bindingIndex < submission.bindings.size(); ++bindingIndex )
+		{
+			const auto& binding = submission.bindings[bindingIndex];
+			json << "        {\"encoderLabel\": " << IncidentJsonString( binding.encoderLabel )
+				 << ", \"pipelineUid\": " << IncidentJsonString( IncidentHex64( binding.pipelineUid ) )
+				 << ", \"name\": " << IncidentJsonString( binding.name )
+				 << ", \"kind\": " << IncidentJsonString( binding.kind )
+				 << ", \"index\": " << binding.index
+				 << ", \"requiredBytes\": " << binding.requiredBytes
+				 << ", \"boundBytes\": " << binding.boundBytes
+				 << ", \"width\": " << binding.width
+				 << ", \"height\": " << binding.height
+				 << ", \"depth\": " << binding.depth
+				 << ", \"valid\": " << ( binding.valid ? "true" : "false" )
+				 << ", \"failure\": " << IncidentJsonString( binding.failure ) << "}"
+				 << ( bindingIndex + 1 == submission.bindings.size() ? "\n" : ",\n" );
+		}
+		json << "      ]\n"
+			 << "    }" << ( submissionIndex + 1 == submissions.size() ? "\n" : ",\n" );
+	}
+	json << "  ]\n}\n";
+	probe->incidentDiagnosticsJson = json.str();
+	return probe->incidentDiagnosticsJson.c_str();
+#else
+	return nullptr;
+#endif
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe )

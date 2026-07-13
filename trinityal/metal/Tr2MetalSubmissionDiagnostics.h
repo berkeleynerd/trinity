@@ -8,6 +8,8 @@
 
 struct Tr2MetalResourceBindingDiagnostic
 {
+	std::string encoderLabel;
+	uint64_t pipelineUid = 0;
 	std::string name;
 	std::string kind;
 	uint32_t index = 0;
@@ -28,6 +30,7 @@ struct Tr2MetalResourceBindingDiagnostic
 struct Tr2MetalEncoderDiagnostic
 {
 	std::string label;
+	uint64_t pipelineUid = 0;
 	int32_t errorState = 0;
 	std::vector<std::string> debugSignposts;
 };
@@ -35,6 +38,7 @@ struct Tr2MetalEncoderDiagnostic
 struct Tr2MetalSubmissionDiagnostics
 {
 	int32_t commandStatus = 0;
+	bool completedSuccessfully = false;
 	int32_t errorCode = 0;
 	std::string errorDomain;
 	std::string errorDescription;

@@ -7,6 +7,8 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <memory>
+
 #include "MetalUtils.h"
 #include "Tr2MetalSubmissionDiagnostics.h"
 #include "../include/Tr2ShaderAL.h"
@@ -19,6 +21,7 @@ class Tr2PipelineStatsQueryAL;
 class Tr2VertexLayoutAL;
 class Tr2RtPipelineStateAL;
 class Tr2RtShaderTableAL;
+struct MetalSubmissionDiagnosticStore;
 
 
 // Values below must be synchronized with (propagated to) ShaderCompiler/EffectCompilerMetal.cpp
@@ -182,6 +185,7 @@ public:
 
 	void CommitCommandBuffer( MetalCBCommitFlags flags );
 	bool GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
+	bool GetCompletedSubmissionDiagnostics( std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics ) const;
 	bool SubmitAndWait( Tr2MetalSubmissionDiagnostics* diagnostics );
 	bool BlitToDrawableAndPresent( id<MTLTexture> srcTexture, NSView* view, uint64_t* renderedFrameNumber );
 	void BeginFrame();
@@ -571,7 +575,10 @@ private:
 	uint64_t m_lastComputePipelineUid;
 	MTLComputePipelineReflection* m_currentComputePipelineReflection;
 	std::vector<std::string> m_encoderLabels;
+	std::vector<uint64_t> m_encoderPipelineUids;
 	std::vector<Tr2MetalResourceBindingDiagnostic> m_bindingDiagnostics;
+	std::shared_ptr<MetalSubmissionDiagnosticStore> m_submissionDiagnosticStore;
+	std::vector<std::string> m_debugGroupLabels;
 
 	struct CachedVertexLayout
 	{

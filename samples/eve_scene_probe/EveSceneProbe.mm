@@ -2242,6 +2242,47 @@ bool WriteAndSyncIncidentPreflight( const Options& options )
 		path,
 	] );
 }
+
+bool WriteAndSyncIncidentReport( const Options& options, void* probe )
+{
+	const char* json = TrinityStandaloneProbeGetIncidentDiagnosticsJson( probe );
+	if( !json )
+	{
+		std::cerr << "Incident diagnostics were unavailable after rendering\n";
+		return false;
+	}
+	NSData* data = [NSData dataWithBytes:json length:std::strlen( json )];
+	NSError* error = nil;
+	if( ![NSJSONSerialization JSONObjectWithData:data options:0 error:&error] )
+	{
+		std::cerr << "Incident diagnostics JSON is invalid: " << error.localizedDescription.UTF8String << "\n";
+		return false;
+	}
+	NSString* ledger = [NSString stringWithUTF8String:options.froxelLabLedger.c_str()];
+	NSString* path =
+		[ledger.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"incident-report.json"];
+	if( ![data writeToFile:path options:NSDataWritingAtomic error:&error] )
+	{
+		std::cerr << "Failed to persist incident diagnostics: " << error.localizedDescription.UTF8String << "\n";
+		return false;
+	}
+	const int file = open( path.fileSystemRepresentation, O_RDONLY );
+	if( file < 0 || fsync( file ) != 0 )
+	{
+		if( file >= 0 )
+			close( file );
+		std::cerr << "Failed to fsync incident diagnostics\n";
+		return false;
+	}
+	close( file );
+	const int directory = open( path.stringByDeletingLastPathComponent.fileSystemRepresentation, O_RDONLY );
+	if( directory >= 0 )
+	{
+		fsync( directory );
+		close( directory );
+	}
+	return true;
+}
 #endif
 
 bool FileExists( const std::string& path )
@@ -5624,7 +5665,8 @@ int main( int argc, char** argv )
 #if defined( TRINITY_FROXEL_INCIDENT_LAB )
 		if( ( options.resolvedVolumetrics == VolumetricMode::Froxel ||
 			  options.resolvedVolumetrics == VolumetricMode::All ) &&
-			!WriteAndSyncIncidentPreflight( options ) )
+			( !TrinityStandaloneProbeConfigureSubmissionDiagnostics( probe, true ) ||
+			  !WriteAndSyncIncidentPreflight( options ) ) )
 		{
 			std::cerr << "Failed to persist the incident froxel submission boundary\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -6554,6 +6596,13 @@ int main( int argc, char** argv )
 						productStats.emplace_back( "reflectionRuntime", stats.str() );
 					}
 				}
+#if defined( TRINITY_FROXEL_INCIDENT_LAB )
+				if( options.clientKernels )
+				{
+					const bool incidentReportWritten = WriteAndSyncIncidentReport( options, probe );
+					captureSucceeded = incidentReportWritten && captureSucceeded;
+				}
+#endif
 				captureSucceeded = captureSucceeded &&
 					WriteCaptureMetadata( options, renderWidth, renderHeight, renderedFrames, productStats );
 			}

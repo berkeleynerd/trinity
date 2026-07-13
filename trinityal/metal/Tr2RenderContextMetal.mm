@@ -841,6 +841,24 @@ ALResult Tr2RenderContextAL::SubmitHeadlessAndWait( Tr2MetalSubmissionDiagnostic
 	return m_workQueue->SubmitAndWait( diagnostics ) ? S_OK : E_FAIL;
 }
 
+void Tr2RenderContextAL::SetSubmissionDiagnosticsEnabled( bool enabled )
+{
+	if( m_workQueue )
+	{
+		m_workQueue->SetSubmissionDiagnosticsEnabled( enabled );
+	}
+}
+
+ALResult Tr2RenderContextAL::GetCompletedSubmissionDiagnostics(
+	std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics )
+{
+	if( !IsValid() || !m_workQueue || !diagnostics )
+	{
+		return E_INVALIDARG;
+	}
+	return m_workQueue->GetCompletedSubmissionDiagnostics( diagnostics ) ? S_OK : E_FAIL;
+}
+
 ALResult Tr2RenderContextAL::GetHeadlessSubmissionPreflight( Tr2MetalSubmissionDiagnostics* diagnostics )
 {
 	if( !IsValid() || !m_workQueue || !diagnostics )

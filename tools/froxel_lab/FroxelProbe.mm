@@ -1444,6 +1444,7 @@ NSDictionary* SubmissionDictionary( const Tr2MetalSubmissionDiagnostics& diagnos
 	{
 		[encoders addObject:@{
 			@"label": [NSString stringWithUTF8String:item.label.c_str()],
+			@"pipelineUid": @( item.pipelineUid ),
 			@"errorState": @( item.errorState ),
 		}];
 	}
@@ -1451,6 +1452,8 @@ NSDictionary* SubmissionDictionary( const Tr2MetalSubmissionDiagnostics& diagnos
 	for( const auto& item : diagnostics.bindings )
 	{
 		[bindings addObject:@{
+			@"encoderLabel": [NSString stringWithUTF8String:item.encoderLabel.c_str()],
+			@"pipelineUid": @( item.pipelineUid ),
 			@"name": [NSString stringWithUTF8String:item.name.c_str()],
 			@"kind": [NSString stringWithUTF8String:item.kind.c_str()],
 			@"index": @( item.index ),
@@ -1462,6 +1465,7 @@ NSDictionary* SubmissionDictionary( const Tr2MetalSubmissionDiagnostics& diagnos
 	}
 	return @{
 		@"commandStatus": @( diagnostics.commandStatus ),
+		@"completedSuccessfully": @( diagnostics.completedSuccessfully ),
 		@"errorCode": @( diagnostics.errorCode ),
 		@"errorDomain": [NSString stringWithUTF8String:diagnostics.errorDomain.c_str()],
 		@"errorDescription": [NSString stringWithUTF8String:diagnostics.errorDescription.c_str()],

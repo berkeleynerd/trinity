@@ -427,7 +427,15 @@ def closed_profiles(experiment_id: str) -> set[str]:
         if not path.exists():
             continue
         ledger = load_json(path)
-        if ledger.get("experimentId") == experiment_id and ledger.get("currentState") == "closed":
+        completed_event = next((
+            item for item in ledger.get("stateTransitions", [])
+            if item.get("state") == "completed" and item.get("workerExitCode") == 0
+        ), None)
+        completed = completed_event is not None
+        if experiment_id in {"R00", "R01"}:
+            completed = completed and bool(completed_event.get("incidentReport"))
+        if (ledger.get("experimentId") == experiment_id and
+                ledger.get("currentState") == "closed" and completed):
             profiles.add(ledger.get("profile"))
     return profiles
 
@@ -918,7 +926,21 @@ def cmd_run(args) -> int:
         transition(run_dir, "failed", workerExitCode=return_code, failure="missing worker submission marker")
         raise LabError("worker exited successfully without recording a GPU submission")
     if return_code == 0:
-        transition(run_dir, "completed", workerExitCode=return_code)
+        completion = {"workerExitCode": return_code}
+        if ledger.get("configuration", {}).get("kernelSet") == "client-scene":
+            report_path = run_dir / "incident-report.json"
+            if not report_path.is_file():
+                transition(run_dir, "failed", workerExitCode=return_code,
+                           failure="missing incident evidence report")
+                raise LabError("worker exited without persisting the incident evidence report")
+            report = load_json(report_path)
+            if report.get("passed") is not True:
+                transition(run_dir, "failed", workerExitCode=return_code,
+                           failure="incident evidence contract failed",
+                           incidentReport=file_record(report_path))
+                raise LabError("incident evidence contract failed")
+            completion["incidentReport"] = file_record(report_path)
+        transition(run_dir, "completed", **completion)
         print("Run {} completed".format(ledger["runId"]))
         return 0
     transition(run_dir, "failed", workerExitCode=return_code)
@@ -1080,7 +1102,14 @@ def redact_text(text: str) -> str:
 
 
 def build_redacted_tree(run_dir: Path, output: Path) -> None:
-    include = [ledger_path(run_dir), run_dir / "collection", run_dir / "sentinel"]
+    include = [
+        ledger_path(run_dir),
+        run_dir / "submission-preflight.json",
+        run_dir / "incident-report.json",
+        run_dir / "capture",
+        run_dir / "collection",
+        run_dir / "sentinel",
+    ]
     for source in include:
         if not source.exists():
             continue

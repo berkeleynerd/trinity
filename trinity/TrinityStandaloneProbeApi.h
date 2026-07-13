@@ -223,6 +223,12 @@ struct TrinityStandaloneVolumetricDiagnostics
 	uint32_t mieHeight = 0;
 	uint32_t mieFormat = 0;
 	uint32_t dynamicLightCount = 0;
+	uint32_t raymarchThreadGroupX = 0;
+	uint32_t raymarchThreadGroupY = 0;
+	uint32_t raymarchThreadGroupZ = 0;
+	uint32_t raymarchDispatchX = 0;
+	uint32_t raymarchDispatchY = 0;
+	uint32_t raymarchDispatchZ = 0;
 	uint64_t volumeProductHash = 0;
 	uint64_t volumeProductNonzeroPixels = 0;
 	uint64_t volumeRawHash = 0;
@@ -489,6 +495,8 @@ extern "C" bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneVolumetricDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSubmissionDiagnostics( void* opaqueProbe, bool enabled );
+extern "C" const char* TrinityStandaloneProbeGetIncidentDiagnosticsJson( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeSetEnginesEnabled( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeGetEngineDiagnostics(
 	void* opaqueProbe,

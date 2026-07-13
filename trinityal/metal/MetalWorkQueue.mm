@@ -3,7 +3,9 @@
 #if TRINITY_PLATFORM == TRINITY_METAL
 #import <Foundation/Foundation.h>
 #include <chrono>
+#include <condition_variable>
 #include <float.h>
+#include <mutex>
 #include "MetalWorkQueue.h"
 #include "MetalContext.h"
 #include "MetalShaderTypes.h"
@@ -34,6 +36,77 @@ double MonotonicSeconds()
 
 namespace TrinityALImpl
 {
+
+struct MetalSubmissionDiagnosticStore
+{
+	std::mutex mutex;
+	std::condition_variable completion;
+	std::vector<Tr2MetalSubmissionDiagnostics> completed;
+	size_t pending = 0;
+};
+
+namespace
+{
+void CaptureCompletedSubmissionDiagnostics( id<MTLCommandBuffer> commandBuffer,
+	const Tr2MetalSubmissionDiagnostics& pending,
+	double cpuWaitSeconds,
+	Tr2MetalSubmissionDiagnostics* diagnostics )
+{
+	if( !diagnostics )
+	{
+		return;
+	}
+
+	*diagnostics = pending;
+	diagnostics->commandStatus = static_cast<int32_t>( commandBuffer.status );
+	diagnostics->completedSuccessfully =
+		commandBuffer.status == MTLCommandBufferStatusCompleted && commandBuffer.error == nil;
+	diagnostics->cpuWaitSeconds = cpuWaitSeconds;
+	if( @available( macOS 10.15, * ) )
+	{
+		diagnostics->gpuStartTime = commandBuffer.GPUStartTime;
+		diagnostics->gpuEndTime = commandBuffer.GPUEndTime;
+	}
+
+	NSError* error = commandBuffer.error;
+	if( error )
+	{
+		diagnostics->errorCode = static_cast<int32_t>( error.code );
+		diagnostics->errorDomain = error.domain.UTF8String ? error.domain.UTF8String : "";
+		diagnostics->errorDescription =
+			error.localizedDescription.UTF8String ? error.localizedDescription.UTF8String : "";
+	}
+
+	if( @available( macOS 11.0, * ) )
+	{
+		NSArray<id<MTLCommandBufferEncoderInfo>>* infos =
+			error ? error.userInfo[MTLCommandBufferEncoderInfoErrorKey] : nil;
+		if( infos.count != 0 )
+		{
+			diagnostics->encoders.clear();
+		}
+		for( id<MTLCommandBufferEncoderInfo> info in infos )
+		{
+			Tr2MetalEncoderDiagnostic encoder;
+			encoder.label = info.label.UTF8String ? info.label.UTF8String : "";
+			for( const auto& pendingEncoder : pending.encoders )
+			{
+				if( pendingEncoder.label == encoder.label )
+				{
+					encoder.pipelineUid = pendingEncoder.pipelineUid;
+					break;
+				}
+			}
+			encoder.errorState = static_cast<int32_t>( info.errorState );
+			for( NSString* signpost in info.debugSignposts )
+			{
+				encoder.debugSignposts.emplace_back( signpost.UTF8String ? signpost.UTF8String : "" );
+			}
+			diagnostics->encoders.emplace_back( std::move( encoder ) );
+		}
+	}
+}
+}
 
 MetalWorkQueue::MetalWorkQueue() :
 	m_numRenderAttachments( 0 ),
@@ -77,6 +150,7 @@ MetalWorkQueue::MetalWorkQueue() :
 	m_lastComputePipelineUid( 0 ),
 	m_currentComputePipelineReflection( nil )
 {
+	m_submissionDiagnosticStore = std::make_shared<MetalSubmissionDiagnosticStore>();
 	static_assert( sizeof( m_activeConstBuffersMask[0] ) * 8 >= METAL_MAX_BOUND_BUFFERS,
 				   "Mask data type is too small to hold all flags." );
 	static_assert( sizeof( m_activeBuffersMask[0] ) * 8 >= METAL_MAX_BOUND_BUFFERS,
@@ -332,6 +406,9 @@ void MetalWorkQueue::SetCommandQueue( id<MTLCommandQueue> commandQueue )
 void MetalWorkQueue::SetSubmissionDiagnosticsEnabled( bool enabled )
 {
 	m_submissionDiagnosticsEnabled = enabled;
+	std::lock_guard<std::mutex> lock( m_submissionDiagnosticStore->mutex );
+	m_submissionDiagnosticStore->completed.clear();
+	m_submissionDiagnosticStore->pending = 0;
 }
 
 void MetalWorkQueue::ResetWorkQueue()
@@ -419,6 +496,7 @@ void MetalWorkQueue::CreateCommandBuffer()
 		m_bindingPreflightPassed = true;
 		m_bindingDiagnostics.clear();
 		m_encoderLabels.clear();
+		m_encoderPipelineUids.clear();
 #if !__has_feature( objc_arc )
 		[m_commandBuffer retain];
 #endif
@@ -439,7 +517,6 @@ void MetalWorkQueue::FlushOutstandingOperations()
 	{
 		CreateCommandBuffer();
 	}
-
 	if( !m_encoderEnded && m_encoderHasWork )
 	{
 		// Release and terminate the current encoder
@@ -520,6 +597,34 @@ void MetalWorkQueue::CommitCommandBuffer( MetalCBCommitFlags flags )
 		}];
 	}
 
+	const bool captureDiagnostics = m_submissionDiagnosticsEnabled && m_encoderHasWork;
+	const double waitStart = MonotonicSeconds();
+	const double encodeSeconds = std::max( 0.0, waitStart - m_commandBufferCreatedAt );
+	if( captureDiagnostics )
+	{
+		Tr2MetalSubmissionDiagnostics pendingDiagnostics;
+		CapturePendingSubmissionDiagnostics( &pendingDiagnostics );
+		pendingDiagnostics.cpuEncodeSeconds = encodeSeconds;
+		auto diagnosticStore = m_submissionDiagnosticStore;
+		{
+			std::lock_guard<std::mutex> lock( diagnosticStore->mutex );
+			++diagnosticStore->pending;
+		}
+		[m_commandBuffer addCompletedHandler:^( id<MTLCommandBuffer> commandBuffer ) {
+			Tr2MetalSubmissionDiagnostics completedDiagnostics;
+			CaptureCompletedSubmissionDiagnostics(
+				commandBuffer,
+				pendingDiagnostics,
+				MonotonicSeconds() - waitStart,
+				&completedDiagnostics );
+			{
+				std::lock_guard<std::mutex> lock( diagnosticStore->mutex );
+				diagnosticStore->completed.emplace_back( std::move( completedDiagnostics ) );
+				--diagnosticStore->pending;
+			}
+			diagnosticStore->completion.notify_all();
+		}];
+	}
 	[m_commandBuffer commit];
 
 	if( ( flags & MTLCBCOMMIT_WAITUNTILSCHEDULED ) && m_encoderHasWork )
@@ -548,54 +653,10 @@ void MetalWorkQueue::CaptureCommandBufferDiagnostics( id<MTLCommandBuffer> comma
 		return;
 	}
 
-	CapturePendingSubmissionDiagnostics( diagnostics );
-	diagnostics->commandStatus = static_cast<int32_t>( commandBuffer.status );
-	diagnostics->cpuEncodeSeconds = cpuEncodeSeconds;
-	diagnostics->cpuWaitSeconds = cpuWaitSeconds;
-	if( @available( macOS 10.15, * ) )
-	{
-		diagnostics->gpuStartTime = commandBuffer.GPUStartTime;
-		diagnostics->gpuEndTime = commandBuffer.GPUEndTime;
-	}
-
-	NSError* error = commandBuffer.error;
-	if( error )
-	{
-		diagnostics->errorCode = static_cast<int32_t>( error.code );
-		diagnostics->errorDomain = error.domain.UTF8String ? error.domain.UTF8String : "";
-		diagnostics->errorDescription =
-			error.localizedDescription.UTF8String ? error.localizedDescription.UTF8String : "";
-	}
-
-	if( @available( macOS 11.0, * ) )
-	{
-		NSArray<id<MTLCommandBufferEncoderInfo>>* infos =
-			error ? error.userInfo[MTLCommandBufferEncoderInfoErrorKey] : nil;
-		if( infos.count != 0 )
-		{
-			diagnostics->encoders.clear();
-		}
-		for( id<MTLCommandBufferEncoderInfo> info in infos )
-		{
-			Tr2MetalEncoderDiagnostic encoder;
-			encoder.label = info.label.UTF8String ? info.label.UTF8String : "";
-			encoder.errorState = static_cast<int32_t>( info.errorState );
-			for( NSString* signpost in info.debugSignposts )
-			{
-				encoder.debugSignposts.emplace_back( signpost.UTF8String ? signpost.UTF8String : "" );
-			}
-			diagnostics->encoders.emplace_back( std::move( encoder ) );
-		}
-	}
-	if( diagnostics->encoders.empty() )
-	{
-		for( const std::string& label : m_encoderLabels )
-		{
-			Tr2MetalEncoderDiagnostic encoder;
-			encoder.label = label;
-			diagnostics->encoders.emplace_back( std::move( encoder ) );
-		}
-	}
+	Tr2MetalSubmissionDiagnostics pendingDiagnostics;
+	CapturePendingSubmissionDiagnostics( &pendingDiagnostics );
+	pendingDiagnostics.cpuEncodeSeconds = cpuEncodeSeconds;
+	CaptureCompletedSubmissionDiagnostics( commandBuffer, pendingDiagnostics, cpuWaitSeconds, diagnostics );
 }
 
 void MetalWorkQueue::CapturePendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const
@@ -612,10 +673,11 @@ void MetalWorkQueue::CapturePendingSubmissionDiagnostics( Tr2MetalSubmissionDiag
 	diagnostics->validationEnabled = m_submissionDiagnosticsEnabled;
 	diagnostics->bindingPreflightPassed = m_bindingPreflightPassed;
 	diagnostics->bindings = m_bindingDiagnostics;
-	for( const std::string& label : m_encoderLabels )
+	for( size_t index = 0; index < m_encoderLabels.size(); ++index )
 	{
 		Tr2MetalEncoderDiagnostic encoder;
-		encoder.label = label;
+		encoder.label = m_encoderLabels[index];
+		encoder.pipelineUid = index < m_encoderPipelineUids.size() ? m_encoderPipelineUids[index] : 0;
 		diagnostics->encoders.emplace_back( std::move( encoder ) );
 	}
 }
@@ -624,6 +686,25 @@ bool MetalWorkQueue::GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnost
 {
 	CapturePendingSubmissionDiagnostics( diagnostics );
 	return m_commandBuffer && m_encoderHasWork && !m_encoderInUse && m_bindingPreflightPassed;
+}
+
+bool MetalWorkQueue::GetCompletedSubmissionDiagnostics(
+	std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics ) const
+{
+	if( !diagnostics )
+	{
+		return false;
+	}
+	std::unique_lock<std::mutex> lock( m_submissionDiagnosticStore->mutex );
+	if( !m_submissionDiagnosticStore->completion.wait_for(
+			lock,
+			std::chrono::seconds( 30 ),
+			[this]() { return m_submissionDiagnosticStore->pending == 0; } ) )
+	{
+		return false;
+	}
+	*diagnostics = m_submissionDiagnosticStore->completed;
+	return !diagnostics->empty();
 }
 
 bool MetalWorkQueue::SubmitAndWait( Tr2MetalSubmissionDiagnostics* diagnostics )
@@ -1025,6 +1106,11 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 	{
 		CreateCommandBuffer();
 	}
+	NSString* resolvedEncoderLabel = encoderLabel;
+	if( !resolvedEncoderLabel && m_submissionDiagnosticsEnabled && !m_debugGroupLabels.empty() )
+	{
+		resolvedEncoderLabel = [NSString stringWithUTF8String:m_debugGroupLabels.back().c_str()];
+	}
 
 	if( encoderType != MTLENCODERTYPE_RENDER && m_hasPendingRenderPassHint )
 	{
@@ -1071,7 +1157,7 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 		}
 
 		m_currentRenderEncoder = [m_commandBuffer renderCommandEncoderWithDescriptor:m_currentRenderPassDescriptor];
-		m_currentRenderEncoder.label = encoderLabel ? encoderLabel : @"Standard render encoder";
+		m_currentRenderEncoder.label = resolvedEncoderLabel ? resolvedEncoderLabel : @"Standard render encoder";
 		METAL_LOG( @"Log:SetCurrentEncoder(Render) %@", m_currentRenderEncoder.label );
 
 		// Since the encoder is new we'll need to emit all the state again
@@ -1095,7 +1181,7 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 		{
 			m_currentComputeEncoder = [m_commandBuffer computeCommandEncoder];
 		}
-		m_currentComputeEncoder.label = encoderLabel ? encoderLabel : @"Standard compute encoder";
+		m_currentComputeEncoder.label = resolvedEncoderLabel ? resolvedEncoderLabel : @"Standard compute encoder";
 		METAL_LOG( @"Log:SetCurrentEncoder(Compute) %@", m_currentBlitEncoder.label );
 
 		m_dirtyConstBuffersMask[COMPUTE_SHADER] = ~0u;
@@ -1110,7 +1196,7 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 	}
 	case MTLENCODERTYPE_BLIT: {
 		m_currentBlitEncoder = [m_commandBuffer blitCommandEncoder];
-		m_currentBlitEncoder.label = encoderLabel ? encoderLabel : @"Standard blit encoder";
+		m_currentBlitEncoder.label = resolvedEncoderLabel ? resolvedEncoderLabel : @"Standard blit encoder";
 		METAL_LOG( @"Log:SetCurrentEncoder(Blit) %@", m_currentBlitEncoder.label );
 
 		++m_encoderIndex;
@@ -1121,7 +1207,7 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 		{
 			m_currentAccelerationStructureEncoder = [m_commandBuffer accelerationStructureCommandEncoder];
 			m_currentAccelerationStructureEncoder.label =
-				encoderLabel ? encoderLabel : @"Standard acceleration structure encoder";
+				resolvedEncoderLabel ? resolvedEncoderLabel : @"Standard acceleration structure encoder";
 			METAL_LOG( @"Log:SetCurrentEncoder(AccelerationStructure) %@",
 					   m_currentAccelerationStructureEncoder.label );
 
@@ -1158,6 +1244,7 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 			break;
 		}
 		m_encoderLabels.emplace_back( label.UTF8String ? label.UTF8String : "Unlabeled Metal encoder" );
+		m_encoderPipelineUids.emplace_back( 0 );
 	}
 
 	// Mark that this curent encoder is in use
@@ -2172,6 +2259,10 @@ bool MetalWorkQueue::EmitComputePipelineState()
 		m_currentComputePipelineState = pipelineState;
 	}
 	m_lastComputePipelineUid = hashVal;
+	if( m_submissionDiagnosticsEnabled && !m_encoderPipelineUids.empty() )
+	{
+		m_encoderPipelineUids.back() = hashVal;
+	}
 
 	return true;
 }
@@ -2192,6 +2283,8 @@ bool MetalWorkQueue::ValidateComputeBindings()
 		}
 
 		Tr2MetalResourceBindingDiagnostic diagnostic;
+		diagnostic.encoderLabel = m_encoderLabels.empty() ? "" : m_encoderLabels.back();
+		diagnostic.pipelineUid = m_lastComputePipelineUid;
 		diagnostic.name = argument.name.UTF8String ? argument.name.UTF8String : "";
 		diagnostic.index = static_cast<uint32_t>( argument.index );
 		diagnostic.access = static_cast<uint32_t>( argument.access );
@@ -3638,6 +3731,7 @@ void MetalWorkQueue::PushDebugGroup( const char* name )
 	}
 	NSString* nsName = [[NSString alloc] initWithCString:name encoding:NSUTF8StringEncoding];
 	[m_commandBuffer pushDebugGroup:nsName];
+	m_debugGroupLabels.emplace_back( name ? name : "" );
 #if !__has_feature( objc_arc )
 	[nsName release];
 #endif
@@ -3648,6 +3742,10 @@ void MetalWorkQueue::PopDebugGroup()
 	CCP_ASSERT( m_isPrimary );
 	ReleaseEncoder( true );
 	[m_commandBuffer popDebugGroup];
+	if( !m_debugGroupLabels.empty() )
+	{
+		m_debugGroupLabels.pop_back();
+	}
 }
 
 void MetalWorkQueue::RenderPassHint( const MetalRenderPassHint& hint )
