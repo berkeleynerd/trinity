@@ -80,3 +80,20 @@ no assertion or Metal error during operator inspection.
 This accepts global froxel execution as a working M2 Metal capability. It does
 not establish New Eden fog fidelity and does not identify the cause of the
 original M4 watchdog without the missing repeated single-variable A/B.
+
+## Canonical visual demo
+
+`samples/eve_scene_probe/run_eve_gate_journey.sh` preserves the successful
+full-screen promotion profile as a standalone macOS application. It installs
+`~/Applications/Trinity EVE Gate Journey.app` against the latest discovered
+probe binary and launches the app without a Terminal window. Subsequent runs
+can be started directly from Finder. The profile includes the native EVE Gate
+round trip in chase view, authored local and directional shadows, High TAA,
+HDR exposure and finish, distortion, engines, Silk, and explicitly enabled
+froxels.
+
+Each run writes `runtime.log` and `ballpark.csv` under a timestamped directory
+in `~/Library/Logs/TrinityEveGateJourney/`; `latest` points to the newest run.
+Set `TRINITY_EVE_SCENE_PROBE` or pass `--binary PATH` when the probe lives
+outside the standard Trinity or Promised Land build trees. Use
+`--install-only` to refresh the app bundle without launching it.
