@@ -46,6 +46,14 @@ class FroxelLabTest(unittest.TestCase):
             "raymarch_out", "raymarch_in",
         })
 
+    def test_client_scene_binary_matches_froxel_lab_target_output(self):
+        build = self.root / "build"
+        with mock.patch.dict(os.environ, {"TRINITY_FROXEL_BUILD_DIR": str(build)}):
+            self.assertEqual(
+                LAB.default_binary("client-scene"),
+                build / "tools/froxel_lab/Debug/TrinityALEveSceneProbeFroxelLab_metal",
+            )
+
     def test_atomic_transition_is_durable_and_ordered(self):
         run_dir = LAB.RUNS_ROOT / "run"
         run_dir.mkdir()

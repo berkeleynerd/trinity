@@ -454,7 +454,7 @@ def default_binary(kernel_set: str) -> Path:
         REPO_ROOT / ".cmake-build-arm64-osx-debug",
     ))
     if kernel_set == "client-scene":
-        return build / "samples/eve_scene_probe/Debug/TrinityALEveSceneProbeFroxelLab_metal"
+        return build / "tools/froxel_lab/Debug/TrinityALEveSceneProbeFroxelLab_metal"
     return build / "tools/froxel_lab/Debug/TrinityALFroxelProbe_metal"
 
 
