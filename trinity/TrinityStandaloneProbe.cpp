@@ -9221,9 +9221,9 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 
 bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime )
 {
-#if TRINITY_WITH_DESTINY_EMBEDDED
 	if( probe.ballparkReferenceFrame != STANDALONE_BALLPARK_CHASE )
 		return true;
+#if TRINITY_WITH_DESTINY_EMBEDDED
 	if( !probe.destinySession || !probe.view )
 		return false;
 	DestinyEmbeddedDiagnostics diagnostics = {};
