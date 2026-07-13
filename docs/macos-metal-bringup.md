@@ -2574,6 +2574,25 @@ A/B against a 10,000-pixel threshold, and the ego repeat lands at 3 px at
 delta 1 — under concurrent full-screen demo GPU load. CP-36 is accepted;
 the demo presentation remains parked per the operator note above.
 
+### CP-36 presentation fidelity correction (2026-07-13)
+
+The operator-directed composition above is retained as historical context,
+but it is no longer the probe default. Comparison with the in-game landmark
+showed that the `0.1` ratio, six-times distance, and sample-owned yaw/pitch
+offset reduced the Gate to a small violet ring and aligned it to a backdrop
+feature rather than presenting the authored landmark. The probe now uses the
+recovered landmark bearing without an additional composition rotation, the
+authored camera-anchored distance (`1.0` multiplier), and the authored
+in-system `DistanceRatio 0.5`. `--eve-gate-ratio` remains an explicit
+diagnostic override.
+
+A fresh 900-frame matched gate-on/gate-off capture changes 3,664,444 of
+3,686,400 pixels (99.40%, maximum delta 191). The corrected presentation has
+the screen-dominant white core, broad cyan loops, and horizontal disc lane
+expected from the authored graph. The washed-out `hdr-finish` capture remains
+a separate final-postprocess issue; the corrected `hdr-post` landmark output
+retains a useful `[34, 255]` channel range.
+
 ## CP-37a warp tunnel staging and first light (2026-07-12)
 
 The client-recovered generic warp tunnel — `effects.Warping` →

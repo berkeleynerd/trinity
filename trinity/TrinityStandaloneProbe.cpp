@@ -12278,9 +12278,9 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 	double bearingError = 1.0;
 	if( rotatedLength > 0.0f && gateDistance > 0.0 )
 	{
-		// Compared against the COMMANDED render bearing recorded at configure
-		// time (true bearing plus the composition offset), not the raw
-		// anchored direction.
+		// Compared against the recovered landmark bearing recorded at configure
+		// time. The presentation no longer adds a sample-owned composition
+		// offset.
 		double dot = 0.0;
 		for( size_t axis = 0; axis < 3; ++axis )
 		{
@@ -13344,29 +13344,6 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 			static_cast<float>( gateAnchored[0] / anchoredLength ),
 			static_cast<float>( gateAnchored[1] / anchoredLength ),
 			static_cast<float>( gateAnchored[2] / anchoredLength ) );
-		{
-			// Fixture composition (operator-directed): the RENDER bearing is
-			// aligned onto the brightest core of the scene fixture's baked
-			// nebula so the vortex sits embedded in its authored cloud — the
-			// pairing the client's scene authoring achieved in-game. Measured
-			// from matched 4096x2304 captures (chase fovY 48 deg): nebula core
-			// at (+403, +118) px screen offset from the vortex rendered at the
-			// true bearing. The navigation ball keeps the recovered true
-			// position; only the rendered graph is re-aimed.
-			const float kCoreYawDegrees = -0.65f;
-			const float kCorePitchDegrees = 4.11f;
-			const float kDegToRad = 3.14159265f / 180.0f;
-			Vector3 right = Cross( Vector3( 0.0f, 1.0f, 0.0f ), bearing );
-			const float rightLength = Length( right );
-			if( rightLength > 1e-4f )
-			{
-				right = right / rightLength;
-				const Vector3 up = Cross( bearing, right );
-				bearing = Normalize(
-					bearing + std::tan( kCoreYawDegrees * kDegToRad ) * right -
-					std::tan( kCorePitchDegrees * kDegToRad ) * up );
-			}
-		}
 		for( size_t axis = 0; axis < 3; ++axis )
 			renderBearing[axis] = static_cast<double>( ( &bearing.x )[axis] );
 		const Vector3 authoredOffset = gate->GetTranslation();
@@ -13420,18 +13397,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		const Vector3 authoredScaling = gate->GetScaling();
 		const Quaternion counterRotation(
 			-bearingRotation.x, -bearingRotation.y, -bearingRotation.z, bearingRotation.w );
-		// Presentation distance (operator-directed): the camera-anchored offset
-		// is pushed out beyond the fixture's play space so perspective shrinks
-		// the whole presentation proportionally — sized so the outer disc
-		// (angular radius atan(24.5/offset)) fits within the backdrop's
-		// glowing nebular core (measured ~11.4 deg half-light radius).
-		// Authored proportions are untouched; only the fixture's anchor
-		// distance changes.
-		// k must exceed ~5.1 so the far-state BackgroundCover horn (scale_z
-		// 3.25 stretches its throat ~304 units toward the camera) fully
-		// clears the eye; 6.0 detaches the whole assembly and sizes the disc
-		// at ~3.9 deg, well inside the ~11.4 deg nebular glow.
-		const float kPresentationDistanceMultiplier = 6.0f;
+		// Preserve the authored camera-relative distance. The former 6x
+		// presentation offset reduced the phenomenon to a small ring and was
+		// calibrated against the baked A01 nebula rather than an EVE reference.
+		const float kPresentationDistanceMultiplier = 1.0f;
 		gate->SetTransform( TransformationMatrix(
 			authoredScaling, counterRotation, authoredOffset * kPresentationDistanceMultiplier ) );
 	}
@@ -13447,21 +13416,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	// (second-opinion Candidate C, verified).
 	{
 		// The client-side policy that feeds DistanceRatio is unrecovered, so
-		// the value is fixture input. Presentation default (operator-directed):
-		// the authored FAR state — below the graph's own 0.4 far/in-system
-		// boundary the curves flatten to the compact distant funnel (vortex
-		// scale 0.333, disc lane at its thinnest, wide flare dim) — showing
-		// the gate from the farthest visible presentation. The authored
-		// in-system state sits just above 0.4 (scale completes at 0.5) and
-		// the serialized variable default 1.0 is the fully opaque
-		// maximum-presence state; both remain selectable via --eve-gate-ratio.
-		const float kFarPresentationDistanceRatio = 0.1f;
+		// the value is fixture input. Default to the authored in-system state:
+		// the state machine crosses its far/in-system boundary at 0.4 and the
+		// vortex scale completes at 0.5. The former 0.1 default deliberately
+		// selected the compact, dim far state and did not resemble the visible
+		// New Eden phenomenon. All authored states remain selectable via
+		// --eve-gate-ratio.
+		const float kInSystemDistanceRatio = 0.5f;
 		const bool explicitRatio = distanceRatio >= 0.0f;
-		const float appliedRatio = explicitRatio ? distanceRatio : kFarPresentationDistanceRatio;
+		const float appliedRatio = explicitRatio ? distanceRatio : kInSystemDistanceRatio;
 		gate->SetControllerVariable( "DistanceRatio", appliedRatio );
 		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (%s)\n",
 			appliedRatio,
-			explicitRatio ? "explicit fixture input" : "far presentation default (operator-directed)" );
+			explicitRatio ? "explicit fixture input" : "authored in-system default" );
 	}
 	// The client's live analog (BackgroundObject for massive environments)
 	// appends to scene.backgroundObjects: fully updated each frame and
@@ -13481,9 +13448,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	probe->eveGateDiagnostics.ballId = kNewEdenEveGateBallId;
 	probe->eveGateDiagnostics.authoredRadius = authoredRadius;
 	probe->eveGateDiagnostics.ballRadius = std::max( 1.0f, authoredRadius );
-	// The contract expects the COMMANDED render bearing (true bearing plus the
-	// operator-directed nebula-core composition offset), verifying the
-	// rotation mechanism delivers what was configured.
+	// The contract expects the recovered landmark bearing, verifying that the
+	// authored offset is rotated onto the navigation direction.
 	for( size_t axis = 0; axis < 3; ++axis )
 		probe->eveGateDiagnostics.bearingExpected[axis] = renderBearing[axis];
 	std::fprintf(
