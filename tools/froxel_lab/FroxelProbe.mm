@@ -22,6 +22,7 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>
 #include <unistd.h>
 #include <vector>
 
@@ -327,6 +328,122 @@ NSUInteger BytesPerPixel( MTLPixelFormat format )
 	}
 }
 
+enum class EncodedFloatClass
+{
+	Finite,
+	Infinity,
+	NaN,
+};
+
+struct NumericReadbackDiagnostics
+{
+	bool available = false;
+	size_t components = 0;
+	size_t finiteComponents = 0;
+	size_t infiniteComponents = 0;
+	size_t nanComponents = 0;
+	size_t finiteTexels = 0;
+	size_t nonfiniteTexels = 0;
+};
+
+EncodedFloatClass ClassifyEncodedFloat( uint32_t exponent, uint32_t mantissa, uint32_t maximumExponent )
+{
+	if( exponent != maximumExponent )
+		return EncodedFloatClass::Finite;
+	return mantissa == 0 ? EncodedFloatClass::Infinity : EncodedFloatClass::NaN;
+}
+
+void RecordEncodedFloat( NumericReadbackDiagnostics& diagnostics,
+						 EncodedFloatClass classification,
+						 bool& texelFinite )
+{
+	++diagnostics.components;
+	switch( classification )
+	{
+	case EncodedFloatClass::Finite:
+		++diagnostics.finiteComponents;
+		break;
+	case EncodedFloatClass::Infinity:
+		++diagnostics.infiniteComponents;
+		texelFinite = false;
+		break;
+	case EncodedFloatClass::NaN:
+		++diagnostics.nanComponents;
+		texelFinite = false;
+		break;
+	}
+}
+
+NumericReadbackDiagnostics AnalyzeNumericReadback( MTLPixelFormat format, const uint8_t* bytes, size_t texelCount )
+{
+	NumericReadbackDiagnostics diagnostics;
+	diagnostics.available = true;
+	for( size_t texel = 0; texel < texelCount; ++texel )
+	{
+		bool texelFinite = true;
+		switch( format )
+		{
+		case MTLPixelFormatRG11B10Float:
+		{
+			uint32_t packed = 0;
+			std::memcpy( &packed, bytes + texel * sizeof( packed ), sizeof( packed ) );
+			for( const auto& component : { std::pair<uint32_t, uint32_t>{ packed & 0x7ffu, 6u },
+									  std::pair<uint32_t, uint32_t>{ ( packed >> 11 ) & 0x7ffu, 6u },
+									  std::pair<uint32_t, uint32_t>{ ( packed >> 22 ) & 0x3ffu, 5u } } )
+			{
+				const uint32_t mantissaMask = ( 1u << component.second ) - 1u;
+				RecordEncodedFloat( diagnostics,
+					ClassifyEncodedFloat( component.first >> component.second,
+						component.first & mantissaMask,
+						0x1fu ),
+					texelFinite );
+			}
+			break;
+		}
+		case MTLPixelFormatRGBA16Float:
+			for( size_t component = 0; component < 4; ++component )
+			{
+				uint16_t encoded = 0;
+				std::memcpy( &encoded, bytes + texel * 8 + component * sizeof( encoded ), sizeof( encoded ) );
+				RecordEncodedFloat( diagnostics,
+					ClassifyEncodedFloat( ( encoded >> 10 ) & 0x1fu, encoded & 0x3ffu, 0x1fu ),
+					texelFinite );
+			}
+			break;
+		case MTLPixelFormatRGBA32Float:
+			for( size_t component = 0; component < 4; ++component )
+			{
+				uint32_t encoded = 0;
+				std::memcpy( &encoded, bytes + texel * 16 + component * sizeof( encoded ), sizeof( encoded ) );
+				RecordEncodedFloat( diagnostics,
+					ClassifyEncodedFloat( ( encoded >> 23 ) & 0xffu, encoded & 0x7fffffu, 0xffu ),
+					texelFinite );
+			}
+			break;
+		case MTLPixelFormatR32Float:
+		{
+			uint32_t encoded = 0;
+			std::memcpy( &encoded, bytes + texel * sizeof( encoded ), sizeof( encoded ) );
+			RecordEncodedFloat( diagnostics,
+				ClassifyEncodedFloat( ( encoded >> 23 ) & 0xffu, encoded & 0x7fffffu, 0xffu ),
+				texelFinite );
+			break;
+		}
+		case MTLPixelFormatR32Uint:
+			RecordEncodedFloat( diagnostics, EncodedFloatClass::Finite, texelFinite );
+			break;
+		default:
+			diagnostics = {};
+			return diagnostics;
+		}
+		if( texelFinite )
+			++diagnostics.finiteTexels;
+		else
+			++diagnostics.nonfiniteTexels;
+	}
+	return diagnostics;
+}
+
 uint64_t Fnv1a64( const void* data, size_t size )
 {
 	const uint8_t* bytes = static_cast<const uint8_t*>( data );
@@ -579,6 +696,22 @@ bool FillTextureFromCpu( id<MTLTexture> texture, uint8_t value )
 	return true;
 }
 
+bool FillR32FloatTextureFromCpu( id<MTLTexture> texture, float value )
+{
+	if( !texture || texture.pixelFormat != MTLPixelFormatR32Float || texture.textureType != MTLTextureType2D ||
+		texture.storageMode != MTLStorageModeShared || !std::isfinite( value ) )
+	{
+		return false;
+	}
+	const NSUInteger bytesPerRow = texture.width * sizeof( float );
+	std::vector<float> values( texture.width * texture.height, value );
+	[texture replaceRegion:MTLRegionMake2D( 0, 0, texture.width, texture.height )
+			 mipmapLevel:0
+			   withBytes:values.data()
+			 bytesPerRow:bytesPerRow];
+	return true;
+}
+
 bool ZeroTextureFromCpu( id<MTLTexture> texture )
 {
 	return FillTextureFromCpu( texture, 0 );
@@ -632,6 +765,36 @@ void WriteIdentity( std::vector<uint8_t>& buffer, size_t offset )
 	}
 }
 
+void WriteVector4( std::vector<uint8_t>& buffer, size_t offset, float x, float y, float z, float w )
+{
+	WriteFloat( buffer, offset, x );
+	WriteFloat( buffer, offset + 4, y );
+	WriteFloat( buffer, offset + 8, z );
+	WriteFloat( buffer, offset + 12, w );
+}
+
+float ReadFloat( const std::vector<uint8_t>& buffer, size_t offset )
+{
+	float value = std::numeric_limits<float>::quiet_NaN();
+	if( offset + sizeof( value ) <= buffer.size() )
+		std::memcpy( &value, buffer.data() + offset, sizeof( value ) );
+	return value;
+}
+
+bool IsIdentity( const std::vector<uint8_t>& buffer, size_t offset )
+{
+	for( size_t row = 0; row < 4; ++row )
+	{
+		for( size_t column = 0; column < 4; ++column )
+		{
+			const float expected = row == column ? 1.0f : 0.0f;
+			if( ReadFloat( buffer, offset + ( row * 4 + column ) * sizeof( float ) ) != expected )
+				return false;
+		}
+	}
+	return true;
+}
+
 std::vector<uint8_t> MakeFroxelConstants( const Options& options )
 {
 	std::vector<uint8_t> data( 2432, 0 );
@@ -666,20 +829,114 @@ std::vector<uint8_t> MakeFroxelConstants( const Options& options )
 	return data;
 }
 
-std::vector<uint8_t> MakeApplyConstants()
+std::vector<uint8_t> MakeApplyConstants( const Options& options )
 {
-	std::vector<uint8_t> data( 1888, 0 );
-	constexpr size_t froxelOffset = 1888 - 80;
+	constexpr size_t bufferSize = 1888;
+	constexpr size_t viewportOffset = 256;
+	constexpr size_t renderTargetOffset = 272;
+	constexpr size_t projectionDataOffset = 320;
+	constexpr size_t volumetricSlicesOffset = 368;
+	constexpr size_t projectionInverseOffset = 1488;
+	constexpr size_t froxelOffset = 1808;
+	static_assert( froxelOffset + 80 == bufferSize );
+
+	std::vector<uint8_t> data( bufferSize, 0 );
+	WriteIdentity( data, 0 );
+	WriteIdentity( data, 64 );
+	WriteIdentity( data, 128 );
+	WriteVector4( data,
+		viewportOffset,
+		0.0f,
+		0.0f,
+		static_cast<float>( options.dimensions.width ),
+		static_cast<float>( options.dimensions.height ) );
+	WriteVector4( data,
+		renderTargetOffset,
+		static_cast<float>( options.dimensions.width ),
+		static_cast<float>( options.dimensions.height ),
+		1.0f,
+		0.0f );
+	WriteVector4( data, projectionDataOffset, 1.0f, 1.0f, 1.0f, 1.0f );
+	WriteVector4( data, volumetricSlicesOffset, 1000.0f, 10000.0f, 100000.0f, 1000000.0f );
+	WriteIdentity( data, projectionInverseOffset );
+
+	constexpr float maxDistance = 1000.0f;
+	constexpr float opticalThickness = 1.0f;
+	constexpr float baseDensity = opticalThickness / maxDistance;
+	const float maxDistanceVisibility = std::exp( -opticalThickness );
 	WriteFloat( data, froxelOffset + 0, 0.5f );
 	WriteFloat( data, froxelOffset + 4, 0.6f );
 	WriteFloat( data, froxelOffset + 8, 0.7f );
-	WriteFloat( data, froxelOffset + 12, 1.0f );
-	WriteFloat( data, froxelOffset + 16, 0.01f );
-	WriteFloat( data, froxelOffset + 20, 1000.0f );
-	WriteFloat( data, froxelOffset + 24, 1.0f );
-	WriteFloat( data, froxelOffset + 28, 0.5f );
-	WriteFloat( data, froxelOffset + 32, 0.25f );
+	WriteFloat( data, froxelOffset + 12, 0.1f );
+	WriteFloat( data, froxelOffset + 16, baseDensity );
+	WriteFloat( data, froxelOffset + 20, maxDistance );
+	WriteFloat( data, froxelOffset + 24, maxDistanceVisibility );
+	WriteFloat( data, froxelOffset + 28, 0.0f );
+	WriteFloat( data, froxelOffset + 32, -0.25f );
 	return data;
+}
+
+bool ValidateApplyConstants( const std::vector<uint8_t>& data, const Options& options )
+{
+	constexpr size_t bufferSize = 1888;
+	constexpr size_t renderTargetOffset = 272;
+	constexpr size_t volumetricSlicesOffset = 368;
+	constexpr size_t projectionInverseOffset = 1488;
+	constexpr size_t froxelOffset = 1808;
+	if( data.size() != bufferSize || !IsIdentity( data, 0 ) || !IsIdentity( data, projectionInverseOffset ) ||
+		ReadFloat( data, renderTargetOffset ) != static_cast<float>( options.dimensions.width ) ||
+		ReadFloat( data, renderTargetOffset + 4 ) != static_cast<float>( options.dimensions.height ) )
+	{
+		return false;
+	}
+	for( size_t offset = volumetricSlicesOffset; offset < volumetricSlicesOffset + 16; offset += sizeof( float ) )
+	{
+		if( !std::isfinite( ReadFloat( data, offset ) ) || ReadFloat( data, offset ) <= 0.0f )
+			return false;
+	}
+	const float baseDensity = ReadFloat( data, froxelOffset + 16 );
+	const float maxDistance = ReadFloat( data, froxelOffset + 20 );
+	const float maxDistanceVisibility = ReadFloat( data, froxelOffset + 24 );
+	const float expectedVisibility = std::exp( -baseDensity * maxDistance );
+	return std::isfinite( baseDensity ) && std::isfinite( maxDistance ) && std::isfinite( maxDistanceVisibility ) &&
+		baseDensity > 0.0f && maxDistance > 0.0f && maxDistanceVisibility > 0.0f &&
+		maxDistanceVisibility < 1.0f && std::abs( maxDistanceVisibility - expectedVisibility ) <= 1.0e-6f;
+}
+
+NSDictionary* ApplyConstantContractDictionary( const std::vector<uint8_t>& data, const Options& options )
+{
+	constexpr size_t renderTargetOffset = 272;
+	constexpr size_t volumetricSlicesOffset = 368;
+	constexpr size_t projectionInverseOffset = 1488;
+	constexpr size_t froxelOffset = 1808;
+	const float baseDensity = ReadFloat( data, froxelOffset + 16 );
+	const float maxDistance = ReadFloat( data, froxelOffset + 20 );
+	const float maxDistanceVisibility = ReadFloat( data, froxelOffset + 24 );
+	return @{
+		@"byteSize": @( data.size() ),
+		@"contractPassed": @( ValidateApplyConstants( data, options ) ),
+		@"viewInverseTransposeIdentity": @( IsIdentity( data, 0 ) ),
+		@"projectionInverseIdentity": @( IsIdentity( data, projectionInverseOffset ) ),
+		@"targetResolution": @[
+			@( ReadFloat( data, renderTargetOffset ) ),
+			@( ReadFloat( data, renderTargetOffset + 4 ) ),
+		],
+		@"volumetricSlices": @[
+			@( ReadFloat( data, volumetricSlicesOffset ) ),
+			@( ReadFloat( data, volumetricSlicesOffset + 4 ) ),
+			@( ReadFloat( data, volumetricSlicesOffset + 8 ) ),
+			@( ReadFloat( data, volumetricSlicesOffset + 12 ) ),
+		],
+		@"froxelFog": @{
+			@"backgroundVisibility": @( ReadFloat( data, froxelOffset + 12 ) ),
+			@"baseDensity": @( baseDensity ),
+			@"maxDistance": @( maxDistance ),
+			@"maxDistanceVisibility": @( maxDistanceVisibility ),
+			@"expectedMaxDistanceVisibility": @( std::exp( -baseDensity * maxDistance ) ),
+			@"environmentIntensity": @( ReadFloat( data, froxelOffset + 28 ) ),
+			@"environmentG": @( ReadFloat( data, froxelOffset + 32 ) ),
+		},
+	};
 }
 
 bool DispatchDimensions( const Options& options, MTLSize threads, MTLSize& groups )
@@ -999,6 +1256,8 @@ NSDictionary* ReadbackTexture( id<MTLTexture> texture, bool& canariesIntact )
 		std::all_of( storage.begin(), storage.begin() + guardSize, []( uint8_t value ) { return value == 0xa5; } ) &&
 		std::all_of( storage.end() - guardSize, storage.end(), []( uint8_t value ) { return value == 0xa5; } );
 	const uint8_t* bytes = storage.data() + guardSize;
+	const size_t texelCount = bytesPerPixel == 0 ? 0 : rawSize / bytesPerPixel;
+	const NumericReadbackDiagnostics numeric = AnalyzeNumericReadback( texture.pixelFormat, bytes, texelCount );
 	const size_t nonzero =
 		static_cast<size_t>( std::count_if( bytes, bytes + rawSize, []( uint8_t value ) { return value != 0; } ) );
 	size_t differingTexels = 0;
@@ -1010,8 +1269,18 @@ NSDictionary* ReadbackTexture( id<MTLTexture> texture, bool& canariesIntact )
 	return @{
 		@"rawHashFNV1a64": HexHash( Fnv1a64( bytes, rawSize ) ),
 		@"rawBytes": @( rawSize ),
+		@"texelCount": @( texelCount ),
 		@"nonzeroBytes": @( nonzero ),
 		@"differingTexelsFromFirst": @( differingTexels ),
+		@"nonuniform": @( differingTexels != 0 ),
+		@"numericValidationAvailable": @( numeric.available ),
+		@"numericComponents": @( numeric.components ),
+		@"finiteComponents": @( numeric.finiteComponents ),
+		@"infiniteComponents": @( numeric.infiniteComponents ),
+		@"nanComponents": @( numeric.nanComponents ),
+		@"finiteTexels": @( numeric.finiteTexels ),
+		@"nonfiniteTexels": @( numeric.nonfiniteTexels ),
+		@"allFinite": @( numeric.available && numeric.nonfiniteTexels == 0 ),
 		@"readbackCanariesIntact": @( canariesIntact ),
 		@"textureType": @( texture.textureType ),
 		@"width": @( texture.width ),
@@ -1343,7 +1612,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		return 1;
 	}
 	if( !FillTextureFromCpu( lightProfiles, 0x38 ) || !FillTextureFromCpu( environmentCube, 0x38 ) ||
-		!FillTextureFromCpu( shadowAtlas, 0x00 ) || !FillTextureFromCpu( depth, 0x3f ) ||
+		!FillTextureFromCpu( shadowAtlas, 0x00 ) || !FillR32FloatTextureFromCpu( depth, 0.5f ) ||
 		!ZeroTextureFromCpu( froxelA ) || !ZeroTextureFromCpu( froxelB ) || !ZeroTextureFromCpu( froxelC ) ||
 		!ZeroTextureFromCpu( applyOutput ) )
 	{
@@ -1369,7 +1638,13 @@ int RunClient( const Options& options, const ClientPackage& package )
 	Synchronize( queue, options, froxelA, nil );
 
 	const std::vector<uint8_t> froxelConstants = MakeFroxelConstants( options );
-	const std::vector<uint8_t> applyConstants = MakeApplyConstants();
+	const std::vector<uint8_t> applyConstants = MakeApplyConstants( options );
+	if( !ValidateApplyConstants( applyConstants, options ) )
+	{
+		std::fprintf( stderr, "Apply constant-buffer contract validation failed\n" );
+		return 1;
+	}
+	NSDictionary* applyConstantContract = ApplyConstantContractDictionary( applyConstants, options );
 	std::array<id<MTLTexture>, METAL_MAX_BOUND_TEXTURES> textures = {};
 	id<MTLTexture> finalTexture = nil;
 	id<MTLTexture> mieOutput = nil;
@@ -1551,14 +1826,16 @@ int RunClient( const Options& options, const ClientPackage& package )
 				@"passed": @NO,
 				@"kernelSet": @"client",
 				@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
+				@"applyConstantContract": applyConstantContract,
 				@"submission": SubmissionDictionary( diagnostics ),
 			} );
 		return 1;
 	}
 	bool canariesIntact = false;
 	NSDictionary* readback = ReadbackTexture( finalTexture, canariesIntact );
-	const bool passed =
-		canariesIntact && diagnostics.bindingPreflightPassed && [readback[@"nonzeroBytes"] unsignedLongLongValue] != 0;
+	const bool passed = canariesIntact && diagnostics.bindingPreflightPassed &&
+		[readback[@"nonzeroBytes"] unsignedLongLongValue] != 0 &&
+		[readback[@"differingTexelsFromFirst"] unsignedLongLongValue] != 0 && [readback[@"allFinite"] boolValue];
 	NSMutableDictionary* stageHashes = [NSMutableDictionary dictionary];
 	for( const auto& item : package.stages )
 	{
@@ -1583,6 +1860,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		@"iterations": @( options.iterations ),
 		@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
 		@"stageHashes": stageHashes,
+		@"applyConstantContract": applyConstantContract,
 		@"readback": readback,
 		@"submission": SubmissionDictionary( diagnostics ),
 	};
@@ -1593,12 +1871,60 @@ int RunClient( const Options& options, const ClientPackage& package )
 	std::printf( "Client froxel report: %s\n", options.reportPath.c_str() );
 	return passed ? 0 : 1;
 }
+
+bool RunCpuSelfTests()
+{
+	Options options;
+	options.dimensions = { 8, 8, 4 };
+	std::vector<uint8_t> constants = MakeApplyConstants( options );
+	if( !ValidateApplyConstants( constants, options ) )
+		return false;
+	WriteFloat( constants, 272, 0.0f );
+	if( ValidateApplyConstants( constants, options ) )
+		return false;
+
+	uint32_t r11g11b10 = 0;
+	NumericReadbackDiagnostics numeric = AnalyzeNumericReadback(
+		MTLPixelFormatRG11B10Float, reinterpret_cast<const uint8_t*>( &r11g11b10 ), 1 );
+	if( !numeric.available || numeric.finiteComponents != 3 || numeric.finiteTexels != 1 ||
+		numeric.nonfiniteTexels != 0 )
+	{
+		return false;
+	}
+	r11g11b10 = 0x1fu << 6;
+	numeric = AnalyzeNumericReadback(
+		MTLPixelFormatRG11B10Float, reinterpret_cast<const uint8_t*>( &r11g11b10 ), 1 );
+	if( numeric.infiniteComponents != 1 || numeric.nonfiniteTexels != 1 )
+		return false;
+	r11g11b10 |= 1u;
+	numeric = AnalyzeNumericReadback(
+		MTLPixelFormatRG11B10Float, reinterpret_cast<const uint8_t*>( &r11g11b10 ), 1 );
+	if( numeric.nanComponents != 1 || numeric.nonfiniteTexels != 1 )
+		return false;
+
+	const std::array<uint16_t, 4> rgba16 = { 0x3c00u, 0x7c00u, 0u, 0u };
+	numeric = AnalyzeNumericReadback(
+		MTLPixelFormatRGBA16Float, reinterpret_cast<const uint8_t*>( rgba16.data() ), 1 );
+	if( numeric.finiteComponents != 3 || numeric.infiniteComponents != 1 || numeric.nonfiniteTexels != 1 )
+		return false;
+
+	const std::array<uint32_t, 4> rgba32 = { 0x3f800000u, 0x7fc00000u, 0u, 0u };
+	numeric = AnalyzeNumericReadback(
+		MTLPixelFormatRGBA32Float, reinterpret_cast<const uint8_t*>( rgba32.data() ), 1 );
+	if( numeric.finiteComponents != 3 || numeric.nanComponents != 1 || numeric.nonfiniteTexels != 1 )
+		return false;
+
+	std::puts( "Froxel probe CPU self-tests passed" );
+	return true;
+}
 }
 
 int main( int argc, char** argv )
 {
 	@autoreleasepool
 	{
+		if( argc == 2 && std::strcmp( argv[1], "--self-test" ) == 0 )
+			return RunCpuSelfTests() ? 0 : 1;
 		Options options;
 		if( !ParseOptions( argc, argv, options ) )
 		{

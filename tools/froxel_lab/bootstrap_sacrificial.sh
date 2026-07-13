@@ -32,6 +32,11 @@ CMAKE_GENERATOR="Ninja Multi-Config" cmake --preset arm64-osx-debug \
 cmake --build "${BUILD_DIR}" --config Debug \
 	--target TrinityALFroxelProbe_metal TrinityALEveSceneProbeFroxelLab_metal
 
+froxel_probe="${BUILD_DIR}/tools/froxel_lab/Debug/TrinityALFroxelProbe_metal"
+[[ -x "${froxel_probe}" ]] || froxel_probe="${froxel_probe}_debug"
+[[ -x "${froxel_probe}" ]] || { echo "Missing froxel probe executable" >&2; exit 1; }
+"${froxel_probe}" --self-test
+
 [[ -f "${MANIFEST}" ]] || { echo "Missing volumetric manifest: ${MANIFEST}" >&2; exit 1; }
 python3 -m json.tool "${MANIFEST}" >/dev/null
 PYTHONPATH="${ROOT}/shadercompiler/python" \
