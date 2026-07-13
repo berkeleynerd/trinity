@@ -815,20 +815,23 @@ bool IsIdentity( const std::vector<uint8_t>& buffer, size_t offset )
 
 std::vector<uint8_t> MakeFroxelConstants( const Options& options )
 {
+	constexpr float farDistance = 1000.0f;
+	constexpr float opticalThickness = 1.0f;
+	constexpr float baseDensity = opticalThickness / farDistance;
 	std::vector<uint8_t> data( 2432, 0 );
 	WriteIdentity( data, 0 );
 	WriteIdentity( data, 64 );
 	WriteUint( data, 128, options.dimensions.width );
 	WriteUint( data, 132, options.dimensions.height );
 	WriteUint( data, 136, options.dimensions.depth );
-	WriteFloat( data, 156, 1000.0f );
+	WriteFloat( data, 156, farDistance );
 	for( size_t offset : { size_t( 160 ), size_t( 164 ), size_t( 168 ) } )
 		WriteFloat( data, offset, 0.1f );
-	WriteFloat( data, 172, 0.01f );
-	WriteFloat( data, 176, 1.0f );
-	WriteFloat( data, 180, 0.25f );
+	WriteFloat( data, 172, baseDensity );
+	WriteFloat( data, 176, std::exp( -opticalThickness ) );
+	WriteFloat( data, 180, -0.25f );
 	WriteFloat( data, 184, 0.5f );
-	WriteFloat( data, 188, 1.0f );
+	WriteFloat( data, 188, 0.0f );
 	for( size_t offset : { size_t( 192 ), size_t( 196 ), size_t( 200 ) } )
 		WriteFloat( data, offset, 0.01f );
 	WriteIdentity( data, 208 );
@@ -845,6 +848,55 @@ std::vector<uint8_t> MakeFroxelConstants( const Options& options )
 	WriteFloat( data, 520, 1.0f );
 	WriteFloat( data, 524, 1.0f );
 	return data;
+}
+
+bool ValidateFroxelConstants( const std::vector<uint8_t>& data, const Options& options )
+{
+	if( data.size() != 2432 || !IsIdentity( data, 0 ) || !IsIdentity( data, 64 ) || !IsIdentity( data, 208 ) ||
+		ReadUint( data, 128 ) != options.dimensions.width || ReadUint( data, 132 ) != options.dimensions.height ||
+		ReadUint( data, 136 ) != options.dimensions.depth || ReadUint( data, 140 ) > 16 )
+	{
+		return false;
+	}
+	for( size_t offset : { size_t( 160 ), size_t( 164 ), size_t( 168 ), size_t( 192 ), size_t( 196 ),
+			 size_t( 200 ), size_t( 512 ), size_t( 516 ), size_t( 520 ) } )
+	{
+		if( !std::isfinite( ReadFloat( data, offset ) ) || ReadFloat( data, offset ) < 0.0f )
+			return false;
+	}
+	const float farDistance = ReadFloat( data, 156 );
+	const float baseDensity = ReadFloat( data, 172 );
+	const float maxDistanceVisibility = ReadFloat( data, 176 );
+	const float lightG = ReadFloat( data, 180 );
+	const float expectedVisibility = std::exp( -baseDensity * farDistance );
+	return std::isfinite( farDistance ) && std::isfinite( baseDensity ) &&
+		std::isfinite( maxDistanceVisibility ) && std::isfinite( lightG ) && farDistance > 0.0f &&
+		baseDensity > 0.0f && maxDistanceVisibility > 0.0f && maxDistanceVisibility < 1.0f && lightG > -1.0f &&
+		lightG < 0.0f && std::abs( maxDistanceVisibility - expectedVisibility ) <= 1.0e-6f;
+}
+
+NSDictionary* FroxelConstantContractDictionary( const std::vector<uint8_t>& data, const Options& options )
+{
+	const float farDistance = ReadFloat( data, 156 );
+	const float baseDensity = ReadFloat( data, 172 );
+	return @{
+		@"byteSize": @( data.size() ),
+		@"contractPassed": @( ValidateFroxelConstants( data, options ) ),
+		@"resolution": @[@( ReadUint( data, 128 ) ), @( ReadUint( data, 132 ) ), @( ReadUint( data, 136 ) )],
+		@"numDynamicLights": @( ReadUint( data, 140 ) ),
+		@"far": @( farDistance ),
+		@"scattering": @[
+			@( ReadFloat( data, 160 ) ),
+			@( ReadFloat( data, 164 ) ),
+			@( ReadFloat( data, 168 ) ),
+		],
+		@"baseDensity": @( baseDensity ),
+		@"maxDistanceVisibility": @( ReadFloat( data, 176 ) ),
+		@"expectedMaxDistanceVisibility": @( std::exp( -baseDensity * farDistance ) ),
+		@"lightG": @( ReadFloat( data, 180 ) ),
+		@"environmentIntensity": @( ReadFloat( data, 184 ) ),
+		@"inverseShadowMapAtlasSize": @( ReadFloat( data, 188 ) ),
+	};
 }
 
 Options MakeMieWorkOptions( const Options& options )
@@ -1708,11 +1760,13 @@ int RunClient( const Options& options, const ClientPackage& package )
 	const std::vector<uint8_t> froxelConstants = MakeFroxelConstants( options );
 	const std::vector<uint8_t> mieConstants = MakeMieConstants( mieWorkOptions );
 	const std::vector<uint8_t> applyConstants = MakeApplyConstants( options );
-	if( !ValidateMieConstants( mieConstants, mieWorkOptions ) || !ValidateApplyConstants( applyConstants, options ) )
+	if( !ValidateFroxelConstants( froxelConstants, options ) ||
+		!ValidateMieConstants( mieConstants, mieWorkOptions ) || !ValidateApplyConstants( applyConstants, options ) )
 	{
 		std::fprintf( stderr, "Client constant-buffer contract validation failed\n" );
 		return 1;
 	}
+	NSDictionary* froxelConstantContract = FroxelConstantContractDictionary( froxelConstants, options );
 	NSDictionary* mieConstantContract = MieConstantContractDictionary( mieConstants, mieWorkOptions );
 	NSDictionary* applyConstantContract = ApplyConstantContractDictionary( applyConstants, options );
 	std::array<id<MTLTexture>, METAL_MAX_BOUND_TEXTURES> textures = {};
@@ -1907,6 +1961,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 				@"passed": @NO,
 				@"kernelSet": @"client",
 				@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
+				@"froxelConstantContract": froxelConstantContract,
 				@"mieConstantContract": mieConstantContract,
 				@"applyConstantContract": applyConstantContract,
 				@"submission": SubmissionDictionary( diagnostics ),
@@ -1942,6 +1997,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		@"iterations": @( options.iterations ),
 		@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
 		@"stageHashes": stageHashes,
+		@"froxelConstantContract": froxelConstantContract,
 		@"mieConstantContract": mieConstantContract,
 		@"applyConstantContract": applyConstantContract,
 		@"readback": readback,
@@ -1959,6 +2015,21 @@ bool RunCpuSelfTests()
 {
 	Options options;
 	options.dimensions = { 8, 8, 4 };
+	std::vector<uint8_t> froxelConstants = MakeFroxelConstants( options );
+	if( !ValidateFroxelConstants( froxelConstants, options ) )
+		return false;
+	WriteFloat( froxelConstants, 176, 1.0f );
+	if( ValidateFroxelConstants( froxelConstants, options ) )
+		return false;
+	froxelConstants = MakeFroxelConstants( options );
+	WriteFloat( froxelConstants, 180, 0.25f );
+	if( ValidateFroxelConstants( froxelConstants, options ) )
+		return false;
+	froxelConstants = MakeFroxelConstants( options );
+	WriteUint( froxelConstants, 128, 0 );
+	if( ValidateFroxelConstants( froxelConstants, options ) )
+		return false;
+
 	const Options mieWorkOptions = MakeMieWorkOptions( options );
 	if( mieWorkOptions.dimensions.width != 8 || mieWorkOptions.dimensions.height != 8 ||
 		mieWorkOptions.dimensions.depth != 6 )
