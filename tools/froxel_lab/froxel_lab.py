@@ -604,10 +604,9 @@ def build_worker_command(experiment: dict, profile: str, args, run_dir: Path) ->
             "--froxel-lab-ledger", str(ledger_path(run_dir)),
             "--capture-prefix", str(run_dir / "capture/incident"),
         ]
-        if experiment.get("temporal") == "on":
-            command.extend(["--taa", "high"])
-        else:
-            command.extend(["--taa", "off"])
+        # R00/R01 isolate froxel temporal history. Scene TAA is a separate
+        # client path and must remain fixed across the pair.
+        command.extend(["--taa", "off"])
         return command
 
     dimensions = load_catalog()["profiles"][profile]["dimensions"]
@@ -1040,6 +1039,12 @@ def copy_symbols(run_dir: Path, ledger: dict) -> list[str]:
     return copied
 
 
+def collection_classification(ledger: dict) -> str:
+    if ledger.get("currentState") == "submitted":
+        return "possible-gpu-stall"
+    return ledger.get("currentState", "unknown")
+
+
 def cmd_collect(args) -> int:
     run_dir = resolve_run(args.run)
     ledger = load_json(ledger_path(run_dir))
@@ -1048,8 +1053,6 @@ def cmd_collect(args) -> int:
     start = parse_time(ledger.get("submittedAt", ledger["preparedAt"])) - dt.timedelta(minutes=5)
     end = utc_now()
     current_boot = boot_session_uuid()
-    possible_stall = ledger.get("currentState") == "submitted" or (
-        ledger.get("submittedAt") and not ledger.get("completedAt"))
     collection = {
         "schemaVersion": 1,
         "collectedAt": iso_time(end),
@@ -1057,7 +1060,7 @@ def cmd_collect(args) -> int:
         "preparedBootSessionUUID": ledger["bootSessionUUID"],
         "collectionBootSessionUUID": current_boot,
         "bootChanged": current_boot != ledger["bootSessionUUID"],
-        "classification": "possible-gpu-stall" if possible_stall else ledger.get("currentState"),
+        "classification": collection_classification(ledger),
         "diagnosticReports": copy_matching_diagnostic_reports(run_dir, start.timestamp()),
         "unifiedLog": collect_unified_logs(run_dir, start, end),
         "systemSnapshot": collect_system_snapshot(run_dir),

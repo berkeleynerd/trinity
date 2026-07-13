@@ -77,7 +77,7 @@ class FroxelLabTest(unittest.TestCase):
 
         temporal_index = command.index("--froxel-temporal")
         self.assertEqual(command[temporal_index + 1], "on")
-        self.assertEqual(command[-2:], ["--taa", "high"])
+        self.assertEqual(command[-2:], ["--taa", "off"])
 
     def test_atomic_transition_is_durable_and_ordered(self):
         run_dir = LAB.RUNS_ROOT / "run"
@@ -110,6 +110,18 @@ class FroxelLabTest(unittest.TestCase):
             })
 
         self.assertEqual(LAB.resolve_run("latest").name, runs[-1][0])
+
+    def test_collection_classifies_only_stranded_submission_as_possible_stall(self):
+        self.assertEqual(
+            LAB.collection_classification({"currentState": "submitted"}),
+            "possible-gpu-stall")
+        self.assertEqual(
+            LAB.collection_classification({
+                "currentState": "failed",
+                "submittedAt": "2026-07-13T20:27:40Z",
+                "workerExitCode": 1,
+            }),
+            "failed")
 
     def test_closed_profiles_excludes_closed_failed_runs(self):
         for name, transitions in (

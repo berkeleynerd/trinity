@@ -53,6 +53,7 @@ Progress from device-free `A00` through synthetic `S10-S15`, isolated client
 `C10-C61`, and incident-equivalent `R00/R01`. Vary one factor at a time. A defect
 is the watchdog cause only after repeated single-variable failure/success A/Bs
 and corroborating AGX/IOGPU, command-buffer, encoder, and binding diagnostics.
+`R00/R01` therefore keep scene TAA off and vary only froxel temporal history.
 
 ## Sacrificial Results
 

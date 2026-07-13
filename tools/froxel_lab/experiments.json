@@ -138,7 +138,7 @@
     },
     {
       "id": "R00",
-      "title": "Incident-equivalent one-frame New Eden scene without temporal history",
+      "title": "Incident-equivalent one-frame New Eden scene without froxel temporal history",
       "risk": "incident-equivalent",
       "kernelSet": "client-scene",
       "stage": "chain",
@@ -148,7 +148,7 @@
     },
     {
       "id": "R01",
-      "title": "Incident-equivalent one-frame New Eden scene with temporal history",
+      "title": "Incident-equivalent one-frame New Eden scene with froxel temporal history",
       "risk": "incident-equivalent",
       "kernelSet": "client-scene",
       "stage": "chain",
