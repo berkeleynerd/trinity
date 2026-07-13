@@ -364,7 +364,19 @@ def cmd_enroll(args) -> int:
 def run_directories() -> list[Path]:
     if not RUNS_ROOT.exists():
         return []
-    return sorted((path for path in RUNS_ROOT.iterdir() if path.is_dir()), key=lambda path: path.name)
+
+    def prepared_key(path: Path) -> tuple[float, str]:
+        path_ledger = ledger_path(path)
+        if path_ledger.is_file():
+            try:
+                prepared = load_json(path_ledger).get("preparedAt")
+                if prepared:
+                    return parse_time(prepared).timestamp(), path.name
+            except (LabError, OSError, ValueError, TypeError):
+                pass
+        return path.stat().st_mtime, path.name
+
+    return sorted((path for path in RUNS_ROOT.iterdir() if path.is_dir()), key=prepared_key)
 
 
 def resolve_run(value: str) -> Path:
@@ -940,9 +952,13 @@ def collect_unified_logs(run_dir: Path, start: dt.datetime, end: dt.datetime) ->
         'eventMessage CONTAINS[c] "Metal" OR eventMessage CONTAINS[c] "GPU"'
     )
     output = destination / "focused-unified-log.ndjson"
+
+    def log_time(value: dt.datetime) -> str:
+        return value.astimezone().strftime("%Y-%m-%d %H:%M:%S%z")
+
     result = run_command([
         "/usr/bin/log", "show", "--style", "ndjson",
-        "--start", iso_time(start), "--end", iso_time(end), "--predicate", predicate,
+        "--start", log_time(start), "--end", log_time(end), "--predicate", predicate,
     ], timeout=300)
     if result:
         atomic_write(output, (result.stdout + result.stderr).encode("utf-8", errors="replace"))
@@ -1032,6 +1048,11 @@ def cmd_collect(args) -> int:
             "/usr/bin/sudo", "/usr/bin/sysdiagnose", "-f", str(sysdiagnose_dir), "-A", archive_name,
         ], timeout=1800)
         collection["sysdiagnoseStatus"] = result.returncode if result else "unavailable"
+        if result:
+            atomic_write(
+                run_dir / "collection/sysdiagnose-command.txt",
+                (result.stdout + result.stderr).encode("utf-8", errors="replace"),
+            )
     else:
         collection["sysdiagnoseStatus"] = "skipped"
     atomic_write_json(run_dir / "collection/collection-index.json", collection)

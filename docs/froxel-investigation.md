@@ -54,6 +54,24 @@ Progress from device-free `A00` through synthetic `S10-S15`, isolated client
 is the watchdog cause only after repeated single-variable failure/success A/Bs
 and corroborating AGX/IOGPU, command-buffer, encoder, and binding diagnostics.
 
+## Sacrificial Results
+
+The first `C10 one-threadgroup` attempt on 2026-07-13 is classified as an
+invalid harness run. Revision `83ac0addbbcd0d12c91d661b7aeba8e8a6797743`
+created a Metal device and loaded the client libraries, but
+`BytesPerPixel` did not recognize `MTLPixelFormatR32Float`. CPU initialization
+of the synthetic shadow atlas therefore failed before encoder creation,
+binding preflight, command-buffer submission, or client-kernel execution. No
+AGX/IOGPU fault, watchdog, WindowServer failure, stall, or reboot occurred.
+
+The harness now recognizes scalar `R32Float` and `R32Uint` formats and tests
+both with a CPU fill/readback round trip during safe synthetic execution. Run
+selection by `latest` uses the ledger preparation timestamp rather than the
+lexicographic experiment ID, and collection uses a `log show` compatible time
+format while retaining sysdiagnose command output. This result does not change
+the 2,432-byte layout or reflected-dispatch hypotheses. Repeat only `C10
+one-threadgroup` after deploying the corrected clean revision.
+
 ## Promotion Gates
 
 Before returning to the primary host, require all isolated client stages to pass

@@ -62,6 +62,22 @@ class FroxelLabTest(unittest.TestCase):
                          ["prepared", "armed"])
         self.assertEqual(ledger["stateTransitions"][-1]["controllerPid"], 42)
 
+    def test_latest_run_uses_preparation_time_instead_of_name(self):
+        runs = [
+            ("S15-incident-20260713T150000Z", "2026-07-13T15:00:00.000000Z"),
+            ("C10-onethreadgroup-20260713T151204Z", "2026-07-13T15:12:04.000000Z"),
+        ]
+        for name, prepared_at in runs:
+            run_dir = LAB.RUNS_ROOT / name
+            run_dir.mkdir()
+            LAB.atomic_write_json(run_dir / "ledger.json", {
+                "schemaVersion": 1,
+                "preparedAt": prepared_at,
+                "currentState": "failed",
+            })
+
+        self.assertEqual(LAB.resolve_run("latest").name, runs[-1][0])
+
     def test_controlling_tty_uses_nonseekable_read_and_write_handles(self):
         class NonSeekableTTY(io.StringIO):
             def isatty(self):

@@ -313,6 +313,9 @@ NSUInteger BytesPerPixel( MTLPixelFormat format )
 {
 	switch( format )
 	{
+	case MTLPixelFormatR32Float:
+	case MTLPixelFormatR32Uint:
+		return 4;
 	case MTLPixelFormatRGBA16Float:
 		return 8;
 	case MTLPixelFormatRGBA32Float:
@@ -579,6 +582,30 @@ bool FillTextureFromCpu( id<MTLTexture> texture, uint8_t value )
 bool ZeroTextureFromCpu( id<MTLTexture> texture )
 {
 	return FillTextureFromCpu( texture, 0 );
+}
+
+bool ValidateCpuTextureFormatRoundTrips( id<MTLDevice> device )
+{
+	for( MTLPixelFormat format : { MTLPixelFormatR32Float, MTLPixelFormatR32Uint } )
+	{
+		id<MTLTexture> texture = Create2DTexture( device, 4, 4, format, MTLTextureUsageShaderRead );
+		if( !texture || !FillTextureFromCpu( texture, 0x5a ) )
+		{
+			return false;
+		}
+
+		const NSUInteger bytesPerRow = texture.width * BytesPerPixel( format );
+		std::vector<uint8_t> bytes( bytesPerRow * texture.height );
+		[texture getBytes:bytes.data()
+			  bytesPerRow:bytesPerRow
+			   fromRegion:MTLRegionMake2D( 0, 0, texture.width, texture.height )
+			  mipmapLevel:0];
+		if( !std::all_of( bytes.begin(), bytes.end(), []( uint8_t value ) { return value == 0x5a; } ) )
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 void WriteFloat( std::vector<uint8_t>& buffer, size_t offset, float value )
@@ -1167,6 +1194,11 @@ int RunSynthetic( const Options& options )
 	}
 
 	id<MTLDevice> device = renderContext.GetMetalContext()->GetDevice();
+	if( !ValidateCpuTextureFormatRoundTrips( device ) )
+	{
+		std::fprintf( stderr, "Synthetic scalar texture CPU round-trip failed\n" );
+		return 1;
+	}
 	NSError* error = nil;
 	NSString* source = [NSString stringWithUTF8String:kSyntheticSource];
 	id<MTLLibrary> library = [device newLibraryWithSource:source options:nil error:&error];
@@ -1245,6 +1277,7 @@ int RunSynthetic( const Options& options )
 		@"rawBytes": @( bytes.size() ),
 		@"nonzeroBytes": @( nonzero ),
 		@"canariesIntact": @YES,
+		@"cpuScalarTextureRoundTrips": @YES,
 		@"submission": SubmissionDictionary( diagnostics ),
 	};
 	if( !WriteReport( options, report ) )
@@ -1265,6 +1298,11 @@ int RunClient( const Options& options, const ClientPackage& package )
 		return 1;
 	}
 	id<MTLDevice> device = renderContext.GetMetalContext()->GetDevice();
+	if( !ValidateCpuTextureFormatRoundTrips( device ) )
+	{
+		std::fprintf( stderr, "Client scalar texture CPU round-trip failed\n" );
+		return 1;
+	}
 	auto stage = [&]( const char* name ) -> const ClientStage& { return package.stages.at( name ); };
 	id<MTLFunction> applyVS = LoadClientFunction( device, stage( "apply_vs" ) );
 	id<MTLFunction> applyPS = LoadClientFunction( device, stage( "apply_ps" ) );
