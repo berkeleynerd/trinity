@@ -54,6 +54,18 @@ class FroxelLabTest(unittest.TestCase):
                 build / "tools/froxel_lab/Debug/TrinityALEveSceneProbeFroxelLab_metal",
             )
 
+    def test_client_scene_command_captures_synchronized_hdr_composite(self):
+        experiment = {"id": "R00", "kernelSet": "client-scene", "temporal": "off"}
+        args = type("Args", (), {"binary": None})()
+        run_dir = self.root / "runs" / "R00-incident-test"
+        with mock.patch.object(LAB, "resolve_executable", return_value=pathlib.Path("/tmp/probe")):
+            command = LAB.build_worker_command(experiment, "incident", args, run_dir)
+
+        product_index = command.index("--render-product")
+        self.assertEqual(command[product_index + 1], "hdr-composite")
+        self.assertIn("--client-kernels", command)
+        self.assertEqual(command[-2:], ["--taa", "off"])
+
     def test_atomic_transition_is_durable_and_ordered(self):
         run_dir = LAB.RUNS_ROOT / "run"
         run_dir.mkdir()

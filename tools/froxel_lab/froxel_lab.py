@@ -590,6 +590,7 @@ def build_worker_command(experiment: dict, profile: str, args, run_dir: Path) ->
             "--composition", "cinematic",
             "--volumetrics", "froxel",
             "--volumetric-quality", "high",
+            "--render-product", "hdr-composite",
             "--client-kernels",
             "--froxel-lab-ledger", str(ledger_path(run_dir)),
             "--capture-prefix", str(run_dir / "capture/incident"),
