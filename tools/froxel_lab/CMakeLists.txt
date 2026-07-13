@@ -66,6 +66,32 @@ if(BUILD_EVE_SCENE_PROBE)
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets
             $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_basecolor.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_a.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_normal.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_n.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_roughness.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_r.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_material.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_m.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_glow.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_g.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_d.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_d.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_mask.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_mask.dds
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            ${CMAKE_BINARY_DIR}/samples/eve_scene_probe/Assets/Astero_p3.dds
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbeFroxelLab_metal>/Assets/dx9/model/ship/soe/frigate/soef1/soef1_t1_p3.dds
         VERBATIM
     )
 endif()
