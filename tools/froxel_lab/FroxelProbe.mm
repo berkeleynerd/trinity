@@ -116,6 +116,16 @@ kernel void mieSynthetic(texture3d<float, access::write> output [[texture(0)]],
 	output.write(float4(phase, phase * phase, sqrt(phase), 1.0), p);
 }
 
+kernel void writeMieArraySynthetic(texture2d_array<float, access::write> output [[texture(0)]],
+	uint3 p [[thread_position_in_grid]])
+{
+	if (p.x >= output.get_width() || p.y >= output.get_height() || p.z >= output.get_array_size()) return;
+	float3 denominator = max(float3(output.get_width() - 1, output.get_height() - 1,
+		output.get_array_size() - 1), float3(1.0));
+	float3 q = float3(p) / denominator;
+	output.write(float4(0.125 + 0.5 * q.x, 0.25 + 0.5 * q.y, 0.375 + 0.25 * q.z, 1.0), p.xy, p.z);
+}
+
 kernel void raymarchSynthetic(texture3d<float, access::read> input [[texture(0)]],
 	texture3d<float, access::write> output [[texture(1)]], uint3 p [[thread_position_in_grid]])
 {
@@ -781,6 +791,14 @@ float ReadFloat( const std::vector<uint8_t>& buffer, size_t offset )
 	return value;
 }
 
+uint32_t ReadUint( const std::vector<uint8_t>& buffer, size_t offset )
+{
+	uint32_t value = 0;
+	if( offset + sizeof( value ) <= buffer.size() )
+		std::memcpy( &value, buffer.data() + offset, sizeof( value ) );
+	return value;
+}
+
 bool IsIdentity( const std::vector<uint8_t>& buffer, size_t offset )
 {
 	for( size_t row = 0; row < 4; ++row )
@@ -827,6 +845,55 @@ std::vector<uint8_t> MakeFroxelConstants( const Options& options )
 	WriteFloat( data, 520, 1.0f );
 	WriteFloat( data, 524, 1.0f );
 	return data;
+}
+
+Options MakeMieWorkOptions( const Options& options )
+{
+	Options result = options;
+	const uint32_t dimension = std::max( options.dimensions.width, options.dimensions.height );
+	result.dimensions = { dimension, dimension, 6 };
+	return result;
+}
+
+std::vector<uint8_t> MakeMieConstants( const Options& options )
+{
+	std::vector<uint8_t> data( 24, 0 );
+	WriteUint( data, 0, options.dimensions.width );
+	WriteFloat( data, 8, 0.25f );
+	WriteFloat( data, 12, 0.75f );
+	WriteFloat( data, 16, -0.25f );
+	WriteFloat( data, 20, 0.25f );
+	return data;
+}
+
+bool ValidateMieConstants( const std::vector<uint8_t>& data, const Options& options )
+{
+	if( data.size() != 24 || ReadUint( data, 0 ) != options.dimensions.width )
+		return false;
+	for( size_t offset : { size_t( 8 ), size_t( 12 ), size_t( 16 ), size_t( 20 ) } )
+	{
+		if( !std::isfinite( ReadFloat( data, offset ) ) )
+			return false;
+	}
+	const float blendWeight = ReadFloat( data, 20 );
+	return blendWeight > 0.0f && blendWeight <= 1.0f;
+}
+
+NSDictionary* MieConstantContractDictionary( const std::vector<uint8_t>& data, const Options& options )
+{
+	return @{
+		@"byteSize": @( data.size() ),
+		@"contractPassed": @( ValidateMieConstants( data, options ) ),
+		@"resolution": @( ReadUint( data, 0 ) ),
+		@"dispatchDimensions": @[
+			@( options.dimensions.width ),
+			@( options.dimensions.height ),
+			@( options.dimensions.depth ),
+		],
+		@"jitter": @[@( ReadFloat( data, 8 ) ), @( ReadFloat( data, 12 ) )],
+		@"environmentG": @( ReadFloat( data, 16 ) ),
+		@"blendWeight": @( ReadFloat( data, 20 ) ),
+	};
 }
 
 std::vector<uint8_t> MakeApplyConstants( const Options& options )
@@ -1637,13 +1704,16 @@ int RunClient( const Options& options, const ClientPackage& package )
 	}
 	Synchronize( queue, options, froxelA, nil );
 
+	const Options mieWorkOptions = MakeMieWorkOptions( options );
 	const std::vector<uint8_t> froxelConstants = MakeFroxelConstants( options );
+	const std::vector<uint8_t> mieConstants = MakeMieConstants( mieWorkOptions );
 	const std::vector<uint8_t> applyConstants = MakeApplyConstants( options );
-	if( !ValidateApplyConstants( applyConstants, options ) )
+	if( !ValidateMieConstants( mieConstants, mieWorkOptions ) || !ValidateApplyConstants( applyConstants, options ) )
 	{
-		std::fprintf( stderr, "Apply constant-buffer contract validation failed\n" );
+		std::fprintf( stderr, "Client constant-buffer contract validation failed\n" );
 		return 1;
 	}
+	NSDictionary* mieConstantContract = MieConstantContractDictionary( mieConstants, mieWorkOptions );
 	NSDictionary* applyConstantContract = ApplyConstantContractDictionary( applyConstants, options );
 	std::array<id<MTLTexture>, METAL_MAX_BOUND_TEXTURES> textures = {};
 	id<MTLTexture> finalTexture = nil;
@@ -1652,9 +1722,9 @@ int RunClient( const Options& options, const ClientPackage& package )
 	if( options.stage == "mie" )
 	{
 		mieOutput = Create2DArrayTexture( device,
-										  options.dimensions.width,
-										  options.dimensions.height,
-										  options.dimensions.depth,
+										  mieWorkOptions.dimensions.width,
+										  mieWorkOptions.dimensions.height,
+										  mieWorkOptions.dimensions.depth,
 										  froxelFormat,
 										  MTLTextureUsageShaderRead | MTLTextureUsageShaderWrite );
 	}
@@ -1673,7 +1743,25 @@ int RunClient( const Options& options, const ClientPackage& package )
 		std::fprintf( stderr, "Failed to allocate writable Mie texture\n" );
 		return 1;
 	}
-	ZeroTextureFromCpu( mieOutput );
+	if( options.stage == "mie" || options.stage == "chain" )
+	{
+		if( !EncodeSyntheticFunction( queue,
+				syntheticLibrary,
+				@"writeMieArraySynthetic",
+				mieOutput,
+				mieOutput,
+				mieWorkOptions,
+				@"Source-controlled Mie input" ) )
+		{
+			return 1;
+		}
+		Synchronize( queue, options, mieOutput, nil );
+	}
+	else if( !ZeroTextureFromCpu( mieOutput ) )
+	{
+		std::fprintf( stderr, "Failed to initialize writable Mie texture\n" );
+		return 1;
+	}
 
 	auto synchronize = [&]( id<MTLTexture> first, id<MTLTexture> second ) {
 		Synchronize( queue, options, first, second );
@@ -1682,15 +1770,8 @@ int RunClient( const Options& options, const ClientPackage& package )
 		textures.fill( nil );
 		textures[0] = environmentCube;
 		textures[1] = mieOutput;
-		std::vector<uint8_t> globals( 24, 0 );
-		WriteFloat( globals, 0, 1.0f );
-		Options dispatchOptions = options;
-		if( mieCube )
-		{
-			dispatchOptions.dimensions.depth = 6;
-		}
 		const bool result = EncodeClientCompute(
-			queue, mieFunction, stage( "mie" ), dispatchOptions, textures, 0x3, globals, 4, @"Client Mie" );
+			queue, mieFunction, stage( "mie" ), mieWorkOptions, textures, 0x3, mieConstants, 4, @"Client Mie" );
 		if( result )
 			synchronize( environmentCube, mieOutput );
 		return result;
@@ -1826,6 +1907,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 				@"passed": @NO,
 				@"kernelSet": @"client",
 				@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
+				@"mieConstantContract": mieConstantContract,
 				@"applyConstantContract": applyConstantContract,
 				@"submission": SubmissionDictionary( diagnostics ),
 			} );
@@ -1860,6 +1942,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		@"iterations": @( options.iterations ),
 		@"packageSha256": [NSString stringWithUTF8String:package.manifestSha256.c_str()],
 		@"stageHashes": stageHashes,
+		@"mieConstantContract": mieConstantContract,
 		@"applyConstantContract": applyConstantContract,
 		@"readback": readback,
 		@"submission": SubmissionDictionary( diagnostics ),
@@ -1876,6 +1959,31 @@ bool RunCpuSelfTests()
 {
 	Options options;
 	options.dimensions = { 8, 8, 4 };
+	const Options mieWorkOptions = MakeMieWorkOptions( options );
+	if( mieWorkOptions.dimensions.width != 8 || mieWorkOptions.dimensions.height != 8 ||
+		mieWorkOptions.dimensions.depth != 6 )
+	{
+		return false;
+	}
+	Options rectangularOptions = options;
+	rectangularOptions.dimensions = { 65, 47, 33 };
+	const Options rectangularMieOptions = MakeMieWorkOptions( rectangularOptions );
+	if( rectangularMieOptions.dimensions.width != 65 || rectangularMieOptions.dimensions.height != 65 ||
+		rectangularMieOptions.dimensions.depth != 6 )
+	{
+		return false;
+	}
+	std::vector<uint8_t> mieConstants = MakeMieConstants( mieWorkOptions );
+	if( !ValidateMieConstants( mieConstants, mieWorkOptions ) )
+		return false;
+	WriteFloat( mieConstants, 20, 0.0f );
+	if( ValidateMieConstants( mieConstants, mieWorkOptions ) )
+		return false;
+	mieConstants = MakeMieConstants( mieWorkOptions );
+	WriteUint( mieConstants, 0, 0 );
+	if( ValidateMieConstants( mieConstants, mieWorkOptions ) )
+		return false;
+
 	std::vector<uint8_t> constants = MakeApplyConstants( options );
 	if( !ValidateApplyConstants( constants, options ) )
 		return false;
