@@ -223,6 +223,12 @@ struct TrinityStandaloneVolumetricDiagnostics
 	uint32_t mieHeight = 0;
 	uint32_t mieFormat = 0;
 	uint32_t dynamicLightCount = 0;
+	uint32_t raymarchThreadGroupX = 0;
+	uint32_t raymarchThreadGroupY = 0;
+	uint32_t raymarchThreadGroupZ = 0;
+	uint32_t raymarchDispatchX = 0;
+	uint32_t raymarchDispatchY = 0;
+	uint32_t raymarchDispatchZ = 0;
 	uint64_t volumeProductHash = 0;
 	uint64_t volumeProductNonzeroPixels = 0;
 	uint64_t volumeRawHash = 0;
@@ -479,6 +485,7 @@ extern "C" bool TrinityStandaloneProbeGetDistortionDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneDistortionDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateDistortion( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeSetFroxelRenderingEnabled( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeConfigureVolumetrics(
 	void* opaqueProbe,
 	int mode,
@@ -574,6 +581,9 @@ extern "C" bool TrinityStandaloneProbeConfigureCelestialBallpark(
 extern "C" bool TrinityStandaloneProbeConfigureEveGateApproach(
 	void* opaqueProbe,
 	uint64_t frame );
+extern "C" bool TrinityStandaloneProbeSetWarpTarget(
+	void* opaqueProbe,
+	int target );
 extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
 	void* opaqueProbe,
 	int anchor );

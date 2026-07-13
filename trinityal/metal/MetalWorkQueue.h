@@ -499,6 +499,7 @@ private:
 	id<MTLFunction> m_computeFunction;
 	id<MTLFunction> m_clearBufferComputeFunctions[2];
 	id<MTLFunction> m_clearTextureComputeFunctions[2];
+	id<MTLFunction> m_clearTexture3DComputeFunctions[2];
 	MTLSize m_threadGroupSize;
 	const ShaderResourceMask* m_shaderResourceMasks;
 

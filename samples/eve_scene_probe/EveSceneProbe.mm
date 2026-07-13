@@ -421,6 +421,12 @@ enum class BallparkMode
 	Approach,
 };
 
+enum class WarpTarget
+{
+	Planet,
+	EveGate,
+};
+
 enum class OrbitSolver
 {
 	Legacy,
@@ -587,12 +593,14 @@ struct Options
 	VolumetricQuality volumetricQuality = VolumetricQuality::Auto;
 	VolumetricQuality resolvedVolumetricQuality = VolumetricQuality::High;
 	uint32_t volumetricSeed = 0x12b;
+	bool enableFroxels = false;
 	bool validateVolumetrics = false;
 	TaaMode taa = TaaMode::Auto;
 	TaaMode resolvedTaa = TaaMode::Off;
 	TaaDebug taaDebug = TaaDebug::Off;
 	MotionMode motion = MotionMode::Camera;
 	BallparkMode ballpark = BallparkMode::Off;
+	WarpTarget warpTarget = WarpTarget::Planet;
 	BallparkFrame ballparkFrame = BallparkFrame::Ego;
 	bool validateBallpark = false;
 	bool validateBallparkMotion = false;
@@ -2173,7 +2181,8 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
-		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--ballpark-frame ego|observer|chase]\n"
+		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--warp-target planet|evegate]\n"
+		<< "       [--ballpark-frame ego|observer|chase]\n"
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit]\n"
 		<< "       [--validate-ballpark-warp] [--validate-ballpark-approach] [--ballpark-log PATH] [--capture-every N]\n"
@@ -2187,7 +2196,7 @@ void PrintUsage( const char* executable )
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
 		<< "       [--engine-throttle FLOAT] [--validate-engines]\n"
 		<< "       [--volumetrics auto|off|silk|froxel|all] [--volumetric-quality auto|low|medium|high|ultra]\n"
-		<< "       [--volumetric-seed N] [--validate-volumetrics]\n"
+		<< "       [--volumetric-seed N] [--enable-froxels] [--validate-volumetrics]\n"
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
@@ -2338,6 +2347,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--ballpark" )
 		{
 			if( ++i >= argc || !ParseBallparkMode( argv[i], options.ballpark ) )
+				return false;
+		}
+		else if( arg == "--warp-target" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = ToLower( argv[i] );
+			if( value == "planet" )
+				options.warpTarget = WarpTarget::Planet;
+			else if( value == "evegate" || value == "eve-gate" )
+				options.warpTarget = WarpTarget::EveGate;
+			else
 				return false;
 		}
 		else if( arg == "--ballpark-frame" )
@@ -2564,6 +2585,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			{
 				return false;
 			}
+		}
+		else if( arg == "--enable-froxels" )
+		{
+			options.enableFroxels = true;
 		}
 		else if( arg == "--exposure-sequence" )
 		{
@@ -3077,9 +3102,11 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		options.volumetricQuality == VolumetricQuality::Auto ? VolumetricQuality::High : options.volumetricQuality;
 	if( options.resolvedVolumetrics == VolumetricMode::Froxel || options.resolvedVolumetrics == VolumetricMode::All )
 	{
-		std::cerr << "Global froxel volumetrics are blocked before Metal initialization: native AGX compute submission "
-					 "triggered the macOS WindowServer watchdog. Use --volumetrics off or silk.\n";
-		return false;
+		if( !options.enableFroxels )
+		{
+			std::cerr << "Froxel volumetrics require the explicit --enable-froxels opt-in.\n";
+			return false;
+		}
 	}
 	if( options.resolvedVolumetrics != VolumetricMode::Off && options.qualityRung < QualityRung::Scene )
 	{
@@ -3357,6 +3384,16 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "APPROACH Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
+	if( options.warpTarget == WarpTarget::EveGate &&
+		( options.ballpark != BallparkMode::Warp || options.sceneFixture != SceneFixture::NewEden ||
+		  options.composition != SceneComposition::System ||
+		  options.celestialBallpark != CelestialBallparkMode::Natural || options.eveGate != 1 ||
+		  options.celestialAnchor != 0 ) )
+	{
+		std::cerr << "--warp-target evegate requires --ballpark warp, the exact-system New Eden fixture, "
+					 "natural celestials, the authored EVE Gate, and --celestial-anchor stargate\n";
+		return false;
+	}
 	if( options.ballparkFrame != BallparkFrame::Ego && options.ballpark != BallparkMode::Goto &&
 		options.ballpark != BallparkMode::Orbit && options.ballpark != BallparkMode::Warp &&
 		options.ballpark != BallparkMode::Approach )
@@ -3459,7 +3496,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		}
 		const bool engineFixture = options.ballparkFrame == BallparkFrame::Observer ?
 			options.resolvedEngines == EngineMode::Authored : options.resolvedEngines == EngineMode::Off;
-		const bool canonical = options.ballpark == BallparkMode::Warp && options.maxFrames == 3780 &&
+		const bool canonical = options.ballpark == BallparkMode::Warp && options.warpTarget == WarpTarget::Planet &&
+			options.maxFrames == 3780 &&
 			options.qualityRung == QualityRung::HdrPost && options.motion == MotionMode::Static &&
 			options.sceneFixture == SceneFixture::NewEden && options.composition == SceneComposition::Cinematic &&
 			options.resolvedTaa == TaaMode::Off && options.resolvedDynamicExposure == DynamicExposure::Off &&
@@ -3922,6 +3960,7 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "taaDebug=" << TaaDebugName( options.taaDebug ) << "\n";
 	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
 	metadata << "ballpark=" << BallparkModeName( options.ballpark ) << "\n";
+	metadata << "warpTarget=" << ( options.warpTarget == WarpTarget::EveGate ? "evegate" : "planet" ) << "\n";
 	metadata << "ballparkFrame=" << BallparkFrameName( options.ballparkFrame ) << "\n";
 	metadata << "validateBallpark=" << ( options.validateBallpark ? "true" : "false" ) << "\n";
 	metadata << "validateBallparkMotion=" << ( options.validateBallparkMotion ? "true" : "false" ) << "\n";
@@ -5304,6 +5343,13 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.enableFroxels && !TrinityStandaloneProbeSetFroxelRenderingEnabled( probe, true ) )
+		{
+			std::cerr << "Failed to enable froxel rendering\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 
 		if( !options.inspectionReportPath.empty() )
 		{
@@ -5381,6 +5427,21 @@ int main( int argc, char** argv )
 				[window close];
 				return 1;
 			}
+			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) )
+			{
+				std::cerr << "TrinityStandaloneProbeSetCelestialAnchor failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeSetWarpTarget(
+					probe, options.warpTarget == WarpTarget::EveGate ? 1 : 0 ) )
+			{
+				std::cerr << "TrinityStandaloneProbeSetWarpTarget failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
 			if( !TrinityStandaloneProbeConfigureBallparkEx(
 					probe,
 					static_cast<int>( options.ballpark ),
@@ -5390,13 +5451,6 @@ int main( int argc, char** argv )
 					options.ballparkLogPath.empty() ? nullptr : options.ballparkLogPath.c_str() ) )
 			{
 				std::cerr << "TrinityStandaloneProbeConfigureBallparkEx failed\n";
-				TrinityStandaloneProbeDestroyDevice( probe );
-				[window close];
-				return 1;
-			}
-			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) )
-			{
-				std::cerr << "TrinityStandaloneProbeSetCelestialAnchor failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
@@ -5903,6 +5957,25 @@ int main( int argc, char** argv )
 			const bool diagnosticsRead =
 				TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics );
 			volumetricValidationSucceeded = validationRan && diagnosticsRead && volumetricDiagnostics.valid;
+		}
+		else if( options.resolvedVolumetrics == VolumetricMode::Froxel ||
+				 options.resolvedVolumetrics == VolumetricMode::All )
+		{
+			if( TrinityStandaloneProbeGetVolumetricDiagnostics( probe, &volumetricDiagnostics ) )
+			{
+				std::cerr << "EVE froxel diagnostics: volume=" << volumetricDiagnostics.froxelWidth << "x"
+						  << volumetricDiagnostics.froxelHeight << "x" << volumetricDiagnostics.froxelDepth
+						  << " threadgroup=" << volumetricDiagnostics.raymarchThreadGroupX << "x"
+						  << volumetricDiagnostics.raymarchThreadGroupY << "x"
+						  << volumetricDiagnostics.raymarchThreadGroupZ << " dispatch="
+						  << volumetricDiagnostics.raymarchDispatchX << "x"
+						  << volumetricDiagnostics.raymarchDispatchY << "x"
+						  << volumetricDiagnostics.raymarchDispatchZ << " stages="
+						  << ( volumetricDiagnostics.calculateSucceeded ? "calculate " : "" )
+						  << ( volumetricDiagnostics.temporalFilterSucceeded ? "filter " : "" )
+						  << ( volumetricDiagnostics.raymarchSucceeded ? "raymarch " : "" )
+						  << ( volumetricDiagnostics.applySucceeded ? "apply" : "" ) << "\n";
+			}
 		}
 		TrinityStandaloneEngineDiagnostics engineDiagnostics;
 		bool engineValidationSucceeded = true;

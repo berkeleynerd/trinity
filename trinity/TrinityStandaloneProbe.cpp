@@ -456,6 +456,23 @@ enum StandaloneBallparkReferenceFrame
 	STANDALONE_BALLPARK_CHASE = 2,
 };
 
+enum StandaloneWarpTarget
+{
+	STANDALONE_WARP_TARGET_PLANET = 0,
+	STANDALONE_WARP_TARGET_EVE_GATE = 1,
+};
+
+enum StandaloneJourneyPhase
+{
+	STANDALONE_JOURNEY_INACTIVE = 0,
+	STANDALONE_JOURNEY_GATE_ALIGN_PENDING,
+	STANDALONE_JOURNEY_GATE_ALIGNING,
+	STANDALONE_JOURNEY_GATE_WARPING,
+	STANDALONE_JOURNEY_SUN_ALIGNING,
+	STANDALONE_JOURNEY_SUN_WARPING,
+	STANDALONE_JOURNEY_SUN_ORBITING,
+};
+
 enum StandaloneCelestialBallparkMode
 {
 	STANDALONE_CELESTIAL_BALLPARK_OFF = 0,
@@ -4015,6 +4032,9 @@ struct StandaloneProbe
 	int ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
 	int ballparkOrbitPolicy = DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT;
 	float ballparkOrbitRange = 2500.0f;
+	int warpTarget = STANDALONE_WARP_TARGET_PLANET;
+	int journeyPhase = STANDALONE_JOURNEY_INACTIVE;
+	bool ballparkAlignmentIssued = false;
 	bool ballparkCommandIssued = false;
 	bool chaseCameraInitialized = false;
 	int64_t chaseCameraTime = 0;
@@ -4034,6 +4054,7 @@ struct StandaloneProbe
 	EveTransformPtr warpTunnelRoot;
 	TriFloatPtr warpTunnelSpeedSource;
 	TriCurveSetPtr warpTunnelFadeOutSet;
+	Quaternion warpTunnelAuthoredRotation = Quaternion( 0.0f, 0.0f, 0.0f, 1.0f );
 	bool warpTunnelAligned = false;
 	bool warpTunnelDetached = false;
 	float eveGateAuthoredRadius = 0.0f;
@@ -4072,6 +4093,7 @@ struct StandaloneProbe
 	int volumetricMode = STANDALONE_VOLUMETRICS_OFF;
 	Tr2VolumerticQuality volumetricQuality = Tr2VolumerticQuality::High;
 	uint32_t volumetricSeed = 0x12b;
+	bool froxelRenderingEnabled = false;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
 	int taaMode = STANDALONE_TAA_OFF;
 	int taaDebug = Tr2PPTaaEffect::TAA_DEBUG_OFF;
@@ -9153,7 +9175,26 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 		static_cast<float>( diagnostics.velocity[1] ),
 		static_cast<float>( diagnostics.velocity[2] ) );
 	if( Length( forward ) < 1.0f )
-		forward = Vector3( 0.0f, 0.0f, 1.0f );
+	{
+		if( warpChase && probe.warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+		{
+			double toGate[3] = {
+				kNewEdenEveGateRelative[0] - probe.celestialAnchorOffset[0] - diagnostics.absolutePosition[0],
+				kNewEdenEveGateRelative[1] - probe.celestialAnchorOffset[1] - diagnostics.absolutePosition[1],
+				kNewEdenEveGateRelative[2] - probe.celestialAnchorOffset[2] - diagnostics.absolutePosition[2],
+			};
+			const double length = std::sqrt(
+				toGate[0] * toGate[0] + toGate[1] * toGate[1] + toGate[2] * toGate[2] );
+			forward = Vector3(
+				static_cast<float>( toGate[0] / length ),
+				static_cast<float>( toGate[1] / length ),
+				static_cast<float>( toGate[2] / length ) );
+		}
+		else
+		{
+			forward = Vector3( 0.0f, 0.0f, 1.0f );
+		}
+	}
 	else
 		forward = Normalize( forward );
 	const Vector3 up( 0.0f, 1.0f, 0.0f );
@@ -10118,9 +10159,9 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 		return false;
 	}
 	const bool wantsFroxel = mode == STANDALONE_VOLUMETRICS_FROXEL || mode == STANDALONE_VOLUMETRICS_ALL;
-	if( wantsFroxel )
+	if( wantsFroxel && !probe.froxelRenderingEnabled )
 	{
-		error = "Froxel volumetrics are disabled on the standalone Metal probe: native compute submission stalled the AGX GPU and triggered the macOS WindowServer watchdog";
+		error = "Froxel rendering must be enabled by the standalone host before volumetric configuration";
 		return false;
 	}
 
@@ -10814,6 +10855,19 @@ TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeDestroyDevice( void* opaque
 	delete probe;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetFroxelRenderingEnabled(
+	void* opaqueProbe,
+	bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe )
+	{
+		return false;
+	}
+	probe->froxelRenderingEnabled = enabled;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
 	void* opaqueProbe,
 	const uint8_t** pixels,
@@ -11320,6 +11374,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	diagnostics->mieHeight = source.mieHeight;
 	diagnostics->mieFormat = source.mieFormat;
 	diagnostics->dynamicLightCount = source.dynamicLightCount;
+	diagnostics->raymarchThreadGroupX = source.raymarchThreadGroupX;
+	diagnostics->raymarchThreadGroupY = source.raymarchThreadGroupY;
+	diagnostics->raymarchThreadGroupZ = source.raymarchThreadGroupZ;
+	diagnostics->raymarchDispatchX = source.raymarchDispatchX;
+	diagnostics->raymarchDispatchY = source.raymarchDispatchY;
+	diagnostics->raymarchDispatchZ = source.raymarchDispatchZ;
 
 	const bool wantsSilk = probe->volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
 		probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL;
@@ -12470,6 +12530,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
 	probe->ballparkOrbitPolicy = DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT;
 	probe->ballparkOrbitRange = 2500.0f;
+	probe->journeyPhase = STANDALONE_JOURNEY_INACTIVE;
+	probe->ballparkAlignmentIssued = false;
 	probe->ballparkCommandIssued = false;
 	probe->eveGateApproachFrame = 0;
 	probe->eveGateApproachIssued = false;
@@ -12532,6 +12594,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	// The warp fixture starts at the PL-11A GOTO position: the D-07 corpus
 	// records the leg from (0, 0, -1000) to the New Eden planet.
 	config.position[2] = ( orbitMode || approachMode ) ? -2570.0 : ( ( gotoMode || warpMode ) ? -1000.0 : 0.0 );
+	if( warpMode && probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+	{
+		double sunToGate[3] = {
+			kNewEdenEveGateRelative[0] - kNewEdenSunRelative[0],
+			kNewEdenEveGateRelative[1] - kNewEdenSunRelative[1],
+			kNewEdenEveGateRelative[2] - kNewEdenSunRelative[2],
+		};
+		const double distance = std::sqrt(
+			sunToGate[0] * sunToGate[0] + sunToGate[1] * sunToGate[1] + sunToGate[2] * sunToGate[2] );
+		const double surfaceDistance = kNewEdenStarRadius + static_cast<double>( config.radius );
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			sunToGate[axis] /= distance;
+			config.position[axis] = kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis] +
+				sunToGate[axis] * surfaceDistance;
+		}
+	}
 	config.agility = movingMode ? 2.87f : 1.0f;
 	config.rotationalAgility = 1.0f;
 	config.speedFraction = movingMode ? 1.0f : 0.0f;
@@ -12542,6 +12621,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	{
 		config.rotation[2] = 0.3826834323650898f;
 		config.rotation[3] = 0.9238795325112867f;
+		if( warpMode && probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+			std::fprintf( stderr,
+				"PL-11C EVE Gate route: start=sun-surface position=(%.0f, %.0f, %.0f) "
+				"sunRange=%.0f target=eve-gate alignment=destiny-goto-direction\n",
+				config.position[0], config.position[1], config.position[2],
+				kNewEdenStarRadius + static_cast<double>( config.radius ) );
 	}
 	else
 	{
@@ -12600,6 +12685,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	}
 	probe->scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe->destinySession ) );
 	probe->ballparkMode = mode;
+	if( warpMode && probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+		probe->journeyPhase = STANDALONE_JOURNEY_GATE_ALIGN_PENDING;
 	probe->ballparkReferenceFrame = referenceFrame;
 	probe->ballparkOrbitPolicy = orbitPolicy;
 	probe->ballparkOrbitRange = orbitRange;
@@ -13355,6 +13442,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateApproach( v
 #endif
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetWarpTarget( void* opaqueProbe, int target )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || target < STANDALONE_WARP_TARGET_PLANET || target > STANDALONE_WARP_TARGET_EVE_GATE )
+		return false;
+	probe->warpTarget = target;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* opaqueProbe, int anchor )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -13495,6 +13591,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
 	};
 	const char* placement = "authored-skybox";
+	const char* bearingSource = "stargate-anchor";
 	bool navigationBall = false;
 	double renderBearing[3] = { 0.0, 0.0, 0.0 };
 #if TRINITY_WITH_DESTINY_EMBEDDED
@@ -13531,18 +13628,33 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	// authored contract: TranslateWithCamera adds the camera position on top,
 	// which kept the content a fixed anchor-offset from the eye forever.
 	{
-		const double anchoredLength = std::sqrt(
-			gateAnchored[0] * gateAnchored[0] + gateAnchored[1] * gateAnchored[1] +
-			gateAnchored[2] * gateAnchored[2] );
-		if( anchoredLength <= 0.0 )
+		double bearingVector[3] = { gateAnchored[0], gateAnchored[1], gateAnchored[2] };
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE && probe->destinySession )
+		{
+			DestinyEmbeddedDiagnostics shipState = {};
+			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &shipState ) )
+			{
+				std::fprintf( stderr, "CP-36 EVE Gate ship-relative bearing query failed\n" );
+				return false;
+			}
+			for( size_t axis = 0; axis < 3; ++axis )
+				bearingVector[axis] -= shipState.rawPosition[axis];
+			bearingSource = "warp-route-ship";
+		}
+#endif
+		const double bearingLength = std::sqrt(
+			bearingVector[0] * bearingVector[0] + bearingVector[1] * bearingVector[1] +
+			bearingVector[2] * bearingVector[2] );
+		if( bearingLength <= 0.0 )
 		{
 			std::fprintf( stderr, "CP-36 EVE Gate bearing is degenerate\n" );
 			return false;
 		}
 		Vector3 bearing(
-			static_cast<float>( gateAnchored[0] / anchoredLength ),
-			static_cast<float>( gateAnchored[1] / anchoredLength ),
-			static_cast<float>( gateAnchored[2] / anchoredLength ) );
+			static_cast<float>( bearingVector[0] / bearingLength ),
+			static_cast<float>( bearingVector[1] / bearingLength ),
+			static_cast<float>( bearingVector[2] / bearingLength ) );
 		for( size_t axis = 0; axis < 3; ++axis )
 			renderBearing[axis] = static_cast<double>( ( &bearing.x )[axis] );
 		const Vector3 authoredOffset = gate->GetTranslation();
@@ -13654,13 +13766,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	std::fprintf(
 		stderr,
 		"CP-36 EVE Gate: mode=authored placement=%s navigationBall=%s ball=%lld meshes=%u containers=%u "
-		"authoredRadius=%.3f bearing=(%.6f, %.6f, %.6f) distanceRatioPolicy=in-system-default\n",
+		"authoredRadius=%.3f bearingSource=%s bearing=(%.6f, %.6f, %.6f) "
+		"distanceRatioPolicy=in-system-default\n",
 		placement,
 		navigationBall ? "yes" : "no",
 		static_cast<long long>( kNewEdenEveGateBallId ),
 		meshCount,
 		containerCount,
 		authoredRadius,
+		bearingSource,
 		probe->eveGateDiagnostics.bearingExpected[0],
 		probe->eveGateDiagnostics.bearingExpected[1],
 		probe->eveGateDiagnostics.bearingExpected[2] );
@@ -13773,6 +13887,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureWarpTunnel( void* 
 	probe->warpTunnelSpeedSource = shipSpeedSource;
 	probe->warpTunnelFadeOutSet = fadeOutSet;
 	const Quaternion& authoredRotation = tunnel->GetRotation();
+	probe->warpTunnelAuthoredRotation = authoredRotation;
 	std::fprintf(
 		stderr,
 		"CP-37 warp tunnel: mode=authored root=WarpTunnelFinal modifier=translate-with-camera "
@@ -14044,30 +14159,165 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			}
 			probe->ballparkCommandIssued = true;
 		}
-		if( probe->ballparkMode == STANDALONE_BALLPARK_WARP && !probe->ballparkCommandIssued &&
-			probe->renderedFrameCount == 180 )
+		if( probe->ballparkMode == STANDALONE_BALLPARK_WARP &&
+			( probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE || !probe->ballparkCommandIssued ) )
 		{
 			DestinyEmbeddedDiagnostics commandState = {};
-			const double warpTarget[3] = {
-				kNewEdenPlanetRelative[0] - probe->celestialAnchorOffset[0],
-				kNewEdenPlanetRelative[1] - probe->celestialAnchorOffset[1],
-				kNewEdenPlanetRelative[2] - probe->celestialAnchorOffset[2],
-			};
-			if( !probe->destinySession ||
-				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
-				!Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime,
-					warpTarget, kBallparkWarpMinimumRange, kBallparkWarpFactor ) )
+			if( !probe->destinySession || !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) )
 			{
-				CCP_LOGERR( "Embedded Destiny WARP command failed" );
+				CCP_LOGERR( "Embedded Destiny journey command state query failed" );
 				return false;
 			}
-			probe->ballparkCommandIssued = true;
-			std::fprintf( stderr,
-				"PL-11C command: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f) "
-				"minRange=%.0f warpFactor=%d\n",
-				static_cast<long long>( commandState.nextTickTime ),
-				warpTarget[0], warpTarget[1], warpTarget[2],
-				kBallparkWarpMinimumRange, kBallparkWarpFactor );
+			const double gateTarget[3] = {
+				kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			const double sunTarget[3] = {
+				kNewEdenSunRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenSunRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenSunRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			auto directionTo = [&]( const double target[3], double direction[3] ) {
+				double lengthSquared = 0.0;
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					direction[axis] = target[axis] - commandState.rawPosition[axis];
+					lengthSquared += direction[axis] * direction[axis];
+				}
+				const double length = std::sqrt( lengthSquared );
+				if( length <= 0.0 )
+					return false;
+				for( size_t axis = 0; axis < 3; ++axis )
+					direction[axis] /= length;
+				return true;
+			};
+			auto alignmentTo = [&]( const double target[3], double& speed, double& dot ) {
+				double direction[3] = {};
+				if( !directionTo( target, direction ) )
+					return false;
+				double speedSquared = 0.0;
+				dot = 0.0;
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					speedSquared += commandState.rawVelocity[axis] * commandState.rawVelocity[axis];
+					dot += direction[axis] * commandState.rawVelocity[axis];
+				}
+				speed = std::sqrt( speedSquared );
+				if( speed > 0.0 )
+					dot /= speed;
+				return commandState.mode == DESTINY_EMBEDDED_BALL_MODE_GOTO &&
+					speed >= 0.75 * 312.0 && dot >= 0.99;
+			};
+			auto queueAlignment = [&]( const double target[3], const char* targetName, int nextPhase ) {
+				double direction[3] = {};
+				if( !directionTo( target, direction ) ||
+					!Destiny_CommandEmbeddedGotoDirection(
+						probe->destinySession, commandState.nextTickTime, direction ) )
+					return false;
+				probe->journeyPhase = nextPhase;
+				std::fprintf( stderr,
+					"Journey align: frame=%llu effectiveTime=%lld command=GotoDirection "
+					"targetName=%s direction=(%.9f, %.9f, %.9f)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					static_cast<long long>( commandState.nextTickTime ), targetName,
+					direction[0], direction[1], direction[2] );
+				return true;
+			};
+			auto queueWarp = [&]( const double target[3], const char* targetName, double minimumRange,
+							  double speed, double dot, int nextPhase ) {
+				if( !Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime,
+						target, minimumRange, kBallparkWarpFactor ) )
+					return false;
+				probe->journeyPhase = nextPhase;
+				probe->ballparkCommandIssued = true;
+				std::fprintf( stderr,
+					"Journey warp: frame=%llu effectiveTime=%lld targetName=%s "
+					"target=(%.0f, %.0f, %.0f) minRange=%.0f warpFactor=%d "
+					"alignmentSpeed=%.6f alignmentDot=%.9f\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					static_cast<long long>( commandState.nextTickTime ), targetName,
+					target[0], target[1], target[2], minimumRange, kBallparkWarpFactor, speed, dot );
+				return true;
+			};
+
+			if( probe->warpTarget == STANDALONE_WARP_TARGET_PLANET && probe->renderedFrameCount == 180 )
+			{
+				const double planetTarget[3] = {
+					kNewEdenPlanetRelative[0] - probe->celestialAnchorOffset[0],
+					kNewEdenPlanetRelative[1] - probe->celestialAnchorOffset[1],
+					kNewEdenPlanetRelative[2] - probe->celestialAnchorOffset[2],
+				};
+				if( !queueWarp( planetTarget, "planet", kBallparkWarpMinimumRange, 0.0, 0.0,
+						STANDALONE_JOURNEY_INACTIVE ) )
+				{
+					CCP_LOGERR( "Embedded Destiny planet WARP command failed" );
+					return false;
+				}
+			}
+			else if( probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+			{
+				double speed = 0.0;
+				double dot = 0.0;
+				switch( probe->journeyPhase )
+				{
+				case STANDALONE_JOURNEY_GATE_ALIGN_PENDING:
+					if( probe->renderedFrameCount == 180 &&
+						!queueAlignment( gateTarget, "eve-gate", STANDALONE_JOURNEY_GATE_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny EVE Gate alignment command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_GATE_ALIGNING:
+					if( alignmentTo( gateTarget, speed, dot ) &&
+						!queueWarp( gateTarget, "eve-gate", kBallparkWarpMinimumRange, speed, dot,
+							STANDALONE_JOURNEY_GATE_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny EVE Gate WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_GATE_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment( sunTarget, "sun", STANDALONE_JOURNEY_SUN_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny Sun alignment command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_ALIGNING:
+					if( alignmentTo( sunTarget, speed, dot ) &&
+						!queueWarp( sunTarget, "sun", kNewEdenStarRadius + 35.0, speed, dot,
+							STANDALONE_JOURNEY_SUN_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny Sun WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						constexpr float kSunOrbitSurfaceRange = 2500.0f;
+						if( !Destiny_CommandEmbeddedOrbit( probe->destinySession, commandState.nextTickTime,
+								kNewEdenSunBallId, kSunOrbitSurfaceRange ) )
+						{
+							CCP_LOGERR( "Embedded Destiny Sun ORBIT command failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_SUN_ORBITING;
+						std::fprintf( stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=sun targetBall=%lld "
+							"surfaceRange=%.3f\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenSunBallId ), kSunOrbitSurfaceRange );
+					}
+					break;
+				default:
+					break;
+				}
+			}
 		}
 		if( probe->ballparkMode == STANDALONE_BALLPARK_APPROACH && !probe->ballparkCommandIssued &&
 			probe->renderedFrameCount == 180 )
@@ -14217,15 +14467,27 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				else if( probe->warpTunnelAligned &&
 						 kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
 				{
-					// The client tears the effect down when the warp ends
-					// (ShipEffect.Stop -> _CleanUp -> scene.warpTunnel = None);
-					// speed scaling has already taken the tunnel to
-					// authored-invisible before dropout, so removal is clean.
-					probe->scene->SetWarpTunnel( nullptr );
-					probe->warpTunnelDetached = true;
-					std::fprintf( stderr,
-						"CP-37b warp tunnel: detached at frame=%llu (warp end)\n",
-						static_cast<unsigned long long>( probe->renderedFrameCount ) );
+					if( probe->journeyPhase == STANDALONE_JOURNEY_GATE_WARPING )
+					{
+						// Keep the prepared graph authored-invisible between journey
+						// legs, then align it afresh when the return warp enters.
+						probe->warpTunnelSpeedSource->m_value = 0.0f;
+						probe->warpTunnelRoot->SetRotation( probe->warpTunnelAuthoredRotation );
+						probe->warpTunnelAligned = false;
+						std::fprintf( stderr,
+							"CP-37b warp tunnel: reset at frame=%llu (journey leg complete)\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ) );
+					}
+					else
+					{
+						// The client tears the effect down when the final warp ends
+						// (ShipEffect.Stop -> _CleanUp -> scene.warpTunnel = None).
+						probe->scene->SetWarpTunnel( nullptr );
+						probe->warpTunnelDetached = true;
+						std::fprintf( stderr,
+							"CP-37b warp tunnel: detached at frame=%llu (journey warp end)\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ) );
+					}
 				}
 			}
 		}

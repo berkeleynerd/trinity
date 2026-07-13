@@ -2765,3 +2765,45 @@ readback target and stomp that single frame's capture; the sample
 reports and skips it rather than aborting, and an encoder feeder holds
 the previous frame. Recorded evidence (frame sequences, masters,
 deliverables) stays outside the repositories like all other captures.
+
+## RC-12B2 corrected froxel promotion (2026-07-13)
+
+The sacrificial M2 investigation completed A00, every ordered profile for
+S10-S15 and C10-C61, and the corrected R00/R01 incident-equivalent scenes.
+The latest run for each unit reached `completed`, `collected`, and `closed`.
+The ladder found two concrete shader-contract defects: Trinity bound a
+2,304-byte per-object block where current AIR requires 2,432 bytes (including
+projection and inverse-projection matrices at offsets 0 and 64), and raymarch
+used a stale 8x4 assumption where the container reflects `8x8x1`. The renderer
+now has a compile-time reflected layout, initializes the complete block, and
+derives its dispatch from effect reflection.
+
+Standalone promotion exposed one more backend assumption: froxel allocation
+clears a 3D texture through `MetalWorkQueue`, whose old path asserted 2D-only.
+Dedicated bounded float/uint 3D clear kernels and depth-aware dispatch remove
+that assertion. An identical 640x400, 240-frame all-effects rerun then exited
+0 with no Metal error and reported a `160x100x128` volume, reflected `8x8x1`
+threadgroup, `20x13x1` dispatch, and successful calculate/filter/raymarch/apply
+stages. A full-screen 2940x1912 operator run initialized froxels alongside
+Silk, High TAA, HDR finish, authored distortion, lighting, shadows, celestials,
+and the complete warp journey without an assertion or stall.
+
+The normal frontend and bridge remain fail-closed unless the standalone host
+explicitly selects `--enable-froxels`; `auto` remains off. This accepts an M2
+Metal capability, not New Eden fog fidelity. The corrected constant-buffer,
+dispatch, and 3D-clear defects are not claimed as causes of the original M4
+watchdog without a repeated single-variable A/B and corroborating AGX/IOGPU
+evidence. Full details are in `docs/froxel-investigation.md`.
+
+## CP-37c EVE Gate round-trip journey (2026-07-13)
+
+The visual route now starts at the Sun's normal zero-range surface, aligns to
+the ship-relative EVE Gate bearing with `Destiny_CommandEmbeddedGotoDirection`,
+and queues `Destiny_CommandEmbeddedWarp` only after alignment. Arrival resets
+the authored warp tunnel, aligns back to the Sun, executes a second native
+`Ballpark::WarpTo`, and finally calls `Destiny_CommandEmbeddedOrbit` on the
+registered Sun ball at 2,500 m surface range. A 3,600-frame finite run records
+Gate alignment at frame 180, Gate warp at 541, Sun alignment at 1621, Sun warp
+at 2161, and native Sun ORBIT at frame 3241. The EVE Gate presentation bearing
+uses the ship-to-Gate route rather than the old stargate-anchor bearing, which
+removed a measured 37.73-degree visual/navigation mismatch.

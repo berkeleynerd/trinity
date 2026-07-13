@@ -149,6 +149,8 @@ MetalWorkQueue::MetalWorkQueue() :
 	m_clearBufferComputeFunctions[1] = nil;
 	m_clearTextureComputeFunctions[0] = nil;
 	m_clearTextureComputeFunctions[1] = nil;
+	m_clearTexture3DComputeFunctions[0] = nil;
+	m_clearTexture3DComputeFunctions[1] = nil;
 
 	m_visibilityBuffer = nil;
 	m_maxVisibilityQueries = 0;
@@ -281,6 +283,20 @@ void MetalWorkQueue::CreateClearFunctions()
 	if( !m_clearTextureComputeFunctions[1] )
 	{
 		CCP_AL_LOGERR( "Couldn't load ClearUIntTexture function from library." );
+		CCP_ASSERT( false );
+	}
+
+	m_clearTexture3DComputeFunctions[0] = [shaderLib newFunctionWithName:@"ClearFloatTexture3D"];
+	if( !m_clearTexture3DComputeFunctions[0] )
+	{
+		CCP_AL_LOGERR( "Couldn't load ClearFloatTexture3D function from library." );
+		CCP_ASSERT( false );
+	}
+
+	m_clearTexture3DComputeFunctions[1] = [shaderLib newFunctionWithName:@"ClearUIntTexture3D"];
+	if( !m_clearTexture3DComputeFunctions[1] )
+	{
+		CCP_AL_LOGERR( "Couldn't load ClearUIntTexture3D function from library." );
 		CCP_ASSERT( false );
 	}
 }
@@ -1256,23 +1272,26 @@ void MetalWorkQueue::ClearBuffer( id<MTLBuffer> buffer, const uint32_t values[4]
 void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, const float values[4] )
 {
 	CCP_ASSERT( m_isPrimary );
-	// Only 2D textures are supported right now.
-	CCP_ASSERT( texture.textureType == MTLTextureType2D );
 	// Only writing to mip level 0 supported on macOS.
 	CCP_ASSERT( mipLevel == 0 );
-	// CCP_ASSERT( texture.mipmapLevelCount > mipLevel );
+	if( texture.textureType != MTLTextureType2D && texture.textureType != MTLTextureType3D )
+	{
+		CCP_AL_LOGERR( "ClearTexture only supports 2D and 3D Metal textures." );
+		return;
+	}
 
-	// Proper thread group size is a multiple of threadExecutionWidth and less than maxTotalThreadsPerThreadgroup
-	// (both are preperties of MTLComputePipelineState).
-	MTLSize threadGroupSize = MTLSizeMake( 32, 32, 1 );
+	const bool is3D = texture.textureType == MTLTextureType3D;
+	MTLSize threadGroupSize = is3D ? MTLSizeMake( 8, 8, 4 ) : MTLSizeMake( 32, 32, 1 );
 
 	NSUInteger width = std::max<NSUInteger>( texture.width >> mipLevel, 1 );
 	NSUInteger height = std::max<NSUInteger>( texture.height >> mipLevel, 1 );
 	NSUInteger groupDimX = ( width + threadGroupSize.width - 1 ) / threadGroupSize.width;
 	NSUInteger groupDimY = ( height + threadGroupSize.height - 1 ) / threadGroupSize.height;
+	NSUInteger depth = std::max<NSUInteger>( texture.depth >> mipLevel, 1 );
+	NSUInteger groupDimZ = ( depth + threadGroupSize.depth - 1 ) / threadGroupSize.depth;
 
 	id<MTLFunction> oldComputeFunction = m_computeFunction;
-	m_computeFunction = m_clearTextureComputeFunctions[0];
+	m_computeFunction = is3D ? m_clearTexture3DComputeFunctions[0] : m_clearTextureComputeFunctions[0];
 
 	id<MTLComputeCommandEncoder> computeEncoder = GetComputeEncoder();
 
@@ -1282,7 +1301,7 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 		[computeEncoder setBytes:values length:4 * sizeof( *values ) atIndex:0];
 		[computeEncoder setTexture:texture atIndex:0];
 
-		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, 1 )
+		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, groupDimZ )
 					   threadsPerThreadgroup:threadGroupSize];
 	}
 	ReleaseEncoder( false );
@@ -1295,23 +1314,26 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, const uint32_t values[4] )
 {
 	CCP_ASSERT( m_isPrimary );
-	// Only 2D textures are supported right now.
-	CCP_ASSERT( texture.textureType == MTLTextureType2D );
 	// Only writing to mip level 0 supported on macOS.
 	CCP_ASSERT( mipLevel == 0 );
-	// CCP_ASSERT( texture.mipmapLevelCount > mipLevel );
+	if( texture.textureType != MTLTextureType2D && texture.textureType != MTLTextureType3D )
+	{
+		CCP_AL_LOGERR( "ClearTexture only supports 2D and 3D Metal textures." );
+		return;
+	}
 
-	// Proper thread group size is a multiple of threadExecutionWidth and less than maxTotalThreadsPerThreadgroup
-	// (both are preperties of MTLComputePipelineState).
-	MTLSize threadGroupSize = MTLSizeMake( 32, 32, 1 );
+	const bool is3D = texture.textureType == MTLTextureType3D;
+	MTLSize threadGroupSize = is3D ? MTLSizeMake( 8, 8, 4 ) : MTLSizeMake( 32, 32, 1 );
 
 	NSUInteger width = std::max<NSUInteger>( texture.width >> mipLevel, 1 );
 	NSUInteger height = std::max<NSUInteger>( texture.height >> mipLevel, 1 );
 	NSUInteger groupDimX = ( width + threadGroupSize.width - 1 ) / threadGroupSize.width;
 	NSUInteger groupDimY = ( height + threadGroupSize.height - 1 ) / threadGroupSize.height;
+	NSUInteger depth = std::max<NSUInteger>( texture.depth >> mipLevel, 1 );
+	NSUInteger groupDimZ = ( depth + threadGroupSize.depth - 1 ) / threadGroupSize.depth;
 
 	id<MTLFunction> oldComputeFunction = m_computeFunction;
-	m_computeFunction = m_clearTextureComputeFunctions[1];
+	m_computeFunction = is3D ? m_clearTexture3DComputeFunctions[1] : m_clearTextureComputeFunctions[1];
 
 	id<MTLComputeCommandEncoder> computeEncoder = GetComputeEncoder();
 
@@ -1321,7 +1343,7 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 		[computeEncoder setBytes:values length:4 * sizeof( *values ) atIndex:0];
 		[computeEncoder setTexture:texture atIndex:0];
 
-		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, 1 )
+		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, groupDimZ )
 					   threadsPerThreadgroup:threadGroupSize];
 	}
 	ReleaseEncoder( false );

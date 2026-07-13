@@ -6,6 +6,7 @@
 #include "TriFrustumOrtho.h"
 #include "Tr2ShadowMap.h"
 #include "Tr2LightManager.h"
+#include "FroxelShaderLayouts.h"
 #include "Eve/EveUpdateContext.h"
 #include "PostProcess/Tr2PostProcessEnums.h"
 #include "Raytracing/Tr2RaytracingGeometry.h"
@@ -116,23 +117,7 @@ public:
 		Tr2RenderContext& renderContext );
 
 
-	struct FroxelPerFrameData
-	{
-		Vector3 FogColor;
-		float BackgroundVisibility;
-
-		float BaseDensity;
-		float MaxDistance;
-		float MaxDistanceVisibility;
-		float EnvironmentIntensity;
-
-		float EnvironmentG;
-		float _pad0;
-		float _pad1;
-		float _pad2;
-
-		CcpMath::Sphere planets[2];
-	};
+	using FroxelPerFrameData = TrinityFroxelShaderLayouts::PerFrameData;
 
 	void PopulatePerFrameData( FroxelPerFrameData & data );
 
@@ -174,6 +159,12 @@ public:
 		uint32_t mieHeight = 0;
 		uint32_t mieFormat = 0;
 		uint32_t dynamicLightCount = 0;
+		uint32_t raymarchThreadGroupX = 0;
+		uint32_t raymarchThreadGroupY = 0;
+		uint32_t raymarchThreadGroupZ = 0;
+		uint32_t raymarchDispatchX = 0;
+		uint32_t raymarchDispatchY = 0;
+		uint32_t raymarchDispatchZ = 0;
 	};
 
 	const Diagnostics& GetDiagnostics() const
@@ -271,66 +262,7 @@ private:
 	uint64_t m_totalLocalLightmapUpdates = 0;
 	uint64_t m_totalLocalShadowBatches = 0;
 
-	struct FogPerObjectData
-	{
-		uint32_t ResolutionX;
-		uint32_t ResolutionY;
-		uint32_t ResolutionZ;
-		uint32_t NumDynamicLights;
-
-		Vector3 Jitter;
-		float Far;
-
-		Vector3 Scattering;
-		float BaseDensity;
-
-		float MaxDistanceVisibility;
-		float LightG;
-		float EnvironmentIntensity;
-		float InverseShadowMapAtlasSize;
-
-		Vector3 Extinction;
-		uint32_t ShadowMapAtlasEntryMinSizeLog2;
-
-		Matrix InverseViewMatrix;
-
-		float GodRayNoiseFrequency;
-		float GodRayNoiseLerp;
-		float GodRayNoiseAnimation;
-		float GodRayNoiseIntensity;
-
-		Matrix GodRayNoiseMatrix;
-
-
-		Vector3 FogNoiseOffset;
-		float FogNoiseFrequency;
-
-		float FogNoiseLerp;
-		float FogNoiseIntensity;
-		Vector2 LinearizeDepthParams;
-
-		Vector4 UnprojectParams;
-		Vector4 PreviousProjectParams;
-		Matrix ReprojectionMatrix;
-
-		Vector3 SunViewDirection;
-		float SunAngle;
-
-		Vector3 SunWorldDirection;
-		float pad0;
-
-		Vector3 SunColor;
-		float LightProfileTextureWidth;
-
-		//Directional light shadows
-		Vector4 ShadowMapValues[4]; // x = zFar value[0], y = zFar value[1], z = zFar value[2], w = zFar value[3]..etc
-		Matrix ShadowMatrix[16]; // Matrix that takes a coordinate from view space all the way to the packed cascades
-		Vector4 SplitInfo; // x = NrOfSplits, y = <unused>, z = <unused>, w = <unused>
-
-		Tr2LightManager::PerLightData DynamicLights[16];
-
-		CcpMath::Sphere planets[2];
-	};
+	using FogPerObjectData = TrinityFroxelShaderLayouts::PerObjectData;
 
 	void UpdatePerObjectData( FogPerObjectData * data, const Matrix& view, const Matrix& projection, const Matrix& viewLast, const Matrix& projectionLast, const Vector3d& origin, const Vector3d& originShift, const Vector3& sunDirection, const Color& sunColor, uint32_t width, uint32_t height, uint32_t depth, const Vector3& jitter, const Tr2ShadowMap* cascadedShadowMap );
 

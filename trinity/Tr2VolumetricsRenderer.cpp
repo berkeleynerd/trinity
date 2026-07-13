@@ -17,6 +17,45 @@
 #include "include/TriMath.h"
 #include "Utilities/Vector4d.h"
 
+namespace
+{
+bool GetComputeThreadGroupSize( const Tr2EffectPtr& effect, Tr2ShaderThreadGroupSizeAL& size )
+{
+	if( !effect || !effect->GetShaderStateInterface() )
+	{
+		return false;
+	}
+
+	const Tr2EffectDescription& description = effect->GetShaderStateInterface()->GetEffectDescription();
+	if( description.techniques.empty() )
+	{
+		return false;
+	}
+
+	bool found = false;
+	for( const auto& pass : description.techniques[0].passes )
+	{
+		const auto& stage = pass.stageInputs[Tr2RenderContextEnum::COMPUTE_SHADER];
+		if( !stage.m_exists )
+		{
+			continue;
+		}
+		const auto& reflected = stage.signature.threadGroupSize;
+		if( reflected.x == 0 || reflected.y == 0 || reflected.z == 0 )
+		{
+			return false;
+		}
+		if( found && ( size.x != reflected.x || size.y != reflected.y || size.z != reflected.z ) )
+		{
+			return false;
+		}
+		size = reflected;
+		found = true;
+	}
+	return found;
+}
+}
+
 
 Tr2VolumetricsRenderer::FogViewDependentResources::FogViewDependentResources( bool temporalFroxels ) :
 	useTemporalFroxels( temporalFroxels )
@@ -939,12 +978,30 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 		{
 			GPU_REGION( renderContext, "Raymarch" );
 			resources.raymarchFroxels->SetParameter( BlueSharedString( "OutputTexture" ), fogFroxels );
+			Tr2ShaderThreadGroupSizeAL raymarchThreadGroup;
+			if( !GetComputeThreadGroupSize( resources.raymarchFroxels, raymarchThreadGroup ) )
+			{
+				CCP_LOGERR( "Failed to resolve reflected raymarch froxel threadgroup dimensions" );
+				return {};
+			}
+			const uint32_t raymarchDispatchX =
+				( width + raymarchThreadGroup.x - 1 ) / raymarchThreadGroup.x;
+			const uint32_t raymarchDispatchY =
+				( height + raymarchThreadGroup.y - 1 ) / raymarchThreadGroup.y;
+			const uint32_t raymarchDispatchZ =
+				( 1 + raymarchThreadGroup.z - 1 ) / raymarchThreadGroup.z;
+			m_lastDiagnostics.raymarchThreadGroupX = raymarchThreadGroup.x;
+			m_lastDiagnostics.raymarchThreadGroupY = raymarchThreadGroup.y;
+			m_lastDiagnostics.raymarchThreadGroupZ = raymarchThreadGroup.z;
+			m_lastDiagnostics.raymarchDispatchX = raymarchDispatchX;
+			m_lastDiagnostics.raymarchDispatchY = raymarchDispatchY;
+			m_lastDiagnostics.raymarchDispatchZ = raymarchDispatchZ;
 			m_lastDiagnostics.raymarchSucceeded = Tr2Renderer::RunComputeShader(
 				resources.raymarchFroxels,
-				( width + 7 ) / 8,
-				( height + 3 ) / 4,
-				1,
-				renderContext ); // 8x4 workgroup is faster here
+				raymarchDispatchX,
+				raymarchDispatchY,
+				raymarchDispatchZ,
+				renderContext );
 			if( !m_lastDiagnostics.raymarchSucceeded )
 			{
 				return {};
@@ -973,6 +1030,8 @@ Tr2GpuResourcePool::Texture Tr2VolumetricsRenderer::RenderFog(
 
 void Tr2VolumetricsRenderer::UpdatePerObjectData( FogPerObjectData* data, const Matrix& view, const Matrix& projection, const Matrix& viewLast, const Matrix& projectionLast, const Vector3d& origin, const Vector3d& originShift, const Vector3& sunDirection, const Color& sunColor, uint32_t width, uint32_t height, uint32_t depth, const Vector3& jitter, const Tr2ShadowMap* cascadedShadowMap )
 {
+	*data = {};
+
 	float maxDistance = m_gameBackClip;
 	float maxDistanceVisibility = exp( -m_froxelFogSettings.thickness.value );
 	float baseDensity = m_froxelFogSettings.thickness.value / maxDistance;
@@ -991,6 +1050,8 @@ void Tr2VolumetricsRenderer::UpdatePerObjectData( FogPerObjectData* data, const 
 
 	Matrix inverseView = Inverse( view );
 	Matrix inverseProjection = Inverse( projection );
+	data->ProjectionMatrix = Transpose( projection );
+	data->InverseProjectionMatrix = Transpose( inverseProjection );
 
 	{
 
