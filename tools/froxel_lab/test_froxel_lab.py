@@ -8,6 +8,7 @@ import pathlib
 import tarfile
 import tempfile
 import unittest
+from unittest import mock
 
 
 MODULE_PATH = pathlib.Path(__file__).with_name("froxel_lab.py")
@@ -60,6 +61,40 @@ class FroxelLabTest(unittest.TestCase):
         self.assertEqual([item["state"] for item in ledger["stateTransitions"]],
                          ["prepared", "armed"])
         self.assertEqual(ledger["stateTransitions"][-1]["controllerPid"], 42)
+
+    def test_controlling_tty_uses_nonseekable_read_and_write_handles(self):
+        class NonSeekableTTY(io.StringIO):
+            def isatty(self):
+                return True
+
+            def seekable(self):
+                return False
+
+            def seek(self, *args, **kwargs):
+                raise io.UnsupportedOperation("not seekable")
+
+        reader = NonSeekableTTY("CONFIRM\n")
+        writer = NonSeekableTTY()
+        modes = []
+
+        def open_tty(path, mode, **kwargs):
+            self.assertEqual(path, "/dev/tty")
+            modes.append(mode)
+            if mode == "r+":
+                raise io.UnsupportedOperation("not seekable")
+            return {"r": reader, "w": writer}[mode]
+
+        with mock.patch("builtins.open", side_effect=open_tty):
+            tty = LAB.require_controlling_tty()
+            self.assertTrue(tty.isatty())
+            tty.write("prompt> ")
+            self.assertEqual(tty.readline(), "CONFIRM\n")
+            self.assertEqual(writer.getvalue(), "prompt> ")
+            tty.close()
+
+        self.assertEqual(modes, ["r", "w"])
+        self.assertTrue(reader.closed)
+        self.assertTrue(writer.closed)
 
     def test_submission_marker_uses_worker_parent_and_preflight_hash(self):
         run_dir = LAB.RUNS_ROOT / "run"

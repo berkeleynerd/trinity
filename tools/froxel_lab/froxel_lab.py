@@ -270,11 +270,40 @@ def current_inventory() -> dict:
     }
 
 
+class _ControllingTTY:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
+
+    def isatty(self) -> bool:
+        return self.reader.isatty() and self.writer.isatty()
+
+    def write(self, text: str) -> int:
+        written = self.writer.write(text)
+        self.writer.flush()
+        return written
+
+    def readline(self) -> str:
+        return self.reader.readline()
+
+    def close(self) -> None:
+        try:
+            self.reader.close()
+        finally:
+            self.writer.close()
+
+
 def require_controlling_tty() -> object:
     try:
-        tty = open("/dev/tty", "r+", encoding="utf-8", buffering=1)
+        reader = open("/dev/tty", "r", encoding="utf-8", buffering=1)
+        try:
+            writer = open("/dev/tty", "w", encoding="utf-8", buffering=1)
+        except OSError:
+            reader.close()
+            raise
     except OSError as exc:
         raise LabError("a controlling TTY is required") from exc
+    tty = _ControllingTTY(reader, writer)
     if not tty.isatty():
         tty.close()
         raise LabError("/dev/tty is not an interactive terminal")
