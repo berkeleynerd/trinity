@@ -11926,8 +11926,10 @@ void HashBallparkValue( uint64_t& hash, double value )
 
 bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time time, bool writeLog )
 {
+	if( probe.ballparkMode == STANDALONE_BALLPARK_OFF )
+		return true;
 #if TRINITY_WITH_DESTINY_EMBEDDED
-	if( probe.ballparkMode == STANDALONE_BALLPARK_OFF || !probe.destinySession || !probe.scene )
+	if( !probe.destinySession || !probe.scene )
 		return true;
 	DestinyEmbeddedDiagnostics source = {};
 	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &source ) )
