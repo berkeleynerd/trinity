@@ -841,11 +841,11 @@ ALResult Tr2RenderContextAL::SubmitHeadlessAndWait( Tr2MetalSubmissionDiagnostic
 	return m_workQueue->SubmitAndWait( diagnostics ) ? S_OK : E_FAIL;
 }
 
-void Tr2RenderContextAL::SetSubmissionDiagnosticsEnabled( bool enabled )
+void Tr2RenderContextAL::SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed )
 {
 	if( m_workQueue )
 	{
-		m_workQueue->SetSubmissionDiagnosticsEnabled( enabled );
+		m_workQueue->SetSubmissionDiagnosticsEnabled( enabled, failClosed );
 	}
 }
 

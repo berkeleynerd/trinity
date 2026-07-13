@@ -179,6 +179,16 @@ bool Tr2VolumetricsRenderer::SetNoiseSeed( uint32_t seed, Tr2RenderContext& rend
 	return true;
 }
 
+void Tr2VolumetricsRenderer::SetTemporalFroxelsEnabled( bool enabled )
+{
+	m_fogResources.useTemporalFroxels = enabled;
+	m_fogResources.raymarchFroxels->SetOption(
+		BlueSharedString( "INPUT_SOURCE" ),
+		enabled ? BlueSharedString( "INPUT_SOURCE_INPUT_TEXTURE" ) :
+			BlueSharedString( "INPUT_SOURCE_OUTPUT_TEXTURE" ) );
+	ResetTemporalHistory();
+}
+
 void Tr2VolumetricsRenderer::ResetTemporalHistory()
 {
 	m_fogResources.resetTemporalFroxels = true;

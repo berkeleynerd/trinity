@@ -181,7 +181,7 @@ public:
 	~MetalWorkQueue();
 	void SetMetalContext( MetalContext* metalContext );
 	void SetCommandQueue( id<MTLCommandQueue> commandQueue );
-	void SetSubmissionDiagnosticsEnabled( bool enabled );
+	void SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed = true );
 
 	void CommitCommandBuffer( MetalCBCommitFlags flags );
 	bool GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
@@ -570,6 +570,7 @@ private:
 
 	std::vector<Tr2PipelineStatsQueryAL*> m_pipelineQueriesInProgress;
 	bool m_submissionDiagnosticsEnabled;
+	bool m_submissionDiagnosticsFailClosed;
 	bool m_bindingPreflightPassed;
 	double m_commandBufferCreatedAt;
 	uint64_t m_lastComputePipelineUid;

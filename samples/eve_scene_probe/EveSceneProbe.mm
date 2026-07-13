@@ -592,6 +592,7 @@ struct Options
 	VolumetricQuality volumetricQuality = VolumetricQuality::Auto;
 	VolumetricQuality resolvedVolumetricQuality = VolumetricQuality::High;
 	uint32_t volumetricSeed = 0x12b;
+	bool froxelTemporal = true;
 	bool validateVolumetrics = false;
 	bool clientKernels = false;
 	std::string froxelLabLedger;
@@ -2199,13 +2200,14 @@ bool WriteAndSyncIncidentPreflight( const Options& options )
 	NSString* path =
 		[ledger.stringByDeletingLastPathComponent stringByAppendingPathComponent:@"submission-preflight.json"];
 	NSDictionary* record = @{
-		@"schemaVersion": @1,
+		@"schemaVersion": @2,
 		@"kernelSet": @"client-scene",
 		@"stage": @"incident-equivalent-chain",
 		@"dimensions": @{ @"width": @( options.windowWidth ), @"height": @( options.windowHeight ) },
 		@"volumetrics": [NSString stringWithUTF8String:VolumetricModeName( options.resolvedVolumetrics ).c_str()],
 		@"quality": [NSString stringWithUTF8String:VolumetricQualityName( options.resolvedVolumetricQuality ).c_str()],
-		@"temporal": [NSString stringWithUTF8String:TaaModeName( options.resolvedTaa ).c_str()],
+		@"froxelTemporal": options.froxelTemporal ? @"on" : @"off",
+		@"taa": [NSString stringWithUTF8String:TaaModeName( options.resolvedTaa ).c_str()],
 		@"sceneFixture": @"new-eden",
 		@"resourcePreparationComplete": @YES,
 	};
@@ -2333,7 +2335,7 @@ void PrintUsage( const char* executable )
 		<< "       [--engines auto|off|authored] [--engine-view all|plumes|glows|trails|lights]\n"
 		<< "       [--engine-throttle FLOAT] [--validate-engines]\n"
 		<< "       [--volumetrics auto|off|silk|froxel|all] [--volumetric-quality auto|low|medium|high|ultra]\n"
-		<< "       [--volumetric-seed N] [--validate-volumetrics]\n"
+		<< "       [--volumetric-seed N] [--froxel-temporal on|off] [--validate-volumetrics]\n"
 #if defined( TRINITY_FROXEL_INCIDENT_LAB )
 		<< "       [--client-kernels --froxel-lab-ledger PATH]\n"
 #endif
@@ -2710,6 +2712,26 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--volumetric-seed" )
 		{
 			if( ++i >= argc || !ParseUnsigned( argv[i], options.volumetricSeed ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--froxel-temporal" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			const std::string value = argv[i];
+			if( value == "on" )
+			{
+				options.froxelTemporal = true;
+			}
+			else if( value == "off" )
+			{
+				options.froxelTemporal = false;
+			}
+			else
 			{
 				return false;
 			}
@@ -4140,6 +4162,7 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "volumetricQualityRequested=" << VolumetricQualityName( options.volumetricQuality ) << "\n";
 	metadata << "volumetricQualityResolved=" << VolumetricQualityName( options.resolvedVolumetricQuality ) << "\n";
 	metadata << "volumetricSeed=" << options.volumetricSeed << "\n";
+	metadata << "froxelTemporal=" << ( options.froxelTemporal ? "on" : "off" ) << "\n";
 	metadata << "volumetricClientPolicy=high; ultra-diagnostic-only\n";
 	metadata << "volumetricFixtureAuthorship=silk-client-authored; froxel-sample-owned\n";
 	metadata
@@ -5624,9 +5647,10 @@ int main( int argc, char** argv )
 		}
 		if( options.qualityRung != QualityRung::Shell &&
 			!TrinityStandaloneProbeConfigureVolumetrics( probe,
-														 VolumetricModeApiValue( options.resolvedVolumetrics ),
-														 VolumetricQualityApiValue( options.resolvedVolumetricQuality ),
-														 options.volumetricSeed ) )
+												 VolumetricModeApiValue( options.resolvedVolumetrics ),
+												 VolumetricQualityApiValue( options.resolvedVolumetricQuality ),
+												 options.volumetricSeed,
+												 options.froxelTemporal ) )
 		{
 			std::cerr << "TrinityStandaloneProbeConfigureVolumetrics failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );

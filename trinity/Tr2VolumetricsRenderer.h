@@ -176,6 +176,7 @@ public:
 		m_lastDiagnostics.localOutputCopySucceeded = succeeded;
 	}
 	bool SetNoiseSeed( uint32_t seed, Tr2RenderContext& renderContext );
+	void SetTemporalFroxelsEnabled( bool enabled );
 	void ResetTemporalHistory();
 	const Tr2TextureAL* GetMieEnvironmentMap() const;
 

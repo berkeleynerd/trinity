@@ -69,7 +69,7 @@ public:
 						   Tr2WindowHandle hFocusWindow,
 						   const Tr2PresentParametersAL& presentationParameters );
 	ALResult CreateHeadlessDevice( uint32_t adapter, bool diagnosticsEnabled );
-	void SetSubmissionDiagnosticsEnabled( bool enabled );
+	void SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed = true );
 	ALResult GetHeadlessSubmissionPreflight( Tr2MetalSubmissionDiagnostics* diagnostics );
 	ALResult GetCompletedSubmissionDiagnostics( std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics );
 	ALResult SubmitHeadlessAndWait( Tr2MetalSubmissionDiagnostics* diagnostics );

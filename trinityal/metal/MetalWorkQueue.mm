@@ -145,6 +145,7 @@ MetalWorkQueue::MetalWorkQueue() :
 	m_pendingClear( false ),
 	m_visibilityQueryInProgress( false ),
 	m_submissionDiagnosticsEnabled( false ),
+	m_submissionDiagnosticsFailClosed( true ),
 	m_bindingPreflightPassed( true ),
 	m_commandBufferCreatedAt( 0.0 ),
 	m_lastComputePipelineUid( 0 ),
@@ -403,9 +404,10 @@ void MetalWorkQueue::SetCommandQueue( id<MTLCommandQueue> commandQueue )
 	CreateClearFunctions();
 }
 
-void MetalWorkQueue::SetSubmissionDiagnosticsEnabled( bool enabled )
+void MetalWorkQueue::SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed )
 {
 	m_submissionDiagnosticsEnabled = enabled;
+	m_submissionDiagnosticsFailClosed = failClosed;
 	std::lock_guard<std::mutex> lock( m_submissionDiagnosticStore->mutex );
 	m_submissionDiagnosticStore->completed.clear();
 	m_submissionDiagnosticStore->pending = 0;
@@ -2316,9 +2318,9 @@ bool MetalWorkQueue::ValidateComputeBindings()
 			{
 				diagnostic.failure = "required buffer is nil";
 			}
-			else if( diagnostic.isDummy )
+			else if( diagnostic.isDummy && argument.access != MTLArgumentAccessReadOnly )
 			{
-				diagnostic.failure = "required buffer is a dummy resource";
+				diagnostic.failure = "writable buffer is a dummy resource";
 			}
 			else if( diagnostic.requiredBytes && diagnostic.boundBytes < diagnostic.requiredBytes )
 			{
@@ -2344,9 +2346,9 @@ bool MetalWorkQueue::ValidateComputeBindings()
 			{
 				diagnostic.failure = "required texture is nil";
 			}
-			else if( diagnostic.isDummy )
+			else if( diagnostic.isDummy && argument.access != MTLArgumentAccessReadOnly )
 			{
-				diagnostic.failure = "required texture is a dummy resource";
+				diagnostic.failure = "writable texture is a dummy resource";
 			}
 			else if( texture.textureType != argument.textureType )
 			{
@@ -2371,10 +2373,6 @@ bool MetalWorkQueue::ValidateComputeBindings()
 			if( diagnostic.isNil )
 			{
 				diagnostic.failure = "required sampler is nil";
-			}
-			else if( diagnostic.isDummy )
-			{
-				diagnostic.failure = "required sampler is a dummy resource";
 			}
 		}
 		else
@@ -2428,7 +2426,8 @@ bool MetalWorkQueue::EmitComputeEncoderState()
 	{
 		return false;
 	}
-	if( !ValidateComputeBindings() )
+	const bool bindingsValid = ValidateComputeBindings();
+	if( !bindingsValid && m_submissionDiagnosticsFailClosed )
 	{
 		return false;
 	}

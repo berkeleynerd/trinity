@@ -63,8 +63,21 @@ class FroxelLabTest(unittest.TestCase):
 
         product_index = command.index("--render-product")
         self.assertEqual(command[product_index + 1], "hdr-composite")
+        temporal_index = command.index("--froxel-temporal")
+        self.assertEqual(command[temporal_index + 1], "off")
         self.assertIn("--client-kernels", command)
         self.assertEqual(command[-2:], ["--taa", "off"])
+
+    def test_client_scene_temporal_profile_reaches_froxel_renderer(self):
+        experiment = {"id": "R01", "kernelSet": "client-scene", "temporal": "on"}
+        args = type("Args", (), {"binary": None})()
+        run_dir = self.root / "runs" / "R01-incident-test"
+        with mock.patch.object(LAB, "resolve_executable", return_value=pathlib.Path("/tmp/probe")):
+            command = LAB.build_worker_command(experiment, "incident", args, run_dir)
+
+        temporal_index = command.index("--froxel-temporal")
+        self.assertEqual(command[temporal_index + 1], "on")
+        self.assertEqual(command[-2:], ["--taa", "high"])
 
     def test_atomic_transition_is_durable_and_ordered(self):
         run_dir = LAB.RUNS_ROOT / "run"

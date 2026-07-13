@@ -10233,7 +10233,13 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	return true;
 }
 
-bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32_t seed, std::string& error )
+bool ConfigureVolumetrics(
+	StandaloneProbe& probe,
+	int mode,
+	int quality,
+	uint32_t seed,
+	bool temporalFroxels,
+	std::string& error )
 {
 	if( !probe.scene || !probe.driver || !probe.renderContext )
 	{
@@ -10269,6 +10275,7 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 		return false;
 	}
 	renderer->SetQuality( probe.volumetricQuality );
+	renderer->SetTemporalFroxelsEnabled( temporalFroxels );
 	if( !renderer->SetNoiseSeed( seed, *probe.renderContext ) )
 	{
 		error = "Failed to create deterministic 64x64x64 froxel noise";
@@ -10493,7 +10500,8 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 		std::fprintf(
 			stderr,
 			"EVE RC-12B froxel fixture: native=EveChildFogVolume authoredSystem=false intensity=0.35 "
-			"thickness=1.0 environment=1.0 noise=0.15 godRayNoise=0.10 temporal=true seed=%u\n",
+			"thickness=1.0 environment=1.0 noise=0.15 godRayNoise=0.10 temporal=%s seed=%u\n",
+			temporalFroxels ? "true" : "false",
 			seed );
 	}
 
@@ -11384,7 +11392,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
 	void* opaqueProbe,
 	int mode,
 	int quality,
-	uint32_t seed )
+	uint32_t seed,
+	bool temporalFroxels )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe )
@@ -11392,7 +11401,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
 		return false;
 	}
 	std::string error;
-	if( !ConfigureVolumetrics( *probe, mode, quality, seed, error ) )
+	if( !ConfigureVolumetrics( *probe, mode, quality, seed, temporalFroxels, error ) )
 	{
 		std::fprintf( stderr, "Failed to configure RC-12B volumetrics: %s\n", error.c_str() );
 		return false;
@@ -11514,7 +11523,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSubmissionDiagnost
 		return false;
 	}
 #if TRINITY_PLATFORM == TRINITY_METAL
-	probe->renderContext->SetSubmissionDiagnosticsEnabled( enabled );
+	probe->renderContext->SetSubmissionDiagnosticsEnabled( enabled, false );
 	return true;
 #else
 	( void )enabled;
@@ -11588,8 +11597,11 @@ TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosti
 		return nullptr;
 	}
 	bool commandsCompleted = true;
-	bool bindingPreflightPassed = true;
-	bool bindingInventoryPresent = false;
+	bool allComputeBindingsValid = true;
+	bool froxelBindingPreflightPassed = true;
+	bool calculateBindingInventory = false;
+	bool filterBindingInventory = !volumetrics.temporalEnabled;
+	bool raymarchBindingInventory = false;
 	bool calculateEncoder = false;
 	bool filterEncoder = !volumetrics.temporalEnabled;
 	bool raymarchEncoder = false;
@@ -11600,7 +11612,6 @@ TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosti
 	for( const auto& submission : submissions )
 	{
 		commandsCompleted = commandsCompleted && submission.completedSuccessfully;
-		bindingPreflightPassed = bindingPreflightPassed && submission.bindingPreflightPassed;
 		for( const auto& encoder : submission.encoders )
 		{
 			calculateEncoder = calculateEncoder || encoder.label == "Calculate froxels";
@@ -11616,10 +11627,21 @@ TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosti
 		}
 		for( const auto& binding : submission.bindings )
 		{
-			bindingInventoryPresent = true;
-			bindingPreflightPassed = bindingPreflightPassed && binding.valid;
+			allComputeBindingsValid = allComputeBindingsValid && binding.valid;
+			const bool calculateBinding = binding.encoderLabel == "Calculate froxels";
+			const bool filterBinding = binding.encoderLabel == "Temporal filter";
+			const bool raymarchBinding = binding.encoderLabel == "Raymarch";
+			if( calculateBinding || filterBinding || raymarchBinding )
+			{
+				calculateBindingInventory = calculateBindingInventory || calculateBinding;
+				filterBindingInventory = filterBindingInventory || filterBinding;
+				raymarchBindingInventory = raymarchBindingInventory || raymarchBinding;
+				froxelBindingPreflightPassed = froxelBindingPreflightPassed && binding.valid;
+			}
 		}
 	}
+	const bool bindingInventoryPresent =
+		calculateBindingInventory && filterBindingInventory && raymarchBindingInventory;
 	const bool encoderCoveragePassed = calculateEncoder && filterEncoder && raymarchEncoder && applyEncoder;
 	const bool pipelineCoveragePassed = calculatePipeline && filterPipeline && raymarchPipeline;
 	const bool canariesIntact = probe->hdrCompositeReadbackCanariesIntact &&
@@ -11627,16 +11649,22 @@ TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosti
 	const bool outputPassed = probe->hdrCompositeDiagnostics.valid &&
 		probe->capturedProductNonzeroPixels != 0 &&
 		probe->capturedProductMinimum != probe->capturedProductMaximum;
-	const bool passed = commandsCompleted && bindingPreflightPassed && bindingInventoryPresent &&
+	const bool passed = commandsCompleted && froxelBindingPreflightPassed && bindingInventoryPresent &&
 		encoderCoveragePassed && pipelineCoveragePassed && canariesIntact && outputPassed && volumetrics.valid;
 
 	std::ostringstream json;
 	json << "{\n"
-		 << "  \"schemaVersion\": 1,\n"
+		 << "  \"schemaVersion\": 2,\n"
 		 << "  \"passed\": " << ( passed ? "true" : "false" ) << ",\n"
 		 << "  \"commandsCompleted\": " << ( commandsCompleted ? "true" : "false" ) << ",\n"
-		 << "  \"bindingPreflightPassed\": " << ( bindingPreflightPassed ? "true" : "false" ) << ",\n"
+		 << "  \"bindingPreflightPassed\": "
+		 << ( froxelBindingPreflightPassed ? "true" : "false" ) << ",\n"
 		 << "  \"bindingInventoryPresent\": " << ( bindingInventoryPresent ? "true" : "false" ) << ",\n"
+		 << "  \"froxelBindingInventory\": {\"calculate\": "
+		 << ( calculateBindingInventory ? "true" : "false" )
+		 << ", \"temporalFilter\": " << ( filterBindingInventory ? "true" : "false" )
+		 << ", \"raymarch\": " << ( raymarchBindingInventory ? "true" : "false" ) << "},\n"
+		 << "  \"allComputeBindingsValid\": " << ( allComputeBindingsValid ? "true" : "false" ) << ",\n"
 		 << "  \"encoderCoveragePassed\": " << ( encoderCoveragePassed ? "true" : "false" ) << ",\n"
 		 << "  \"pipelineCoveragePassed\": " << ( pipelineCoveragePassed ? "true" : "false" ) << ",\n"
 		 << "  \"canariesIntact\": " << ( canariesIntact ? "true" : "false" ) << ",\n"
@@ -11701,11 +11729,14 @@ TRINITY_STANDALONE_EXPORT const char* TrinityStandaloneProbeGetIncidentDiagnosti
 				 << ", \"name\": " << IncidentJsonString( binding.name )
 				 << ", \"kind\": " << IncidentJsonString( binding.kind )
 				 << ", \"index\": " << binding.index
+				 << ", \"access\": " << binding.access
 				 << ", \"requiredBytes\": " << binding.requiredBytes
 				 << ", \"boundBytes\": " << binding.boundBytes
 				 << ", \"width\": " << binding.width
 				 << ", \"height\": " << binding.height
 				 << ", \"depth\": " << binding.depth
+				 << ", \"isNil\": " << ( binding.isNil ? "true" : "false" )
+				 << ", \"isDummy\": " << ( binding.isDummy ? "true" : "false" )
 				 << ", \"valid\": " << ( binding.valid ? "true" : "false" )
 				 << ", \"failure\": " << IncidentJsonString( binding.failure ) << "}"
 				 << ( bindingIndex + 1 == submission.bindings.size() ? "\n" : ",\n" );
