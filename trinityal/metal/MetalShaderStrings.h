@@ -115,6 +115,32 @@ static const char* sClearShaderSource = R"(
 			texture.write(color, globalIdx.xy, 0);
 		}
 	}
+
+	kernel void ClearFloatTexture3D(
+		constant float* values [[ buffer(0) ]],
+		texture3d<float, access::write> texture [[ texture(0) ]],
+		uint3 globalIdx [[ thread_position_in_grid ]])
+	{
+		if (globalIdx.x < texture.get_width() &&
+			globalIdx.y < texture.get_height() &&
+			globalIdx.z < texture.get_depth())
+		{
+			texture.write(float4(values[0], values[1], values[2], values[3]), globalIdx);
+		}
+	}
+
+	kernel void ClearUIntTexture3D(
+		constant uint* values [[ buffer(0) ]],
+		texture3d<uint, access::write> texture [[ texture(0) ]],
+		uint3 globalIdx [[ thread_position_in_grid ]])
+	{
+		if (globalIdx.x < texture.get_width() &&
+			globalIdx.y < texture.get_height() &&
+			globalIdx.z < texture.get_depth())
+		{
+			texture.write(uint4(values[0], values[1], values[2], values[3]), globalIdx);
+		}
+	}
 )";
 
 #endif

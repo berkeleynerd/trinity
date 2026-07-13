@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "experiments": [
+    {
+      "id": "A00",
+      "title": "Device-free effect-container and AIR audit",
+      "risk": "device-free",
+      "kernelSet": "client",
+      "stage": "audit",
+      "profiles": ["all-permutations"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "S10",
+      "title": "Synthetic bounded 3D clear",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "clear",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "S11",
+      "title": "Synthetic 3D write and canary validation",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "calculate",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "S12",
+      "title": "Synthetic out-of-place temporal filter",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "filter",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "S13",
+      "title": "Synthetic in-place read/write access",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "raymarch",
+      "alias": "in-place",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "S14",
+      "title": "Synthetic Mie cube to writable array view",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "mie",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "S15",
+      "title": "Synthetic full-screen froxel apply",
+      "risk": "synthetic-safe",
+      "kernelSet": "synthetic",
+      "stage": "apply",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"]
+    },
+    {
+      "id": "C10",
+      "title": "Client apply with synthetic froxel texture",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "apply",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C20",
+      "title": "Client Mie pass",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "mie",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C30",
+      "title": "Client calculate pass",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "calculate",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C40",
+      "title": "Client temporal filter",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "filter",
+      "temporal": "on",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C50",
+      "title": "Client out-of-place raymarch",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "raymarch",
+      "alias": "out-of-place",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C51",
+      "title": "Client in-place raymarch",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "raymarch",
+      "alias": "in-place",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C60",
+      "title": "Client complete chain without temporal history",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "chain",
+      "temporal": "off",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "C61",
+      "title": "Client complete chain with temporal history",
+      "risk": "secondary-client",
+      "kernelSet": "client",
+      "stage": "chain",
+      "temporal": "on",
+      "profiles": ["one-threadgroup", "32x32x16", "divisible", "odd", "incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "R00",
+      "title": "Incident-equivalent one-frame New Eden scene without temporal history",
+      "risk": "incident-equivalent",
+      "kernelSet": "client-scene",
+      "stage": "chain",
+      "temporal": "off",
+      "profiles": ["incident"],
+      "requiresClientResources": true
+    },
+    {
+      "id": "R01",
+      "title": "Incident-equivalent one-frame New Eden scene with temporal history",
+      "risk": "incident-equivalent",
+      "kernelSet": "client-scene",
+      "stage": "chain",
+      "temporal": "on",
+      "profiles": ["incident"],
+      "requiresClientResources": true
+    }
+  ],
+  "profiles": {
+    "all-permutations": {"dimensions": "0x0x0"},
+    "one-threadgroup": {"dimensions": "8x8x4"},
+    "32x32x16": {"dimensions": "32x32x16"},
+    "divisible": {"dimensions": "64x48x32"},
+    "odd": {"dimensions": "65x47x33"},
+    "incident": {"dimensions": "160x90x128"}
+  }
+}

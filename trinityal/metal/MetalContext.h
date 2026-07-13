@@ -79,6 +79,9 @@ public:
 	id<MTLSamplerState> GetDummySampler();
 	// Optional fields will contain info about the buffer
 	id<MTLBuffer> GetDummyBuffer( NSUInteger* outSize = nil, MTLVertexFormat* outFormat = nil );
+	bool IsDummyTexture( id<MTLTexture> texture ) const;
+	bool IsDummySampler( id<MTLSamplerState> sampler ) const;
+	bool IsDummyBuffer( id<MTLBuffer> buffer ) const;
 
 	bool IsResourceInUse( uint64 resourceLastAccessedFrame ) const;
 	uint64_t GetRecordingFrameNumber() const;

@@ -106,6 +106,12 @@ extern int g_grannyDeprecationLevel;
 
 #if TRINITY_WITH_DESTINY_EMBEDDED
 #include <DestinyEmbedded.h>
+#else
+enum DestinyEmbeddedOrbitPolicyFallback
+{
+	DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT = 0,
+	DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW = 1,
+};
 #endif
 
 extern "C" void TrinityStandaloneStartup();
@@ -164,9 +170,9 @@ AudEmitter::~AudEmitter()
 
 void AudEmitter::UpdatePlacement( const Vector3& front, const Vector3& top, const Vector3& position )
 {
-	( void )front;
-	( void )top;
-	( void )position;
+	(void)front;
+	(void)top;
+	(void)position;
 }
 
 const Be::ClassInfo* AudEmitter::ExposeToBlue()
@@ -196,7 +202,8 @@ struct SchedulerStats
 		numberOfTaskletsSwitchedLastTick( 0 ),
 		maxTimeMs( 0 ),
 		overshootMs( 0 )
-	{}
+	{
+	}
 
 	int numberOfTaskletsInQueuePreTick;
 	int numberOfTaskletsInQueuePostTick;
@@ -225,12 +232,12 @@ public:
 
 	PyObject* GetCurrent() override;
 	float GetElapsed() override;
-	PyObject* EnterTasklet( PyObject* newContext ) override;
-	bool ReturnFromTasklet( PyObject* prevContext ) override;
+	PyObject* EnterTasklet( PyObject * newContext ) override;
+	bool ReturnFromTasklet( PyObject * prevContext ) override;
 	PyObject* SwitchStack( intptr_t contextId ) override;
 	bool Reset() override;
 	void TimesliceReset() override;
-	PyObject* EnterTaskletEx( PyObject* newContext, TASKLETFLAGS flags ) override;
+	PyObject* EnterTaskletEx( PyObject * newContext, TASKLETFLAGS flags ) override;
 	PyObject* EnterTaskletStr( const char* newContext, TASKLETFLAGS flags ) override;
 };
 TYPEDEF_BLUECLASS( TrinityProbeTaskletTimer );
@@ -245,21 +252,46 @@ TrinityProbeTaskletTimer::~TrinityProbeTaskletTimer()
 {
 }
 
-PyObject* TrinityProbeTaskletTimer::GetCurrent() { return nullptr; }
-float TrinityProbeTaskletTimer::GetElapsed() { return 0.0f; }
-PyObject* TrinityProbeTaskletTimer::EnterTasklet( PyObject* ) { return nullptr; }
-bool TrinityProbeTaskletTimer::ReturnFromTasklet( PyObject* ) { return true; }
-PyObject* TrinityProbeTaskletTimer::SwitchStack( intptr_t ) { return nullptr; }
-bool TrinityProbeTaskletTimer::Reset() { return true; }
-void TrinityProbeTaskletTimer::TimesliceReset() {}
-PyObject* TrinityProbeTaskletTimer::EnterTaskletEx( PyObject*, TASKLETFLAGS ) { return nullptr; }
-PyObject* TrinityProbeTaskletTimer::EnterTaskletStr( const char*, TASKLETFLAGS ) { return nullptr; }
-
-const Be::ClassInfo* TrinityProbeTaskletTimer::ExposeToBlue()
+PyObject* TrinityProbeTaskletTimer::GetCurrent()
 {
+	return nullptr;
+}
+float TrinityProbeTaskletTimer::GetElapsed()
+{
+	return 0.0f;
+}
+PyObject* TrinityProbeTaskletTimer::EnterTasklet( PyObject* )
+{
+	return nullptr;
+}
+bool TrinityProbeTaskletTimer::ReturnFromTasklet( PyObject* )
+{
+	return true;
+}
+PyObject* TrinityProbeTaskletTimer::SwitchStack( intptr_t )
+{
+	return nullptr;
+}
+bool TrinityProbeTaskletTimer::Reset()
+{
+	return true;
+}
+void TrinityProbeTaskletTimer::TimesliceReset()
+{
+}
+PyObject* TrinityProbeTaskletTimer::EnterTaskletEx( PyObject*, TASKLETFLAGS )
+{
+	return nullptr;
+}
+PyObject* TrinityProbeTaskletTimer::EnterTaskletStr( const char*, TASKLETFLAGS )
+{
+	return nullptr;
+}
+
+const Be::ClassInfo* TrinityProbeTaskletTimer::ExposeToBlue(){
 	EXPOSURE_BEGIN( TrinityProbeTaskletTimer, "" )
 		MAP_INTERFACE( ITaskletTimer )
-	EXPOSURE_END()
+			EXPOSURE_END()
 }
 
 BLUE_DECLARE( TrinityProbePyOS );
@@ -279,19 +311,19 @@ public:
 	TrinityProbePyOS( IRoot* lockobj = NULL );
 	~TrinityProbePyOS();
 
-	BluePythonObject* WrapBlueObject( IRoot* object ) override;
+	BluePythonObject* WrapBlueObject( IRoot * object ) override;
 	bool Startup() override;
 	void Shutdown( int level ) override;
 	int PumpPython( bool quit ) override;
-	PyObject* PyError( PyObject* exception ) override;
-	PyObject* CreateTasklet( PyObject* meth, PyObject* args, PyObject* kw ) override;
-	bool SendEvent( IRoot* caller, const char* context, const char* eventName, PyObject** pRetval, const char* format, ... ) override;
-	bool PostEvent( IRoot* caller, const char* context, const char* eventName, const char* format, ... ) override;
+	PyObject* PyError( PyObject * exception ) override;
+	PyObject* CreateTasklet( PyObject * meth, PyObject * args, PyObject * kw ) override;
+	bool SendEvent( IRoot * caller, const char* context, const char* eventName, PyObject** pRetval, const char* format, ... ) override;
+	bool PostEvent( IRoot * caller, const char* context, const char* eventName, const char* format, ... ) override;
 	void FormatException( char** result ) override;
 	ITaskletTimer* GetTaskletTimer() override;
 	bool PyFlushError( const char* whence ) override;
-	void OnTaskletSwitch( PyObject* from, PyObject* to ) override;
-	PyObject* CallMethodWithTrap( PyObject* target, const char* method, const char* ctxt, const char* format, ... ) override;
+	void OnTaskletSwitch( PyObject * from, PyObject * to ) override;
+	PyObject* CallMethodWithTrap( PyObject * target, const char* method, const char* ctxt, const char* format, ... ) override;
 	bool PythonEvent( const char* event, PyObject* arg ) override;
 	bool IsPackaged() override;
 	void SetPackaged( bool packaged ) override;
@@ -320,12 +352,29 @@ TrinityProbePyOS::~TrinityProbePyOS()
 {
 }
 
-BluePythonObject* TrinityProbePyOS::WrapBlueObject( IRoot* ) { return nullptr; }
-bool TrinityProbePyOS::Startup() { return false; }
-void TrinityProbePyOS::Shutdown( int ) {}
-int TrinityProbePyOS::PumpPython( bool ) { return 0; }
-PyObject* TrinityProbePyOS::PyError( PyObject* ) { return nullptr; }
-PyObject* TrinityProbePyOS::CreateTasklet( PyObject*, PyObject*, PyObject* ) { return nullptr; }
+BluePythonObject* TrinityProbePyOS::WrapBlueObject( IRoot* )
+{
+	return nullptr;
+}
+bool TrinityProbePyOS::Startup()
+{
+	return false;
+}
+void TrinityProbePyOS::Shutdown( int )
+{
+}
+int TrinityProbePyOS::PumpPython( bool )
+{
+	return 0;
+}
+PyObject* TrinityProbePyOS::PyError( PyObject* )
+{
+	return nullptr;
+}
+PyObject* TrinityProbePyOS::CreateTasklet( PyObject*, PyObject*, PyObject* )
+{
+	return nullptr;
+}
 bool TrinityProbePyOS::SendEvent( IRoot*, const char*, const char*, PyObject** pRetval, const char*, ... )
 {
 	if( pRetval )
@@ -334,7 +383,10 @@ bool TrinityProbePyOS::SendEvent( IRoot*, const char*, const char*, PyObject** p
 	}
 	return false;
 }
-bool TrinityProbePyOS::PostEvent( IRoot*, const char*, const char*, const char*, ... ) { return false; }
+bool TrinityProbePyOS::PostEvent( IRoot*, const char*, const char*, const char*, ... )
+{
+	return false;
+}
 void TrinityProbePyOS::FormatException( char** result )
 {
 	if( result )
@@ -359,20 +411,58 @@ ITaskletTimer* TrinityProbePyOS::GetTaskletTimer()
 	}();
 	return s_timer;
 }
-bool TrinityProbePyOS::PyFlushError( const char* ) { return false; }
-void TrinityProbePyOS::OnTaskletSwitch( PyObject*, PyObject* ) {}
-PyObject* TrinityProbePyOS::CallMethodWithTrap( PyObject*, const char*, const char*, const char*, ... ) { return nullptr; }
-bool TrinityProbePyOS::PythonEvent( const char*, PyObject* ) { return false; }
-bool TrinityProbePyOS::IsPackaged() { return false; }
-void TrinityProbePyOS::SetPackaged( bool ) {}
-void TrinityProbePyOS::SetMarkupZonesInPython( bool ) {}
-bool TrinityProbePyOS::IsInterpreterMode() { return false; }
-bool TrinityProbePyOS::CanYield() { return false; }
-bool TrinityProbePyOS::Yield() { return false; }
-SchedulerStats& TrinityProbePyOS::GetSchedulerStats() { return m_stats; }
-PyObject* TrinityProbePyOS::PyErr_BlueError() { return nullptr; }
-PyObject* TrinityProbePyOS::BlueModule() { return nullptr; }
-void TrinityProbePyOS::RebaseSimClock( Be::Time, Be::Time ) {}
+bool TrinityProbePyOS::PyFlushError( const char* )
+{
+	return false;
+}
+void TrinityProbePyOS::OnTaskletSwitch( PyObject*, PyObject* )
+{
+}
+PyObject* TrinityProbePyOS::CallMethodWithTrap( PyObject*, const char*, const char*, const char*, ... )
+{
+	return nullptr;
+}
+bool TrinityProbePyOS::PythonEvent( const char*, PyObject* )
+{
+	return false;
+}
+bool TrinityProbePyOS::IsPackaged()
+{
+	return false;
+}
+void TrinityProbePyOS::SetPackaged( bool )
+{
+}
+void TrinityProbePyOS::SetMarkupZonesInPython( bool )
+{
+}
+bool TrinityProbePyOS::IsInterpreterMode()
+{
+	return false;
+}
+bool TrinityProbePyOS::CanYield()
+{
+	return false;
+}
+bool TrinityProbePyOS::Yield()
+{
+	return false;
+}
+SchedulerStats& TrinityProbePyOS::GetSchedulerStats()
+{
+	return m_stats;
+}
+PyObject* TrinityProbePyOS::PyErr_BlueError()
+{
+	return nullptr;
+}
+PyObject* TrinityProbePyOS::BlueModule()
+{
+	return nullptr;
+}
+void TrinityProbePyOS::RebaseSimClock( Be::Time, Be::Time )
+{
+}
 
 const Be::ClassInfo* TrinityProbePyOS::ExposeToBlue()
 {
@@ -636,7 +726,7 @@ public:
 	{
 		return m_shadowBoundingRadius;
 	}
-	bool SetBallparkCurves( ITriVectorFunction* position, ITriQuaternionFunction* rotation )
+	bool SetBallparkCurves( ITriVectorFunction * position, ITriQuaternionFunction * rotation )
 	{
 		if( !m_rootTransform || !position || !rotation )
 			return false;
@@ -2147,7 +2237,7 @@ public:
 			}
 		}
 		else if( m_decalWarmupFrames >= 2 &&
-			( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) )
+				 ( submitted != m_decalEntries.size() || committed != m_decalEntries.size() ) )
 		{
 			if( !m_reportedDecalFailure )
 			{
@@ -4072,6 +4162,8 @@ struct StandaloneProbe
 	int volumetricMode = STANDALONE_VOLUMETRICS_OFF;
 	Tr2VolumerticQuality volumetricQuality = Tr2VolumerticQuality::High;
 	uint32_t volumetricSeed = 0x12b;
+	bool froxelLabAuthorized = false;
+	std::string froxelLabLedgerPath;
 	int qualityRung = STANDALONE_PROBE_RUNG_SHELL;
 	int taaMode = STANDALONE_TAA_OFF;
 	int taaDebug = Tr2PPTaaEffect::TAA_DEBUG_OFF;
@@ -4309,7 +4401,7 @@ private:
 				!instance )
 			{
 				CCP_LOGERR( "TrinityProbePyOS scheduler stub failed to instantiate; "
-					"nested reads will crash on carbon's unguarded PyOS gates" );
+							"nested reads will crash on carbon's unguarded PyOS gates" );
 			}
 			return instance.Detach();
 		}();
@@ -4347,7 +4439,9 @@ void DrainResourceQueuesUntilSettled()
 			if( (float)drainTimer.GetSeconds() > kDrainBudgetSeconds )
 			{
 				CCP_LOGERR( "Resource drain exceeded %.0f s: pendingLoads=%u pendingPrepares=%u",
-					kDrainBudgetSeconds, BeResMan->GetPendingLoads(), BeResMan->GetPendingPrepares() );
+							kDrainBudgetSeconds,
+							BeResMan->GetPendingLoads(),
+							BeResMan->GetPendingPrepares() );
 				return;
 			}
 			std::this_thread::yield();
@@ -4362,7 +4456,9 @@ void DrainResourceQueuesUntilSettled()
 			if( (float)drainTimer.GetSeconds() > kDrainBudgetSeconds )
 			{
 				CCP_LOGERR( "Resource drain exceeded %.0f s without settling: pendingLoads=%u pendingPrepares=%u",
-					kDrainBudgetSeconds, BeResMan->GetPendingLoads(), BeResMan->GetPendingPrepares() );
+							kDrainBudgetSeconds,
+							BeResMan->GetPendingLoads(),
+							BeResMan->GetPendingPrepares() );
 				return;
 			}
 		}
@@ -9242,8 +9338,8 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	}
 	return true;
 #else
-	( void )probe;
-	( void )simulationTime;
+	(void)probe;
+	(void)simulationTime;
 	return false;
 #endif
 }
@@ -10118,7 +10214,7 @@ bool ConfigureVolumetrics( StandaloneProbe& probe, int mode, int quality, uint32
 		return false;
 	}
 	const bool wantsFroxel = mode == STANDALONE_VOLUMETRICS_FROXEL || mode == STANDALONE_VOLUMETRICS_ALL;
-	if( wantsFroxel )
+	if( wantsFroxel && !probe.froxelLabAuthorized )
 	{
 		error = "Froxel volumetrics are disabled on the standalone Metal probe: native compute submission stalled the AGX GPU and triggered the macOS WindowServer watchdog";
 		return false;
@@ -10812,6 +10908,28 @@ TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeDestroyDevice( void* opaque
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	delete probe;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeAuthorizeFroxelLab(
+	void* opaqueProbe,
+	const char* ledgerPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	const char* acknowledgement = std::getenv( "TRINITY_FROXEL_GPU_LAB" );
+	if( !probe || !ledgerPath || ledgerPath[0] == '\0' || !acknowledgement ||
+		std::strcmp( acknowledgement, "I_ACKNOWLEDGE_GPU_RESET_RISK" ) != 0 )
+	{
+		return false;
+	}
+	std::ifstream ledger( ledgerPath, std::ios::binary );
+	if( !ledger.good() )
+	{
+		return false;
+	}
+	probe->froxelLabAuthorized = true;
+	probe->froxelLabLedgerPath = ledgerPath;
+	std::fprintf( stderr, "EVE RC-12B2 hazardous froxel lab authorized by ledger: %s\n", ledgerPath );
+	return true;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
@@ -11827,7 +11945,8 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	const Vector3d origin = probe.scene->GetOrigin();
 	const Vector3 originShift = probe.scene->GetOriginShift();
 	const Vector3 rootTranslation = probe.renderable ?
-		probe.renderable->GetRootTransform().GetTranslation() : Vector3( 0.0f, 0.0f, 0.0f );
+		probe.renderable->GetRootTransform().GetTranslation() :
+		Vector3( 0.0f, 0.0f, 0.0f );
 	double expectedRawPosition[3] = { source.rawPosition[0], source.rawPosition[1], source.rawPosition[2] };
 	double expectedRawVelocity[3] = { source.rawVelocity[0], source.rawVelocity[1], source.rawVelocity[2] };
 	double expectedRawAcceleration[3] = {
@@ -12076,7 +12195,8 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	if( ( probe.ballparkMode == STANDALONE_BALLPARK_GOTO ||
 		  probe.ballparkMode == STANDALONE_BALLPARK_ORBIT ||
 		  probe.ballparkMode == STANDALONE_BALLPARK_WARP ||
-		  probe.ballparkMode == STANDALONE_BALLPARK_APPROACH ) && probe.renderable )
+		  probe.ballparkMode == STANDALONE_BALLPARK_APPROACH ) &&
+		probe.renderable )
 	{
 		const double roll = 2.0 * std::atan2( std::abs( source.rotation[2] ), std::abs( source.rotation[3] ) );
 		if( diagnostics.lastValidatedEvolveCount == 0 )
@@ -12127,50 +12247,50 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	if( writeLog && probe.ballparkLog.is_open() )
 	{
 		probe.ballparkLog << frame << ',' << time << ',' << source.directEvolveCount << ','
-			<< source.primaryBallId << ',' << source.egoBallId << ',' << source.mode << ','
-			<< source.commandCount << ',' << source.lastCommandTime << ','
-			<< source.rawPosition[0] << ',' << source.rawPosition[1] << ',' << source.rawPosition[2] << ','
-			<< source.rawVelocity[0] << ',' << source.rawVelocity[1] << ',' << source.rawVelocity[2] << ','
-			<< source.rawAcceleration[0] << ',' << source.rawAcceleration[1] << ',' << source.rawAcceleration[2] << ','
-			<< expectedRawPosition[0] << ',' << expectedRawPosition[1] << ',' << expectedRawPosition[2] << ','
-			<< expectedRawVelocity[0] << ',' << expectedRawVelocity[1] << ',' << expectedRawVelocity[2] << ','
-			<< expectedRawAcceleration[0] << ',' << expectedRawAcceleration[1] << ',' << expectedRawAcceleration[2] << ','
-			<< std::abs( source.rawPosition[0] - expectedRawPosition[0] ) << ','
-			<< std::abs( source.rawPosition[1] - expectedRawPosition[1] ) << ','
-			<< std::abs( source.rawPosition[2] - expectedRawPosition[2] ) << ','
-			<< std::abs( source.rawVelocity[0] - expectedRawVelocity[0] ) << ','
-			<< std::abs( source.rawVelocity[1] - expectedRawVelocity[1] ) << ','
-			<< std::abs( source.rawVelocity[2] - expectedRawVelocity[2] ) << ','
-			<< std::abs( source.rawAcceleration[0] - expectedRawAcceleration[0] ) << ','
-			<< std::abs( source.rawAcceleration[1] - expectedRawAcceleration[1] ) << ','
-			<< std::abs( source.rawAcceleration[2] - expectedRawAcceleration[2] ) << ','
-			<< source.position[0] << ',' << source.position[1] << ',' << source.position[2] << ','
-			<< source.absolutePosition[0] << ',' << source.absolutePosition[1] << ',' << source.absolutePosition[2] << ','
-			<< source.velocity[0] << ',' << source.velocity[1] << ',' << source.velocity[2] << ','
-			<< source.acceleration[0] << ',' << source.acceleration[1] << ',' << source.acceleration[2] << ','
-			<< rootTranslation.x << ',' << rootTranslation.y << ',' << rootTranslation.z << ','
-			<< source.rotation[0] << ',' << source.rotation[1] << ',' << source.rotation[2] << ','
-			<< source.rotation[3] << ',' << referencePoint.x << ',' << referencePoint.y << ','
-			<< referencePoint.z << ',' << origin.x << ',' << origin.y << ',' << origin.z << ','
-			<< originShift.x << ',' << originShift.y << ',' << originShift.z << ',' << delta.x << ','
-			<< delta.y << ',' << delta.z << ',' << smoothedDelta.x << ',' << smoothedDelta.y << ','
-			<< smoothedDelta.z << ',' << deltaVelocity.x << ',' << deltaVelocity.y << ','
-			<< deltaVelocity.z << ',' << unitBase << ',' << diagnostics.originUpdateCount << ','
-			<< diagnostics.engineParentSpeed << ',' << diagnostics.engineParentAcceleration[0] << ','
-			<< diagnostics.engineParentAcceleration[1] << ',' << diagnostics.engineParentAcceleration[2] << ','
-			<< source.frontierOrbitEnabled << ',' << source.orbitTargetBallId << ',' << source.followBallId << ','
-			<< source.followRange << ',' << source.orbitCenterDistance << ',' << source.orbitSurfaceDistance << ','
-			<< source.orbitRadialVelocity << ',' << source.orbitTangentialVelocity << ','
-			<< source.orbitAccumulatedPhase << '\n';
+						  << source.primaryBallId << ',' << source.egoBallId << ',' << source.mode << ','
+						  << source.commandCount << ',' << source.lastCommandTime << ','
+						  << source.rawPosition[0] << ',' << source.rawPosition[1] << ',' << source.rawPosition[2] << ','
+						  << source.rawVelocity[0] << ',' << source.rawVelocity[1] << ',' << source.rawVelocity[2] << ','
+						  << source.rawAcceleration[0] << ',' << source.rawAcceleration[1] << ',' << source.rawAcceleration[2] << ','
+						  << expectedRawPosition[0] << ',' << expectedRawPosition[1] << ',' << expectedRawPosition[2] << ','
+						  << expectedRawVelocity[0] << ',' << expectedRawVelocity[1] << ',' << expectedRawVelocity[2] << ','
+						  << expectedRawAcceleration[0] << ',' << expectedRawAcceleration[1] << ',' << expectedRawAcceleration[2] << ','
+						  << std::abs( source.rawPosition[0] - expectedRawPosition[0] ) << ','
+						  << std::abs( source.rawPosition[1] - expectedRawPosition[1] ) << ','
+						  << std::abs( source.rawPosition[2] - expectedRawPosition[2] ) << ','
+						  << std::abs( source.rawVelocity[0] - expectedRawVelocity[0] ) << ','
+						  << std::abs( source.rawVelocity[1] - expectedRawVelocity[1] ) << ','
+						  << std::abs( source.rawVelocity[2] - expectedRawVelocity[2] ) << ','
+						  << std::abs( source.rawAcceleration[0] - expectedRawAcceleration[0] ) << ','
+						  << std::abs( source.rawAcceleration[1] - expectedRawAcceleration[1] ) << ','
+						  << std::abs( source.rawAcceleration[2] - expectedRawAcceleration[2] ) << ','
+						  << source.position[0] << ',' << source.position[1] << ',' << source.position[2] << ','
+						  << source.absolutePosition[0] << ',' << source.absolutePosition[1] << ',' << source.absolutePosition[2] << ','
+						  << source.velocity[0] << ',' << source.velocity[1] << ',' << source.velocity[2] << ','
+						  << source.acceleration[0] << ',' << source.acceleration[1] << ',' << source.acceleration[2] << ','
+						  << rootTranslation.x << ',' << rootTranslation.y << ',' << rootTranslation.z << ','
+						  << source.rotation[0] << ',' << source.rotation[1] << ',' << source.rotation[2] << ','
+						  << source.rotation[3] << ',' << referencePoint.x << ',' << referencePoint.y << ','
+						  << referencePoint.z << ',' << origin.x << ',' << origin.y << ',' << origin.z << ','
+						  << originShift.x << ',' << originShift.y << ',' << originShift.z << ',' << delta.x << ','
+						  << delta.y << ',' << delta.z << ',' << smoothedDelta.x << ',' << smoothedDelta.y << ','
+						  << smoothedDelta.z << ',' << deltaVelocity.x << ',' << deltaVelocity.y << ','
+						  << deltaVelocity.z << ',' << unitBase << ',' << diagnostics.originUpdateCount << ','
+						  << diagnostics.engineParentSpeed << ',' << diagnostics.engineParentAcceleration[0] << ','
+						  << diagnostics.engineParentAcceleration[1] << ',' << diagnostics.engineParentAcceleration[2] << ','
+						  << source.frontierOrbitEnabled << ',' << source.orbitTargetBallId << ',' << source.followBallId << ','
+						  << source.followRange << ',' << source.orbitCenterDistance << ',' << source.orbitSurfaceDistance << ','
+						  << source.orbitRadialVelocity << ',' << source.orbitTangentialVelocity << ','
+						  << source.orbitAccumulatedPhase << '\n';
 		if( !probe.ballparkLog.good() )
 			return false;
 	}
 	return true;
 #else
-	( void )probe;
-	( void )frame;
-	( void )time;
-	( void )writeLog;
+	(void)probe;
+	(void)frame;
+	(void)time;
+	(void)writeLog;
 	return false;
 #endif
 }
@@ -12217,7 +12337,7 @@ void DetachCelestialLinkage( StandaloneProbe& probe )
 bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time time, bool writeLog )
 {
 #if TRINITY_WITH_DESTINY_EMBEDDED
-	( void )time;
+	(void)time;
 	if( probe.celestialMode != STANDALONE_CELESTIAL_BALLPARK_NATURAL || !probe.celestialLinkageActive )
 		return true;
 	if( !probe.destinySession || !probe.scene || !probe.newEdenSun || !probe.newEdenPlanet )
@@ -12331,24 +12451,24 @@ bool UpdateCelestialDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Tim
 		if( probe.celestialLog.is_open() )
 		{
 			probe.celestialLog << frame << ',' << diagnostics.sunDirection[0] << ','
-				<< diagnostics.sunDirection[1] << ',' << diagnostics.sunDirection[2] << ','
-				<< diagnostics.sunWorldPosition[0] << ',' << diagnostics.sunWorldPosition[1] << ','
-				<< diagnostics.sunWorldPosition[2] << ',' << diagnostics.planetWorldPosition[0] << ','
-				<< diagnostics.planetWorldPosition[1] << ',' << diagnostics.planetWorldPosition[2] << ','
-				<< diagnostics.lensFlareSunSize << ',' << diagnostics.expectedLensFlareSunSize << ','
-				<< directionError << ',' << sunWorldError << ',' << planetWorldError << ','
-				<< ( diagnostics.celestialStateValid ? 1 : 0 ) << ','
-				<< ( diagnostics.sunIdentifiedUniquely ? 1 : 0 ) << '\n';
+							   << diagnostics.sunDirection[1] << ',' << diagnostics.sunDirection[2] << ','
+							   << diagnostics.sunWorldPosition[0] << ',' << diagnostics.sunWorldPosition[1] << ','
+							   << diagnostics.sunWorldPosition[2] << ',' << diagnostics.planetWorldPosition[0] << ','
+							   << diagnostics.planetWorldPosition[1] << ',' << diagnostics.planetWorldPosition[2] << ','
+							   << diagnostics.lensFlareSunSize << ',' << diagnostics.expectedLensFlareSunSize << ','
+							   << directionError << ',' << sunWorldError << ',' << planetWorldError << ','
+							   << ( diagnostics.celestialStateValid ? 1 : 0 ) << ','
+							   << ( diagnostics.sunIdentifiedUniquely ? 1 : 0 ) << '\n';
 			if( !probe.celestialLog.good() )
 				return false;
 		}
 	}
 	return true;
 #else
-	( void )probe;
-	( void )frame;
-	( void )time;
-	( void )writeLog;
+	(void)probe;
+	(void)frame;
+	(void)time;
+	(void)writeLog;
 	return true;
 #endif
 }
@@ -12563,7 +12683,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		const bool egoReferenced = referenceFrame == STANDALONE_BALLPARK_EGO ||
 			( warpMode && referenceFrame == STANDALONE_BALLPARK_CHASE );
 		options.referenceFrame = egoReferenced ?
-			DESTINY_EMBEDDED_PRIMARY_EGO : DESTINY_EMBEDDED_FIXED_OBSERVER;
+			DESTINY_EMBEDDED_PRIMARY_EGO :
+			DESTINY_EMBEDDED_FIXED_OBSERVER;
 		options.orbitPolicy = static_cast<DestinyEmbeddedOrbitPolicy>( orbitPolicy );
 		options.observerBallId = 2;
 		probe->destinySession = Destiny_CreateEmbeddedSessionWithOptions(
@@ -12614,7 +12735,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		probe->view->SetLookAtPosition(
 			Vector3( 4500.0f, 3000.0f, 2500.0f ), Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
 		probe->projection->PerspectiveFov( 45.0f * 3.1415926535f / 180.0f,
-			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 15000.0f );
+										   static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ),
+										   1.0f,
+										   15000.0f );
 	}
 	else if( ( gotoMode || warpMode ) && referenceFrame == STANDALONE_BALLPARK_OBSERVER )
 	{
@@ -12627,13 +12750,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			Vector3( 0.0f, 0.0f, 0.0f ),
 			Vector3( 0.0f, 1.0f, 0.0f ) );
 		probe->projection->PerspectiveFov( 60.0f * 3.1415926535f / 180.0f,
-			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 10000.0f );
+										   static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ),
+										   1.0f,
+										   10000.0f );
 	}
 	else if( movingMode && referenceFrame == STANDALONE_BALLPARK_CHASE )
 	{
 		probe->renderable->SetAllowDecalDistanceCulling( true );
 		probe->projection->PerspectiveFov( 48.0f * 3.1415926535f / 180.0f,
-			static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ), 1.0f, 10000.0f );
+										   static_cast<float>( probe->renderWidth ) / static_cast<float>( probe->renderHeight ),
+										   1.0f,
+										   10000.0f );
 	}
 #ifdef __APPLE__
 	for( uint32_t imageIndex = 0; imageIndex < _dyld_image_count(); ++imageIndex )
@@ -12666,22 +12793,22 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		probe->ballparkLog << std::fixed << std::setprecision( 9 );
 		probe->ballparkLog
 			<< "frame,time,evolve_count,primary_ball_id,ego_ball_id,mode,command_count,last_command_time,"
-				"raw_position_x,raw_position_y,raw_position_z,raw_velocity_x,raw_velocity_y,raw_velocity_z,"
-				"raw_acceleration_x,raw_acceleration_y,raw_acceleration_z,expected_position_x,expected_position_y,"
-				"expected_position_z,expected_velocity_x,expected_velocity_y,expected_velocity_z,"
-				"expected_acceleration_x,expected_acceleration_y,expected_acceleration_z,position_error_x,"
-				"position_error_y,position_error_z,velocity_error_x,velocity_error_y,velocity_error_z,"
-				"acceleration_error_x,acceleration_error_y,acceleration_error_z,position_x,position_y,position_z,"
-				"absolute_position_x,absolute_position_y,absolute_position_z,velocity_x,velocity_y,velocity_z,"
-				"acceleration_x,acceleration_y,acceleration_z,"
-				"root_x,root_y,root_z,"
-				"rotation_x,rotation_y,rotation_z,rotation_w,"
-				"reference_x,reference_y,reference_z,origin_x,origin_y,origin_z,origin_shift_x,origin_shift_y,"
-				"origin_shift_z,delta_x,delta_y,delta_z,smoothed_delta_x,smoothed_delta_y,smoothed_delta_z,"
-				"delta_velocity_x,delta_velocity_y,delta_velocity_z,unit_base,origin_update_count,engine_speed,"
-				"engine_acceleration_x,engine_acceleration_y,engine_acceleration_z,frontier_orbit,target_ball_id,"
-				"follow_ball_id,follow_range,center_distance,surface_distance,radial_velocity,tangential_velocity,"
-				"accumulated_phase\n";
+			   "raw_position_x,raw_position_y,raw_position_z,raw_velocity_x,raw_velocity_y,raw_velocity_z,"
+			   "raw_acceleration_x,raw_acceleration_y,raw_acceleration_z,expected_position_x,expected_position_y,"
+			   "expected_position_z,expected_velocity_x,expected_velocity_y,expected_velocity_z,"
+			   "expected_acceleration_x,expected_acceleration_y,expected_acceleration_z,position_error_x,"
+			   "position_error_y,position_error_z,velocity_error_x,velocity_error_y,velocity_error_z,"
+			   "acceleration_error_x,acceleration_error_y,acceleration_error_z,position_x,position_y,position_z,"
+			   "absolute_position_x,absolute_position_y,absolute_position_z,velocity_x,velocity_y,velocity_z,"
+			   "acceleration_x,acceleration_y,acceleration_z,"
+			   "root_x,root_y,root_z,"
+			   "rotation_x,rotation_y,rotation_z,rotation_w,"
+			   "reference_x,reference_y,reference_z,origin_x,origin_y,origin_z,origin_shift_x,origin_shift_y,"
+			   "origin_shift_z,delta_x,delta_y,delta_z,smoothed_delta_x,smoothed_delta_y,smoothed_delta_z,"
+			   "delta_velocity_x,delta_velocity_y,delta_velocity_z,unit_base,origin_update_count,engine_speed,"
+			   "engine_acceleration_x,engine_acceleration_y,engine_acceleration_z,frontier_orbit,target_ball_id,"
+			   "follow_ball_id,follow_range,center_distance,surface_distance,radial_velocity,tangential_velocity,"
+			   "accumulated_phase\n";
 	}
 	if( gotoMode )
 	{
@@ -12691,17 +12818,18 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			"start=(0,0,-1000) target=(0,0,1000) mass=975000 radius=35 maxVelocity=312 agility=2.87 "
 			"orientation=native scheduler=disabled\n",
 			referenceFrame == STANDALONE_BALLPARK_CHASE ? "chase" :
-				( referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego" ),
+														  ( referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego" ),
 			referenceFrame != STANDALONE_BALLPARK_EGO ? "ball=2" : "none" );
 	}
 	else if( orbitMode )
 	{
 		std::fprintf( stderr,
-			"PL-11B Ballpark contract: mode=orbit solver=%s frame=%s target=ball=3 range=%.3f "
-			"start=(0,0,-2570) targetPosition=(0,0,0) orientation=native scheduler=disabled\n",
-			orbitPolicy == DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW ? "frontier-new" : "checkout-default",
-			referenceFrame == STANDALONE_BALLPARK_CHASE ? "chase" :
-				( referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego" ), orbitRange );
+					  "PL-11B Ballpark contract: mode=orbit solver=%s frame=%s target=ball=3 range=%.3f "
+					  "start=(0,0,-2570) targetPosition=(0,0,0) orientation=native scheduler=disabled\n",
+					  orbitPolicy == DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW ? "frontier-new" : "checkout-default",
+					  referenceFrame == STANDALONE_BALLPARK_CHASE ? "chase" :
+																	( referenceFrame == STANDALONE_BALLPARK_OBSERVER ? "observer" : "ego" ),
+					  orbitRange );
 	}
 	else
 	{
@@ -12839,7 +12967,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallpark( void* opa
 		diagnostics.valid ? "pass" : "fail" );
 	return diagnostics.valid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -12925,7 +13053,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkMotion( voi
 		diagnostics.motionValid ? "pass" : "fail" );
 	return diagnostics.motionValid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -12980,17 +13108,25 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkOrbit( void
 	diagnostics.motionValid = diagnostics.orbitValid;
 	diagnostics.valid = diagnostics.orbitValid;
 	std::fprintf( stderr,
-		"PL-11B orbit validation: frame=%s evolves=%llu trajectory=%016llx phase=%.9f "
-		"distance=%.6f settled=[%.6f,%.6f] errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
-		observer ? "observer" : "ego", static_cast<unsigned long long>( diagnostics.directEvolveCount ),
-		static_cast<unsigned long long>( diagnostics.trajectoryHash ), diagnostics.orbitAccumulatedPhase,
-		diagnostics.orbitCenterDistance, diagnostics.orbitSettledMinimumDistance,
-		diagnostics.orbitSettledMaximumDistance, diagnostics.maximumRawPositionError,
-		diagnostics.maximumRawVelocityError, diagnostics.maximumRawAccelerationError, diagnostics.maximumCurveError,
-		diagnostics.maximumRootError, diagnostics.maximumOriginError, diagnostics.orbitValid ? "pass" : "fail" );
+				  "PL-11B orbit validation: frame=%s evolves=%llu trajectory=%016llx phase=%.9f "
+				  "distance=%.6f settled=[%.6f,%.6f] errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
+				  observer ? "observer" : "ego",
+				  static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+				  static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+				  diagnostics.orbitAccumulatedPhase,
+				  diagnostics.orbitCenterDistance,
+				  diagnostics.orbitSettledMinimumDistance,
+				  diagnostics.orbitSettledMaximumDistance,
+				  diagnostics.maximumRawPositionError,
+				  diagnostics.maximumRawVelocityError,
+				  diagnostics.maximumRawAccelerationError,
+				  diagnostics.maximumCurveError,
+				  diagnostics.maximumRootError,
+				  diagnostics.maximumOriginError,
+				  diagnostics.orbitValid ? "pass" : "fail" );
 	return diagnostics.orbitValid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -13036,7 +13172,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkWarp( void*
 		kNewEdenPlanetRelative[2] - ( -1000.0 ),
 	};
 	const double expectedWarpLeg = std::sqrt(
-		startDelta[0] * startDelta[0] + startDelta[1] * startDelta[1] + startDelta[2] * startDelta[2] ) -
+									   startDelta[0] * startDelta[0] + startDelta[1] * startDelta[1] + startDelta[2] * startDelta[2] ) -
 		kBallparkWarpMinimumRange;
 	// Alignment drifts the ship a couple of kilometres before RealWarp fixes
 	// the leg, so mirror the destiny contract gate: max(1e6 abs, 1e-3 rel).
@@ -13064,24 +13200,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkWarp( void*
 	diagnostics.motionValid = diagnostics.warpValid;
 	diagnostics.valid = diagnostics.warpValid;
 	std::fprintf( stderr,
-		"PL-11C warp validation: frame=%s evolves=%llu trajectory=%016llx align=%llu activation=%lld "
-		"dropout=%lld leg=%.6f suspension=%s/%s/%s errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
-		observer ? "observer" : "ego", static_cast<unsigned long long>( diagnostics.directEvolveCount ),
-		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
-		static_cast<unsigned long long>( diagnostics.warpAligningTicks ),
-		static_cast<long long>( diagnostics.warpActivationEvolve ),
-		static_cast<long long>( diagnostics.warpDropoutEvolve ),
-		diagnostics.warpTotalDistance,
-		diagnostics.warpSuspensionObserved ? "observed" : "missing",
-		diagnostics.warpSuspensionViolated ? "violated" : "held",
-		diagnostics.warpParticipationRestored ? "restored" : "unrestored",
-		diagnostics.maximumRawPositionError, diagnostics.maximumRawVelocityError,
-		diagnostics.maximumRawAccelerationError, diagnostics.maximumCurveError,
-		diagnostics.maximumRootError, diagnostics.maximumOriginError,
-		diagnostics.warpValid ? "pass" : "fail" );
+				  "PL-11C warp validation: frame=%s evolves=%llu trajectory=%016llx align=%llu activation=%lld "
+				  "dropout=%lld leg=%.6f suspension=%s/%s/%s errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
+				  observer ? "observer" : "ego",
+				  static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+				  static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+				  static_cast<unsigned long long>( diagnostics.warpAligningTicks ),
+				  static_cast<long long>( diagnostics.warpActivationEvolve ),
+				  static_cast<long long>( diagnostics.warpDropoutEvolve ),
+				  diagnostics.warpTotalDistance,
+				  diagnostics.warpSuspensionObserved ? "observed" : "missing",
+				  diagnostics.warpSuspensionViolated ? "violated" : "held",
+				  diagnostics.warpParticipationRestored ? "restored" : "unrestored",
+				  diagnostics.maximumRawPositionError,
+				  diagnostics.maximumRawVelocityError,
+				  diagnostics.maximumRawAccelerationError,
+				  diagnostics.maximumCurveError,
+				  diagnostics.maximumRootError,
+				  diagnostics.maximumOriginError,
+				  diagnostics.warpValid ? "pass" : "fail" );
 	return diagnostics.warpValid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -13143,18 +13283,24 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateBallparkApproach( v
 	diagnostics.motionValid = diagnostics.approachValid;
 	diagnostics.valid = diagnostics.approachValid;
 	std::fprintf( stderr,
-		"PL-11D approach validation: frame=%s evolves=%llu trajectory=%016llx min-center=%.6f "
-		"final-center=%.6f final-speed=%.9f errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
-		observer ? "observer" : "ego", static_cast<unsigned long long>( diagnostics.directEvolveCount ),
-		static_cast<unsigned long long>( diagnostics.trajectoryHash ),
-		diagnostics.approachMinimumCenterDistance, diagnostics.approachFinalCenterDistance,
-		diagnostics.approachFinalSpeed, diagnostics.maximumRawPositionError,
-		diagnostics.maximumRawVelocityError, diagnostics.maximumRawAccelerationError,
-		diagnostics.maximumCurveError, diagnostics.maximumRootError, diagnostics.maximumOriginError,
-		diagnostics.approachValid ? "pass" : "fail" );
+				  "PL-11D approach validation: frame=%s evolves=%llu trajectory=%016llx min-center=%.6f "
+				  "final-center=%.6f final-speed=%.9f errors=[%.9g,%.9g,%.9g,%.9g,%.9g,%.9g] validation=%s\n",
+				  observer ? "observer" : "ego",
+				  static_cast<unsigned long long>( diagnostics.directEvolveCount ),
+				  static_cast<unsigned long long>( diagnostics.trajectoryHash ),
+				  diagnostics.approachMinimumCenterDistance,
+				  diagnostics.approachFinalCenterDistance,
+				  diagnostics.approachFinalSpeed,
+				  diagnostics.maximumRawPositionError,
+				  diagnostics.maximumRawVelocityError,
+				  diagnostics.maximumRawAccelerationError,
+				  diagnostics.maximumCurveError,
+				  diagnostics.maximumRootError,
+				  diagnostics.maximumOriginError,
+				  diagnostics.approachValid ? "pass" : "fail" );
 	return diagnostics.approachValid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -13201,7 +13347,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateChaseCamera( void* 
 		diagnostics.chaseCameraValid ? "pass" : "fail" );
 	return diagnostics.chaseCameraValid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -13346,8 +13492,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateApproach( v
 	}
 	probe->eveGateApproachFrame = frame;
 	std::fprintf( stderr,
-		"PL-12B demo: EVE Gate approach queued for frame %llu\n",
-		static_cast<unsigned long long>( frame ) );
+				  "PL-12B demo: EVE Gate approach queued for frame %llu\n",
+				  static_cast<unsigned long long>( frame ) );
 	return true;
 #else
 	std::fprintf( stderr, "The EVE Gate approach demo requires the embedded Destiny package\n" );
@@ -13625,9 +13771,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		const bool explicitRatio = distanceRatio >= 0.0f;
 		const float appliedRatio = explicitRatio ? distanceRatio : kInSystemDistanceRatio;
 		gate->SetControllerVariable( "DistanceRatio", appliedRatio );
-		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (%s)\n",
-			appliedRatio,
-			explicitRatio ? "explicit fixture input" : "authored in-system default" );
+		std::fprintf( stderr, "CP-36 EVE Gate appearance: DistanceRatio=%.4f (%s)\n", appliedRatio, explicitRatio ? "explicit fixture input" : "authored in-system default" );
 	}
 	// The client's live analog (BackgroundObject for massive environments)
 	// appends to scene.backgroundObjects: fully updated each frame and
@@ -13778,7 +13922,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureWarpTunnel( void* 
 		"CP-37 warp tunnel: mode=authored root=WarpTunnelFinal modifier=translate-with-camera "
 		"geometry=sphere4k.cmf drive=%s authoredRotation=(%.6f, %.6f, %.6f, %.6f)\n",
 		warpBallparkDriven ? "ballpark" : "constant, fadeIn=played",
-		authoredRotation.x, authoredRotation.y, authoredRotation.z, authoredRotation.w );
+		authoredRotation.x,
+		authoredRotation.y,
+		authoredRotation.z,
+		authoredRotation.w );
 	return true;
 }
 
@@ -13795,13 +13942,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGateTravel( voi
 		probe->eveGateMode != STANDALONE_EVE_GATE_AUTHORED )
 	{
 		std::fprintf( stderr,
-			"Direct-to-gate travel requires the ORBIT Ballpark fixture and the authored EVE Gate\n" );
+					  "Direct-to-gate travel requires the ORBIT Ballpark fixture and the authored EVE Gate\n" );
 		return false;
 	}
 	probe->eveGateDirectTravel = true;
 	std::fprintf( stderr,
-		"CP-36 direct-to-gate travel armed: GotoPoint replaces the orbit command at frame 180; "
-		"chase camera aligns with the landmark\n" );
+				  "CP-36 direct-to-gate travel armed: GotoPoint replaces the orbit command at frame 180; "
+				  "chase camera aligns with the landmark\n" );
 	return true;
 #else
 	std::fprintf( stderr, "Direct-to-gate travel requires the embedded Destiny package\n" );
@@ -13895,7 +14042,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateCelestialBallpark( 
 		diagnostics.valid ? "pass" : "fail" );
 	return diagnostics.valid;
 #else
-	( void )probe;
+	(void)probe;
 	return false;
 #endif
 }
@@ -14027,9 +14174,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				}
 				probe->eveGateApproachIssued = true;
 				std::fprintf( stderr,
-					"CP-36 direct-to-gate travel: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f)\n",
-					static_cast<long long>( commandState.nextTickTime ),
-					travelTarget[0], travelTarget[1], travelTarget[2] );
+							  "CP-36 direct-to-gate travel: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f)\n",
+							  static_cast<long long>( commandState.nextTickTime ),
+							  travelTarget[0],
+							  travelTarget[1],
+							  travelTarget[2] );
 			}
 			else if( !Destiny_CommandEmbeddedOrbit(
 						 probe->destinySession, commandState.nextTickTime, 3, probe->ballparkOrbitRange ) )
@@ -14039,8 +14188,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			}
 			else
 			{
-				std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n",
-					static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
+				std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n", static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
 			}
 			probe->ballparkCommandIssued = true;
 		}
@@ -14055,19 +14203,21 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			};
 			if( !probe->destinySession ||
 				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
-				!Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime,
-					warpTarget, kBallparkWarpMinimumRange, kBallparkWarpFactor ) )
+				!Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime, warpTarget, kBallparkWarpMinimumRange, kBallparkWarpFactor ) )
 			{
 				CCP_LOGERR( "Embedded Destiny WARP command failed" );
 				return false;
 			}
 			probe->ballparkCommandIssued = true;
 			std::fprintf( stderr,
-				"PL-11C command: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f) "
-				"minRange=%.0f warpFactor=%d\n",
-				static_cast<long long>( commandState.nextTickTime ),
-				warpTarget[0], warpTarget[1], warpTarget[2],
-				kBallparkWarpMinimumRange, kBallparkWarpFactor );
+						  "PL-11C command: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f) "
+						  "minRange=%.0f warpFactor=%d\n",
+						  static_cast<long long>( commandState.nextTickTime ),
+						  warpTarget[0],
+						  warpTarget[1],
+						  warpTarget[2],
+						  kBallparkWarpMinimumRange,
+						  kBallparkWarpFactor );
 		}
 		if( probe->ballparkMode == STANDALONE_BALLPARK_APPROACH && !probe->ballparkCommandIssued &&
 			probe->renderedFrameCount == 180 )
@@ -14075,19 +14225,18 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			DestinyEmbeddedDiagnostics commandState = {};
 			if( !probe->destinySession ||
 				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
-				!Destiny_CommandEmbeddedFollow( probe->destinySession, commandState.nextTickTime,
-					kBallparkApproachTargetBallId, static_cast<float>( kBallparkApproachRange ) ) )
+				!Destiny_CommandEmbeddedFollow( probe->destinySession, commandState.nextTickTime, kBallparkApproachTargetBallId, static_cast<float>( kBallparkApproachRange ) ) )
 			{
 				CCP_LOGERR( "Embedded Destiny FOLLOW command failed" );
-				std::fprintf( stderr, "RenderFrame failure: FOLLOW command (frame=%llu)\n",
-					static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				std::fprintf( stderr, "RenderFrame failure: FOLLOW command (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				return false;
 			}
 			probe->ballparkCommandIssued = true;
 			std::fprintf( stderr,
-				"PL-11D command: frame=180 effectiveTime=%lld FollowBall target=%lld range=%.1f\n",
-				static_cast<long long>( commandState.nextTickTime ),
-				static_cast<long long>( kBallparkApproachTargetBallId ), kBallparkApproachRange );
+						  "PL-11D command: frame=180 effectiveTime=%lld FollowBall target=%lld range=%.1f\n",
+						  static_cast<long long>( commandState.nextTickTime ),
+						  static_cast<long long>( kBallparkApproachTargetBallId ),
+						  kBallparkApproachRange );
 		}
 
 		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
@@ -14110,13 +14259,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			}
 			probe->eveGateApproachIssued = true;
 			std::fprintf( stderr,
-				"PL-12B demo command: frame=%llu effectiveTime=%lld GotoPoint=EVE Gate landmark "
-				"anchored (%.0f, %.0f, %.0f)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ),
-				static_cast<long long>( approachState.nextTickTime ),
-				approachTarget[0],
-				approachTarget[1],
-				approachTarget[2] );
+						  "PL-12B demo command: frame=%llu effectiveTime=%lld GotoPoint=EVE Gate landmark "
+						  "anchored (%.0f, %.0f, %.0f)\n",
+						  static_cast<unsigned long long>( probe->renderedFrameCount ),
+						  static_cast<long long>( approachState.nextTickTime ),
+						  approachTarget[0],
+						  approachTarget[1],
+						  approachTarget[2] );
 		}
 		if( probe->ballparkMode != STANDALONE_BALLPARK_OFF &&
 			( !probe->destinySession ||
@@ -14129,13 +14278,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( ( probe->ballparkMode == STANDALONE_BALLPARK_GOTO ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ||
-			  probe->ballparkMode == STANDALONE_BALLPARK_APPROACH ) && probe->renderable )
+			  probe->ballparkMode == STANDALONE_BALLPARK_APPROACH ) &&
+			probe->renderable )
 		{
 			DestinyEmbeddedDiagnostics kinematics = {};
 			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )
 			{
-				std::fprintf( stderr, "RenderFrame failure: kinematics diagnostics (frame=%llu)\n",
-					static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				std::fprintf( stderr, "RenderFrame failure: kinematics diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				return false;
 			}
 			const float speed = static_cast<float>( std::sqrt(
@@ -14180,7 +14329,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					if( legLength > 0.0 )
 					{
 						const double zAxis[3] = { leg[0] / legLength, leg[1] / legLength, leg[2] / legLength };
-						double xAxis[3] = { zAxis[2], 0.0, -zAxis[0] };  // cross((0,1,0), z)
+						double xAxis[3] = { zAxis[2], 0.0, -zAxis[0] }; // cross((0,1,0), z)
 						const double xLength = std::sqrt(
 							xAxis[0] * xAxis[0] + xAxis[1] * xAxis[1] + xAxis[2] * xAxis[2] );
 						if( xLength > 0.0 )
@@ -14194,13 +14343,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 								zAxis[0] * xAxis[1] - zAxis[1] * xAxis[0],
 							};
 							const Matrix alignment(
-								static_cast<float>( xAxis[0] ), static_cast<float>( xAxis[1] ),
-								static_cast<float>( xAxis[2] ), 0.0f,
-								static_cast<float>( yAxis[0] ), static_cast<float>( yAxis[1] ),
-								static_cast<float>( yAxis[2] ), 0.0f,
-								static_cast<float>( zAxis[0] ), static_cast<float>( zAxis[1] ),
-								static_cast<float>( zAxis[2] ), 0.0f,
-								0.0f, 0.0f, 0.0f, 1.0f );
+								static_cast<float>( xAxis[0] ), static_cast<float>( xAxis[1] ), static_cast<float>( xAxis[2] ), 0.0f, static_cast<float>( yAxis[0] ), static_cast<float>( yAxis[1] ), static_cast<float>( yAxis[2] ), 0.0f, static_cast<float>( zAxis[0] ), static_cast<float>( zAxis[1] ), static_cast<float>( zAxis[2] ), 0.0f, 0.0f, 0.0f, 0.0f, 1.0f );
 							// The client leaves the authored local rotation on
 							// the EveTransform and puts the alignment on a
 							// wrapping root; composing (authored first, then
@@ -14211,8 +14354,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					}
 					probe->warpTunnelAligned = true;
 					std::fprintf( stderr,
-						"CP-37b warp tunnel: leg-aligned at frame=%llu (warp state start)\n",
-						static_cast<unsigned long long>( probe->renderedFrameCount ) );
+								  "CP-37b warp tunnel: leg-aligned at frame=%llu (warp state start)\n",
+								  static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				}
 				else if( probe->warpTunnelAligned &&
 						 kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
@@ -14224,8 +14367,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					probe->scene->SetWarpTunnel( nullptr );
 					probe->warpTunnelDetached = true;
 					std::fprintf( stderr,
-						"CP-37b warp tunnel: detached at frame=%llu (warp end)\n",
-						static_cast<unsigned long long>( probe->renderedFrameCount ) );
+								  "CP-37b warp tunnel: detached at frame=%llu (warp end)\n",
+								  static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				}
 			}
 		}
@@ -14484,9 +14627,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				committedBatches,
 				acceptedCascades * 2 );
 			std::fprintf( stderr,
-				"RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ), cullTests, acceptedCascades,
-				committedBatches );
+						  "RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u)\n",
+						  static_cast<unsigned long long>( probe->renderedFrameCount ),
+						  cullTests,
+						  acceptedCascades,
+						  committedBatches );
 			return false;
 		}
 		if( !probe->reportedShadowStats )
@@ -14501,10 +14646,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		}
 	}
 	if( !rendered )
-		std::fprintf( stderr, "RenderFrame failure: DrawDriverFrame (frame=%llu)\n",
-			static_cast<unsigned long long>( probe->renderedFrameCount ) );
+		std::fprintf( stderr, "RenderFrame failure: DrawDriverFrame (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 	else if( probe->renderable && probe->renderable->DrawFailed() )
-		std::fprintf( stderr, "RenderFrame failure: renderable draw contract (frame=%llu)\n",
-			static_cast<unsigned long long>( probe->renderedFrameCount ) );
+		std::fprintf( stderr, "RenderFrame failure: renderable draw contract (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );
 }

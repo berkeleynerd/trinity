@@ -2765,3 +2765,47 @@ readback target and stomp that single frame's capture; the sample
 reports and skips it rather than aborting, and an encoder feeder holds
 the previous frame. Recorded evidence (frame sequences, masters,
 deliverables) stays outside the repositories like all other captures.
+
+## RC-12B2 froxel GPU-safety laboratory (2026-07-13)
+
+The primary M4 Pro remains prohibited from submitting opaque client froxel
+kernels. This is a policy boundary rather than a missing M4 capability: host
+inventory reports Tier-2 texture read/write support, and device-free AIR
+disassembly found bounds predicates in every current Mie, calculate, filter,
+raymarch, and apply permutation.
+
+The offline audit exposed a concrete CPU/shader mismatch. Client
+calculate/filter/raymarch functions require a 2,432-byte object buffer with
+`ProjectionMatrix` at offset 0, `InverseProjectionMatrix` at 64, resolution at
+128, dynamic lights at 1,632, and planets at 2,400. The runtime's previous
+2,304-byte structure omitted both matrices and shifted every later field by
+128 bytes. `FroxelShaderLayouts.h` now centralizes and statically verifies the
+correct layout, and the Python v15 parser retains shader blobs and reflected
+threadgroups for an independent AIR comparison. Raymarch also now derives its
+dispatch from reflected `8x8x1` dimensions instead of the stale `8x4`
+assumption. Neither correction is called the watchdog cause until a repeated
+sacrificial single-variable A/B supports it.
+
+TrinityAL now has bounded float/uint 3D UAV clears, diagnostic headless device
+and submit APIs, command/encoder timing and error records, and strict reflected
+compute binding preflight. Required nil, dummy, wrong-type, wrong-usage, or
+undersized resources fail before commit. The source-controlled synthetic clear,
+write, filter, in-place, Mie, raymarch, apply, and chain tests complete on the
+primary host; no client metallib was submitted there.
+
+`BUILD_FROXEL_GPU_LAB` defaults off and its executables are excluded from
+`all`. The production probe still rejects `froxel|all` before Metal startup.
+The separate lab scene and isolated client-stage worker require a 24-hour
+hardware-bound sacrificial enrollment, one-use nonce, controlling TTY, exact
+host phrase, environment acknowledgement, and worker-side fsynced submission
+marker. Runs live under `~/Library/Logs/TrinityFroxelLab/runs/`; a sentinel
+records focused logs and heartbeats but never restarts work. Post-reboot tools
+collect watchdog reports, unified logs, symbols, hardware state, and full
+`sysdiagnose` archives, producing redacted focused and explicitly sensitive
+full bundles.
+
+The experiment catalog is immutable and ordered `A00`, `S10-S15`, `C10-C61`,
+then `R00/R01`. Only the offline/synthetic CP-27 gate is implemented and safe
+on this host. Secondary-client and primary-promotion gates remain open, so
+RC-12B2 and rung 6D remain partial. Operator and analysis procedures are in
+`docs/froxel-lab-operator-guide.md` and `docs/froxel-investigation.md`.

@@ -377,6 +377,26 @@ evidence; the New Eden fixture does not author this cloud. RC-12B2 global
 froxel execution remains blocked by the documented AGX watchdog incident, so
 its staged shaders remain resource evidence only.
 
+RC-12B2 adds no source-controlled payload. `froxel_lab.py prepare` parses the
+existing v15 high-tier containers without creating an `MTLDevice`, extracts
+only these selected functions into the external run directory, and records
+their source-container and metallib SHA-256 values:
+
+```text
+applyfroxels.sm_hi: mainVS/mainPS, permutation 0
+updatemieenvironmentmap.sm_hi: mainCS, permutation 0
+calculatefroxels.sm_hi: mainCS, permutation 0
+filterfroxels.sm_hi: mainCS, permutation 0
+raymarchfroxels.sm_hi: mainCS, permutations 0 and 1
+```
+
+Packages, ledgers, reports, symbols, and diagnostics live under
+`~/Library/Logs/TrinityFroxelLab/runs/<run-id>/`. They are external evidence,
+not redistributable assets. The device-free audit records each original
+SharedCache-resolved container path, size, checksum, AIR resource signature,
+constant-buffer range, and reflected threadgroup. See
+`docs/froxel-investigation.md` and `docs/froxel-lab-operator-guide.md`.
+
 ## RC-05D Astero engine resources
 
 `TrinityEveSceneProbeAsteroEngineAssets` resolves 18 external inputs through

@@ -2,6 +2,7 @@
 
 #if TRINITY_PLATFORM == TRINITY_METAL
 #import <Foundation/Foundation.h>
+#include <chrono>
 #include <float.h>
 #include "MetalWorkQueue.h"
 #include "MetalContext.h"
@@ -24,6 +25,11 @@ CCP_STATS_DECLARE( gpuFrameTime, "Trinity/AL/GpuFrameTime", false, CST_TIME, "Ti
 namespace
 {
 double s_gpuFrameTime = 0;
+
+double MonotonicSeconds()
+{
+	return std::chrono::duration<double>( std::chrono::steady_clock::now().time_since_epoch() ).count();
+}
 }
 
 namespace TrinityALImpl
@@ -64,7 +70,12 @@ MetalWorkQueue::MetalWorkQueue() :
 	m_hasPendingRenderPassHint( false ),
 	m_hasPendingRenderTargetBarrier( false ),
 	m_pendingClear( false ),
-	m_visibilityQueryInProgress( false )
+	m_visibilityQueryInProgress( false ),
+	m_submissionDiagnosticsEnabled( false ),
+	m_bindingPreflightPassed( true ),
+	m_commandBufferCreatedAt( 0.0 ),
+	m_lastComputePipelineUid( 0 ),
+	m_currentComputePipelineReflection( nil )
 {
 	static_assert( sizeof( m_activeConstBuffersMask[0] ) * 8 >= METAL_MAX_BOUND_BUFFERS,
 				   "Mask data type is too small to hold all flags." );
@@ -149,6 +160,8 @@ MetalWorkQueue::MetalWorkQueue() :
 	m_clearBufferComputeFunctions[1] = nil;
 	m_clearTextureComputeFunctions[0] = nil;
 	m_clearTextureComputeFunctions[1] = nil;
+	m_clearTexture3DComputeFunctions[0] = nil;
+	m_clearTexture3DComputeFunctions[1] = nil;
 
 	m_visibilityBuffer = nil;
 	m_maxVisibilityQueries = 0;
@@ -283,6 +296,20 @@ void MetalWorkQueue::CreateClearFunctions()
 		CCP_AL_LOGERR( "Couldn't load ClearUIntTexture function from library." );
 		CCP_ASSERT( false );
 	}
+
+	m_clearTexture3DComputeFunctions[0] = [shaderLib newFunctionWithName:@"ClearFloatTexture3D"];
+	if( !m_clearTexture3DComputeFunctions[0] )
+	{
+		CCP_AL_LOGERR( "Couldn't load ClearFloatTexture3D function from library." );
+		CCP_ASSERT( false );
+	}
+
+	m_clearTexture3DComputeFunctions[1] = [shaderLib newFunctionWithName:@"ClearUIntTexture3D"];
+	if( !m_clearTexture3DComputeFunctions[1] )
+	{
+		CCP_AL_LOGERR( "Couldn't load ClearUIntTexture3D function from library." );
+		CCP_ASSERT( false );
+	}
 }
 
 void MetalWorkQueue::SetCommandQueue( id<MTLCommandQueue> commandQueue )
@@ -300,6 +327,11 @@ void MetalWorkQueue::SetCommandQueue( id<MTLCommandQueue> commandQueue )
 
 	SetupPresentBlitResources();
 	CreateClearFunctions();
+}
+
+void MetalWorkQueue::SetSubmissionDiagnosticsEnabled( bool enabled )
+{
+	m_submissionDiagnosticsEnabled = enabled;
 }
 
 void MetalWorkQueue::ResetWorkQueue()
@@ -331,6 +363,7 @@ void MetalWorkQueue::ResetWorkQueue()
 	m_currentDepthStencilState = nil;
 	m_currentComputePipelineDescriptorHash = 0;
 	m_currentComputePipelineState = nil;
+	m_currentComputePipelineReflection = nil;
 	m_currentRenderPassDescriptor = m_drawRenderPassDescriptor;
 	m_visibilityQueriesInThisEncoder = 0;
 
@@ -365,7 +398,27 @@ void MetalWorkQueue::CreateCommandBuffer()
 
 	if( m_commandBuffer == nil )
 	{
-		m_commandBuffer = [m_commandQueue commandBuffer];
+		if( m_submissionDiagnosticsEnabled )
+		{
+			MTLCommandBufferDescriptor* descriptor = [MTLCommandBufferDescriptor new];
+			if( @available( macOS 11.0, * ) )
+			{
+				descriptor.errorOptions = MTLCommandBufferErrorOptionEncoderExecutionStatus;
+			}
+			m_commandBuffer = [m_commandQueue commandBufferWithDescriptor:descriptor];
+			m_commandBuffer.label = @"Trinity froxel lab submission";
+#if !__has_feature( objc_arc )
+			[descriptor release];
+#endif
+		}
+		else
+		{
+			m_commandBuffer = [m_commandQueue commandBuffer];
+		}
+		m_commandBufferCreatedAt = MonotonicSeconds();
+		m_bindingPreflightPassed = true;
+		m_bindingDiagnostics.clear();
+		m_encoderLabels.clear();
 #if !__has_feature( objc_arc )
 		[m_commandBuffer retain];
 #endif
@@ -483,6 +536,130 @@ void MetalWorkQueue::CommitCommandBuffer( MetalCBCommitFlags flags )
 #endif
 
 	ResetWorkQueue();
+}
+
+void MetalWorkQueue::CaptureCommandBufferDiagnostics( id<MTLCommandBuffer> commandBuffer,
+													  double cpuEncodeSeconds,
+													  double cpuWaitSeconds,
+													  Tr2MetalSubmissionDiagnostics* diagnostics ) const
+{
+	if( !diagnostics )
+	{
+		return;
+	}
+
+	CapturePendingSubmissionDiagnostics( diagnostics );
+	diagnostics->commandStatus = static_cast<int32_t>( commandBuffer.status );
+	diagnostics->cpuEncodeSeconds = cpuEncodeSeconds;
+	diagnostics->cpuWaitSeconds = cpuWaitSeconds;
+	if( @available( macOS 10.15, * ) )
+	{
+		diagnostics->gpuStartTime = commandBuffer.GPUStartTime;
+		diagnostics->gpuEndTime = commandBuffer.GPUEndTime;
+	}
+
+	NSError* error = commandBuffer.error;
+	if( error )
+	{
+		diagnostics->errorCode = static_cast<int32_t>( error.code );
+		diagnostics->errorDomain = error.domain.UTF8String ? error.domain.UTF8String : "";
+		diagnostics->errorDescription =
+			error.localizedDescription.UTF8String ? error.localizedDescription.UTF8String : "";
+	}
+
+	if( @available( macOS 11.0, * ) )
+	{
+		NSArray<id<MTLCommandBufferEncoderInfo>>* infos =
+			error ? error.userInfo[MTLCommandBufferEncoderInfoErrorKey] : nil;
+		if( infos.count != 0 )
+		{
+			diagnostics->encoders.clear();
+		}
+		for( id<MTLCommandBufferEncoderInfo> info in infos )
+		{
+			Tr2MetalEncoderDiagnostic encoder;
+			encoder.label = info.label.UTF8String ? info.label.UTF8String : "";
+			encoder.errorState = static_cast<int32_t>( info.errorState );
+			for( NSString* signpost in info.debugSignposts )
+			{
+				encoder.debugSignposts.emplace_back( signpost.UTF8String ? signpost.UTF8String : "" );
+			}
+			diagnostics->encoders.emplace_back( std::move( encoder ) );
+		}
+	}
+	if( diagnostics->encoders.empty() )
+	{
+		for( const std::string& label : m_encoderLabels )
+		{
+			Tr2MetalEncoderDiagnostic encoder;
+			encoder.label = label;
+			diagnostics->encoders.emplace_back( std::move( encoder ) );
+		}
+	}
+}
+
+void MetalWorkQueue::CapturePendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const
+{
+	if( !diagnostics )
+	{
+		return;
+	}
+
+	*diagnostics = {};
+	diagnostics->cpuEncodeSeconds =
+		m_commandBufferCreatedAt > 0.0 ? std::max( 0.0, MonotonicSeconds() - m_commandBufferCreatedAt ) : 0.0;
+	diagnostics->pipelineUid = m_lastComputePipelineUid;
+	diagnostics->validationEnabled = m_submissionDiagnosticsEnabled;
+	diagnostics->bindingPreflightPassed = m_bindingPreflightPassed;
+	diagnostics->bindings = m_bindingDiagnostics;
+	for( const std::string& label : m_encoderLabels )
+	{
+		Tr2MetalEncoderDiagnostic encoder;
+		encoder.label = label;
+		diagnostics->encoders.emplace_back( std::move( encoder ) );
+	}
+}
+
+bool MetalWorkQueue::GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const
+{
+	CapturePendingSubmissionDiagnostics( diagnostics );
+	return m_commandBuffer && m_encoderHasWork && !m_encoderInUse && m_bindingPreflightPassed;
+}
+
+bool MetalWorkQueue::SubmitAndWait( Tr2MetalSubmissionDiagnostics* diagnostics )
+{
+	CCP_ASSERT( m_isPrimary );
+	if( !m_commandBuffer || !m_encoderHasWork )
+	{
+		CCP_AL_LOGERR( "No encoded headless work is available for submission." );
+		return false;
+	}
+	if( m_encoderInUse )
+	{
+		CCP_AL_LOGERR( "Headless submission attempted while an encoder is still in use." );
+		return false;
+	}
+	if( !m_encoderEnded )
+	{
+		m_encoderInUse = true;
+		ReleaseEncoder( true );
+	}
+
+	id<MTLCommandBuffer> commandBuffer = m_commandBuffer;
+	const double waitStart = MonotonicSeconds();
+	const double encodeSeconds = std::max( 0.0, waitStart - m_commandBufferCreatedAt );
+	[commandBuffer commit];
+	[commandBuffer waitUntilCompleted];
+	const double waitSeconds = MonotonicSeconds() - waitStart;
+	CaptureCommandBufferDiagnostics( commandBuffer, encodeSeconds, waitSeconds, diagnostics );
+	const bool success = commandBuffer.status == MTLCommandBufferStatusCompleted && commandBuffer.error == nil &&
+		m_bindingPreflightPassed;
+
+#if !__has_feature( objc_arc )
+	[commandBuffer release];
+#endif
+	ResetWorkQueue();
+	return success;
 }
 
 void MetalWorkQueue::BeginFrame()
@@ -957,6 +1134,32 @@ void MetalWorkQueue::SetCurrentEncoder( MetalEncoderType encoderType, NSString* 
 		CCP_AL_LOGERR( "Invalid encoder type!" );
 	}
 
+	if( m_submissionDiagnosticsEnabled )
+	{
+		NSString* label = nil;
+		switch( encoderType )
+		{
+		case MTLENCODERTYPE_RENDER:
+			label = m_currentRenderEncoder.label;
+			break;
+		case MTLENCODERTYPE_COMPUTE:
+			label = m_currentComputeEncoder.label;
+			break;
+		case MTLENCODERTYPE_BLIT:
+			label = m_currentBlitEncoder.label;
+			break;
+		case MTLENCODERTYPE_ACCELERATION_STRUCTURE:
+			if( @available( macOS 11.0, * ) )
+			{
+				label = m_currentAccelerationStructureEncoder.label;
+			}
+			break;
+		default:
+			break;
+		}
+		m_encoderLabels.emplace_back( label.UTF8String ? label.UTF8String : "Unlabeled Metal encoder" );
+	}
+
 	// Mark that this curent encoder is in use
 	m_currentEncoderType = encoderType;
 	m_encoderInUse = true;
@@ -975,7 +1178,7 @@ id<MTLBlitCommandEncoder> MetalWorkQueue::GetBlitEncoder( NSString* encoderLabel
 {
 	CCP_ASSERT( m_isPrimary );
 
-	SetCurrentEncoder( MTLENCODERTYPE_BLIT );
+	SetCurrentEncoder( MTLENCODERTYPE_BLIT, encoderLabel );
 	return m_currentBlitEncoder;
 }
 
@@ -983,7 +1186,7 @@ id<MTLComputeCommandEncoder> MetalWorkQueue::GetComputeEncoder( NSString* encode
 {
 	CCP_ASSERT( m_isPrimary );
 
-	SetCurrentEncoder( MTLENCODERTYPE_COMPUTE );
+	SetCurrentEncoder( MTLENCODERTYPE_COMPUTE, encoderLabel );
 	return m_currentComputeEncoder;
 }
 
@@ -1256,23 +1459,26 @@ void MetalWorkQueue::ClearBuffer( id<MTLBuffer> buffer, const uint32_t values[4]
 void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, const float values[4] )
 {
 	CCP_ASSERT( m_isPrimary );
-	// Only 2D textures are supported right now.
-	CCP_ASSERT( texture.textureType == MTLTextureType2D );
 	// Only writing to mip level 0 supported on macOS.
 	CCP_ASSERT( mipLevel == 0 );
-	// CCP_ASSERT( texture.mipmapLevelCount > mipLevel );
+	if( texture.textureType != MTLTextureType2D && texture.textureType != MTLTextureType3D )
+	{
+		CCP_AL_LOGERR( "ClearTexture only supports 2D and 3D Metal textures." );
+		return;
+	}
 
-	// Proper thread group size is a multiple of threadExecutionWidth and less than maxTotalThreadsPerThreadgroup
-	// (both are preperties of MTLComputePipelineState).
-	MTLSize threadGroupSize = MTLSizeMake( 32, 32, 1 );
+	const bool is3D = texture.textureType == MTLTextureType3D;
+	MTLSize threadGroupSize = is3D ? MTLSizeMake( 8, 8, 4 ) : MTLSizeMake( 32, 32, 1 );
 
 	NSUInteger width = std::max<NSUInteger>( texture.width >> mipLevel, 1 );
 	NSUInteger height = std::max<NSUInteger>( texture.height >> mipLevel, 1 );
 	NSUInteger groupDimX = ( width + threadGroupSize.width - 1 ) / threadGroupSize.width;
 	NSUInteger groupDimY = ( height + threadGroupSize.height - 1 ) / threadGroupSize.height;
+	NSUInteger depth = std::max<NSUInteger>( texture.depth >> mipLevel, 1 );
+	NSUInteger groupDimZ = ( depth + threadGroupSize.depth - 1 ) / threadGroupSize.depth;
 
 	id<MTLFunction> oldComputeFunction = m_computeFunction;
-	m_computeFunction = m_clearTextureComputeFunctions[0];
+	m_computeFunction = is3D ? m_clearTexture3DComputeFunctions[0] : m_clearTextureComputeFunctions[0];
 
 	id<MTLComputeCommandEncoder> computeEncoder = GetComputeEncoder();
 
@@ -1282,7 +1488,7 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 		[computeEncoder setBytes:values length:4 * sizeof( *values ) atIndex:0];
 		[computeEncoder setTexture:texture atIndex:0];
 
-		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, 1 )
+		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, groupDimZ )
 					   threadsPerThreadgroup:threadGroupSize];
 	}
 	ReleaseEncoder( false );
@@ -1295,23 +1501,26 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, const uint32_t values[4] )
 {
 	CCP_ASSERT( m_isPrimary );
-	// Only 2D textures are supported right now.
-	CCP_ASSERT( texture.textureType == MTLTextureType2D );
 	// Only writing to mip level 0 supported on macOS.
 	CCP_ASSERT( mipLevel == 0 );
-	// CCP_ASSERT( texture.mipmapLevelCount > mipLevel );
+	if( texture.textureType != MTLTextureType2D && texture.textureType != MTLTextureType3D )
+	{
+		CCP_AL_LOGERR( "ClearTexture only supports 2D and 3D Metal textures." );
+		return;
+	}
 
-	// Proper thread group size is a multiple of threadExecutionWidth and less than maxTotalThreadsPerThreadgroup
-	// (both are preperties of MTLComputePipelineState).
-	MTLSize threadGroupSize = MTLSizeMake( 32, 32, 1 );
+	const bool is3D = texture.textureType == MTLTextureType3D;
+	MTLSize threadGroupSize = is3D ? MTLSizeMake( 8, 8, 4 ) : MTLSizeMake( 32, 32, 1 );
 
 	NSUInteger width = std::max<NSUInteger>( texture.width >> mipLevel, 1 );
 	NSUInteger height = std::max<NSUInteger>( texture.height >> mipLevel, 1 );
 	NSUInteger groupDimX = ( width + threadGroupSize.width - 1 ) / threadGroupSize.width;
 	NSUInteger groupDimY = ( height + threadGroupSize.height - 1 ) / threadGroupSize.height;
+	NSUInteger depth = std::max<NSUInteger>( texture.depth >> mipLevel, 1 );
+	NSUInteger groupDimZ = ( depth + threadGroupSize.depth - 1 ) / threadGroupSize.depth;
 
 	id<MTLFunction> oldComputeFunction = m_computeFunction;
-	m_computeFunction = m_clearTextureComputeFunctions[1];
+	m_computeFunction = is3D ? m_clearTexture3DComputeFunctions[1] : m_clearTextureComputeFunctions[1];
 
 	id<MTLComputeCommandEncoder> computeEncoder = GetComputeEncoder();
 
@@ -1321,7 +1530,7 @@ void MetalWorkQueue::ClearTexture( id<MTLTexture> texture, uint32_t mipLevel, co
 		[computeEncoder setBytes:values length:4 * sizeof( *values ) atIndex:0];
 		[computeEncoder setTexture:texture atIndex:0];
 
-		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, 1 )
+		[computeEncoder dispatchThreadgroups:MTLSizeMake( groupDimX, groupDimY, groupDimZ )
 					   threadsPerThreadgroup:threadGroupSize];
 	}
 	ReleaseEncoder( false );
@@ -1895,10 +2104,9 @@ bool MetalWorkQueue::EmitComputePipelineState()
 	}
 
 	id<MTLComputePipelineState> pipelineState = nil;
-
-#if METAL_ENABLE_COMPUTE_STATE_CACHING
 	size_t hashVal = 0;
 
+#if METAL_ENABLE_COMPUTE_STATE_CACHING
 	hash_combine( hashVal, (__bridge void*)m_device );
 	hash_combine( hashVal, (__bridge void*)m_computeFunction );
 
@@ -1908,17 +2116,34 @@ bool MetalWorkQueue::EmitComputePipelineState()
 		return true;
 	}
 
-	pipelineState = m_context->GetCachedComputePipelineState( hashVal );
+	if( !m_submissionDiagnosticsEnabled )
+	{
+		pipelineState = m_context->GetCachedComputePipelineState( hashVal );
+	}
 	m_currentComputePipelineDescriptorHash = hashVal;
 #endif
 
 	if( !pipelineState )
 	{
 		NSError* error = NULL;
-		pipelineState = [m_device newComputePipelineStateWithFunction:m_computeFunction error:&error];
+		if( m_submissionDiagnosticsEnabled )
+		{
+			MTLPipelineOption options = MTLPipelineOptionArgumentInfo | MTLPipelineOptionBufferTypeInfo;
+			MTLComputePipelineReflection* reflection = nil;
+			pipelineState = [m_device newComputePipelineStateWithFunction:m_computeFunction
+																  options:options
+															   reflection:&reflection
+																	error:&error];
+			m_currentComputePipelineReflection = reflection;
+		}
+		else
+		{
+			pipelineState = [m_device newComputePipelineStateWithFunction:m_computeFunction error:&error];
+		}
 
 		if( !pipelineState )
 		{
+			m_bindingPreflightPassed = false;
 			CCP_AL_LOGERR( "Failed to create compute pipeline state. Error: %s",
 						   error.localizedDescription.UTF8String );
 #if !__has_feature( objc_arc )
@@ -1926,9 +2151,18 @@ bool MetalWorkQueue::EmitComputePipelineState()
 #endif
 			return false;
 		}
+		if( m_submissionDiagnosticsEnabled && !m_currentComputePipelineReflection )
+		{
+			m_bindingPreflightPassed = false;
+			CCP_AL_LOGERR( "Metal compute pipeline did not provide required reflection data." );
+			return false;
+		}
 
 #if METAL_ENABLE_COMPUTE_STATE_CACHING
-		m_context->AddComputePipelineStateToCache( hashVal, pipelineState );
+		if( !m_submissionDiagnosticsEnabled )
+		{
+			m_context->AddComputePipelineStateToCache( hashVal, pipelineState );
+		}
 #endif
 	}
 
@@ -1937,8 +2171,137 @@ bool MetalWorkQueue::EmitComputePipelineState()
 		[m_currentComputeEncoder setComputePipelineState:pipelineState];
 		m_currentComputePipelineState = pipelineState;
 	}
+	m_lastComputePipelineUid = hashVal;
 
 	return true;
+}
+
+bool MetalWorkQueue::ValidateComputeBindings()
+{
+	if( !m_submissionDiagnosticsEnabled || !m_currentComputePipelineReflection )
+	{
+		return true;
+	}
+
+	bool valid = true;
+	for( MTLArgument* argument in m_currentComputePipelineReflection.arguments )
+	{
+		if( !argument.active )
+		{
+			continue;
+		}
+
+		Tr2MetalResourceBindingDiagnostic diagnostic;
+		diagnostic.name = argument.name.UTF8String ? argument.name.UTF8String : "";
+		diagnostic.index = static_cast<uint32_t>( argument.index );
+		diagnostic.access = static_cast<uint32_t>( argument.access );
+
+		if( argument.type == MTLArgumentTypeBuffer )
+		{
+			diagnostic.kind = "buffer";
+			diagnostic.requiredBytes = argument.bufferDataSize;
+			const uint32_t flag = argument.index < 32 ? ( 1u << argument.index ) : 0;
+			id<MTLBuffer> buffer = nil;
+			NSUInteger offset = 0;
+			if( flag && ( m_activeConstBuffersMask[COMPUTE_SHADER] & flag ) )
+			{
+				const ConstantBuffer& slot = m_constBuffers[COMPUTE_SHADER][argument.index];
+				buffer = m_context->GetConstantBufferAllocator().GetPage( slot.page );
+				offset = slot.offset;
+				diagnostic.boundBytes = slot.size;
+			}
+			else if( flag && ( m_activeBuffersMask[COMPUTE_SHADER] & flag ) )
+			{
+				const MetalBuffer& slot = m_buffers[COMPUTE_SHADER][argument.index];
+				buffer = slot.buffer;
+				offset = slot.offset;
+				diagnostic.boundBytes = buffer && buffer.length >= offset ? buffer.length - offset : 0;
+			}
+			diagnostic.isNil = buffer == nil;
+			diagnostic.isDummy = buffer && m_context->IsDummyBuffer( buffer );
+			if( diagnostic.isNil )
+			{
+				diagnostic.failure = "required buffer is nil";
+			}
+			else if( diagnostic.isDummy )
+			{
+				diagnostic.failure = "required buffer is a dummy resource";
+			}
+			else if( diagnostic.requiredBytes && diagnostic.boundBytes < diagnostic.requiredBytes )
+			{
+				diagnostic.failure = "bound buffer is smaller than reflected shader requirement";
+			}
+		}
+		else if( argument.type == MTLArgumentTypeTexture )
+		{
+			diagnostic.kind = "texture";
+			diagnostic.textureType = static_cast<uint32_t>( argument.textureType );
+			id<MTLTexture> texture =
+				argument.index < METAL_MAX_BOUND_TEXTURES ? m_textures[COMPUTE_SHADER][argument.index] : nil;
+			diagnostic.isNil = texture == nil;
+			diagnostic.isDummy = texture && m_context->IsDummyTexture( texture );
+			if( texture )
+			{
+				diagnostic.textureUsage = static_cast<uint32_t>( texture.usage );
+				diagnostic.width = static_cast<uint32_t>( texture.width );
+				diagnostic.height = static_cast<uint32_t>( texture.height );
+				diagnostic.depth = static_cast<uint32_t>( texture.depth );
+			}
+			if( diagnostic.isNil )
+			{
+				diagnostic.failure = "required texture is nil";
+			}
+			else if( diagnostic.isDummy )
+			{
+				diagnostic.failure = "required texture is a dummy resource";
+			}
+			else if( texture.textureType != argument.textureType )
+			{
+				diagnostic.failure = "bound texture type does not match shader reflection";
+			}
+			else if( argument.access != MTLArgumentAccessReadOnly && !( texture.usage & MTLTextureUsageShaderWrite ) )
+			{
+				diagnostic.failure = "writable texture lacks MTLTextureUsageShaderWrite";
+			}
+			else if( argument.access == MTLArgumentAccessReadOnly && !( texture.usage & MTLTextureUsageShaderRead ) )
+			{
+				diagnostic.failure = "read texture lacks MTLTextureUsageShaderRead";
+			}
+		}
+		else if( argument.type == MTLArgumentTypeSampler )
+		{
+			diagnostic.kind = "sampler";
+			id<MTLSamplerState> sampler =
+				argument.index < METAL_MAX_BOUND_SAMPLERS ? m_samplers[COMPUTE_SHADER][argument.index] : nil;
+			diagnostic.isNil = sampler == nil;
+			diagnostic.isDummy = sampler && m_context->IsDummySampler( sampler );
+			if( diagnostic.isNil )
+			{
+				diagnostic.failure = "required sampler is nil";
+			}
+			else if( diagnostic.isDummy )
+			{
+				diagnostic.failure = "required sampler is a dummy resource";
+			}
+		}
+		else
+		{
+			continue;
+		}
+
+		diagnostic.valid = diagnostic.failure.empty();
+		if( !diagnostic.valid )
+		{
+			valid = false;
+			CCP_AL_LOGERR( "Metal compute binding preflight failed for %s[%u]: %s",
+						   diagnostic.kind.c_str(),
+						   diagnostic.index,
+						   diagnostic.failure.c_str() );
+		}
+		m_bindingDiagnostics.emplace_back( std::move( diagnostic ) );
+	}
+	m_bindingPreflightPassed = m_bindingPreflightPassed && valid;
+	return valid;
 }
 
 bool MetalWorkQueue::EmitComputeEncoderState()
@@ -1969,6 +2332,10 @@ bool MetalWorkQueue::EmitComputeEncoderState()
 
 	// Create and set a new pipelinestate if required.
 	if( !EmitComputePipelineState() )
+	{
+		return false;
+	}
+	if( !ValidateComputeBindings() )
 	{
 		return false;
 	}
@@ -2417,8 +2784,12 @@ void MetalWorkQueue::SetConstants( Tr2RenderContextEnum::ShaderType shaderType,
 		{
 			m_dirtyConstBufferPageMask[shaderType] |= flag;
 		}
-		bufferSlot = { page, offset };
+		bufferSlot = { page, offset, size };
 		m_dirtyConstBuffersMask[shaderType] |= flag;
+	}
+	else
+	{
+		bufferSlot.size = size;
 	}
 	m_activeConstBuffersMask[shaderType] |= flag;
 }
@@ -2539,7 +2910,7 @@ void MetalWorkQueue::ResetBuffers( Tr2RenderContextEnum::ShaderType shaderType )
 	}
 	for( size_t i = 0, n = sizeof( m_constBuffers[shaderType] ) / sizeof( *m_constBuffers[shaderType] ); i < n; ++i )
 	{
-		m_constBuffers[shaderType][i] = { 0, 0 };
+		m_constBuffers[shaderType][i] = { 0, 0, 0 };
 	}
 
 	m_activeConstBuffersMask[shaderType] = 0;

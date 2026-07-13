@@ -8,6 +8,7 @@
 #import <QuartzCore/CAMetalLayer.h>
 
 #include "MetalUtils.h"
+#include "Tr2MetalSubmissionDiagnostics.h"
 #include "../include/Tr2ShaderAL.h"
 
 namespace TrinityALImpl
@@ -177,8 +178,11 @@ public:
 	~MetalWorkQueue();
 	void SetMetalContext( MetalContext* metalContext );
 	void SetCommandQueue( id<MTLCommandQueue> commandQueue );
+	void SetSubmissionDiagnosticsEnabled( bool enabled );
 
 	void CommitCommandBuffer( MetalCBCommitFlags flags );
+	bool GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
+	bool SubmitAndWait( Tr2MetalSubmissionDiagnostics* diagnostics );
 	bool BlitToDrawableAndPresent( id<MTLTexture> srcTexture, NSView* view, uint64_t* renderedFrameNumber );
 	void BeginFrame();
 	void EndFrame();
@@ -410,6 +414,12 @@ private:
 	bool EmitRenderPipelineState();
 	bool EmitComputePipelineState();
 	bool EmitComputeEncoderState();
+	bool ValidateComputeBindings();
+	void CaptureCommandBufferDiagnostics( id<MTLCommandBuffer> commandBuffer,
+										  double cpuEncodeSeconds,
+										  double cpuWaitSeconds,
+										  Tr2MetalSubmissionDiagnostics* diagnostics ) const;
+	void CapturePendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
 	void SetVertexBufferBindings();
 	void SetFragmentBufferBindings();
 	void SetComputeBufferBindings();
@@ -499,6 +509,7 @@ private:
 	id<MTLFunction> m_computeFunction;
 	id<MTLFunction> m_clearBufferComputeFunctions[2];
 	id<MTLFunction> m_clearTextureComputeFunctions[2];
+	id<MTLFunction> m_clearTexture3DComputeFunctions[2];
 	MTLSize m_threadGroupSize;
 	const ShaderResourceMask* m_shaderResourceMasks;
 
@@ -514,6 +525,7 @@ private:
 	{
 		uint32_t page;
 		uint32_t offset;
+		uint32_t size;
 	};
 
 	ConstantBuffer m_constBuffers[Tr2RenderContextEnum::SHADER_TYPE_COUNT][METAL_MAX_BOUND_BUFFERS];
@@ -553,6 +565,13 @@ private:
 	uint64_t m_visibilityQueriesInThisEncoder;
 
 	std::vector<Tr2PipelineStatsQueryAL*> m_pipelineQueriesInProgress;
+	bool m_submissionDiagnosticsEnabled;
+	bool m_bindingPreflightPassed;
+	double m_commandBufferCreatedAt;
+	uint64_t m_lastComputePipelineUid;
+	MTLComputePipelineReflection* m_currentComputePipelineReflection;
+	std::vector<std::string> m_encoderLabels;
+	std::vector<Tr2MetalResourceBindingDiagnostic> m_bindingDiagnostics;
 
 	struct CachedVertexLayout
 	{
