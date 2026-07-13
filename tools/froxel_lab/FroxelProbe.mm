@@ -907,6 +907,34 @@ Options MakeMieWorkOptions( const Options& options )
 	return result;
 }
 
+Options MakeRaymarchWorkOptions( const Options& options )
+{
+	Options result = options;
+	result.dimensions.depth = 1;
+	return result;
+}
+
+bool ValidateRaymarchWorkOptions( const Options& options, const Options& workOptions )
+{
+	return options.dimensions.width > 0 && options.dimensions.height > 0 && options.dimensions.depth > 0 &&
+		workOptions.dimensions.width == options.dimensions.width &&
+		workOptions.dimensions.height == options.dimensions.height && workOptions.dimensions.depth == 1;
+}
+
+NSDictionary* RaymarchDispatchContractDictionary( const Options& options, const Options& workOptions )
+{
+	return @{
+		@"contractPassed": @( ValidateRaymarchWorkOptions( options, workOptions ) ),
+		@"dispatchDimensions": @[
+			@( workOptions.dimensions.width ),
+			@( workOptions.dimensions.height ),
+			@( workOptions.dimensions.depth ),
+		],
+		@"textureDepth": @( options.dimensions.depth ),
+		@"sliceTraversal": @"kernel-internal",
+	};
+}
+
 std::vector<uint8_t> MakeMieConstants( const Options& options )
 {
 	std::vector<uint8_t> data( 24, 0 );
@@ -1757,18 +1785,22 @@ int RunClient( const Options& options, const ClientPackage& package )
 	Synchronize( queue, options, froxelA, nil );
 
 	const Options mieWorkOptions = MakeMieWorkOptions( options );
+	const Options raymarchWorkOptions = MakeRaymarchWorkOptions( options );
 	const std::vector<uint8_t> froxelConstants = MakeFroxelConstants( options );
 	const std::vector<uint8_t> mieConstants = MakeMieConstants( mieWorkOptions );
 	const std::vector<uint8_t> applyConstants = MakeApplyConstants( options );
 	if( !ValidateFroxelConstants( froxelConstants, options ) ||
-		!ValidateMieConstants( mieConstants, mieWorkOptions ) || !ValidateApplyConstants( applyConstants, options ) )
+		!ValidateMieConstants( mieConstants, mieWorkOptions ) || !ValidateApplyConstants( applyConstants, options ) ||
+		!ValidateRaymarchWorkOptions( options, raymarchWorkOptions ) )
 	{
-		std::fprintf( stderr, "Client constant-buffer contract validation failed\n" );
+		std::fprintf( stderr, "Client constant-buffer or dispatch contract validation failed\n" );
 		return 1;
 	}
 	NSDictionary* froxelConstantContract = FroxelConstantContractDictionary( froxelConstants, options );
 	NSDictionary* mieConstantContract = MieConstantContractDictionary( mieConstants, mieWorkOptions );
 	NSDictionary* applyConstantContract = ApplyConstantContractDictionary( applyConstants, options );
+	NSDictionary* raymarchDispatchContract =
+		RaymarchDispatchContractDictionary( options, raymarchWorkOptions );
 	std::array<id<MTLTexture>, METAL_MAX_BOUND_TEXTURES> textures = {};
 	id<MTLTexture> finalTexture = nil;
 	id<MTLTexture> mieOutput = nil;
@@ -1869,7 +1901,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		const bool result = EncodeClientCompute( queue,
 												 inPlace ? raymarchInFunction : raymarchOutFunction,
 												 selectedStage,
-												 options,
+												 raymarchWorkOptions,
 												 textures,
 												 inPlace ? 0x1 : 0x3,
 												 froxelConstants,
@@ -1964,6 +1996,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 				@"froxelConstantContract": froxelConstantContract,
 				@"mieConstantContract": mieConstantContract,
 				@"applyConstantContract": applyConstantContract,
+				@"raymarchDispatchContract": raymarchDispatchContract,
 				@"submission": SubmissionDictionary( diagnostics ),
 			} );
 		return 1;
@@ -2000,6 +2033,7 @@ int RunClient( const Options& options, const ClientPackage& package )
 		@"froxelConstantContract": froxelConstantContract,
 		@"mieConstantContract": mieConstantContract,
 		@"applyConstantContract": applyConstantContract,
+		@"raymarchDispatchContract": raymarchDispatchContract,
 		@"readback": readback,
 		@"submission": SubmissionDictionary( diagnostics ),
 	};
@@ -2044,6 +2078,24 @@ bool RunCpuSelfTests()
 	{
 		return false;
 	}
+	const Options raymarchWorkOptions = MakeRaymarchWorkOptions( options );
+	if( !ValidateRaymarchWorkOptions( options, raymarchWorkOptions ) ||
+		raymarchWorkOptions.dimensions.width != 8 || raymarchWorkOptions.dimensions.height != 8 ||
+		raymarchWorkOptions.dimensions.depth != 1 )
+	{
+		return false;
+	}
+	const Options rectangularRaymarchOptions = MakeRaymarchWorkOptions( rectangularOptions );
+	if( !ValidateRaymarchWorkOptions( rectangularOptions, rectangularRaymarchOptions ) ||
+		rectangularRaymarchOptions.dimensions.width != 65 || rectangularRaymarchOptions.dimensions.height != 47 ||
+		rectangularRaymarchOptions.dimensions.depth != 1 )
+	{
+		return false;
+	}
+	Options zeroDepthOptions = options;
+	zeroDepthOptions.dimensions.depth = 0;
+	if( ValidateRaymarchWorkOptions( zeroDepthOptions, MakeRaymarchWorkOptions( zeroDepthOptions ) ) )
+		return false;
 	std::vector<uint8_t> mieConstants = MakeMieConstants( mieWorkOptions );
 	if( !ValidateMieConstants( mieConstants, mieWorkOptions ) )
 		return false;
