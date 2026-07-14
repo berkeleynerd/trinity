@@ -92,6 +92,8 @@ extern "C" bool TrinityStandaloneProbeGetReflectionDiagnostics( void* opaqueProb
 																float* shPrimaryIntensity,
 																float* shSecondaryIntensity );
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeConfigureSolarAudit( void* opaqueProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWriteSolarAudit( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -524,6 +526,7 @@ struct Options
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
+	std::string solarAuditReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -2200,7 +2203,7 @@ void PrintUsage( const char* executable )
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
-		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md]\n";
+		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md] [--solar-audit-report REPORT.json]\n";
 }
 
 bool ValidateCanonicalCompositionOptions( const Options& options )
@@ -2877,6 +2880,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.inspectionReportPath = argv[i];
+		}
+		else if( arg == "--solar-audit-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.solarAuditReportPath = argv[i];
 		}
 		else
 		{
@@ -5273,6 +5284,14 @@ int main( int argc, char** argv )
 			PrintUsage( argv[0] );
 			return 2;
 		}
+		if( !options.solarAuditReportPath.empty() &&
+			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung < QualityRung::Model || options.maxFrames <= 0 ) )
+		{
+			std::cerr << "--solar-audit-report requires --scene-fixture new-eden --shader-tier high "
+						 "a model-or-higher quality rung, and a positive finite --frames count\n";
+			return 2;
+		}
 
 		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model &&
 			!FileExists( options.inputPath ) )
@@ -5340,6 +5359,15 @@ int main( int argc, char** argv )
 		if( !probe )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateDevice failed\n";
+			[window close];
+			return 1;
+		}
+		if( !options.solarAuditReportPath.empty() &&
+			( !EnsureParentDirectory( options.solarAuditReportPath ) ||
+			  !TrinityStandaloneProbeConfigureSolarAudit( probe, options.solarAuditReportPath.c_str() ) ) )
+		{
+			std::cerr << "Failed to configure the PL-14A solar audit report\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
 		}
@@ -6476,7 +6504,16 @@ int main( int argc, char** argv )
 					WriteCaptureMetadata( options, renderWidth, renderHeight, renderedFrames, productStats );
 			}
 		}
-		captureSucceeded = captureSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
+		bool solarAuditSucceeded = true;
+		if( !options.solarAuditReportPath.empty() )
+		{
+			solarAuditSucceeded = TrinityStandaloneProbeWriteSolarAudit( probe );
+			if( solarAuditSucceeded )
+			{
+				std::cout << "Solar audit report: " << options.solarAuditReportPath << "\n";
+			}
+		}
+		captureSucceeded = captureSucceeded && solarAuditSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
 			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
 			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&

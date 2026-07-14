@@ -2807,3 +2807,30 @@ Gate alignment at frame 180, Gate warp at 541, Sun alignment at 1621, Sun warp
 at 2161, and native Sun ORBIT at frame 3241. The EVE Gate presentation bearing
 uses the ship-to-Gate route rather than the old stargate-anchor bearing, which
 removed a measured 37.73-degree visual/navigation mismatch.
+
+## CP-39 sample-only solar census (2026-07-14)
+
+The standalone probe now accepts `--solar-audit-report REPORT.json` only for a
+finite High-tier New Eden model run. It traverses the authored Sun graph before
+`PrepareNewEdenCelestialsWithoutYield` prunes unsupported content, records the
+prepared graph immediately afterward, and writes settled runtime counts only
+after the requested frames complete. The normal Tour path does not construct
+the auditor or change graph preparation.
+
+The first four-frame report finds 30 stable graph nodes. High quality selects
+`High_Quality` and `MediumAndHigh_Quality_SunHalfSizer`, including
+`SolarWhispSet_01a`, the huge-definition mesh, six particle/ring/pillar/scaler
+containers and their systems, plus the inverted-sphere cover. The
+`Socket_LowQuality_Star_01a` subtree is not selected. Current Trinity
+preparation retains only the medium/high container, `Sun`, and `SunFlares`.
+The settled scene reports distance fog values `-500000`/`800000` with
+`fogMax=0`, no High combined or default `Tr2PPFogEffect`, and zero authored
+froxel settings with no active froxel renderer. God rays remain an independent
+active post-process effect.
+
+This is capability evidence, not the PL-14A client verdict. Promised Land owns
+the pinned build/resource/repository provenance, five reproducible client
+views, temporal sequences, repeat-derived thresholds, and fail-closed branch
+and fog classification. If black-box evidence cannot close a reachable state,
+runtime client instrumentation requires separate authorization rather than an
+inferred result.

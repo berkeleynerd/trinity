@@ -74,6 +74,7 @@ extern int g_grannyDeprecationLevel;
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "Shader/Tr2Shader.h"
 #include "TrinityStandaloneCmfModel.h"
+#include "TrinityStandaloneSolarAudit.h"
 #include "TrinityStandaloneProbeApi.h"
 #include "TriRenderBatch.h"
 #include "TriDevice.h"
@@ -4064,6 +4065,8 @@ struct StandaloneProbe
 	EvePlanet* newEdenSun = nullptr;
 	EvePlanet* newEdenPlanet = nullptr;
 	EveLensflare* newEdenLensFlare = nullptr;
+	std::unique_ptr<TrinityStandaloneSolarAudit> solarAudit;
+	std::string solarAuditReportPath;
 	bool newEdenSystemComposition = false;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
@@ -5554,6 +5557,10 @@ bool ConfigureNewEdenSystem(
 		static_cast<float>( planetRadius ) * celestialRadiusScale,
 		Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+	if( probe.solarAudit && !probe.solarAudit->CaptureSourceGraph( *sun, error ) )
+	{
+		return false;
+	}
 	if( !PrepareNewEdenCelestialsWithoutYield(
 			*sun,
 			*planet,
@@ -5569,6 +5576,10 @@ bool ConfigureNewEdenSystem(
 			error = "New Eden celestial graph failed to initialize";
 		}
 		return false;
+	}
+	if( probe.solarAudit )
+	{
+		probe.solarAudit->CapturePreparedGraph( *sun );
 	}
 	probe.planetSurfacePrepared = true;
 	probe.planetAtmospherePrepared =
@@ -11272,6 +11283,44 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 		return false;
 	}
 	return WriteAsteroClientAssetReport( reportPath );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarAudit(
+	void* opaqueProbe,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !reportPath || !reportPath[0] )
+	{
+		CCP_LOGERR( "Solar audit requires an initialized render device and report path" );
+		return false;
+	}
+	probe->solarAudit = std::make_unique<TrinityStandaloneSolarAudit>();
+	probe->solarAuditReportPath = reportPath;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarAudit( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->solarAudit || probe->solarAuditReportPath.empty() || !probe->scene )
+	{
+		CCP_LOGERR( "Solar audit was not configured or no scene is active" );
+		return false;
+	}
+	std::string error;
+	if( !probe->solarAudit->WriteReport(
+			probe->solarAuditReportPath.c_str(),
+			probe->newEdenSun,
+			*probe->scene,
+			probe->renderedFrameCount,
+			error ) )
+	{
+		std::fprintf( stderr, "Failed to write PL-14A solar audit: %s\n", error.c_str() );
+		return false;
+	}
+	std::fprintf( stderr, "PL-14A solar audit report: %s\n", probe->solarAuditReportPath.c_str() );
+	return true;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
