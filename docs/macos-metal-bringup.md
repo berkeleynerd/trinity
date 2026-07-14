@@ -2893,7 +2893,8 @@ evidence, and the low-quality socket remains unstaged. The full warnings-as-
 errors build, focused Metal captures, PL-14A/B/C gates, and canonical Tour
 smoke pass. This remains structural authored parity: optics, legacy fog,
 occlusion, exact client color/exposure, and scene illumination move to
-PL-14D/E, while the Tour keeps the new graph off until PL-14F.
+PL-14D/E. The standalone default remains off; the canonical Tour's later
+explicit opt-in is an application preview rather than PL-14F acceptance.
 
 ## Journal: from the lighting question to CP-41 (2026-07-14)
 
@@ -2928,7 +2929,10 @@ The resulting PL-14C matrix closes every reachable isolate and the integrated
 fixed/orbit lanes with zero A/B repeat noise, 240±1-pixel framing, natural
 pillar emission, and exact 2π orbit completion. A fresh PL-11D run retained
 trajectory hash `4b2ab48907c53458`, and the canonical Tour smoke retained its
-old profile. The next question is now sharply bounded: PL-14D must compose and
+old no-Silk/no-froxel profile. After acceptance, Promised Land explicitly
+enabled all CP-40/41 layers in the canonical Tour as an application preview;
+the standalone probe default remains off and PL-14F remains gated on PL-14D/E.
+The next question is now sharply bounded: PL-14D must compose and
 validate authored optics, the selected legacy fog profile, and occlusion
 through the full HDR finish. Exact client color/exposure and scene illumination
 remain unclaimed rather than being smuggled into the structural result.
