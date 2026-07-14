@@ -365,6 +365,19 @@ public:
 		std::string lowQualityNebulaPath;
 		std::string lowQualityNebulaMixPath;
 	};
+	struct MainPassBatchDiagnostics
+	{
+		uint64_t opaque = 0;
+		uint64_t additive = 0;
+		uint64_t transparent = 0;
+		uint64_t planetOpaque = 0;
+		uint64_t planetAdditive = 0;
+		uint64_t planetTransparent = 0;
+	};
+	const MainPassBatchDiagnostics& GetMainPassBatchDiagnostics() const
+	{
+		return m_mainPassBatchDiagnostics;
+	}
 	LightingSetup GetLightingSetup() const
 	{
 		return {
@@ -726,6 +739,7 @@ protected:
 	float m_fogMax; // Maximum strength of fog, range [0,1], at m_fogEnd distance.
 
 	PerFramePSData m_perFramePS;
+	MainPassBatchDiagnostics m_mainPassBatchDiagnostics;
 	PerFrameVSData m_perFrameVS;
 
 	EveVisualizeMethod m_visualizeMethod;

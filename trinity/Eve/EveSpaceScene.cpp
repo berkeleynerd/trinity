@@ -2959,6 +2959,10 @@ bool EveSpaceScene::RenderMainPass(
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
+	m_mainPassBatchDiagnostics.opaque = m_primaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount();
+	m_mainPassBatchDiagnostics.additive = m_primaryBatches[TRIBATCHTYPE_ADDITIVE]->GetBatchCount();
+	m_mainPassBatchDiagnostics.transparent = m_primaryBatches[TRIBATCHTYPE_TRANSPARENT]->GetBatchCount();
+
 	bool hasForegroundDistortionBatches = false;
 
 	renderContext.m_esm.BeginManagedRendering();
@@ -4155,6 +4159,9 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 	GetAllBatchesFromRenderables( planetRenderables, renderablesWithTransparencies, false, m_secondaryBatches );
 	PrepareTransparentBatch( renderablesWithTransparencies, m_secondaryBatches );
 	FinalizeBatches( m_secondaryBatches );
+	m_mainPassBatchDiagnostics.planetOpaque = m_secondaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount();
+	m_mainPassBatchDiagnostics.planetAdditive = m_secondaryBatches[TRIBATCHTYPE_ADDITIVE]->GetBatchCount();
+	m_mainPassBatchDiagnostics.planetTransparent = m_secondaryBatches[TRIBATCHTYPE_TRANSPARENT]->GetBatchCount();
 
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_DEPTH_ONLY );
 	renderContext.RenderBatches( m_secondaryBatches[TRIBATCHTYPE_DEPTH], BlueSharedString( "Depth" ) );

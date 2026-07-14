@@ -246,18 +246,43 @@ TrinityProbeTaskletTimer::~TrinityProbeTaskletTimer()
 {
 }
 
-PyObject* TrinityProbeTaskletTimer::GetCurrent() { return nullptr; }
-float TrinityProbeTaskletTimer::GetElapsed() { return 0.0f; }
-PyObject* TrinityProbeTaskletTimer::EnterTasklet( PyObject* ) { return nullptr; }
-bool TrinityProbeTaskletTimer::ReturnFromTasklet( PyObject* ) { return true; }
-PyObject* TrinityProbeTaskletTimer::SwitchStack( intptr_t ) { return nullptr; }
-bool TrinityProbeTaskletTimer::Reset() { return true; }
-void TrinityProbeTaskletTimer::TimesliceReset() {}
-PyObject* TrinityProbeTaskletTimer::EnterTaskletEx( PyObject*, TASKLETFLAGS ) { return nullptr; }
-PyObject* TrinityProbeTaskletTimer::EnterTaskletStr( const char*, TASKLETFLAGS ) { return nullptr; }
-
-const Be::ClassInfo* TrinityProbeTaskletTimer::ExposeToBlue()
+PyObject* TrinityProbeTaskletTimer::GetCurrent()
 {
+	return nullptr;
+}
+float TrinityProbeTaskletTimer::GetElapsed()
+{
+	return 0.0f;
+}
+PyObject* TrinityProbeTaskletTimer::EnterTasklet( PyObject* )
+{
+	return nullptr;
+}
+bool TrinityProbeTaskletTimer::ReturnFromTasklet( PyObject* )
+{
+	return true;
+}
+PyObject* TrinityProbeTaskletTimer::SwitchStack( intptr_t )
+{
+	return nullptr;
+}
+bool TrinityProbeTaskletTimer::Reset()
+{
+	return true;
+}
+void TrinityProbeTaskletTimer::TimesliceReset()
+{
+}
+PyObject* TrinityProbeTaskletTimer::EnterTaskletEx( PyObject*, TASKLETFLAGS )
+{
+	return nullptr;
+}
+PyObject* TrinityProbeTaskletTimer::EnterTaskletStr( const char*, TASKLETFLAGS )
+{
+	return nullptr;
+}
+
+const Be::ClassInfo* TrinityProbeTaskletTimer::ExposeToBlue(){
 	EXPOSURE_BEGIN( TrinityProbeTaskletTimer, "" )
 		MAP_INTERFACE( ITaskletTimer )
 	EXPOSURE_END()
@@ -3822,6 +3847,16 @@ enum StandaloneSunEffects
 	STANDALONE_SUN_EFFECTS_ALL = 4,
 };
 
+enum StandaloneSunBodyLayers
+{
+	STANDALONE_SUN_BODY_OFF = 0,
+	STANDALONE_SUN_BODY_SURFACE = 1,
+	STANDALONE_SUN_BODY_OUTER_BEAMS = 2,
+	STANDALONE_SUN_BODY_EDGE_CLOUDS = 3,
+	STANDALONE_SUN_BODY_CORONA = 4,
+	STANDALONE_SUN_BODY_ALL = 5,
+};
+
 enum StandaloneDecals
 {
 	STANDALONE_DECALS_AUTO = 0,
@@ -3853,6 +3888,46 @@ const char* SunEffectsName( int effects )
 		return "invalid";
 	}
 }
+
+const char* SunBodyLayersName( int layers )
+{
+	switch( layers )
+	{
+	case STANDALONE_SUN_BODY_OFF:
+		return "off";
+	case STANDALONE_SUN_BODY_SURFACE:
+		return "surface";
+	case STANDALONE_SUN_BODY_OUTER_BEAMS:
+		return "outer-beams";
+	case STANDALONE_SUN_BODY_EDGE_CLOUDS:
+		return "edge-clouds";
+	case STANDALONE_SUN_BODY_CORONA:
+		return "corona";
+	case STANDALONE_SUN_BODY_ALL:
+		return "all";
+	default:
+		return "invalid";
+	}
+}
+
+struct StandaloneSolarBodyFrame
+{
+	uint64_t frame = 0;
+	int64_t simulationTime = 0;
+	double animationSeconds = 0.0;
+	double orbitPhaseRadians = 0.0;
+	float expectedPixelDiameter = 0.0f;
+	float reportedPixelDiameter = 0.0f;
+	float projectedCenterX = 0.0f;
+	float projectedCenterY = 0.0f;
+	uint64_t sceneOpaqueBatchCount = 0;
+	uint64_t sceneAdditiveBatchCount = 0;
+	uint64_t sceneTransparentBatchCount = 0;
+	uint64_t planetOpaqueBatchCount = 0;
+	uint64_t planetAdditiveBatchCount = 0;
+	uint64_t planetTransparentBatchCount = 0;
+	Matrix view = IdentityMatrix();
+};
 
 struct StandaloneProbe
 {
@@ -4063,10 +4138,18 @@ struct StandaloneProbe
 	ITriVectorFunction* eveGateCurve = nullptr;
 	TrinityStandaloneEveGateDiagnostics eveGateDiagnostics;
 	EvePlanet* newEdenSun = nullptr;
+	EveChildMesh* newEdenSunBody = nullptr;
 	EvePlanet* newEdenPlanet = nullptr;
 	EveLensflare* newEdenLensFlare = nullptr;
 	std::unique_ptr<TrinityStandaloneSolarAudit> solarAudit;
 	std::string solarAuditReportPath;
+	bool solarBodyConfigured = false;
+	int sunBodyLayers = STANDALONE_SUN_BODY_ALL;
+	std::string solarBodyReportPath;
+	std::string solarBodyResourceManifestPath;
+	std::string solarBodyGeometryManifestPath;
+	std::string solarBodyGeneratedGeometryHashPath;
+	std::vector<StandaloneSolarBodyFrame> solarBodyFrames;
 	bool newEdenSystemComposition = false;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
@@ -4152,7 +4235,10 @@ struct StandaloneProbe
 	float celestialInspectionFovRadians = 0.0f;
 	float modelWorldScale = 1.0f;
 	float celestialInspectionScale = 1.0f;
+	float celestialInspectionOrbitRadius = 0.0f;
+	float solarBodyGeometryRadius = 1.0f;
 	Vector3 celestialInspectionDirection;
+	Vector3 celestialInspectionCenter;
 	Vector3 cinematicSunDirection;
 	bool celestialInspectionValidated = false;
 };
@@ -5138,15 +5224,104 @@ bool PrepareNewEdenLensFlareWithoutYield( EveLensflare& lensFlare, std::string& 
 	return true;
 }
 
+std::string NarrowStandalonePath( const wchar_t* value )
+{
+	std::string result;
+	for( ; value && *value; ++value )
+	{
+		result.push_back( static_cast<char>( *value ) );
+	}
+	return result;
+}
+
+bool SelectNewEdenSunBodyAreas( EveChildMesh& sunBody, int layers, std::string& error )
+{
+	if( layers < STANDALONE_SUN_BODY_OFF || layers > STANDALONE_SUN_BODY_ALL )
+	{
+		error = "New Eden Sun body layer mode is invalid";
+		return false;
+	}
+	Tr2MeshBase* mesh = sunBody.GetMesh();
+	if( !mesh )
+	{
+		error = "New Eden Sun child has no mesh";
+		return false;
+	}
+	const std::string geometryPath = NarrowStandalonePath( mesh->GetGeometryResPath() );
+	if( !geometryPath.empty() &&
+		geometryPath.find( "graphics/generic/unitsphere/unitsphere_4k_01a.gr2" ) == std::string::npos &&
+		geometryPath.find( "graphics/generic/unitsphere/unitsphere_4k_01a.cmf" ) == std::string::npos )
+	{
+		error = "New Eden Sun body does not use the authored unit sphere: " + geometryPath;
+		return false;
+	}
+
+	Tr2MeshAreaVector* opaque = mesh->GetAreas( TRIBATCHTYPE_OPAQUE );
+	Tr2MeshAreaVector* additive = mesh->GetAreas( TRIBATCHTYPE_ADDITIVE );
+	if( !opaque || !additive || opaque->size() != 1 || additive->size() != 2 )
+	{
+		error = "New Eden Sun body must contain one opaque and two additive authored areas";
+		return false;
+	}
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		if( batchType == TRIBATCHTYPE_OPAQUE || batchType == TRIBATCHTYPE_ADDITIVE )
+		{
+			continue;
+		}
+		const Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+		if( areas && !areas->empty() )
+		{
+			error = "New Eden Sun body contains an unexpected authored batch class";
+			return false;
+		}
+	}
+
+	struct ExpectedArea
+	{
+		Tr2MeshArea* area;
+		const char* name;
+		const char* effectPath;
+		bool selected;
+	};
+	ExpectedArea expected[] = {
+		{ ( *opaque )[0], "Surface", "res:/graphics/effect/managed/space/planet/sunsurface.fx", layers == STANDALONE_SUN_BODY_SURFACE || layers == STANDALONE_SUN_BODY_ALL },
+		{ ( *additive )[0], "OuterBeams", "res:/graphics/effect/managed/space/planet/suncorona.fx", layers == STANDALONE_SUN_BODY_OUTER_BEAMS || layers == STANDALONE_SUN_BODY_CORONA || layers == STANDALONE_SUN_BODY_ALL },
+		{ ( *additive )[1], "EdgeClouds", "res:/graphics/effect/managed/space/planet/suncorona.fx", layers == STANDALONE_SUN_BODY_EDGE_CLOUDS || layers == STANDALONE_SUN_BODY_CORONA || layers == STANDALONE_SUN_BODY_ALL },
+	};
+	for( ExpectedArea& item : expected )
+	{
+		Tr2Effect* effect = item.area ? item.area->GetMaterialInterface() : nullptr;
+		if( !item.area || item.area->GetName() != item.name || !effect ||
+			std::strcmp( effect->GetEffectPathName(), item.effectPath ) != 0 )
+		{
+			error = "New Eden Sun body authored area inventory does not match PL-14A";
+			return false;
+		}
+		item.area->SetDisplay( item.selected );
+	}
+	std::fprintf(
+		stderr,
+		"PL-14B Sun body selection: mode=%s Surface=%s OuterBeams=%s EdgeClouds=%s geometry=%s\n",
+		SunBodyLayersName( layers ),
+		expected[0].selected ? "on" : "off",
+		expected[1].selected ? "on" : "off",
+		expected[2].selected ? "on" : "off",
+		geometryPath.c_str() );
+	return true;
+}
+
 bool PrepareNewEdenCelestialsWithoutYield(
 	EvePlanet& sun,
 	EvePlanet& planet,
 	int sunEffects,
+	int sunBodyLayers,
 	int planetLayers,
 	int cloudYear,
 	int cloudMonth,
 	int cloudDay,
-	std::string& error )
+	std::string& error,
+	EveChildMesh** preparedSunBody )
 {
 	EveChildContainerPtr sunBodyContainer;
 	PIEveSpaceObjectChildVector& sunChildren = sun.GetChildren();
@@ -5189,6 +5364,14 @@ bool PrepareNewEdenCelestialsWithoutYield(
 	{
 		error = "New Eden sun sphere child is missing";
 		return false;
+	}
+	if( !SelectNewEdenSunBodyAreas( *sunBody, sunBodyLayers, error ) )
+	{
+		return false;
+	}
+	if( preparedSunBody )
+	{
+		*preparedSunBody = sunBody.p;
 	}
 	if( retainSunFlare && !sunFlare )
 	{
@@ -5565,17 +5748,42 @@ bool ConfigureNewEdenSystem(
 			*sun,
 			*planet,
 			sunEffects,
+			probe.sunBodyLayers,
 			planetLayers,
 			cloudYear,
 			cloudMonth,
 			cloudDay,
-			error ) )
+			error,
+			&probe.newEdenSunBody ) )
 	{
 		if( error.empty() )
 		{
 			error = "New Eden celestial graph failed to initialize";
 		}
 		return false;
+	}
+	if( !probe.solarBodyReportPath.empty() )
+	{
+		Tr2MeshBase* sunBodyMesh = probe.newEdenSunBody ? probe.newEdenSunBody->GetMesh() : nullptr;
+		Vector3 sunBodyMinimum;
+		Vector3 sunBodyMaximum;
+		if( !sunBodyMesh || !sunBodyMesh->GetBoundingBox( sunBodyMinimum, sunBodyMaximum ) )
+		{
+			error = "New Eden Sun body has no finite authored geometry bound";
+			return false;
+		}
+		constexpr float authoredUnitSphereRadius = 0.5f;
+		const float conservativeRuntimeRadius = std::max( {
+			std::abs( sunBodyMinimum.x ), std::abs( sunBodyMinimum.y ), std::abs( sunBodyMinimum.z ),
+			std::abs( sunBodyMaximum.x ), std::abs( sunBodyMaximum.y ), std::abs( sunBodyMaximum.z ),
+		} );
+		if( !std::isfinite( conservativeRuntimeRadius ) || conservativeRuntimeRadius < authoredUnitSphereRadius ||
+			conservativeRuntimeRadius > 0.71f )
+		{
+			error = "New Eden Sun body runtime bounds do not close to the authored half-unit sphere";
+			return false;
+		}
+		probe.solarBodyGeometryRadius = authoredUnitSphereRadius;
 	}
 	if( probe.solarAudit )
 	{
@@ -5640,32 +5848,43 @@ bool ConfigureNewEdenSystem(
 		if( cameraView == STANDALONE_CAMERA_CELESTIALS || cameraView == STANDALONE_CAMERA_PLANET )
 		{
 			constexpr float inspectionDistance = 10000.0f;
+			constexpr float inspectionRadiusMultiple = 20.0f;
 			constexpr float targetHeightFraction = 0.25f;
 			const bool inspectPlanet = cameraView == STANDALONE_CAMERA_PLANET;
+			const bool nativeSolarBodyInspection = !probe.solarBodyReportPath.empty() && !inspectPlanet;
 			const Vector3 selectedPosition = inspectPlanet ? planetPosition : sunPosition;
 			const float selectedRadius = inspectPlanet ? static_cast<float>( planetRadius ) : static_cast<float>( starRadius );
 			const float selectedDistance = Length( selectedPosition );
-			const float angularRadius = std::asin( std::min( 1.0f, selectedRadius / selectedDistance ) );
+			const float orbitRadius = nativeSolarBodyInspection ? selectedRadius * inspectionRadiusMultiple : selectedDistance;
+			const float angularRadius = std::asin( std::min( 1.0f, selectedRadius / orbitRadius ) );
+			const float projectionHeightFraction = nativeSolarBodyInspection ?
+				targetHeightFraction / probe.solarBodyGeometryRadius : targetHeightFraction;
 			probe.celestialInspectionTarget = inspectPlanet ? planet.p : sun.p;
 			probe.celestialInspectionName = inspectPlanet ? "planet" : "sun";
 			probe.celestialExpectedPixelDiameter = static_cast<float>( probe.renderHeight ) * targetHeightFraction;
-			probe.celestialInspectionFovRadians = 2.0f * std::atan( std::tan( angularRadius ) / targetHeightFraction );
+			probe.celestialInspectionFovRadians =
+				2.0f * std::atan( std::tan( angularRadius ) / projectionHeightFraction );
 			probe.celestialInspectionScale = selectedDistance / inspectionDistance;
+			probe.celestialInspectionOrbitRadius = nativeSolarBodyInspection ? orbitRadius : 0.0f;
 			probe.celestialInspectionDirection = Normalize( selectedPosition );
+			probe.celestialInspectionCenter = selectedPosition;
 			scene.SetPlanetScale( probe.celestialInspectionScale );
 			scene.SetPlanetCameraScale( probe.celestialInspectionScale );
 			std::fprintf(
 				stderr,
 				"New Eden celestial inspection configured: target=%s authoredDistance=%.3f authoredRadius=%.3f "
-				"renderDistance=%.3f scale=%.6f fovRadians=%.10f fovDegrees=%.8f expectedPixels=%.3f\n",
+				"cameraRadius=%.3f radiusMultiple=%.1f geometryRadius=%.6f scale=%.6f fovRadians=%.10f fovDegrees=%.8f expectedPixels=%.3f lane=%s\n",
 				probe.celestialInspectionName,
 				selectedDistance,
 				selectedRadius,
-				inspectionDistance,
+				orbitRadius,
+				nativeSolarBodyInspection ? inspectionRadiusMultiple : selectedDistance / selectedRadius,
+				nativeSolarBodyInspection ? probe.solarBodyGeometryRadius : 1.0f,
 				probe.celestialInspectionScale,
 				probe.celestialInspectionFovRadians,
 				probe.celestialInspectionFovRadians * 180.0f / 3.1415926535f,
-				probe.celestialExpectedPixelDiameter );
+				probe.celestialExpectedPixelDiameter,
+				nativeSolarBodyInspection ? "pl14b-native" : "legacy-diagnostic" );
 		}
 	}
 	auto describeCelestial = []( const char* role, EvePlanet& celestial ) {
@@ -7778,7 +7997,9 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 	// per-frame demand: a gate-locked camera on a dark sky is a legitimate
 	// framing whose composite retains headroom capability.
 	const bool hasHdrHeadroom = probe.hdrHeadroomObserved;
-	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack && hasHdrHeadroom;
+	const bool pl14bStructuralControl = probe.solarBodyConfigured;
+	diagnostics.valid = dimensionsValid && formatValid && finite && rangeValid && nonuniform && nonblack &&
+		( hasHdrHeadroom || pl14bStructuralControl );
 
 	std::fprintf(
 		stderr,
@@ -7813,7 +8034,7 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 			rangeValid ? "valid" : "invalid",
 			nonuniform ? "yes" : "no",
 			nonblack ? "yes" : "no",
-			hasHdrHeadroom ? "yes" : "no" );
+			hasHdrHeadroom ? "yes" : ( pl14bStructuralControl ? "reported-by-pl14b-layer-metrics" : "no" ) );
 	}
 	return diagnostics.valid;
 }
@@ -9135,8 +9356,7 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	constexpr uint64_t kStaticCameraFrames = 180;
 	constexpr float kCameraRadius = 5.2f;
 	constexpr float kOrbitFrames = 900.0f;
-	if( probe.exposureSequenceActive || !probe.view || !probe.renderable ||
-		probe.cameraView != STANDALONE_CAMERA_MODEL || probe.renderedFrameCount < kStaticCameraFrames ||
+	if( probe.exposureSequenceActive || !probe.view || probe.renderedFrameCount < kStaticCameraFrames ||
 		( probe.motionMode != STANDALONE_MOTION_CAMERA && probe.motionMode != STANDALONE_MOTION_COMBINED ) )
 	{
 		return;
@@ -9144,14 +9364,36 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 
 	const float orbitFrame = static_cast<float>( probe.renderedFrameCount - kStaticCameraFrames + 1 );
 	const float angle = orbitFrame * ( 2.0f * 3.1415926535f / kOrbitFrames );
+	float reportedRadius = 0.0f;
+	if( probe.cameraView == STANDALONE_CAMERA_MODEL && probe.renderable )
+	{
+		reportedRadius = kCameraRadius * probe.modelWorldScale;
 	const Vector3 eye(
-		kCameraRadius * probe.modelWorldScale * std::sin( angle ),
+			reportedRadius * std::sin( angle ),
 		0.0f,
-		-kCameraRadius * probe.modelWorldScale * std::cos( angle ) );
+			-reportedRadius * std::cos( angle ) );
 	probe.view->SetLookAtPosition( eye, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
+	}
+	else if( probe.cameraView == STANDALONE_CAMERA_CELESTIALS && probe.newEdenSystemComposition &&
+			 probe.celestialInspectionTarget == probe.newEdenSun && !probe.solarBodyReportPath.empty() )
+	{
+		const float authoredOrbitRadius = probe.celestialInspectionOrbitRadius;
+		const Vector3 worldUp( 0.0f, 1.0f, 0.0f );
+		const Vector3 center = probe.celestialInspectionCenter;
+		const Vector3 radial = probe.celestialInspectionDirection * -1.0f;
+		const Vector3 tangent = Normalize( Cross( worldUp, radial ) );
+		const Vector3 eye = center +
+			( radial * std::cos( angle ) + tangent * std::sin( angle ) ) * authoredOrbitRadius;
+		probe.view->SetLookAtPosition( eye, center, worldUp );
+		reportedRadius = authoredOrbitRadius;
+	}
+	else
+	{
+		return;
+	}
 	if( !probe.reportedCameraOrbit )
 	{
-		std::fprintf( stderr, "EVE probe camera orbit active after %llu static frames: radius=%.1f period=%.1f seconds\n", static_cast<unsigned long long>( kStaticCameraFrames ), kCameraRadius * probe.modelWorldScale, kOrbitFrames / 60.0f );
+		std::fprintf( stderr, "EVE probe camera orbit active after %llu static frames: radius=%.1f period=%.1f seconds target=%s\n", static_cast<unsigned long long>( kStaticCameraFrames ), reportedRadius, kOrbitFrames / 60.0f, probe.cameraView == STANDALONE_CAMERA_MODEL ? "model" : "sun" );
 		probe.reportedCameraOrbit = true;
 	}
 }
@@ -10027,8 +10269,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	const Vector3 eye( 0.0f, 0.0f, -5.2f * probe.modelWorldScale );
 	const bool exactSystemInspection = composition == STANDALONE_COMPOSITION_SYSTEM &&
 		probe.celestialInspectionTarget && probe.celestialInspectionFovRadians > 0.0f;
-	const Vector3 target = exactSystemInspection ? eye + probe.celestialInspectionDirection : ( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) : ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) );
-	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
+	const bool nativeSolarBodyInspection = exactSystemInspection && !probe.solarBodyReportPath.empty();
+	const Vector3 inspectionEye = probe.celestialInspectionCenter -
+		probe.celestialInspectionDirection * probe.celestialInspectionOrbitRadius;
+	const Vector3 cameraEye = nativeSolarBodyInspection ? inspectionEye : eye;
+	const Vector3 target = nativeSolarBodyInspection ? probe.celestialInspectionCenter :
+		( exactSystemInspection ? eye + probe.celestialInspectionDirection :
+			( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) :
+				( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) ) );
+	probe.view->SetLookAtPosition( cameraEye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
 	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
 																		  ( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
 	const float cameraFovRadians = exactSystemInspection ? probe.celestialInspectionFovRadians : 60.0f * 3.1415926535f / 180.0f;
@@ -11301,6 +11550,268 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeInspectClientAssets( void* 
 	return WriteAsteroClientAssetReport( reportPath );
 }
 
+std::string SolarBodyJsonString( const std::string& value )
+{
+	std::ostringstream output;
+	output << '"';
+	for( const unsigned char character : value )
+	{
+		switch( character )
+		{
+		case '"':
+			output << "\\\"";
+			break;
+		case '\\':
+			output << "\\\\";
+			break;
+		case '\n':
+			output << "\\n";
+			break;
+		case '\r':
+			output << "\\r";
+			break;
+		case '\t':
+			output << "\\t";
+			break;
+		default:
+			if( character < 0x20 )
+			{
+				output << "\\u" << std::hex << std::setw( 4 ) << std::setfill( '0' )
+					   << static_cast<unsigned>( character ) << std::dec;
+			}
+			else
+			{
+				output << character;
+			}
+			break;
+		}
+	}
+	output << '"';
+	return output.str();
+}
+
+bool ReadSolarBodyEvidenceFile( const std::string& path, std::string& contents )
+{
+	std::ifstream input( path.c_str(), std::ios::binary );
+	if( !input )
+	{
+		return false;
+	}
+	std::ostringstream buffer;
+	buffer << input.rdbuf();
+	contents = buffer.str();
+	return !contents.empty();
+}
+
+const char* SolarBodyBatchName( TriBatchType batchType )
+{
+	return batchType == TRIBATCHTYPE_OPAQUE ? "opaque" :
+											  ( batchType == TRIBATCHTYPE_ADDITIVE ? "additive" : "unexpected" );
+}
+
+void WriteSolarBodyMatrix( std::ostream& output, const Matrix& matrix )
+{
+	output << '[' << matrix._11 << ',' << matrix._12 << ',' << matrix._13 << ',' << matrix._14 << ','
+		   << matrix._21 << ',' << matrix._22 << ',' << matrix._23 << ',' << matrix._24 << ','
+		   << matrix._31 << ',' << matrix._32 << ',' << matrix._33 << ',' << matrix._34 << ','
+		   << matrix._41 << ',' << matrix._42 << ',' << matrix._43 << ',' << matrix._44 << ']';
+}
+
+bool WriteSolarBodyReport( StandaloneProbe& probe, std::string& error )
+{
+	if( probe.solarBodyReportPath.empty() || !probe.newEdenSunBody || !probe.newEdenSun ||
+		probe.solarBodyFrames.empty() )
+	{
+		error = "Solar body report is missing a path, prepared Sun body, or rendered frames";
+		return false;
+	}
+	std::string resourceManifest;
+	std::string geometryManifest;
+	std::string generatedGeometryHash;
+	if( !ReadSolarBodyEvidenceFile( probe.solarBodyResourceManifestPath, resourceManifest ) ||
+		!ReadSolarBodyEvidenceFile( probe.solarBodyGeometryManifestPath, geometryManifest ) ||
+		!ReadSolarBodyEvidenceFile( probe.solarBodyGeneratedGeometryHashPath, generatedGeometryHash ) )
+	{
+		error = "Solar body staged resource or geometry evidence is missing";
+		return false;
+	}
+	const size_t hashEnd = generatedGeometryHash.find_first_of( " \t\r\n" );
+	generatedGeometryHash = generatedGeometryHash.substr( 0, hashEnd );
+	if( generatedGeometryHash.size() != 64 )
+	{
+		error = "Solar body staged CMF hash is malformed";
+		return false;
+	}
+
+	Tr2MeshBase* mesh = probe.newEdenSunBody->GetMesh();
+	if( !mesh )
+	{
+		error = "Solar body mesh disappeared before report generation";
+		return false;
+	}
+	const std::string runtimeGeometryPath = NarrowStandalonePath( mesh->GetGeometryResPath() );
+	if( runtimeGeometryPath.find( "graphics/generic/unitsphere/unitsphere_4k_01a.gr2" ) == std::string::npos &&
+		runtimeGeometryPath.find( "graphics/generic/unitsphere/unitsphere_4k_01a.cmf" ) == std::string::npos )
+	{
+		error = "Prepared solar body runtime geometry does not match the authored unit sphere: " + runtimeGeometryPath;
+		return false;
+	}
+	struct AreaRecord
+	{
+		Tr2MeshArea* area = nullptr;
+		TriBatchType batchType = TRIBATCHTYPE_OPAQUE;
+		uint64_t committedBatchCount = 0;
+	};
+	std::vector<AreaRecord> areas;
+	uint64_t expectedPlanetOpaqueBatches = 0;
+	uint64_t expectedPlanetAdditiveBatches = 0;
+	for( TriBatchType batchType : { TRIBATCHTYPE_OPAQUE, TRIBATCHTYPE_ADDITIVE } )
+	{
+		const Tr2MeshAreaVector* typedAreas = mesh->GetAreas( batchType );
+		if( !typedAreas )
+		{
+			continue;
+		}
+		for( Tr2MeshArea* area : *typedAreas )
+		{
+			AreaRecord record;
+			record.area = area;
+			record.batchType = batchType;
+			record.committedBatchCount = area->GetDisplay() ? 1 : 0;
+			if( record.committedBatchCount )
+			{
+				if( batchType == TRIBATCHTYPE_OPAQUE )
+				{
+					++expectedPlanetOpaqueBatches;
+				}
+				else
+				{
+					++expectedPlanetAdditiveBatches;
+				}
+			}
+			areas.push_back( record );
+		}
+	}
+	for( const StandaloneSolarBodyFrame& frame : probe.solarBodyFrames )
+	{
+		if( frame.planetOpaqueBatchCount != expectedPlanetOpaqueBatches ||
+			frame.planetAdditiveBatchCount != expectedPlanetAdditiveBatches ||
+			frame.planetTransparentBatchCount != 0 )
+		{
+			std::ostringstream message;
+			message << "Solar body live planet-pass batch counts differ from the selected authored inventory at frame "
+					<< frame.frame << ": expected opaque/additive/transparent=" << expectedPlanetOpaqueBatches << '/'
+					<< expectedPlanetAdditiveBatches << "/0 observed=" << frame.planetOpaqueBatchCount << '/'
+					<< frame.planetAdditiveBatchCount << '/' << frame.planetTransparentBatchCount;
+			error = message.str();
+			return false;
+		}
+	}
+
+	std::ofstream output( probe.solarBodyReportPath.c_str(), std::ios::binary );
+	if( !output )
+	{
+		error = "Could not open solar body report output";
+		return false;
+	}
+	output << std::setprecision( 10 );
+	output << "{\n";
+	output << "  \"schema\": \"trinity.solar-body-report.v1\",\n";
+	output << "  \"layerMode\": " << SolarBodyJsonString( SunBodyLayersName( probe.sunBodyLayers ) ) << ",\n";
+	output << "  \"qualityTier\": \"high\",\n";
+	output << "  \"sourceNodeId\": \"/Sun/MediumAndHigh_Quality_SunHalfSizer[0]/Sun[0]\",\n";
+	output << "  \"graphCurveSetCount\": 0,\n";
+	output << "  \"graphControllerCount\": 0,\n";
+	output << "  \"animationSource\": \"renderer SetAnimationTime from finite frame simulation time\",\n";
+	output << "  \"backingWidth\": " << probe.renderWidth << ",\n";
+	output << "  \"backingHeight\": " << probe.renderHeight << ",\n";
+	output << "  \"geometry\": {\n";
+	output << "    \"logicalPath\": \"res:/graphics/generic/unitsphere/unitsphere_4k_01a.gr2\",\n";
+	output << "    \"stagedPath\": " << SolarBodyJsonString( runtimeGeometryPath ) << ",\n";
+	output << "    \"stagedCmfSha256\": " << SolarBodyJsonString( generatedGeometryHash ) << ",\n";
+	output << "    \"authoredSurfaceRadius\": " << probe.solarBodyGeometryRadius << ",\n";
+	output << "    \"sourceManifest\": " << geometryManifest << "\n";
+	output << "  },\n";
+	output << "  \"stagedResourceManifest\": " << resourceManifest << ",\n";
+	output << "  \"areas\": [\n";
+	for( size_t areaIndex = 0; areaIndex < areas.size(); ++areaIndex )
+	{
+		const AreaRecord& record = areas[areaIndex];
+		Tr2Effect* effect = record.area->GetMaterialInterface();
+		output << "    {\"name\":" << SolarBodyJsonString( record.area->GetName() )
+			   << ",\"batchType\":" << SolarBodyJsonString( SolarBodyBatchName( record.batchType ) )
+			   << ",\"displayed\":" << ( record.area->GetDisplay() ? "true" : "false" )
+			   << ",\"committedBatchCount\":" << record.committedBatchCount
+			   << ",\"effectPath\":" << SolarBodyJsonString( effect ? effect->GetEffectPathName() : "" )
+			   << ",\"resources\":[";
+		bool firstResource = true;
+		if( effect )
+		{
+			for( ITriEffectResourceParameter* resource : effect->m_resources )
+			{
+				TriTextureParameterPtr texture = BlueCastPtr( resource );
+				if( !texture )
+				{
+					continue;
+				}
+				if( !firstResource )
+				{
+					output << ',';
+				}
+				firstResource = false;
+				output << "{\"parameter\":" << SolarBodyJsonString( texture->GetParameterName() )
+					   << ",\"logicalPath\":" << SolarBodyJsonString( texture->GetAuthoredResourcePath() ) << '}';
+			}
+		}
+		output << "],\"constantParameters\":[";
+		if( effect )
+		{
+			for( size_t constantIndex = 0; constantIndex < effect->m_constParameters.size(); ++constantIndex )
+			{
+				const Tr2ConstantEffectParameter& parameter = effect->m_constParameters[constantIndex];
+				if( constantIndex )
+				{
+					output << ',';
+				}
+				output << "{\"name\":" << SolarBodyJsonString( parameter.name.c_str() ) << ",\"value\":["
+					   << parameter.value[0] << ',' << parameter.value[1] << ',' << parameter.value[2] << ','
+					   << parameter.value[3] << "]}";
+			}
+		}
+		output << "]}" << ( areaIndex + 1 == areas.size() ? "\n" : ",\n" );
+	}
+	output << "  ],\n";
+	output << "  \"frames\": [\n";
+	for( size_t index = 0; index < probe.solarBodyFrames.size(); ++index )
+	{
+		const StandaloneSolarBodyFrame& frame = probe.solarBodyFrames[index];
+		output << "    {\"frame\":" << frame.frame << ",\"simulationTime\":" << frame.simulationTime
+			   << ",\"animationSeconds\":" << frame.animationSeconds
+			   << ",\"orbitPhaseRadians\":" << frame.orbitPhaseRadians
+			   << ",\"expectedPixelDiameter\":" << frame.expectedPixelDiameter
+			   << ",\"reportedPixelDiameter\":" << frame.reportedPixelDiameter
+			   << ",\"sceneOpaqueBatchCount\":" << frame.sceneOpaqueBatchCount
+			   << ",\"sceneAdditiveBatchCount\":" << frame.sceneAdditiveBatchCount
+			   << ",\"sceneTransparentBatchCount\":" << frame.sceneTransparentBatchCount
+			   << ",\"planetOpaqueBatchCount\":" << frame.planetOpaqueBatchCount
+			   << ",\"planetAdditiveBatchCount\":" << frame.planetAdditiveBatchCount
+			   << ",\"planetTransparentBatchCount\":" << frame.planetTransparentBatchCount
+			   << ",\"projectedCenter\":[" << frame.projectedCenterX << ',' << frame.projectedCenterY
+			   << "],\"viewMatrix\":";
+		WriteSolarBodyMatrix( output, frame.view );
+		output << '}' << ( index + 1 == probe.solarBodyFrames.size() ? "\n" : ",\n" );
+	}
+	output << "  ],\n";
+	output << "  \"renderedFrameCount\": " << probe.renderedFrameCount << "\n";
+	output << "}\n";
+	if( !output )
+	{
+		error = "Failed while writing solar body report";
+		return false;
+	}
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarAudit(
 	void* opaqueProbe,
 	const char* reportPath )
@@ -11336,6 +11847,54 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarAudit( void* opaq
 		return false;
 	}
 	std::fprintf( stderr, "PL-14A solar audit report: %s\n", probe->solarAuditReportPath.c_str() );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarBody(
+	void* opaqueProbe,
+	int layerMode,
+	const char* reportPath,
+	const char* resourceManifestPath,
+	const char* geometryManifestPath,
+	const char* generatedGeometryHashPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || layerMode < STANDALONE_SUN_BODY_OFF ||
+		layerMode > STANDALONE_SUN_BODY_ALL )
+	{
+		CCP_LOGERR( "Solar body contract requires an initialized render device and valid layer mode" );
+		return false;
+	}
+	const bool wantsReport = reportPath && reportPath[0];
+	if( wantsReport && ( !resourceManifestPath || !resourceManifestPath[0] || !geometryManifestPath || !geometryManifestPath[0] || !generatedGeometryHashPath || !generatedGeometryHashPath[0] ) )
+	{
+		CCP_LOGERR( "Solar body report requires staged resource and geometry evidence paths" );
+		return false;
+	}
+	probe->solarBodyConfigured = true;
+	probe->sunBodyLayers = layerMode;
+	probe->solarBodyReportPath = wantsReport ? reportPath : "";
+	probe->solarBodyResourceManifestPath = wantsReport ? resourceManifestPath : "";
+	probe->solarBodyGeometryManifestPath = wantsReport ? geometryManifestPath : "";
+	probe->solarBodyGeneratedGeometryHashPath = wantsReport ? generatedGeometryHashPath : "";
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarBodyReport( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->solarBodyConfigured || probe->solarBodyReportPath.empty() )
+	{
+		CCP_LOGERR( "Solar body report was not configured" );
+		return false;
+	}
+	std::string error;
+	if( !WriteSolarBodyReport( *probe, error ) )
+	{
+		std::fprintf( stderr, "Failed to write PL-14B solar body report: %s\n", error.c_str() );
+		return false;
+	}
+	std::fprintf( stderr, "PL-14B solar body report: %s\n", probe->solarBodyReportPath.c_str() );
 	return true;
 }
 
@@ -14116,6 +14675,55 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetBallparkCapture(
 	return true;
 }
 
+bool RecordSolarBodyFrame( StandaloneProbe& probe, uint64_t frameIndex, int64_t simulationTime )
+{
+	if( probe.solarBodyReportPath.empty() )
+	{
+		return true;
+	}
+	if( !probe.newEdenSun || probe.celestialInspectionTarget != probe.newEdenSun )
+	{
+		CCP_LOGERR( "PL-14B solar body report lost its exact-system Sun target" );
+		return false;
+	}
+	StandaloneSolarBodyFrame frame;
+	frame.frame = frameIndex;
+	frame.simulationTime = simulationTime;
+	frame.animationSeconds = static_cast<double>( simulationTime ) / 10000000.0;
+	frame.expectedPixelDiameter = probe.celestialExpectedPixelDiameter;
+	frame.reportedPixelDiameter =
+		probe.newEdenSun->GetEstimatedPixelDiameter() * probe.solarBodyGeometryRadius;
+	frame.projectedCenterX = static_cast<float>( probe.renderWidth ) * 0.5f;
+	frame.projectedCenterY = static_cast<float>( probe.renderHeight ) * 0.5f;
+	const EveSpaceScene::MainPassBatchDiagnostics& batchDiagnostics =
+		probe.scene->GetMainPassBatchDiagnostics();
+	frame.sceneOpaqueBatchCount = batchDiagnostics.opaque;
+	frame.sceneAdditiveBatchCount = batchDiagnostics.additive;
+	frame.sceneTransparentBatchCount = batchDiagnostics.transparent;
+	frame.planetOpaqueBatchCount = batchDiagnostics.planetOpaque;
+	frame.planetAdditiveBatchCount = batchDiagnostics.planetAdditive;
+	frame.planetTransparentBatchCount = batchDiagnostics.planetTransparent;
+	frame.view = Tr2Renderer::GetViewTransform();
+	if( ( probe.motionMode == STANDALONE_MOTION_CAMERA || probe.motionMode == STANDALONE_MOTION_COMBINED ) &&
+		frameIndex >= 180 )
+	{
+		const double step = static_cast<double>( std::min<uint64_t>( frameIndex - 180 + 1, 900 ) );
+		frame.orbitPhaseRadians = step * ( 2.0 * 3.14159265358979323846 / 900.0 );
+	}
+	if( !std::isfinite( frame.reportedPixelDiameter ) ||
+		std::abs( frame.reportedPixelDiameter - frame.expectedPixelDiameter ) > 1.0f )
+	{
+		CCP_LOGERR(
+			"PL-14B solar diameter gate failed at frame %llu: expected %.4f reported %.4f",
+			static_cast<unsigned long long>( frameIndex ),
+			frame.expectedPixelDiameter,
+			frame.reportedPixelDiameter );
+		return false;
+	}
+	probe.solarBodyFrames.push_back( frame );
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -14601,12 +15209,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			std::fprintf( stderr, "RenderFrame failure: EVE Gate diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
+		if( !RecordSolarBodyFrame( *probe, probe->renderedFrameCount, simTime ) )
+		{
+			return false;
+		}
 		++probe->renderedFrameCount;
 	}
 	if( rendered && !freezeScene && probe->celestialInspectionTarget &&
 		!probe->celestialInspectionValidated && probe->renderedFrameCount >= 2 )
 	{
-		const float reported = probe->celestialInspectionTarget->GetEstimatedPixelDiameter();
+		const float reported = probe->celestialInspectionTarget->GetEstimatedPixelDiameter() *
+			( probe->solarBodyReportPath.empty() ? 1.0f : probe->solarBodyGeometryRadius );
 		const float expected = probe->celestialExpectedPixelDiameter;
 		const float relativeError = expected > 0.0f ? std::abs( reported - expected ) / expected : 1.0f;
 		std::fprintf(

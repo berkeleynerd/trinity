@@ -262,6 +262,7 @@ set(EVE_SCENE_PROBE_SUN_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Sun.gltf)
 set(EVE_SCENE_PROBE_SUN_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Sun.bin)
 set(EVE_SCENE_PROBE_SUN_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere/unitsphere_4k_01a.cmf)
 set(EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunGeometry.json)
+set(EVE_SCENE_PROBE_SUN_CMF_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSunGeneratedCmf.sha256)
 set(EVE_SCENE_PROBE_PLANET_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.gltf)
 set(EVE_SCENE_PROBE_PLANET_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Planet.bin)
 set(EVE_SCENE_PROBE_PLANET_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/planetsphere.cmf)
@@ -1379,6 +1380,15 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
         VERBATIM
     )
     add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SUN_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_SUN_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_SUN_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_SUN_CMF} ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM
+    )
+    add_custom_command(
         OUTPUT ${EVE_SCENE_PROBE_PLANET_GLTF} ${EVE_SCENE_PROBE_PLANET_BIN} ${EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST}
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
@@ -1462,6 +1472,7 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
     add_custom_target(TrinityEveSceneProbeNewEdenCelestialAssets
         DEPENDS
             ${EVE_SCENE_PROBE_SUN_CMF}
+            ${EVE_SCENE_PROBE_SUN_CMF_HASH}
             ${EVE_SCENE_PROBE_PLANET_CMF}
             ${EVE_SCENE_PROBE_SUN_GEOMETRY_MANIFEST}
             ${EVE_SCENE_PROBE_PLANET_GEOMETRY_MANIFEST}

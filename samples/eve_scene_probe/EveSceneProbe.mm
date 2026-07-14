@@ -94,6 +94,13 @@ extern "C" bool TrinityStandaloneProbeGetReflectionDiagnostics( void* opaqueProb
 extern "C" bool TrinityStandaloneProbeInspectClientAssets( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeConfigureSolarAudit( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteSolarAudit( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSolarBody( void* opaqueProbe,
+														  int layerMode,
+														  const char* reportPath,
+														  const char* resourceManifestPath,
+														  const char* geometryManifestPath,
+														  const char* generatedGeometryHashPath );
+extern "C" bool TrinityStandaloneProbeWriteSolarBodyReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -356,6 +363,16 @@ enum class SunEffects
 	All,
 };
 
+enum class SunBodyLayers
+{
+	Off,
+	Surface,
+	OuterBeams,
+	EdgeClouds,
+	Corona,
+	All,
+};
+
 constexpr int kCaptureColor = 1 << 0;
 constexpr int kCaptureDepth = 1 << 1;
 constexpr int kCaptureNormal = 1 << 2;
@@ -527,6 +544,7 @@ struct Options
 	std::string capturePrefix;
 	std::string inspectionReportPath;
 	std::string solarAuditReportPath;
+	std::string solarBodyReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -565,6 +583,7 @@ struct Options
 	PlanetLayers planetLayers = PlanetLayers::All;
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
+	SunBodyLayers sunBodyLayers = SunBodyLayers::All;
 	int cloudYear = 2026;
 	int cloudMonth = 7;
 	int cloudDay = 10;
@@ -1680,6 +1699,44 @@ bool ParseSunEffects( const std::string& value, SunEffects& effects )
 	return false;
 }
 
+std::string SunBodyLayersName( SunBodyLayers layers )
+{
+	switch( layers )
+	{
+	case SunBodyLayers::Off:
+		return "off";
+	case SunBodyLayers::Surface:
+		return "surface";
+	case SunBodyLayers::OuterBeams:
+		return "outer-beams";
+	case SunBodyLayers::EdgeClouds:
+		return "edge-clouds";
+	case SunBodyLayers::Corona:
+		return "corona";
+	case SunBodyLayers::All:
+		return "all";
+	}
+	return "unknown";
+}
+
+bool ParseSunBodyLayers( const std::string& value, SunBodyLayers& layers )
+{
+	const std::string normalized = ToLower( value );
+	const SunBodyLayers values[] = {
+		SunBodyLayers::Off,        SunBodyLayers::Surface, SunBodyLayers::OuterBeams,
+		SunBodyLayers::EdgeClouds, SunBodyLayers::Corona,  SunBodyLayers::All,
+	};
+	for( SunBodyLayers candidate : values )
+	{
+		if( normalized == SunBodyLayersName( candidate ) )
+		{
+			layers = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
 std::string PlanetCloudDateName( const Options& options )
 {
 	char value[16];
@@ -2179,6 +2236,7 @@ void PrintUsage( const char* executable )
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
 		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
+		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
@@ -2203,7 +2261,8 @@ void PrintUsage( const char* executable )
 		<< "       [--exposure-sequence none|dark-to-bright|bright-to-dark] [--exposure-hold N]\n"
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
-		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md] [--solar-audit-report REPORT.json]\n";
+		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md] [--solar-audit-report REPORT.json]\n"
+		<< "       [--solar-body-report REPORT.json]\n";
 }
 
 bool ValidateCanonicalCompositionOptions( const Options& options )
@@ -2873,6 +2932,13 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--sun-body-layers" )
+		{
+			if( ++i >= argc || !ParseSunBodyLayers( argv[i], options.sunBodyLayers ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--inspect-client-assets" )
 		{
 			if( ++i >= argc )
@@ -2888,6 +2954,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.solarAuditReportPath = argv[i];
+		}
+		else if( arg == "--solar-body-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.solarBodyReportPath = argv[i];
 		}
 		else
 		{
@@ -3866,11 +3940,11 @@ std::string CaptureBasePath( const Options& options )
 		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) + "_comp-" +
 		SceneCompositionName( options.composition ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
 		PlanetCloudDateName( options );
-	const std::string sunSuffix = "_sun-" + SunEffectsName( options.resolvedSunEffects ) + "_att-" +
-		AttachmentsName( options.resolvedAttachments ) + "-" + AttachmentViewName( options.attachmentView ) +
-		"_decal-" + DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
-		std::to_string( options.killCount ) + "_shadow-" + ShadowsName( options.resolvedShadows ) + "_ao-" +
-		AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
+	const std::string sunSuffix = "_sun-" + SunEffectsName( options.resolvedSunEffects ) + "_body-" +
+		SunBodyLayersName( options.sunBodyLayers ) + "_att-" + AttachmentsName( options.resolvedAttachments ) + "-" +
+		AttachmentViewName( options.attachmentView ) + "_decal-" + DecalsName( options.resolvedDecals ) + "-" +
+		DecalViewName( options.decalView ) + "-kills-" + std::to_string( options.killCount ) + "_shadow-" +
+		ShadowsName( options.resolvedShadows ) + "_ao-" + AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
 	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
@@ -3989,6 +4063,7 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "planetCloudDate=" << PlanetCloudDateName( options ) << "\n";
 	metadata << "sunEffectsRequested=" << SunEffectsName( options.sunEffects ) << "\n";
 	metadata << "sunEffectsResolved=" << SunEffectsName( options.resolvedSunEffects ) << "\n";
+	metadata << "sunBodyLayers=" << SunBodyLayersName( options.sunBodyLayers ) << "\n";
 	metadata << "backgroundCapture=" << ( options.backgroundCapture ? "true" : "false" ) << "\n";
 	metadata << "validateComposition=" << ( options.validateComposition ? "true" : "false" ) << "\n";
 	metadata << "dynamicExposureRequested=" << DynamicExposureName( options.dynamicExposure ) << "\n";
@@ -5292,6 +5367,22 @@ int main( int argc, char** argv )
 						 "a model-or-higher quality rung, and a positive finite --frames count\n";
 			return 2;
 		}
+		if( ( options.sunBodyLayers != SunBodyLayers::All || !options.solarBodyReportPath.empty() ) &&
+			options.sceneFixture != SceneFixture::NewEden )
+		{
+			std::cerr << "Solar body controls require --scene-fixture new-eden\n";
+			return 2;
+		}
+		if( !options.solarBodyReportPath.empty() &&
+			( options.shaderTier != ShaderTier::High || options.qualityRung < QualityRung::Model ||
+			  options.cameraView != CameraView::Celestials || options.composition != SceneComposition::System ||
+			  options.maxFrames <= 0 ) )
+		{
+			std::cerr << "--solar-body-report requires --scene-fixture new-eden --shader-tier high "
+						 "--camera-view celestials --composition system, a model-or-higher quality rung, "
+						 "and a positive finite --frames count\n";
+			return 2;
+		}
 
 		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model &&
 			!FileExists( options.inputPath ) )
@@ -5317,7 +5408,10 @@ int main( int argc, char** argv )
 		[window setDelegate:delegate];
 		if( options.backgroundCapture )
 		{
-			[window orderBack:nil];
+			// Keep the drawable composited without taking focus. Metal-backed
+			// windows ordered behind another closing probe can acquire an
+			// occlusion-shaped black region in CGWindowListCreateImage.
+			[window orderFrontRegardless];
 		}
 		else
 		{
@@ -5370,6 +5464,24 @@ int main( int argc, char** argv )
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
+		}
+		if( options.sunBodyLayers != SunBodyLayers::All || !options.solarBodyReportPath.empty() )
+		{
+			const std::string reportsDirectory = executableDirectory + "/../Reports/";
+			if( ( !options.solarBodyReportPath.empty() && !EnsureParentDirectory( options.solarBodyReportPath ) ) ||
+				!TrinityStandaloneProbeConfigureSolarBody(
+					probe,
+					static_cast<int>( options.sunBodyLayers ),
+					options.solarBodyReportPath.empty() ? nullptr : options.solarBodyReportPath.c_str(),
+					( reportsDirectory + "NewEdenCelestialResources.json" ).c_str(),
+					( reportsDirectory + "NewEdenSunGeometry.json" ).c_str(),
+					( reportsDirectory + "NewEdenSunGeneratedCmf.sha256" ).c_str() ) )
+			{
+				std::cerr << "Failed to configure the PL-14B solar body contract\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
 		}
 		if( options.enableFroxels && !TrinityStandaloneProbeSetFroxelRenderingEnabled( probe, true ) )
 		{
@@ -6353,9 +6465,11 @@ int main( int argc, char** argv )
 				}
 				else
 				{
+					const bool finalFrameWasSequenceCapture = options.captureEvery > 0 && renderedFrames > 0 &&
+						( renderedFrames - 1 ) % options.captureEvery == 0;
 					const bool capturedProductOnFinalFrame = options.renderProduct != RenderProduct::Window &&
 						options.renderProduct != RenderProduct::Color && options.maxFrames > 0 &&
-						renderedFrames == options.maxFrames;
+						renderedFrames == options.maxFrames && !finalFrameWasSequenceCapture;
 					if( options.renderProduct != RenderProduct::Window &&
 						options.renderProduct != RenderProduct::Color && !capturedProductOnFinalFrame )
 					{
@@ -6513,18 +6627,25 @@ int main( int argc, char** argv )
 				std::cout << "Solar audit report: " << options.solarAuditReportPath << "\n";
 			}
 		}
-		captureSucceeded = captureSucceeded && solarAuditSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
-			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
-			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
-			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
-			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
-			ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded &&
-			ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
-			chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
-			celestialValidationSucceeded && celestialReportSucceeded &&
-			eveGateValidationSucceeded && eveGateReportSucceeded &&
-			exposureReportsSucceeded;
+		bool solarBodyReportSucceeded = true;
+		if( !options.solarBodyReportPath.empty() )
+		{
+			solarBodyReportSucceeded = TrinityStandaloneProbeWriteSolarBodyReport( probe );
+			if( solarBodyReportSucceeded )
+			{
+				std::cout << "Solar body report: " << options.solarBodyReportPath << "\n";
+			}
+		}
+		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
+			framePacingSucceeded && compositionValidationSucceeded && exposureValidationSucceeded &&
+			toneValidationSucceeded && postFinishValidationSucceeded && distortionValidationSucceeded &&
+			volumetricValidationSucceeded && engineValidationSucceeded && temporalValidationSucceeded &&
+			ballparkValidationSucceeded && ballparkReportSucceeded && ballparkMotionValidationSucceeded &&
+			ballparkMotionReportSucceeded && ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
+			ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded &&
+			ballparkApproachReportSucceeded && chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
+			celestialValidationSucceeded && celestialReportSucceeded && eveGateValidationSucceeded &&
+			eveGateReportSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

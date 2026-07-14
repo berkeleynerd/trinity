@@ -2834,3 +2834,28 @@ views, temporal sequences, repeat-derived thresholds, and fail-closed branch
 and fog classification. If black-box evidence cannot close a reachable state,
 runtime client instrumentation requires separate authorization rather than an
 inferred result.
+
+## CP-40 native Sun body and corona isolation (2026-07-14)
+
+The standalone probe now accepts sample-only `--sun-body-layers
+off|surface|outer-beams|edge-clouds|corona|all`; the default remains `all`.
+The control validates the exact High-quality `Sun` mesh inventory and toggles
+only `Tr2MeshArea::SetDisplay`, preserving the authored opaque `Surface` and
+additive `OuterBeams`/`EdgeClouds` order, effects, constants, textures, and
+half-unit sphere geometry. `--solar-body-report` additionally records the
+logical GR2 and staged CMF hashes, every rendered frame's animation time,
+camera matrix, backing-pixel diameter, and live planet-pass batch counts.
+
+The report lane uses a source-proven near-Sun, constant-radius camera because
+the old system-origin diagnostic collapses the Sun's angular dot product to
+`1.0` in single precision and causes the corona fragment shader's `acos` gate
+to discard. This changes no shader, material value, asset, light, or default
+Tour camera. The 180-frame warm-up plus 900-step orbit closes exactly at 2π.
+
+Promised Land PL-14B accepts deterministic fixed and orbit repeats at
+1280×960 backing resolution. The surface remains 240±1 pixels; the two corona
+isolates animate and remain distinct, with `OuterBeams` and `EdgeClouds`
+contributing beyond the 121-pixel surface radius before combining with the
+surface. This is structural authored parity only. Whisps, particles, optics,
+legacy fog, occlusion, exposure/color matching, and scene illumination remain
+deferred to PL-14C/D/E.
