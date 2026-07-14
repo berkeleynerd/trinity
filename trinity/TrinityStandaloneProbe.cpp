@@ -9847,6 +9847,22 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		probe.backgroundPrepared = true;
 
 		Tr2PostProcess2Ptr postProcess;
+		if( probe.solarAudit )
+		{
+			std::string environmentPostProcessError;
+			Tr2PostProcess2Ptr environmentPostProcess = LoadBlackObjectWithoutYield<Tr2PostProcess2>(
+				"res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black",
+				environmentPostProcessError );
+			if( !environmentPostProcess )
+			{
+				std::fprintf(
+					stderr,
+					"Failed to load the New Eden Sun environment postprocess: %s\n",
+					environmentPostProcessError.c_str() );
+				return false;
+			}
+			probe.solarAudit->CaptureEnvironmentPostProcess( *environmentPostProcess );
+		}
 		if( qualityRung >= STANDALONE_PROBE_RUNG_HDR_EXPOSURE )
 		{
 			std::string postProcessError;

@@ -75,6 +75,48 @@ struct RuntimeNode
 	uint64_t emittedParticleCount = 0;
 };
 
+struct EnvironmentPostProcessAudit
+{
+	bool captured = false;
+	bool bloomPresent = false;
+	bool bloomActive = false;
+	float bloomLuminanceThreshold = 0.0f;
+	float bloomLuminanceScale = 0.0f;
+	float bloomBrightness = 0.0f;
+	bool desaturatePresent = false;
+	bool desaturateActive = false;
+	float desaturateIntensity = 0.0f;
+	bool fogPresent = false;
+	bool fogActive = false;
+	Color fogColor;
+	float fogNebulaInfluence = 0.0f;
+	float fogNebulaBlur = 0.0f;
+	float fogOriginalBrightenOnly = 0.0f;
+	float fogColorInfluence = 0.0f;
+	float fogTotalAmount = 0.0f;
+	float fogTotalPower = 0.0f;
+	float fogBackgroundOcclusion = 0.0f;
+	float fogIntensity = 0.0f;
+	float fogBrightnessThreshold0 = 0.0f;
+	float fogBrightnessThreshold1 = 0.0f;
+	float fogBrightnessAdjustmentAmount = 0.0f;
+	float fogBlendDistance0 = 0.0f;
+	float fogBlendBias0 = 0.0f;
+	float fogBlendAmount0 = 0.0f;
+	float fogBlendPower0 = 0.0f;
+	float fogBlendDistance1 = 0.0f;
+	float fogBlendBias1 = 0.0f;
+	float fogBlendAmount1 = 0.0f;
+	float fogBlendPower1 = 0.0f;
+	float fogBlendDistance2 = 0.0f;
+	float fogBlendBias2 = 0.0f;
+	float fogBlendAmount2 = 0.0f;
+	float fogBlendPower2 = 0.0f;
+	Vector3 fogAreaSize;
+	Vector2 fogAreaScale;
+	Vector3 fogAreaCenter;
+};
+
 std::pair<const Be::VarEntry*, Be::Var*> FindEntry( IRoot* object, const char* name )
 {
 	if( !object )
@@ -760,6 +802,7 @@ struct TrinityStandaloneSolarAudit::Impl
 	std::set<std::string> preparedIds;
 	bool sourceCaptured = false;
 	bool preparedCaptured = false;
+	EnvironmentPostProcessAudit environmentPostProcess;
 };
 
 TrinityStandaloneSolarAudit::TrinityStandaloneSolarAudit() :
@@ -790,6 +833,59 @@ void TrinityStandaloneSolarAudit::CapturePreparedGraph( EvePlanet& sun )
 		node.retainedAfterPreparation = m_impl->preparedIds.count( node.id ) != 0;
 	}
 	m_impl->preparedCaptured = true;
+}
+
+void TrinityStandaloneSolarAudit::CaptureEnvironmentPostProcess( Tr2PostProcess2& postProcess )
+{
+	EnvironmentPostProcessAudit& audit = m_impl->environmentPostProcess;
+	audit = {};
+	audit.captured = true;
+	if( Tr2PPBloomEffectPtr bloom = postProcess.GetBloomIfAvailable( PostProcess::HIGH ) )
+	{
+		audit.bloomPresent = true;
+		audit.bloomActive = bloom->IsActive();
+		audit.bloomLuminanceThreshold = bloom->m_luminanceThreshold;
+		audit.bloomLuminanceScale = bloom->m_luminanceScale;
+		audit.bloomBrightness = bloom->m_bloomBrightness;
+	}
+	if( Tr2PPDesaturateEffectPtr desaturate = postProcess.GetDesaturateIfAvailable( PostProcess::HIGH ) )
+	{
+		audit.desaturatePresent = true;
+		audit.desaturateActive = desaturate->IsActive();
+		audit.desaturateIntensity = desaturate->m_intensity;
+	}
+	if( Tr2PPFogEffectPtr fog = postProcess.GetFogIfAvailable( PostProcess::HIGH ) )
+	{
+		audit.fogPresent = true;
+		audit.fogActive = fog->IsActive();
+		audit.fogColor = fog->m_color;
+		audit.fogNebulaInfluence = fog->m_nebulaInfluence;
+		audit.fogNebulaBlur = fog->m_nebulaBlur;
+		audit.fogOriginalBrightenOnly = fog->m_originalBrightenOnly;
+		audit.fogColorInfluence = fog->m_colorInfluence;
+		audit.fogTotalAmount = fog->m_totalAmount;
+		audit.fogTotalPower = fog->m_totalPower;
+		audit.fogBackgroundOcclusion = fog->m_backgroundOcclusion;
+		audit.fogIntensity = fog->m_intensity;
+		audit.fogBrightnessThreshold0 = fog->m_brightnessThreshold0;
+		audit.fogBrightnessThreshold1 = fog->m_brightnessThreshold1;
+		audit.fogBrightnessAdjustmentAmount = fog->m_brightnessAdjustmentAmount;
+		audit.fogBlendDistance0 = fog->m_blendDistance0;
+		audit.fogBlendBias0 = fog->m_blendBias0;
+		audit.fogBlendAmount0 = fog->m_blendAmount0;
+		audit.fogBlendPower0 = fog->m_blendPower0;
+		audit.fogBlendDistance1 = fog->m_blendDistance1;
+		audit.fogBlendBias1 = fog->m_blendBias1;
+		audit.fogBlendAmount1 = fog->m_blendAmount1;
+		audit.fogBlendPower1 = fog->m_blendPower1;
+		audit.fogBlendDistance2 = fog->m_blendDistance2;
+		audit.fogBlendBias2 = fog->m_blendBias2;
+		audit.fogBlendAmount2 = fog->m_blendAmount2;
+		audit.fogBlendPower2 = fog->m_blendPower2;
+		audit.fogAreaSize = fog->m_areaSize;
+		audit.fogAreaScale = fog->m_areaScale;
+		audit.fogAreaCenter = fog->m_areaCenter;
+	}
 }
 
 bool TrinityStandaloneSolarAudit::WriteReport(
@@ -829,6 +925,7 @@ bool TrinityStandaloneSolarAudit::WriteReport(
 		scene.m_componentRegistry->ComponentCount<ITr2FroxelFogSettings>() :
 		0;
 	const bool froxelActive = scene.m_volumetricsRenderer && scene.m_volumetricsRenderer->HasFog();
+	const EnvironmentPostProcessAudit& environmentPostProcess = m_impl->environmentPostProcess;
 
 	std::ofstream output( reportPath );
 	if( !output )
@@ -843,6 +940,47 @@ bool TrinityStandaloneSolarAudit::WriteReport(
 	output << "  \"source\": \"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black\",\n";
 	output << "  \"shaderModel\": " << JsonString( Tr2Renderer::GetShaderModelString( Tr2Renderer::GetShaderModel() ) ) << ",\n";
 	output << "  \"renderedFrames\": " << renderedFrames << ",\n";
+	output << "  \"environmentTemplate\": {\n";
+	output << "    \"id\": 34, \"description\": \"ENV_Sun_Yellow_Small_01b\", \"mappedTypeId\": 45041,\n";
+	output << "    \"activationRadius\": 10060000256.0, \"isSystemWide\": false, \"useGodRaysSunColor\": true,\n";
+	output << "    \"postProcessResource\": \"res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black\",\n";
+	output << "    \"postProcess\": {\"captured\": " << ( environmentPostProcess.captured ? "true" : "false" )
+		   << ", \"bloom\": {\"present\": " << ( environmentPostProcess.bloomPresent ? "true" : "false" )
+		   << ", \"active\": " << ( environmentPostProcess.bloomActive ? "true" : "false" )
+		   << ", \"luminanceThreshold\": " << environmentPostProcess.bloomLuminanceThreshold
+		   << ", \"luminanceScale\": " << environmentPostProcess.bloomLuminanceScale
+		   << ", \"brightness\": " << environmentPostProcess.bloomBrightness << "},\n";
+	output << "      \"desaturate\": {\"present\": " << ( environmentPostProcess.desaturatePresent ? "true" : "false" )
+		   << ", \"active\": " << ( environmentPostProcess.desaturateActive ? "true" : "false" )
+		   << ", \"intensity\": " << environmentPostProcess.desaturateIntensity << "},\n";
+	output << "      \"fog\": {\"present\": " << ( environmentPostProcess.fogPresent ? "true" : "false" )
+		   << ", \"active\": " << ( environmentPostProcess.fogActive ? "true" : "false" )
+		   << ", \"color\": [" << environmentPostProcess.fogColor.r << ',' << environmentPostProcess.fogColor.g << ','
+		   << environmentPostProcess.fogColor.b << ',' << environmentPostProcess.fogColor.a << ']'
+		   << ", \"nebulaInfluence\": " << environmentPostProcess.fogNebulaInfluence
+		   << ", \"nebulaBlur\": " << environmentPostProcess.fogNebulaBlur
+		   << ", \"originalBrightenOnly\": " << environmentPostProcess.fogOriginalBrightenOnly
+		   << ", \"colorInfluence\": " << environmentPostProcess.fogColorInfluence
+		   << ", \"totalAmount\": " << environmentPostProcess.fogTotalAmount
+		   << ", \"totalPower\": " << environmentPostProcess.fogTotalPower
+		   << ", \"backgroundOcclusion\": " << environmentPostProcess.fogBackgroundOcclusion
+		   << ", \"intensity\": " << environmentPostProcess.fogIntensity
+		   << ", \"brightnessThresholds\": [" << environmentPostProcess.fogBrightnessThreshold0 << ','
+		   << environmentPostProcess.fogBrightnessThreshold1 << ']'
+		   << ", \"brightnessAdjustmentAmount\": " << environmentPostProcess.fogBrightnessAdjustmentAmount
+		   << ", \"blend0\": [" << environmentPostProcess.fogBlendDistance0 << ',' << environmentPostProcess.fogBlendBias0 << ','
+		   << environmentPostProcess.fogBlendAmount0 << ',' << environmentPostProcess.fogBlendPower0 << ']'
+		   << ", \"blend1\": [" << environmentPostProcess.fogBlendDistance1 << ',' << environmentPostProcess.fogBlendBias1 << ','
+		   << environmentPostProcess.fogBlendAmount1 << ',' << environmentPostProcess.fogBlendPower1 << ']'
+		   << ", \"blend2\": [" << environmentPostProcess.fogBlendDistance2 << ',' << environmentPostProcess.fogBlendBias2 << ','
+		   << environmentPostProcess.fogBlendAmount2 << ',' << environmentPostProcess.fogBlendPower2 << ']'
+		   << ", \"areaSize\": [" << environmentPostProcess.fogAreaSize.x << ',' << environmentPostProcess.fogAreaSize.y << ','
+		   << environmentPostProcess.fogAreaSize.z << ']'
+		   << ", \"areaScale\": [" << environmentPostProcess.fogAreaScale.x << ',' << environmentPostProcess.fogAreaScale.y << ']'
+		   << ", \"areaCenter\": [" << environmentPostProcess.fogAreaCenter.x << ',' << environmentPostProcess.fogAreaCenter.y << ','
+		   << environmentPostProcess.fogAreaCenter.z << "]}},\n";
+	output << "    \"passOrder\": [\"generic\",\"fog-color\",\"fog-blur\",\"fog-composite\",\"god-rays\",\"depth-of-field\",\"taa\",\"tone-map\"]\n";
+	output << "  },\n";
 	output << "  \"graph\": [\n";
 	for( size_t nodeIndex = 0; nodeIndex < m_impl->sourceNodes.size(); ++nodeIndex )
 	{

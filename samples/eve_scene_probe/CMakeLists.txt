@@ -155,6 +155,7 @@ set(EVE_SCENE_PROBE_STAR_SPRITES_HI_RESOURCE "res:/graphics/effect.metal/managed
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_lo")
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/specialfx/starsprites.sm_depth")
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE "res:/dx9/model/celestial/sun/sun_yellow_small_01b.black")
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS_RESOURCE "res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black")
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black")
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_GEOMETRY_RESOURCE "res:/graphics/generic/unitsphere/unitsphere_4k_01a.gr2")
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetsphere.gr2")
@@ -253,6 +254,7 @@ set(EVE_SCENE_PROBE_STAR_SPRITES_HI ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/sta
 set(EVE_SCENE_PROBE_STAR_SPRITES_LO ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_lo)
 set(EVE_SCENE_PROBE_STAR_SPRITES_DEPTH ${EVE_SCENE_PROBE_BACKGROUND_EFFECT_DIR}/starsprites.sm_depth)
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/celestial/sun/sun_yellow_small_01b.black)
+set(EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black)
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black)
 set(EVE_SCENE_PROBE_NEW_EDEN_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSceneResources.json)
 set(EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/CelestialAssets)
@@ -1315,6 +1317,7 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
             ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            ${EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS}
             ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
@@ -1326,6 +1329,7 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             --copy-resource ${EVE_SCENE_PROBE_STAR_SPRITES_LO_RESOURCE} ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             --copy-resource ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
             --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_SUN_RESOURCE} ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS_RESOURCE} ${EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS}
             --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE} ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             --manifest ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
             --summary
@@ -1345,6 +1349,7 @@ if(TARGET TrinityEveSceneProbeA01Assets)
             ${EVE_SCENE_PROBE_STAR_SPRITES_LO}
             ${EVE_SCENE_PROBE_STAR_SPRITES_DEPTH}
             ${EVE_SCENE_PROBE_NEW_EDEN_SUN}
+            ${EVE_SCENE_PROBE_NEW_EDEN_SUN_POSTPROCESS}
             ${EVE_SCENE_PROBE_NEW_EDEN_PLANET}
             ${EVE_SCENE_PROBE_NEW_EDEN_MANIFEST}
     )

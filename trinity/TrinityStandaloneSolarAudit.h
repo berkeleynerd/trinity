@@ -8,6 +8,7 @@
 
 class EvePlanet;
 class EveSpaceScene;
+class Tr2PostProcess2;
 
 // Sample-only, asset-free census support for the standalone New Eden probe.
 // The implementation retains logical identifiers and authored scalar values;
@@ -20,6 +21,7 @@ public:
 
 	bool CaptureSourceGraph( EvePlanet& sun, std::string& error );
 	void CapturePreparedGraph( EvePlanet& sun );
+	void CaptureEnvironmentPostProcess( Tr2PostProcess2& postProcess );
 	bool WriteReport(
 		const char* reportPath,
 		EvePlanet* preparedSun,
