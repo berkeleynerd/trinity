@@ -116,10 +116,24 @@ public:
 	void SortParticles();
 
 	void SetMaxParticleCount( unsigned maxParticleCount );
-	unsigned GetOriginalMaxParticles()
+	unsigned GetOriginalMaxParticles() const
 	{
 		return m_originalMaxParticles;
 	};
+	unsigned GetMaxParticleCount() const;
+	unsigned GetAliveCount() const
+	{
+		return m_aliveCount;
+	}
+	unsigned GetPeakAliveCount() const
+	{
+		return m_peakAliveCount;
+	}
+	const char* GetName() const
+	{
+		return m_name.c_str();
+	}
+	static bool ResetRandomSeedForTesting( uint32_t seed );
 
 	static void UpdateAllSystems( const ITr2GenericEmitter::UpdateArguments& arguments );
 	void Update( const ITr2GenericEmitter::UpdateArguments& arguments );
@@ -144,7 +158,7 @@ public:
 	// ----------------------------------------------------------------------------------
 	static inline uint32_t RandCheap()
 	{
-		static CcpAtomic<uint32_t> globalSeed( rand() );
+		CcpAtomic<uint32_t>& globalSeed = GetRandomSeed();
 		// We increment global seed here so that if two threads get to this point
 		// simultaneously they would still get different results.
 		uint32_t seed = globalSeed;
@@ -174,6 +188,7 @@ public:
 	}
 
 private:
+	static CcpAtomic<uint32_t>& GetRandomSeed();
 	void UpdateSimulation( const ITr2GenericEmitter::UpdateArguments& arguments, float dt );
 	void UpdateSimulationScript( float dt )
 	{
@@ -213,8 +228,6 @@ private:
 
 	// Maximum number of particles in the system
 	unsigned m_maxParticleCount;
-	unsigned GetMaxParticleCount() const;
-
 	// Number of alive particles in the system
 	unsigned m_aliveCount;
 	// Global alive particles

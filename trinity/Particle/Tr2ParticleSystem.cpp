@@ -27,6 +27,22 @@ CCP_STATS_DECLARE( statUpdatedParticleCount, "Trinity/updatedParticleCount", tru
 CcpAtomic<uint32_t> s_aliveParticleCount( 0 );
 CcpAtomic<uint32_t> s_updatedParticleCount( 0 );
 
+CcpAtomic<uint32_t>& Tr2ParticleSystem::GetRandomSeed()
+{
+	static CcpAtomic<uint32_t> globalSeed( rand() );
+	return globalSeed;
+}
+
+bool Tr2ParticleSystem::ResetRandomSeedForTesting( uint32_t seed )
+{
+	if( seed == 0 || seed >= 0x7FFFFFFFu )
+	{
+		return false;
+	}
+	GetRandomSeed() = seed;
+	return true;
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Tr2ParticleSystem default constructor
@@ -831,7 +847,13 @@ bool Tr2ParticleSystem::CompareParticles( unsigned particle1, unsigned particle2
 	XMVECTOR distance1 = XMVector3LengthSq( position1 );
 	XMVECTOR distance2 = XMVector3LengthSq( position2 );
 
-	return XMVector3Less( distance2, distance1 ) != 0;
+	const float scalarDistance1 = XMVectorGetX( distance1 );
+	const float scalarDistance2 = XMVectorGetX( distance2 );
+	if( scalarDistance1 == scalarDistance2 )
+	{
+		return particle1 < particle2;
+	}
+	return scalarDistance2 < scalarDistance1;
 }
 
 // --------------------------------------------------------------------------------------

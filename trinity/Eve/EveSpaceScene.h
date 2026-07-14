@@ -305,6 +305,7 @@ public:
 	{
 		m_planetScale = value;
 	}
+	void AdvancePlanetUpdateForTesting( EvePlanet& planet, Be::Time simulationTime );
 	void SetPlanetCameraScale( float value )
 	{
 		m_planetCameraScale = value;

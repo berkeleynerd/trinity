@@ -52,6 +52,7 @@
 #include "PostProcess/Tr2PostProcess2.h"
 #include "Curves/Tr2CurveConstant.h"
 #include "Tr2Mesh.h"
+#include "Tr2InstancedMesh.h"
 #include "Tr2ProfileTimer.h"
 #include "Tr2ReflectionProbe.h"
 #include "Tr2MeshBase.h"
@@ -69,6 +70,9 @@
 extern int g_grannyDeprecationLevel;
 #include "Resources/TriGeometryRes.h"
 #include "Resources/Tr2LightProfileRes.h"
+#include "Particle/Tr2DynamicEmitter.h"
+#include "Particle/Tr2ParticleSystem.h"
+#include "ITr2AttributeGenerator.h"
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/Tr2Vector4Parameter.h"
 #include "Shader/Parameter/TriTextureParameter.h"
@@ -3857,6 +3861,23 @@ enum StandaloneSunBodyLayers
 	STANDALONE_SUN_BODY_ALL = 5,
 };
 
+enum StandaloneSunHighLayers
+{
+	STANDALONE_SUN_HIGH_OFF = 0,
+	STANDALONE_SUN_HIGH_WHISPS = 1,
+	STANDALONE_SUN_HIGH_HUGE_DEFINITION = 2,
+	STANDALONE_SUN_HIGH_UBER_1 = 3,
+	STANDALONE_SUN_HIGH_UBER_2 = 4,
+	STANDALONE_SUN_HIGH_RINGS_TOP = 5,
+	STANDALONE_SUN_HIGH_RINGS_BOTTOM = 6,
+	STANDALONE_SUN_HIGH_RINGS = 7,
+	STANDALONE_SUN_HIGH_PILLAR_1 = 8,
+	STANDALONE_SUN_HIGH_PILLAR_2 = 9,
+	STANDALONE_SUN_HIGH_PARTICLE_SCALER = 10,
+	STANDALONE_SUN_HIGH_PARTICLES = 11,
+	STANDALONE_SUN_HIGH_ALL = 12,
+};
+
 enum StandaloneDecals
 {
 	STANDALONE_DECALS_AUTO = 0,
@@ -3910,6 +3931,41 @@ const char* SunBodyLayersName( int layers )
 	}
 }
 
+const char* SunHighLayersName( int layers )
+{
+	switch( layers )
+	{
+	case STANDALONE_SUN_HIGH_OFF:
+		return "off";
+	case STANDALONE_SUN_HIGH_WHISPS:
+		return "whisps";
+	case STANDALONE_SUN_HIGH_HUGE_DEFINITION:
+		return "huge-definition";
+	case STANDALONE_SUN_HIGH_UBER_1:
+		return "uber-1";
+	case STANDALONE_SUN_HIGH_UBER_2:
+		return "uber-2";
+	case STANDALONE_SUN_HIGH_RINGS_TOP:
+		return "rings-top";
+	case STANDALONE_SUN_HIGH_RINGS_BOTTOM:
+		return "rings-bottom";
+	case STANDALONE_SUN_HIGH_RINGS:
+		return "rings";
+	case STANDALONE_SUN_HIGH_PILLAR_1:
+		return "pillar-1";
+	case STANDALONE_SUN_HIGH_PILLAR_2:
+		return "pillar-2";
+	case STANDALONE_SUN_HIGH_PARTICLE_SCALER:
+		return "particle-scaler";
+	case STANDALONE_SUN_HIGH_PARTICLES:
+		return "particles";
+	case STANDALONE_SUN_HIGH_ALL:
+		return "all";
+	default:
+		return "invalid";
+	}
+}
+
 struct StandaloneSolarBodyFrame
 {
 	uint64_t frame = 0;
@@ -3926,6 +3982,39 @@ struct StandaloneSolarBodyFrame
 	uint64_t planetOpaqueBatchCount = 0;
 	uint64_t planetAdditiveBatchCount = 0;
 	uint64_t planetTransparentBatchCount = 0;
+	Matrix view = IdentityMatrix();
+};
+
+struct StandaloneSolarHighBranch
+{
+	std::string id;
+	std::string name;
+	std::string authoredGeometryPath;
+	std::string stagedGeometryPath;
+	EveChildContainer* container = nullptr;
+	EveChildMesh* meshChild = nullptr;
+	EveChildParticleSystem* particleChild = nullptr;
+	TriBatchType batchType = TRIBATCHTYPE_OPAQUE;
+	bool selected = false;
+	bool displayed = false;
+	bool prepared = false;
+	bool reachable = true;
+};
+
+struct StandaloneSolarHighFrame
+{
+	uint64_t frame = 0;
+	int64_t simulationTime = 0;
+	double animationSeconds = 0.0;
+	double orbitPhaseRadians = 0.0;
+	float expectedPixelDiameter = 0.0f;
+	float reportedPixelDiameter = 0.0f;
+	uint64_t planetOpaqueBatchCount = 0;
+	uint64_t planetAdditiveBatchCount = 0;
+	uint64_t planetTransparentBatchCount = 0;
+	std::vector<uint32_t> aliveCounts;
+	std::vector<uint32_t> peakAliveCounts;
+	std::vector<uint32_t> emittedCounts;
 	Matrix view = IdentityMatrix();
 };
 
@@ -4150,6 +4239,22 @@ struct StandaloneProbe
 	std::string solarBodyGeometryManifestPath;
 	std::string solarBodyGeneratedGeometryHashPath;
 	std::vector<StandaloneSolarBodyFrame> solarBodyFrames;
+	bool solarHighConfigured = false;
+	int sunHighLayers = STANDALONE_SUN_HIGH_OFF;
+	std::string solarHighReportPath;
+	std::string solarHighResourceManifestPath;
+	std::string solarHighGeometryManifestPath;
+	std::string solarHighGeneratedGeometryManifestPath;
+	uint32_t solarParticleSeed = 0;
+	bool solarParticlePrewarmRequested = false;
+	bool solarParticlePrewarmCompleted = false;
+	std::string solarHighPrewarmMode = "none";
+	uint64_t solarParticlePrewarmTicks = 0;
+	int64_t solarParticlePrewarmTime = 0;
+	Tr2DynamicEmitter* solarParticlePrewarmEmitter = nullptr;
+	std::vector<StandaloneSolarHighBranch> solarHighBranches;
+	std::vector<StandaloneSolarHighFrame> solarHighFrames;
+	EveChildMesh* newEdenSunCover = nullptr;
 	bool newEdenSystemComposition = false;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
@@ -5311,7 +5416,466 @@ bool SelectNewEdenSunBodyAreas( EveChildMesh& sunBody, int layers, std::string& 
 	return true;
 }
 
+std::string NormalizeSolarHighResourcePath( const std::string& value )
+{
+	std::string normalized = value;
+	std::transform( normalized.begin(), normalized.end(), normalized.begin(), []( unsigned char character ) {
+		return static_cast<char>( std::tolower( character ) );
+	} );
+	std::replace( normalized.begin(), normalized.end(), '\\', '/' );
+	return normalized;
+}
+
+bool ResolveSolarHighGeometryPath(
+	const std::string& authoredPath,
+	std::string& stagedPath,
+	std::string& error )
+{
+	const std::string normalized = NormalizeSolarHighResourcePath( authoredPath );
+	static const std::set<std::string> expected = {
+		"res:/graphics/generic/custom/solar_whispset_02a.gr2",
+		"res:/graphics/generic/unit_plane.gr2",
+		"res:/graphics/generic/unitplane/unitplane.gr2",
+		"res:/graphics/generic/unitsphere/unitsphereinverted.gr2",
+		"res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_offset_01a_z.gr2",
+		"res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.gr2",
+		"res:/graphics/generic/vortex/cone2_fixeduvs_lowdetailsimple_z.gr2",
+		"res:/graphics/generic/vortex/tube_bulge_01.gr2",
+	};
+	if( expected.count( normalized ) == 0 )
+	{
+		error = "PL-14C encountered an unexpected authored geometry: " + authoredPath;
+		return false;
+	}
+	stagedPath = normalized.substr( 0, normalized.size() - 4 ) + ".cmf";
+	return true;
+}
+
+bool SolarHighModeSelects( int mode, const std::string& name )
+{
+	if( mode == STANDALONE_SUN_HIGH_ALL )
+	{
+		return true;
+	}
+	if( name == "SolarWhispSet_01a" )
+	{
+		return mode == STANDALONE_SUN_HIGH_WHISPS;
+	}
+	if( name == "SunHugeDefinition_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_HUGE_DEFINITION;
+	}
+	if( name == "UberParticle_01_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_UBER_1 || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "UberParticle_02_Darklight_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_UBER_2 || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "UberRings_Top_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_RINGS_TOP || mode == STANDALONE_SUN_HIGH_RINGS_BOTTOM ||
+			mode == STANDALONE_SUN_HIGH_RINGS || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "UberRings_Bottom_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_RINGS_BOTTOM || mode == STANDALONE_SUN_HIGH_RINGS ||
+			mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "MParticlePillar_01_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_PILLAR_1 || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "MParticlePillar_02_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_PILLAR_2 || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	if( name == "ParticleScaler_HLQ" )
+	{
+		return mode == STANDALONE_SUN_HIGH_PARTICLE_SCALER || mode == STANDALONE_SUN_HIGH_PARTICLES;
+	}
+	return false;
+}
+
+bool SetSolarHighMeshAreasDisplayed( Tr2MeshBase& mesh, bool displayed )
+{
+	bool found = false;
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		Tr2MeshAreaVector* areas = mesh.GetAreas( static_cast<TriBatchType>( batchType ) );
+		if( !areas )
+		{
+			continue;
+		}
+		for( Tr2MeshArea* area : *areas )
+		{
+			if( area )
+			{
+				area->SetDisplay( displayed );
+				found = true;
+			}
+		}
+	}
+	return found;
+}
+
+bool ValidateSolarHighArea(
+	Tr2Mesh& mesh,
+	TriBatchType expectedBatch,
+	const char* expectedEffect,
+	std::string& error )
+{
+	Tr2MeshArea* found = nullptr;
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		Tr2MeshAreaVector* areas = mesh.GetAreas( static_cast<TriBatchType>( batchType ) );
+		if( !areas )
+		{
+			continue;
+		}
+		for( Tr2MeshArea* area : *areas )
+		{
+			if( found || batchType != expectedBatch )
+			{
+				error = "PL-14C branch does not contain exactly one area in its authored batch class";
+				return false;
+			}
+			found = area;
+		}
+	}
+	Tr2Effect* effect = found ? found->GetMaterialInterface() : nullptr;
+	if( !found || !effect || std::strcmp( effect->GetEffectPathName(), expectedEffect ) != 0 )
+	{
+		error = "PL-14C branch area effect or batch class does not match PL-14A";
+		return false;
+	}
+	return true;
+}
+
+bool PrepareSolarHighGraph(
+	StandaloneProbe& probe,
+	EvePlanet& sun,
+	EveChildContainer& highQuality,
+	EveChildContainer& mediumAndHigh,
+	std::string& error )
+{
+	probe.solarHighBranches.clear();
+	EveChildMeshPtr whisps;
+	if( highQuality.m_objects.size() == 1 )
+	{
+		whisps = BlueCastPtr( highQuality.m_objects[0] );
+	}
+	if( !whisps || std::strcmp( whisps->GetName(), "SolarWhispSet_01a" ) != 0 )
+	{
+		error = "PL-14C High_Quality must contain only SolarWhispSet_01a";
+		return false;
+	}
+
+	struct ExpectedBranch
+	{
+		const char* name;
+		bool particle;
+		TriBatchType batchType;
+		const char* effectPath;
+		unsigned maxParticles;
+		float emitterRate;
+		size_t generatorCount;
+	};
+	const ExpectedBranch expected[] = {
+		{ "SunHugeDefinition_HLQ", false, TRIBATCHTYPE_ADDITIVE,
+		  "res:/graphics/effect/managed/space/planet/suntexturedflare.fx", 0, -1.0f, 0 },
+		{ "UberParticle_01_HLQ", true, TRIBATCHTYPE_ADDITIVE,
+		  "res:/graphics/effect/managed/space/planet/solarflare.fx", 128, 32.0f, 6 },
+		{ "UberParticle_02_Darklight_HLQ", true, TRIBATCHTYPE_ADDITIVE,
+		  "res:/graphics/effect/managed/space/planet/solarflare.fx", 128, 64.0f, 6 },
+		{ "UberRings_Top_HLQ", true, TRIBATCHTYPE_TRANSPARENT,
+		  "res:/graphics/effect/managed/space/planet/solarflare.fx", 512, 32.0f, 5 },
+		{ "UberRings_Bottom_HLQ", true, TRIBATCHTYPE_TRANSPARENT,
+		  "res:/graphics/effect/managed/space/planet/solarflare.fx", 512, -1.0f, 0 },
+		{ "MParticlePillar_01_HLQ", true, TRIBATCHTYPE_TRANSPARENT,
+		  "res:/graphics/effect/managed/space/planet/solarflareanimated.fx", 1, 0.001f, 5 },
+		{ "MParticlePillar_02_HLQ", true, TRIBATCHTYPE_TRANSPARENT,
+		  "res:/graphics/effect/managed/space/planet/solarflareanimated.fx", 1, 0.0012f, 5 },
+		{ "ParticleScaler_HLQ", true, TRIBATCHTYPE_TRANSPARENT,
+		  "res:/graphics/effect/managed/space/planet/solarflareanimated.fx", 384, 32.0f, 5 },
+	};
+
+	auto addMeshBranch = [&]( const std::string& id, const std::string& name, EveChildContainer* container,
+		EveChildMesh* child, TriBatchType batchType, const char* effectPath ) {
+		Tr2MeshPtr mesh;
+		if( child )
+		{
+			mesh = BlueCastPtr( child->GetMesh() );
+		}
+		if( !mesh || !ValidateSolarHighArea( *mesh, batchType, effectPath, error ) )
+		{
+			if( error.empty() )
+			{
+				error = "PL-14C mesh branch is missing its serialized Tr2Mesh";
+			}
+			return false;
+		}
+		StandaloneSolarHighBranch branch;
+		branch.id = id;
+		branch.name = name;
+		branch.container = container;
+		branch.meshChild = child;
+		branch.batchType = batchType;
+		branch.authoredGeometryPath = mesh->GetMeshResPath();
+		if( !ResolveSolarHighGeometryPath( branch.authoredGeometryPath, branch.stagedGeometryPath, error ) )
+		{
+			return false;
+		}
+		branch.selected = SolarHighModeSelects( probe.sunHighLayers, branch.name );
+		branch.displayed = branch.selected;
+		if( !PrepareCelestialMeshWithoutYield(
+				*child, branch.stagedGeometryPath.c_str(), branch.name.c_str(), error ) )
+		{
+			return false;
+		}
+		child->SetDisplay( branch.displayed );
+		if( container )
+		{
+			container->SetDisplay( branch.selected );
+		}
+		branch.prepared = true;
+		probe.solarHighBranches.push_back( branch );
+		return true;
+	};
+
+	if( !addMeshBranch(
+			"/Sun/High_Quality[0]/SolarWhispSet_01a[0]",
+			"SolarWhispSet_01a", &highQuality, whisps, TRIBATCHTYPE_ADDITIVE,
+			"res:/graphics/effect/managed/space/planet/sunwhisps.fx" ) )
+	{
+		return false;
+	}
+
+	std::set<Tr2ParticleSystem*> initializedSystems;
+	std::set<Tr2DynamicEmitter*> initializedEmitters;
+	std::vector<Tr2DynamicEmitterPtr> emittersToInitialize;
+	size_t generatorTotal = 0;
+	for( const ExpectedBranch& spec : expected )
+	{
+		EveChildContainerPtr container;
+		for( IEveSpaceObjectChild* child : mediumAndHigh.m_objects )
+		{
+			if( std::strcmp( child->GetName(), spec.name ) == 0 )
+			{
+				if( container )
+				{
+					error = std::string( "PL-14C duplicate branch: " ) + spec.name;
+					return false;
+				}
+				container = BlueCastPtr( child );
+			}
+		}
+		if( !container || container->m_objects.size() != 1 )
+		{
+			error = std::string( "PL-14C branch must be a one-child container: " ) + spec.name;
+			return false;
+		}
+		const std::string baseId = std::string( "/Sun/MediumAndHigh_Quality_SunHalfSizer[0]/" ) + spec.name + "[0]";
+		if( !spec.particle )
+		{
+			EveChildMeshPtr meshChild = BlueCastPtr( container->m_objects[0] );
+			if( !meshChild || !addMeshBranch(
+					baseId + "/EveChildMesh[0]", spec.name, container, meshChild, spec.batchType, spec.effectPath ) )
+			{
+				if( error.empty() )
+				{
+					error = std::string( "PL-14C mesh leaf is missing: " ) + spec.name;
+				}
+				return false;
+			}
+			continue;
+		}
+
+		EveChildParticleSystemPtr particleChild = BlueCastPtr( container->m_objects[0] );
+		Tr2InstancedMesh* mesh = particleChild ? particleChild->GetMesh() : nullptr;
+		const PTr2ParticleSystemVector* systems = particleChild ? &particleChild->GetParticleSystems() : nullptr;
+		if( !particleChild || !mesh || !systems || systems->size() != 1 || !( *systems )[0] ||
+			!ValidateSolarHighArea( *mesh, spec.batchType, spec.effectPath, error ) )
+		{
+			if( error.empty() )
+			{
+				error = std::string( "PL-14C particle leaf inventory is invalid: " ) + spec.name;
+			}
+			return false;
+		}
+		Tr2ParticleSystem* system = particleChild->GetParticleSystem( 0 );
+		if( system->GetMaxParticleCount() != spec.maxParticles || mesh->GetInstanceGeometryResource() != system )
+		{
+			error = std::string( "PL-14C particle count or instance-provider mismatch: " ) + spec.name;
+			return false;
+		}
+		const PITr2GenericEmitterVector& emitters = particleChild->GetParticleEmitters();
+		if( spec.emitterRate < 0.0f )
+		{
+			if( !emitters.empty() )
+			{
+				error = std::string( "PL-14C authored emitter absence changed: " ) + spec.name;
+				return false;
+			}
+		}
+		else
+		{
+			if( emitters.size() != 1 )
+			{
+				error = std::string( "PL-14C emitter count mismatch: " ) + spec.name;
+				return false;
+			}
+			Tr2DynamicEmitterPtr emitter = BlueCastPtr( particleChild->GetParticleEmitter( 0 ) );
+			if( !emitter || emitter->GetParticleSystem() != system ||
+				std::abs( emitter->GetRate() - spec.emitterRate ) > 1e-7f ||
+				emitter->GetGenerators().size() != spec.generatorCount )
+			{
+				error = std::string( "PL-14C emitter binding or authored values mismatch: " ) + spec.name;
+				return false;
+			}
+			generatorTotal += emitter->GetGenerators().size();
+			if( initializedEmitters.insert( emitter ).second )
+			{
+				emittersToInitialize.push_back( emitter );
+			}
+			if( ( probe.sunHighLayers == STANDALONE_SUN_HIGH_PILLAR_1 &&
+				  std::strcmp( spec.name, "MParticlePillar_01_HLQ" ) == 0 ) ||
+				( probe.sunHighLayers == STANDALONE_SUN_HIGH_PILLAR_2 &&
+				  std::strcmp( spec.name, "MParticlePillar_02_HLQ" ) == 0 ) )
+			{
+				probe.solarParticlePrewarmEmitter = emitter;
+			}
+		}
+
+		StandaloneSolarHighBranch branch;
+		const char* particleName = particleChild->GetName();
+		branch.id = baseId + "/" +
+			( particleName && particleName[0] ? particleName : "EveChildParticleSystem" ) + "[0]";
+		branch.name = spec.name;
+		branch.container = container;
+		branch.particleChild = particleChild;
+		branch.batchType = spec.batchType;
+		branch.authoredGeometryPath = mesh->GetMeshResPath();
+		if( !ResolveSolarHighGeometryPath( branch.authoredGeometryPath, branch.stagedGeometryPath, error ) )
+		{
+			return false;
+		}
+		branch.selected = SolarHighModeSelects( probe.sunHighLayers, branch.name );
+		branch.displayed = branch.selected;
+		if( !PrepareMeshWithoutYield( *mesh, branch.stagedGeometryPath.c_str(), branch.name.c_str(), error ) )
+		{
+			return false;
+		}
+		if( initializedSystems.insert( system ).second && !system->Initialize() )
+		{
+			error = std::string( "PL-14C particle system failed to initialize: " ) + spec.name;
+			return false;
+		}
+		mesh->SetInstanceGeometryRes( system );
+		if( !mesh->Initialize() || !particleChild->Initialize() )
+		{
+			error = std::string( "PL-14C instanced mesh failed to initialize: " ) + spec.name;
+			return false;
+		}
+		particleChild->SetDisplay( branch.selected );
+		particleChild->SetMeshDisplay( branch.displayed );
+		container->SetDisplay( branch.selected );
+		if( std::strcmp( spec.name, "UberRings_Top_HLQ" ) != 0 &&
+			std::strcmp( spec.name, "UberRings_Bottom_HLQ" ) != 0 )
+		{
+			SetSolarHighMeshAreasDisplayed( *mesh, branch.displayed );
+		}
+		branch.prepared = true;
+		probe.solarHighBranches.push_back( branch );
+	}
+	for( const Tr2DynamicEmitterPtr& emitter : emittersToInitialize )
+	{
+		if( !emitter->Initialize() )
+		{
+			error = "PL-14C emitter failed to initialize after particle-system closure";
+			return false;
+		}
+	}
+
+	if( probe.solarHighBranches.size() != 9 || generatorTotal != 32 )
+	{
+		error = "PL-14C reachable inventory must contain nine leaves and 32 generators";
+		return false;
+	}
+	StandaloneSolarHighBranch* ringTop = nullptr;
+	StandaloneSolarHighBranch* ringBottom = nullptr;
+	for( StandaloneSolarHighBranch& branch : probe.solarHighBranches )
+	{
+		if( branch.name == "UberRings_Top_HLQ" )
+		{
+			ringTop = &branch;
+		}
+		else if( branch.name == "UberRings_Bottom_HLQ" )
+		{
+			ringBottom = &branch;
+		}
+	}
+	Tr2DynamicEmitterPtr ringEmitter;
+	if( ringTop && ringTop->particleChild && !ringTop->particleChild->GetParticleEmitters().empty() )
+	{
+		ringEmitter = BlueCastPtr( ringTop->particleChild->GetParticleEmitter( 0 ) );
+	}
+	Tr2ParticleSystem* bottomSystem = ringBottom && ringBottom->particleChild ?
+		ringBottom->particleChild->GetParticleSystem( 0 ) : nullptr;
+	if( !ringEmitter || !bottomSystem || ringEmitter->GetParticleSystem() != bottomSystem )
+	{
+		error = "PL-14C could not prove the authored Ring Top emitter to Ring Bottom particle-system dependency";
+		return false;
+	}
+	const bool ringsSelected = ringTop->selected || ringBottom->selected;
+	SetSolarHighMeshAreasDisplayed( *ringTop->particleChild->GetMesh(), ringsSelected );
+	if( probe.sunHighLayers == STANDALONE_SUN_HIGH_RINGS_BOTTOM && ringTop )
+	{
+		ringTop->container->SetDisplay( true );
+		ringTop->particleChild->SetDisplay( true );
+		ringTop->particleChild->SetMeshDisplay( false );
+		ringTop->displayed = false;
+	}
+
+	EveChildMeshPtr cover;
+	for( IEveSpaceObjectChild* child : mediumAndHigh.m_objects )
+	{
+		if( std::strcmp( child->GetName(), "InsideTheSphereCover" ) == 0 )
+		{
+			cover = BlueCastPtr( child );
+			break;
+		}
+	}
+	Tr2MeshPtr coverMesh;
+	if( cover )
+	{
+		coverMesh = BlueCastPtr( cover->GetMesh() );
+	}
+	std::string coverCmf;
+	if( !cover || !coverMesh ||
+		!ResolveSolarHighGeometryPath( coverMesh->GetMeshResPath(), coverCmf, error ) ||
+		!PrepareCelestialMeshWithoutYield( *cover, coverCmf.c_str(), "selected-unreachable Sun cover", error ) )
+	{
+		if( error.empty() )
+		{
+			error = "PL-14C selected-unreachable Sun cover failed resource closure";
+		}
+		return false;
+	}
+	cover->SetDisplay( false );
+	probe.newEdenSunCover = cover;
+	highQuality.SetDisplay( SolarHighModeSelects( probe.sunHighLayers, "SolarWhispSet_01a" ) );
+	mediumAndHigh.SetDisplay( true );
+	std::fprintf(
+		stderr,
+		"PL-14C High graph ready: mode=%s containers=9 leaves=9 meshAreas=9 particleSystems=7 emitters=6 generators=32 cover=selected-unreachable\n",
+		SunHighLayersName( probe.sunHighLayers ) );
+	return true;
+}
+
 bool PrepareNewEdenCelestialsWithoutYield(
+	StandaloneProbe& probe,
 	EvePlanet& sun,
 	EvePlanet& planet,
 	int sunEffects,
@@ -5323,14 +5887,23 @@ bool PrepareNewEdenCelestialsWithoutYield(
 	std::string& error,
 	EveChildMesh** preparedSunBody )
 {
+	EveChildContainerPtr highQualityContainer;
 	EveChildContainerPtr sunBodyContainer;
+	EveChildContainerPtr lowQualityContainer;
 	PIEveSpaceObjectChildVector& sunChildren = sun.GetChildren();
 	for( IEveSpaceObjectChild* child : sunChildren )
 	{
-		if( std::strcmp( child->GetName(), "MediumAndHigh_Quality_SunHalfSizer" ) == 0 )
+		if( std::strcmp( child->GetName(), "High_Quality" ) == 0 )
+		{
+			highQualityContainer = BlueCastPtr( child );
+		}
+		else if( std::strcmp( child->GetName(), "MediumAndHigh_Quality_SunHalfSizer" ) == 0 )
 		{
 			sunBodyContainer = BlueCastPtr( child );
-			break;
+		}
+		else if( std::strcmp( child->GetName(), "Socket_LowQuality_Star_01a" ) == 0 )
+		{
+			lowQualityContainer = BlueCastPtr( child );
 		}
 	}
 	if( !sunBodyContainer )
@@ -5338,7 +5911,16 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		error = "New Eden sun body container is missing";
 		return false;
 	}
-	for( ssize_t index = static_cast<ssize_t>( sunChildren.size() ) - 1; index >= 0; --index )
+	if( probe.solarHighConfigured )
+	{
+		if( !highQualityContainer || !lowQualityContainer )
+		{
+			error = "PL-14C requires the High container and excluded low-quality socket";
+			return false;
+		}
+		lowQualityContainer->SetDisplay( false );
+	}
+	else for( ssize_t index = static_cast<ssize_t>( sunChildren.size() ) - 1; index >= 0; --index )
 	{
 		if( sunChildren[index] != sunBodyContainer->GetRawRoot() )
 		{
@@ -5378,7 +5960,18 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		error = "New Eden authored SunFlares child is missing";
 		return false;
 	}
-	for( ssize_t index = static_cast<ssize_t>( sunBodyContainer->m_objects.size() ) - 1; index >= 0; --index )
+	if( probe.solarHighConfigured )
+	{
+		if( !PrepareSolarHighGraph( probe, sun, *highQualityContainer, *sunBodyContainer, error ) )
+		{
+			return false;
+		}
+		if( sunFlare )
+		{
+			sunFlare->SetDisplay( retainSunFlare );
+		}
+	}
+	else for( ssize_t index = static_cast<ssize_t>( sunBodyContainer->m_objects.size() ) - 1; index >= 0; --index )
 	{
 		IRoot* child = sunBodyContainer->m_objects[index];
 		if( child != sunBody->GetRawRoot() && ( !retainSunFlare || child != sunFlare->GetRawRoot() ) )
@@ -5745,6 +6338,7 @@ bool ConfigureNewEdenSystem(
 		return false;
 	}
 	if( !PrepareNewEdenCelestialsWithoutYield(
+			probe,
 			*sun,
 			*planet,
 			sunEffects,
@@ -5762,7 +6356,7 @@ bool ConfigureNewEdenSystem(
 		}
 		return false;
 	}
-	if( !probe.solarBodyReportPath.empty() )
+	if( !probe.solarBodyReportPath.empty() || !probe.solarHighReportPath.empty() )
 	{
 		Tr2MeshBase* sunBodyMesh = probe.newEdenSunBody ? probe.newEdenSunBody->GetMesh() : nullptr;
 		Vector3 sunBodyMinimum;
@@ -5851,7 +6445,8 @@ bool ConfigureNewEdenSystem(
 			constexpr float inspectionRadiusMultiple = 20.0f;
 			constexpr float targetHeightFraction = 0.25f;
 			const bool inspectPlanet = cameraView == STANDALONE_CAMERA_PLANET;
-			const bool nativeSolarBodyInspection = !probe.solarBodyReportPath.empty() && !inspectPlanet;
+			const bool nativeSolarBodyInspection =
+				( !probe.solarBodyReportPath.empty() || !probe.solarHighReportPath.empty() ) && !inspectPlanet;
 			const Vector3 selectedPosition = inspectPlanet ? planetPosition : sunPosition;
 			const float selectedRadius = inspectPlanet ? static_cast<float>( planetRadius ) : static_cast<float>( starRadius );
 			const float selectedDistance = Length( selectedPosition );
@@ -9375,7 +9970,8 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	probe.view->SetLookAtPosition( eye, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
 	}
 	else if( probe.cameraView == STANDALONE_CAMERA_CELESTIALS && probe.newEdenSystemComposition &&
-			 probe.celestialInspectionTarget == probe.newEdenSun && !probe.solarBodyReportPath.empty() )
+			 probe.celestialInspectionTarget == probe.newEdenSun &&
+			 ( !probe.solarBodyReportPath.empty() || !probe.solarHighReportPath.empty() ) )
 	{
 		const float authoredOrbitRadius = probe.celestialInspectionOrbitRadius;
 		const Vector3 worldUp( 0.0f, 1.0f, 0.0f );
@@ -10269,7 +10865,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	const Vector3 eye( 0.0f, 0.0f, -5.2f * probe.modelWorldScale );
 	const bool exactSystemInspection = composition == STANDALONE_COMPOSITION_SYSTEM &&
 		probe.celestialInspectionTarget && probe.celestialInspectionFovRadians > 0.0f;
-	const bool nativeSolarBodyInspection = exactSystemInspection && !probe.solarBodyReportPath.empty();
+	const bool nativeSolarBodyInspection = exactSystemInspection &&
+		( !probe.solarBodyReportPath.empty() || !probe.solarHighReportPath.empty() );
 	const Vector3 inspectionEye = probe.celestialInspectionCenter -
 		probe.celestialInspectionDirection * probe.celestialInspectionOrbitRadius;
 	const Vector3 cameraEye = nativeSolarBodyInspection ? inspectionEye : eye;
@@ -11605,8 +12202,40 @@ bool ReadSolarBodyEvidenceFile( const std::string& path, std::string& contents )
 
 const char* SolarBodyBatchName( TriBatchType batchType )
 {
-	return batchType == TRIBATCHTYPE_OPAQUE ? "opaque" :
-											  ( batchType == TRIBATCHTYPE_ADDITIVE ? "additive" : "unexpected" );
+	switch( batchType )
+	{
+	case TRIBATCHTYPE_OPAQUE:
+		return "opaque";
+	case TRIBATCHTYPE_DECAL:
+		return "decal";
+	case TRIBATCHTYPE_TRANSPARENT:
+		return "transparent";
+	case TRIBATCHTYPE_DEPTH:
+		return "depth";
+	case TRIBATCHTYPE_ADDITIVE:
+		return "additive";
+	case TRIBATCHTYPE_PICKING:
+		return "picking";
+	case TRIBATCHTYPE_MIRROR:
+		return "mirror";
+	case TRIBATCHTYPE_DECALNORMAL:
+		return "decal-normal";
+	case TRIBATCHTYPE_DEPTHNORMAL:
+		return "depth-normal";
+	case TRIBATCHTYPE_OPAQUE_PREPASS:
+		return "opaque-prepass";
+	case TRIBATCHTYPE_DECAL_PREPASS:
+		return "decal-prepass";
+	case TRIBATCHTYPE_GEOMETRY_ERASER:
+		return "geometry-eraser";
+	case TRIBATCHTYPE_FLARE:
+		return "flare";
+	case TRIBATCHTYPE_DISTORTION:
+		return "distortion";
+	case TRIBATCHTYPE_COUNT_OF_BATCH_TYPES:
+		break;
+	}
+	return "invalid";
 }
 
 void WriteSolarBodyMatrix( std::ostream& output, const Matrix& matrix )
@@ -11812,6 +12441,313 @@ bool WriteSolarBodyReport( StandaloneProbe& probe, std::string& error )
 	return true;
 }
 
+bool WriteSolarHighReport( StandaloneProbe& probe, std::string& error )
+{
+	if( probe.solarHighReportPath.empty() || probe.solarHighBranches.size() != 9 ||
+		!probe.newEdenSun || probe.solarHighFrames.empty() )
+	{
+		error = "Solar High report has incomplete native evidence";
+		return false;
+	}
+	std::string resourceManifest;
+	std::string geometryManifest;
+	std::string generatedGeometryManifest;
+	if( !ReadSolarBodyEvidenceFile( probe.solarHighResourceManifestPath, resourceManifest ) ||
+		!ReadSolarBodyEvidenceFile( probe.solarHighGeometryManifestPath, geometryManifest ) ||
+		!ReadSolarBodyEvidenceFile( probe.solarHighGeneratedGeometryManifestPath, generatedGeometryManifest ) )
+	{
+		error = "Solar High staged resource or geometry evidence is missing";
+		return false;
+	}
+
+	std::map<const Tr2ParticleSystem*, std::string> systemIds;
+	std::map<const Tr2DynamicEmitter*, std::string> emitterIds;
+	auto systemId = [&]( const Tr2ParticleSystem* system ) {
+		auto found = systemIds.find( system );
+		if( found != systemIds.end() )
+		{
+			return found->second;
+		}
+		const std::string id = "particle-system-" + std::to_string( systemIds.size() );
+		systemIds.emplace( system, id );
+		return id;
+	};
+	auto emitterId = [&]( const Tr2DynamicEmitter* emitter ) {
+		auto found = emitterIds.find( emitter );
+		if( found != emitterIds.end() )
+		{
+			return found->second;
+		}
+		const std::string id = "emitter-" + std::to_string( emitterIds.size() );
+		emitterIds.emplace( emitter, id );
+		return id;
+	};
+
+	std::ofstream output( probe.solarHighReportPath.c_str(), std::ios::binary );
+	if( !output )
+	{
+		error = "Could not open solar High report output";
+		return false;
+	}
+	output << std::setprecision( 10 );
+	output << "{\n";
+	output << "  \"schema\": \"trinity.solar-high-report.v1\",\n";
+	output << "  \"layerMode\": " << SolarBodyJsonString( SunHighLayersName( probe.sunHighLayers ) ) << ",\n";
+	output << "  \"qualityTier\": \"high\",\n";
+	output << "  \"particleSeed\": " << probe.solarParticleSeed << ",\n";
+	output << "  \"prewarm\": {\"mode\":" << SolarBodyJsonString( probe.solarHighPrewarmMode )
+		   << ",\"requested\":" << ( probe.solarHighPrewarmMode != "none" ? "true" : "false" )
+		   << ",\"completed\":" << ( probe.solarParticlePrewarmCompleted ? "true" : "false" )
+		   << ",\"ticks\":" << probe.solarParticlePrewarmTicks
+		   << ",\"simulationTime\":" << probe.solarParticlePrewarmTime << "},\n";
+	output << "  \"inventory\": {\"containerCount\":9,\"leafCount\":9,\"ordinaryMeshCount\":2,"
+		      "\"meshAreaCount\":9,\"particleSystemCount\":7,\"emitterCount\":6,"
+		      "\"generatorCount\":32,\"branchCurveSetCount\":0,\"branchControllerCount\":0},\n";
+	output << "  \"selectedUnreachableCover\": {\"id\":"
+		   << SolarBodyJsonString( "/Sun/MediumAndHigh_Quality_SunHalfSizer[0]/InsideTheSphereCover[0]" )
+		   << ",\"prepared\":" << ( probe.newEdenSunCover ? "true" : "false" )
+		   << ",\"displayed\":false,\"reachable\":false},\n";
+	output << "  \"lowQualitySocket\": {\"selected\":false,\"staged\":false,\"nodeCount\":8},\n";
+	output << "  \"sourceGraphEvidence\": {\"graphSha256\":\"82d70de1d6c4f225edc992b011fe97e4b3f1a19fe6bb4289dc680954ab06ee6e\","
+		      "\"closureSha256\":\"a09168515c8a607b12cf96dfbfaeb670fa7b50e7471883dd24f45b9ec70a7e5e\"},\n";
+	output << "  \"rootAnimation\": ";
+	TrinityStandaloneWriteSolarRootAnimationJson( output, *probe.newEdenSun );
+	output << ",\n";
+	output << "  \"stagedResourceManifest\": " << resourceManifest << ",\n";
+	output << "  \"authoredGeometryManifest\": " << geometryManifest << ",\n";
+	output << "  \"generatedGeometryManifest\": " << generatedGeometryManifest << ",\n";
+	output << "  \"branches\": [\n";
+	for( size_t branchIndex = 0; branchIndex < probe.solarHighBranches.size(); ++branchIndex )
+	{
+		const StandaloneSolarHighBranch& branch = probe.solarHighBranches[branchIndex];
+		Tr2MeshPtr mesh;
+		if( branch.meshChild )
+		{
+			mesh = BlueCastPtr( branch.meshChild->GetMesh() );
+		}
+		else if( branch.particleChild )
+		{
+			mesh = branch.particleChild->GetMesh();
+		}
+		IRoot* branchRoot = branch.particleChild ? branch.particleChild->GetRawRoot() :
+												   ( branch.meshChild ? branch.meshChild->GetRawRoot() : nullptr );
+		output << "    {\"id\":" << SolarBodyJsonString( branch.id )
+			   << ",\"name\":" << SolarBodyJsonString( branch.name )
+			   << ",\"class\":" << SolarBodyJsonString( branch.particleChild ? "EveChildParticleSystem" : "EveChildMesh" )
+			   << ",\"selected\":" << ( branch.selected ? "true" : "false" )
+			   << ",\"displayed\":" << ( branch.displayed ? "true" : "false" )
+			   << ",\"prepared\":" << ( branch.prepared ? "true" : "false" )
+			   << ",\"reachable\":true,\"authoredGeometryPath\":"
+			   << SolarBodyJsonString( branch.authoredGeometryPath )
+			   << ",\"stagedGeometryPath\":" << SolarBodyJsonString( branch.stagedGeometryPath )
+			   << ",\"authoredTransformAndLod\":";
+		TrinityStandaloneWriteAuthoredScalarAttributesJson( output, branchRoot );
+		output << ",\"areas\":[";
+		bool firstArea = true;
+		if( mesh )
+		{
+			for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+			{
+				Tr2MeshAreaVector* areas = mesh->GetAreas( static_cast<TriBatchType>( batchType ) );
+				if( !areas )
+				{
+					continue;
+				}
+				for( Tr2MeshArea* area : *areas )
+				{
+					Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+					if( !firstArea )
+					{
+						output << ',';
+					}
+					firstArea = false;
+					const bool areaSubmitted = area && area->GetDisplay() &&
+						( !branch.particleChild || branch.particleChild->GetMeshDisplay() );
+					output << "{\"name\":" << SolarBodyJsonString( area ? area->GetName() : "" )
+						   << ",\"batchType\":" << SolarBodyJsonString( SolarBodyBatchName( static_cast<TriBatchType>( batchType ) ) )
+						   << ",\"displayed\":" << ( areaSubmitted ? "true" : "false" )
+						   << ",\"effectPath\":" << SolarBodyJsonString( effect ? effect->GetEffectPathName() : "" )
+						   << ",\"techniques\":[";
+					if( effect && effect->GetShaderStateInterface() )
+					{
+						const Tr2EffectDescription& description =
+							effect->GetShaderStateInterface()->GetEffectDescription();
+						for( size_t techniqueIndex = 0; techniqueIndex < description.techniques.size(); ++techniqueIndex )
+						{
+							if( techniqueIndex )
+							{
+								output << ',';
+							}
+							const Tr2EffectTechnique& technique = description.techniques[techniqueIndex];
+							output << "{\"name\":" << SolarBodyJsonString( technique.name.c_str() )
+								   << ",\"passCount\":" << technique.passes.size() << '}';
+						}
+					}
+					output << "],\"textures\":[";
+					bool firstTexture = true;
+					if( effect )
+					{
+						for( ITriEffectResourceParameter* resource : effect->m_resources )
+						{
+							TriTextureParameterPtr texture = BlueCastPtr( resource );
+							if( !texture )
+							{
+								continue;
+							}
+							if( !firstTexture )
+							{
+								output << ',';
+							}
+							firstTexture = false;
+							output << "{\"parameter\":" << SolarBodyJsonString( texture->GetParameterName() )
+								   << ",\"logicalPath\":" << SolarBodyJsonString( texture->GetAuthoredResourcePath() ) << '}';
+						}
+					}
+					output << "],\"constantParameters\":[";
+					if( effect )
+					{
+						for( size_t constantIndex = 0; constantIndex < effect->m_constParameters.size(); ++constantIndex )
+						{
+							const Tr2ConstantEffectParameter& parameter = effect->m_constParameters[constantIndex];
+							if( constantIndex )
+							{
+								output << ',';
+							}
+							output << "{\"name\":" << SolarBodyJsonString( parameter.name.c_str() )
+								   << ",\"value\":[" << parameter.value[0] << ',' << parameter.value[1] << ','
+								   << parameter.value[2] << ',' << parameter.value[3] << "]}";
+						}
+					}
+					output << "]}";
+				}
+			}
+		}
+		output << ']';
+		if( branch.particleChild )
+		{
+			Tr2ParticleSystem* system = branch.particleChild->GetParticleSystem( 0 );
+			uint32_t activeFrameCount = 0;
+			uint32_t submissionCorroboratedFrameCount = 0;
+			uint32_t committedInstancePeak = 0;
+			for( const StandaloneSolarHighFrame& frame : probe.solarHighFrames )
+			{
+				if( branchIndex >= frame.aliveCounts.size() )
+				{
+					continue;
+				}
+				const uint32_t alive = frame.aliveCounts[branchIndex];
+				committedInstancePeak = std::max( committedInstancePeak, alive );
+				if( alive == 0 )
+				{
+					continue;
+				}
+				++activeFrameCount;
+				const uint64_t committedBatches = branch.batchType == TRIBATCHTYPE_ADDITIVE ?
+					frame.planetAdditiveBatchCount : frame.planetTransparentBatchCount;
+				if( committedBatches != 0 )
+				{
+					++submissionCorroboratedFrameCount;
+				}
+			}
+			output << ",\"particleSystem\":{\"identity\":" << SolarBodyJsonString( systemId( system ) )
+				   << ",\"name\":" << SolarBodyJsonString( system->GetName() )
+				   << ",\"maxParticleCount\":" << system->GetMaxParticleCount()
+				   << ",\"originalMaxParticleCount\":" << system->GetOriginalMaxParticles()
+				   << ",\"aliveCount\":" << system->GetAliveCount()
+				   << ",\"peakAliveCount\":" << system->GetPeakAliveCount()
+				   << ",\"committedInstancePeak\":" << committedInstancePeak
+				   << ",\"activeFrameCount\":" << activeFrameCount
+				   << ",\"submissionCorroboratedFrameCount\":" << submissionCorroboratedFrameCount
+				   << ",\"gpuStride\":" << system->GetGpuStride()
+				   << ",\"declarationHash\":" << system->GetElementDeclarationHash()
+				   << ",\"instanceDataReady\":" << ( system->IsInstanceDataReady() ? "true" : "false" ) << '}';
+			output << ",\"emitters\":[";
+			for( size_t emitterIndex = 0; emitterIndex < branch.particleChild->GetParticleEmitters().size(); ++emitterIndex )
+			{
+				Tr2DynamicEmitterPtr emitter = BlueCastPtr( branch.particleChild->GetParticleEmitter( emitterIndex ) );
+				if( emitterIndex )
+				{
+					output << ',';
+				}
+					output << "{\"identity\":" << SolarBodyJsonString( emitterId( emitter ) )
+					   << ",\"name\":" << SolarBodyJsonString( emitter ? emitter->GetName() : "" )
+					   << ",\"rate\":" << ( emitter ? emitter->GetRate() : 0.0f )
+					   << ",\"maxParticles\":" << ( emitter ? emitter->GetMaxParticles() : 0 )
+					   << ",\"emittedParticleCount\":" << ( emitter ? emitter->GetEmittedParticleCount() : 0 )
+					   << ",\"particleSystemIdentity\":"
+					   << SolarBodyJsonString( emitter ? systemId( emitter->GetParticleSystem() ) : "" )
+						   << ",\"authoredAttributes\":";
+				TrinityStandaloneWriteAuthoredScalarAttributesJson(
+					output, emitter ? emitter->GetRawRoot() : nullptr );
+				output << ",\"generators\":[";
+				if( emitter )
+				{
+					for( size_t generatorIndex = 0; generatorIndex < emitter->GetGenerators().size(); ++generatorIndex )
+					{
+						if( generatorIndex )
+						{
+							output << ',';
+						}
+						const ITr2AttributeGenerator* generator = emitter->GetGenerators()[generatorIndex];
+						const Be::ClassInfo* generatorType = generator ? generator->ClassType() : nullptr;
+						output << "{\"class\":" << SolarBodyJsonString(
+							generatorType && generatorType->mClassId ? generatorType->mClassId->GetName() : "" )
+							   << ",\"authoredAttributes\":";
+						TrinityStandaloneWriteAuthoredScalarAttributesJson(
+							output, const_cast<ITr2AttributeGenerator*>( generator ) );
+						output << '}';
+					}
+				}
+				output << "]}";
+			}
+			output << ']';
+		}
+		output << '}' << ( branchIndex + 1 == probe.solarHighBranches.size() ? "\n" : ",\n" );
+	}
+	output << "  ],\n";
+	output << "  \"frames\": [\n";
+	for( size_t frameIndex = 0; frameIndex < probe.solarHighFrames.size(); ++frameIndex )
+	{
+		const StandaloneSolarHighFrame& frame = probe.solarHighFrames[frameIndex];
+		output << "    {\"frame\":" << frame.frame
+			   << ",\"simulationTime\":" << frame.simulationTime
+			   << ",\"animationSeconds\":" << frame.animationSeconds
+			   << ",\"orbitPhaseRadians\":" << frame.orbitPhaseRadians
+			   << ",\"expectedPixelDiameter\":" << frame.expectedPixelDiameter
+			   << ",\"reportedPixelDiameter\":" << frame.reportedPixelDiameter
+			   << ",\"planetOpaqueBatchCount\":" << frame.planetOpaqueBatchCount
+			   << ",\"planetAdditiveBatchCount\":" << frame.planetAdditiveBatchCount
+			   << ",\"planetTransparentBatchCount\":" << frame.planetTransparentBatchCount
+			   << ",\"aliveCounts\":[";
+		for( size_t index = 0; index < frame.aliveCounts.size(); ++index )
+		{
+			output << ( index ? "," : "" ) << frame.aliveCounts[index];
+		}
+		output << "],\"peakAliveCounts\":[";
+		for( size_t index = 0; index < frame.peakAliveCounts.size(); ++index )
+		{
+			output << ( index ? "," : "" ) << frame.peakAliveCounts[index];
+		}
+		output << "],\"emittedCounts\":[";
+		for( size_t index = 0; index < frame.emittedCounts.size(); ++index )
+		{
+			output << ( index ? "," : "" ) << frame.emittedCounts[index];
+		}
+		output << "],\"viewMatrix\":";
+		WriteSolarBodyMatrix( output, frame.view );
+		output << '}' << ( frameIndex + 1 == probe.solarHighFrames.size() ? "\n" : ",\n" );
+	}
+	output << "  ],\n";
+	output << "  \"renderedFrameCount\": " << probe.renderedFrameCount << "\n";
+	output << "}\n";
+	if( !output )
+	{
+		error = "Failed while writing solar High report";
+		return false;
+	}
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarAudit(
 	void* opaqueProbe,
 	const char* reportPath )
@@ -11895,6 +12831,187 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarBodyReport( void*
 		return false;
 	}
 	std::fprintf( stderr, "PL-14B solar body report: %s\n", probe->solarBodyReportPath.c_str() );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarHigh(
+	void* opaqueProbe,
+	int layerMode,
+	const char* reportPath,
+	const char* resourceManifestPath,
+	const char* geometryManifestPath,
+	const char* generatedGeometryManifestPath,
+	uint32_t particleSeed,
+	bool naturalFirstEmissionPrewarm )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || layerMode < STANDALONE_SUN_HIGH_OFF ||
+		layerMode > STANDALONE_SUN_HIGH_ALL )
+	{
+		CCP_LOGERR( "Solar High contract requires an initialized render device and valid layer mode" );
+		return false;
+	}
+	const bool wantsReport = reportPath && reportPath[0];
+	if( wantsReport && ( !resourceManifestPath || !resourceManifestPath[0] ||
+		!geometryManifestPath || !geometryManifestPath[0] ||
+		!generatedGeometryManifestPath || !generatedGeometryManifestPath[0] ) )
+	{
+		CCP_LOGERR( "Solar High report requires staged resource and geometry evidence paths" );
+		return false;
+	}
+	if( wantsReport && particleSeed == 0 )
+	{
+		CCP_LOGERR( "Solar High reports require an explicit deterministic particle seed" );
+		return false;
+	}
+	if( particleSeed != 0 && ( particleSeed >= 0x7FFFFFFFu ||
+		!Tr2ParticleSystem::ResetRandomSeedForTesting( particleSeed ) ) )
+	{
+		CCP_LOGERR( "Solar High particle seed must be in [1, 0x7ffffffe]" );
+		return false;
+	}
+	if( naturalFirstEmissionPrewarm && layerMode != STANDALONE_SUN_HIGH_PILLAR_1 &&
+		layerMode != STANDALONE_SUN_HIGH_PILLAR_2 )
+	{
+		CCP_LOGERR( "Natural particle prewarm is valid only for one isolated pillar" );
+		return false;
+	}
+	probe->solarHighConfigured = true;
+	probe->sunHighLayers = layerMode;
+	probe->solarHighReportPath = wantsReport ? reportPath : "";
+	probe->solarHighResourceManifestPath = wantsReport ? resourceManifestPath : "";
+	probe->solarHighGeometryManifestPath = wantsReport ? geometryManifestPath : "";
+	probe->solarHighGeneratedGeometryManifestPath = wantsReport ? generatedGeometryManifestPath : "";
+	probe->solarParticleSeed = particleSeed;
+	probe->solarParticlePrewarmRequested = naturalFirstEmissionPrewarm;
+	probe->solarHighPrewarmMode = naturalFirstEmissionPrewarm ? "natural-first-emission" : "none";
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWarmupSolarHigh( void* opaqueProbe, uint32_t ticks )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->solarHighConfigured || probe->solarHighReportPath.empty() ||
+		!probe->driver || !probe->scene || !probe->newEdenSun || ticks == 0 ||
+		probe->solarParticlePrewarmRequested )
+	{
+		CCP_LOGERR( "Fixed solar High warmup requires a configured report and non-pillar-natural lane" );
+		return false;
+	}
+	constexpr int64_t frameTime = 166667;
+	const bool renderingWasEnabled = probe->driver->GetRenderingEnabled();
+	probe->driver->SetRenderingEnabled( false );
+	probe->newEdenSun->SetLodForTesting( TR2_LOD_HIGH );
+	for( uint32_t tick = 1; tick <= ticks; ++tick )
+	{
+		const int64_t time = static_cast<int64_t>( tick ) * frameTime;
+		probe->device->SetAnimationTime( static_cast<float>( time ) / 10000000.0f );
+		probe->scene->AdvancePlanetUpdateForTesting( *probe->newEdenSun, time );
+	}
+	probe->driver->SetRenderingEnabled( renderingWasEnabled );
+	probe->solarParticlePrewarmTicks = ticks;
+	probe->solarParticlePrewarmTime = static_cast<int64_t>( ticks ) * frameTime;
+	probe->solarParticlePrewarmCompleted = true;
+	probe->solarHighPrewarmMode = "fixed-update-only";
+	std::fprintf(
+		stderr,
+		"PL-14C fixed update-only warmup: ticks=%u time=%.7f\n",
+		ticks,
+		static_cast<double>( probe->solarParticlePrewarmTime ) / 10000000.0 );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrewarmSolarParticles( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->solarHighConfigured || !probe->solarParticlePrewarmRequested ||
+		!probe->driver || !probe->scene || !probe->solarParticlePrewarmEmitter )
+	{
+		CCP_LOGERR( "Solar particle prewarm was not configured for an initialized isolated pillar" );
+		std::fprintf(
+			stderr,
+			"PL-14C prewarm unavailable: probe=%s configured=%s requested=%s driver=%s scene=%s emitter=%s\n",
+			probe ? "yes" : "no",
+			probe && probe->solarHighConfigured ? "yes" : "no",
+			probe && probe->solarParticlePrewarmRequested ? "yes" : "no",
+			probe && probe->driver ? "yes" : "no",
+			probe && probe->scene ? "yes" : "no",
+			probe && probe->solarParticlePrewarmEmitter ? "yes" : "no" );
+		return false;
+	}
+	Tr2DynamicEmitter* emitter = probe->solarParticlePrewarmEmitter;
+	const float rate = emitter->GetRate();
+	if( !emitter->IsValid() || !std::isfinite( rate ) || rate <= 0.0f ||
+		emitter->GetEmittedParticleCount() != 0 )
+	{
+		CCP_LOGERR( "Solar particle prewarm emitter has invalid initial state" );
+		std::fprintf(
+			stderr,
+			"PL-14C prewarm emitter invalid: valid=%s rate=%.9f emitted=%u\n",
+			emitter->IsValid() ? "yes" : "no",
+			rate,
+			emitter->GetEmittedParticleCount() );
+		return false;
+	}
+	constexpr int64_t frameTime = 166667;
+	constexpr double secondsPerTick = static_cast<double>( frameTime ) / 10000000.0;
+	const uint64_t expectedTicks = static_cast<uint64_t>( std::ceil( 1.0 / ( static_cast<double>( rate ) * secondsPerTick ) ) );
+	const uint64_t maximumTicks = expectedTicks + 2;
+	const bool renderingWasEnabled = probe->driver->GetRenderingEnabled();
+	probe->driver->SetRenderingEnabled( false );
+	probe->newEdenSun->SetLodForTesting( TR2_LOD_HIGH );
+	for( uint64_t tick = 1; tick <= maximumTicks; ++tick )
+	{
+		const int64_t time = static_cast<int64_t>( tick ) * frameTime;
+		probe->device->SetAnimationTime( static_cast<float>( time ) / 10000000.0f );
+		probe->scene->AdvancePlanetUpdateForTesting( *probe->newEdenSun, time );
+		if( emitter->GetEmittedParticleCount() != 0 )
+		{
+			probe->solarParticlePrewarmTicks = tick;
+			probe->solarParticlePrewarmTime = time;
+			break;
+		}
+	}
+	probe->driver->SetRenderingEnabled( renderingWasEnabled );
+	probe->solarParticlePrewarmCompleted = emitter->GetEmittedParticleCount() != 0;
+	if( !probe->solarParticlePrewarmCompleted )
+	{
+		CCP_LOGERR( "Solar particle natural first-emission prewarm exceeded the authored-rate bound" );
+		std::fprintf(
+			stderr,
+			"PL-14C natural prewarm bound failed: valid=%s rate=%.9f maximumTicks=%llu emitted=%u\n",
+			emitter->IsValid() ? "yes" : "no",
+			rate,
+			static_cast<unsigned long long>( maximumTicks ),
+			emitter->GetEmittedParticleCount() );
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"PL-14C natural particle prewarm: mode=%s rate=%.9f ticks=%llu time=%.7f emitted=%u\n",
+		SunHighLayersName( probe->sunHighLayers ),
+		rate,
+		static_cast<unsigned long long>( probe->solarParticlePrewarmTicks ),
+		static_cast<double>( probe->solarParticlePrewarmTime ) / 10000000.0,
+		emitter->GetEmittedParticleCount() );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarHighReport( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->solarHighConfigured || probe->solarHighReportPath.empty() )
+	{
+		CCP_LOGERR( "Solar High report was not configured" );
+		return false;
+	}
+	std::string error;
+	if( !WriteSolarHighReport( *probe, error ) )
+	{
+		std::fprintf( stderr, "Failed to write PL-14C solar High report: %s\n", error.c_str() );
+		return false;
+	}
+	std::fprintf( stderr, "PL-14C solar High report: %s\n", probe->solarHighReportPath.c_str() );
 	return true;
 }
 
@@ -14724,12 +15841,106 @@ bool RecordSolarBodyFrame( StandaloneProbe& probe, uint64_t frameIndex, int64_t 
 	return true;
 }
 
+bool RecordSolarHighFrame( StandaloneProbe& probe, uint64_t frameIndex, int64_t simulationTime )
+{
+	if( probe.solarHighReportPath.empty() )
+	{
+		return true;
+	}
+	if( !probe.newEdenSun || probe.celestialInspectionTarget != probe.newEdenSun || !probe.scene ||
+		probe.solarHighBranches.size() != 9 )
+	{
+		CCP_LOGERR( "PL-14C solar High report lost its exact-system Sun graph" );
+		std::fprintf(
+			stderr,
+			"PL-14C frame evidence unavailable: sun=%s targetMatches=%s scene=%s branches=%zu\n",
+			probe.newEdenSun ? "yes" : "no",
+			probe.celestialInspectionTarget == probe.newEdenSun ? "yes" : "no",
+			probe.scene ? "yes" : "no",
+			probe.solarHighBranches.size() );
+		return false;
+	}
+	StandaloneSolarHighFrame frame;
+	frame.frame = frameIndex;
+	frame.simulationTime = simulationTime;
+	frame.animationSeconds = static_cast<double>( simulationTime ) / 10000000.0;
+	frame.expectedPixelDiameter = probe.celestialExpectedPixelDiameter;
+	frame.reportedPixelDiameter =
+		probe.newEdenSun->GetEstimatedPixelDiameter() * probe.solarBodyGeometryRadius;
+	const EveSpaceScene::MainPassBatchDiagnostics& batchDiagnostics =
+		probe.scene->GetMainPassBatchDiagnostics();
+	frame.planetOpaqueBatchCount = batchDiagnostics.planetOpaque;
+	frame.planetAdditiveBatchCount = batchDiagnostics.planetAdditive;
+	frame.planetTransparentBatchCount = batchDiagnostics.planetTransparent;
+	frame.view = Tr2Renderer::GetViewTransform();
+	if( ( probe.motionMode == STANDALONE_MOTION_CAMERA ||
+		  probe.motionMode == STANDALONE_MOTION_COMBINED ) &&
+		frameIndex >= 180 )
+	{
+		const double step = static_cast<double>( std::min<uint64_t>( frameIndex - 180 + 1, 900 ) );
+		frame.orbitPhaseRadians = step * ( 2.0 * 3.14159265358979323846 / 900.0 );
+	}
+	for( const StandaloneSolarHighBranch& branch : probe.solarHighBranches )
+	{
+		uint32_t aliveCount = 0;
+		uint32_t peakAliveCount = 0;
+		uint32_t emittedCount = 0;
+		if( branch.particleChild )
+		{
+			for( size_t systemIndex = 0; systemIndex < branch.particleChild->GetParticleSystems().size(); ++systemIndex )
+			{
+				Tr2ParticleSystem* system = branch.particleChild->GetParticleSystem( systemIndex );
+				if( system )
+				{
+					aliveCount += system->GetAliveCount();
+					peakAliveCount += system->GetPeakAliveCount();
+				}
+			}
+			for( size_t emitterIndex = 0; emitterIndex < branch.particleChild->GetParticleEmitters().size(); ++emitterIndex )
+			{
+				ITr2GenericEmitter* abstractEmitter = branch.particleChild->GetParticleEmitter( emitterIndex );
+				Tr2DynamicEmitterPtr emitter = BlueCastPtr( abstractEmitter );
+				if( emitter )
+				{
+					emittedCount += emitter->GetEmittedParticleCount();
+				}
+			}
+		}
+		frame.aliveCounts.push_back( aliveCount );
+		frame.peakAliveCounts.push_back( peakAliveCount );
+		frame.emittedCounts.push_back( emittedCount );
+	}
+	if( !std::isfinite( frame.reportedPixelDiameter ) ||
+		std::abs( frame.reportedPixelDiameter - frame.expectedPixelDiameter ) > 1.0f )
+	{
+		CCP_LOGERR(
+			"PL-14C solar diameter gate failed at frame %llu: expected %.4f reported %.4f",
+			static_cast<unsigned long long>( frameIndex ),
+			frame.expectedPixelDiameter,
+			frame.reportedPixelDiameter );
+		std::fprintf(
+			stderr,
+			"PL-14C solar diameter gate failed at frame %llu: expected %.4f reported %.4f\n",
+			static_cast<unsigned long long>( frameIndex ),
+			frame.expectedPixelDiameter,
+			frame.reportedPixelDiameter );
+		return false;
+	}
+	probe.solarHighFrames.push_back( frame );
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaqueProbe, int qualityRung, int64_t realTime, int64_t simTime, int captureProducts )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || !probe->renderContext )
 	{
 		return false;
+	}
+	if( probe->solarParticlePrewarmCompleted )
+	{
+		realTime += probe->solarParticlePrewarmTime;
+		simTime += probe->solarParticlePrewarmTime;
 	}
 	const bool freezeScene = ( captureProducts & STANDALONE_CAPTURE_FREEZE_SCENE ) != 0;
 	const int captureProduct = captureProducts & ~STANDALONE_CAPTURE_FREEZE_SCENE;
@@ -15213,13 +16424,18 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		{
 			return false;
 		}
+		if( !RecordSolarHighFrame( *probe, probe->renderedFrameCount, simTime ) )
+		{
+			return false;
+		}
 		++probe->renderedFrameCount;
 	}
 	if( rendered && !freezeScene && probe->celestialInspectionTarget &&
 		!probe->celestialInspectionValidated && probe->renderedFrameCount >= 2 )
 	{
 		const float reported = probe->celestialInspectionTarget->GetEstimatedPixelDiameter() *
-			( probe->solarBodyReportPath.empty() ? 1.0f : probe->solarBodyGeometryRadius );
+			( probe->solarBodyReportPath.empty() && probe->solarHighReportPath.empty() ?
+				1.0f : probe->solarBodyGeometryRadius );
 		const float expected = probe->celestialExpectedPixelDiameter;
 		const float relativeError = expected > 0.0f ? std::abs( reported - expected ) / expected : 1.0f;
 		std::fprintf(

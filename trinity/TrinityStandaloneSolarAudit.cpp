@@ -4,6 +4,7 @@
 
 #include "TrinityStandaloneSolarAudit.h"
 
+#include "Curves/TriCurveSet.h"
 #include "Eve/EvePlanet.h"
 #include "Eve/EveSpaceScene.h"
 #include "Eve/SpaceObject/Children/IEveSpaceObjectChild.h"
@@ -804,6 +805,55 @@ struct TrinityStandaloneSolarAudit::Impl
 	bool preparedCaptured = false;
 	EnvironmentPostProcessAudit environmentPostProcess;
 };
+
+void TrinityStandaloneWriteAuthoredScalarAttributesJson( std::ostream& output, IRoot* object )
+{
+	WriteAttributes( output, CaptureScalarAttributes( object ) );
+}
+
+void TrinityStandaloneWriteSolarRootAnimationJson( std::ostream& output, EvePlanet& sun )
+{
+	IRoot* root = sun.GetRawRoot();
+	IListPtr curveSets = GetListAttribute( root, "curveSets" );
+	IListPtr controllers = GetListAttribute( root, "controllers" );
+	output << "{\"curveSets\":[";
+	if( curveSets )
+	{
+		for( ssize_t index = 0; index < curveSets->GetSize(); ++index )
+		{
+			IRoot* curveRoot = curveSets->GetAt( index );
+			TriCurveSetPtr curveSet = BlueCastPtr( curveRoot );
+			if( index )
+			{
+				output << ',';
+			}
+			output << "{\"name\":" << JsonString( curveSet ? curveSet->GetName() : "" )
+				   << ",\"curveCount\":" << ( curveSet ? curveSet->GetCurvesCount() : 0 )
+				   << ",\"bindingCount\":" << ( curveSet ? curveSet->GetBindingsCount() : 0 )
+				   << ",\"playing\":" << ( curveSet && curveSet->IsPlaying() ? "true" : "false" )
+				   << ",\"authoredAttributes\":";
+			WriteAttributes( output, CaptureScalarAttributes( curveRoot ) );
+			output << '}';
+		}
+	}
+	output << "],\"controllers\":[";
+	if( controllers )
+	{
+		for( ssize_t index = 0; index < controllers->GetSize(); ++index )
+		{
+			IRoot* controller = controllers->GetAt( index );
+			if( index )
+			{
+				output << ',';
+			}
+			output << "{\"class\":" << JsonString( ClassName( controller ) )
+				   << ",\"authoredAttributes\":";
+			WriteAttributes( output, CaptureScalarAttributes( controller ) );
+			output << '}';
+		}
+	}
+	output << "]}";
+}
 
 TrinityStandaloneSolarAudit::TrinityStandaloneSolarAudit() :
 	m_impl( std::make_unique<Impl>() )

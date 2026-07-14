@@ -101,6 +101,17 @@ extern "C" bool TrinityStandaloneProbeConfigureSolarBody( void* opaqueProbe,
 														  const char* geometryManifestPath,
 														  const char* generatedGeometryHashPath );
 extern "C" bool TrinityStandaloneProbeWriteSolarBodyReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSolarHigh( void* opaqueProbe,
+												 int layerMode,
+												 const char* reportPath,
+												 const char* resourceManifestPath,
+												 const char* geometryManifestPath,
+												 const char* generatedGeometryManifestPath,
+												 uint32_t particleSeed,
+												 bool naturalFirstEmissionPrewarm );
+extern "C" bool TrinityStandaloneProbePrewarmSolarParticles( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeWriteSolarHighReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeWarmupSolarHigh( void* opaqueProbe, uint32_t ticks );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -373,6 +384,29 @@ enum class SunBodyLayers
 	All,
 };
 
+enum class SunHighLayers
+{
+	Off,
+	Whisps,
+	HugeDefinition,
+	Uber1,
+	Uber2,
+	RingsTop,
+	RingsBottom,
+	Rings,
+	Pillar1,
+	Pillar2,
+	ParticleScaler,
+	Particles,
+	All,
+};
+
+enum class SolarParticlePrewarm
+{
+	None,
+	NaturalFirstEmission,
+};
+
 constexpr int kCaptureColor = 1 << 0;
 constexpr int kCaptureDepth = 1 << 1;
 constexpr int kCaptureNormal = 1 << 2;
@@ -545,6 +579,7 @@ struct Options
 	std::string inspectionReportPath;
 	std::string solarAuditReportPath;
 	std::string solarBodyReportPath;
+	std::string solarHighReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -584,6 +619,12 @@ struct Options
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
 	SunBodyLayers sunBodyLayers = SunBodyLayers::All;
+	SunHighLayers sunHighLayers = SunHighLayers::Off;
+	bool sunHighLayersExplicit = false;
+	uint32_t solarParticleSeed = 3430261;
+	bool solarParticleSeedExplicit = false;
+	SolarParticlePrewarm solarParticlePrewarm = SolarParticlePrewarm::None;
+	uint32_t solarHighWarmup = 0;
 	int cloudYear = 2026;
 	int cloudMonth = 7;
 	int cloudDay = 10;
@@ -1737,6 +1778,82 @@ bool ParseSunBodyLayers( const std::string& value, SunBodyLayers& layers )
 	return false;
 }
 
+std::string SunHighLayersName( SunHighLayers layers )
+{
+	switch( layers )
+	{
+	case SunHighLayers::Off:
+		return "off";
+	case SunHighLayers::Whisps:
+		return "whisps";
+	case SunHighLayers::HugeDefinition:
+		return "huge-definition";
+	case SunHighLayers::Uber1:
+		return "uber-1";
+	case SunHighLayers::Uber2:
+		return "uber-2";
+	case SunHighLayers::RingsTop:
+		return "rings-top";
+	case SunHighLayers::RingsBottom:
+		return "rings-bottom";
+	case SunHighLayers::Rings:
+		return "rings";
+	case SunHighLayers::Pillar1:
+		return "pillar-1";
+	case SunHighLayers::Pillar2:
+		return "pillar-2";
+	case SunHighLayers::ParticleScaler:
+		return "particle-scaler";
+	case SunHighLayers::Particles:
+		return "particles";
+	case SunHighLayers::All:
+		return "all";
+	}
+	return "unknown";
+}
+
+bool ParseSunHighLayers( const std::string& value, SunHighLayers& layers )
+{
+	const std::string normalized = ToLower( value );
+	const SunHighLayers values[] = {
+		SunHighLayers::Off, SunHighLayers::Whisps, SunHighLayers::HugeDefinition,
+		SunHighLayers::Uber1, SunHighLayers::Uber2, SunHighLayers::RingsTop,
+		SunHighLayers::RingsBottom, SunHighLayers::Rings, SunHighLayers::Pillar1,
+		SunHighLayers::Pillar2, SunHighLayers::ParticleScaler, SunHighLayers::Particles,
+		SunHighLayers::All,
+	};
+	for( SunHighLayers candidate : values )
+	{
+		if( normalized == SunHighLayersName( candidate ) )
+		{
+			layers = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string SolarParticlePrewarmName( SolarParticlePrewarm prewarm )
+{
+	return prewarm == SolarParticlePrewarm::NaturalFirstEmission ? "natural-first-emission" : "none";
+}
+
+bool ParseSolarParticlePrewarm( const std::string& value, SolarParticlePrewarm& prewarm )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "none" )
+	{
+		prewarm = SolarParticlePrewarm::None;
+		return true;
+	}
+	if( normalized == "natural-first-emission" )
+	{
+		prewarm = SolarParticlePrewarm::NaturalFirstEmission;
+		return true;
+	}
+	return false;
+}
+
 std::string PlanetCloudDateName( const Options& options )
 {
 	char value[16];
@@ -2237,6 +2354,7 @@ void PrintUsage( const char* executable )
 		<< "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
 		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
 		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
+		<< "       [--sun-high-layers off|whisps|huge-definition|uber-1|uber-2|rings-top|rings-bottom|rings|pillar-1|pillar-2|particle-scaler|particles|all]\n"
 		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
@@ -2262,7 +2380,9 @@ void PrintUsage( const char* executable )
 		<< "       [--validate-composition] [--frame-pacing-check] [--timing-warmup N]\n"
 		<< "       [--material-view lit|basecolor|normal|roughness|material|glow|d|mask|p3]\n"
 		<< "       [--capture-prefix PATH] [--inspect-client-assets REPORT.md] [--solar-audit-report REPORT.json]\n"
-		<< "       [--solar-body-report REPORT.json]\n";
+		<< "       [--solar-body-report REPORT.json] [--solar-high-report REPORT.json]\n"
+		<< "       [--solar-particle-seed N] [--solar-particle-prewarm none|natural-first-emission]\n"
+		<< "       [--solar-high-warmup N]\n";
 }
 
 bool ValidateCanonicalCompositionOptions( const Options& options )
@@ -2939,6 +3059,38 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--sun-high-layers" )
+		{
+			if( ++i >= argc || !ParseSunHighLayers( argv[i], options.sunHighLayers ) )
+			{
+				return false;
+			}
+			options.sunHighLayersExplicit = true;
+		}
+		else if( arg == "--solar-particle-seed" )
+		{
+			if( ++i >= argc || !ParseUnsigned( argv[i], options.solarParticleSeed ) ||
+				options.solarParticleSeed >= 0x7FFFFFFFu )
+			{
+				return false;
+			}
+			options.solarParticleSeedExplicit = true;
+		}
+		else if( arg == "--solar-particle-prewarm" )
+		{
+			if( ++i >= argc || !ParseSolarParticlePrewarm( argv[i], options.solarParticlePrewarm ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--solar-high-warmup" )
+		{
+			if( ++i >= argc || !ParseUnsigned( argv[i], options.solarHighWarmup ) ||
+				options.solarHighWarmup == 0 )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--inspect-client-assets" )
 		{
 			if( ++i >= argc )
@@ -2962,6 +3114,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.solarBodyReportPath = argv[i];
+		}
+		else if( arg == "--solar-high-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.solarHighReportPath = argv[i];
 		}
 		else
 		{
@@ -5383,6 +5543,42 @@ int main( int argc, char** argv )
 						 "and a positive finite --frames count\n";
 			return 2;
 		}
+		const bool solarHighRequested = options.sunHighLayersExplicit || !options.solarHighReportPath.empty();
+		if( solarHighRequested && options.sceneFixture != SceneFixture::NewEden )
+		{
+			std::cerr << "Solar High controls require --scene-fixture new-eden\n";
+			return 2;
+		}
+		if( !options.solarHighReportPath.empty() &&
+			( options.shaderTier != ShaderTier::High || options.qualityRung < QualityRung::Model ||
+			  options.cameraView != CameraView::Celestials || options.composition != SceneComposition::System ||
+			  options.maxFrames <= 0 ) )
+		{
+			std::cerr << "--solar-high-report requires --scene-fixture new-eden --shader-tier high "
+						 "--camera-view celestials --composition system, a model-or-higher quality rung, "
+						 "and a positive finite --frames count\n";
+			return 2;
+		}
+		if( options.solarParticleSeedExplicit && options.solarHighReportPath.empty() )
+		{
+			std::cerr << "--solar-particle-seed is valid only with --solar-high-report\n";
+			return 2;
+		}
+		if( options.solarParticlePrewarm == SolarParticlePrewarm::NaturalFirstEmission &&
+			( options.solarHighReportPath.empty() ||
+			  ( options.sunHighLayers != SunHighLayers::Pillar1 &&
+				options.sunHighLayers != SunHighLayers::Pillar2 ) ) )
+		{
+			std::cerr << "Natural solar-particle prewarm requires a solar High report and one isolated pillar\n";
+			return 2;
+		}
+		if( options.solarHighWarmup != 0 &&
+			( options.solarHighReportPath.empty() ||
+			  options.solarParticlePrewarm == SolarParticlePrewarm::NaturalFirstEmission ) )
+		{
+			std::cerr << "--solar-high-warmup requires a solar High report and cannot be combined with natural prewarm\n";
+			return 2;
+		}
 
 		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model &&
 			!FileExists( options.inputPath ) )
@@ -5483,6 +5679,26 @@ int main( int argc, char** argv )
 				return 1;
 			}
 		}
+		if( solarHighRequested )
+		{
+			const std::string reportsDirectory = executableDirectory + "/../Reports/";
+			if( ( !options.solarHighReportPath.empty() && !EnsureParentDirectory( options.solarHighReportPath ) ) ||
+				!TrinityStandaloneProbeConfigureSolarHigh(
+					probe,
+					static_cast<int>( options.sunHighLayers ),
+					options.solarHighReportPath.empty() ? nullptr : options.solarHighReportPath.c_str(),
+					( reportsDirectory + "NewEdenSolarHighResources.json" ).c_str(),
+					( reportsDirectory + "NewEdenSolarHighGeometry.json" ).c_str(),
+					( reportsDirectory + "NewEdenSolarHighGeneratedCmf.json" ).c_str(),
+					options.solarHighReportPath.empty() ? 0 : options.solarParticleSeed,
+					options.solarParticlePrewarm == SolarParticlePrewarm::NaturalFirstEmission ) )
+			{
+				std::cerr << "Failed to configure the PL-14C solar High contract\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
 		if( options.enableFroxels && !TrinityStandaloneProbeSetFroxelRenderingEnabled( probe, true ) )
 		{
 			std::cerr << "Failed to enable froxel rendering\n";
@@ -5554,6 +5770,22 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.aoMethod ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( options.solarParticlePrewarm == SolarParticlePrewarm::NaturalFirstEmission &&
+			!TrinityStandaloneProbePrewarmSolarParticles( probe ) )
+		{
+			std::cerr << "PL-14C natural solar-particle prewarm failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( options.solarHighWarmup != 0 &&
+			!TrinityStandaloneProbeWarmupSolarHigh( probe, options.solarHighWarmup ) )
+		{
+			std::cerr << "PL-14C fixed solar High warmup failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -6636,7 +6868,16 @@ int main( int argc, char** argv )
 				std::cout << "Solar body report: " << options.solarBodyReportPath << "\n";
 			}
 		}
-		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
+		bool solarHighReportSucceeded = true;
+		if( !options.solarHighReportPath.empty() )
+		{
+			solarHighReportSucceeded = TrinityStandaloneProbeWriteSolarHighReport( probe );
+			if( solarHighReportSucceeded )
+			{
+				std::cout << "Solar High report: " << options.solarHighReportPath << "\n";
+			}
+		}
+		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded && solarHighReportSucceeded &&
 			framePacingSucceeded && compositionValidationSucceeded && exposureValidationSucceeded &&
 			toneValidationSucceeded && postFinishValidationSucceeded && distortionValidationSucceeded &&
 			volumetricValidationSucceeded && engineValidationSucceeded && temporalValidationSucceeded &&

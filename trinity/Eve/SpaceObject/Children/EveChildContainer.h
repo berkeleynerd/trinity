@@ -131,6 +131,11 @@ public:
 	void GetLights( Tr2LightManager & lightManager ) const override;
 
 	void SetOrigin( Origin origin );
+	void SetDisplay( bool display );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
 
 	void Setup( const Vector3* scale, const Quaternion* rotation, const Vector3* translation, Tr2Lod lowestLodVisible );
 	void SetAlwaysOn( bool alwaysOn );

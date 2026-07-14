@@ -48,6 +48,10 @@ public:
 	void GetZOnlyRenderables( std::vector<ITr2Renderable*> & renderables );
 
 	void UpdateLOD();
+	void SetLodForTesting( Tr2Lod lod )
+	{
+		SetLod( lod );
+	}
 	void SetRenderScale( float value );
 	void SetStandalonePlacement( const Vector3& position, float radius, const Color& albedo, const Color& emissive );
 

@@ -679,6 +679,16 @@ void EveChildContainer::SetOrigin( Origin origin )
 	m_origin = origin;
 }
 
+void EveChildContainer::SetDisplay( bool display )
+{
+	if( m_display == display )
+	{
+		return;
+	}
+	m_display = display;
+	ReRegister();
+}
+
 void EveChildContainer::PlayCurveSet( const std::string& name, const std::string& rangeName )
 {
 	if( !IsUpdating() )

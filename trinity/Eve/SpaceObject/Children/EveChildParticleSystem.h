@@ -82,6 +82,43 @@ public:
 	void GetDebugOptions( Tr2DebugRendererOptions & options ) override;
 	void RenderDebugInfo( ITr2DebugRenderer2 & renderer ) override;
 
+	void SetDisplay( bool display );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
+	// Keeps authored update/emitter ownership active while isolating only this
+	// child's draw submission. PL-14C needs this for the two ring children,
+	// which share an instanced mesh and particle system.
+	void SetMeshDisplay( bool display )
+	{
+		m_meshDisplay = display;
+	}
+	bool GetMeshDisplay() const
+	{
+		return m_meshDisplay;
+	}
+	Tr2InstancedMesh* GetMesh() const
+	{
+		return m_mesh;
+	}
+	const PTr2ParticleSystemVector& GetParticleSystems() const
+	{
+		return m_particleSystems;
+	}
+	Tr2ParticleSystem* GetParticleSystem( size_t index )
+	{
+		return index < m_particleSystems.size() ? m_particleSystems[index] : nullptr;
+	}
+	const PITr2GenericEmitterVector& GetParticleEmitters() const
+	{
+		return m_particleEmitters;
+	}
+	ITr2GenericEmitter* GetParticleEmitter( size_t index )
+	{
+		return index < m_particleEmitters.size() ? m_particleEmitters[index] : nullptr;
+	}
+
 	PITr2GenericEmitterVector m_particleEmitters;
 
 private:
@@ -107,6 +144,7 @@ private:
 	float m_currentScreenSize;
 
 	bool m_display;
+	bool m_meshDisplay;
 	bool m_isVisible;
 	// Has UpdateSynchronous/UpdateAsynchronous been called: until it was, the object can not be rendered
 	bool m_hasUpdated = false;

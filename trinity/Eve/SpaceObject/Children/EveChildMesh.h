@@ -167,6 +167,11 @@ public:
 		return m_mesh;
 	}
 	void SetOrigin( Origin origin );
+	void SetDisplay( bool display );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
 	void SetReflectionMode( EntityComponents::ReflectionMode reflectionMode );
 	void SetCastShadow( bool castShadow );
 	void SetMinScreenSize( float minScreenSize );

@@ -2859,3 +2859,38 @@ contributing beyond the 121-pixel surface radius before combining with the
 surface. This is structural authored parity only. Whisps, particles, optics,
 legacy fog, occlusion, exposure/color matching, and scene illumination remain
 deferred to PL-14C/D/E.
+
+## CP-41 native High-quality Sun whisp and particle graph (2026-07-14)
+
+The standalone probe now accepts sample-only `--sun-high-layers` controls for
+the whisp, huge-definition mesh, two uber systems, top/bottom/combined rings,
+two pillars, particle scaler, particle system, aggregate particles, and the
+complete High graph. The default is `off`. Selection uses display state on the
+existing child, mesh, and particle objects; it neither prunes nor reorders the
+authored graph. `--solar-high-report` requires a finite High-tier New Eden run
+and records the exact graph/resource/material/particle closure plus real
+emission, committed-instance, and planet-pass counts. A deterministic seed is
+available only with that report and is never installed by production startup.
+
+The accepted inventory is nine containers, two ordinary meshes, seven
+particle children, nine mesh areas, seven particle systems, six emitters, and
+32 generators. Ring Top owns the authored emitter that feeds the particle
+system shared with Ring Bottom. Consequently the bottom isolate keeps the top
+emitter updating while suppressing only the top child's mesh submission. The
+two pillars use the normal Sun update path at exactly 1/60 second until first
+natural emission; their bounds are derived from the authored rates rather than
+from a sample-owned timeout. The particle sorter now breaks equal camera-depth
+ties by stable particle index, removing a five-pixel repeat variation without
+changing authored state or draw order semantics.
+
+Promised Land PL-14C accepts all isolated and integrated 1280×960 lanes. Fixed
+and orbit A/B reports and sequences are byte-identical with zero repeat noise;
+every reachable branch is nonblank and animated, both pillars emit within
+their authored-rate bounds, the shared-ring dependency is visible, and the
+900-step orbit finishes at 2π while holding the Sun at 240±1 backing pixels.
+The selected-unreachable inverted cover closes only resource/preparation
+evidence, and the low-quality socket remains unstaged. The full warnings-as-
+errors build, focused Metal captures, PL-14A/B/C gates, and canonical Tour
+smoke pass. This remains structural authored parity: optics, legacy fog,
+occlusion, exact client color/exposure, and scene illumination move to
+PL-14D/E, while the Tour keeps the new graph off until PL-14F.

@@ -57,6 +57,26 @@ public:
 
 	void ResetEmittedParticleCount();
 	uint32_t GetEmittedParticleCount() const;
+	const char* GetName() const
+	{
+		return m_name.c_str();
+	}
+	float GetRate() const
+	{
+		return m_rate;
+	}
+	int32_t GetMaxParticles() const
+	{
+		return m_maxParticles;
+	}
+	Tr2ParticleSystem* GetParticleSystem() const
+	{
+		return m_particleSystem;
+	}
+	const PITr2AttributeGeneratorVector& GetGenerators() const
+	{
+		return m_generators;
+	}
 
 private:
 	void UpdateSimulation( float dt );

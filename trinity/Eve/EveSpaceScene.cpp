@@ -4121,6 +4121,15 @@ void EveSpaceScene::UpdatePlanets( const EveUpdateContext& updateContext )
 	Tr2Renderer::SetViewTransform( orgViewMatrix );
 }
 
+void EveSpaceScene::AdvancePlanetUpdateForTesting( EvePlanet& planet, Be::Time simulationTime )
+{
+	m_updateContext.SetTime( simulationTime );
+	const Matrix originalView = Tr2Renderer::GetViewTransform();
+	Tr2Renderer::SetViewTransform( CreatePlanetViewMatrix( originalView ) );
+	planet.UpdatePlanetSyncronous( m_updateContext, m_planetScale );
+	Tr2Renderer::SetViewTransform( originalView );
+}
+
 void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 {
 	// Backup current state

@@ -1129,6 +1129,16 @@ void EveChildMesh::SetOrigin( Origin origin )
 	m_origin = origin;
 }
 
+void EveChildMesh::SetDisplay( bool display )
+{
+	if( m_display == display )
+	{
+		return;
+	}
+	m_display = display;
+	ReRegister();
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Setup function to set data from outside, in this case just pass it to

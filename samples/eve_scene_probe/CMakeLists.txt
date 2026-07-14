@@ -308,6 +308,10 @@ set(EVE_SCENE_PROBE_OCCLUDER_GLTF ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/ZSprite.gl
 set(EVE_SCENE_PROBE_OCCLUDER_BIN ${EVE_SCENE_PROBE_SUN_FX_BUILD_DIR}/ZSprite.bin)
 set(EVE_SCENE_PROBE_OCCLUDER_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/model/global/zsprite.cmf)
 set(EVE_SCENE_PROBE_OCCLUDER_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenLensFlareOccluderGeometry.json)
+set(EVE_SCENE_PROBE_SOLAR_HIGH_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/SolarHighAssets)
+set(EVE_SCENE_PROBE_SOLAR_HIGH_RESOURCE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSolarHighResources.json)
+set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSolarHighGeometry.json)
+set(EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenSolarHighGeneratedCmf.json)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_HI ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_hi)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_LO ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_lo)
 set(EVE_SCENE_PROBE_COMPUTE_LIGHT_LISTS_DEPTH ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/computelightlists.sm_depth)
@@ -1923,6 +1927,210 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets AND EXISTS "${EVE_SCENE_PROBE_SHARED
     )
     add_dependencies(TrinityEveSceneProbeWarpTunnelAssets TrinityEveSceneProbeEveGateAssets)
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeWarpTunnelAssets)
+
+    # PL-14C stages the exact High-quality whisp, huge-definition, particle,
+    # and selected-unreachable cover closure. Existing PL-14B, EVE Gate, Sun
+    # optics, and warp targets own shared runtime files; a separate ignored
+    # evidence tree records a closed, single-source manifest without creating
+    # duplicate custom-command outputs.
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_RESOURCES
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_hi
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_lo
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_depth
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_hi
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_lo
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_depth
+        graphics/effect.metal/managed/space/planet/solarflare.sm_hi
+        graphics/effect.metal/managed/space/planet/solarflare.sm_lo
+        graphics/effect.metal/managed/space/planet/solarflare.sm_depth
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_hi
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_lo
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_depth
+        graphics/effect.metal/managed/space/specialfx/ubershader.sm_hi
+        graphics/effect.metal/managed/space/specialfx/ubershader.sm_lo
+        graphics/effect.metal/managed/space/specialfx/ubershader.sm_depth
+        dx9/model/celestial/sun/sunrampcorona_yellow_01a.dds
+        texture/fx/3d/3dfx_shield_02.dds
+        texture/fx/caustics/caustic_01b.dds
+        texture/fx/caustics/caustic_13.dds
+        texture/fx/caustics/caustic_13b.dds
+        texture/fx/caustics/caustic_13c.dds
+        texture/fx/gradients/squaremask_x8_01d.dds
+        texture/fx/gradients/sunparticleramp_01a.dds
+        texture/fx/motionparticles/mparticle_smokeedges_01a.dds
+        texture/fx/smoke/smoke_caustic_01.dds
+        texture/global/white.dds
+        texture/sprite/sphere_capmask.dds
+    )
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_RESOURCES
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_hi
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_lo
+        graphics/effect.metal/managed/space/planet/sunwhisps.sm_depth
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_hi
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_lo
+        graphics/effect.metal/managed/space/planet/suntexturedflare.sm_depth
+        graphics/effect.metal/managed/space/planet/solarflare.sm_hi
+        graphics/effect.metal/managed/space/planet/solarflare.sm_lo
+        graphics/effect.metal/managed/space/planet/solarflare.sm_depth
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_hi
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_lo
+        graphics/effect.metal/managed/space/planet/solarflareanimated.sm_depth
+        texture/fx/3d/3dfx_shield_02.dds
+        texture/fx/caustics/caustic_01b.dds
+        texture/fx/caustics/caustic_13.dds
+        texture/fx/caustics/caustic_13b.dds
+        texture/fx/caustics/caustic_13c.dds
+        texture/fx/gradients/squaremask_x8_01d.dds
+        texture/fx/gradients/sunparticleramp_01a.dds
+        texture/fx/motionparticles/mparticle_smokeedges_01a.dds
+        texture/fx/smoke/smoke_caustic_01.dds
+    )
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_OUTPUTS)
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_COPY_ARGS)
+    foreach(RESOURCE IN LISTS EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_RESOURCES)
+        set(OUTPUT ${EVE_SCENE_PROBE_SOLAR_HIGH_BUILD_DIR}/Closure/${RESOURCE})
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_OUTPUTS ${OUTPUT})
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_COPY_ARGS
+            --copy-resource res:/${RESOURCE} ${OUTPUT})
+    endforeach()
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_OUTPUTS)
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_COPY_ARGS)
+    foreach(RESOURCE IN LISTS EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_RESOURCES)
+        set(OUTPUT ${EVE_SCENE_PROBE_ASSETS_DIR}/${RESOURCE})
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_OUTPUTS ${OUTPUT})
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_COPY_ARGS
+            --copy-resource res:/${RESOURCE} ${OUTPUT})
+    endforeach()
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_OUTPUTS} ${EVE_SCENE_PROBE_SOLAR_HIGH_RESOURCE_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_SOLAR_HIGH_RESOURCE_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_OUTPUTS}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_COPY_ARGS}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM
+    )
+
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_LOGICAL_PATHS
+        res:/graphics/generic/custom/solar_whispset_02a.gr2
+        res:/graphics/generic/unit_plane.gr2
+        res:/graphics/generic/unitplane/unitplane.gr2
+        res:/graphics/generic/unitsphere/unitsphereinverted.gr2
+        res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_offset_01a_z.gr2
+        res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.gr2
+        res:/graphics/generic/vortex/cone2_fixeduvs_lowdetailsimple_z.gr2
+        res:/graphics/generic/vortex/tube_bulge_01.gr2
+    )
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_NAMES
+        SolarWhispSet UnitPlane UnitPlaneNested UnitSphereInverted
+        ConeHighOffset ConeHigh ConeLow TubeBulge)
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_CMF_PATHS
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/custom/solar_whispset_02a.cmf
+        ${EVE_SCENE_PROBE_EVE_GATE_PLANE_CMF}
+        ${EVE_SCENE_PROBE_SUN_FLARE_CMF}
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere/unitsphereinverted.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/cone2_fixeduvs_highdetail_offset_01a_z.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/cone2_fixeduvs_lowdetailsimple_z.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/tube_bulge_01.cmf
+    )
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_LOGICAL_PATHS
+        res:/graphics/generic/custom/solar_whispset_02a.cmf
+        res:/graphics/generic/unit_plane.cmf
+        res:/graphics/generic/unitplane/unitplane.cmf
+        res:/graphics/generic/unitsphere/unitsphereinverted.cmf
+        res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_offset_01a_z.cmf
+        res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.cmf
+        res:/graphics/generic/vortex/cone2_fixeduvs_lowdetailsimple_z.cmf
+        res:/graphics/generic/vortex/tube_bulge_01.cmf
+    )
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_SOURCE_OUTPUTS)
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_COPY_ARGS)
+    set(EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_OUTPUTS)
+    list(LENGTH EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_NAMES SOLAR_HIGH_GEOMETRY_COUNT)
+    math(EXPR SOLAR_HIGH_GEOMETRY_LAST "${SOLAR_HIGH_GEOMETRY_COUNT} - 1")
+    foreach(INDEX RANGE ${SOLAR_HIGH_GEOMETRY_LAST})
+        list(GET EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_NAMES ${INDEX} NAME)
+        list(GET EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_LOGICAL_PATHS ${INDEX} LOGICAL_PATH)
+        list(GET EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_CMF_PATHS ${INDEX} CMF_PATH)
+        set(SOURCE_PATH ${EVE_SCENE_PROBE_SOLAR_HIGH_BUILD_DIR}/SourceGeometry/${NAME}.gr2)
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_SOURCE_OUTPUTS ${SOURCE_PATH})
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_COPY_ARGS
+            --copy-resource ${LOGICAL_PATH} ${SOURCE_PATH})
+        if(INDEX EQUAL 1 OR INDEX EQUAL 2)
+            continue()
+        endif()
+        set(GLTF_PATH ${EVE_SCENE_PROBE_SOLAR_HIGH_BUILD_DIR}/Converted/${NAME}.gltf)
+        set(BIN_PATH ${EVE_SCENE_PROBE_SOLAR_HIGH_BUILD_DIR}/Converted/${NAME}.bin)
+        add_custom_command(
+            OUTPUT ${GLTF_PATH} ${BIN_PATH}
+            COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+                --model ${LOGICAL_PATH}
+                --output ${GLTF_PATH}
+                --summary
+            DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            VERBATIM
+        )
+        get_filename_component(CMF_DIRECTORY ${CMF_PATH} DIRECTORY)
+        add_custom_command(
+            OUTPUT ${CMF_PATH}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMF_DIRECTORY}
+            COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+                --input ${GLTF_PATH}
+                --output ${CMF_PATH}
+                --summary
+            DEPENDS TrinityGltfToCmf ${GLTF_PATH} ${BIN_PATH}
+            VERBATIM
+        )
+        list(APPEND EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_OUTPUTS ${CMF_PATH})
+    endforeach()
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_SOURCE_OUTPUTS} ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_MANIFEST}
+        COMMAND ${CMAKE_COMMAND}
+            "-DINPUTS=${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_CMF_PATHS}"
+            "-DLOGICAL_PATHS=${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_LOGICAL_PATHS}"
+            -DOUTPUT=${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_MANIFEST}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256_manifest.cmake
+        DEPENDS
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_CMF_PATHS}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256_manifest.cmake
+        VERBATIM
+    )
+    add_custom_target(TrinityEveSceneProbeSolarHighAssets
+        DEPENDS
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_EVIDENCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_OUTPUTS}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_RESOURCE_MANIFEST}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_SOURCE_OUTPUTS}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_OUTPUTS}
+            ${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_MANIFEST}
+    )
+    add_dependencies(TrinityEveSceneProbeSolarHighAssets
+        TrinityEveSceneProbeWarpTunnelAssets
+        TrinityEveSceneProbeNewEdenSunFxAssets)
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeSolarHighAssets)
 endif()
 
 if(EXISTS "${EVE_SCENE_PROBE_SHIP_SOURCE}")
@@ -2318,6 +2526,15 @@ if(TARGET TrinityEveSceneProbeAsteroEngineAssets)
 		${EVE_SCENE_PROBE_ENGINE_CMF_HASH})
 endif()
 
+if(TARGET TrinityEveSceneProbeSolarHighAssets)
+	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+		${EVE_SCENE_PROBE_SOLAR_HIGH_RUNTIME_OUTPUTS}
+		${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_OUTPUTS}
+		${EVE_SCENE_PROBE_SOLAR_HIGH_RESOURCE_MANIFEST}
+		${EVE_SCENE_PROBE_SOLAR_HIGH_GEOMETRY_MANIFEST}
+		${EVE_SCENE_PROBE_SOLAR_HIGH_GENERATED_MANIFEST})
+endif()
+
 add_custom_command(
     TARGET TrinityALEveSceneProbe_metal
     POST_BUILD
@@ -2436,6 +2653,9 @@ endif()
 
 add_custom_target(TrinityEveSceneProbeRuntimeAssets
     COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${EVE_SCENE_PROBE_ASSETS_DIR}
+        $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets
     DEPENDS TrinityALEveSceneProbe_metal TrinityEveSceneProbeAssets
     VERBATIM
 )

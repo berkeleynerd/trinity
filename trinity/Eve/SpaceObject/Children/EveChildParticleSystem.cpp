@@ -24,6 +24,7 @@ EveChildParticleSystem::EveChildParticleSystem( IRoot* lockobj ) :
 	m_boundingSphere( 0, 0, 0, -1 ),
 	m_lodSphere( 0, 0, 0, -1 ),
 	m_display( true ),
+	m_meshDisplay( true ),
 	m_isVisible( true ),
 	m_useDynamicLod( false ),
 	m_lodFactorMedium( 0.25 ),
@@ -85,6 +86,16 @@ const char* EveChildParticleSystem::GetName() const
 void EveChildParticleSystem::SetName( const char* name )
 {
 	m_name = BlueSharedString( name );
+}
+
+void EveChildParticleSystem::SetDisplay( bool display )
+{
+	if( m_display == display )
+	{
+		return;
+	}
+	m_display = display;
+	ReRegister();
 }
 
 // --------------------------------------------------------------------------------
@@ -154,7 +165,7 @@ bool EveChildParticleSystem::GetBoundingSphere( Vector4& sphere, BoundingSphereQ
 
 bool EveChildParticleSystem::HasTransparentBatches()
 {
-	if( m_display && m_mesh )
+	if( m_display && m_meshDisplay && m_mesh )
 	{
 		return !( m_mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT )->empty() );
 	}
@@ -164,7 +175,7 @@ bool EveChildParticleSystem::HasTransparentBatches()
 
 void EveChildParticleSystem::GetBatches( ITriRenderBatchAccumulator* batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason )
 {
-	if( m_display && m_mesh && m_mesh->GetAreas( batchType )->size() != 0 )
+	if( m_display && m_meshDisplay && m_mesh && m_mesh->GetAreas( batchType )->size() != 0 )
 	{
 		m_mesh->GetBatches( batches, m_mesh->GetAreas( batchType ), perObjectData, std::numeric_limits<float>::max(), reason == Tr2RenderReason::TR2RENDERREASON_REFLECTION );
 	}
@@ -338,7 +349,7 @@ void EveChildParticleSystem::GetDebugOptions( Tr2DebugRendererOptions& options )
 
 void EveChildParticleSystem::RenderDebugInfo( ITr2DebugRenderer2& renderer )
 {
-	if( m_display && m_mesh )
+	if( m_display && m_meshDisplay && m_mesh )
 	{
 		m_mesh->RenderDebugInfo( m_worldTransform, renderer );
 	}

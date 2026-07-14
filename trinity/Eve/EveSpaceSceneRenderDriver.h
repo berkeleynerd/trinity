@@ -121,6 +121,14 @@ public:
 
 	void SetDebugMode( bool enable );
 	bool GetDebugMode() const;
+	void SetRenderingEnabled( bool enabled )
+	{
+		m_enableRendering = enabled;
+	}
+	bool GetRenderingEnabled() const
+	{
+		return m_enableRendering;
+	}
 
 	std::vector<Tr2TextureReferencePtr> GetAllTempTextures() const;
 
