@@ -2894,3 +2894,41 @@ errors build, focused Metal captures, PL-14A/B/C gates, and canonical Tour
 smoke pass. This remains structural authored parity: optics, legacy fog,
 occlusion, exact client color/exposure, and scene illumination move to
 PL-14D/E, while the Tour keeps the new graph off until PL-14F.
+
+## Journal: from the lighting question to CP-41 (2026-07-14)
+
+This work began as a visual question about the EVE Gate journey: should the
+phenomenon, the system atmosphere, or newly introduced froxels be changing the
+ship's hull lighting? The first useful result was restraint. The source and
+authored scene do not select a New Eden froxel volume, scene-distance fog is
+inert at `fogMax=0`, and Silk belongs to an unrelated local VDB graph. The
+selected Sun environment does, however, carry a legacy post-process profile.
+That distinction kept renderer capability from being mistaken for authored
+scene content and preserved the Tour's no-Silk/no-froxel default.
+
+When a live five-view client oracle proved impractical, the investigation was
+reframed around pinned source, the installed authored graph, and registered
+online media. PL-14A therefore froze the evidence before rendering changed:
+High selects both Sun graphs, the low-quality socket is excluded, 21 reachable
+branches require parity, and the inverted cover is selected but unreachable.
+That audit landed in `5d7ac60cc` and `c0ab9a2da`; it authorized structural
+claims only, not reconstructed client pixels.
+
+Implementation then advanced in two deliberately separate slices. CP-40
+(`72beda4ab`) retained and isolated the authored `Surface`, `OuterBeams`, and
+`EdgeClouds` areas. CP-41 (`e72283672`) restored the remaining reachable whisp,
+huge-definition, and particle graph through native Trinity objects. Three
+discoveries mattered more than the volume of code: Ring Bottom shares Ring
+Top's emitter-owned particle system, the pillars' authored rates require long
+natural-emission prewarms, and equal-depth particle sorting needed a stable
+index tie-break to make repeated evidence byte-identical. None justified a new
+shader, geometry substitute, tuned rate, or sample-authored haze.
+
+The resulting PL-14C matrix closes every reachable isolate and the integrated
+fixed/orbit lanes with zero A/B repeat noise, 240±1-pixel framing, natural
+pillar emission, and exact 2π orbit completion. A fresh PL-11D run retained
+trajectory hash `4b2ab48907c53458`, and the canonical Tour smoke retained its
+old profile. The next question is now sharply bounded: PL-14D must compose and
+validate authored optics, the selected legacy fog profile, and occlusion
+through the full HDR finish. Exact client color/exposure and scene illumination
+remain unclaimed rather than being smuggled into the structural result.
