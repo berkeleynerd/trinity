@@ -580,6 +580,9 @@ enum StandaloneJourneyPhase
 	STANDALONE_JOURNEY_PLANET_OBSERVATION_ALIGNING,
 	STANDALONE_JOURNEY_PLANET_OBSERVATION_STOPPING,
 	STANDALONE_JOURNEY_PLANET_OBSERVING,
+	STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING,
+	STANDALONE_JOURNEY_PLANET_ORBIT_WARPING,
+	STANDALONE_JOURNEY_PLANET_ORBITING,
 };
 
 enum StandaloneCelestialBallparkMode
@@ -607,6 +610,8 @@ constexpr double kNewEdenTourPlanetCoverage = 0.5;
 constexpr double kNewEdenTourPlanetWarpMinimumRange = 1.0e7;
 constexpr float kNewEdenTourFinaleCameraDistance = 150.0f;
 constexpr float kNewEdenTourFinaleCameraHeight = 55.0f;
+constexpr uint64_t kNewEdenTourPlanetOrbitFrame = 5702;
+constexpr float kNewEdenTourPlanetOrbitSurfaceRange = 2500.0f;
 // landmarks.static record 1 ("EVE Gate") relative to the stargate anchor. The
 // landmark has no authored in-space item, so approaching it is explicit demo
 // policy rather than recovered client behavior (CP-36 recon).
@@ -13866,8 +13871,13 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	const bool planetObservation =
 		probe.journeyPhase == STANDALONE_JOURNEY_PLANET_OBSERVATION_STOPPING ||
 		probe.journeyPhase == STANDALONE_JOURNEY_PLANET_OBSERVING;
+	const bool planetOrbitAlignment =
+		probe.journeyPhase == STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING;
+	const bool planetOrbiting =
+		probe.journeyPhase == STANDALONE_JOURNEY_PLANET_ORBITING;
+	const bool planetSunHeading = planetObservation || planetOrbitAlignment;
 	Vector3 observationSun( 0.0f, 0.0f, 0.0f );
-	if( planetObservation )
+	if( planetSunHeading )
 	{
 		// WARP/chase uses Destiny's ego reference frame. Camera coordinates must
 		// therefore be relative to the ship's floating origin even though the
@@ -13877,16 +13887,32 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 								diagnostics.absolutePosition[0] ),
 			static_cast<float>( kNewEdenSunRelative[1] - probe.celestialAnchorOffset[1] -
 								diagnostics.absolutePosition[1] ),
-			static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
+				static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
+								diagnostics.absolutePosition[2] ) );
+	}
+	Vector3 observationPlanet( 0.0f, 0.0f, 0.0f );
+	if( planetOrbiting )
+	{
+		observationPlanet = Vector3(
+			static_cast<float>( kNewEdenPlanetRelative[0] - probe.celestialAnchorOffset[0] -
+								diagnostics.absolutePosition[0] ),
+			static_cast<float>( kNewEdenPlanetRelative[1] - probe.celestialAnchorOffset[1] -
+								diagnostics.absolutePosition[1] ),
+			static_cast<float>( kNewEdenPlanetRelative[2] - probe.celestialAnchorOffset[2] -
 								diagnostics.absolutePosition[2] ) );
 	}
 	Vector3 forward(
 		static_cast<float>( diagnostics.velocity[0] ),
 		static_cast<float>( diagnostics.velocity[1] ),
 		static_cast<float>( diagnostics.velocity[2] ) );
-	if( Length( forward ) < 1.0f )
+	const bool moving = Length( forward ) >= 1.0f;
+	if( !moving )
 	{
-		if( warpChase && probe.warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+		if( planetSunHeading )
+		{
+			forward = Normalize( observationSun - ship );
+		}
+		else if( warpChase && probe.warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
 		{
 			double toGate[3] = {
 				kNewEdenEveGateRelative[0] - probe.celestialAnchorOffset[0] - diagnostics.absolutePosition[0],
@@ -13938,7 +13964,7 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	constexpr float pi = 3.1415926535f;
 	const float seconds = static_cast<float>( simulationTime ) / 10000000.0f;
 	const float shoulderAngle =
-		( gateAligned || planetObservation ) ? 0.0f :
+		( gateAligned || planetObservation || ( planetOrbitAlignment && !moving ) ) ? 0.0f :
 											   25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
 	const Vector3 shoulderDirection = Normalize(
 		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
@@ -13947,8 +13973,12 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	// The ship is aligned to the Sun/planet line by Destiny. Preserve the native
 	// near chase focus so the hull remains the subject while that authored line
 	// of sight places the planet and optical response above it.
-	const Vector3 desiredTarget =
-		gateAligned ? gatePosition : ship + forward * 25.0f + up * 5.0f;
+	const Vector3 orbitInward = planetOrbiting ?
+		Normalize( observationPlanet - ship ) * 25.0f :
+		Vector3( 0.0f, 0.0f, 0.0f );
+	const Vector3 desiredTarget = gateAligned ?
+		gatePosition :
+		ship + forward * 25.0f + orbitInward + up * 5.0f;
 	const Vector3 previousEye = probe.chaseCameraEye;
 	if( !probe.chaseCameraInitialized )
 	{
@@ -24554,12 +24584,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetFinale(
 		std::fprintf(
 			stderr,
 			"Tour planet finale: startFrame=%llu distance=%.0f targetCoverage=%.3f "
-			"cameraDistance=%.0f cameraHeight=%.0f\n",
+			"cameraDistance=%.0f cameraHeight=%.0f orbitStartFrame=%llu "
+			"orbitSurfaceRange=%.0f\n",
 			static_cast<unsigned long long>( kNewEdenTourPlanetFinaleFrame ),
 			kNewEdenTourPlanetDistance,
 			kNewEdenTourPlanetCoverage,
 			kNewEdenTourFinaleCameraDistance,
-			kNewEdenTourFinaleCameraHeight );
+			kNewEdenTourFinaleCameraHeight,
+			static_cast<unsigned long long>( kNewEdenTourPlanetOrbitFrame ),
+			kNewEdenTourPlanetOrbitSurfaceRange );
 	}
 	return true;
 }
@@ -25701,6 +25734,54 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 									  commandState.rawPosition[1],
 									  commandState.rawPosition[2],
 									  planetFinale.coverage );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_OBSERVING:
+					if( probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
+						!queueAlignment(
+							planetTarget,
+							"planet-orbit",
+							STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-orbit alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING:
+					if( alignmentTo( planetTarget, speed, dot ) &&
+						!queueWarp(
+							planetTarget,
+							"planet-orbit",
+							kNewEdenPlanetRadius + 35.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_ORBIT_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-orbit WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_ORBIT_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						if( !Destiny_CommandEmbeddedOrbit(
+								probe->destinySession,
+								commandState.nextTickTime,
+								kNewEdenPlanetBallId,
+								kNewEdenTourPlanetOrbitSurfaceRange ) )
+						{
+							CCP_LOGERR( "Embedded Destiny planet ORBIT command failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_ORBITING;
+						std::fprintf(
+							stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=planet "
+							"targetBall=%lld surfaceRange=%.3f\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenPlanetBallId ),
+							kNewEdenTourPlanetOrbitSurfaceRange );
 					}
 					break;
 				default:
