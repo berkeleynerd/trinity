@@ -7,7 +7,10 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/CAMetalLayer.h>
 
+#include <memory>
+
 #include "MetalUtils.h"
+#include "Tr2MetalSubmissionDiagnostics.h"
 #include "../include/Tr2ShaderAL.h"
 
 namespace TrinityALImpl
@@ -18,6 +21,7 @@ class Tr2PipelineStatsQueryAL;
 class Tr2VertexLayoutAL;
 class Tr2RtPipelineStateAL;
 class Tr2RtShaderTableAL;
+struct MetalSubmissionDiagnosticStore;
 
 
 // Values below must be synchronized with (propagated to) ShaderCompiler/EffectCompilerMetal.cpp
@@ -177,8 +181,12 @@ public:
 	~MetalWorkQueue();
 	void SetMetalContext( MetalContext* metalContext );
 	void SetCommandQueue( id<MTLCommandQueue> commandQueue );
+	void SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed = true );
 
 	void CommitCommandBuffer( MetalCBCommitFlags flags );
+	bool GetPendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
+	bool GetCompletedSubmissionDiagnostics( std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics ) const;
+	bool SubmitAndWait( Tr2MetalSubmissionDiagnostics* diagnostics );
 	bool BlitToDrawableAndPresent( id<MTLTexture> srcTexture, NSView* view, uint64_t* renderedFrameNumber );
 	void BeginFrame();
 	void EndFrame();
@@ -410,6 +418,12 @@ private:
 	bool EmitRenderPipelineState();
 	bool EmitComputePipelineState();
 	bool EmitComputeEncoderState();
+	bool ValidateComputeBindings();
+	void CaptureCommandBufferDiagnostics( id<MTLCommandBuffer> commandBuffer,
+										  double cpuEncodeSeconds,
+										  double cpuWaitSeconds,
+										  Tr2MetalSubmissionDiagnostics* diagnostics ) const;
+	void CapturePendingSubmissionDiagnostics( Tr2MetalSubmissionDiagnostics* diagnostics ) const;
 	void SetVertexBufferBindings();
 	void SetFragmentBufferBindings();
 	void SetComputeBufferBindings();
@@ -515,6 +529,7 @@ private:
 	{
 		uint32_t page;
 		uint32_t offset;
+		uint32_t size;
 	};
 
 	ConstantBuffer m_constBuffers[Tr2RenderContextEnum::SHADER_TYPE_COUNT][METAL_MAX_BOUND_BUFFERS];
@@ -554,6 +569,17 @@ private:
 	uint64_t m_visibilityQueriesInThisEncoder;
 
 	std::vector<Tr2PipelineStatsQueryAL*> m_pipelineQueriesInProgress;
+	bool m_submissionDiagnosticsEnabled;
+	bool m_submissionDiagnosticsFailClosed;
+	bool m_bindingPreflightPassed;
+	double m_commandBufferCreatedAt;
+	uint64_t m_lastComputePipelineUid;
+	MTLComputePipelineReflection* m_currentComputePipelineReflection;
+	std::vector<std::string> m_encoderLabels;
+	std::vector<uint64_t> m_encoderPipelineUids;
+	std::vector<Tr2MetalResourceBindingDiagnostic> m_bindingDiagnostics;
+	std::shared_ptr<MetalSubmissionDiagnosticStore> m_submissionDiagnosticStore;
+	std::vector<std::string> m_debugGroupLabels;
 
 	struct CachedVertexLayout
 	{

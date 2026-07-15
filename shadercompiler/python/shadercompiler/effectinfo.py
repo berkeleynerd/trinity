@@ -31,6 +31,7 @@ class _StructStream(object):
         self._offset = 0
 
     def read(self, fmt):
+        fmt = '<' + fmt
         result = struct.unpack_from(fmt, self._data, self._offset)
         self._offset += struct.calcsize(fmt)
         return result
@@ -301,10 +302,14 @@ class LibraryInput(object):
 class Stage(object):
     def __init__(self, stream, string_table, version):
         self.stage = stream.read_uint8()
+        self.shader_size = None
+        self.shader_data_offset = None
+        self.shader_data = None
 
         if version >= 15:
-            stream.read_uint32()
-            stream.read_uint32()
+            self.shader_size = stream.read_uint32()
+            self.shader_data_offset = stream.read_uint32()
+            self.shader_data = string_table.get_blob(self.shader_data_offset, self.shader_size)
             self.thread_group_size = stream.read_uint32(), stream.read_uint32(), stream.read_uint32()
 
         self.inputs = []
@@ -332,7 +337,7 @@ class Stage(object):
 
         if 3 <= version < 15:
             self.thread_group_size = stream.read_uint32(), stream.read_uint32(), stream.read_uint32()
-        else:
+        elif version < 3:
             self.thread_group_size = None, None, None
 
         self.constants = []
@@ -379,8 +384,9 @@ class Export(object):
 class ShaderLibrary(object):
     def __init__(self, stream, string_table, version):
         self.payload_size = stream.read_uint32()
-        stream.read_uint32()
-        stream.read_uint32()
+        self.shader_size = stream.read_uint32()
+        self.shader_data_offset = stream.read_uint32()
+        self.shader_data = string_table.get_blob(self.shader_data_offset, self.shader_size)
         self.exports = []
         for i in range(stream.read_uint32()):
             self.exports.append(Export(stream, string_table))

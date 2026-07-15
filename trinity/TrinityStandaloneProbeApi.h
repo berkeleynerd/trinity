@@ -539,12 +539,15 @@ extern "C" bool TrinityStandaloneProbeConfigureVolumetrics(
 	void* opaqueProbe,
 	int mode,
 	int quality,
-	uint32_t seed );
+	uint32_t seed,
+	bool temporalFroxels );
 extern "C" bool TrinityStandaloneProbeSetSilkEnabled( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeGetVolumetricDiagnostics(
 	void* opaqueProbe,
 	TrinityStandaloneVolumetricDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateVolumetrics( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSubmissionDiagnostics( void* opaqueProbe, bool enabled );
+extern "C" const char* TrinityStandaloneProbeGetIncidentDiagnosticsJson( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeSetEnginesEnabled( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeGetEngineDiagnostics(
 	void* opaqueProbe,

@@ -339,6 +339,28 @@ id<MTLBuffer> MetalContext::GetDummyBuffer( NSUInteger* outSize, MTLVertexFormat
 	return m_dummyBuffer;
 }
 
+bool MetalContext::IsDummyTexture( id<MTLTexture> texture ) const
+{
+	for( uint32_t i = 0; i < METAL_NUM_DUMMY_TEXTURES; ++i )
+	{
+		if( texture == m_dummyTexture[i] )
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+bool MetalContext::IsDummySampler( id<MTLSamplerState> sampler ) const
+{
+	return sampler == m_dummySampler;
+}
+
+bool MetalContext::IsDummyBuffer( id<MTLBuffer> buffer ) const
+{
+	return buffer == m_dummyBuffer;
+}
+
 id<MTLTexture> MetalContext::CreateSRGBViewOfMetalTexture( id<MTLTexture> texture )
 {
 	switch( texture.pixelFormat )

@@ -806,6 +806,68 @@ ALResult Tr2RenderContextAL::CreateDevice( uint32_t Adapter,
 	return S_OK;
 }
 
+ALResult Tr2RenderContextAL::CreateHeadlessDevice( uint32_t adapter, bool diagnosticsEnabled )
+{
+	if( adapter != 0 || !m_isPrimary || !m_metalContext )
+	{
+		return E_INVALIDARG;
+	}
+
+	m_workQueue = m_metalContext->GetPrimaryWorkQueue();
+	m_workQueue->SetSubmissionDiagnosticsEnabled( diagnosticsEnabled );
+	m_isValid = true;
+
+	if( @available( macOS 11.0, * ) )
+	{
+		auto device = m_metalContext->GetDevice();
+		const bool isAppleSilicon =
+			[device supportsFamily:MTLGPUFamilyMac2] && [device supportsFamily:MTLGPUFamilyApple7];
+		m_caps.m_supportsRaytracing = device.supportsRaytracing && isAppleSilicon;
+	}
+
+	if( m_events )
+	{
+		m_events->OnContextCreated( *this );
+	}
+	return S_OK;
+}
+
+ALResult Tr2RenderContextAL::SubmitHeadlessAndWait( Tr2MetalSubmissionDiagnostics* diagnostics )
+{
+	if( !IsValid() || !m_workQueue )
+	{
+		return E_FAIL;
+	}
+	return m_workQueue->SubmitAndWait( diagnostics ) ? S_OK : E_FAIL;
+}
+
+void Tr2RenderContextAL::SetSubmissionDiagnosticsEnabled( bool enabled, bool failClosed )
+{
+	if( m_workQueue )
+	{
+		m_workQueue->SetSubmissionDiagnosticsEnabled( enabled, failClosed );
+	}
+}
+
+ALResult Tr2RenderContextAL::GetCompletedSubmissionDiagnostics(
+	std::vector<Tr2MetalSubmissionDiagnostics>* diagnostics )
+{
+	if( !IsValid() || !m_workQueue || !diagnostics )
+	{
+		return E_INVALIDARG;
+	}
+	return m_workQueue->GetCompletedSubmissionDiagnostics( diagnostics ) ? S_OK : E_FAIL;
+}
+
+ALResult Tr2RenderContextAL::GetHeadlessSubmissionPreflight( Tr2MetalSubmissionDiagnostics* diagnostics )
+{
+	if( !IsValid() || !m_workQueue || !diagnostics )
+	{
+		return E_INVALIDARG;
+	}
+	return m_workQueue->GetPendingSubmissionDiagnostics( diagnostics ) ? S_OK : E_FAIL;
+}
+
 PixelFormat Tr2RenderContextAL::GetBackBufferFormat() const
 {
 	return m_defaultBackBuffer.GetFormat();

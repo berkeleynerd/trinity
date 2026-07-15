@@ -237,6 +237,7 @@ set(_SOURCES
     metal/Tr2PipelineStatsQueryALMetal.mm
     metal/Tr2PrimaryRenderContextMetal.h
     metal/Tr2PrimaryRenderContextMetal.mm
+    metal/Tr2MetalSubmissionDiagnostics.h
     metal/Tr2RenderContextMetal.h
     metal/Tr2RenderContextMetal.mm
     metal/Tr2ResourceSetALMetal.h
