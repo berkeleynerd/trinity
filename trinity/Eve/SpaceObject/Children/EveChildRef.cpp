@@ -84,6 +84,19 @@ void EveChildRef::SetName( const char* name )
 	m_name = BlueSharedString( name );
 }
 
+void EveChildRef::SetDisplay( bool display )
+{
+	m_display = display;
+	ReRegister();
+}
+
+void EveChildRef::SetLoadedChildForPreparation( IEveSpaceObjectChild* child )
+{
+	UnRegisterComponents();
+	m_child = child;
+	RegisterComponents();
+}
+
 void EveChildRef::RegisterComponents()
 {
 	if( IsInRegistry() && m_child != nullptr && m_display )
@@ -250,7 +263,7 @@ float EveChildRef::GetCurveSetDuration( const std::string& name ) const
 {
 	if( auto owner = dynamic_cast<ITr2CurveSetOwner*>( m_child.p ) )
 	{
-		owner->GetCurveSetDuration( name );
+		return owner->GetCurveSetDuration( name );
 	}
 	return 0.f;
 }
@@ -259,7 +272,7 @@ float EveChildRef::GetRangeDuration( const std::string& name, const std::string&
 {
 	if( auto owner = dynamic_cast<ITr2CurveSetOwner*>( m_child.p ) )
 	{
-		owner->GetRangeDuration( name, rangeName );
+		return owner->GetRangeDuration( name, rangeName );
 	}
 	return 0.f;
 }

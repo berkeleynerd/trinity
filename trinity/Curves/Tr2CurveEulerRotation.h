@@ -41,6 +41,8 @@ public:
 		Be::OptionalWithDefaultValue<Tr2CurveTangentType::Type, Tr2CurveTangentType::AUTO_CLAMP> tangentType );
 
 	void SetExtrapolation( Tr2CurveExtrapolation::Type extrapolation );
+	void AddYawKey( float time, float value, Tr2CurveInterpolation::Type interpolation );
+	void AddPitchKey( float time, float value, Tr2CurveInterpolation::Type interpolation );
 
 private:
 	std::string m_name;

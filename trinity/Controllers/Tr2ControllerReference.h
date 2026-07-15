@@ -28,6 +28,10 @@ public:
 	void HandleEvent( const char* eventName ) override;
 
 	IRoot* GetOwner() const;
+	ITr2Controller* GetControllerForInspection() const
+	{
+		return m_controller;
+	}
 
 private:
 	ITr2ControllerPtr m_controller;

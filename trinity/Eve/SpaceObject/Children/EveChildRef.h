@@ -56,6 +56,16 @@ public:
 	// IEveSpaceObjectChild
 	const char* GetName() const;
 	void SetName( const char* name );
+	void SetDisplay( bool display );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
+	IEveSpaceObjectChild* GetLoadedChild() const
+	{
+		return m_child;
+	}
+	void SetLoadedChildForPreparation( IEveSpaceObjectChild * child );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IEveEffectChildrenOwner

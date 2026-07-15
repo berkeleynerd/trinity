@@ -123,6 +123,11 @@ void EvePlanet::UpdatePlanetVisibility( const EveUpdateContext& updateContext, f
 	// pixel diameters, also for the max possible
 	m_estimatedPixelDiameter = EstimatePixelDiameterPos( reinterpret_cast<const Vector3*>( &scaledTransform._41 ), 1.f / Tr2Renderer::GetProjectionTransform()._11, renderScale );
 	m_estimatedMaxPixelDiameter = EstimatePixelDiameterPos( reinterpret_cast<const Vector3*>( &scaledTransform._41 ), tanf( FOV_MIN / 2.f ), renderScale );
+	// Visibility can be evaluated for several cameras in one frame (for example,
+	// reflection-cube faces followed by the main view).  Select the LOD from the
+	// diameter calculated for this camera instead of inheriting the previous
+	// camera's result.
+	UpdateLOD();
 
 	for( auto it = m_effectChildren.begin(); it != m_effectChildren.end(); ++it )
 	{

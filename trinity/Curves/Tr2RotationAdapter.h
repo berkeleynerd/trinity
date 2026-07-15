@@ -25,6 +25,14 @@ public:
 	void RandomizeStart( float range );
 	void ScaleTime( float scale );
 	void ResetStart();
+	void SetCurve( ITriQuaternionFunction * curve )
+	{
+		m_curve = curve;
+	}
+	ITriQuaternionFunction* GetCurve() const
+	{
+		return m_curve;
+	}
 
 private:
 	double GetLocalTime( double time ) const;

@@ -12,6 +12,7 @@
 #include "Lights/Tr2PointLight.h"
 #include "Controllers/ITr2Controller.h"
 #include "Controllers/Tr2Controller.h"
+#include "Controllers/Tr2ControllerReference.h"
 #include "Controllers/Tr2ControllerFloatVariable.h"
 #include "Eve/SpaceObject/Utils/fxAttributes/IEveFxAttribute.h"
 #include "ITr2SoundEmitterOwner.h"
@@ -976,6 +977,19 @@ void EveChildContainer::StartControllers()
 	}
 }
 
+void EveChildContainer::UpdateControllersForTesting( float normalizedUpdateFrequency )
+{
+	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
+	{
+		if( !( *it )->IsLinked() )
+		{
+			( *it )->Link( *GetRawRoot() );
+			( *it )->Start();
+		}
+		( *it )->Update( normalizedUpdateFrequency );
+	}
+}
+
 IEveSpaceObjectChildPtr EveChildContainer::GetEffectChildByName( const char* name ) const
 {
 	for( auto it = begin( m_objects ); it != end( m_objects ); ++it )
@@ -1094,7 +1108,15 @@ bool EveChildContainer::GetControllerValueByName( const char* name, float& out )
 {
 	for( auto it = begin( m_controllers ); it != end( m_controllers ); ++it )
 	{
-		if( ITr2ActionControllerPtr controller = BlueCastPtr( *it ) )
+		ITr2ActionControllerPtr controller = BlueCastPtr( *it );
+		if( !controller )
+		{
+			if( Tr2ControllerReferencePtr reference = BlueCastPtr( *it ) )
+			{
+				controller = BlueCastPtr( reference->GetControllerForInspection() );
+			}
+		}
+		if( controller )
 		{
 			if( auto var = controller->GetFloatVariableByName( name ) )
 			{
@@ -1105,6 +1127,30 @@ bool EveChildContainer::GetControllerValueByName( const char* name, float& out )
 	}
 
 	return false;
+}
+
+std::vector<std::pair<std::string, std::string>> EveChildContainer::GetControllerStatesForInspection() const
+{
+	std::vector<std::pair<std::string, std::string>> result;
+	for( ITr2Controller* item : m_controllers )
+	{
+		ITr2Controller* controller = item;
+		if( Tr2ControllerReferencePtr reference = BlueCastPtr( item ) )
+		{
+			controller = reference->GetControllerForInspection();
+		}
+		if( Tr2ControllerPtr concrete = BlueCastPtr( controller ) )
+		{
+			auto states = concrete->GetStateMachineStatesForInspection();
+			result.insert( result.end(), states.begin(), states.end() );
+		}
+	}
+	return result;
+}
+
+std::vector<TriCurveSet*> EveChildContainer::GetCurveSetsForInspection() const
+{
+	return std::vector<TriCurveSet*>( m_curveSets.begin(), m_curveSets.end() );
 }
 
 void EveChildContainer::AddTransformModifier( IEveChildTransformModifier* modifier )

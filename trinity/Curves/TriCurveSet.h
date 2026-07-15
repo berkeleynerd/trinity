@@ -97,6 +97,10 @@ public:
 	float GetMaxCurveDuration() const;
 	float GetRangeDuration( const char* rangeName ) const;
 	float GetTimeScale() const;
+	void SetTimeScale( float value )
+	{
+		m_scale = value;
+	}
 	double GetScaledTime() const;
 
 	//////////////////////////////////////////////////////////////////////////

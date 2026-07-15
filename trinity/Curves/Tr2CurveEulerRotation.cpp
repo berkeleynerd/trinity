@@ -109,3 +109,13 @@ void Tr2CurveEulerRotation::SetExtrapolation( Tr2CurveExtrapolation::Type extrap
 	m_pitch.SetExtrapolation( extrapolation );
 	m_roll.SetExtrapolation( extrapolation );
 }
+
+void Tr2CurveEulerRotation::AddYawKey( float time, float value, Tr2CurveInterpolation::Type interpolation )
+{
+	m_yaw.AddKey( time, value, interpolation, 0.0f, 0.0f, Tr2CurveTangentType::AUTO_CLAMP );
+}
+
+void Tr2CurveEulerRotation::AddPitchKey( float time, float value, Tr2CurveInterpolation::Type interpolation )
+{
+	m_pitch.AddKey( time, value, interpolation, 0.0f, 0.0f, Tr2CurveTangentType::AUTO_CLAMP );
+}

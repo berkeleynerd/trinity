@@ -58,6 +58,7 @@ public:
 	void ClearCallbacks();
 
 	void ReLink();
+	std::vector<std::pair<std::string, std::string>> GetStateMachineStatesForInspection() const;
 
 private:
 	size_t GetCallbackCount()

@@ -2182,7 +2182,6 @@ bool EveSpaceScene::RenderBackgroundPass( const Tr2TextureAL& depthMap, const Tr
 	{
 		EvePlanet* obj = *it;
 		obj->SetRenderScale( m_planetScale );
-		obj->UpdateLOD();
 	}
 
 	Tr2ParallelDo( m_planets.begin(), m_planets.end(), [&]( EvePlanet* obj ) {
@@ -4257,7 +4256,6 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext, bool runLens
 	m_mainPassBatchDiagnostics.planetOpaque = m_secondaryBatches[TRIBATCHTYPE_OPAQUE]->GetBatchCount();
 	m_mainPassBatchDiagnostics.planetAdditive = m_secondaryBatches[TRIBATCHTYPE_ADDITIVE]->GetBatchCount();
 	m_mainPassBatchDiagnostics.planetTransparent = m_secondaryBatches[TRIBATCHTYPE_TRANSPARENT]->GetBatchCount();
-
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_DEPTH_ONLY );
 	renderContext.RenderBatches( m_secondaryBatches[TRIBATCHTYPE_DEPTH], BlueSharedString( "Depth" ) );
 	RenderOpaqueBatches( m_secondaryBatches, renderContext );
@@ -4266,6 +4264,15 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext, bool runLens
 	renderContext.SetReadOnlyDepth( true );
 	renderContext.m_esm.PushRenderTarget( 1 );
 	renderContext.m_esm.SetRenderTarget( 1, {} );
+	// Planet transparencies render in the background pass, before the main pass has
+	// produced and registered local volumetric slices.  Shaders such as the authored
+	// planet-traffic effect still sample EveSceneFogVolumeMap.  Bind the native empty
+	// four-slice texture here so a missing texture-array binding cannot select Metal's
+	// opaque dummy resource and suppress every fragment.
+	auto emptyVolumetricSlices =
+		Tr2VolumetricsRenderer::GetEmptyVolumetricTexture( GetGlobalGpuResourcePool() );
+	GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", emptyVolumetricSlices );
+	ON_BLOCK_EXIT( [] { GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", Tr2TextureAL{} ); } );
 	RenderTransparentBatches( m_secondaryBatches, renderContext );
 	renderContext.SetReadOnlyDepth( oldReadOnlyDepth );
 	renderContext.m_esm.PopRenderTarget( 1 );

@@ -43,7 +43,11 @@ void ExecuteMainThreadActions()
 		{
 		#if BLUE_WITH_PYTHON
 			std::unique_ptr<ScopedBlockTrap> blockTrap;
-			if( PyOS )
+			// A block trap can only attach to the current tasklet, and looking
+			// that tasklet up imports the scheduler capsule, which requires the
+			// GIL. Without the GIL there is nothing to trap and the lookup
+			// itself would crash.
+			if( PyOS && Py_IsInitialized() && PyGILState_Check() )
 			{
 				blockTrap = std::make_unique<ScopedBlockTrap>();
 			}

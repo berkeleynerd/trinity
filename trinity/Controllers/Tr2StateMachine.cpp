@@ -212,3 +212,8 @@ float Tr2StateMachine::GetStateRunTime() const
 {
 	return m_stateStartTime ? TimeAsFloat( BeOS->GetCurrentFrameTime() - m_stateStartTime ) : 0.f;
 }
+
+const char* Tr2StateMachine::GetCurrentStateNameForInspection() const
+{
+	return m_currentState ? m_currentState->GetName().c_str() : "";
+}

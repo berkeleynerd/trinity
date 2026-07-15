@@ -172,6 +172,14 @@ public:
 	{
 		return m_display;
 	}
+	bool GetRuntimeVisibleForInspection() const
+	{
+		return m_isVisible;
+	}
+	float GetCurrentScreenSizeForInspection() const
+	{
+		return m_currentScreenSize;
+	}
 	void SetReflectionMode( EntityComponents::ReflectionMode reflectionMode );
 	void SetCastShadow( bool castShadow );
 	void SetMinScreenSize( float minScreenSize );

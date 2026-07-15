@@ -194,6 +194,18 @@ void Tr2Controller::ReLink()
 	Link( *owner );
 }
 
+std::vector<std::pair<std::string, std::string>> Tr2Controller::GetStateMachineStatesForInspection() const
+{
+	std::vector<std::pair<std::string, std::string>> result;
+	result.reserve( m_stateMachines.size() );
+	for( Tr2StateMachine* machine : m_stateMachines )
+	{
+		result.emplace_back(
+			machine->GetNameForInspection(), machine->GetCurrentStateNameForInspection() );
+	}
+	return result;
+}
+
 bool Tr2Controller::IsLinked() const
 {
 	return m_owner != nullptr;

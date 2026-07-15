@@ -22,6 +22,10 @@ public:
 	virtual float GetValueAt( Be::Time time );
 	virtual float GetValueAt( double time );
 	virtual void ScaleTime( float s );
+	const std::string& GetName() const
+	{
+		return m_name;
+	}
 	void SetValue( const Vector4& value )
 	{
 		m_value = value;

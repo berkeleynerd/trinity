@@ -166,6 +166,8 @@ set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RESOURCE "res:/dx9/model/worldobject/planet/
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_GEOMETRY_RESOURCE "res:/graphics/generic/unitsphere/unitsphere_4k_01a.gr2")
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetsphere.gr2")
 set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_RING_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/planetring.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_AURORA_GEOMETRY_RESOURCE "res:/dx9/model/worldobject/planet/aurora/aurora.gr2")
+set(EVE_SCENE_PROBE_NEW_EDEN_PLANET_POPULATION_RESOURCE "res:/dx9/model/worldobject/planet/shared/fx/population/population_10.black")
 set(EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_RESOURCE "res:/fisfx/lensflare/yellow_small.black")
 set(EVE_SCENE_PROBE_NEW_EDEN_LENS_FLARE_GEOMETRY_RESOURCE "res:/fisfx/lensflare/yellow_small.gr2")
 set(EVE_SCENE_PROBE_NEW_EDEN_SUN_FLARE_GEOMETRY_RESOURCE "res:/graphics/generic/unitplane/unitplane.gr2")
@@ -277,6 +279,23 @@ set(EVE_SCENE_PROBE_PLANET_RING_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Plan
 set(EVE_SCENE_PROBE_PLANET_RING_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/PlanetRing.bin)
 set(EVE_SCENE_PROBE_PLANET_RING_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/planetring.cmf)
 set(EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetRingGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_AURORA_GLTF ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/PlanetAurora.gltf)
+set(EVE_SCENE_PROBE_PLANET_AURORA_BIN ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/PlanetAurora.bin)
+set(EVE_SCENE_PROBE_PLANET_AURORA_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/aurora.cmf)
+set(EVE_SCENE_PROBE_PLANET_AURORA_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetAuroraGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR ${EVE_SCENE_PROBE_CELESTIAL_BUILD_DIR}/Traffic)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_GLTF ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/Circle.gltf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_BIN ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/Circle.bin)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_01a.cmf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetTrafficCircleGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_GLTF ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/CircleHeavy.gltf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_BIN ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/CircleHeavy.bin)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_heavytraffic_01a.cmf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetTrafficHeavyGeometry.json)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_GLTF ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/CircleWarpOff.gltf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_BIN ${EVE_SCENE_PROBE_PLANET_TRAFFIC_BUILD_DIR}/CircleWarpOff.bin)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_warpoff_01a.cmf)
+set(EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenPlanetTrafficWarpOffGeometry.json)
 set(EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/planet)
 set(EVE_SCENE_PROBE_CELESTIAL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenCelestialResources.json)
 set(EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/NewEdenAtmosphereResources.json)
@@ -1526,6 +1545,72 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
         DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_PLANET_RING_GLTF} ${EVE_SCENE_PROBE_PLANET_RING_BIN}
         VERBATIM
     )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_AURORA_GLTF} ${EVE_SCENE_PROBE_PLANET_AURORA_BIN} ${EVE_SCENE_PROBE_PLANET_AURORA_GEOMETRY_MANIFEST}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_AURORA_GEOMETRY_RESOURCE}
+            --output ${EVE_SCENE_PROBE_PLANET_AURORA_GLTF}
+            --manifest ${EVE_SCENE_PROBE_PLANET_AURORA_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM
+    )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_PLANET_AURORA_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_PLANET_AURORA_GLTF}
+            --output ${EVE_SCENE_PROBE_PLANET_AURORA_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_PLANET_AURORA_GLTF} ${EVE_SCENE_PROBE_PLANET_AURORA_BIN}
+        VERBATIM
+    )
+
+    function(add_eve_scene_probe_planet_traffic_geometry resource gltf bin cmf manifest)
+        add_custom_command(
+            OUTPUT ${gltf} ${bin} ${manifest}
+            COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+                --model ${resource}
+                --output ${gltf}
+                --instance-data
+                --manifest ${manifest}
+                --summary
+            DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            VERBATIM
+        )
+        get_filename_component(cmf_dir ${cmf} DIRECTORY)
+        add_custom_command(
+            OUTPUT ${cmf}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${cmf_dir}
+            COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+                --input ${gltf}
+                --output ${cmf}
+                --instance-data
+                --summary
+            DEPENDS TrinityGltfToCmf ${gltf} ${bin}
+            VERBATIM
+        )
+    endfunction()
+    add_eve_scene_probe_planet_traffic_geometry(
+        res:/graphics/generic/spline/circle_01a.gr2
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_GLTF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_BIN}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_CMF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_MANIFEST})
+    add_eve_scene_probe_planet_traffic_geometry(
+        res:/graphics/generic/spline/circle_heavytraffic_01a.gr2
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_GLTF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_BIN}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_CMF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_MANIFEST})
+    add_eve_scene_probe_planet_traffic_geometry(
+        res:/graphics/generic/spline/circle_warpoff_01a.gr2
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_GLTF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_BIN}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_CMF}
+        ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_MANIFEST})
 
     set(EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS
         ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/atmosphere.sm_hi
@@ -1534,6 +1619,9 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
         ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_hi
         ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_lo
         ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_depth
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_hi
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_lo
+        ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_depth
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds
@@ -1542,6 +1630,19 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds
         ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/gradient_barren.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/colorshape.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/caustics.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/auroranoise.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/planet_datadrivenvisuals_01a.red
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/ctrl_planet_datadrivenvisuals_01a.red
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/population/population_10.red
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_hi
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_lo
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_depth
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_heavytraffic_01a.dds
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_warpoff_01a.dds
     )
     add_custom_command(
         OUTPUT ${EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS} ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
@@ -1553,6 +1654,9 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
             --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_hi
             --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_lo
             --copy-resource res:/graphics/effect.metal/managed/space/planet/earthlikeclouds.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/earthlikeclouds.sm_depth
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/aurora.sm_hi ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/aurora.sm_lo ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/planet/aurora.sm_depth ${EVE_SCENE_PROBE_CELESTIAL_EFFECT_DIR}/aurora.sm_depth
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust01_m_hi.dds
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust02_m_hi.dds
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dust03_m_hi.dds
@@ -1561,6 +1665,19 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap02_m_hi.dds
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap03_m_hi.dds
             --copy-resource res:/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/sandstorm/dustcap04_m_hi.dds
+            --copy-resource res:/dx9/model/worldobject/planet/aurora/gradient_barren.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/gradient_barren.dds
+            --copy-resource res:/dx9/model/worldobject/planet/aurora/colorshape.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/colorshape.dds
+            --copy-resource res:/dx9/model/worldobject/planet/aurora/caustics.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/caustics.dds
+            --copy-resource res:/dx9/model/worldobject/planet/aurora/auroranoise.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/aurora/auroranoise.dds
+            --copy-resource res:/dx9/model/worldobject/planet/shared/fx/planet_datadrivenvisuals_01a.black ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/planet_datadrivenvisuals_01a.red
+            --copy-resource res:/dx9/model/worldobject/planet/shared/fx/ctrl_planet_datadrivenvisuals_01a.black ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/ctrl_planet_datadrivenvisuals_01a.red
+            --copy-resource ${EVE_SCENE_PROBE_NEW_EDEN_PLANET_POPULATION_RESOURCE} ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/worldobject/planet/shared/fx/population/population_10.red
+            --copy-resource res:/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_hi ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_hi
+            --copy-resource res:/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_lo ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_lo
+            --copy-resource res:/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_depth ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/fx/traffic/traffic.sm_depth
+            --copy-resource res:/graphics/generic/spline/circle_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_01a.dds
+            --copy-resource res:/graphics/generic/spline/circle_heavytraffic_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_heavytraffic_01a.dds
+            --copy-resource res:/graphics/generic/spline/circle_warpoff_01a.dds ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/spline/circle_warpoff_01a.dds
             --manifest ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
             --summary
         DEPENDS TrinitySharedCacheToGltf ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX} ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
@@ -1570,6 +1687,14 @@ if(TARGET TrinityEveSceneProbeNewEdenAssets)
         DEPENDS
             ${EVE_SCENE_PROBE_PLANET_RING_CMF}
             ${EVE_SCENE_PROBE_PLANET_RING_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_PLANET_AURORA_CMF}
+            ${EVE_SCENE_PROBE_PLANET_AURORA_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_CMF}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_CIRCLE_MANIFEST}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_CMF}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_HEAVY_MANIFEST}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_CMF}
+            ${EVE_SCENE_PROBE_PLANET_TRAFFIC_WARPOFF_MANIFEST}
             ${EVE_SCENE_PROBE_ATMOSPHERE_RESOURCE_OUTPUTS}
             ${EVE_SCENE_PROBE_ATMOSPHERE_MANIFEST}
     )

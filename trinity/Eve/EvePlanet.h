@@ -52,6 +52,10 @@ public:
 	{
 		SetLod( lod );
 	}
+	Tr2Lod GetLodForInspection() const
+	{
+		return m_lodLevel;
+	}
 	void SetRenderScale( float value );
 	void SetStandalonePlacement( const Vector3& position, float radius, const Color& albedo, const Color& emissive );
 

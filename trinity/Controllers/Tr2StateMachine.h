@@ -38,6 +38,11 @@ public:
 
 	float GetMachineRunTime() const;
 	float GetStateRunTime() const;
+	const std::string& GetNameForInspection() const
+	{
+		return m_name;
+	}
+	const char* GetCurrentStateNameForInspection() const;
 
 private:
 	void FollowTransitions( uint64_t variableDirtyMask );

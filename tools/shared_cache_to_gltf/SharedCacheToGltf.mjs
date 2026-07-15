@@ -11,7 +11,7 @@ function usage()
     console.error(
         "Usage: SharedCacheToGltf.mjs --cache-root PATH [--model RES_PATH --output MODEL.gltf]\n" +
         "       [--base-color RES_PATH --base-color-output TEXTURE.dds] [--lod N]\n" +
-        "       [--include-groups 0,1,...] [--copy-resource RES_PATH OUTPUT]\n" +
+        "       [--include-groups 0,1,...] [--instance-data] [--copy-resource RES_PATH OUTPUT]\n" +
         "       [--manifest OUTPUT.json] [--summary]" );
 }
 
@@ -24,6 +24,11 @@ function parseArgs( argv )
         if( arg === "--summary" )
         {
             options.summary = true;
+            continue;
+        }
+        if( arg === "--instance-data" )
+        {
+            options.instanceData = true;
             continue;
         }
         if( arg === "--copy-resource" )
@@ -176,11 +181,12 @@ function validateMesh( mesh )
     {
         throw new Error( `GR2 mesh '${mesh.name}' has an incomplete authored tangent frame` );
     }
-    if( mesh.vertex.texcoord0.length !== vertexCount * 2 )
+    const texcoordComponents = mesh.vertex.texcoord0.length / vertexCount;
+    if( texcoordComponents !== 0 && texcoordComponents !== 2 )
     {
-        throw new Error( `GR2 mesh '${mesh.name}' does not have one TEXCOORD_0 per vertex` );
+        throw new Error( `GR2 mesh '${mesh.name}' has an incomplete authored TEXCOORD_0 stream` );
     }
-    return { vertexCount, normalComponents, tangentComponents };
+    return { vertexCount, normalComponents, tangentComponents, texcoordComponents };
 }
 
 function positionBounds( positions )
@@ -205,8 +211,9 @@ function align4( value )
 
 function buildGltf( mesh, sourcePath, outputPath, includeGroups )
 {
-    const { vertexCount, normalComponents, tangentComponents } = validateMesh( mesh );
+    const { vertexCount, normalComponents, tangentComponents, texcoordComponents } = validateMesh( mesh );
     const hasTangents = tangentComponents !== 0;
+    const hasTexcoords = texcoordComponents !== 0;
     const positions = new Float32Array( mesh.vertex.position );
     const normals = normalComponents === 3 ? new Float32Array( mesh.vertex.normal ) : new Float32Array( vertexCount * 3 );
     if( normalComponents === 0 )
@@ -279,7 +286,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         const crossZ = nx * ty - ny * tx;
         tangents[vertexIndex * 4 + 3] = crossX * bx + crossY * by + crossZ * bz < 0 ? -1 : 1;
     }
-    const texcoords = new Float32Array( mesh.vertex.texcoord0 );
+    const texcoords = hasTexcoords ? new Float32Array( mesh.vertex.texcoord0 ) : null;
     const selectedGroups = includeGroups ?? mesh.indices.map( ( _, index ) => index );
     if( selectedGroups.some( index => index < 0 || index >= mesh.indices.length ) )
     {
@@ -305,7 +312,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const positionView = append( positions, 34962 );
     const normalView = append( normals, 34962 );
     const tangentView = tangents ? append( tangents, 34962 ) : null;
-    const texcoordView = append( texcoords, 34962 );
+    const texcoordView = texcoords ? append( texcoords, 34962 ) : null;
     const groupData = selectedGroups.map( sourceGroup => {
         const faces = mesh.indices[sourceGroup].faces;
         if( faces.length === 0 || faces.length % 3 !== 0 )
@@ -329,6 +336,22 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const bounds = positionBounds( positions );
     const binaryName = `${path.basename( outputPath, path.extname( outputPath ) )}.bin`;
 
+    const attributes = { POSITION: 0, NORMAL: 1 };
+    const vertexAccessors = [
+        { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
+        { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
+    ];
+    if( tangents )
+    {
+        attributes.TANGENT = vertexAccessors.length;
+        vertexAccessors.push( { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" } );
+    }
+    if( texcoords )
+    {
+        attributes.TEXCOORD_0 = vertexAccessors.length;
+        vertexAccessors.push( { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" } );
+    }
+
     const gltf = {
         asset: {
             version: "2.0",
@@ -338,10 +361,7 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         buffers: [ { uri: binaryName, byteLength: binary.length } ],
         bufferViews,
         accessors: [
-            { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
-            { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
-            ...( tangents ? [ { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" } ] : [] ),
-            { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" },
+            ...vertexAccessors,
             ...groupData.map( group => ( {
                 bufferView: group.indexView,
                 componentType: group.indices.BYTES_PER_ELEMENT === 2 ? 5123 : 5125,
@@ -353,10 +373,8 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
             name: `${mesh.name}_group_${group.sourceGroup}`,
             extras: { sourceGroup: group.sourceGroup },
             primitives: [ {
-                attributes: tangents
-                    ? { POSITION: 0, NORMAL: 1, TANGENT: 2, TEXCOORD_0: 3 }
-                    : { POSITION: 0, NORMAL: 1, TEXCOORD_0: 2 },
-                indices: ( tangents ? 4 : 3 ) + groupIndex,
+                attributes,
+                indices: vertexAccessors.length + groupIndex,
                 mode: 4,
                 extras: { sourceGroup: group.sourceGroup },
             } ],
@@ -381,6 +399,97 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     };
 }
 
+function buildInstanceDataGltf( mesh, rawMesh, sourcePath, outputPath )
+{
+    const { vertexCount, normalComponents, tangentComponents, texcoordComponents } = validateMesh( mesh );
+    if( normalComponents !== 0 || tangentComponents !== 0 || texcoordComponents !== 2 )
+    {
+        throw new Error( `GR2 instance mesh '${mesh.name}' must contain exactly POSITION and TEXCOORD_0` );
+    }
+    if( mesh.indices.length !== 0 )
+    {
+        throw new Error( `GR2 instance mesh '${mesh.name}' unexpectedly contains triangle groups` );
+    }
+    const rawVertices = rawMesh?.PrimaryVertexData?.Vertices;
+    if( !Array.isArray( rawVertices ) || rawVertices.length !== vertexCount )
+    {
+        throw new Error( `GR2 instance mesh '${mesh.name}' has no matching raw vertex stream` );
+    }
+    const positions = new Float32Array( mesh.vertex.position );
+    const texcoords = new Float32Array( mesh.vertex.texcoord0 );
+    const extras = new Float32Array( vertexCount * 3 );
+    for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+    {
+        const rawPosition = rawVertices[vertexIndex].Position;
+        const rawMisc = rawVertices[vertexIndex].TextureCoordinates0;
+        if( !Array.isArray( rawPosition ) || rawPosition.length !== 4 ||
+            !Array.isArray( rawMisc ) || rawMisc.length !== 4 )
+        {
+            throw new Error( `GR2 instance mesh '${mesh.name}' must retain authored float4 POSITION and TEXCOORD_0 streams` );
+        }
+        for( let component = 0; component < 3; ++component )
+        {
+            if( rawPosition[component] !== positions[vertexIndex * 3 + component] )
+            {
+                throw new Error( `GR2 instance mesh '${mesh.name}' raw POSITION disagrees with the normalized stream` );
+            }
+        }
+        for( let component = 0; component < 2; ++component )
+        {
+            if( rawMisc[component] !== texcoords[vertexIndex * 2 + component] )
+            {
+                throw new Error( `GR2 instance mesh '${mesh.name}' raw TEXCOORD_0 disagrees with the normalized stream` );
+            }
+        }
+        extras[vertexIndex * 3] = rawPosition[3];
+        extras[vertexIndex * 3 + 1] = rawMisc[2];
+        extras[vertexIndex * 3 + 2] = rawMisc[3];
+    }
+    const positionBytes = Buffer.from( positions.buffer, positions.byteOffset, positions.byteLength );
+    const texcoordOffset = align4( positionBytes.length );
+    const texcoordBytes = Buffer.from( texcoords.buffer, texcoords.byteOffset, texcoords.byteLength );
+    const extrasOffset = align4( texcoordOffset + texcoordBytes.length );
+    const extrasBytes = Buffer.from( extras.buffer, extras.byteOffset, extras.byteLength );
+    const binary = Buffer.concat( [
+        positionBytes,
+        Buffer.alloc( texcoordOffset - positionBytes.length ),
+        texcoordBytes,
+        Buffer.alloc( extrasOffset - texcoordOffset - texcoordBytes.length ),
+        extrasBytes,
+    ] );
+    const binaryName = `${path.basename( outputPath, path.extname( outputPath ) )}.bin`;
+    const bounds = positionBounds( positions );
+    const gltf = {
+        asset: {
+            version: "2.0",
+            generator: "Trinity SharedCache GR2 instance-data bridge",
+            extras: { source: sourcePath, instanceData: true },
+        },
+        buffers: [ { uri: binaryName, byteLength: binary.length } ],
+        bufferViews: [
+            { buffer: 0, byteOffset: 0, byteLength: positionBytes.length, target: 34962 },
+            { buffer: 0, byteOffset: texcoordOffset, byteLength: texcoordBytes.length, target: 34962 },
+            { buffer: 0, byteOffset: extrasOffset, byteLength: extrasBytes.length, target: 34962 },
+        ],
+        accessors: [
+            { bufferView: 0, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
+            { bufferView: 1, componentType: 5126, count: vertexCount, type: "VEC2" },
+            { bufferView: 2, componentType: 5126, count: vertexCount, type: "VEC3" },
+        ],
+        meshes: [ {
+            name: mesh.name || "instance_data",
+            primitives: [ { attributes: { POSITION: 0, TEXCOORD_0: 1, _INSTANCE_EXTRAS: 2 }, mode: 0 } ],
+        } ],
+        nodes: [ { name: mesh.name || "instance_data", mesh: 0 } ],
+        scenes: [ { name: "InstanceData", nodes: [ 0 ] } ],
+        scene: 0,
+    };
+    fs.mkdirSync( path.dirname( outputPath ), { recursive: true } );
+    fs.writeFileSync( outputPath, `${JSON.stringify( gltf, null, 2 )}\n` );
+    fs.writeFileSync( path.join( path.dirname( outputPath ), binaryName ), binary );
+    return { vertexCount, indexCount: 0, selectedGroups: [], groupData: [], binaryPath: path.join( path.dirname( outputPath ), binaryName ) };
+}
+
 function main()
 {
     const options = parseArgs( process.argv );
@@ -402,14 +511,20 @@ function main()
     let result;
     if( options.model )
     {
+        const sourceBytes = fs.readFileSync( resolved.get( options.model ).physicalPath );
         const reader = new CjsFormatGr2( { emit: "json", unpackTangents: true } );
-        const root = reader.Read( fs.readFileSync( resolved.get( options.model ).physicalPath ) );
+        const root = reader.Read( sourceBytes );
         if( options.lod >= root.meshes.length )
         {
             throw new Error( `Requested LOD ${options.lod}, but the GR2 contains ${root.meshes.length} meshes` );
         }
         mesh = root.meshes[options.lod];
-        result = buildGltf( mesh, options.model, path.resolve( options.output ), options.includeGroups );
+        const rawRoot = options.instanceData ?
+            new CjsFormatGr2( { emit: "raw" } ).Read( sourceBytes ) : null;
+        const rawMesh = rawRoot?.fileInfo?.Meshes?.[options.lod];
+        result = options.instanceData ?
+            buildInstanceDataGltf( mesh, rawMesh, options.model, path.resolve( options.output ) ) :
+            buildGltf( mesh, options.model, path.resolve( options.output ), options.includeGroups );
     }
 
     if( options.baseColor )

@@ -83,7 +83,10 @@ public:
 	void SetControllerVariable( const char* name, float value );
 	void HandleControllerEvent( const char* name ) override;
 	void StartControllers();
+	void UpdateControllersForTesting( float normalizedUpdateFrequency );
 	bool GetControllerValueByName( const char* name, float& out );
+	std::vector<std::pair<std::string, std::string>> GetControllerStatesForInspection() const;
+	std::vector<TriCurveSet*> GetCurveSetsForInspection() const;
 	void AddController( ITr2Controller * controller );
 
 	//////////////////////////////////////////////////////////////////////////////////////

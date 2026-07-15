@@ -45,6 +45,12 @@ struct ImportedVertex
 	float weights[4] = {};
 };
 
+struct ImportedInstanceVertex
+{
+	float position[4] = {};
+	float misc[4] = {};
+};
+
 struct DecodedImage
 {
 	int width = 0;
@@ -64,11 +70,14 @@ struct PendingMesh
 
 	std::string name;
 	std::vector<ImportedVertex> vertices;
+	std::vector<ImportedInstanceVertex> instanceVertices;
 	std::vector<uint32_t> indices;
 	std::vector<Area> areas;
 	std::vector<std::string> boneBindings;
 	uint32_t skeletonIndex = kNoSkeleton;
 	bool hasTangents = false;
+	bool hasTexcoords = false;
+	bool instanceData = false;
 	CcpMath::AxisAlignedBox bounds = {};
 };
 
@@ -115,6 +124,7 @@ struct ImportContext
 	std::vector<PendingSkeleton> skeletons;
 	std::vector<PendingMesh> meshes;
 	std::vector<PendingAnimation> animations;
+	bool instanceData = false;
 };
 
 struct CgltfDataDeleter
@@ -247,6 +257,20 @@ const cgltf_attribute* FindAttribute( const cgltf_primitive& primitive, cgltf_at
 	{
 		const cgltf_attribute& attribute = primitive.attributes[i];
 		if( attribute.type == type && attribute.index == index )
+		{
+			return &attribute;
+		}
+	}
+	return nullptr;
+}
+
+const cgltf_attribute* FindCustomAttribute( const cgltf_primitive& primitive, const char* name )
+{
+	for( cgltf_size i = 0; i < primitive.attributes_count; ++i )
+	{
+		const cgltf_attribute& attribute = primitive.attributes[i];
+		if( attribute.type == cgltf_attribute_type_custom && attribute.name &&
+			std::strcmp( attribute.name, name ) == 0 )
 		{
 			return &attribute;
 		}
@@ -699,9 +723,12 @@ bool ImportPrimitive(
 	size_t primitiveIndex,
 	std::string& error )
 {
-	if( primitive.type != cgltf_primitive_type_triangles )
+	const bool instanceData = context.instanceData;
+	if( primitive.type != ( instanceData ? cgltf_primitive_type_points : cgltf_primitive_type_triangles ) )
 	{
-		error = "Only triangle primitives are supported";
+		error = instanceData ?
+			"--instance-data requires POINTS primitives" :
+			"Only triangle primitives are supported";
 		return false;
 	}
 
@@ -716,10 +743,18 @@ bool ImportPrimitive(
 	const cgltf_attribute* normalAttribute = FindAttribute( primitive, cgltf_attribute_type_normal );
 	const cgltf_attribute* tangentAttribute = FindAttribute( primitive, cgltf_attribute_type_tangent );
 	const cgltf_attribute* texcoordAttribute = FindAttribute( primitive, cgltf_attribute_type_texcoord );
+	const cgltf_attribute* instanceExtrasAttribute = FindCustomAttribute( primitive, "_INSTANCE_EXTRAS" );
 	const cgltf_attribute* jointsAttribute = FindAttribute( primitive, cgltf_attribute_type_joints );
 	const cgltf_attribute* weightsAttribute = FindAttribute( primitive, cgltf_attribute_type_weights );
 	const bool hasNormals = normalAttribute && normalAttribute->data;
 	const bool hasTangents = tangentAttribute && tangentAttribute->data;
+	const bool hasTexcoords = texcoordAttribute && texcoordAttribute->data;
+	if( instanceData && ( hasNormals || hasTangents || !hasTexcoords || !instanceExtrasAttribute ||
+		jointsAttribute || weightsAttribute || primitive.indices || primitive.attributes_count != 3 ) )
+	{
+		error = "--instance-data requires unindexed POSITION, TEXCOORD_0, and _INSTANCE_EXTRAS only";
+		return false;
+	}
 	float baseColorFactor[4] = {};
 	cgltf_int baseColorTexcoordIndex = 0;
 	cgltf_size baseColorImageIndex = static_cast<cgltf_size>( -1 );
@@ -748,9 +783,11 @@ bool ImportPrimitive(
 	}
 
 	PendingMesh pending;
+	pending.instanceData = instanceData;
 	pending.name = MakeName( mesh.name, "mesh", context.meshes.size() ) + "_" + std::to_string( primitiveIndex );
 	pending.skeletonIndex = skeletonIndex;
 	pending.hasTangents = hasTangents;
+	pending.hasTexcoords = hasTexcoords;
 
 	std::unique_ptr<draco::Mesh> dracoMesh;
 	if( !DecodeDracoMesh( primitive, dracoMesh, error ) )
@@ -761,7 +798,12 @@ bool ImportPrimitive(
 	const draco::PointAttribute* dracoNormal = nullptr;
 	const draco::PointAttribute* dracoTangent = nullptr;
 	const draco::PointAttribute* dracoTexcoord = nullptr;
-	if( dracoMesh )
+	if( instanceData )
+	{
+		// The CMF mesh is consumed only through ITr2InstanceData. Preserve the
+		// authored vertex count and streams without inventing triangle indices.
+	}
+	else if( dracoMesh )
 	{
 		dracoPosition = GetDracoAttribute( context, primitive, *dracoMesh, cgltf_attribute_type_position, 0, error );
 		if( !dracoPosition )
@@ -805,6 +847,15 @@ bool ImportPrimitive(
 
 	const cgltf_size vertexCount = dracoMesh ? dracoMesh->num_points() : positionAccessor->count;
 	pending.vertices.resize( vertexCount );
+	if( instanceData )
+	{
+		if( texcoordAttribute->data->count != vertexCount || instanceExtrasAttribute->data->count != vertexCount )
+		{
+			error = "Instance-data attribute counts do not match POSITION";
+			return false;
+		}
+		pending.instanceVertices.resize( vertexCount );
+	}
 	bool boundsInitialized = false;
 
 	for( cgltf_size vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
@@ -827,6 +878,25 @@ bool ImportPrimitive(
 		vertex.position[1] = modelPosition.y;
 		vertex.position[2] = modelPosition.z;
 		ExtendBounds( pending.bounds, modelPosition, boundsInitialized );
+		if( instanceData )
+		{
+			float misc[2] = {};
+			float extras[3] = {};
+			if( !ReadFloatAccessor( texcoordAttribute->data, vertexIndex, misc, 2, error ) ||
+				!ReadFloatAccessor( instanceExtrasAttribute->data, vertexIndex, extras, 3, error ) )
+			{
+				return false;
+			}
+			ImportedInstanceVertex& instanceVertex = pending.instanceVertices[vertexIndex];
+			instanceVertex.position[0] = modelPosition.x;
+			instanceVertex.position[1] = modelPosition.y;
+			instanceVertex.position[2] = modelPosition.z;
+			instanceVertex.position[3] = extras[0];
+			instanceVertex.misc[0] = misc[0];
+			instanceVertex.misc[1] = misc[1];
+			instanceVertex.misc[2] = extras[1];
+			instanceVertex.misc[3] = extras[2];
+		}
 
 		Vector3 normal( 0.0f, 1.0f, 0.0f );
 		if( hasNormals )
@@ -912,7 +982,11 @@ bool ImportPrimitive(
 		}
 	}
 
-	if( dracoMesh )
+	if( instanceData )
+	{
+		pending.indices.clear();
+	}
+	else if( dracoMesh )
 	{
 		pending.indices.resize( static_cast<size_t>( dracoMesh->num_faces() ) * 3 );
 		for( uint32_t faceIndex = 0; faceIndex < dracoMesh->num_faces(); ++faceIndex )
@@ -940,12 +1014,12 @@ bool ImportPrimitive(
 		}
 	}
 
-	if( pending.indices.size() % 3 != 0 )
+	if( !instanceData && pending.indices.size() % 3 != 0 )
 	{
 		error = "Triangle primitive index count is not divisible by 3";
 		return false;
 	}
-	if( !hasNormals )
+	if( !instanceData && !hasNormals )
 	{
 		GenerateNormals( pending );
 	}
@@ -955,12 +1029,15 @@ bool ImportPrimitive(
 		const PendingSkeleton& skeleton = context.skeletons[skeletonIndex];
 		pending.boneBindings = skeleton.bones;
 	}
-	pending.areas.push_back( {
-		pending.name,
-		0,
-		static_cast<uint32_t>( pending.indices.size() / 3 ),
-		pending.bounds,
-	} );
+	if( !instanceData )
+	{
+		pending.areas.push_back( {
+			pending.name,
+			0,
+			static_cast<uint32_t>( pending.indices.size() / 3 ),
+			pending.bounds,
+		} );
+	}
 
 	context.meshes.push_back( std::move( pending ) );
 	return true;
@@ -978,6 +1055,7 @@ bool MergeImportedMeshes( ImportContext& context, std::string& error )
 	merged.skeletonIndex = context.meshes.front().skeletonIndex;
 	merged.boneBindings = context.meshes.front().boneBindings;
 	bool boundsInitialized = false;
+	bool declarationInitialized = false;
 	for( const PendingMesh& source : context.meshes )
 	{
 		if( source.skeletonIndex != merged.skeletonIndex || source.boneBindings != merged.boneBindings )
@@ -985,6 +1063,13 @@ bool MergeImportedMeshes( ImportContext& context, std::string& error )
 			error = "--merge-meshes requires compatible skeleton bindings";
 			return false;
 		}
+		if( declarationInitialized && merged.hasTexcoords != source.hasTexcoords )
+		{
+			error = "--merge-meshes cannot preserve mixed TEXCOORD_0 declarations";
+			return false;
+		}
+		merged.hasTexcoords = source.hasTexcoords;
+		declarationInitialized = true;
 		const uint32_t vertexOffset = static_cast<uint32_t>( merged.vertices.size() );
 		const uint32_t firstElement = static_cast<uint32_t>( merged.indices.size() / 3 );
 		merged.vertices.insert( merged.vertices.end(), source.vertices.begin(), source.vertices.end() );
@@ -1233,9 +1318,22 @@ cmf::Span<uint8_t> CopyFloatBytes( cmf::MemoryAllocator& allocator, const std::v
 	return span;
 }
 
-cmf::Span<cmf::VertexElement> BuildVertexDecl( cmf::MemoryAllocator& allocator, bool includeTangents, bool includeSkinning )
+cmf::Span<cmf::VertexElement> BuildVertexDecl(
+	cmf::MemoryAllocator& allocator,
+	bool includeTangents,
+	bool includeTexcoords,
+	bool includeSkinning,
+	bool instanceData )
 {
-	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( 4 + ( includeTangents ? 2 : 0 ) + ( includeSkinning ? 2 : 0 ) );
+	if( instanceData )
+	{
+		cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>( 2 );
+		decl[0] = { cmf::Usage::Position, 0, cmf::ElementType::Float32, 4, offsetof( ImportedInstanceVertex, position ) };
+		decl[1] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 4, offsetof( ImportedInstanceVertex, misc ) };
+		return decl;
+	}
+	cmf::Span<cmf::VertexElement> decl = allocator.AllocateSpan<cmf::VertexElement>(
+		3 + ( includeTangents ? 2 : 0 ) + ( includeTexcoords ? 1 : 0 ) + ( includeSkinning ? 2 : 0 ) );
 	size_t index = 0;
 	decl[index++] = { cmf::Usage::Position, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, position ) };
 	decl[index++] = { cmf::Usage::Normal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, normal ) };
@@ -1244,7 +1342,10 @@ cmf::Span<cmf::VertexElement> BuildVertexDecl( cmf::MemoryAllocator& allocator, 
 		decl[index++] = { cmf::Usage::Tangent, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, tangent ) };
 		decl[index++] = { cmf::Usage::Binormal, 0, cmf::ElementType::Float32, 3, offsetof( ImportedVertex, binormal ) };
 	}
-	decl[index++] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 2, offsetof( ImportedVertex, texcoord ) };
+	if( includeTexcoords )
+	{
+		decl[index++] = { cmf::Usage::TexCoord, 0, cmf::ElementType::Float32, 2, offsetof( ImportedVertex, texcoord ) };
+	}
 	decl[index++] = { cmf::Usage::Color, 0, cmf::ElementType::Float32, 4, offsetof( ImportedVertex, color ) };
 	if( includeSkinning )
 	{
@@ -1308,14 +1409,22 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 		const PendingMesh& src = context.meshes[meshIndex];
 		cmf::Mesh& dst = data.meshes[meshIndex] = {};
 		dst.name = CopyString( allocator, src.name );
-		dst.decl = BuildVertexDecl( allocator, src.hasTangents, !src.boneBindings.empty() );
+		dst.decl = BuildVertexDecl(
+			allocator,
+			src.hasTangents,
+			src.hasTexcoords,
+			!src.boneBindings.empty(),
+			src.instanceData );
 		dst.lods = allocator.AllocateSpan<cmf::MeshLod>( 1 );
 		dst.areas = allocator.AllocateSpan<cmf::MeshArea>( src.areas.size() );
 		dst.boneBindings = allocator.AllocateSpan<cmf::BoneBinding>( src.boneBindings.size() );
-		dst.uvDensities = allocator.AllocateSpan<float>( 1 );
-		dst.uvDensities[0] = 0.0f;
+		dst.uvDensities = allocator.AllocateSpan<float>( src.hasTexcoords ? 1 : 0 );
+		if( src.hasTexcoords )
+		{
+			dst.uvDensities[0] = 0.0f;
+		}
 		dst.bounds = src.bounds;
-		dst.topology = cmf::MeshTopology::TriangleList;
+		dst.topology = src.instanceData ? cmf::MeshTopology::PointList : cmf::MeshTopology::TriangleList;
 		dst.skeleton = static_cast<uint8_t>( src.skeletonIndex );
 
 		for( size_t boneIndex = 0; boneIndex < src.boneBindings.size(); ++boneIndex )
@@ -1342,7 +1451,20 @@ std::vector<uint8_t> SerializeCmf( const ImportContext& context )
 		}
 
 		cmf::MeshLod& lod = dst.lods[0] = {};
-		lod.vb = buffers.AddBuffer( const_cast<ImportedVertex*>( src.vertices.data() ), static_cast<uint32_t>( src.vertices.size() * sizeof( ImportedVertex ) ), sizeof( ImportedVertex ) );
+		if( src.instanceData )
+		{
+			lod.vb = buffers.AddBuffer(
+				const_cast<ImportedInstanceVertex*>( src.instanceVertices.data() ),
+				static_cast<uint32_t>( src.instanceVertices.size() * sizeof( ImportedInstanceVertex ) ),
+				sizeof( ImportedInstanceVertex ) );
+		}
+		else
+		{
+			lod.vb = buffers.AddBuffer(
+				const_cast<ImportedVertex*>( src.vertices.data() ),
+				static_cast<uint32_t>( src.vertices.size() * sizeof( ImportedVertex ) ),
+				sizeof( ImportedVertex ) );
+		}
 
 		uint32_t indexStride = 0;
 		indexBuffers.push_back( BuildIndexBuffer( src.indices, indexStride ) );
@@ -1476,6 +1598,12 @@ bool BuildCmfFromGltf( const GltfToCmfOptions& options, GltfToCmfResult& result,
 	ImportContext context;
 	context.data = data.get();
 	context.result = &result;
+	context.instanceData = options.instanceData;
+	if( options.instanceData && options.mergeMeshes )
+	{
+		error = "--instance-data cannot be combined with --merge-meshes";
+		return false;
+	}
 
 	if( !DecodeImages( context, error ) )
 	{

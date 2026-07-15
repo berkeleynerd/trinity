@@ -161,6 +161,10 @@ public:
 	void Stop();
 
 	PIEveSpaceObjectChildVector& GetChildren();
+	const PTriCurveSetVector& GetCurveSetsForInspection() const
+	{
+		return m_curveSets;
+	}
 
 	void SetTransform( const Matrix& transform );
 	void SetDisplay( bool display );
@@ -169,12 +173,12 @@ public:
 		return m_display;
 	}
 
-	void SetBallPositionCurve( ITriVectorFunction* curve )
+	void SetBallPositionCurve( ITriVectorFunction * curve )
 	{
 		m_ballPosition = curve;
 	}
 
-	void SetBallRotationCurve( ITriQuaternionFunction* curve )
+	void SetBallRotationCurve( ITriQuaternionFunction * curve )
 	{
 		m_ballRotation = curve;
 	}
