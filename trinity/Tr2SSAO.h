@@ -46,6 +46,11 @@ public:
 	{
 		return m_cortaoBentNormal;
 	}
+	void ResetRandomSeedForTesting( uint32_t seed );
+	bool IsDeterministicRandomForTesting() const
+	{
+		return m_cortaoDeterministicRandom;
+	}
 
 private:
 	struct SSAOResources;
@@ -127,6 +132,8 @@ private:
 
 
 	uint32_t m_cortaoRandSeeds[4] = {};
+	bool m_cortaoDeterministicRandom = false;
+	uint32_t m_cortaoDeterministicRandomState = 0;
 
 	uint32_t Hash( uint32_t n );
 

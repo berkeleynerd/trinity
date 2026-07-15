@@ -5,6 +5,25 @@
 #include "Include/TriMath.h"
 #include "Resources/Tr2LightProfileRes.h"
 
+#include <atomic>
+
+namespace
+{
+std::atomic<bool> g_deterministicLightEvaluationForTesting( false );
+std::atomic<Be::Time> g_deterministicLightEvaluationTimeForTesting( 0 );
+}
+
+void LightData::SetDeterministicEvaluationTimeForTesting( Be::Time elapsedTime )
+{
+	g_deterministicLightEvaluationTimeForTesting.store( elapsedTime, std::memory_order_relaxed );
+	g_deterministicLightEvaluationForTesting.store( true, std::memory_order_release );
+}
+
+void LightData::ClearDeterministicEvaluationTimeForTesting()
+{
+	g_deterministicLightEvaluationForTesting.store( false, std::memory_order_release );
+	g_deterministicLightEvaluationTimeForTesting.store( 0, std::memory_order_relaxed );
+}
 
 LightData::LightData() :
 	position( 0, 0, 0 ),
@@ -42,7 +61,12 @@ Tr2LightManager::PerLightData LightData::AsPerPointLightData( CXMMATRIX transfor
 	float composedBrightness = brightness * features.parentBrightness;
 	if( noiseAmplitude != 0.f )
 	{
-		float noise = float( PerlinNoise1D( TimeAsDouble( BeOS->GetCurrentFrameTime() - startTime ) * noiseFrequency, 2.f, 2.f, noiseOctaves ) );
+		const bool deterministic =
+			g_deterministicLightEvaluationForTesting.load( std::memory_order_acquire );
+		const Be::Time elapsedTime = deterministic ?
+			g_deterministicLightEvaluationTimeForTesting.load( std::memory_order_relaxed ) :
+			BeOS->GetCurrentFrameTime() - startTime;
+		float noise = float( PerlinNoise1D( TimeAsDouble( elapsedTime ) * noiseFrequency, 2.f, 2.f, noiseOctaves ) );
 		composedBrightness *= ( ( noise + 1.0f ) / 2.0f ) * noiseAmplitude;
 	}
 	data.color = ( Vector4( color ) * composedBrightness ).GetXYZ();

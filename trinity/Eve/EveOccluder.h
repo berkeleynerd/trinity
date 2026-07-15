@@ -9,6 +9,8 @@
 #include "../Tr2DeviceResource.h"
 #include "Eve/EveUpdateContext.h"
 
+#include <array>
+
 // forwards
 class TriFrustum;
 BLUE_DECLARE( EveTransform );
@@ -30,6 +32,7 @@ public:
 	static Tr2OcclusionBuffer& GetInstance();
 
 	static uint32_t GetOccluderOffset( const Offset& offset, uint32_t index );
+	bool Snapshot( const Offset& offset, std::array<uint32_t, 13>& words, Tr2RenderContext& renderContext ) const;
 
 protected:
 	bool OnPrepareResources() override;

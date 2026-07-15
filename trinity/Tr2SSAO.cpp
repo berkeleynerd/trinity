@@ -39,6 +39,16 @@ Tr2SSAO::Tr2SSAO( IRoot* lockobj )
 	m_detail.effect->SetEffectPathName( "res:/graphics/effect/managed/space/System/SSAO/SSAO.fx" );
 }
 
+void Tr2SSAO::ResetRandomSeedForTesting( uint32_t seed )
+{
+	m_cortaoDeterministicRandom = true;
+	m_cortaoDeterministicRandomState = seed;
+	for( uint32_t& value : m_cortaoRandSeeds )
+	{
+		value = 0;
+	}
+}
+
 inline static uint32_t DispatchSize( uint32_t tileSize, uint32_t totalSize )
 {
 	return ( totalSize + tileSize - 1 ) / tileSize;
@@ -608,7 +618,14 @@ Tr2GpuResourcePool::Texture Tr2SSAO::ComputeCORTAO( const Tr2TextureAL& depthBuf
 		{
 			for( int i = 0; i < 4; i++ )
 			{
-				m_cortaoRandSeeds[i] = Hash( m_cortaoRandSeeds[i] + rand() );
+				uint32_t randomValue = static_cast<uint32_t>( rand() );
+				if( m_cortaoDeterministicRandom )
+				{
+					m_cortaoDeterministicRandomState =
+						1664525u * m_cortaoDeterministicRandomState + 1013904223u;
+					randomValue = m_cortaoDeterministicRandomState;
+				}
+				m_cortaoRandSeeds[i] = Hash( m_cortaoRandSeeds[i] + randomValue );
 			}
 		}
 

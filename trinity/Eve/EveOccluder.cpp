@@ -67,6 +67,39 @@ uint32_t Tr2OcclusionBuffer::GetOccluderOffset( const Offset& offset, uint32_t i
 	return offset ? *offset + 5 + index * 2 : 0;
 }
 
+bool Tr2OcclusionBuffer::Snapshot(
+	const Offset& offset,
+	std::array<uint32_t, 13>& words,
+	Tr2RenderContext& renderContext ) const
+{
+	Tr2BufferAL* source = m_buffer ? m_buffer->GetGpuBuffer( 0 ) : nullptr;
+	if( !offset || !source || !source->IsValid() || *offset + ELEMENT_SIZE > m_size )
+	{
+		return false;
+	}
+	Tr2BufferAL readback;
+	if( FAILED( readback.Create(
+			Tr2RenderContextEnum::PIXEL_FORMAT_R32_UINT,
+			ELEMENT_SIZE,
+			Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::UNORDERED_ACCESS,
+			Tr2CpuUsage::READ,
+			nullptr,
+			renderContext.GetPrimaryRenderContext() ) ) ||
+		FAILED( renderContext.CopySubBuffer(
+			readback, 0, *source, *offset * sizeof( uint32_t ), ELEMENT_SIZE * sizeof( uint32_t ) ) ) )
+	{
+		return false;
+	}
+	const uint32_t* data = nullptr;
+	if( FAILED( readback.MapForReading( data, renderContext ) ) || !data )
+	{
+		return false;
+	}
+	std::copy_n( data, ELEMENT_SIZE, words.begin() );
+	readback.UnmapForReading( renderContext );
+	return true;
+}
+
 void Tr2OcclusionBuffer::DestroyOffset( uint32_t* offset )
 {
 	GetInstance().m_free.push_back( *offset );

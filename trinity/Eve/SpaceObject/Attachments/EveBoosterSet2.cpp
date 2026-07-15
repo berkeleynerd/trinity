@@ -44,6 +44,20 @@ TRI_REGISTER_SETTING( "eveSpaceObjectTrailsMaxLengthFade", g_eveSpaceObjectTrail
 const unsigned g_lightNoiseSize = 128;
 float g_lightNoise[g_lightNoiseSize];
 bool g_lightNoiseInitialized = false;
+bool g_deterministicBoosterRandomForTesting = false;
+uint32_t g_deterministicBoosterRandomState = 0;
+
+float NextBoosterRandom()
+{
+	if( !g_deterministicBoosterRandomForTesting )
+	{
+		return float( rand() ) / float( RAND_MAX );
+	}
+	g_deterministicBoosterRandomState =
+		g_deterministicBoosterRandomState * 1664525u + 1013904223u;
+	return static_cast<float>( g_deterministicBoosterRandomState >> 8 ) /
+		static_cast<float>( 0x00ffffffu );
+}
 
 
 EveBoosterSet2Renderable::EveBoosterSet2Renderable( IRoot* lockobj ) :
@@ -710,9 +724,16 @@ EveBoosterSet2::EveBoosterSet2( IRoot* lockobj ) :
 		g_lightNoiseInitialized = true;
 		for( unsigned i = 0; i < g_lightNoiseSize; ++i )
 		{
-			g_lightNoise[i] = float( rand() ) / float( RAND_MAX );
+			g_lightNoise[i] = NextBoosterRandom();
 		}
 	}
+}
+
+void EveBoosterSet2::ResetRandomSeedForTesting( uint32_t seed )
+{
+	g_deterministicBoosterRandomForTesting = true;
+	g_deterministicBoosterRandomState = seed;
+	g_lightNoiseInitialized = false;
 }
 
 void EveBoosterSet2::SetCount( unsigned count )
@@ -866,7 +887,7 @@ void EveBoosterSet2::Add( const Matrix* localMatrix, const Vector4* functionalit
 	Vector3 lightOffset( 0.f, 0.f, -m_lightOffset );
 	sbd.lightPosition = TransformCoord( lightOffset, *localMatrix );
 	sbd.lightRadius = std::max( Length( localMatrix->GetX() ), Length( localMatrix->GetY() ) ) * lightScale;
-	sbd.lightPhase = float( g_lightNoiseSize ) * float( rand() ) / float( RAND_MAX );
+	sbd.lightPhase = float( g_lightNoiseSize ) * NextBoosterRandom();
 	sbd.atlasIndex0 = atlasIndex0;
 	sbd.atlasIndex1 = atlasIndex1;
 	m_singleBoosters.push_back( sbd );
@@ -918,7 +939,7 @@ void EveBoosterSet2::CreateFlares( SingleBoosterData& boosterData )
 		dir *= scale / 3.f;
 	}
 
-	float seed = float( rand() ) / float( RAND_MAX ) * 0.7f;
+	float seed = NextBoosterRandom() * 0.7f;
 
 	Vector3 spritePos = pos - 2.5f * dir;
 	m_glows->Add( spritePos, seed, seed, scale * m_glowScale, scale * m_glowScale, 0.0f, m_glowColor, m_warpGlowColor );
@@ -1164,7 +1185,7 @@ void EveBoosterSet2::RebuildInstanceData( Tr2RenderContext& /*renderContext*/ )
 	for( unsigned int i = 0; i < boosterCount; ++i )
 	{
 		vertices[i].transform = m_singleBoosters[i].transform;
-		vertices[i].wavePhase = (float)rand() / (float)RAND_MAX;
+		vertices[i].wavePhase = NextBoosterRandom();
 		vertices[i].functionality = m_singleBoosters[i].functionality;
 		vertices[i].atlasIndex0 = float( m_singleBoosters[i].atlasIndex0 );
 		vertices[i].atlasIndex1 = float( m_singleBoosters[i].atlasIndex1 );

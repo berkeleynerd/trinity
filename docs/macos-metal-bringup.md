@@ -2936,3 +2936,401 @@ The next question is now sharply bounded: PL-14D must compose and
 validate authored optics, the selected legacy fog profile, and occlusion
 through the full HDR finish. Exact client color/exposure and scene illumination
 remain unclaimed rather than being smuggled into the structural result.
+
+## CP-42: solar optics, legacy environment, and occlusion (2026-07-14–15)
+
+### Entry boundary
+
+PL-14D began after CP-40 and CP-41 had made the complete reachable High-quality
+Sun graph renderable. It did not reopen those mesh and particle claims. Its job
+was to close the next source/runtime seam: authored `SunFlares`, system lens
+flare, foreground and background occlusion, god rays, the selected legacy Sun
+environment, and the order in which those effects reach HDR, bloom, tone, and
+the final product. Direct illumination of the ship or planet, shadows,
+reflections, and Destiny invariance remain PL-14E. Promotion into the default
+Tour profile remains PL-14F.
+
+The work retained PL-14A's three-way fog distinction. Scene-distance fog is
+present with `fogStart=-500000`, `fogEnd=800000`, and `fogMax=0`, so it remains
+runtime-inert. The selected Sun environment owns a separate legacy
+`Tr2PPFogEffect`. Froxels have no selected resource or execution path in New
+Eden. God rays are a separate effect owned by Sun reload for graphic `1247`,
+not evidence that either fog system or Silk is active. No PL-14D fix added a
+light, haze, volume, replacement shader, substitute occluder, or tuned optical
+constant.
+
+The frozen source identity is EVE build `3430261`, `code.ccp` SHA-256
+`19ff580705e3800ccaba7cc03b7b8c988ab4095eafc36912f090896082311564`,
+and environment template 34, `ENV_Sun_Yellow_Small_01b`, at
+`res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black`
+with SHA-256
+`ee4027e8979a25222c44b2514c20a5f6ee76df381dd0bfc5fde2b3e723c02e13`.
+Promised Land stores those identities, schemas, and tools; it does not commit
+client payloads or captures.
+
+### Source and runtime contract
+
+Before PL-14D, Trinity could deserialize the environment and render the
+individual post-process classes, but the Tour path did not compose the selected
+environment. New Eden setup explicitly cleared fog and desaturation, then
+installed the default client exposure, bloom, tone, and grain. The first failed
+hypothesis was therefore that renderer capability implied scene selection. It
+did not. PL-14D adds an opt-in composition after the default client postprocess
+so the audit can select environment fog, environment finish, or both without
+changing the probe default.
+
+The environment state machine follows the recovered owner rather than treating
+the Black file as a static full-strength effect. The Sun's distance field uses
+the live midpoint, dimensions `475200000` metres on each axis, a caller radius
+of `158400000` metres, and activation radius `10060000256` metres. The
+environment manager observes activity on a 500 ms timer. During setup, the
+distance-field curve uses its authored 0.2-second in/out response while the
+fog-specific 1.5-second `x*x*(3-2*x)` fade-in starts independently. At 60 Hz
+the report records the concurrent 12-frame distance-field response and
+90-frame fog fade. When a poll observes active-to-inactive, the environment
+tears down during that poll; there is no source fog fade-out. Inside- and
+outside-boundary lanes use the source-proven `0.99` and `1.01` radius scales
+instead of an invented tolerance. The report distinguishes serialized,
+runtime-mutated, and settled values; in particular, the fog field center and
+size are runtime-owned, not serialized in the template.
+
+The recovered owner contract has a second half that the initial implementation
+and validator missed. When the 500 ms manager poll changes the environment from
+active to inactive, `Environment.TearDown` restores each writable member in the
+environment's `usedPostProcessParameters` from the default postprocess, clears
+its runtime wrapper state, and kills the fog fade tasklet. Template 34's exact
+used set is fog, bloom, and desaturation; exposure, tone mapping, and film grain
+remain default-composition members and are not environment-owned. Source names
+`res:/dx9/default/postprocess.red`; the staged resolver identity is pinned as
+`res:/dx9/default/postprocess.black`, SHA-256
+`61e8a265b656f4186cc5dc316037f7dff0d66665884165af915e3ee1c84b7cb1`.
+The `environment-off` lane is therefore a default-composed postprocess control,
+not an all-postprocess-off image. Setting only the fog weight to zero while
+retaining the environment finish is not source-equivalent teardown.
+
+The authored environment finish retains its legacy bloom threshold
+`0.660000026`, scale `0.333000004`, brightness `0.419999987`, and desaturation
+intensity `0.933000028`. The fog serializes intensity `1` even though its
+`totalAmount` is `0`. A second failed hypothesis was that `totalAmount=0` made
+the whole fog pass inert. The matched off/on capture later disproved that; the
+remaining fog parameters and composite still make a large, deterministic
+contribution. PL-14D therefore preserves all authored fields and tests the
+actual output instead of simplifying the effect from one member value.
+
+God rays retain source color
+`(0.2705881894, 0.2784313858, 0.3529411852, 1)`, intensity `1`, noise texture
+`res:/texture/global/noise.dds`, and factors `(1000, 0.2, 128, 2)`. The native
+order is frozen as background occlusion, foreground occlusion, occlusion-buffer
+processing, lens flare, generic postprocess, fog color, horizontal/vertical fog
+blur, fog composite, god rays, depth of field, TAA, exposure, bloom,
+sharpening, tone/desaturation, and film grain. Active fog and god-ray work now
+fails closed unless every constituent pass succeeds.
+
+The sample-only surface is deliberately narrow:
+
+- `--solar-environment off|fog|finish|all` selects the environment components.
+- `--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary`
+  exercises cold boundary states and a true active-to-inactive teardown.
+- `--scene-distance-fog authored|off` and
+  `--solar-desaturate authored|off` provide matched controls.
+- `--sun-effects` now separates the authored `SunFlares` mesh from the system
+  `EveLensflare`, in addition to god rays and the combined mode.
+- `--solar-occlusion-view` provides unobscured, partial hull, total hull,
+  planet-limb, planet-eclipse, and 17-state hull and planet sweeps.
+- `--solar-optics-report` emits `trinity.solar-optics-report.v1`; a finite High
+  New Eden HDR run is required.
+
+The report records source identity, field provenance and settled weight, exact
+effect values, camera and projected coverage, submitted passes, named products,
+and each native 13-word foreground and background occlusion block. The first
+design preserved those words without interpreting them. Only after the pinned
+occluder-management and lens-flare shaders proved that copied word zero is the
+visibility consumed by the lens-flare indices did the report expose normalized
+foreground, background, and combined visibility. It continues to retain the
+raw words and the source label; image coverage is not used to invent buffer
+semantics.
+
+### Battle journal and native defects
+
+The first D2 attempt put the Astero near the system origin while the structural
+camera orbited the Sun. Moving the unscaled authored hull through the fixed
+240-pixel solar disc corrected the visible geometry, but still did not move the
+foreground occlusion block. A depth image showing roughly 98% disc coverage was
+not proof that the native query worked. That failure was the useful turning
+point: it separated a camera-composition error from renderer and resource
+binding defects instead of allowing a plausible screenshot to pass.
+
+The fail-closed iterations exposed and repaired these native seams:
+
+- The CMF-to-Trinity vertex-declaration bridge repacked elements and discarded
+  authored `src.offset` values. It now retains each source offset and derives
+  stride from the maximum element end, fixing the shared Astero declaration
+  used by the occlusion pass.
+- Foreground `LensflareOccluder` samples `EveSceneFogVolumeMap`, but the main
+  pass removed that temporary binding before lens-flare queries. Metal then
+  selected its opaque diagnostic fallback and clamped even an empty-fog query
+  near 30% visibility. The render driver now rebinds the exact volumetric-slice
+  texture for the query and clears it afterward.
+- Background planet depth had been rendered with the planet-scaled view while
+  its lens-flare query used the normal scene frustum. The query now executes
+  before the planet-depth clear with the same scaled view, projection, world
+  coordinates, and frustum, then restores the ordinary flare state.
+- Exact-system lens flare needed both the authored ball curve and a separate
+  world-position offset. Its direction is now computed from the actual camera
+  to that world position rather than assuming a floating-origin camera at zero.
+  The planet audit lane rebases the exact New Eden planet to zero while
+  preserving the authored Sun/planet separation, avoiding a synthetic
+  replacement occluder and single-precision loss.
+- The standalone god-ray effect inherited a zero effect-local `ProjectionMat`;
+  depth reconstruction collapsed to NaN or zero even though the effect was
+  nominally active. The live reversed-depth projection, native occlusion
+  buffer, and foreground/background offsets are now bound explicitly. Depth
+  downsample, ray draw, and additive composite each report success.
+- Fog color, both blur directions, fog composite, and all god-ray stages had
+  ignored draw results. Their failures now propagate to the render-frame and
+  PL-14D report instead of producing an apparently valid blank isolate.
+- Named-product readback rerendered the settled scene at the same timestamp.
+  Re-running dynamic exposure with zero delta could overwrite its persistent
+  buffer with initialization state and saturate otherwise valid bloom and tone
+  products. Frozen evidence runs now reuse the last measured exposure history,
+  and ordinary product capture no longer adds a hidden tone-diagnostic rerender.
+- A raw visibility value one ULP across the normalized boundary revealed an
+  evidence comparison that was stricter than the float contract. Normalization
+  now follows the proven float representation and the validator's explicit
+  tolerance; it does not alter the GPU counter or flare shader.
+- The first linear Astero sweep crossed open silhouettes, so coverage reopened
+  even while the model translated monotonically. The final 17 positions sample
+  the measured monotonic envelope of the same unscaled authored mesh. No sphere,
+  scale animation, new geometry, or synthesized depth mask replaces it.
+- Integrated High-Sun captures exposed process-order noise in parallel particle
+  updates and additive batch gathering. Report-bearing evidence uses stable
+  testing ordinals and deterministic collection; production retains the normal
+  parallel paths.
+
+The planet path likewise avoided a guessed sphere as its renderer input. It
+uses the exact-position New Eden `EvePlanet`, its unit surface geometry, the
+native planet render path, and the authored atmosphere/cloud graph. The report
+records that the retained layer envelope reaches `2.883550882` times the unit
+surface radius. Its coverage metric is an explicitly reported projected
+surface-circle calculation, while visibility comes independently from the
+background occlusion block and the before/after native HDR lens-flare pass.
+
+### Provisional validation and reopened gate
+
+Promised Land split PL-14D into two independently fail-closed units. D1 covers
+the environment and full finish with 13 lanes: full A/B repeats, environment
+off, fog off, environment bloom off, desaturation off, exposure off, a matched
+dark grain control and grain-off lane, scene-distance fog off, inside/outside
+boundary controls, and a distinct inside-to-outside exit control. The cold
+outside lane performs no setup or teardown; the exit lane requires exactly one
+of each and restored default ownership. D2 covers optics and occlusion: optics
+off, `SunFlares` only, system lens flare only, fixed partial/total hull and
+limb/eclipse views, god-ray controls, and A/B 17-state hull and planet sweeps.
+The sweeps hold every state for 30 frames after a 180-frame warm-up; named HDR,
+bloom, post-tone, final, depth, reflection, and layer products remain available.
+
+The first fresh D1, D2, and aggregate verdicts returned Accepted with zero
+reported failures. A later reconciliation against the pinned owner source
+supersedes the D1 and aggregate results; D2 remains independently Accepted.
+The following measurements remain valid evidence for D2 and for the selected
+environment's inside-state contribution:
+
+- Full-finish repeat reports and image sequences match with zero changed pixels
+  and zero maximum-channel repeat delta.
+- Environment fog versus fog-off changes `1,227,066` pixels with maximum
+  channel delta `92`. Removing scene-distance fog changes no sequence hash,
+  closing its `fogMax=0` inert verdict.
+- `SunFlares` versus optics-off changes `1,111,642` final-output pixels with
+  maximum delta `97`; system lens flare changes all `1,228,800` backing pixels
+  in the final captured output with maximum delta `255`. These measurements do
+  not claim the effects' direct raster footprints.
+- Partial-hull god rays change `1,182,792` HDR pixels outside the 121-pixel
+  surface radius with maximum delta `6`.
+- Hull coverage progresses from `0` through a measured `0.4718194678` partial
+  state to `1`. Source foreground visibility falls from `0.8862825632` to
+  `0.1547911465`, and isolated native HDR lens-flare energy falls from
+  `14045259.55` to `9995712.259`, without a reversal.
+- Planet coverage progresses from `0` through `0.5002652285` to `1`. Source
+  background visibility falls from `0.3295126557` to `0`, and isolated HDR
+  lens-flare energy falls from `3086568.479` to `0`.
+- Hull and planet A/B normalized reports and sequences match. Every active fog,
+  god-ray, occlusion, exposure, bloom, tone, and grain pass reports completion;
+  depth and upstream product invariants hold across the matched finish toggles.
+- The report still closes scene-distance fog as inert and froxels as
+  `selected=false`, `resourceCount=0`, and `executionCount=0`.
+
+The missed D1 condition is concrete. In
+`environment-outside-boundary/solar-optics-report.json`, the field is inactive,
+settled weight and fog intensity are zero, but environment desaturation and
+bloom remain selected. The resulting bloom, post-tone, and final hashes differ
+from the `environment-off` lane (`18001c5...`, `6416cc0...`, and `33db09f...`
+versus `8dd762e...`, `cbd3754...`, and `e407e8a...`). The validator asserted the
+fog state and contribution but never required default bloom/desaturation
+restoration or outside/off product equivalence. Its aggregate Accepted JSON is
+therefore a superseded artifact, not an acceptance record.
+
+At that checkpoint, D2's optics and authored-geometry occlusion result remained
+Accepted while D1 and the aggregate were Reopened and Blocked pending
+source-equivalent full teardown. CP-42 was not yet recorded and PL-14E was not
+yet activated. The claim boundary was unchanged: exact client pixels, color,
+camera, exposure, and the visibly overexposed integrated finish remained
+unclaimed. Manual review covered only the registered glare, hull-occlusion,
+god-ray, planet-limb, and eclipse structures and could not override a metric.
+Direct hull or planet lighting, shadow and reflection response, and a final Tour
+frame also remained outside PL-14D.
+
+### Accepted teardown closure (2026-07-15)
+
+Trinity then implemented the missing owner transition and Promised Land reran
+the complete fail-closed chain. Fresh D1, D2, and aggregate verdicts are
+Accepted with zero failures; the D1 environment evidence hash is
+`fc47cd97d63efc8aeda213cd5571e3f9c8345bdc884214c7c9bfa9114767afec`.
+The earlier outside report and aggregate verdict remain useful failure records,
+but they are superseded by this accepted evidence rather than rewritten as if
+the first run had succeeded.
+
+The cold `environment-outside-boundary` lane proves the never-active state. It
+records zero setups and teardowns, no installed environment members, default
+fog/bloom/desaturation ownership and exact default values, and zero fog passes.
+Its HDR composite, bloom, post-tone, raw final-postprocess, and color products
+are byte-identical to `environment-off`; all five captured sequence frames are
+also byte-identical. This is the exact default-stack comparison that the first
+validator omitted.
+
+The separate `environment-exit-boundary` lane proves the actual transition. It
+starts active, the frame-180 manager poll observes the exit, and the final
+report records `setupCount=1`, `teardownCount=1`, `exitObserved=true`, an
+inactive field, no installed members, default fog/bloom/desaturation ownership,
+and no fog execution. TAA and exposure history deliberately survive teardown,
+matching the source ownership boundary. The validator therefore requires exact
+default equality for the history-independent TAA input, depth, normal,
+reflection, and velocity products, while requiring the history-bearing TAA
+output/cooldown, HDR, bloom, post-tone, final, and color products to be present
+and recorded rather than falsely equating them with a never-active process.
+
+Two evidence fixes close the remaining finish ambiguity. Final-postprocess
+capture now resolves and reads the raw final texture instead of routing it
+through the diagnostic visualizer. Film grain uses a darker, otherwise matched
+`grain-control`/`grain-off` pair with environment and optics disabled; the pair
+holds post-tone byte-identical and changes the raw final product downstream.
+Full-finish A/B reports and sequences retain zero repeat noise, and the D2 hull
+and planet A/B reports and sequences remain deterministic. Every PL-14D lane ran
+with volumetrics off; Silk remains unselected, and froxels report
+`selected=false`, `resourceCount=0`, and `executionCount=0`.
+
+CP-42 is therefore Accepted and PL-14E is Active. The solar environment remains
+an opt-in application preview until PL-14F. Exact client pixels, color, camera,
+and exposure remain unclaimed, while direct hull/planet illumination, shadows,
+reflections, and Destiny invariance remain PL-14E work.
+
+### Tour preview camera leak
+
+The first application smoke after the provisional verdict found one integration
+leak that the report lanes could not expose. Selecting only the opt-in environment still
+set `solarOpticsConfigured`, and the occlusion-view updater treated that as
+permission to install its fixed 240-pixel audit camera. The Tour preview
+therefore lost the native chase view and invalidated its local-light framing
+even though no occlusion report had been requested. The ownership condition is
+now explicit: only a report-bearing solar-optics audit may install the fixed
+camera. Environment-only preview use retains the Tour chase camera. Dedicated
+default and preview background smokes close this leak without changing D2's
+accepted evidence or D1's captured inside-state measurements.
+
+### Post-verdict terminal planet finding (2026-07-15)
+
+A later Tour itinerary extension adds a terminal Sun-through-planet inspection
+after the original Sun/EVE Gate/Sun journey. At frame `5521`, after the ship
+stops at the planet-limb observation point, the camera cuts from the normal
+48-degree chase projection to a `1.546434`-degree inspection projection. The
+targeting solver asks the planet's surface sphere to cover 50% of the Sun and
+uses the `2630000`-metre surface radius. It does not use the retained
+atmosphere/cloud envelope, whose authored geometry bound is
+`2.883550882` times the surface radius.
+
+Matched layer reruns localize the conspicuous terminal crescent. A surface-only
+run leaves a thin physical limb. The `--planet-layers atmosphere` control,
+which retains the surface and disables clouds, reproduces the thick bright
+crescent. That proves the atmosphere branch is sufficient, not that clouds are
+noncontributing. It also disproves solar environment fog, froxels, and the
+`SunFlares`/lens-flare stack as the immediate source of this particular shape.
+The targeting solver uses the `2630000`-metre surface radius and resolves a
+`2630949.064`-metre limb offset, while the retained atmosphere bound reaches
+`2.883550882` times the surface radius. The logged Sun distance is
+`46947500032` metres.
+
+This is a reproduced defect, not a completed repair and not a new planet-parity
+claim. The evidence does not yet decide whether the remaining error is camera
+policy, authored atmosphere transform/scale interpretation, atmosphere shader
+behavior at this angular size, or their interaction. Clouds were not isolated
+by the stated reproduction. No radius, layer transform, shader constant, depth
+order, or finale FOV has been changed on the strength of this observation. It
+does not invalidate the Accepted CP-42 solar optics, environment, or occlusion
+contract. The planet finding separately blocks treating the terminal Tour shot
+as visually accepted and belongs in the planetary audit before PL-14F
+promotion; it does not reopen CP-42 or prevent PL-14E from being Active.
+
+Promised Land's companion synthesis,
+`docs/research/new-eden-solar-rendering-anatomy.md`, maps these renderer stages
+to the D1/D2 evidence gates and records the cross-repository claim boundaries.
+
+## CP-43: source-selected solar illumination transport (2026-07-15)
+
+PL-14E separated material illumination from the already accepted optics stack.
+The live `EveSpaceScene::sunBall` is now the single authority for visible-Sun
+placement, lens-flare linkage, per-frame light direction, and the client-owned
+diffuse-color controller. Report-bearing runs evaluate that controller on exact
+100 ms simulation boundaries, catch up across finite-frame steps, read distance
+from the live ball curve, apply the recovered distance ratio and HSV
+interpolation, and write only scene diffuse Sun color. Frozen and off controls
+leave the ball, camera, render geometry, and Destiny state untouched.
+
+Maximum-quality shadows use the native Metal ray-tracing path, not an added
+sample light or raster approximation. The Astero supplies its native prepared
+geometry; the exact-position New Eden planet supplies the analytic sphere used
+by the shadow query. The report closes acceleration preparation, tracing,
+denoising, mask generation, shader direction signs, and readable mask state.
+Day, limb, and eclipse lanes produce distinct receiver responses, with total
+eclipse reducing direct hull luminance to zero. Planet atmosphere, cloud, and
+material appearance remain deliberately outside this result.
+
+Dynamic reflection required a stricter determinism contract than ordinary
+interactive rendering. Evidence mode retains the native six-face, 256×256
+capture and eight-mip filtering path while ordering authored quad and batch
+submission explicitly and sampling the completed ping-pong cube. The same
+report records all six faces, filtering, binding, and canonical hashes. The
+production path is unchanged unless the explicit deterministic-evidence switch
+and report are both present.
+
+The longest failure chase occurred downstream of illumination. High TAA could
+settle into two valid Metal histories across otherwise identical fresh
+processes, obscuring whether transport itself repeated. PL-14E therefore
+records hashes immediately before and after TAA, resets temporal history only
+on requested evidence frames, and feeds TAA and tone mapping a report-only
+exposure buffer containing the prior native adapted value quantized to
+`0.0001`. CORTAO, particles, boosters, local-light evaluation, batch gathering,
+and quad submission receive similarly narrow testing seeds or stable ordering.
+These controls are observable in the report, never execute in the default
+Tour, and do not replace the native renderer stages they measure. Observer
+evidence also records the off-frustum hull receiver, local-light list, and
+shadow-mask measurements as unreachable instead of treating their canonical
+zero values as failed rendering.
+
+Promised Land accepted both independently landing units and their aggregate.
+E1 contains 27 fixed transport lanes; authored near-Sun lighting differs from
+off by 68,288 pixels with maximum channel delta 178, ray-traced shadow differs
+from shadow-off by 22,722 pixels with maximum delta 178, and hull, eclipse, and
+dynamic-reflection A/B repeats have zero noise. E2 contains eight copies of the
+original unextended 3,600-frame Sun/EVE Gate/Sun journey. Its authored A/B
+reports and sequences are byte-identical, every control retains trajectory
+SHA-256 `80df58ee0cfc3c637eb24ef710ea2835e8485552a7b03acbd5a5ef2885aa2852`,
+and the terminal row hash remains
+`50244cb7846cb0284e4d491648769b60eca5cee78f0b6aa438f9925bb1da0482`.
+
+CP-43 is therefore Accepted. The default probe and Tour continue to use frozen
+illumination and High raster shadows. Promised Land's opt-in
+`--solar-parity-preview` now adds authored illumination and ray-traced shadows,
+with raster local shadows explicitly disabled because the two maximum-quality
+contracts are mutually exclusive. Both default and preview background smokes
+pass with volumetrics off. Exact client pixels, color, camera, exposure,
+planetary rendering parity, and the terminal crescent remain unclaimed and
+belong to the planetary audit and PL-14F.

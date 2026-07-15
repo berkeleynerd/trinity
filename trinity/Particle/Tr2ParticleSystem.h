@@ -134,6 +134,7 @@ public:
 		return m_name.c_str();
 	}
 	static bool ResetRandomSeedForTesting( uint32_t seed );
+	static void SetDeterministicUpdatesForTesting( bool enabled );
 
 	static void UpdateAllSystems( const ITr2GenericEmitter::UpdateArguments& arguments );
 	void Update( const ITr2GenericEmitter::UpdateArguments& arguments );
@@ -278,6 +279,7 @@ private:
 	bool m_isValid;
 	// Previous sorting reference point (only used during sorting)
 	XMVECTOR* m_sortingReferencePoint;
+	uint64_t m_testingOrdinal;
 
 	// Bounding box for the system
 	Vector3 m_AabbMin;

@@ -230,6 +230,7 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_planetScale( 1e6 ),
 	m_planetCameraScale( 1e6 ),
 	m_planetShadowsEnabled( true ),
+	m_deterministicBatchCollectionForTesting( false ),
 	m_sunColor( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_sunColorWithDynamicLights( 1.0f, 1.0f, 1.0f, 1.0f ),
 	m_currentSunColor( 1.0f, 1.0f, 1.0f, 1.0f ),
@@ -330,6 +331,25 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 IRoot* EveSpaceScene::GetCameraAttachments() const
 {
 	return m_cameraAttachmentParent->GetChildren().GetRawRoot();
+}
+
+void EveSpaceScene::SetDeterministicBatchCollectionForTesting( bool value )
+{
+	if( m_deterministicBatchCollectionForTesting == value )
+	{
+		return;
+	}
+	m_deterministicBatchCollectionForTesting = value;
+	TriPoolAllocator* allocator = Tr2Renderer::GetPoolAllocator();
+	for( BatchMap* map : { &m_primaryBatches, &m_secondaryBatches } )
+	{
+		CCP_DELETE( ( *map )[TRIBATCHTYPE_ADDITIVE] );
+		( *map )[TRIBATCHTYPE_ADDITIVE] = value ?
+			static_cast<ITriRenderBatchAccumulator*>(
+				CCP_NEW( "EveSpaceScene/m_deterministicAdditiveBatches" ) TriRenderBatchAccumulator<>( allocator ) ) :
+			static_cast<ITriRenderBatchAccumulator*>(
+				CCP_NEW( "EveSpaceScene/m_additiveBatches" ) TriRenderBatchAccumulator<EffectKeyGenerator>( allocator ) );
+	}
 }
 
 EveSpaceScene::~EveSpaceScene()
@@ -965,7 +985,8 @@ void GetBatchesFromRenderables(
 	EveSpaceScene::PerThreadBatchMap& perThreadBatches,
 	const TriBatchType* batchTypes,
 	const unsigned batchTypeCount,
-	Tr2RenderReason reason )
+	Tr2RenderReason reason,
+	bool deterministicBatchCollection )
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -985,18 +1006,32 @@ void GetBatchesFromRenderables(
 	{
 		CCP_STATS_ZONE( "GetBatches" );
 
-		Tr2ParallelFor( unsigned( 0 ), renderableCount, [&]( unsigned i ) {
-			ITr2Renderable* r = objectRenderables[i];
-			for( unsigned type = 0; type != batchTypeCount; ++type )
+		if( deterministicBatchCollection )
+		{
+			for( unsigned i = 0; i != renderableCount; ++i )
 			{
-				r->GetBatches( &perThreadBatches[batchTypes[type]].local(), batchTypes[type], perObjectData[i], reason );
+				ITr2Renderable* r = objectRenderables[i];
+				for( unsigned type = 0; type != batchTypeCount; ++type )
+				{
+					r->GetBatches( batches[batchTypes[type]], batchTypes[type], perObjectData[i], reason );
+				}
 			}
-		} );
+		}
+		else
+		{
+			Tr2ParallelFor( unsigned( 0 ), renderableCount, [&]( unsigned i ) {
+				ITr2Renderable* r = objectRenderables[i];
+				for( unsigned type = 0; type != batchTypeCount; ++type )
+				{
+					r->GetBatches( &perThreadBatches[batchTypes[type]].local(), batchTypes[type], perObjectData[i], reason );
+				}
+			} );
+		}
 	}
 	{
 		CCP_STATS_ZONE( "Combine" );
 
-		for( unsigned type = 0; type != batchTypeCount; ++type )
+		for( unsigned type = 0; !deterministicBatchCollection && type != batchTypeCount; ++type )
 		{
 			auto& dest = batches[batchTypes[type]];
 			for( auto& src : perThreadBatches[batchTypes[type]] )
@@ -1055,7 +1090,7 @@ void EveSpaceScene::GetAllBatchesFromRenderables( std::vector<ITr2Renderable*>& 
 		typeCount -= 1;
 	}
 
-	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), &objectsWithTransparencies, batches, m_perThreadBatches, s_allTypes, typeCount, reason );
+	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), &objectsWithTransparencies, batches, m_perThreadBatches, s_allTypes, typeCount, reason, m_deterministicBatchCollectionForTesting );
 }
 
 // --------------------------------------------------------------------------------------
@@ -1079,7 +1114,7 @@ void EveSpaceScene::GetOpaqueBatchesFromRenderables( std::vector<ITr2Renderable*
 		TRIBATCHTYPE_DECAL
 	};
 
-	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), nullptr, batches, m_perThreadBatches, s_allTypes, 2, reason );
+	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), nullptr, batches, m_perThreadBatches, s_allTypes, 2, reason, m_deterministicBatchCollectionForTesting );
 }
 
 // --------------------------------------------------------------------------------------
@@ -1102,7 +1137,7 @@ void EveSpaceScene::GetDepthBatchesFromRenderables( std::vector<ITr2Renderable*>
 		TRIBATCHTYPE_DEPTH
 	};
 
-	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), nullptr, batches, m_perThreadBatches, s_allTypes, 1, reason );
+	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), nullptr, batches, m_perThreadBatches, s_allTypes, 1, reason, m_deterministicBatchCollectionForTesting );
 }
 
 // --------------------------------------------------------------------------------------
@@ -1130,7 +1165,7 @@ void EveSpaceScene::GetTransparentBatchesFromRenderables( std::vector<ITr2Render
 
 	unsigned typeCount = includeDistortions ? 2 : 1;
 
-	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), &objectsWithTransparencies, batches, m_perThreadBatches, s_allTypes, typeCount, reason );
+	::GetBatchesFromRenderables( &objectRenderables[0], (unsigned int)objectRenderables.size(), &objectsWithTransparencies, batches, m_perThreadBatches, s_allTypes, typeCount, reason, m_deterministicBatchCollectionForTesting );
 }
 
 // --------------------------------------------------------------------------------------
@@ -1615,6 +1650,8 @@ void EveSpaceScene::GatherBatches( bool includeDistortions, Tr2RenderContext& re
 
 void EveSpaceScene::PrepareRaytracedShadows( Tr2RenderContext& renderContext )
 {
+	m_raytracedShadowDiagnostics = {};
+	m_raytracedShadowDiagnostics.preparationAttempted = true;
 	if( m_objects.empty() )
 	{
 		return;
@@ -1631,6 +1668,8 @@ void EveSpaceScene::PrepareRaytracedShadows( Tr2RenderContext& renderContext )
 	ProcessOutdatedRTAnimations( renderContext );
 
 	auto& shadowCasters = m_componentRegistry->GetComponents<IEveShadowCaster>();
+	m_raytracedShadowDiagnostics.shadowCasterCount =
+		static_cast<uint32_t>( shadowCasters.size() );
 	Tr2ParallelDo( begin( shadowCasters ), end( shadowCasters ), [&]( auto caster ) {
 		caster->PushRtGeometry( *m_rtManager );
 	} );
@@ -1653,6 +1692,7 @@ void EveSpaceScene::PrepareRaytracedShadows( Tr2RenderContext& renderContext )
 		i++;
 	}
 	m_rtManager->GetGeometry().EndSceneUpdate( renderContext, i, shaderTableDescs, pipelineManagers );
+	m_raytracedShadowDiagnostics.geometryPresent = m_rtManager->GetGeometry().HasGeometry();
 }
 
 void EveSpaceScene::UpdateImpostors( Tr2RenderContext& renderContext )
@@ -1807,12 +1847,22 @@ void EveSpaceScene::UpdateQuadRenderer(
 
 	auto& quadRenderer = *Tr2QuadRenderer::Instance();
 
-	Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, allObjects.size(), 20 ), [&]( Tr2BlockedRange<size_t> range ) {
-		for( auto i = range.begin(); i != range.end(); ++i )
+	if( quadRenderer.IsDeterministicSubmissionForTesting() )
+	{
+		for( IEveSpaceObject2* object : allObjects )
 		{
-			allObjects[i]->AddQuadsToQuadRenderer( frustum, quadRenderer );
+			object->AddQuadsToQuadRenderer( frustum, quadRenderer );
 		}
-	} );
+	}
+	else
+	{
+		Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, allObjects.size(), 20 ), [&]( Tr2BlockedRange<size_t> range ) {
+			for( auto i = range.begin(); i != range.end(); ++i )
+			{
+				allObjects[i]->AddQuadsToQuadRenderer( frustum, quadRenderer );
+			}
+		} );
+	}
 
 	quadRenderer.BeginRendering( renderContext );
 }
@@ -1827,13 +1877,23 @@ void EveSpaceScene::UpdateQuadRenderer(
 
 	auto& quadRenderer = *Tr2QuadRenderer::Instance();
 
-	Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, objects.size(), 20 ), [&]( Tr2BlockedRange<size_t> range ) {
-		for( auto i = range.begin(); i != range.end(); ++i )
+	if( quadRenderer.IsDeterministicSubmissionForTesting() )
+	{
+		for( IEveSpaceObject2* object : objects )
 		{
-			auto obj = objects[i];
-			obj->AddQuadsToQuadRenderer( frustum, quadRenderer );
+			object->AddQuadsToQuadRenderer( frustum, quadRenderer );
 		}
-	} );
+	}
+	else
+	{
+		Tr2ParallelFor( Tr2BlockedRange<size_t>( 0, objects.size(), 20 ), [&]( Tr2BlockedRange<size_t> range ) {
+			for( auto i = range.begin(); i != range.end(); ++i )
+			{
+				auto obj = objects[i];
+				obj->AddQuadsToQuadRenderer( frustum, quadRenderer );
+			}
+		} );
+	}
 
 	quadRenderer.BeginRendering( renderContext );
 }
@@ -2239,20 +2299,11 @@ bool EveSpaceScene::RenderBackgroundPassObjects( const Tr2TextureAL& depthMap, c
 	// planets
 	if( !m_planets.empty() )
 	{
-		RenderPlanets( renderContext );
+		RenderPlanets( renderContext, reason == BACKGROUND_RENDER_COLOR );
 		// we must clear z-buffer if we rendered some planets because the planets
 		// have their own view/projection and so their own z-depth, BUT before
 		// clear, we must render the lensfalre occlusion queries, so we don't lose
 		// the z info we have so far
-		if( reason == BACKGROUND_RENDER_COLOR )
-		{
-			renderContext.SetReadOnlyDepth( true );
-			for( EveLensflareVector::const_iterator it = m_lensflares.begin(); it != m_lensflares.end(); ++it )
-			{
-				( *it )->RunBackgroundOcclusionQueries( renderContext, m_updateContext );
-			}
-			renderContext.SetReadOnlyDepth( false );
-		}
 	}
 
 	if( m_warpTunnel )
@@ -2854,16 +2905,51 @@ EveSpaceScene::ShadowResources EveSpaceScene::RenderShadows( const Tr2TextureAL&
 	}
 	else if( m_rtManager && m_shadowQuality == ShadowQuality::SHADOW_RAYTRACED && !m_objects.empty() )
 	{
+		m_raytracedShadowDiagnostics.renderAttempted = true;
 		constexpr size_t maxPlanets = 2;
 		CcpMath::Sphere planets[maxPlanets];
 		SetupPlanetsAsShadowCaster( planets, maxPlanets );
+		for( size_t index = 0; index < maxPlanets; ++index )
+		{
+			m_raytracedShadowDiagnostics.analyticPlanetSpheres[index] =
+				Vector4( planets[index].center, planets[index].radius );
+			if( planets[index].radius > 0.0f )
+			{
+				++m_raytracedShadowDiagnostics.analyticPlanetSphereCount;
+			}
+		}
 
 		size_t volumetricCount = m_componentRegistry->ComponentCount<ITr2VolumetricRenderable>();
 		size_t shadowCasterCount = m_componentRegistry->ComponentCount<IEveShadowCaster>();
+		m_raytracedShadowDiagnostics.volumetricCount =
+			static_cast<uint32_t>( volumetricCount );
+		m_raytracedShadowDiagnostics.shadowCasterCount =
+			static_cast<uint32_t>( shadowCasterCount );
 		if( volumetricCount + shadowCasterCount != 0 )
 		{
 			renderContext.SetReadOnlyDepth( true );
 			result = { m_rtManager->RenderShadows( depthMap, normalMap, m_sunData.DirWorld, planets, maxPlanets, m_upscalingAmount, gpuResourcePool, renderContext ) };
+			const auto& diagnostics = m_rtManager->GetShadowExecutionDiagnostics();
+			m_raytracedShadowDiagnostics.effectReady = diagnostics.effectReady;
+			m_raytracedShadowDiagnostics.geometryPresent = diagnostics.geometryPresent;
+			m_raytracedShadowDiagnostics.techniquePresent = diagnostics.techniquePresent;
+			m_raytracedShadowDiagnostics.pipelineValid = diagnostics.pipelineValid;
+			m_raytracedShadowDiagnostics.shaderTableValid = diagnostics.shaderTableValid;
+			m_raytracedShadowDiagnostics.dispatchAttempted = diagnostics.dispatchAttempted;
+			m_raytracedShadowDiagnostics.dispatchSucceeded = diagnostics.dispatchSucceeded;
+			m_raytracedShadowDiagnostics.denoiserRequested = diagnostics.denoiserRequested;
+			m_raytracedShadowDiagnostics.denoiserSucceeded = diagnostics.denoiserSucceeded;
+			m_raytracedShadowDiagnostics.resultValid =
+				diagnostics.resultValid && result.shadowMap.IsValid();
+			m_raytracedShadowDiagnostics.dispatchCount = diagnostics.dispatchCount;
+			m_raytracedShadowDiagnostics.denoiserCount = diagnostics.denoiserCount;
+			if( result.shadowMap.IsValid() )
+			{
+				m_raytracedShadowDiagnostics.resultFormat =
+					static_cast<uint32_t>( result.shadowMap->GetFormat() );
+				m_raytracedShadowDiagnostics.resultWidth = result.shadowMap->GetWidth();
+				m_raytracedShadowDiagnostics.resultHeight = result.shadowMap->GetHeight();
+			}
 
 			if( m_componentRegistry && m_volumetricsRenderer )
 			{
@@ -4130,7 +4216,7 @@ void EveSpaceScene::AdvancePlanetUpdateForTesting( EvePlanet& planet, Be::Time s
 	Tr2Renderer::SetViewTransform( originalView );
 }
 
-void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
+void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext, bool runLensflareOcclusion )
 {
 	// Backup current state
 	Tr2Renderer::PushProjection();
@@ -4185,13 +4271,40 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext )
 	renderContext.m_esm.PopRenderTarget( 1 );
 	ClearBatches( m_secondaryBatches );
 
+	// The planet depth and its lens-flare query must use the same scaled view,
+	// projection, and world coordinates.  Mixing the normal flare transform with
+	// the legacy planet depth makes the depth-sampling occluder always visible.
+	if( runLensflareOcclusion )
+	{
+		TriFrustum planetFrustum;
+		planetFrustum.DeriveFrustum(
+			&Tr2Renderer::GetViewTransform(),
+			&Tr2Renderer::GetViewPosition(),
+			&planetProjection,
+			renderContext.m_esm.GetViewport() );
+		const TriFrustum normalFrustum = m_updateContext.GetFrustum();
+		m_updateContext.SetFrustum( planetFrustum );
+		const bool oldReadOnlyDepthForOcclusion = renderContext.GetReadOnlyDepth();
+		renderContext.SetReadOnlyDepth( true );
+		for( EveLensflare* lensflare : m_lensflares )
+		{
+			lensflare->PrepareRender( planetFrustum, 1.0f / m_planetCameraScale );
+			lensflare->RunBackgroundOcclusionQueries( renderContext, m_updateContext );
+		}
+		renderContext.SetReadOnlyDepth( oldReadOnlyDepthForOcclusion );
+		m_updateContext.SetFrustum( normalFrustum );
+	}
+
 	// Put view/projection back to normal
 	Tr2Renderer::PopProjection();
 	guardPopProjection.Dismiss();
 
 	Tr2Renderer::PopViewTransform();
 	guardPopViewTransform.Dismiss();
-
+	for( EveLensflare* lensflare : m_lensflares )
+	{
+		lensflare->PrepareRender( m_updateContext.GetFrustum() );
+	}
 	PopulatePerFramePSData( m_perFramePS, renderContext );
 	PopulatePerFrameVSData( m_perFrameVS, renderContext );
 	ApplyPerFrameData( renderContext );

@@ -52,7 +52,7 @@ public:
 	void Update( Be::Time realTime, Be::Time simTime );
 
 	// prepare some data necessary for rendering
-	void PrepareRender( const TriFrustum& frustum );
+	void PrepareRender( const TriFrustum& frustum, float worldScale = 1.0f );
 
 	// rendering
 	void GetRenderables( const TriFrustum& frustum, std::vector<ITr2Renderable*>& renderables );
@@ -93,9 +93,29 @@ public:
 	{
 		return m_translationCurve.p;
 	}
+	void SetPositionOffset( const Vector3& offset )
+	{
+		m_positionOffset = offset;
+	}
 	float GetSunSize() const
 	{
 		return m_sunSize;
+	}
+	bool GetIsVisible() const
+	{
+		return m_isVisible;
+	}
+	bool GetUpdate() const
+	{
+		return m_update;
+	}
+	const Vector3& GetPosition() const
+	{
+		return m_position;
+	}
+	const Vector3& GetDirection() const
+	{
+		return m_direction;
 	}
 	Tr2MeshPtr GetMesh() const
 	{
@@ -112,6 +132,14 @@ public:
 	const PEveOccluderVector& BackgroundOccluders() const
 	{
 		return m_backgroundOccluders;
+	}
+	const Tr2OcclusionBuffer::Offset& GetForegroundOcclusionOffset() const
+	{
+		return m_occlusionOffset;
+	}
+	const Tr2OcclusionBuffer::Offset& GetBackgroundOcclusionOffset() const
+	{
+		return m_backgroundOcclusionOffset;
 	}
 
 
@@ -131,6 +159,7 @@ private:
 
 	// position
 	Vector3 m_position;
+	Vector3 m_positionOffset;
 	Vector3 m_direction;
 	float m_sunSize;
 

@@ -5,6 +5,8 @@
 #include "TriRenderBatch.h"
 #include "Resources/TriGeometryRes.h"
 
+#include <tuple>
+
 
 // -------------------------------------------------------------
 // Description:

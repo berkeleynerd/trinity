@@ -35,6 +35,8 @@ public:
 	void AddQuads( EffectKey effectKey, const void* sprites, size_t count );
 	void BeginRendering( Tr2RenderContext & renderContext );
 	void DoneRendering( Tr2RenderContext & renderContext );
+	void SetDeterministicSubmissionForTesting( bool enabled );
+	bool IsDeterministicSubmissionForTesting() const;
 
 	void GetBatches( TriBatchType batchType, ITriRenderBatchAccumulator * accumulator );
 
@@ -79,6 +81,8 @@ private:
 		Tr2VertexDefinition definition;
 		// Thread local storage used when adding instances
 		Tr2EnumerableThreadSpecific<PerThreadData> combinable;
+		// Stable first-submission order used only by finite-frame evidence runs.
+		uint32_t deterministicSubmissionOrder = UINT32_MAX;
 	};
 
 	virtual bool OnPrepareResources();
@@ -89,6 +93,9 @@ private:
 
 	// Map of registered effects
 	TrackableStdUnorderedMap<EffectKey, EffectRecord*> m_effects;
+	std::vector<EffectRecord*> m_frameEffects;
+	bool m_deterministicSubmissionForTesting;
+	uint32_t m_nextDeterministicSubmissionOrder;
 
 	// Total size of all added data this frame
 	CcpAtomic<uint32_t> m_bufferSize;

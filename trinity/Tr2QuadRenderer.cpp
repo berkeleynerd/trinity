@@ -24,10 +24,12 @@ uint32_t Align( uint32_t offset, uint32_t alignment )
 }
 
 Tr2QuadRenderer::Tr2QuadRenderer( IRoot* ) :
-	m_vertexBufferOffset( -1 ),
-	m_buffer( "Tr2QuadRenderer::m_buffer", 1024, 128 ),
 	m_effects( "Tr2QuadRenderer::m_effects" ),
+	m_deterministicSubmissionForTesting( false ),
+	m_nextDeterministicSubmissionOrder( 0 ),
 	m_bufferSize( 0 ),
+	m_buffer( "Tr2QuadRenderer::m_buffer", 1024, 128 ),
+	m_vertexBufferOffset( -1 ),
 	m_lastInstanceDataSize( 0 ),
 	m_bufferAlignment( 4 )
 {
@@ -92,6 +94,22 @@ void Tr2QuadRenderer::DoneRendering( Tr2RenderContext& renderContext )
 {
 	m_vertexBuffer.DoneUsingData( renderContext );
 	m_bufferSize = 0;
+	m_frameEffects.clear();
+	m_nextDeterministicSubmissionOrder = 0;
+	for( auto& effect : m_effects )
+	{
+		effect.second->deterministicSubmissionOrder = UINT32_MAX;
+	}
+}
+
+void Tr2QuadRenderer::SetDeterministicSubmissionForTesting( bool enabled )
+{
+	m_deterministicSubmissionForTesting = enabled;
+}
+
+bool Tr2QuadRenderer::IsDeterministicSubmissionForTesting() const
+{
+	return m_deterministicSubmissionForTesting;
 }
 
 // --------------------------------------------------------------------------------------
@@ -110,6 +128,11 @@ void Tr2QuadRenderer::AddQuads( EffectKey effectKey, const void* sprites, size_t
 		return;
 	}
 	auto record = found->second;
+	if( m_deterministicSubmissionForTesting &&
+		record->deterministicSubmissionOrder == UINT32_MAX )
+	{
+		record->deterministicSubmissionOrder = m_nextDeterministicSubmissionOrder++;
+	}
 	auto& tls = record->combinable.local();
 	auto size = count * record->instanceSize;
 	if( tls.buffer.size() < tls.addedSize + size )
@@ -132,6 +155,24 @@ void Tr2QuadRenderer::AddQuads( EffectKey effectKey, const void* sprites, size_t
 uint32_t Tr2QuadRenderer::MergeBuffers()
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
+	m_frameEffects.clear();
+	for( auto& effect : m_effects )
+	{
+		if( !m_deterministicSubmissionForTesting ||
+			effect.second->deterministicSubmissionOrder != UINT32_MAX )
+		{
+			m_frameEffects.push_back( effect.second );
+		}
+	}
+	if( m_deterministicSubmissionForTesting )
+	{
+		std::sort(
+			m_frameEffects.begin(),
+			m_frameEffects.end(),
+			[]( const EffectRecord* lhs, const EffectRecord* rhs ) {
+				return lhs->deterministicSubmissionOrder < rhs->deterministicSubmissionOrder;
+			} );
+	}
 
 	// Add padding to accomodate alignment
 	for( auto& jt : m_effects )
@@ -145,9 +186,8 @@ uint32_t Tr2QuadRenderer::MergeBuffers()
 	}
 	uint32_t offset = 0;
 	uint32_t quadCount = 0;
-	for( auto& jt : m_effects )
+	for( EffectRecord* record : m_frameEffects )
 	{
-		auto record = jt.second;
 		offset = Align( offset, record->instanceSize );
 		record->bufferOffset = offset;
 		for( auto& it : record->combinable )
@@ -301,16 +341,15 @@ void Tr2QuadRenderer::GetBatches( TriBatchType batchType, ITriRenderBatchAccumul
 		return;
 	}
 
-	for( auto& it : m_effects )
+	for( EffectRecord* record : m_frameEffects )
 	{
-		auto& record = *it.second;
-		if( record.count && record.batchType == batchType && record.vertexDeclHandle != Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
+		if( record->count && record->batchType == batchType && record->vertexDeclHandle != Tr2EffectStateManager::UNINITIALIZED_DECLARATION )
 		{
 			Tr2RenderBatch batch;
-			batch.SetMaterial( record.effect );
-			batch.SetGeometry( record.vertexDeclHandle, m_quad, 4, m_quadIB, m_quadIB.GetDesc().stride );
-			batch.SetStreamSource( 1, m_vertexBuffer.GetBuffer(), record.instanceSize );
-			batch.SetDrawIndexedInstanced( 6 * record.quadCount, record.count, 0, 0, ( m_vertexBufferOffset + record.bufferOffset ) / record.instanceSize );
+			batch.SetMaterial( record->effect );
+			batch.SetGeometry( record->vertexDeclHandle, m_quad, 4, m_quadIB, m_quadIB.GetDesc().stride );
+			batch.SetStreamSource( 1, m_vertexBuffer.GetBuffer(), record->instanceSize );
+			batch.SetDrawIndexedInstanced( 6 * record->quadCount, record->count, 0, 0, ( m_vertexBufferOffset + record->bufferOffset ) / record->instanceSize );
 
 			accumulator->Commit( batch );
 		}

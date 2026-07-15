@@ -27,6 +27,8 @@ enum class PerLightShadowSetting
 struct LightData
 {
 	LightData();
+	static void SetDeterministicEvaluationTimeForTesting( Be::Time elapsedTime );
+	static void ClearDeterministicEvaluationTimeForTesting();
 	Tr2LightManager::PerLightData AsPerPointLightData( CXMMATRIX transform, LightFeatures& features, ShadowQuality shadowQuality ) const;
 	Tr2LightManager::PerLightData AsPerSpotLightData( CXMMATRIX transform, LightFeatures& features, ShadowQuality shadowQuality ) const;
 

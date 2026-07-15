@@ -117,7 +117,6 @@ public:
 	{
 		m_display = value;
 	};
-
 protected:
 	bool m_isVisible;
 	bool m_useLodLevel;

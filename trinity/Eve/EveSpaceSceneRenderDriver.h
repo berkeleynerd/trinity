@@ -99,6 +99,18 @@ public:
 		uint32_t mapHeight = 0;
 		uint32_t mapFormat = 0;
 	};
+	struct LensFlareDiagnostics
+	{
+		bool enabled = false;
+		bool captured = false;
+		bool readbackSucceeded = false;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		uint32_t format = 0;
+		uint64_t changedPixels = 0;
+		double positiveRgbEnergy = 0.0;
+		float maximumPositiveChannelDelta = 0.0f;
+	};
 
 	EveSpaceSceneRenderDriver( IRoot* lockobj = nullptr );
 	~EveSpaceSceneRenderDriver();
@@ -153,6 +165,8 @@ public:
 		return m_reflectionCorrectionEnabled;
 	}
 	void SetPostProcessDiagnosticsEnabled( bool enabled );
+	void SetDynamicExposureApplicationEnabledForTesting( bool enabled );
+	void SetDeterministicTaaExposureForTesting( bool enabled, float exposure );
 	bool ReadPostProcessDiagnostics( Tr2RenderContext & renderContext, Tr2PostProcessRenderer::Diagnostics & diagnostics ) const;
 	bool GetLastPostProcessExecutionSucceeded() const;
 	void ResetTemporalHistory();
@@ -172,6 +186,8 @@ public:
 		return m_lastDistortionDiagnostics;
 	}
 	bool GetLastDistortionExecutionSucceeded() const;
+	void SetLensFlareDiagnosticsEnabled( bool enabled );
+	bool ReadLensFlareDiagnostics( Tr2RenderContext& renderContext, LensFlareDiagnostics& diagnostics );
 
 	EXPOSE_TO_BLUE();
 
@@ -212,6 +228,10 @@ private:
 
 	Tr2EffectPtr m_distortionEffect;
 	DistortionDiagnostics m_lastDistortionDiagnostics;
+	bool m_lensFlareDiagnosticsEnabled = false;
+	mutable LensFlareDiagnostics m_lastLensFlareDiagnostics;
+	Tr2TextureAL m_preLensFlareReadback;
+	Tr2TextureAL m_postLensFlareReadback;
 
 	PITr2SceneVector m_toolsScenes;
 

@@ -4,6 +4,7 @@
 
 #include "Tr2DeviceResource.h"
 #include <array>
+#include <vector>
 #include "TriFrustum.h"
 
 BLUE_DECLARE( Tr2Effect );
@@ -25,6 +26,24 @@ public:
 		ALL_SIDES_PER_FRAME
 	};
 
+	struct RawTextureHashForTesting
+	{
+		uint32_t face = 0;
+		uint32_t mip = 0;
+		uint32_t width = 0;
+		uint32_t height = 0;
+		Tr2RenderContextEnum::PixelFormat format = Tr2RenderContextEnum::PIXEL_FORMAT_UNKNOWN;
+		uint64_t hash = 0;
+	};
+
+	struct RawDiagnosticsForTesting
+	{
+		std::vector<RawTextureHashForTesting> source;
+		std::vector<RawTextureHashForTesting> prefilter;
+		std::vector<RawTextureHashForTesting> filtered;
+		std::vector<RawTextureHashForTesting> sampled;
+	};
+
 	Tr2ReflectionProbe( IRoot* lockobj = NULL );
 	~Tr2ReflectionProbe();
 
@@ -34,6 +53,7 @@ public:
 	bool IsValid();
 	bool HasData() const;
 	bool LastFilterSucceeded() const;
+	bool LastSamplingCopySucceeded() const;
 	void InitRenderPass( Tr2RenderContext & renderContext );
 	void StartRenderFace( unsigned face, Tr2RenderContext& renderContext );
 	void EndRenderPass( Tr2RenderContext & renderContext );
@@ -50,6 +70,9 @@ public:
 	uint32_t GetReflectionWidth() const;
 	uint32_t GetReflectionHeight() const;
 	uint32_t GetReflectionMipCount() const;
+	bool CollectRawDiagnosticsForTesting(
+		Tr2RenderContext & renderContext,
+		RawDiagnosticsForTesting & diagnostics ) const;
 	void SetPosition( Vector3 position );
 
 	void SetBackLightColor( Color color );
@@ -72,12 +95,14 @@ public:
 private:
 	void RunFilter();
 	bool Filter( Tr2RenderContext & renderContext );
+	bool CopyFilteredOutput( Tr2RenderContext & renderContext );
 	bool DoPrepareResources( ImageIO::PixelFormat targetFormat, Tr2PrimaryRenderContext & renderContext );
 	void DestroyRenderTargets();
 
 	bool m_initialized;
 	bool m_hasData;
 	bool m_lastFilterSucceeded;
+	bool m_lastSamplingCopySucceeded;
 	bool m_lockPosition;
 	Vector3 m_position;
 	int m_intermediateSize;
@@ -91,6 +116,7 @@ private:
 	Tr2EffectPtr m_copyMipEffect;
 	Tr2RenderTargetPtr m_preFilterTarget;
 	Tr2RenderTargetPtr m_postFilterTarget;
+	Tr2RenderTargetPtr m_samplingTarget;
 
 	ITriTextureResPtr m_customSourceTexture;
 

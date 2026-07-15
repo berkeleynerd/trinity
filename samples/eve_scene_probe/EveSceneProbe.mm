@@ -112,6 +112,22 @@ extern "C" bool TrinityStandaloneProbeConfigureSolarHigh( void* opaqueProbe,
 extern "C" bool TrinityStandaloneProbePrewarmSolarParticles( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarHighReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWarmupSolarHigh( void* opaqueProbe, uint32_t ticks );
+extern "C" bool TrinityStandaloneProbeConfigureSolarIllumination( void* opaqueProbe,
+	int illuminationMode,
+	int illuminationView,
+	const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested(
+	void* opaqueProbe,
+	bool requested );
+extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
+														 int environmentMode,
+														 int environmentDistance,
+														 bool sceneDistanceFogAuthored,
+														 bool desaturateAuthored,
+														 int occlusionView,
+														 const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -327,6 +343,24 @@ enum class Shadows
 	Off,
 	Low,
 	High,
+	Raytraced,
+};
+
+enum class SolarIllumination
+{
+	Frozen,
+	Authored,
+	Off,
+};
+
+enum class SolarIlluminationView
+{
+	Unspecified = -1,
+	NearSunHull = 0,
+	GateHull,
+	PlanetDay,
+	PlanetLimb,
+	PlanetEclipse,
 };
 
 enum class AmbientOcclusion
@@ -372,6 +406,41 @@ enum class SunEffects
 	Flare,
 	GodRays,
 	All,
+	SunFlares,
+	LensFlare,
+};
+
+enum class SolarEnvironment
+{
+	Off,
+	Fog,
+	Finish,
+	All,
+};
+
+enum class SolarEnvironmentDistance
+{
+	Canonical,
+	InsideBoundary,
+	OutsideBoundary,
+	ExitBoundary,
+};
+
+enum class AuthoredToggle
+{
+	Authored,
+	Off,
+};
+
+enum class SolarOcclusionView
+{
+	Unobscured,
+	HullPartial,
+	HullTotal,
+	PlanetLimb,
+	PlanetEclipse,
+	HullSweep,
+	PlanetSweep,
 };
 
 enum class SunBodyLayers
@@ -580,6 +649,8 @@ struct Options
 	std::string solarAuditReportPath;
 	std::string solarBodyReportPath;
 	std::string solarHighReportPath;
+	std::string solarOpticsReportPath;
+	std::string solarIlluminationReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -618,6 +689,15 @@ struct Options
 	PlanetLayers planetLayers = PlanetLayers::All;
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
+	SolarIllumination solarIllumination = SolarIllumination::Frozen;
+	SolarIlluminationView solarIlluminationView = SolarIlluminationView::Unspecified;
+	bool solarIlluminationExplicit = false;
+	bool solarIlluminationViewExplicit = false;
+	SolarEnvironment solarEnvironment = SolarEnvironment::Off;
+	SolarEnvironmentDistance solarEnvironmentDistance = SolarEnvironmentDistance::Canonical;
+	AuthoredToggle sceneDistanceFog = AuthoredToggle::Authored;
+	AuthoredToggle solarDesaturate = AuthoredToggle::Authored;
+	SolarOcclusionView solarOcclusionView = SolarOcclusionView::Unobscured;
 	SunBodyLayers sunBodyLayers = SunBodyLayers::All;
 	SunHighLayers sunHighLayers = SunHighLayers::Off;
 	bool sunHighLayersExplicit = false;
@@ -625,6 +705,7 @@ struct Options
 	bool solarParticleSeedExplicit = false;
 	SolarParticlePrewarm solarParticlePrewarm = SolarParticlePrewarm::None;
 	uint32_t solarHighWarmup = 0;
+	bool journeyPlanetFinale = false;
 	int cloudYear = 2026;
 	int cloudMonth = 7;
 	int cloudDay = 10;
@@ -636,6 +717,7 @@ struct Options
 	bool localLightsExplicit = false;
 	bool localShadowsExplicit = false;
 	bool backgroundCapture = false;
+	bool deterministicEvidence = false;
 	bool validateComposition = false;
 	bool validateExposureTone = false;
 	bool validatePostFinish = false;
@@ -671,6 +753,8 @@ struct Options
 	bool validateBallparkWarp = false;
 	bool validateBallparkApproach = false;
 	int captureEvery = 0;
+	int captureStartFrame = 0;
+	std::vector<int> captureFrames;
 	OrbitSolver orbitSolver = OrbitSolver::New;
 	float orbitRange = 2500.0f;
 	bool validateChaseCamera = false;
@@ -1555,19 +1639,77 @@ bool ParseExposureSequence( const std::string& value, ExposureSequence& result )
 
 std::string ShadowsName( Shadows shadows )
 {
-	static const char* names[] = { "auto", "off", "low", "high" };
+	static const char* names[] = { "auto", "off", "low", "high", "raytraced" };
 	return names[static_cast<int>( shadows )];
 }
 
 bool ParseShadows( const std::string& value, Shadows& shadows )
 {
 	const std::string normalized = ToLower( value );
-	for( int candidate = 0; candidate <= static_cast<int>( Shadows::High ); ++candidate )
+	for( int candidate = 0; candidate <= static_cast<int>( Shadows::Raytraced ); ++candidate )
 	{
 		const auto candidateValue = static_cast<Shadows>( candidate );
 		if( normalized == ShadowsName( candidateValue ) )
 		{
 			shadows = candidateValue;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string SolarIlluminationName( SolarIllumination illumination )
+{
+	static const char* names[] = { "frozen", "authored", "off" };
+	return names[static_cast<int>( illumination )];
+}
+
+bool ParseSolarIllumination( const std::string& value, SolarIllumination& illumination )
+{
+	const std::string normalized = ToLower( value );
+	for( SolarIllumination candidate :
+		 { SolarIllumination::Frozen, SolarIllumination::Authored, SolarIllumination::Off } )
+	{
+		if( normalized == SolarIlluminationName( candidate ) )
+		{
+			illumination = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string SolarIlluminationViewName( SolarIlluminationView view )
+{
+	switch( view )
+	{
+	case SolarIlluminationView::Unspecified:
+		return "unspecified";
+	case SolarIlluminationView::NearSunHull:
+		return "near-sun-hull";
+	case SolarIlluminationView::GateHull:
+		return "gate-hull";
+	case SolarIlluminationView::PlanetDay:
+		return "planet-day";
+	case SolarIlluminationView::PlanetLimb:
+		return "planet-limb";
+	case SolarIlluminationView::PlanetEclipse:
+		return "planet-eclipse";
+	}
+	return "invalid";
+}
+
+bool ParseSolarIlluminationView( const std::string& value, SolarIlluminationView& view )
+{
+	const std::string normalized = ToLower( value );
+	for( SolarIlluminationView candidate :
+		 { SolarIlluminationView::NearSunHull, SolarIlluminationView::GateHull,
+			 SolarIlluminationView::PlanetDay, SolarIlluminationView::PlanetLimb,
+			 SolarIlluminationView::PlanetEclipse } )
+	{
+		if( normalized == SolarIlluminationViewName( candidate ) )
+		{
+			view = candidate;
 			return true;
 		}
 	}
@@ -1719,6 +1861,10 @@ std::string SunEffectsName( SunEffects effects )
 		return "god-rays";
 	case SunEffects::All:
 		return "all";
+	case SunEffects::SunFlares:
+		return "sun-flares";
+	case SunEffects::LensFlare:
+		return "lens-flare";
 	}
 	return "unknown";
 }
@@ -1727,7 +1873,13 @@ bool ParseSunEffects( const std::string& value, SunEffects& effects )
 {
 	const std::string normalized = ToLower( value );
 	const SunEffects values[] = {
-		SunEffects::Auto, SunEffects::Off, SunEffects::Flare, SunEffects::GodRays, SunEffects::All
+		SunEffects::Auto,
+		SunEffects::Off,
+		SunEffects::Flare,
+		SunEffects::GodRays,
+		SunEffects::All,
+		SunEffects::SunFlares,
+		SunEffects::LensFlare,
 	};
 	for( SunEffects candidate : values )
 	{
@@ -1738,6 +1890,72 @@ bool ParseSunEffects( const std::string& value, SunEffects& effects )
 		}
 	}
 	return false;
+}
+
+bool ParseSolarEnvironment( const std::string& value, SolarEnvironment& environment )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "off" )
+		environment = SolarEnvironment::Off;
+	else if( normalized == "fog" )
+		environment = SolarEnvironment::Fog;
+	else if( normalized == "finish" )
+		environment = SolarEnvironment::Finish;
+	else if( normalized == "all" )
+		environment = SolarEnvironment::All;
+	else
+		return false;
+	return true;
+}
+
+bool ParseSolarEnvironmentDistance( const std::string& value, SolarEnvironmentDistance& distance )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "canonical" )
+		distance = SolarEnvironmentDistance::Canonical;
+	else if( normalized == "inside-boundary" )
+		distance = SolarEnvironmentDistance::InsideBoundary;
+	else if( normalized == "outside-boundary" )
+		distance = SolarEnvironmentDistance::OutsideBoundary;
+	else if( normalized == "exit-boundary" )
+		distance = SolarEnvironmentDistance::ExitBoundary;
+	else
+		return false;
+	return true;
+}
+
+bool ParseAuthoredToggle( const std::string& value, AuthoredToggle& toggle )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "authored" )
+		toggle = AuthoredToggle::Authored;
+	else if( normalized == "off" )
+		toggle = AuthoredToggle::Off;
+	else
+		return false;
+	return true;
+}
+
+bool ParseSolarOcclusionView( const std::string& value, SolarOcclusionView& view )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "unobscured" )
+		view = SolarOcclusionView::Unobscured;
+	else if( normalized == "hull-partial" )
+		view = SolarOcclusionView::HullPartial;
+	else if( normalized == "hull-total" )
+		view = SolarOcclusionView::HullTotal;
+	else if( normalized == "planet-limb" )
+		view = SolarOcclusionView::PlanetLimb;
+	else if( normalized == "planet-eclipse" )
+		view = SolarOcclusionView::PlanetEclipse;
+	else if( normalized == "hull-sweep" )
+		view = SolarOcclusionView::HullSweep;
+	else if( normalized == "planet-sweep" )
+		view = SolarOcclusionView::PlanetSweep;
+	else
+		return false;
+	return true;
 }
 
 std::string SunBodyLayersName( SunBodyLayers layers )
@@ -1974,6 +2192,8 @@ int ShadowsApiValue( Shadows shadows )
 		return 1;
 	case Shadows::High:
 		return 2;
+	case Shadows::Raytraced:
+		return 3;
 	case Shadows::Auto:
 		break;
 	}
@@ -2288,6 +2508,53 @@ bool ParseUnsigned( const std::string& text, uint32_t& value )
 	return true;
 }
 
+bool ParseCaptureFrames( const std::string& text, std::vector<int>& frames )
+{
+	if( text.empty() )
+	{
+		return false;
+	}
+	std::vector<int> parsedFrames;
+	size_t start = 0;
+	while( start < text.size() )
+	{
+		const size_t comma = text.find( ',', start );
+		const size_t end = comma == std::string::npos ? text.size() : comma;
+		if( end == start )
+		{
+			return false;
+		}
+		const std::string token = text.substr( start, end - start );
+		if( token.find_first_not_of( "0123456789" ) != std::string::npos )
+		{
+			return false;
+		}
+		char* parseEnd = nullptr;
+		const unsigned long long parsed = std::strtoull( token.c_str(), &parseEnd, 10 );
+		if( !parseEnd || *parseEnd != '\0' || parsed > static_cast<unsigned long long>( INT32_MAX ) )
+		{
+			return false;
+		}
+		parsedFrames.push_back( static_cast<int>( parsed ) );
+		if( comma == std::string::npos )
+		{
+			break;
+		}
+		start = comma + 1;
+		if( start == text.size() )
+		{
+			return false;
+		}
+	}
+	std::sort( parsedFrames.begin(), parsedFrames.end() );
+	if( std::adjacent_find( parsedFrames.begin(), parsedFrames.end() ) != parsedFrames.end() )
+	{
+		return false;
+	}
+	frames = std::move( parsedFrames );
+	return !frames.empty();
+}
+
 bool ParseWindowSize( const std::string& text, uint32_t& width, uint32_t& height )
 {
 	size_t separator = text.find( 'x' );
@@ -2348,23 +2615,29 @@ void PrintUsage( const char* executable )
 		<< "       [--reflection-correction off|client]\n"
 		<< "       [--normal-map authored|flat]\n"
 		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|volume-slices|froxel-fog|mie-environment|velocity|taa-input|taa-output|taa-cooldown|all]\n"
-		<< "       [--shadows auto|off|low|high] [--ao auto|off|low|medium|high]\n"
+		<< "       [--shadows auto|off|low|high|raytraced] [--ao auto|off|low|medium|high]\n"
 		<< "       [--ao-method cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers surface|atmosphere|clouds|all]\n"
-		<< "       [--sun-effects auto|off|flare|god-rays|all]\n"
+		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all]\n"
+		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
+		<< "       [--scene-distance-fog authored|off] [--solar-desaturate authored|off]\n"
+		<< "       [--solar-occlusion-view unobscured|hull-partial|hull-total|planet-limb|planet-eclipse|hull-sweep|planet-sweep]\n"
+		<< "       [--solar-optics-report PATH]\n"
+		<< "       [--solar-illumination frozen|authored|off] [--solar-illumination-report PATH]\n"
+		<< "       [--solar-illumination-view near-sun-hull|gate-hull|planet-day|planet-limb|planet-eclipse]\n"
 		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
 		<< "       [--sun-high-layers off|whisps|huge-definition|uber-1|uber-2|rings-top|rings-bottom|rings|pillar-1|pillar-2|particle-scaler|particles|all]\n"
-		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture]\n"
+		<< "       [--planet-cloud-date YYYY-MM-DD|today] [--background-capture] [--deterministic-evidence]\n"
 		<< "       [--dynamic-exposure auto|off|client] [--validate-exposure-tone]\n"
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
-		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--warp-target planet|evegate]\n"
+		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--warp-target planet|evegate] [--journey-planet-finale]\n"
 		<< "       [--ballpark-frame ego|observer|chase]\n"
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit]\n"
-		<< "       [--validate-ballpark-warp] [--validate-ballpark-approach] [--ballpark-log PATH] [--capture-every N]\n"
+		<< "       [--validate-ballpark-warp] [--validate-ballpark-approach] [--ballpark-log PATH] [--capture-every N] [--capture-start-frame N] [--capture-frames CSV]\n"
 		<< "       [--celestial-ballpark off|natural] [--validate-celestial-ballpark] [--celestial-log PATH]\n"
 		<< "       [--eve-gate-approach FRAME] [--eve-gate off|authored] [--validate-eve-gate]\n"
 		<< "       [--warp-tunnel off|authored]\n"
@@ -2543,6 +2816,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			else
 				return false;
 		}
+		else if( arg == "--journey-planet-finale" )
+		{
+			options.journeyPlanetFinale = true;
+		}
 		else if( arg == "--ballpark-frame" )
 		{
 			if( ++i >= argc || !ParseBallparkFrame( argv[i], options.ballparkFrame ) )
@@ -2594,6 +2871,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			options.captureEvery = std::atoi( argv[i] );
 			if( options.captureEvery < 0 )
+				return false;
+		}
+		else if( arg == "--capture-frames" )
+		{
+			if( ++i >= argc || !ParseCaptureFrames( argv[i], options.captureFrames ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--capture-start-frame" )
+		{
+			if( ++i >= argc )
+				return false;
+			options.captureStartFrame = std::atoi( argv[i] );
+			if( options.captureStartFrame < 0 )
 				return false;
 		}
 		else if( arg == "--validate-chase-camera" )
@@ -2814,6 +3106,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--background-capture" )
 		{
 			options.backgroundCapture = true;
+		}
+		else if( arg == "--deterministic-evidence" )
+		{
+			options.deterministicEvidence = true;
 		}
 		else if( arg == "--windowed" )
 		{
@@ -3052,6 +3348,59 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--solar-environment" )
+		{
+			if( ++i >= argc || !ParseSolarEnvironment( argv[i], options.solarEnvironment ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--solar-environment-distance" )
+		{
+			if( ++i >= argc ||
+				!ParseSolarEnvironmentDistance( argv[i], options.solarEnvironmentDistance ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--scene-distance-fog" )
+		{
+			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.sceneDistanceFog ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--solar-desaturate" )
+		{
+			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.solarDesaturate ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--solar-occlusion-view" )
+		{
+			if( ++i >= argc || !ParseSolarOcclusionView( argv[i], options.solarOcclusionView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--solar-illumination" )
+		{
+			if( ++i >= argc || !ParseSolarIllumination( argv[i], options.solarIllumination ) )
+			{
+				return false;
+			}
+			options.solarIlluminationExplicit = true;
+		}
+		else if( arg == "--solar-illumination-view" )
+		{
+			if( ++i >= argc ||
+				!ParseSolarIlluminationView( argv[i], options.solarIlluminationView ) )
+			{
+				return false;
+			}
+			options.solarIlluminationViewExplicit = true;
+		}
 		else if( arg == "--sun-body-layers" )
 		{
 			if( ++i >= argc || !ParseSunBodyLayers( argv[i], options.sunBodyLayers ) )
@@ -3123,8 +3472,25 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			}
 			options.solarHighReportPath = argv[i];
 		}
+		else if( arg == "--solar-optics-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.solarOpticsReportPath = argv[i];
+		}
+		else if( arg == "--solar-illumination-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.solarIlluminationReportPath = argv[i];
+		}
 		else
 		{
+			std::cerr << "Unknown command-line option: " << arg << "\n";
 			return false;
 		}
 	}
@@ -3248,6 +3614,12 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.resolvedLocalShadows != LocalShadows::Off && options.resolvedShadows == Shadows::Low )
 	{
 		std::cerr << "Local shadows require high native quality and cannot be combined with low directional shadows\n";
+		return false;
+	}
+	if( options.resolvedLocalShadows != LocalShadows::Off &&
+		options.resolvedShadows == Shadows::Raytraced )
+	{
+		std::cerr << "Raytraced shadows require --local-shadows off\n";
 		return false;
 	}
 	if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off && !compatibleLightingModel )
@@ -3639,6 +4011,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 					 "natural celestials, the authored EVE Gate, and --celestial-anchor stargate\n";
 		return false;
 	}
+	if( options.journeyPlanetFinale &&
+		( options.warpTarget != WarpTarget::EveGate || options.ballpark != BallparkMode::Warp ||
+		  options.ballparkFrame != BallparkFrame::Chase ||
+		  options.sceneFixture != SceneFixture::NewEden || options.composition != SceneComposition::System ||
+		  options.celestialBallpark != CelestialBallparkMode::Natural || options.eveGate != 1 ||
+		  options.celestialAnchor != 0 || options.validateBallpark || options.validateBallparkMotion ||
+		  options.validateBallparkOrbit || options.validateBallparkWarp || options.validateBallparkApproach ||
+		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
+	{
+		std::cerr << "--journey-planet-finale is a Tour-only extension of the New Eden EVE Gate warp/chase route\n";
+		return false;
+	}
 	if( options.ballparkFrame != BallparkFrame::Ego && options.ballpark != BallparkMode::Goto &&
 		options.ballpark != BallparkMode::Orbit && options.ballpark != BallparkMode::Warp &&
 		options.ballpark != BallparkMode::Approach )
@@ -3864,6 +4248,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		std::cerr << "--validate-chase-camera requires a 1200-frame GOTO/chase Astero render with static sample "
 					 "motion, --ballpark-log, and --capture-prefix\n";
+		return false;
+	}
+	if( !options.captureFrames.empty() &&
+		( options.captureEvery != 0 || options.captureStartFrame != 0 ||
+		  options.capturePrefix.empty() || options.maxFrames <= options.captureFrames.back() ) )
+	{
+		std::cerr << "--capture-frames requires --capture-prefix, a --frames count beyond its largest frame, "
+					 "and cannot be combined with --capture-every or --capture-start-frame\n";
 		return false;
 	}
 	if( options.renderProduct != RenderProduct::Window &&
@@ -4196,6 +4588,15 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "normalMap=" << NormalMapModeName( options.normalMapMode ) << "\n";
 	metadata << "shadowsRequested=" << ShadowsName( options.shadows ) << "\n";
 	metadata << "shadowsResolved=" << ShadowsName( options.resolvedShadows ) << "\n";
+	metadata << "solarIllumination=" << SolarIlluminationName( options.solarIllumination ) << "\n";
+	metadata << "solarIlluminationView="
+			 << SolarIlluminationViewName( options.solarIlluminationView ) << "\n";
+	metadata << "captureFrames=";
+	for( size_t index = 0; index < options.captureFrames.size(); ++index )
+	{
+		metadata << ( index ? "," : "" ) << options.captureFrames[index];
+	}
+	metadata << "\n";
 	metadata << "aoRequested=" << AmbientOcclusionName( options.ambientOcclusion ) << "\n";
 	metadata << "aoResolved=" << AmbientOcclusionName( options.resolvedAmbientOcclusion ) << "\n";
 	metadata << "aoMethod=" << AoMethodName( options.aoMethod ) << "\n";
@@ -5579,6 +5980,47 @@ int main( int argc, char** argv )
 			std::cerr << "--solar-high-warmup requires a solar High report and cannot be combined with natural prewarm\n";
 			return 2;
 		}
+		const bool solarOpticsRequested = !options.solarOpticsReportPath.empty() ||
+			options.solarEnvironment != SolarEnvironment::Off ||
+			options.solarEnvironmentDistance != SolarEnvironmentDistance::Canonical ||
+			options.sceneDistanceFog != AuthoredToggle::Authored ||
+			options.solarDesaturate != AuthoredToggle::Authored ||
+			options.solarOcclusionView != SolarOcclusionView::Unobscured;
+		if( solarOpticsRequested &&
+			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung < QualityRung::HdrExposure ) )
+		{
+			std::cerr << "PL-14D solar optics controls require the High-tier New Eden fixture at hdr-exposure or higher\n";
+			return 2;
+		}
+		if( !options.solarOpticsReportPath.empty() && options.maxFrames <= 0 )
+		{
+			std::cerr << "--solar-optics-report requires a positive finite --frames count\n";
+			return 2;
+		}
+		const bool solarIlluminationRequested = options.solarIlluminationExplicit ||
+			options.solarIlluminationViewExplicit || !options.solarIlluminationReportPath.empty();
+		if( solarIlluminationRequested &&
+			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung < QualityRung::Model ) )
+		{
+			std::cerr << "PL-14E solar illumination controls require the High-tier New Eden fixture at the model rung or higher\n";
+			return 2;
+		}
+		if( !options.solarIlluminationReportPath.empty() && options.maxFrames <= 0 )
+		{
+			std::cerr << "--solar-illumination-report requires a positive finite --frames count\n";
+			return 2;
+		}
+		const bool planetIlluminationView =
+			options.solarIlluminationView == SolarIlluminationView::PlanetDay ||
+			options.solarIlluminationView == SolarIlluminationView::PlanetLimb ||
+			options.solarIlluminationView == SolarIlluminationView::PlanetEclipse;
+		if( planetIlluminationView && options.planetLayers != PlanetLayers::Surface )
+		{
+			std::cerr << "Planet illumination views require --planet-layers surface\n";
+			return 2;
+		}
 
 		if( options.inspectionReportPath.empty() && options.qualityRung >= QualityRung::Model &&
 			!FileExists( options.inputPath ) )
@@ -5652,6 +6094,14 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.deterministicEvidence &&
+			!TrinityStandaloneProbeConfigureDeterministicEvidence( probe, 3430261 ) )
+		{
+			std::cerr << "Failed to configure deterministic finite-frame evidence\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 		if( !options.solarAuditReportPath.empty() &&
 			( !EnsureParentDirectory( options.solarAuditReportPath ) ||
 			  !TrinityStandaloneProbeConfigureSolarAudit( probe, options.solarAuditReportPath.c_str() ) ) )
@@ -5694,6 +6144,42 @@ int main( int argc, char** argv )
 					options.solarParticlePrewarm == SolarParticlePrewarm::NaturalFirstEmission ) )
 			{
 				std::cerr << "Failed to configure the PL-14C solar High contract\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
+		if( solarOpticsRequested )
+		{
+			if( ( !options.solarOpticsReportPath.empty() &&
+				  !EnsureParentDirectory( options.solarOpticsReportPath ) ) ||
+				!TrinityStandaloneProbeConfigureSolarOptics(
+					probe,
+					static_cast<int>( options.solarEnvironment ),
+					static_cast<int>( options.solarEnvironmentDistance ),
+					options.sceneDistanceFog == AuthoredToggle::Authored,
+					options.solarDesaturate == AuthoredToggle::Authored,
+					static_cast<int>( options.solarOcclusionView ),
+					options.solarOpticsReportPath.empty() ? nullptr : options.solarOpticsReportPath.c_str() ) )
+			{
+				std::cerr << "Failed to configure the PL-14D solar optics contract\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
+		if( solarIlluminationRequested )
+		{
+			if( ( !options.solarIlluminationReportPath.empty() &&
+				  !EnsureParentDirectory( options.solarIlluminationReportPath ) ) ||
+				!TrinityStandaloneProbeConfigureSolarIllumination(
+					probe,
+					static_cast<int>( options.solarIllumination ),
+					static_cast<int>( options.solarIlluminationView ),
+					options.solarIlluminationReportPath.empty() ? nullptr :
+						options.solarIlluminationReportPath.c_str() ) )
+			{
+				std::cerr << "Failed to configure the PL-14E solar illumination contract\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
@@ -5827,6 +6313,13 @@ int main( int argc, char** argv )
 				[window close];
 				return 1;
 			}
+			if( !TrinityStandaloneProbeSetJourneyPlanetFinale( probe, options.journeyPlanetFinale ) )
+			{
+				std::cerr << "TrinityStandaloneProbeSetJourneyPlanetFinale failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
 			if( !options.celestialLogPath.empty() && !EnsureParentDirectory( options.celestialLogPath ) )
 			{
 				std::cerr << "Failed to create the celestial Ballpark log directory\n";
@@ -5895,11 +6388,15 @@ int main( int argc, char** argv )
 		const bool collectExposureDiagnostics = options.validateExposureTone || options.validatePostFinish ||
 			options.validateDistortion || options.validateEngines ||
 			( options.validateTemporal && options.resolvedTaa != TaaMode::Off ) ||
-			options.exposureSequence != ExposureSequence::None;
+			options.exposureSequence != ExposureSequence::None || !options.solarOpticsReportPath.empty() ||
+			!options.solarIlluminationReportPath.empty();
+		// Product capture must not silently add a same-time diagnostic rerender.
+		// Tone validation is an explicit contract because it reconfigures bloom and
+		// reads both sides of the tone pass; ordinary post-tone/all captures observe
+		// the settled frame exactly as rendered.
 		const bool captureToneSnapshot = options.qualityRung >= QualityRung::HdrExposure &&
-			!options.capturePrefix.empty() &&
-			( options.validateExposureTone || options.renderProduct == RenderProduct::PostTonemap ||
-			  options.renderProduct == RenderProduct::All );
+			!options.capturePrefix.empty() && options.solarOpticsReportPath.empty() &&
+			options.validateExposureTone;
 		if( options.qualityRung >= QualityRung::HdrExposure &&
 			!TrinityStandaloneProbeConfigurePostProcess(
 				probe,
@@ -6026,8 +6523,11 @@ int main( int argc, char** argv )
 						captureMilestone( ballparkMilestones );
 					}
 				}
-				const bool captureSequenceFrame = options.captureEvery > 0 &&
-					renderedFrames % options.captureEvery == 0 && !options.capturePrefix.empty();
+				const bool captureSequenceFrame = !options.capturePrefix.empty() &&
+					( ( options.captureEvery > 0 && renderedFrames >= options.captureStartFrame &&
+						( renderedFrames - options.captureStartFrame ) % options.captureEvery == 0 ) ||
+					  std::binary_search(
+						  options.captureFrames.begin(), options.captureFrames.end(), renderedFrames ) );
 				const int captureProducts = ( ballparkMilestone || captureSequenceFrame ) ? kCaptureColor :
 					captureTemporalSample ?
 					kCaptureTemporalSample :
@@ -6035,6 +6535,15 @@ int main( int argc, char** argv )
 						  RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
 																							   options.renderProduct ) :
 						  0 );
+				if( !options.solarIlluminationReportPath.empty() &&
+					!TrinityStandaloneProbeSetSolarIlluminationCaptureRequested(
+						probe, captureSequenceFrame ) )
+				{
+					std::cerr << "Failed to mark the PL-14E capture frame\n";
+					TrinityStandaloneProbeDestroyDevice( probe );
+					[window close];
+					return 1;
+				}
 				const auto frameStart = std::chrono::steady_clock::now();
 				const bool rendered =
 					TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts );
@@ -6643,7 +7152,31 @@ int main( int argc, char** argv )
 							diagnosticProducts.push_back( RenderProduct::Distortion );
 						}
 					}
-					if( options.resolvedShadows != Shadows::Off )
+					if( options.resolvedShadows == Shadows::Raytraced )
+					{
+						TrinityStandaloneRaytracedShadowDiagnostics diagnostics;
+						if( !TrinityStandaloneProbeGetRaytracedShadowDiagnostics(
+								probe, &diagnostics ) )
+						{
+							captureSucceeded = false;
+						}
+						else
+						{
+							std::ostringstream stats;
+							stats << "geometry=" << ( diagnostics.geometryPresent ? "ready" : "missing" )
+								  << " dispatch=" << ( diagnostics.dispatchSucceeded ? "success" : "failed" )
+								  << " dispatchCount=" << diagnostics.dispatchCount
+								  << " denoise="
+								  << ( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ?
+										 "success" : "failed" )
+								  << " denoiserCount=" << diagnostics.denoiserCount
+								  << " maskGenerated=" << ( diagnostics.maskGenerated ? "true" : "false" )
+								  << " maskFormat=" << diagnostics.maskFormat
+								  << " mask=" << diagnostics.maskWidth << "x" << diagnostics.maskHeight;
+							productStats.emplace_back( "raytracedShadowRuntime", stats.str() );
+						}
+					}
+					else if( options.resolvedShadows != Shadows::Off )
 					{
 						diagnosticProducts.push_back( RenderProduct::Shadow );
 						diagnosticProducts.push_back( RenderProduct::ShadowAtlas );
@@ -6679,7 +7212,7 @@ int main( int argc, char** argv )
 						bool productRendered = captureSucceeded &&
 							TrinityStandaloneProbeRenderFrame(
 												   probe, qualityRung, captureTime, captureTime, frozenProduct );
-						if( productRendered && product != RenderProduct::HdrComposite )
+						if( productRendered )
 						{
 							productRendered = TrinityStandaloneProbeRenderFrame(
 								probe, qualityRung, captureTime, captureTime, frozenProduct );
@@ -6697,22 +7230,24 @@ int main( int argc, char** argv )
 				}
 				else
 				{
-					const bool finalFrameWasSequenceCapture = options.captureEvery > 0 && renderedFrames > 0 &&
-						( renderedFrames - 1 ) % options.captureEvery == 0;
-					const bool capturedProductOnFinalFrame = options.renderProduct != RenderProduct::Window &&
-						options.renderProduct != RenderProduct::Color && options.maxFrames > 0 &&
-						renderedFrames == options.maxFrames && !finalFrameWasSequenceCapture;
 					if( options.renderProduct != RenderProduct::Window &&
-						options.renderProduct != RenderProduct::Color && !capturedProductOnFinalFrame )
+						options.renderProduct != RenderProduct::Color )
 					{
 						const int64_t captureTime =
 							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
+						const int frozenProduct =
+							RenderProductApiValue( options.renderProduct ) | kCaptureFreezeScene;
 						captureSucceeded = TrinityStandaloneProbeRenderFrame(
 							probe,
 							qualityRung,
 							captureTime,
 							captureTime,
-							RenderProductApiValue( options.renderProduct ) | kCaptureFreezeScene );
+							frozenProduct );
+						if( captureSucceeded )
+						{
+							captureSucceeded = TrinityStandaloneProbeRenderFrame(
+								probe, qualityRung, captureTime, captureTime, frozenProduct );
+						}
 						ProcessEvents( window );
 					}
 					captureSucceeded =
@@ -6731,21 +7266,49 @@ int main( int argc, char** argv )
 				}
 				if( options.resolvedShadows != Shadows::Off )
 				{
-					uint32_t casterTests = 0;
-					uint32_t acceptedCascades = 0;
-					uint32_t committedBatches = 0;
-					if( !TrinityStandaloneProbeGetShadowDiagnostics(
-							probe, &casterTests, &acceptedCascades, &committedBatches ) )
+					if( options.resolvedShadows == Shadows::Raytraced )
 					{
-						captureSucceeded = false;
+						TrinityStandaloneRaytracedShadowDiagnostics diagnostics;
+						if( !TrinityStandaloneProbeGetRaytracedShadowDiagnostics(
+								probe, &diagnostics ) )
+						{
+							captureSucceeded = false;
+						}
+						else
+						{
+							std::ostringstream stats;
+							stats << "geometry=" << ( diagnostics.geometryPresent ? "ready" : "missing" )
+								  << " dispatch=" << ( diagnostics.dispatchSucceeded ? "success" : "failed" )
+								  << " dispatchCount=" << diagnostics.dispatchCount
+								  << " denoise="
+								  << ( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ?
+										 "success" : "failed" )
+								  << " denoiserCount=" << diagnostics.denoiserCount
+								  << " maskGenerated=" << ( diagnostics.maskGenerated ? "true" : "false" )
+								  << " maskFormat=" << diagnostics.maskFormat
+								  << " mask=" << diagnostics.maskWidth << "x" << diagnostics.maskHeight;
+							productStats.emplace_back( "shadowRuntime", stats.str() );
+						}
 					}
 					else
 					{
-						std::ostringstream stats;
-						stats << "casterTests=" << casterTests << " acceptedCascades=" << acceptedCascades
-							  << " committedBatches=" << committedBatches
-							  << " expectedBatches=" << acceptedCascades * 2;
-						productStats.emplace_back( "shadowRuntime", stats.str() );
+						uint32_t casterTests = 0;
+						uint32_t acceptedCascades = 0;
+						uint32_t committedBatches = 0;
+						if( !TrinityStandaloneProbeGetShadowDiagnostics(
+								probe, &casterTests, &acceptedCascades, &committedBatches ) )
+						{
+							captureSucceeded = false;
+						}
+						else
+						{
+							std::ostringstream stats;
+							stats << "casterTests=" << casterTests
+								  << " acceptedCascades=" << acceptedCascades
+								  << " committedBatches=" << committedBatches
+								  << " expectedBatches=" << acceptedCascades * 2;
+							productStats.emplace_back( "shadowRuntime", stats.str() );
+						}
 					}
 				}
 				if( options.resolvedLocalShadows != LocalShadows::Off )
@@ -6877,7 +7440,28 @@ int main( int argc, char** argv )
 				std::cout << "Solar High report: " << options.solarHighReportPath << "\n";
 			}
 		}
+		bool solarOpticsReportSucceeded = true;
+		if( !options.solarOpticsReportPath.empty() )
+		{
+			solarOpticsReportSucceeded = TrinityStandaloneProbeWriteSolarOpticsReport( probe );
+			if( solarOpticsReportSucceeded )
+			{
+				std::cout << "Solar optics report: " << options.solarOpticsReportPath << "\n";
+			}
+		}
+		bool solarIlluminationReportSucceeded = true;
+		if( !options.solarIlluminationReportPath.empty() )
+		{
+			solarIlluminationReportSucceeded =
+				TrinityStandaloneProbeWriteSolarIlluminationReport( probe );
+			if( solarIlluminationReportSucceeded )
+			{
+				std::cout << "Solar illumination report: "
+						  << options.solarIlluminationReportPath << "\n";
+			}
+		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded && solarHighReportSucceeded &&
+			solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
 			framePacingSucceeded && compositionValidationSucceeded && exposureValidationSucceeded &&
 			toneValidationSucceeded && postFinishValidationSucceeded && distortionValidationSucceeded &&
 			volumetricValidationSucceeded && engineValidationSucceeded && temporalValidationSucceeded &&

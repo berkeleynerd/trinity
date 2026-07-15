@@ -21,6 +21,67 @@ CCP_STATS_DECLARE( updateDynamicLightLists, "Trinity/EveSpaceScene/updateDynamic
 namespace
 {
 
+float HalfToFloat( uint16_t value )
+{
+	const uint32_t sign = static_cast<uint32_t>( value & 0x8000u ) << 16;
+	int32_t exponent = ( value >> 10 ) & 0x1fu;
+	uint32_t mantissa = value & 0x03ffu;
+	uint32_t result = 0;
+	if( exponent == 0 )
+	{
+		if( mantissa != 0 )
+		{
+			exponent = 1;
+			while( ( mantissa & 0x0400u ) == 0 )
+			{
+				mantissa <<= 1;
+				--exponent;
+			}
+			mantissa &= 0x03ffu;
+			result = sign | ( static_cast<uint32_t>( exponent + 112 ) << 23 ) | ( mantissa << 13 );
+		}
+		else
+		{
+			result = sign;
+		}
+	}
+	else if( exponent == 31 )
+	{
+		result = sign | 0x7f800000u | ( mantissa << 13 );
+	}
+	else
+	{
+		result = sign | ( static_cast<uint32_t>( exponent + 112 ) << 23 ) | ( mantissa << 13 );
+	}
+	float converted = 0.0f;
+	std::memcpy( &converted, &result, sizeof( converted ) );
+	return converted;
+}
+
+bool EnsureReadbackTexture(
+	Tr2TextureAL& texture,
+	const Tr2TextureAL& source,
+	const char* name,
+	Tr2RenderContext& renderContext )
+{
+	if( texture.IsValid() && texture.GetWidth() == source.GetWidth() &&
+		texture.GetHeight() == source.GetHeight() && texture.GetFormat() == source.GetFormat() )
+	{
+		return true;
+	}
+	texture = Tr2TextureAL{};
+	if( FAILED( texture.Create(
+			Tr2BitmapDimensions( source.GetWidth(), source.GetHeight(), 1, source.GetFormat() ),
+			Tr2GpuUsage::COPY_DESTINATION,
+			Tr2CpuUsage::READ,
+			renderContext.GetPrimaryRenderContext() ) ) )
+	{
+		return false;
+	}
+	texture.SetName( name );
+	return true;
+}
+
 void BeginRenderPass( Tr2RenderContext& renderContext, const std::initializer_list<Tr2TextureAL>& colorAttachments, const Tr2TextureAL& depthAttachment )
 {
 	uint32_t index = 0;
@@ -182,6 +243,9 @@ void EveSpaceSceneRenderDriver::ReleaseResources( TriStorage s )
 	{
 		DeleteUpscalingContext( m_upscalingContext );
 		m_upscalingContext = nullptr;
+		m_preLensFlareReadback = Tr2TextureAL{};
+		m_postLensFlareReadback = Tr2TextureAL{};
+		m_lastLensFlareDiagnostics = {};
 	}
 }
 
@@ -596,6 +660,7 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 	ON_BLOCK_EXIT( [&] { GlobalStore().RegisterVariable( "SpaceSceneCustomStencil", Tr2TextureAL{} ); } );
 
 	Tr2GpuResourcePool::Texture opaqueBackBuffer;
+	Tr2GpuResourcePool::Texture volumetricSlices;
 	EveSpaceScene::ShadowResources shadowResources;
 	if( m_scene->m_display && m_mainPassRenderingEnabled )
 	{
@@ -627,7 +692,6 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		RegisterWithVariableStore( shadowResources, m_gpuResourcePool );
 		bool hasDistortionBatches = false;
 		Tr2GpuResourcePool::Texture froxelFog;
-		Tr2GpuResourcePool::Texture volumetricSlices;
 		distortionMap = GetDistortionMapIfNeeded( renderSize );
 		{
 			TimeSection mainPassSection( m_timers.mainPass, "MainPass", rootTimer, renderContext );
@@ -721,13 +785,47 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 
 	BeginRenderPass( renderContext, { sceneColorTarget }, depthBuffer );
 	{
+		// LensflareOccluder samples the local volumetric slices to attenuate
+		// foreground visibility. RenderMainPass clears its temporary variable-store
+		// binding after transparent rendering, so restore the exact texture produced
+		// for this view while the native occlusion queries execute. Leaving the
+		// resource unbound selects Metal's opaque diagnostic texture and falsely
+		// clamps an empty-fog query to thirty percent visibility.
+		GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", volumetricSlices );
+		ON_BLOCK_EXIT( [&] { GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", Tr2TextureAL{} ); } );
 		renderContext.SetReadOnlyDepth( true );
 		m_scene->RunLensflareOcclusionQueries( depthBuffer, renderContext );
 		renderContext.SetReadOnlyDepth( false );
 	}
 	{
 		TimeSection endRenderSection( m_timers.endRender, "EndRender", rootTimer, renderContext );
+		m_lastLensFlareDiagnostics = {};
+		m_lastLensFlareDiagnostics.enabled = m_lensFlareDiagnosticsEnabled;
+		if( m_lensFlareDiagnosticsEnabled )
+		{
+			const Tr2TextureAL& source = sceneColorTarget;
+			const bool prepared = source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
+				EnsureReadbackTexture(
+					m_preLensFlareReadback, source, "EvePreLensFlareReadback", renderContext ) &&
+				EnsureReadbackTexture(
+					m_postLensFlareReadback, source, "EvePostLensFlareReadback", renderContext );
+			m_lastLensFlareDiagnostics.captured = prepared &&
+				SUCCEEDED( source.Resolve( m_preLensFlareReadback, renderContext ) );
+			if( m_lastLensFlareDiagnostics.captured )
+			{
+				// Resolving closes the active pass.  The diagnostic rerun must retain
+				// the scene color and depth that the native lens-flare pass consumes.
+				renderContext.RenderPassHint(
+					{ Tr2LoadAction::LOAD, Tr2StoreAction::STORE },
+					{ Tr2LoadAction::LOAD, Tr2StoreAction::STORE } );
+			}
+		}
 		m_scene->EndRender( renderContext );
+		if( m_lensFlareDiagnosticsEnabled && m_lastLensFlareDiagnostics.captured )
+		{
+			m_lastLensFlareDiagnostics.captured =
+				SUCCEEDED( sceneColorTarget.Resolve( m_postLensFlareReadback, renderContext ) );
+		}
 	}
 	m_viewLast = m_scene->m_viewLast;
 	m_projectionLast = m_scene->m_projectionLast;
@@ -817,6 +915,24 @@ void EveSpaceSceneRenderDriver::SetPostProcessDiagnosticsEnabled( bool enabled )
 	}
 }
 
+void EveSpaceSceneRenderDriver::SetDynamicExposureApplicationEnabledForTesting( bool enabled )
+{
+	if( m_postProcess )
+	{
+		m_postProcess->SetDynamicExposureApplicationEnabledForTesting( enabled );
+	}
+}
+
+void EveSpaceSceneRenderDriver::SetDeterministicTaaExposureForTesting(
+	bool enabled,
+	float exposure )
+{
+	if( m_postProcess )
+	{
+		m_postProcess->SetDeterministicTaaExposureForTesting( enabled, exposure );
+	}
+}
+
 bool EveSpaceSceneRenderDriver::ReadPostProcessDiagnostics(
 	Tr2RenderContext& renderContext,
 	Tr2PostProcessRenderer::Diagnostics& diagnostics ) const
@@ -843,6 +959,7 @@ void EveSpaceSceneRenderDriver::SetTemporalHistoryFrozen( bool frozen )
 	if( m_postProcess )
 	{
 		m_postProcess->SetTaaHistoryFrozen( frozen );
+		m_postProcess->SetDynamicExposureHistoryFrozen( frozen );
 	}
 }
 
@@ -868,6 +985,74 @@ bool EveSpaceSceneRenderDriver::GetLastDistortionExecutionSucceeded() const
 	}
 	return m_lastDistortionDiagnostics.mapCreated && m_lastDistortionDiagnostics.copySucceeded &&
 		m_lastDistortionDiagnostics.compositeSucceeded;
+}
+
+void EveSpaceSceneRenderDriver::SetLensFlareDiagnosticsEnabled( bool enabled )
+{
+	m_lensFlareDiagnosticsEnabled = enabled;
+	if( !enabled )
+	{
+		m_lastLensFlareDiagnostics = {};
+	}
+}
+
+bool EveSpaceSceneRenderDriver::ReadLensFlareDiagnostics(
+	Tr2RenderContext& renderContext,
+	LensFlareDiagnostics& diagnostics )
+{
+	diagnostics = m_lastLensFlareDiagnostics;
+	if( !diagnostics.enabled || !diagnostics.captured ||
+		!m_preLensFlareReadback.IsValid() || !m_postLensFlareReadback.IsValid() )
+	{
+		return false;
+	}
+	const void* beforeData = nullptr;
+	const void* afterData = nullptr;
+	uint32_t beforePitch = 0;
+	uint32_t afterPitch = 0;
+	if( FAILED( m_preLensFlareReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, beforeData, beforePitch, renderContext ) ) || !beforeData )
+	{
+		return false;
+	}
+	if( FAILED( m_postLensFlareReadback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, afterData, afterPitch, renderContext ) ) || !afterData )
+	{
+		m_preLensFlareReadback.UnmapForReading( renderContext );
+		return false;
+	}
+	diagnostics.width = m_preLensFlareReadback.GetWidth();
+	diagnostics.height = m_preLensFlareReadback.GetHeight();
+	diagnostics.format = static_cast<uint32_t>( m_preLensFlareReadback.GetFormat() );
+	for( uint32_t y = 0; y < diagnostics.height; ++y )
+	{
+		const uint16_t* before = reinterpret_cast<const uint16_t*>(
+			static_cast<const uint8_t*>( beforeData ) + static_cast<size_t>( y ) * beforePitch );
+		const uint16_t* after = reinterpret_cast<const uint16_t*>(
+			static_cast<const uint8_t*>( afterData ) + static_cast<size_t>( y ) * afterPitch );
+		for( uint32_t x = 0; x < diagnostics.width; ++x )
+		{
+			bool changed = false;
+			for( uint32_t channel = 0; channel < 3; ++channel )
+			{
+				const float delta = HalfToFloat( after[x * 4 + channel] ) -
+					HalfToFloat( before[x * 4 + channel] );
+				if( std::isfinite( delta ) && delta > 0.0f )
+				{
+					diagnostics.positiveRgbEnergy += delta;
+					diagnostics.maximumPositiveChannelDelta =
+						std::max( diagnostics.maximumPositiveChannelDelta, delta );
+					changed = true;
+				}
+			}
+			diagnostics.changedPixels += changed ? 1u : 0u;
+		}
+	}
+	m_postLensFlareReadback.UnmapForReading( renderContext );
+	m_preLensFlareReadback.UnmapForReading( renderContext );
+	diagnostics.readbackSucceeded = true;
+	m_lastLensFlareDiagnostics = diagnostics;
+	return true;
 }
 
 void EveSpaceSceneRenderDriver::UpdateGpuParticleSystem( Tr2RenderContext& renderContext )

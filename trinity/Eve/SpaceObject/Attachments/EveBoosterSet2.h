@@ -217,6 +217,9 @@ public:
 
 	EveBoosterSet2( IRoot* lockobj = NULL );
 	~EveBoosterSet2();
+	// Sample/test evidence can reset the authored booster's otherwise process-global
+	// random phases before any booster instance is created. Production never calls this.
+	static void ResetRandomSeedForTesting( uint32_t seed );
 
 	/////////////////////////////////////////////////////////////////////////////////////
 	// IInitialize

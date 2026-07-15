@@ -164,6 +164,30 @@ public:
 		uint32_t committedBatches = 0;
 		std::vector<Caster> casters;
 	};
+	struct RaytracedShadowDiagnostics
+	{
+		bool preparationAttempted = false;
+		bool geometryPresent = false;
+		bool renderAttempted = false;
+		bool effectReady = false;
+		bool techniquePresent = false;
+		bool pipelineValid = false;
+		bool shaderTableValid = false;
+		bool dispatchAttempted = false;
+		bool dispatchSucceeded = false;
+		bool denoiserRequested = false;
+		bool denoiserSucceeded = false;
+		bool resultValid = false;
+		uint32_t shadowCasterCount = 0;
+		uint32_t volumetricCount = 0;
+		uint64_t dispatchCount = 0;
+		uint64_t denoiserCount = 0;
+		uint32_t resultFormat = 0;
+		uint32_t resultWidth = 0;
+		uint32_t resultHeight = 0;
+		std::array<Vector4, 2> analyticPlanetSpheres = {};
+		uint32_t analyticPlanetSphereCount = 0;
+	};
 
 	ShadowResources RenderShadows( const Tr2TextureAL& depthMap, const Tr2TextureAL& normalMap, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext );
 	const DynamicLightShadowDiagnostics& GetDynamicLightShadowDiagnostics() const
@@ -174,8 +198,26 @@ public:
 	{
 		return m_directionalShadowDiagnostics;
 	}
+	const RaytracedShadowDiagnostics& GetRaytracedShadowDiagnostics() const
+	{
+		return m_raytracedShadowDiagnostics;
+	}
 	const DirectionalShadowDiagnostics::Caster* FindDirectionalShadowCasterDiagnostics(
 		const IEveShadowCaster* caster ) const;
+	void SetDistanceFog( const Color& color, float start, float end, float maximum )
+	{
+		m_fogColor = color;
+		m_fogStart = start;
+		m_fogEnd = end;
+		m_fogMax = maximum;
+	}
+	void GetDistanceFog( Color& color, float& start, float& end, float& maximum ) const
+	{
+		color = m_fogColor;
+		start = m_fogStart;
+		end = m_fogEnd;
+		maximum = m_fogMax;
+	}
 	void SetDynamicLightShadowResolveEffect( Tr2Effect * effect )
 	{
 		m_dynamicLightShadowResolveEffect = effect;
@@ -314,6 +356,9 @@ public:
 	{
 		m_planetShadowsEnabled = value;
 	}
+	// Evidence captures can require byte-stable additive ordering across
+	// processes. Production keeps the parallel gather path.
+	void SetDeterministicBatchCollectionForTesting( bool value );
 	Tr2ReflectionProbePtr GetReflectionProbe() const
 	{
 		return m_reflectionProbe;
@@ -409,6 +454,22 @@ public:
 	{
 		m_sunData.DirWorld = direction;
 		m_sunColor = color;
+	}
+	void SetSunDiffuseColor( const Color& color )
+	{
+		m_sunColor = color;
+	}
+	const Color& GetSunDiffuseColor() const
+	{
+		return m_sunColor;
+	}
+	const Color& GetCurrentSunDiffuseColor() const
+	{
+		return m_currentSunColor;
+	}
+	const Vector3& GetSunDirection() const
+	{
+		return m_sunData.DirWorld;
 	}
 	void SetSunBall( ITriVectorFunction* sunBall )
 	{
@@ -589,7 +650,7 @@ public:
 	void ApplyPerFrameData( Tr2RenderContext & renderContext );
 
 	void UpdatePlanets( const EveUpdateContext& updateContext );
-	void RenderPlanets( Tr2RenderContext & renderContext );
+	void RenderPlanets( Tr2RenderContext & renderContext, bool runLensflareOcclusion );
 
 	void RenderDistortion( Tr2RenderContext & renderContext );
 
@@ -643,6 +704,7 @@ protected:
 	float m_planetScale;
 	float m_planetCameraScale;
 	bool m_planetShadowsEnabled;
+	bool m_deterministicBatchCollectionForTesting;
 
 	//cascaded shadow map
 	Tr2ShadowMapPtr m_cascadedShadowMap;
@@ -930,6 +992,7 @@ public:
 	ShadowQuality m_shadowQuality;
 	DirectionalShadowDiagnostics m_directionalShadowDiagnostics;
 	DynamicLightShadowDiagnostics m_dynamicLightShadowDiagnostics;
+	RaytracedShadowDiagnostics m_raytracedShadowDiagnostics;
 	struct DynamicLightShadowFace
 	{
 		Matrix viewProjection;

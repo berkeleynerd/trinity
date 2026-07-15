@@ -328,11 +328,13 @@ Tr2VertexDefinition BuildFromCMFVertexDecl( const cmf::Span<cmf::VertexElement>&
 		Tr2VertexDefinition::Item item;
 
 		item.m_stream = 0;
-		item.m_offset = vd.m_nextOffset[0];
+		item.m_offset = src.offset;
 		item.m_dataType = ConvertCMFTypeToDataType( src );
 		item.m_usageIndex = src.usageIndex;
 
-		vd.m_nextOffset[0] += vd.GetDataTypeSizeInBytes( item.m_dataType );
+		vd.m_nextOffset[0] = std::max(
+			vd.m_nextOffset[0],
+			item.m_offset + vd.GetDataTypeSizeInBytes( item.m_dataType ) );
 
 		switch( src.usage )
 		{

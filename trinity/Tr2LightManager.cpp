@@ -18,6 +18,8 @@
 
 #include "TriSettingsRegistrar.h"
 
+#include <tuple>
+
 bool g_useDynamicLightsShadows = false;
 TRI_REGISTER_SETTING( "useDynamicLightsShadows", g_useDynamicLightsShadows );
 
@@ -227,6 +229,28 @@ void Tr2LightManager::SetVariableStore()
 	m_indexBufferVariable = m_indexBuffer;
 }
 
+void Tr2LightManager::SetDeterministicListOrderingForTesting( bool enabled )
+{
+	m_deterministicListOrderingForTesting = enabled;
+	m_deterministicLightDataOrderingPassCountForTesting = 0;
+	m_deterministicListOrderingPassCountForTesting = 0;
+}
+
+bool Tr2LightManager::IsDeterministicListOrderingForTesting() const
+{
+	return m_deterministicListOrderingForTesting;
+}
+
+uint64_t Tr2LightManager::GetDeterministicLightDataOrderingPassCountForTesting() const
+{
+	return m_deterministicLightDataOrderingPassCountForTesting;
+}
+
+uint64_t Tr2LightManager::GetDeterministicListOrderingPassCountForTesting() const
+{
+	return m_deterministicListOrderingPassCountForTesting;
+}
+
 void Tr2LightManager::Clear( Tr2RenderContext& renderContext )
 {
 	m_lightBufferVariable = m_lightBuffer;
@@ -411,6 +435,148 @@ ALResult Tr2LightManager::UpdateLightBuffer( Tr2RenderContext& renderContext )
 	return S_OK;
 }
 
+ALResult Tr2LightManager::CanonicalizeLightListsForTesting(
+	uint32_t tilesX,
+	uint32_t tilesY,
+	uint32_t lightCount,
+	Tr2RenderContext& renderContext )
+{
+	Tr2BufferAL* indexBuffer = m_indexBuffer ? m_indexBuffer->GetGpuBuffer( 0 ) : nullptr;
+	if( !indexBuffer || !indexBuffer->IsValid() || tilesX == 0 || tilesY == 0 ||
+		lightCount == 0 )
+	{
+		return E_INVALIDCALL;
+	}
+
+	const uint64_t tileCount = static_cast<uint64_t>( tilesX ) * tilesY;
+	const uint64_t nodeBase64 = tileCount * 3;
+	// A light can contribute one surface node and one particle node to a tile.
+	// Reading this bounded prefix avoids copying the full 32 MiB index buffer in
+	// finite-frame evidence runs while still covering every native allocation.
+	const uint64_t maximumWordCount = nodeBase64 + tileCount * lightCount * 4;
+	const uint32_t wordCount = static_cast<uint32_t>(
+		std::min<uint64_t>( maximumWordCount, INDEX_BUFFER_SIZE ) );
+	if( nodeBase64 >= wordCount )
+	{
+		return E_FAIL;
+	}
+
+	const void* mapped = nullptr;
+	const uint32_t byteCount = wordCount * sizeof( uint32_t );
+	CR_RETURN_HR( indexBuffer->MapForReading( mapped, 0, byteCount, renderContext ) );
+	if( !mapped )
+	{
+		indexBuffer->UnmapForReading( renderContext );
+		return E_FAIL;
+	}
+	std::vector<uint32_t> words(
+		static_cast<const uint32_t*>( mapped ),
+		static_cast<const uint32_t*>( mapped ) + wordCount );
+	indexBuffer->UnmapForReading( renderContext );
+
+	const uint32_t nodeBase = static_cast<uint32_t>( nodeBase64 );
+	const uint32_t tileCount32 = static_cast<uint32_t>( tileCount );
+	auto collectList = [&]( uint32_t head,
+							uint32_t stop,
+							std::vector<uint32_t>& nodes,
+							std::vector<uint32_t>& claimed ) {
+		nodes.clear();
+		uint32_t node = head;
+		for( uint32_t step = 0; step < lightCount; ++step )
+		{
+			if( node == stop )
+			{
+				return true;
+			}
+			if( node == 0 || node < nodeBase || node >= wordCount - 1 ||
+				( ( node - nodeBase ) & 1u ) != 0 || words[node] >= lightCount ||
+				std::find( claimed.begin(), claimed.end(), node ) != claimed.end() )
+			{
+				return false;
+			}
+			nodes.push_back( node );
+			claimed.push_back( node );
+			node = words[node + 1];
+		}
+		return node == stop;
+	};
+	auto keysAreUnique = [&]( const std::vector<uint32_t>& first,
+								const std::vector<uint32_t>& second ) {
+		std::vector<uint32_t> keys;
+		keys.reserve( first.size() + second.size() );
+		for( uint32_t node : first )
+		{
+			keys.push_back( words[node] );
+		}
+		for( uint32_t node : second )
+		{
+			keys.push_back( words[node] );
+		}
+		std::sort( keys.begin(), keys.end() );
+		return std::adjacent_find( keys.begin(), keys.end() ) == keys.end();
+	};
+	auto sortList = [&]( std::vector<uint32_t>& nodes, uint32_t suffix ) {
+		std::sort( nodes.begin(), nodes.end(), [&]( uint32_t left, uint32_t right ) {
+			return words[left] < words[right];
+		} );
+		for( size_t index = 0; index < nodes.size(); ++index )
+		{
+			words[nodes[index] + 1] = index + 1 < nodes.size() ?
+				nodes[index + 1] : suffix;
+		}
+		return nodes.empty() ? suffix : nodes.front();
+	};
+
+	std::vector<uint32_t> surfaceSuffix;
+	std::vector<uint32_t> surfacePrefix;
+	std::vector<uint32_t> particles;
+	const std::vector<uint32_t> noNodes;
+	std::vector<uint32_t> claimed;
+	claimed.reserve( lightCount * 2 );
+	for( uint32_t tile = 0; tile < tileCount32; ++tile )
+	{
+		const uint32_t header = tile * 3;
+		const uint32_t originalSurfaceSuffix = words[header];
+		const uint32_t originalCombinedSurface = words[header + 1];
+		const uint32_t originalParticles = words[header + 2];
+		claimed.clear();
+		surfacePrefix.clear();
+		if( !collectList( originalSurfaceSuffix, 0, surfaceSuffix, claimed ) ||
+			( originalCombinedSurface != originalSurfaceSuffix &&
+			  !collectList(
+				  originalCombinedSurface,
+				  originalSurfaceSuffix,
+				  surfacePrefix,
+				  claimed ) ) ||
+			!keysAreUnique( surfaceSuffix, surfacePrefix ) ||
+			!collectList( originalParticles, 0, particles, claimed ) ||
+			!keysAreUnique( particles, noNodes ) )
+		{
+			return E_FAIL;
+		}
+		const uint32_t sortedSurfaceSuffix = sortList( surfaceSuffix, 0 );
+		const uint32_t sortedCombinedSurface =
+			sortList( surfacePrefix, sortedSurfaceSuffix );
+		const uint32_t sortedParticles = sortList( particles, 0 );
+		words[header] = sortedSurfaceSuffix;
+		words[header + 1] = sortedCombinedSurface;
+		words[header + 2] = sortedParticles;
+	}
+
+	Tr2BufferAL upload;
+	CR_RETURN_HR( upload.Create(
+		sizeof( uint32_t ),
+		wordCount,
+		Tr2GpuUsage::NONE,
+		Tr2CpuUsage::NONE,
+		words.data(),
+		renderContext.GetPrimaryRenderContext() ) );
+	CR_RETURN_HR( renderContext.CopySubBuffer(
+		*indexBuffer, 0, upload, 0, byteCount ) );
+	++m_deterministicListOrderingPassCountForTesting;
+	return S_OK;
+}
+
 ALResult Tr2LightManager::DoUpdateLists( const Tr2TextureAL& depthMap, Tr2RenderContext& renderContext )
 {
 	if( !m_lightBuffer->IsValid() || !m_indexBuffer->IsValid() || !m_indexBufferCounter->IsValid() )
@@ -448,6 +614,14 @@ ALResult Tr2LightManager::DoUpdateLists( const Tr2TextureAL& depthMap, Tr2Render
 	if( !Tr2Renderer::RunComputeShader( m_effect, perFrameData.tilesX, perFrameData.tilesY, 1, renderContext ) )
 	{
 		return E_FAIL;
+	}
+	if( m_deterministicListOrderingForTesting )
+	{
+		CR_RETURN_HR( CanonicalizeLightListsForTesting(
+			perFrameData.tilesX,
+			perFrameData.tilesY,
+			perFrameData.lightCount,
+			renderContext ) );
 	}
 	return S_OK;
 }
@@ -567,6 +741,37 @@ void Tr2LightManager::ResolveLightData()
 			m_lightData.insert( end( m_lightData ), begin( data ), end( data ) );
 		}
 		data.clear();
+	}
+	if( m_deterministicListOrderingForTesting && !m_lightData.empty() )
+	{
+		// TLS ownership is deliberately opaque to production. Evidence runs order
+		// the resolved records by their complete authored shader inputs before the
+		// native upload assigns light indices, making those indices reproducible.
+		auto authoredKey = []( const PerLightData& light ) {
+			return std::make_tuple(
+				light.position.x,
+				light.position.y,
+				light.position.z,
+				light.radius,
+				light.color.x,
+				light.color.y,
+				light.color.z,
+				static_cast<float>( light.innerRadius ),
+				light.flags,
+				static_cast<float>( light.direction.x ),
+				static_cast<float>( light.direction.y ),
+				static_cast<float>( light.direction.z ),
+				static_cast<float>( light.projectionPlaneDistance ),
+				static_cast<float>( light.outerAngle ),
+				static_cast<float>( light.innerAngle ) );
+		};
+		std::sort(
+			m_lightData.begin(),
+			m_lightData.end(),
+			[&]( const PerLightData& left, const PerLightData& right ) {
+				return authoredKey( left ) < authoredKey( right );
+			} );
+		++m_deterministicLightDataOrderingPassCountForTesting;
 	}
 
 	m_shadowCastingLights.clear();

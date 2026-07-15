@@ -8,6 +8,7 @@
 #include "Shader/Tr2Effect.h"
 #include "Resources/TriTextureRes.h"
 #include "Shader/Parameter/Tr2RuntimeTextureParameter.h"
+#include <algorithm>
 #include <sstream>
 
 using namespace Tr2RenderContextEnum;
@@ -29,6 +30,7 @@ Tr2ReflectionProbe::Tr2ReflectionProbe( IRoot* lockobj ) :
 	m_initialized( false ),
 	m_hasData( false ),
 	m_lastFilterSucceeded( false ),
+	m_lastSamplingCopySucceeded( false ),
 	m_position( 0, 0, 0 ),
 	m_intermediateSize( FILTER_SIZE * 4 ),
 	m_prevCullInversion( false ),
@@ -53,6 +55,7 @@ Tr2ReflectionProbe::Tr2ReflectionProbe( IRoot* lockobj ) :
 	m_filterEffect.CreateInstance();
 	m_preFilterTarget.CreateInstance();
 	m_postFilterTarget.CreateInstance();
+	m_samplingTarget.CreateInstance();
 	PrepareResources();
 }
 
@@ -68,12 +71,17 @@ bool Tr2ReflectionProbe::IsValid()
 
 bool Tr2ReflectionProbe::HasData() const
 {
-	return m_hasData && m_postFilterTarget->IsValid();
+	return m_hasData && m_samplingTarget->IsValid();
 }
 
 bool Tr2ReflectionProbe::LastFilterSucceeded() const
 {
 	return m_lastFilterSucceeded;
+}
+
+bool Tr2ReflectionProbe::LastSamplingCopySucceeded() const
+{
+	return m_lastSamplingCopySucceeded;
 }
 
 TriFrustum Tr2ReflectionProbe::GetFrustum( unsigned face, Tr2RenderContext& renderContext )
@@ -158,7 +166,8 @@ void Tr2ReflectionProbe::StartRenderFace( unsigned face, Tr2RenderContext& rende
 	renderContext.m_esm.SetDepthStencilBuffer( m_stencilMaps[face] );
 
 	static const Vector3 faceDirections[] = {
-		Vector3( 0, 1, 0 ), Vector3( 1, 0, 0 ), //+X
+		Vector3( 0, 1, 0 ),
+		Vector3( 1, 0, 0 ), //+X
 		Vector3( 0, 1, 0 ),
 		Vector3( -1, 0, 0 ), //-X
 		Vector3( 0, 0, -1 ),
@@ -202,7 +211,13 @@ void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext& renderContext )
 	Tr2Renderer::PopViewTransform();
 	renderContext.m_esm.PopViewport();
 
+	m_lastSamplingCopySucceeded = false;
 	m_lastFilterSucceeded = copiesSucceeded && Filter( renderContext );
+	if( m_lastFilterSucceeded )
+	{
+		m_lastSamplingCopySucceeded = CopyFilteredOutput( renderContext );
+		m_lastFilterSucceeded = m_lastSamplingCopySucceeded;
+	}
 	m_hasData = m_lastFilterSucceeded;
 	m_onePassDone = m_lastFilterSucceeded;
 
@@ -214,7 +229,7 @@ void Tr2ReflectionProbe::EndRenderPass( Tr2RenderContext& renderContext )
 
 Tr2RenderTargetPtr Tr2ReflectionProbe::GetReflection()
 {
-	return m_postFilterTarget;
+	return m_samplingTarget;
 }
 
 Tr2EffectPtr Tr2ReflectionProbe::GetPreFilterEffect() const
@@ -257,6 +272,77 @@ uint32_t Tr2ReflectionProbe::GetReflectionMipCount() const
 	return m_postFilterTarget && m_postFilterTarget->IsValid() ? m_postFilterTarget->GetMipCount() : 0;
 }
 
+bool Tr2ReflectionProbe::CollectRawDiagnosticsForTesting(
+	Tr2RenderContext& renderContext,
+	RawDiagnosticsForTesting& diagnostics ) const
+{
+	diagnostics = {};
+	auto collect = [&]( const Tr2RenderTargetPtr& target,
+						std::vector<RawTextureHashForTesting>& hashes ) {
+		if( !target || !target->IsValid() )
+		{
+			return false;
+		}
+		const Tr2TextureAL& source = target->GetRenderTarget();
+		const uint32_t bytesPerPixel = GetBytesPerPixel( source.GetFormat() );
+		if( source.GetType() != TEX_TYPE_CUBE || bytesPerPixel == 0 )
+		{
+			return false;
+		}
+		for( uint32_t face = 0; face < 6; ++face )
+		{
+			for( uint32_t mip = 0; mip < source.GetMipCount(); ++mip )
+			{
+				const uint32_t width = std::max( 1u, source.GetWidth() >> mip );
+				const uint32_t height = std::max( 1u, source.GetHeight() >> mip );
+				Tr2TextureAL readback;
+				if( FAILED( readback.Create(
+						Tr2BitmapDimensions( width, height, 1, source.GetFormat() ),
+						Tr2GpuUsage::COPY_DESTINATION,
+						Tr2CpuUsage::READ,
+						renderContext.GetPrimaryRenderContext() ) ) ||
+					FAILED( readback.CopySubresourceRegion(
+						Tr2TextureSubresource( 0, 0 ),
+						source,
+						Tr2TextureSubresource( face, mip ),
+						renderContext ) ) )
+				{
+					return false;
+				}
+				const void* mapped = nullptr;
+				uint32_t pitch = 0;
+				if( FAILED( readback.MapForReading(
+						Tr2TextureSubresource( 0 ), true, mapped, pitch, renderContext ) ) ||
+					!mapped )
+				{
+					return false;
+				}
+				constexpr uint64_t fnvOffset = 14695981039346656037ull;
+				constexpr uint64_t fnvPrime = 1099511628211ull;
+				uint64_t hash = fnvOffset;
+				const size_t rowBytes = static_cast<size_t>( width ) * bytesPerPixel;
+				for( uint32_t y = 0; y < height; ++y )
+				{
+					const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
+						static_cast<size_t>( y ) * pitch;
+					for( size_t byte = 0; byte < rowBytes; ++byte )
+					{
+						hash = ( hash ^ row[byte] ) * fnvPrime;
+					}
+				}
+				readback.UnmapForReading( renderContext );
+				hashes.push_back( { face, mip, width, height, source.GetFormat(), hash } );
+			}
+		}
+		return true;
+	};
+
+	return collect( m_renderTargetCube, diagnostics.source ) &&
+		collect( m_preFilterTarget, diagnostics.prefilter ) &&
+		collect( m_postFilterTarget, diagnostics.filtered ) &&
+		collect( m_samplingTarget, diagnostics.sampled );
+}
+
 void Tr2ReflectionProbe::SetBackLightColor( Color color )
 {
 	m_backlightColor = color;
@@ -272,6 +358,7 @@ void Tr2ReflectionProbe::ReleaseResources( TriStorage s )
 	m_initialized = false;
 	m_hasData = false;
 	m_lastFilterSucceeded = false;
+	m_lastSamplingCopySucceeded = false;
 }
 
 bool Tr2ReflectionProbe::OnPrepareResources()
@@ -321,6 +408,12 @@ bool Tr2ReflectionProbe::DoPrepareResources( ImageIO::PixelFormat rtFormat, Tr2P
 	if( !m_postFilterTarget->IsValid() )
 	{
 		CR_RETURN_VAL( m_postFilterTarget->Create( FILTER_SIZE * 2, FILTER_SIZE * 2, MIP_COUNT + 1, m_hdrOutput ? rtFormat : PIXEL_FORMAT_R8G8B8A8_UNORM, 0, 0, EX_BIND_UNORDERED_ACCESS, TEX_TYPE_CUBE ), false );
+		m_hasData = false;
+	}
+
+	if( !m_samplingTarget->IsValid() )
+	{
+		CR_RETURN_VAL( m_samplingTarget->Create( FILTER_SIZE * 2, FILTER_SIZE * 2, MIP_COUNT + 1, m_hdrOutput ? rtFormat : PIXEL_FORMAT_R8G8B8A8_UNORM, 0, 0, EX_NONE, TEX_TYPE_CUBE ), false );
 		m_hasData = false;
 	}
 
@@ -390,9 +483,11 @@ void Tr2ReflectionProbe::DestroyRenderTargets()
 	m_renderTargetCube->Destroy();
 	m_preFilterTarget->Destroy();
 	m_postFilterTarget->Destroy();
+	m_samplingTarget->Destroy();
 	m_initialized = false;
 	m_hasData = false;
 	m_lastFilterSucceeded = false;
+	m_lastSamplingCopySucceeded = false;
 	m_onePassDone = false;
 	m_currentFrame = 0;
 }
@@ -448,11 +543,48 @@ bool Tr2ReflectionProbe::Filter( Tr2RenderContext& renderContext )
 	return true;
 }
 
+bool Tr2ReflectionProbe::CopyFilteredOutput( Tr2RenderContext& renderContext )
+{
+	if( !m_postFilterTarget || !m_postFilterTarget->IsValid() ||
+		!m_samplingTarget || !m_samplingTarget->IsValid() )
+	{
+		return false;
+	}
+	const Tr2TextureAL& filtered = m_postFilterTarget->GetRenderTarget();
+	Tr2TextureAL& sampled = m_samplingTarget->GetRenderTarget();
+	if( filtered.GetMipCount() != sampled.GetMipCount() )
+	{
+		return false;
+	}
+	for( uint32_t face = 0; face < 6; ++face )
+	{
+		for( uint32_t mip = 0; mip < filtered.GetMipCount(); ++mip )
+		{
+			if( FAILED( sampled.CopySubresourceRegion(
+					Tr2TextureSubresource( face, mip ),
+					filtered,
+					Tr2TextureSubresource( face, mip ),
+					renderContext ) ) )
+			{
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 void Tr2ReflectionProbe::RunFilter()
 {
 	USE_MAIN_THREAD_RENDER_CONTEXT();
 	DestroyRenderTargets();
-	m_lastFilterSucceeded = DoPrepareResources( PIXEL_FORMAT_R16G16B16A16_FLOAT, renderContext ) && Filter( renderContext );
+	m_lastSamplingCopySucceeded = false;
+	m_lastFilterSucceeded = DoPrepareResources( PIXEL_FORMAT_R16G16B16A16_FLOAT, renderContext ) &&
+		Filter( renderContext );
+	if( m_lastFilterSucceeded )
+	{
+		m_lastSamplingCopySucceeded = CopyFilteredOutput( renderContext );
+		m_lastFilterSucceeded = m_lastSamplingCopySucceeded;
+	}
 	m_hasData = m_lastFilterSucceeded;
 	m_onePassDone = m_lastFilterSucceeded;
 }

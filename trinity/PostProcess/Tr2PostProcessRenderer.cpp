@@ -37,12 +37,13 @@ const uint32_t MAX_LUTS = 4;
 
 static Tr2UpscalingAL::Result s_lastUpscalingResult;
 
-void DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, const Tr2TextureAL& src, Tr2RenderContext& renderContext )
+bool DrawInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, const Tr2TextureAL& src, Tr2RenderContext& renderContext )
 {
 	renderContext.RenderPassHint( { loadAction, Tr2StoreAction::STORE }, {} );
 	renderContext.m_esm.PushRenderTarget( dest );
-	Tr2Renderer::DrawTexture( renderContext, src );
+	const bool succeeded = Tr2Renderer::DrawTexture( renderContext, src );
 	renderContext.m_esm.PopRenderTarget();
+	return succeeded;
 }
 
 void DrawPartiallyInto( const Tr2TextureAL& dest, Tr2LoadAction::Type loadAction, const Tr2TextureAL& src, Tr2RenderContext& renderContext, const Vector2 tlTextureCoords = Vector2( 0, 0 ), const Vector2 brTextureCoords = Vector2( 1, 1 ) )
@@ -373,16 +374,26 @@ void ApplyBloom( const Tr2PPBloomEffect* bloom, Tr2Effect* tonemappingEffect, bo
 	}
 }
 
-void ApplyDynamicExposure( const Tr2PPDynamicExposureEffect* dynamicExposure, Tr2Effect* tonemappingEffect, float postprocessExposureAmount )
+void ApplyDynamicExposure(
+	const Tr2PPDynamicExposureEffect* dynamicExposure,
+	Tr2Effect* tonemappingEffect,
+	float postprocessExposureAmount,
+	bool applyExposure )
 {
 	if( dynamicExposure != nullptr )
 	{
 		tonemappingEffect->SetParameter( BlueSharedString( "ExposureMiddleValue" ), dynamicExposure->m_middleValue );
-		tonemappingEffect->SetParameter( BlueSharedString( "ExposureInfluence" ), dynamicExposure->m_influence );
+		tonemappingEffect->SetParameter(
+			BlueSharedString( "ExposureInfluence" ),
+			applyExposure ? dynamicExposure->m_influence : 0.0f );
 		tonemappingEffect->SetParameter( BlueSharedString( "MinExposure" ), dynamicExposure->m_minExposure );
 		tonemappingEffect->SetParameter( BlueSharedString( "MaxExposure" ), dynamicExposure->m_maxExposure );
 		tonemappingEffect->SetOption( BlueSharedString( "DYNAMIC_EXPOSURE_TOGGLE" ), BlueSharedString( "DYNAMIC_EXPOSURE_ENABLED" ) );
-		tonemappingEffect->SetParameter( MEMOIZED_STRING( "ExposureAdjust" ), pow( 2.0f, postprocessExposureAmount + dynamicExposure->m_adjustment ) );
+		tonemappingEffect->SetParameter(
+			MEMOIZED_STRING( "ExposureAdjust" ),
+			applyExposure ?
+				pow( 2.0f, postprocessExposureAmount + dynamicExposure->m_adjustment ) :
+				1.0f );
 	}
 	else
 	{
@@ -817,13 +828,21 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( auto fog = postProcess->GetFogIfAvailable( m_quality ) )
 		{
-			RenderFog( nonMsaaSource, sourceBuffer, gpuResourcePool, renderContext, fog );
+			m_lastDiagnostics.fogActive = true;
+			if( !RenderFog( nonMsaaSource, sourceBuffer, gpuResourcePool, renderContext, fog ) )
+			{
+				m_lastExecutionSucceeded = false;
+			}
 		}
 		sourceBuffer = {};
 
 		if( auto godrays = postProcess->GetGodRaysIfAvailable( m_quality ) )
 		{
-			RenderGodRays( nonMsaaSource, depthMap, gpuResourcePool, renderContext, godrays );
+			m_lastDiagnostics.godRaysActive = true;
+			if( !RenderGodRays( nonMsaaSource, depthMap, gpuResourcePool, renderContext, godrays ) )
+			{
+				m_lastExecutionSucceeded = false;
+			}
 		}
 
 		if( auto dof = postProcess->GetDepthOfFieldIfAvailable( m_quality ) )
@@ -884,11 +903,37 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( dynamicExposure )
 		{
-			histogramBuffer = RenderDynamicExposure( nonMsaaSource, gpuResourcePool, renderContext, dynamicExposure );
-			m_lastHistogramBuffer = m_diagnosticsEnabled ? histogramBuffer : Tr2GpuResourcePool::Buffer{};
-			if( !dynamicExposure->m_debug )
+			if( m_dynamicExposureHistoryFrozen )
 			{
-				histogramBuffer = {};
+				// Frozen diagnostic products rerender the settled scene at the same
+				// timestamp. Re-running the temporal exposure compute with a zero
+				// delta can write its initialization state and make otherwise valid
+				// tone/bloom captures saturate. Preserve and reuse the last measured
+				// persistent exposure buffer just as TAA preserves its history here.
+				m_lastDiagnostics.dynamicExposureActive = true;
+				m_lastDiagnostics.dynamicExposureHistoryReused = true;
+				m_lastDiagnostics.exposureMeasured = m_dynamicExposureHistoryValid &&
+					GetExposureBuffer( gpuResourcePool ).IsValid();
+				m_lastDiagnostics.minBrightness = dynamicExposure->m_minBrightness;
+				m_lastDiagnostics.maxBrightness = dynamicExposure->m_maxBrightness;
+				m_lastDiagnostics.increaseSpeed = dynamicExposure->m_increaseSpeed;
+				m_lastDiagnostics.decreaseSpeed = dynamicExposure->m_decreaseSpeed;
+				m_lastDiagnostics.minLuminance = dynamicExposure->m_minLuminance;
+				m_lastDiagnostics.maxLuminance = dynamicExposure->m_maxLuminance;
+				m_lastDiagnostics.exposureInfluence = dynamicExposure->m_influence;
+				m_lastDiagnostics.exposureMiddleValue = dynamicExposure->m_middleValue;
+				m_lastDiagnostics.exposureAdjustment = dynamicExposure->m_adjustment;
+				m_lastDiagnostics.minExposure = dynamicExposure->m_minExposure;
+				m_lastDiagnostics.maxExposure = dynamicExposure->m_maxExposure;
+			}
+			else
+			{
+				histogramBuffer = RenderDynamicExposure( nonMsaaSource, gpuResourcePool, renderContext, dynamicExposure );
+				m_lastHistogramBuffer = m_diagnosticsEnabled ? histogramBuffer : Tr2GpuResourcePool::Buffer{};
+				if( !dynamicExposure->m_debug )
+				{
+					histogramBuffer = {};
+				}
 			}
 		}
 	}
@@ -926,6 +971,7 @@ void Tr2PostProcessRenderer::Execute(
 
 	// this needs to be after dynamic exposure, since bloom can be exposure dependent
 	Tr2GpuResourcePool::Texture bloomTexture = GetBlackTexture( gpuResourcePool );
+	bool bloomOutputSucceeded = true;
 	m_lastDiagnostics.useNewBloom = m_useNewBloom;
 	if( postProcess != nullptr )
 	{
@@ -938,13 +984,27 @@ void Tr2PostProcessRenderer::Execute(
 			m_lastDiagnostics.bloomExposureDependency = bloom->m_exposureDependency;
 			m_lastDiagnostics.bloomGrimeWeight = bloom->m_grimeWeight;
 			bloomTexture = RenderBloom( upscaledSource, gpuResourcePool, renderContext, bloom, dynamicExposure );
-			if( bloomOutput )
-			{
-				*bloomOutput = bloomTexture;
-			}
 			m_lastDiagnostics.bloomWidth = bloomTexture.IsValid() ? bloomTexture->GetWidth() : 0;
 			m_lastDiagnostics.bloomHeight = bloomTexture.IsValid() ? bloomTexture->GetHeight() : 0;
 			m_lastDiagnostics.bloomFormat = bloomTexture.IsValid() ? static_cast<uint32_t>( bloomTexture->GetFormat() ) : 0;
+		}
+	}
+	if( bloomOutput )
+	{
+		if( m_lastDiagnostics.bloomActive )
+		{
+			*bloomOutput = bloomTexture;
+		}
+		else
+		{
+			auto disabledBloom = gpuResourcePool.GetTempTexture(
+				"Disabled Bloom",
+				TextureSize2D( upscaledSource->GetDesc() ) * 0.5f,
+				upscaledSource->GetFormat(),
+				RENDER_TARGET );
+			bloomOutputSucceeded =
+				DrawInto( disabledBloom, Tr2LoadAction::DONT_CARE, bloomTexture, renderContext );
+			*bloomOutput = disabledBloom;
 		}
 	}
 
@@ -952,7 +1012,11 @@ void Tr2PostProcessRenderer::Execute(
 
 	TEMP_PARAM( m_tonemappingEffect, "BlitCurrent", bloomTexture );
 	TEMP_PARAM( m_tonemappingEffect, "BlitOriginal", upscaledSource );
-	TEMP_PARAM( m_tonemappingEffect, "Exposure", GetExposureBuffer( gpuResourcePool ) );
+	const Tr2BufferAL tonemappingExposure =
+		m_deterministicTaaExposureForTesting && m_deterministicTaaExposureBuffer.IsValid() ?
+			m_deterministicTaaExposureBuffer :
+			GetExposureBuffer( gpuResourcePool ).Get();
+	TEMP_PARAM( m_tonemappingEffect, "Exposure", tonemappingExposure );
 	TEMP_PARAM( m_tonemappingEffect, "Histogram", histogramBuffer );
 
 	Tr2PPFilmGrainEffect* filmGrain = postProcess != nullptr ? postProcess->GetFilmGrainIfAvailable( m_quality ) : nullptr;
@@ -1021,10 +1085,18 @@ void Tr2PostProcessRenderer::Execute(
 
 	PrepareFullScreenTarget( destination, renderContext );
 	const bool presentationSucceeded = Tr2Renderer::DrawTexture( renderContext, finalOutput );
-	m_lastExecutionSucceeded = m_lastDiagnostics.tonemappingSucceeded &&
+	m_lastExecutionSucceeded = bloomOutputSucceeded && m_lastDiagnostics.tonemappingSucceeded &&
+		( !m_lastDiagnostics.fogActive ||
+		  ( m_lastDiagnostics.fogColorSucceeded && m_lastDiagnostics.fogBlurHorizontalSucceeded &&
+			m_lastDiagnostics.fogBlurVerticalSucceeded && m_lastDiagnostics.fogCompositeSucceeded ) ) &&
+		( !m_lastDiagnostics.godRaysActive ||
+		  ( m_lastDiagnostics.godRaysDepthSucceeded && m_lastDiagnostics.godRaysDrawSucceeded &&
+			m_lastDiagnostics.godRaysCompositeSucceeded ) ) &&
 		( !m_lastDiagnostics.dynamicExposureActive ||
-		  ( m_lastDiagnostics.histogramCreated && m_lastDiagnostics.histogramMerged &&
-			m_lastDiagnostics.exposureMeasured ) ) &&
+		  ( m_lastDiagnostics.dynamicExposureHistoryReused ?
+			m_lastDiagnostics.exposureMeasured :
+			( m_lastDiagnostics.histogramCreated && m_lastDiagnostics.histogramMerged &&
+			  m_lastDiagnostics.exposureMeasured ) ) ) &&
 		( !m_lastDiagnostics.bloomActive || m_lastDiagnostics.bloomSucceeded ) &&
 		( !m_lastDiagnostics.filmGrainActive || m_lastDiagnostics.filmGrainSucceeded ) &&
 		presentationSucceeded;
@@ -1154,11 +1226,16 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::Blur(
 	return rt1;
 }
 
-Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::DownSampleDepth( const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext )
+Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::DownSampleDepth( const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, bool* succeeded )
 {
 	TEMP_PARAM( m_downsampleDepthEffect, "DepthMap", depth );
 	auto destination = gpuResourcePool.GetTempTexture( "Down-sampled Depth", TextureSize2D( depth.GetDesc() ) * 0.5f, ImageIO::PIXEL_FORMAT_R32_FLOAT, Tr2GpuUsage::RENDER_TARGET | Tr2GpuUsage::SHADER_RESOURCE );
-	DrawInto( destination, Tr2LoadAction::DONT_CARE, m_downsampleDepthEffect, renderContext );
+	const bool drawSucceeded =
+		DrawInto( destination, Tr2LoadAction::DONT_CARE, m_downsampleDepthEffect, renderContext );
+	if( succeeded )
+	{
+		*succeeded = drawSucceeded;
+	}
 	return destination;
 }
 
@@ -1367,13 +1444,16 @@ Tr2GpuResourcePool::Texture Tr2PostProcessRenderer::RenderBloomDebug(
 	return debugView;
 }
 
-void Tr2PostProcessRenderer::RenderGodRays( const Tr2TextureAL& dest, const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays )
+bool Tr2PostProcessRenderer::RenderGodRays( const Tr2TextureAL& dest, const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays )
 {
 	GPU_REGION( renderContext, "Godrays" );
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 
 	// Downsample depth
-	auto rt1 = DownSampleDepth( depth, gpuResourcePool, renderContext );
+	auto rt1 = DownSampleDepth(
+		depth, gpuResourcePool, renderContext, &m_lastDiagnostics.godRaysDepthSucceeded );
+	m_lastDiagnostics.godRaysDepthSucceeded =
+		m_lastDiagnostics.godRaysDepthSucceeded && rt1.IsValid();
 
 	// God rays
 	auto rt2 = gpuResourcePool.GetTempTexture( "God rays", TextureSize2D( dest.GetDesc() ) * 0.5f, dest.GetFormat(), RENDER_TARGET );
@@ -1383,15 +1463,67 @@ void Tr2PostProcessRenderer::RenderGodRays( const Tr2TextureAL& dest, const Tr2T
 	m_godrayEffect->SetParameter( MEMOIZED_STRING( "Color" ), Vector4( godrays->m_godRayColor ) );
 	m_godrayEffect->SetParameter( MEMOIZED_STRING( "Intensity" ), Vector4( godrays->m_intensity, 0.0f, 1.0f, 1.0f ) );
 	m_godrayEffect->SetParameter( MEMOIZED_STRING( "grFactors" ), godrays->grFactors );
+	// The depth-aware authored shader reconstructs depth with its effect-local
+	// ProjectionMat.  Bind the live projection explicitly: relying on a global
+	// variable leaves this postprocess instance with its zero constructor value
+	// on the standalone Metal path and collapses every ray sample to NaN/zero.
+	m_godrayEffect->SetParameter( MEMOIZED_STRING( "ProjectionMat" ), Tr2Renderer::GetReversedDepthProjectionTransform() );
+	Vector4 occlusionScale( 1.0f, 0.0f, 0.0f, 0.0f );
+	if( TriVariable* variable = GlobalStore().FindVariable( "LensflareFxOccScale" );
+		variable && variable->GetType() == TRIVARIABLE_FLOAT4 )
+	{
+		variable->GetValue( occlusionScale );
+	}
+	m_godrayEffect->SetParameter( MEMOIZED_STRING( "LensflareFxOccScale" ), occlusionScale );
+	ITr2GpuBuffer* occlusionBuffer = nullptr;
+	if( TriVariable* variable = GlobalStore().FindVariable( "FlareOcclusionBuffer" );
+		variable && variable->GetType() == TRIVARIABLE_GPUBUFFER )
+	{
+		variable->GetValue( occlusionBuffer );
+	}
+	m_godrayEffect->SetParameter( MEMOIZED_STRING( "FlareOcclusionBuffer" ), occlusionBuffer );
+	static bool reportedInitialGodRayBindings = false;
+	static bool reportedReadyGodRayBindings = false;
+	uint32_t foregroundOffset = 0;
+	uint32_t backgroundOffset = 0;
+	std::memcpy( &foregroundOffset, &occlusionScale.x, sizeof( foregroundOffset ) );
+	std::memcpy( &backgroundOffset, &occlusionScale.y, sizeof( backgroundOffset ) );
+	if( m_diagnosticsEnabled &&
+		( ( backgroundOffset == 0 && !reportedInitialGodRayBindings ) ||
+		  ( backgroundOffset != 0 && !reportedReadyGodRayBindings ) ) )
+	{
+		reportedInitialGodRayBindings = reportedInitialGodRayBindings || backgroundOffset == 0;
+		reportedReadyGodRayBindings = reportedReadyGodRayBindings || backgroundOffset != 0;
+		const Matrix projection = Tr2Renderer::GetReversedDepthProjectionTransform();
+		std::fprintf(
+			stderr,
+			"PL-14D god-ray bindings: occlusionBuffer=%s foregroundOffset=%u backgroundOffset=%u "
+			"projectionZ=(%.9g,%.9g,%.9g,%.9g)\n",
+			occlusionBuffer ? "ready" : "missing",
+			foregroundOffset,
+			backgroundOffset,
+			projection._33,
+			projection._34,
+			projection._43,
+			projection._44 );
+	}
 	m_godrayEffect->SetResourceTexture2D( MEMOIZED_STRING( "NoiseTexMap" ), godrays->m_noiseTexturePath.c_str() );
 	TEMP_PARAM( m_godrayEffect, "DepthMap", rt1 );
 
-	Tr2Renderer::DrawScreenQuad( renderContext, m_godrayEffect );
+	Tr2Shader* shader = m_godrayEffect ? m_godrayEffect->GetShaderStateInterface() : nullptr;
+	m_lastDiagnostics.godRaysDrawSucceeded = shader && shader->GetPassCount( 0 ) > 0;
+	if( m_lastDiagnostics.godRaysDrawSucceeded )
+	{
+		Tr2Renderer::DrawScreenQuad( renderContext, m_godrayEffect );
+	}
 	renderContext.m_esm.PopRenderTarget();
 
 	// Blit
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
-	DrawInto( dest, Tr2LoadAction::LOAD, rt2, renderContext );
+	m_lastDiagnostics.godRaysCompositeSucceeded =
+		DrawInto( dest, Tr2LoadAction::LOAD, rt2, renderContext );
+	return m_lastDiagnostics.godRaysDepthSucceeded && m_lastDiagnostics.godRaysDrawSucceeded &&
+		m_lastDiagnostics.godRaysCompositeSucceeded;
 }
 
 void Tr2PostProcessRenderer::RenderSignalLoss( const Tr2TextureAL& dest, Tr2RenderContext& renderContext, Tr2PPSignalLossEffect* signalLoss )
@@ -1481,6 +1613,7 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 	m_lastDiagnostics.histogramCreated = createdHistogram;
 	m_lastDiagnostics.histogramMerged = mergedHistogram;
 	m_lastDiagnostics.exposureMeasured = measuredExposure && exposureBuffer.IsValid();
+	m_dynamicExposureHistoryValid = m_lastDiagnostics.exposureMeasured;
 	static bool reportedComputeFailure = false;
 	if( !reportedComputeFailure && ( !createdHistogram || !mergedHistogram || !measuredExposure ) )
 	{
@@ -1662,7 +1795,7 @@ bool Tr2PostProcessRenderer::RenderFilmGrain(
 	return DrawInto( destination, Tr2LoadAction::DONT_CARE, m_grainShader, renderContext );
 }
 
-void Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog )
+bool Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog )
 {
 	GPU_REGION( renderContext, "Fog" );
 	renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
@@ -1673,10 +1806,17 @@ void Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2Textu
 	TEMP_PARAM( m_fogColorEffect, "BlitCurrent", dest );
 	m_fogColorEffect->SetParameter( MEMOIZED_STRING( "Params" ), Vector4( fog->m_nebulaInfluence, fog->m_nebulaBlur, fog->m_originalBrightenOnly, fog->m_colorInfluence ) );
 	m_fogColorEffect->SetParameter( MEMOIZED_STRING( "Color" ), Vector4( fog->m_color ) );
-	DrawInto( rt1, Tr2LoadAction::DONT_CARE, m_fogColorEffect, renderContext );
+	m_lastDiagnostics.fogColorSucceeded =
+		DrawInto( rt1, Tr2LoadAction::DONT_CARE, m_fogColorEffect, renderContext );
 
 	// blur
-	auto blurred = Blur( std::move( rt1 ), gpuResourcePool, renderContext, {} );
+	auto blurred = Blur(
+		std::move( rt1 ),
+		gpuResourcePool,
+		renderContext,
+		{},
+		&m_lastDiagnostics.fogBlurHorizontalSucceeded,
+		&m_lastDiagnostics.fogBlurVerticalSucceeded );
 
 	// final composite
 	m_fogCompositeEffect->SetParameter( MEMOIZED_STRING( "FogParameters" ), Vector4( fog->m_totalAmount, fog->m_totalPower, fog->m_backgroundOcclusion, fog->m_intensity ) );
@@ -1688,7 +1828,10 @@ void Tr2PostProcessRenderer::RenderFog( const Tr2TextureAL& dest, const Tr2Textu
 	m_fogCompositeEffect->SetParameter( MEMOIZED_STRING( "AreaCenter" ), Vector4( fog->m_areaCenter, fog->m_areaScale.y ) );
 	TEMP_PARAM( m_fogCompositeEffect, "BlitCurrent", blurred );
 	TEMP_PARAM( m_fogCompositeEffect, "BlitOriginal", source );
-	DrawInto( dest, Tr2LoadAction::DONT_CARE, m_fogCompositeEffect, renderContext );
+	m_lastDiagnostics.fogCompositeSucceeded =
+		DrawInto( dest, Tr2LoadAction::DONT_CARE, m_fogCompositeEffect, renderContext );
+	return m_lastDiagnostics.fogColorSucceeded && m_lastDiagnostics.fogBlurHorizontalSucceeded &&
+		m_lastDiagnostics.fogBlurVerticalSucceeded && m_lastDiagnostics.fogCompositeSucceeded;
 }
 
 bool Tr2PostProcessRenderer::RenderTaa(
@@ -1758,6 +1901,45 @@ bool Tr2PostProcessRenderer::RenderTaa(
 
 	Tr2TextureAL input;
 	Tr2TextureAL output;
+	Tr2BufferAL taaExposure;
+	if( dynamicExposure )
+	{
+		taaExposure = GetExposureBuffer( gpuResourcePool ).Get();
+		if( m_deterministicTaaExposureForTesting )
+		{
+			const float exposureValues[8] = {
+				m_deterministicTaaExposureValue,
+				0.0f,
+				0.0f,
+				0.0f,
+				0.0f,
+				0.0f,
+				0.0f,
+				0.0f,
+			};
+			if( !m_deterministicTaaExposureBuffer.IsValid() &&
+				FAILED( m_deterministicTaaExposureBuffer.Create(
+					Tr2BufferDescriptionAL(
+						Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT,
+						8,
+						Tr2GpuUsage::SHADER_RESOURCE,
+						Tr2CpuUsage::WRITE ),
+					exposureValues,
+					renderContext.GetPrimaryRenderContext() ) ) )
+			{
+				return false;
+			}
+			if( FAILED( m_deterministicTaaExposureBuffer.UpdateBuffer(
+					0,
+					static_cast<uint32_t>( sizeof exposureValues ),
+					exposureValues,
+					renderContext ) ) )
+			{
+				return false;
+			}
+			taaExposure = m_deterministicTaaExposureBuffer;
+		}
+	}
 
 	uint32_t frame_count = m_taaHistoryFrozen ? m_taaFrameCounter : m_taaFrameCounter++;
 	if( ( frame_count & 1 ) == 0 )
@@ -1799,7 +1981,7 @@ bool Tr2PostProcessRenderer::RenderTaa(
 	TEMP_PARAM( m_taaEffect, "AccumulationBuffer", input );
 	TEMP_PARAM( m_taaEffect, "CooldownMap", cooldownBuffer );
 	TEMP_PARAM( m_taaEffect, "VelocityMap", velocity );
-	TEMP_PARAM( m_taaEffect, "Exposure", dynamicExposure ? GetExposureBuffer( gpuResourcePool ) : Tr2BufferAL{} );
+	TEMP_PARAM( m_taaEffect, "Exposure", taaExposure.IsValid() ? taaExposure : Tr2BufferAL{} );
 
 	float max_weight = 0.96f;
 	float weight = min( (float)frame_count / ( (float)frame_count + 1.0f ), max_weight );
@@ -1809,7 +1991,7 @@ bool Tr2PostProcessRenderer::RenderTaa(
 
 
 	TEMP_PARAM( m_taaCopyEffect, "AccumulationBuffer", output );
-	TEMP_PARAM( m_taaCopyEffect, "Exposure", dynamicExposure ? GetExposureBuffer( gpuResourcePool ) : Tr2BufferAL{} );
+	TEMP_PARAM( m_taaCopyEffect, "Exposure", taaExposure.IsValid() ? taaExposure : Tr2BufferAL{} );
 
 	const bool copySucceeded = DrawInto( dest, Tr2LoadAction::DONT_CARE, m_taaCopyEffect, renderContext );
 	if( cooldownOutput )
@@ -1852,10 +2034,18 @@ bool Tr2PostProcessRenderer::RenderTonemapping(
 
 	Tonemapping::ApplyColorCorrection( postprocess ? postprocess->GetColorCorrectionIfAvailable( m_quality ) : nullptr, m_tonemappingEffect );
 	Tonemapping::ApplyBloom( postprocess ? postprocess->GetBloomIfAvailable( m_quality ) : nullptr, m_tonemappingEffect, m_useNewBloom, m_bloomDebugMode );
-	Tonemapping::ApplyDynamicExposure( postprocess ? postprocess->GetDynamicExposureIfAvailable( m_quality ) : nullptr, m_tonemappingEffect, postprocess ? postprocess->m_exposureAdjustment : 0.0f );
+	Tr2PPDynamicExposureEffect* dynamicExposure =
+		postprocess ? postprocess->GetDynamicExposureIfAvailable( m_quality ) : nullptr;
+	m_lastDiagnostics.dynamicExposureApplied =
+		dynamicExposure != nullptr && m_dynamicExposureApplicationEnabledForTesting;
+	Tonemapping::ApplyDynamicExposure(
+		dynamicExposure,
+		m_tonemappingEffect,
+		postprocess ? postprocess->m_exposureAdjustment : 0.0f,
+		m_dynamicExposureApplicationEnabledForTesting );
 	if( postprocess )
 	{
-		if( auto dynamicExposure = postprocess->GetDynamicExposureIfAvailable( m_quality ) )
+		if( dynamicExposure && m_dynamicExposureApplicationEnabledForTesting )
 		{
 			m_lastDiagnostics.exposureAdjustment =
 				postprocess->m_exposureAdjustment + dynamicExposure->m_adjustment;

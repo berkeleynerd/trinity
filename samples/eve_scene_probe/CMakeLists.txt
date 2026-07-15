@@ -94,6 +94,12 @@ set(EVE_SCENE_PROBE_HIGH_PASS_FILTER_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/hi
 set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_hi)
 set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_lo)
 set(EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/blur.sm_depth)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcolor.sm_hi)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcolor.sm_lo)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcolor.sm_depth)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcomposit.sm_hi)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcomposit.sm_lo)
+set(EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/environmentfogcomposit.sm_depth)
 set(EVE_SCENE_PROBE_FILM_GRAIN_HI ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_hi)
 set(EVE_SCENE_PROBE_FILM_GRAIN_LO ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_lo)
 set(EVE_SCENE_PROBE_FILM_GRAIN_DEPTH ${EVE_SCENE_PROBE_POSTPROCESS_DIR}/filmgrain.sm_depth)
@@ -629,7 +635,8 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
 
     set(EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS)
     set(EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS)
-    foreach(effect shadowdepth estimatenoise denoiseestimate denoise1d)
+    foreach(effect shadowdepth estimatenoise denoiseestimate denoise1d
+        raytracing/rtdynamicshadows raytracing/rtshadows raytracing/skinvertices)
         foreach(variant hi lo depth)
             set(resource "res:/graphics/effect.metal/managed/space/system/${effect}.sm_${variant}")
             set(destination "${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/${effect}.sm_${variant}")
@@ -665,6 +672,7 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
     add_custom_command(
         OUTPUT ${EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS} ${EVE_SCENE_PROBE_SHADOW_AO_MANIFEST}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SHADOW_AO_INHERITED_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_SYSTEM_EFFECT_DIR}/raytracing
         COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
             --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
             ${EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS}
@@ -931,6 +939,12 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI}
         ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO}
         ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_HI}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_LO}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_DEPTH}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_HI}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_LO}
+        ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_DEPTH}
         ${EVE_SCENE_PROBE_FILM_GRAIN_HI}
         ${EVE_SCENE_PROBE_FILM_GRAIN_LO}
         ${EVE_SCENE_PROBE_FILM_GRAIN_DEPTH}
@@ -958,6 +972,12 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_hi ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_HI}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_lo ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_LO}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/blur.sm_depth ${EVE_SCENE_PROBE_POSTPROCESS_BLUR_DEPTH}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcolor.sm_hi ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcolor.sm_lo ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcolor.sm_depth ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COLOR_DEPTH}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcomposit.sm_hi ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_HI}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcomposit.sm_lo ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_LO}
+            --copy-resource res:/graphics/effect.metal/managed/space/postprocess/environmentfogcomposit.sm_depth ${EVE_SCENE_PROBE_ENVIRONMENT_FOG_COMPOSIT_DEPTH}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_hi ${EVE_SCENE_PROBE_FILM_GRAIN_HI}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_lo ${EVE_SCENE_PROBE_FILM_GRAIN_LO}
             --copy-resource res:/graphics/effect.metal/managed/space/postprocess/filmgrain.sm_depth ${EVE_SCENE_PROBE_FILM_GRAIN_DEPTH}

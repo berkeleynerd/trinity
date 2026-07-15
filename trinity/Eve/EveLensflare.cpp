@@ -67,6 +67,7 @@ EveLensflare::EveLensflare( IRoot* lockobj ) :
 	m_update( true ),
 	m_isVisible( false ),
 	m_position( 0.0f, 0.0f, 0.0f ),
+	m_positionOffset( 0.0f, 0.0f, 0.0f ),
 	m_cameraFactor( 20.f ),
 	m_sunSize( 0.f ),
 	m_directionVar( "LensflareFxDirectionScale", Vector4( 0.f, 0.f, 0.f, 1.f ) ),
@@ -151,10 +152,15 @@ void EveLensflare::Update( Be::Time realTime, Be::Time simTime )
 		return;
 	}
 
-	// update the position of this lensflare
+	// Update the position of this lensflare. Standalone scene composition keeps
+	// the authored ball curve and applies the exact system placement separately;
+	// production callers retain the zero offset.
+	m_position = m_positionOffset;
 	if( m_translationCurve )
 	{
-		m_translationCurve->Update( &m_position, simTime );
+		Vector3 curvePosition( 0.0f, 0.0f, 0.0f );
+		m_translationCurve->Update( &curvePosition, simTime );
+		m_position += curvePosition;
 	}
 
 	// calc sun size depending on it's position in the client and some very strange, very old magic numbers
@@ -189,7 +195,7 @@ void EveLensflare::Update( Be::Time realTime, Be::Time simTime )
 // Arguments:
 //   frustum - the current view frustum of the current frame
 // --------------------------------------------------------------------------------
-void EveLensflare::PrepareRender( const TriFrustum& frustum )
+void EveLensflare::PrepareRender( const TriFrustum& frustum, float worldScale )
 {
 	// debug
 	if( !m_display )
@@ -197,8 +203,12 @@ void EveLensflare::PrepareRender( const TriFrustum& frustum )
 		return;
 	}
 
-	// calc direction to the sun (usually normalized m_position)
-	if( LengthSq( m_position ) == 0.f )
+	// Calculate the direction from the authored world position to the current
+	// camera.  Legacy space scenes keep the camera at the floating origin, where
+	// this reduces to -m_position; standalone exact-system views can move the
+	// camera while preserving the same contract.
+	const Vector3 scaledPosition = m_position * worldScale;
+	if( LengthSq( scaledPosition ) == 0.f )
 	{
 		Vector3 curPos( 0.f, 0.f, 0.f );
 		curPos -= frustum.m_viewPos;
@@ -206,8 +216,7 @@ void EveLensflare::PrepareRender( const TriFrustum& frustum )
 	}
 	else
 	{
-		Vector3 invPos = -m_position;
-		m_direction = Normalize( invPos );
+		m_direction = Normalize( frustum.m_viewPos - scaledPosition );
 	}
 
 	Vector3 cameraSpacePos = frustum.m_viewDir * ( -1.f * m_cameraFactor );

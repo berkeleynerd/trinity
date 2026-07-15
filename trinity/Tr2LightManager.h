@@ -132,6 +132,10 @@ public:
 	void AddLight( PerLightData& data );
 	void ResolveLightData();
 	ALResult UpdateLists( const Tr2TextureAL& depthMap, Tr2RenderContext& renderContext );
+	void SetDeterministicListOrderingForTesting( bool enabled );
+	bool IsDeterministicListOrderingForTesting() const;
+	uint64_t GetDeterministicLightDataOrderingPassCountForTesting() const;
+	uint64_t GetDeterministicListOrderingPassCountForTesting() const;
 	size_t GetResolvedLightCount() const;
 	size_t GetCurrentThreadPendingLightCount();
 	ALResult GetLastUpdateResult() const;
@@ -198,6 +202,11 @@ private:
 	virtual bool OnPrepareResources();
 
 	ALResult DoUpdateLists( const Tr2TextureAL& depthMap, Tr2RenderContext& renderContext );
+	ALResult CanonicalizeLightListsForTesting(
+		uint32_t tilesX,
+		uint32_t tilesY,
+		uint32_t lightCount,
+		Tr2RenderContext& renderContext );
 	ALResult ClearLightIndices( Tr2RenderContext& renderContext );
 	ALResult UpdateLightBuffer( Tr2RenderContext& renderContext );
 
@@ -220,6 +229,9 @@ private:
 	Tr2Variable m_indexBufferVariable;
 	TriFrustum m_frustum;
 	ALResult m_lastUpdateResult = S_OK;
+	bool m_deterministicListOrderingForTesting = false;
+	uint64_t m_deterministicLightDataOrderingPassCountForTesting = 0;
+	uint64_t m_deterministicListOrderingPassCountForTesting = 0;
 
 	float m_adjustedCutoff;
 

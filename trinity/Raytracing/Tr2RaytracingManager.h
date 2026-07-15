@@ -14,12 +14,32 @@ BLUE_CLASS( Tr2RaytracingManager ) :
 	public IRoot
 {
 public:
+	struct ShadowExecutionDiagnostics
+	{
+		bool effectReady = false;
+		bool geometryPresent = false;
+		bool techniquePresent = false;
+		bool pipelineValid = false;
+		bool shaderTableValid = false;
+		bool dispatchAttempted = false;
+		bool dispatchSucceeded = false;
+		bool denoiserRequested = false;
+		bool denoiserSucceeded = false;
+		bool resultValid = false;
+		uint64_t dispatchCount = 0;
+		uint64_t denoiserCount = 0;
+	};
+
 	Tr2RaytracingManager( IRoot* lockobj = nullptr );
 	~Tr2RaytracingManager();
 
 	EXPOSE_TO_BLUE();
 
 	Tr2RaytracingGeometry& GetGeometry();
+	const ShadowExecutionDiagnostics& GetShadowExecutionDiagnostics() const
+	{
+		return m_shadowExecutionDiagnostics;
+	}
 
 	Tr2GpuResourcePool::Texture RenderShadows(
 		const Tr2TextureAL& depth,
@@ -52,6 +72,7 @@ private:
 	float m_sunAngle;
 	// debug
 	bool m_applyDenoiser;
+	ShadowExecutionDiagnostics m_shadowExecutionDiagnostics;
 };
 
 TYPEDEF_BLUECLASS( Tr2RaytracingManager );

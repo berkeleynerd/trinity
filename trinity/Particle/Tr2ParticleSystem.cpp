@@ -10,6 +10,7 @@
 #include "TriSettingsRegistrar.h"
 #include "Tr2VertexDefinitionUtilities.h"
 #include "TriFrustum.h"
+#include "Include/TriMath.h"
 
 using namespace Tr2RenderContextEnum;
 
@@ -27,6 +28,21 @@ CCP_STATS_DECLARE( statUpdatedParticleCount, "Trinity/updatedParticleCount", tru
 CcpAtomic<uint32_t> s_aliveParticleCount( 0 );
 CcpAtomic<uint32_t> s_updatedParticleCount( 0 );
 
+namespace
+{
+uint64_t NextParticleSystemTestingOrdinal()
+{
+	static std::atomic<uint64_t> nextOrdinal( 0 );
+	return nextOrdinal.fetch_add( 1, std::memory_order_relaxed );
+}
+
+bool& DeterministicParticleUpdatesForTesting()
+{
+	static bool enabled = false;
+	return enabled;
+}
+}
+
 CcpAtomic<uint32_t>& Tr2ParticleSystem::GetRandomSeed()
 {
 	static CcpAtomic<uint32_t> globalSeed( rand() );
@@ -39,8 +55,16 @@ bool Tr2ParticleSystem::ResetRandomSeedForTesting( uint32_t seed )
 	{
 		return false;
 	}
+	// Audit captures load authored curves and controllers after this call; seed
+	// their legacy rand()-based constants alongside the particle generator.
+	TriSrand( seed );
 	GetRandomSeed() = seed;
 	return true;
+}
+
+void Tr2ParticleSystem::SetDeterministicUpdatesForTesting( bool enabled )
+{
+	DeterministicParticleUpdatesForTesting() = enabled;
 }
 
 // --------------------------------------------------------------------------------------
@@ -67,6 +91,7 @@ Tr2ParticleSystem::Tr2ParticleSystem( IRoot* lockobj ) :
 	m_sortingAllowed( true ),
 	m_isGlobal( false ),
 	m_isValid( false ),
+	m_testingOrdinal( NextParticleSystemTestingOrdinal() ),
 	m_AabbMin( 0.0f, 0.0f, 0.0f ),
 	m_AabbMax( 0.0f, 0.0f, 0.0f ),
 	m_updatePeriod( 1 ),
@@ -879,9 +904,26 @@ void Tr2ParticleSystem::UpdateAllSystems( const ITr2GenericEmitter::UpdateArgume
 
 	std::set<Tr2ParticleSystem*>& allSystems = GetAllSystems();
 
-	Tr2ParallelDo( allSystems.begin(),
-				   allSystems.end(),
-				   [=]( Tr2ParticleSystem* system ) { system->Update( arguments ); } );
+	if( DeterministicParticleUpdatesForTesting() )
+	{
+		std::vector<Tr2ParticleSystem*> orderedSystems( allSystems.begin(), allSystems.end() );
+		std::sort(
+			orderedSystems.begin(),
+			orderedSystems.end(),
+			[]( const Tr2ParticleSystem* left, const Tr2ParticleSystem* right ) {
+				return left->m_testingOrdinal < right->m_testingOrdinal;
+			} );
+		for( Tr2ParticleSystem* system : orderedSystems )
+		{
+			system->Update( arguments );
+		}
+	}
+	else
+	{
+		Tr2ParallelDo( allSystems.begin(),
+					   allSystems.end(),
+					   [=]( Tr2ParticleSystem* system ) { system->Update( arguments ); } );
+	}
 
 	CCP_STATS_SET( statAliveParticleCount, s_aliveParticleCount );
 	CCP_STATS_SET( statUpdatedParticleCount, s_updatedParticleCount );

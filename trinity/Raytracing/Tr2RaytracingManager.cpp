@@ -87,6 +87,7 @@ Tr2GpuResourcePool::Texture Tr2RaytracingManager::RenderShadows(
 	Tr2GpuResourcePool& gpuResourcePool,
 	Tr2RenderContext& renderContext )
 {
+	m_shadowExecutionDiagnostics = {};
 	renderContext.AddGpuMarker( __FUNCTION__ );
 	GPU_REGION( renderContext, "Raytraced shadows" );
 	CCP_STATS_ZONE( __FUNCTION__ );
@@ -105,17 +106,20 @@ Tr2GpuResourcePool::Texture Tr2RaytracingManager::RenderShadows(
 	{
 		return {};
 	}
+	m_shadowExecutionDiagnostics.effectReady = true;
 
 	if( !m_geometry->HasGeometry() )
 	{
 		return {};
 	}
+	m_shadowExecutionDiagnostics.geometryPresent = true;
 
 	uint32_t techniqueIndex;
 	if( !m_shadowEffect->GetShaderStateInterface()->GetTechniqueIndex( RtShadowTechniqueName, techniqueIndex ) )
 	{
 		return {};
 	}
+	m_shadowExecutionDiagnostics.techniquePresent = true;
 
 	BlueSharedStringW rayGenName, missName;
 	m_pipelineManager.AddLibrary( rayGenName, missName, m_shadowEffect, RtShadowTechniqueName );
@@ -126,6 +130,7 @@ Tr2GpuResourcePool::Texture Tr2RaytracingManager::RenderShadows(
 	{
 		return {};
 	}
+	m_shadowExecutionDiagnostics.pipelineValid = true;
 
 	{
 		CCP_STATS_ZONE( "Create shader table" );
@@ -133,6 +138,7 @@ Tr2GpuResourcePool::Texture Tr2RaytracingManager::RenderShadows(
 		m_shaderTableDesc.AddMissShader( missName.c_str() );
 		m_shadowShaderTable.Create( m_shaderTableDesc, pipelineState, renderContext.GetPrimaryRenderContext() );
 	}
+	m_shadowExecutionDiagnostics.shaderTableValid = m_shadowShaderTable.IsValid();
 
 	if( !m_shadowPerFrameData.IsValid() )
 	{
@@ -177,14 +183,42 @@ Tr2GpuResourcePool::Texture Tr2RaytracingManager::RenderShadows(
 		}
 
 		renderContext.UseAccelerationStructure( m_geometry->GetTLAS() );
-		renderContext.DispatchRays( pipelineState, m_shadowShaderTable, rayGenName.c_str(), destination->GetWidth(), destination->GetHeight(), 1 );
+		m_shadowExecutionDiagnostics.dispatchAttempted = true;
+		const ALResult dispatchResult = renderContext.DispatchRays(
+			pipelineState,
+			m_shadowShaderTable,
+			rayGenName.c_str(),
+			destination->GetWidth(),
+			destination->GetHeight(),
+			1 );
+		m_shadowExecutionDiagnostics.dispatchSucceeded = SUCCEEDED( dispatchResult );
+		m_shadowExecutionDiagnostics.dispatchCount =
+			m_shadowExecutionDiagnostics.dispatchSucceeded ? 1 : 0;
+		if( FAILED( dispatchResult ) )
+		{
+			return {};
+		}
 	}
 	if( m_denoiser && m_applyDenoiser )
 	{
-		return m_denoiser->Apply( std::move( destination ), depth, {}, Tr2Renderer::GetReversedDepthProjectionTransform(), upscaling, gpuResourcePool, renderContext );
+		m_shadowExecutionDiagnostics.denoiserRequested = true;
+		auto result = m_denoiser->Apply(
+			std::move( destination ),
+			depth,
+			{},
+			Tr2Renderer::GetReversedDepthProjectionTransform(),
+			upscaling,
+			gpuResourcePool,
+			renderContext );
+		m_shadowExecutionDiagnostics.denoiserSucceeded = result.IsValid();
+		m_shadowExecutionDiagnostics.denoiserCount =
+			m_shadowExecutionDiagnostics.denoiserSucceeded ? 1 : 0;
+		m_shadowExecutionDiagnostics.resultValid = result.IsValid();
+		return result;
 	}
 	else
 	{
+		m_shadowExecutionDiagnostics.resultValid = destination.IsValid();
 		return destination;
 	}
 }

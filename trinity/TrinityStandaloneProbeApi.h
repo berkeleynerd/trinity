@@ -4,15 +4,42 @@
 
 #include <cstdint>
 
+struct TrinityStandaloneRaytracedShadowDiagnostics
+{
+	bool preparationAttempted = false;
+	bool geometryPresent = false;
+	bool renderAttempted = false;
+	bool dispatchSucceeded = false;
+	bool denoiserRequested = false;
+	bool denoiserSucceeded = false;
+	bool maskGenerated = false;
+	uint64_t dispatchCount = 0;
+	uint64_t denoiserCount = 0;
+	uint32_t maskFormat = 0;
+	uint32_t maskWidth = 0;
+	uint32_t maskHeight = 0;
+};
+
 struct TrinityStandalonePostProcessDiagnostics
 {
 	int64_t realTime = 0;
 	int64_t simTime = 0;
 	bool dynamicExposureActive = false;
+	bool dynamicExposureApplied = false;
+	bool dynamicExposureHistoryReused = false;
 	bool histogramCreated = false;
 	bool histogramMerged = false;
 	bool exposureMeasured = false;
 	bool tonemappingSucceeded = false;
+	bool fogActive = false;
+	bool fogColorSucceeded = false;
+	bool fogBlurHorizontalSucceeded = false;
+	bool fogBlurVerticalSucceeded = false;
+	bool fogCompositeSucceeded = false;
+	bool godRaysActive = false;
+	bool godRaysDepthSucceeded = false;
+	bool godRaysDrawSucceeded = false;
+	bool godRaysCompositeSucceeded = false;
 	bool bloomActive = false;
 	bool useNewBloom = false;
 	bool bloomHighPassSucceeded = false;
@@ -467,6 +494,25 @@ extern "C" bool TrinityStandaloneProbeConfigurePostProcess(
 	int bloomMode,
 	int filmGrainMode,
 	bool diagnosticsEnabled );
+extern "C" bool TrinityStandaloneProbeGetRaytracedShadowDiagnostics(
+	void* opaqueProbe,
+	TrinityStandaloneRaytracedShadowDiagnostics* diagnostics );
+extern "C" bool TrinityStandaloneProbeConfigureSolarIllumination( void* opaqueProbe,
+	int illuminationMode,
+	int illuminationView,
+	const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested(
+	void* opaqueProbe,
+	bool requested );
+extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
+														 int environmentMode,
+														 int environmentDistance,
+														 bool sceneDistanceFogAuthored,
+														 bool desaturateAuthored,
+														 int occlusionView,
+														 const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeSetExposureCameraPhase(
 	void* opaqueProbe,
 	bool sequenceActive,
@@ -486,6 +532,9 @@ extern "C" bool TrinityStandaloneProbeGetDistortionDiagnostics(
 	TrinityStandaloneDistortionDiagnostics* diagnostics );
 extern "C" bool TrinityStandaloneProbeValidateDistortion( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeSetFroxelRenderingEnabled( void* opaqueProbe, bool enabled );
+extern "C" bool TrinityStandaloneProbeConfigureDeterministicEvidence(
+	void* opaqueProbe,
+	uint32_t seed );
 extern "C" bool TrinityStandaloneProbeConfigureVolumetrics(
 	void* opaqueProbe,
 	int mode,
@@ -584,6 +633,9 @@ extern "C" bool TrinityStandaloneProbeConfigureEveGateApproach(
 extern "C" bool TrinityStandaloneProbeSetWarpTarget(
 	void* opaqueProbe,
 	int target );
+extern "C" bool TrinityStandaloneProbeSetJourneyPlanetFinale(
+	void* opaqueProbe,
+	bool enabled );
 extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
 	void* opaqueProbe,
 	int anchor );

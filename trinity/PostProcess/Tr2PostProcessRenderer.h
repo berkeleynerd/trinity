@@ -112,10 +112,21 @@ public:
 	struct Diagnostics
 	{
 		bool dynamicExposureActive = false;
+		bool dynamicExposureApplied = false;
+		bool dynamicExposureHistoryReused = false;
 		bool histogramCreated = false;
 		bool histogramMerged = false;
 		bool exposureMeasured = false;
 		bool tonemappingSucceeded = false;
+		bool fogActive = false;
+		bool fogColorSucceeded = false;
+		bool fogBlurHorizontalSucceeded = false;
+		bool fogBlurVerticalSucceeded = false;
+		bool fogCompositeSucceeded = false;
+		bool godRaysActive = false;
+		bool godRaysDepthSucceeded = false;
+		bool godRaysDrawSucceeded = false;
+		bool godRaysCompositeSucceeded = false;
 		bool bloomActive = false;
 		bool useNewBloom = false;
 		bool bloomHighPassSucceeded = false;
@@ -232,8 +243,21 @@ public:
 	{
 		m_taaHistoryFrozen = frozen;
 	}
+	void SetDynamicExposureHistoryFrozen( bool frozen )
+	{
+		m_dynamicExposureHistoryFrozen = frozen;
+	}
 	void SetUseNewBloom( bool enabled );
 	bool GetUseNewBloom() const;
+	void SetDynamicExposureApplicationEnabledForTesting( bool enabled )
+	{
+		m_dynamicExposureApplicationEnabledForTesting = enabled;
+	}
+	void SetDeterministicTaaExposureForTesting( bool enabled, float exposure )
+	{
+		m_deterministicTaaExposureForTesting = enabled;
+		m_deterministicTaaExposureValue = exposure;
+	}
 
 	PostProcess::Quality GetPostProcessingQuality() const;
 	void SetPostProcessingQuality( PostProcess::Quality quality );
@@ -274,7 +298,7 @@ private:
 
 
 	// godRays
-	void RenderGodRays( const Tr2TextureAL& dest, const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays );
+	bool RenderGodRays( const Tr2TextureAL& dest, const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPGodRaysEffect* godrays );
 	Tr2EffectPtr m_godrayEffect;
 
 	// signal loss
@@ -300,7 +324,7 @@ private:
 	uint32_t m_bokehFrameCounter;
 
 	// fog
-	void RenderFog( const Tr2TextureAL& dest, const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog );
+	bool RenderFog( const Tr2TextureAL& dest, const Tr2TextureAL& source, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, Tr2PPFogEffect* fog );
 	Tr2EffectPtr m_fogColorEffect;
 	Tr2EffectPtr m_fogCompositeEffect;
 
@@ -369,7 +393,7 @@ private:
 		const PostProcessBlur::BlurContext& blurContext,
 		bool* horizontalSucceeded = nullptr,
 		bool* verticalSucceeded = nullptr );
-	Tr2GpuResourcePool::Texture DownSampleDepth( const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext );
+	Tr2GpuResourcePool::Texture DownSampleDepth( const Tr2TextureAL& depth, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, bool* succeeded = nullptr );
 
 	Tr2EffectPtr m_downsampleDepthEffect;
 	std::map<uint32_t, std::pair<Tr2EffectPtr, Tr2EffectPtr>> m_blurEffects;
@@ -379,6 +403,12 @@ private:
 
 	Be::Time m_lastFrameTime;
 	bool m_diagnosticsEnabled = false;
+	bool m_dynamicExposureApplicationEnabledForTesting = true;
+	bool m_deterministicTaaExposureForTesting = false;
+	float m_deterministicTaaExposureValue = 0.0f;
+	Tr2BufferAL m_deterministicTaaExposureBuffer;
+	bool m_dynamicExposureHistoryFrozen = false;
+	bool m_dynamicExposureHistoryValid = false;
 	bool m_lastExecutionSucceeded = true;
 	Diagnostics m_lastDiagnostics;
 	Tr2GpuResourcePool::Buffer m_lastHistogramBuffer;
