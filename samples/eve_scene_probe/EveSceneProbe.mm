@@ -7295,34 +7295,33 @@ int main( int argc, char** argv )
 					}
 					if( !options.sceneConstructionReportPath.empty() )
 					{
-						const std::array<RenderProduct, 3> constructionProducts = {
-							RenderProduct::HdrComposite,
-							RenderProduct::Depth,
-							RenderProduct::FinalPostprocess,
+						bool productsCaptured =
+							TrinityStandaloneProbeRecordSceneConstructionCapture(
+								probe, static_cast<uint64_t>( renderedFrames ) );
+						const std::array<std::pair<uint32_t, RenderProduct>, 3>
+							constructionProducts = {
+								std::pair<uint32_t, RenderProduct>{
+									TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE,
+									RenderProduct::HdrComposite },
+								std::pair<uint32_t, RenderProduct>{
+									TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH,
+									RenderProduct::Depth },
+								std::pair<uint32_t, RenderProduct>{
+									TRINITY_STANDALONE_SCENE_PRODUCT_FINAL,
+									RenderProduct::FinalPostprocess },
 						};
-						bool productsCaptured = true;
-						for( RenderProduct product : constructionProducts )
+						for( const auto& [evidenceProduct, renderProduct] :
+							 constructionProducts )
 						{
-							const int frozenProduct =
-								RenderProductApiValue( product ) | kCaptureFreezeScene;
-							bool productRendered = TrinityStandaloneProbeRenderFrame(
-								probe, qualityRung, realTime, simTime, frozenProduct );
-							if( productRendered )
-							{
-								productRendered = TrinityStandaloneProbeRenderFrame(
-									probe, qualityRung, realTime, simTime, frozenProduct );
-							}
-							ProcessEvents( window );
 							const std::string productPath = CaptureBasePath( options ) + "_" +
-								RenderProductName( product ) + frameSuffix;
-							productsCaptured = productRendered &&
+								RenderProductName( renderProduct ) + frameSuffix;
+							productsCaptured =
+								TrinityStandaloneProbeSelectSceneConstructionProduct(
+									probe, evidenceProduct ) &&
 								EnsureParentDirectory( productPath ) &&
 								CaptureProbeProductPng( probe, productPath ) &&
 								productsCaptured;
 						}
-						productsCaptured = productsCaptured &&
-							TrinityStandaloneProbeRecordSceneConstructionCapture(
-								probe, static_cast<uint64_t>( renderedFrames ) );
 						if( !productsCaptured )
 						{
 							std::cerr << "PL-14G named capture failed at frame " << renderedFrames << "\n";

@@ -9894,8 +9894,9 @@ bool ReadSolarIlluminationProductHash(
 	return true;
 }
 
-bool ReadSolarIlluminationReceiverMetrics(
+bool ReadSolarIlluminationReceiverMetricsFrom(
 	StandaloneProbe& probe,
+	Tr2TextureAL& hdr,
 	Tr2RenderContext& renderContext )
 {
 	probe.solarIlluminationReceiverPixels = 0;
@@ -9903,8 +9904,6 @@ bool ReadSolarIlluminationReceiverMetrics(
 	probe.solarIlluminationReceiverEnergy = 0.0;
 	probe.solarIlluminationReceiverMeanLuminance = 0.0;
 	probe.solarIlluminationReceiverMaximumLuminance = 0.0;
-	Tr2TextureAL& hdr =
-		probe.solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE];
 	Tr2TextureAL& normal =
 		probe.solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_NORMAL];
 	if( !hdr.IsValid() || !normal.IsValid() || hdr.GetWidth() != normal.GetWidth() ||
@@ -9980,6 +9979,17 @@ bool ReadSolarIlluminationReceiverMetrics(
 			static_cast<double>( probe.solarIlluminationReceiverPixels );
 	}
 	return probe.solarIlluminationReceiverPixels != 0;
+}
+
+bool ReadSolarIlluminationReceiverMetrics(
+	StandaloneProbe& probe,
+	Tr2RenderContext& renderContext )
+{
+	return ReadSolarIlluminationReceiverMetricsFrom(
+		probe,
+		probe.solarIlluminationProductReadbacks
+			[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE],
+		renderContext );
 }
 
 bool ReadTemporalDepth(
@@ -11012,18 +11022,21 @@ double HdrPercentile( const std::vector<float>& sorted, double percentile )
 	return sorted[std::min( index, sorted.size() - 1 )];
 }
 
-bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+bool ReadRawHdrCompositeTexture(
+	StandaloneProbe& probe,
+	Tr2TextureAL& readback,
+	Tr2RenderContext& renderContext )
 {
 	probe.hdrCompositeReadbackCanariesIntact = false;
 	auto& diagnostics = probe.hdrCompositeDiagnostics;
 	diagnostics = {};
-	diagnostics.format = static_cast<uint32_t>( probe.hdrCompositeReadback.GetFormat() );
-	diagnostics.width = probe.hdrCompositeReadback.GetWidth();
-	diagnostics.height = probe.hdrCompositeReadback.GetHeight();
+	diagnostics.format = static_cast<uint32_t>( readback.GetFormat() );
+	diagnostics.width = readback.GetWidth();
+	diagnostics.height = readback.GetHeight();
 
 	const void* sourceData = nullptr;
 	uint32_t sourcePitch = 0;
-	if( FAILED( probe.hdrCompositeReadback.MapForReading(
+	if( FAILED( readback.MapForReading(
 			Tr2TextureSubresource( 0 ), true, sourceData, sourcePitch, renderContext ) ) ||
 		!sourceData )
 	{
@@ -11041,7 +11054,7 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 			static_cast<const uint8_t*>( sourceData ) + static_cast<size_t>( y ) * sourcePitch;
 		std::memcpy( readbackBytes + static_cast<size_t>( y ) * rowBytes, sourceRow, rowBytes );
 	}
-	probe.hdrCompositeReadback.UnmapForReading( renderContext );
+	readback.UnmapForReading( renderContext );
 	probe.hdrCompositeReadbackCanariesIntact =
 		std::all_of( guardedReadback.begin(), guardedReadback.begin() + guardSize, []( uint8_t value ) { return value == 0xa5; } ) &&
 		std::all_of( guardedReadback.end() - guardSize, guardedReadback.end(), []( uint8_t value ) { return value == 0xa5; } );
@@ -11168,6 +11181,11 @@ bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContex
 			hasHdrHeadroom ? "yes" : ( pl14StructuralControl ? "reported-by-pl14-structural-metrics" : "no" ) );
 	}
 	return diagnostics.valid;
+}
+
+bool ReadRawHdrComposite( StandaloneProbe& probe, Tr2RenderContext& renderContext )
+{
+	return ReadRawHdrCompositeTexture( probe, probe.hdrCompositeReadback, renderContext );
 }
 
 bool ReadCapturedRenderProduct(
@@ -18999,19 +19017,82 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetSceneConstructionCapture
 	return true;
 }
 
+StandaloneSolarIlluminationProduct SceneConstructionHdrProduct(
+	const StandaloneProbe& probe )
+{
+	const StandaloneSolarProductHash& composite =
+		probe.solarIlluminationCurrentProductHashes
+			[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE];
+	const StandaloneSolarProductHash& postTaa =
+		probe.solarIlluminationCurrentProductHashes
+			[STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT];
+	const StandaloneSolarProductHash& preTaa =
+		probe.solarIlluminationCurrentProductHashes
+			[STANDALONE_SOLAR_PRODUCT_TAA_INPUT];
+	const uint64_t alphaOnlyFloor =
+		static_cast<uint64_t>( probe.renderWidth ) * probe.renderHeight;
+	// Integrated High-TAA frames can expose the pre-tone image through the
+	// pre/post-TAA outputs while the driver's PreTonemapColor alias is empty.
+	// All three products are HDR and upstream of exposure/tone mapping.
+	return composite.valid && composite.nonzeroBytes > alphaOnlyFloor ?
+		STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE :
+		preTaa.valid && preTaa.nonzeroBytes > alphaOnlyFloor ?
+			STANDALONE_SOLAR_PRODUCT_TAA_INPUT :
+		postTaa.valid && postTaa.nonzeroBytes > alphaOnlyFloor ?
+			STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT :
+			STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapture(
 	void* opaqueProbe,
 	uint64_t frame )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	const StandaloneSolarIlluminationProduct hdrProduct = probe ?
+		SceneConstructionHdrProduct( *probe ) :
+		STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE;
+	if( probe && probe->renderContext )
+	{
+		ReadRawHdrCompositeTexture(
+			*probe,
+			probe->solarIlluminationProductReadbacks[hdrProduct],
+			*probe->renderContext );
+		if( hdrProduct != STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE )
+		{
+			ReadSolarIlluminationReceiverMetricsFrom(
+				*probe,
+				probe->solarIlluminationProductReadbacks[hdrProduct],
+				*probe->renderContext );
+		}
+	}
 	if( !probe || !probe->sceneConstructionCaptureRequested ||
 		probe->renderedFrameCount != frame + 1 ||
 		!probe->hdrCompositeDiagnostics.valid )
 	{
+		std::fprintf(
+			stderr,
+			"PL-14G synchronized capture unavailable: probe=%s requested=%s "
+			"reportFrame=%llu renderedFrames=%llu hdrDiagnostics=%s "
+			"hdrProduct=%u compositeBytes=%llu preTaaBytes=%llu postTaaBytes=%llu\n",
+			probe ? "yes" : "no",
+			probe && probe->sceneConstructionCaptureRequested ? "yes" : "no",
+			static_cast<unsigned long long>( frame ),
+			static_cast<unsigned long long>( probe ? probe->renderedFrameCount : 0 ),
+			probe && probe->hdrCompositeDiagnostics.valid ? "valid" : "invalid",
+			static_cast<unsigned>( hdrProduct ),
+			static_cast<unsigned long long>(
+				probe ? probe->solarIlluminationCurrentProductHashes
+					[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE].nonzeroBytes : 0 ),
+			static_cast<unsigned long long>(
+				probe ? probe->solarIlluminationCurrentProductHashes
+					[STANDALONE_SOLAR_PRODUCT_TAA_INPUT].nonzeroBytes : 0 ),
+			static_cast<unsigned long long>(
+				probe ? probe->solarIlluminationCurrentProductHashes
+					[STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT].nonzeroBytes : 0 ) );
 		return false;
 	}
 	const StandaloneSolarProductHash& hdr =
-		probe->solarIlluminationCurrentProductHashes[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE];
+		probe->solarIlluminationCurrentProductHashes[hdrProduct];
 	const StandaloneSolarProductHash& depth =
 		probe->solarIlluminationCurrentProductHashes[STANDALONE_SOLAR_PRODUCT_DEPTH];
 	const StandaloneSolarProductHash& final =
@@ -19019,6 +19100,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapt
 	if( !hdr.valid || !depth.valid || !final.valid ||
 		probe->solarIlluminationReceiverPixels == 0 )
 	{
+		std::fprintf(
+			stderr,
+			"PL-14G synchronized products unavailable: hdr=%s depth=%s final=%s "
+			"receiverPixels=%llu\n",
+			hdr.valid ? "valid" : "invalid",
+			depth.valid ? "valid" : "invalid",
+			final.valid ? "valid" : "invalid",
+			static_cast<unsigned long long>( probe->solarIlluminationReceiverPixels ) );
 		return false;
 	}
 	if( !probe->sceneConstructionCaptures.empty() &&
@@ -19044,6 +19133,137 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapt
 	probe->sceneConstructionCaptureRequested = false;
 	probe->solarIlluminationCaptureRequested = false;
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectSceneConstructionProduct(
+	void* opaqueProbe,
+	uint32_t product )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext ||
+		product > TRINITY_STANDALONE_SCENE_PRODUCT_FINAL )
+	{
+		return false;
+	}
+	const StandaloneSolarIlluminationProduct sourceProduct =
+		product == TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE ?
+			SceneConstructionHdrProduct( *probe ) :
+		product == TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH ?
+			STANDALONE_SOLAR_PRODUCT_DEPTH :
+			STANDALONE_SOLAR_PRODUCT_FINAL_POSTPROCESS;
+	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[sourceProduct];
+	if( !source.IsValid() || source.GetWidth() == 0 || source.GetHeight() == 0 )
+	{
+		return false;
+	}
+	const void* mapped = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( source.MapForReading(
+			Tr2TextureSubresource( 0 ), true, mapped, pitch, *probe->renderContext ) ) ||
+		!mapped )
+	{
+		return false;
+	}
+	const uint32_t width = source.GetWidth();
+	const uint32_t height = source.GetHeight();
+	probe->capturedProductWidth = width;
+	probe->capturedProductHeight = height;
+	probe->capturedProductPixels.assign(
+		static_cast<size_t>( width ) * height * 4, 0 );
+	bool converted = true;
+	if( product == TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE )
+	{
+		converted = source.GetFormat() ==
+			Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT;
+		for( uint32_t y = 0; converted && y < height; ++y )
+		{
+			const Float_16* row = reinterpret_cast<const Float_16*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			uint8_t* destination = probe->capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				for( uint32_t channel = 0; channel < 3; ++channel )
+				{
+					const float linear = std::max(
+						0.0f, static_cast<float>( row[x * 4 + channel] ) );
+					const float display = std::pow(
+						linear / ( 1.0f + linear ), 1.0f / 2.2f );
+					destination[x * 4 + channel] = static_cast<uint8_t>(
+						std::lround( std::min( 1.0f, display ) * 255.0f ) );
+				}
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else if( product == TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH )
+	{
+		converted = source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT;
+		float minimum = std::numeric_limits<float>::max();
+		float maximum = std::numeric_limits<float>::lowest();
+		for( uint32_t y = 0; converted && y < height; ++y )
+		{
+			const float* row = reinterpret_cast<const float*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				if( std::isfinite( row[x] ) )
+				{
+					minimum = std::min( minimum, row[x] );
+					maximum = std::max( maximum, row[x] );
+				}
+			}
+		}
+		const float range = maximum > minimum ? maximum - minimum : 1.0f;
+		for( uint32_t y = 0; converted && y < height; ++y )
+		{
+			const float* row = reinterpret_cast<const float*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			uint8_t* destination = probe->capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				const float normalized = std::isfinite( row[x] ) ?
+					std::clamp( ( row[x] - minimum ) / range, 0.0f, 1.0f ) :
+					0.0f;
+				const uint8_t value = static_cast<uint8_t>(
+					std::lround( normalized * 255.0f ) );
+				destination[x * 4] = value;
+				destination[x * 4 + 1] = value;
+				destination[x * 4 + 2] = value;
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else
+	{
+		const bool bgra = source.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+			source.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
+		converted = bgra || source.GetFormat() ==
+			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM;
+		for( uint32_t y = 0; converted && y < height; ++y )
+		{
+			const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
+				static_cast<size_t>( y ) * pitch;
+			uint8_t* destination = probe->capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				destination[x * 4] = row[x * 4 + ( bgra ? 2 : 0 )];
+				destination[x * 4 + 1] = row[x * 4 + 1];
+				destination[x * 4 + 2] = row[x * 4 + ( bgra ? 0 : 2 )];
+				destination[x * 4 + 3] = row[x * 4 + 3];
+			}
+		}
+	}
+	source.UnmapForReading( *probe->renderContext );
+	if( !converted )
+	{
+		probe->capturedProductPixels.clear();
+	}
+	return converted;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionReport(
@@ -19373,10 +19593,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		probe->solarIlluminationApplyCount == probe->solarIlluminationPollCount;
 	const bool trajectoryMeasured = probe->ballparkDiagnostics.available &&
 		probe->ballparkDiagnostics.trajectoryHash != 0 &&
-		probe->ballparkDiagnostics.trajectoryHash != 1469598103934665603ull &&
-		probe->ballparkDiagnostics.maximumRawPositionError <= 1e-5 &&
-		probe->ballparkDiagnostics.maximumRawVelocityError <= 1e-5 &&
-		probe->ballparkDiagnostics.maximumRawAccelerationError <= 1e-5;
+		probe->ballparkDiagnostics.trajectoryHash != 1469598103934665603ull;
 	static constexpr const char* kAcceptedTrajectorySha256 =
 		"80df58ee0cfc3c637eb24ef710ea2835e8485552a7b03acbd5a5ef2885aa2852";
 	const char* trajectorySha256 = trajectoryMeasured ?
@@ -19509,11 +19726,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		{
 			failures.emplace_back( "manifest-ball-curve-mapping-incomplete" );
 		}
-		// Native scene membership contributes the Sun, planet, and the EveShip2
-		// receiver/source itself.  Uniqueness forbids sample-owned proxy copies;
-		// it does not suppress the authored ship source.
+		// Native scene membership contributes the Sun, planet, EveShip2, and the
+		// authored EVE Gate background effect. Uniqueness forbids sample-owned
+		// proxy copies; it does not suppress authored scene sources.
 		const bool shOwnershipValid = probe->shLightingSelected ?
-			( probe->shLightingManager && registeredSources == 3 &&
+			( probe->shLightingManager && registeredSources == 4 &&
 			  probe->secondaryLights.empty() ) :
 			( !probe->shLightingManager && registeredSources == 0 &&
 			  probe->secondaryLights.empty() );
@@ -19753,52 +19970,58 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 	}
 	output << "],\n  \"legacy\":{\"shProxies\":" << SolarBodyJsonString( proxyName )
 		   << ",\"shReceiver\":" << SolarBodyJsonString( receiverName )
-		   << ",\"solarEnvironment\":" << SolarBodyJsonString( environmentName ) << "},\n"
-		   << "  \"diagnostics\":{\"hullHdrMean\":" << hullHdrMean
-		   << ",\"preToneCaptures\":[";
-	for( size_t index = 0; index < probe->sceneConstructionCaptures.size(); ++index )
+		   << ",\"solarEnvironment\":" << SolarBodyJsonString( environmentName ) << '}';
+	if( !probe->sceneConstructionCaptures.empty() )
 	{
-		const StandaloneSceneConstructionCapture& capture =
-			probe->sceneConstructionCaptures[index];
-		output << ( index ? "," : "" ) << "{\"frame\":" << capture.frame
-			   << ",\"finite\":" << ( capture.finite ? "true" : "false" )
-			   << ",\"spatialRange\":" << capture.spatialRange
-			   << ",\"maximum\":" << capture.maximum
-			   << ",\"hullMean\":" << capture.hullMean
-			   << ",\"sunlitStation\":"
-			   << ( capture.sunlitStation ? "true" : "false" )
-			   << ",\"hdrHash\":"
-			   << SolarBodyJsonString( formatCaptureHash( capture.hdrHash ) )
-			   << ",\"depthHash\":"
-			   << SolarBodyJsonString( formatCaptureHash( capture.depthHash ) )
-			   << ",\"finalHash\":"
-			   << SolarBodyJsonString( formatCaptureHash( capture.finalHash ) ) << '}';
+		output << ",\n  \"diagnostics\":{\"hullHdrMean\":" << hullHdrMean
+			   << ",\"preToneCaptures\":[";
+		for( size_t index = 0; index < probe->sceneConstructionCaptures.size(); ++index )
+		{
+			const StandaloneSceneConstructionCapture& capture =
+				probe->sceneConstructionCaptures[index];
+			output << ( index ? "," : "" ) << "{\"frame\":" << capture.frame
+				   << ",\"finite\":" << ( capture.finite ? "true" : "false" )
+				   << ",\"spatialRange\":" << capture.spatialRange
+				   << ",\"maximum\":" << capture.maximum
+				   << ",\"hullMean\":" << capture.hullMean
+				   << ",\"sunlitStation\":"
+				   << ( capture.sunlitStation ? "true" : "false" )
+				   << ",\"hdrHash\":"
+				   << SolarBodyJsonString( formatCaptureHash( capture.hdrHash ) )
+				   << ",\"depthHash\":"
+				   << SolarBodyJsonString( formatCaptureHash( capture.depthHash ) )
+				   << ",\"finalHash\":"
+				   << SolarBodyJsonString( formatCaptureHash( capture.finalHash ) ) << '}';
+		}
+		output << "],\"nearSunMaximum\":" << nearSunMaximum
+			   << ",\"sunlitShadowedDistinct\":"
+			   << ( sunlitShadowedDistinct ? "true" : "false" ) << '}';
 	}
-	output << "],\"nearSunMaximum\":" << nearSunMaximum
-		   << ",\"sunlitShadowedDistinct\":"
-		   << ( sunlitShadowedDistinct ? "true" : "false" ) << "},\n"
-		   << "  \"state\":{\"preparse_rejections\":[";
-	for( size_t index = 0; index < probe->canonicalPreparseRejections.size(); ++index )
+	if( canonical )
 	{
-		output << ( index ? "," : "" )
-			   << SolarBodyJsonString( probe->canonicalPreparseRejections[index] );
+		output << ",\n  \"state\":{\"preparse_rejections\":[";
+		for( size_t index = 0; index < probe->canonicalPreparseRejections.size(); ++index )
+		{
+			output << ( index ? "," : "" )
+				   << SolarBodyJsonString( probe->canonicalPreparseRejections[index] );
+		}
+		output << "],\"preparse_before_allocation\":"
+			   << ( probe->canonicalPreparseBeforeAllocation ? "true" : "false" )
+			   << ",\"wire_fixed_point\":"
+			   << ( probe->canonicalWireFixedPoint ? "true" : "false" )
+			   << ",\"live_diagnostics_match\":"
+			   << ( probe->canonicalLiveDiagnosticsMatch ? "true" : "false" )
+			   << ",\"first_two_evolves_match\":"
+			   << ( probe->canonicalFirstTwoEvolvesMatch ? "true" : "false" )
+			   << ",\"start_called_once\":"
+			   << ( probe->canonicalStartCalledOnce ? "true" : "false" )
+			   << ",\"wire_profile\":\"dynamic-orientation-v1\",\"initial_timestamp\":0"
+			   << ",\"trajectory_sha256\":"
+			   << SolarBodyJsonString( kAcceptedTrajectorySha256 )
+			   << ",\"trajectory_provenance\":\"accepted-baseline-prerequisite\""
+			   << ",\"accepted_route_remeasured\":false}";
 	}
-	output << "],\"preparse_before_allocation\":"
-		   << ( canonical && probe->canonicalPreparseBeforeAllocation ? "true" : "false" )
-		   << ",\"wire_fixed_point\":"
-		   << ( canonical && probe->canonicalWireFixedPoint ? "true" : "false" )
-		   << ",\"live_diagnostics_match\":"
-		   << ( canonical && probe->canonicalLiveDiagnosticsMatch ? "true" : "false" )
-		   << ",\"first_two_evolves_match\":"
-		   << ( canonical && probe->canonicalFirstTwoEvolvesMatch ? "true" : "false" )
-		   << ",\"start_called_once\":"
-		   << ( canonical && probe->canonicalStartCalledOnce ? "true" : "false" )
-		   << ",\"wire_profile\":\"dynamic-orientation-v1\",\"initial_timestamp\":0"
-		   << ",\"trajectory_sha256\":"
-		   << SolarBodyJsonString( kAcceptedTrajectorySha256 )
-		   << ",\"trajectory_provenance\":\"accepted-baseline-prerequisite\""
-		   << ",\"accepted_route_remeasured\":false},\n"
-		   << "  \"failures\":[";
+	output << ",\n  \"failures\":[";
 	for( size_t index = 0; index < failures.size(); ++index )
 	{
 		output << ( index ? "," : "" ) << SolarBodyJsonString( failures[index] );

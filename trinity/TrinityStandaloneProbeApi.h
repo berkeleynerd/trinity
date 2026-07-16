@@ -4,6 +4,13 @@
 
 #include <cstdint>
 
+enum TrinityStandaloneSceneConstructionProduct : uint32_t
+{
+	TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE = 0,
+	TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH = 1,
+	TRINITY_STANDALONE_SCENE_PRODUCT_FINAL = 2,
+};
+
 struct TrinityStandaloneRaytracedShadowDiagnostics
 {
 	bool preparationAttempted = false;
@@ -523,6 +530,9 @@ extern "C" bool TrinityStandaloneProbeSetSceneConstructionCaptureRequested(
 extern "C" bool TrinityStandaloneProbeRecordSceneConstructionCapture(
 	void* opaqueProbe,
 	uint64_t frame );
+extern "C" bool TrinityStandaloneProbeSelectSceneConstructionProduct(
+	void* opaqueProbe,
+	uint32_t product );
 extern "C" bool TrinityStandaloneProbeWriteSceneConstructionReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
 														 int environmentMode,
