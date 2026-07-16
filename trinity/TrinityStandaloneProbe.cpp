@@ -18936,9 +18936,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
 		return false;
 	}
 	if( constructionMode == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
-		( !manifestPath || !manifestPath[0] || !reportPath || !reportPath[0] ) )
+		( !manifestPath || !manifestPath[0] ) )
 	{
-		CCP_LOGERR( "Canonical scene construction requires a manifest and report path" );
+		CCP_LOGERR( "Canonical scene construction requires a manifest" );
 		return false;
 	}
 	if( reportPath && reportPath[0] && ( !manifestPath || !manifestPath[0] ) )

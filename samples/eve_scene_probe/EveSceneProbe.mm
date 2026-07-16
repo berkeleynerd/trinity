@@ -6628,12 +6628,12 @@ int main( int argc, char** argv )
 			return 2;
 		}
 		if( options.sceneConstruction == SceneConstruction::Canonical &&
-			( options.systemManifestPath.empty() || options.sceneConstructionReportPath.empty() ||
+			( options.systemManifestPath.empty() ||
 			  options.legacyShProxies != LegacyShProxies::Off ||
 			  options.legacyShReceiver != LegacyShReceiver::Live ||
 			  options.legacySolarEnvironment != LegacySolarEnvironment::LiveDistance ) )
 		{
-			std::cerr << "Canonical construction requires --system-manifest, --scene-construction-report, "
+			std::cerr << "Canonical construction requires --system-manifest, "
 						 "--legacy-sh-proxies off, --legacy-sh-receiver live, and "
 						 "--legacy-solar-environment live-distance\n";
 			return 2;
