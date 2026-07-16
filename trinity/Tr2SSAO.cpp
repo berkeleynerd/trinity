@@ -85,6 +85,27 @@ void Tr2SSAO::SetQuality( SSAOQuality quality, bool downsampled )
 	m_detail.downsampled = downsampled;
 }
 
+Tr2SSAO::RuntimeDiagnostics Tr2SSAO::GetRuntimeDiagnostics() const
+{
+	RuntimeDiagnostics diagnostics = m_runtimeDiagnostics;
+	diagnostics.enabled = m_detail.enabled;
+	diagnostics.cortaoEnabled = m_cortaoEnabled;
+	diagnostics.cortaoBentNormal = m_cortaoBentNormal;
+	diagnostics.cortaoInitialized = m_cortaoInitialized;
+	diagnostics.deterministicRandom = m_cortaoDeterministicRandom;
+	diagnostics.blurEnabled = m_cortaoEnabled ? m_cortaoBlur :
+		m_detail.settings.blurPassCount != 0;
+	diagnostics.downsampled = m_detail.downsampled;
+	diagnostics.quality = static_cast<uint32_t>( m_detail.quality );
+	diagnostics.strength = m_cortaoEnabled ? m_cortaoStrength :
+		m_detail.settings.shadowMultiplier;
+	diagnostics.radius = m_cortaoEnabled ? m_cortaoRadius :
+		m_detail.settings.radius;
+	diagnostics.maxBlockerSearchRadius = m_cortaoMaxBlockerSearchRadius;
+	diagnostics.mipBias = m_cortaoMipBias;
+	return diagnostics;
+}
+
 
 HRESULT Tr2SSAO::ApplyConstBuffer( unsigned pass, Tr2RenderContext& renderContext )
 {
@@ -93,6 +114,17 @@ HRESULT Tr2SSAO::ApplyConstBuffer( unsigned pass, Tr2RenderContext& renderContex
 
 Tr2GpuResourcePool::Texture Tr2SSAO::Filter( const Tr2TextureAL& depthBuffer, const Tr2TextureAL& normalBuffer, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, bool temporal )
 {
+	++m_runtimeDiagnostics.filterCount;
+	m_runtimeDiagnostics.temporal = temporal;
+	m_runtimeDiagnostics.depthReady = depthBuffer.IsValid();
+	m_runtimeDiagnostics.normalReady = normalBuffer.IsValid();
+	m_runtimeDiagnostics.inputWidth = depthBuffer.IsValid() ? depthBuffer.GetWidth() : 0;
+	m_runtimeDiagnostics.inputHeight = depthBuffer.IsValid() ? depthBuffer.GetHeight() : 0;
+	m_runtimeDiagnostics.outputReady = false;
+	m_runtimeDiagnostics.passSucceeded = false;
+	m_runtimeDiagnostics.outputWidth = 0;
+	m_runtimeDiagnostics.outputHeight = 0;
+	m_runtimeDiagnostics.outputFormat = 0;
 
 	if( !m_detail.enabled )
 	{
@@ -123,12 +155,30 @@ Tr2GpuResourcePool::Texture Tr2SSAO::Filter( const Tr2TextureAL& depthBuffer, co
 		}
 
 		GPU_REGION( renderContext, "CORTAO" );
-		return ComputeCORTAO( depthBuffer, normalBuffer, gpuResourcePool, renderContext, temporal );
+		auto output = ComputeCORTAO( depthBuffer, normalBuffer, gpuResourcePool, renderContext, temporal );
+		m_runtimeDiagnostics.outputReady = output.IsValid();
+		m_runtimeDiagnostics.passSucceeded = output.IsValid();
+		if( output.IsValid() )
+		{
+			m_runtimeDiagnostics.outputWidth = output->GetWidth();
+			m_runtimeDiagnostics.outputHeight = output->GetHeight();
+			m_runtimeDiagnostics.outputFormat = static_cast<uint32_t>( output->GetFormat() );
+		}
+		return output;
 	}
 	else
 	{
 		GPU_REGION( renderContext, "CACAO" );
-		return PerformPass( m_detail, depthBuffer, normalBuffer, false, gpuResourcePool, renderContext );
+		auto output = PerformPass( m_detail, depthBuffer, normalBuffer, false, gpuResourcePool, renderContext );
+		m_runtimeDiagnostics.outputReady = output.IsValid();
+		m_runtimeDiagnostics.passSucceeded = output.IsValid();
+		if( output.IsValid() )
+		{
+			m_runtimeDiagnostics.outputWidth = output->GetWidth();
+			m_runtimeDiagnostics.outputHeight = output->GetHeight();
+			m_runtimeDiagnostics.outputFormat = static_cast<uint32_t>( output->GetFormat() );
+		}
+		return output;
 	}
 }
 

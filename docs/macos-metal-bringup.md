@@ -3472,3 +3472,48 @@ frame 8,940. Requested surface range is 2,500 m; accepted terminal error is
 about 102 m, radial speed `11.05 m/s`, and tangential speed `311.76 m/s`.
 Frames 0-5,701 retain the H1 trajectory exactly. The ordinary Tour does not
 enable this continuation.
+
+## PL-14H3: source-selected AO and directional-shadow audit (2026-07-16)
+
+Client source and resource evidence resolves maximum AO quality to High and
+loads `res:/dx9/default/ssao.red`, whose indexed Black is
+`res:/dx9/default/ssao.black`. The 55-byte `Tr2SSAO` object serializes only
+`cortaoEnabled=false`. The Tour nevertheless still requests CORTAO explicitly.
+AIR evidence for both selected V5 hull/heat pixel shaders reads `SSAOMap` and
+`EveSpaceSceneShadowMap`; the selected SandStorm planet shader exposes neither.
+
+`--ao-method client` now loads that Black without yielding and reports both its
+serialized and settled values. Read-only `Tr2SSAO` diagnostics retain input and
+output dimensions, resource readiness, algorithm, quality, settings, temporal
+policy, pass result, and filter count. H3 also retains the raw AO map, optional
+bent-normal visualization, ray-traced shadow mask, and the already accepted H1
+depth-through-drawable products from the same completed frame. Diagnostic
+collection performs no rerender.
+
+The 60-lane background matrix is Accepted. Client SSAO executes successfully
+at 1280x960 but produces a uniform white texture at every hull station; its HDR
+and hull mean are byte-identical to AO-off. Explicit CORTAO produces a
+nonuniform AO texture at all three anchors, but it too leaves hull HDR
+byte-identical. H3 therefore classifies the canonical CORTAO override
+`misconfigured` and the effective hull AO path `missing`. PL-14I receives two
+normalized candidates: select the default SSAO Black, then repair the authored
+AO-map publication/consumption path without adding intensity or fill.
+
+Maximum-quality directional shadows remain `correct`. Native ray-tracing
+preparation, geometry, dispatch, denoising, and mask publication succeed in
+every hull lane. Analytic visibility is `1`, approximately `0.499926`, and `0`
+for day, limb, and eclipse; a uniform zero mask at total eclipse and the
+eclipsed planet-orbit station is the expected fully attenuated result, not a
+missing pass. Astero and Venture control invariants hold, all four client/full
+A/B repeats are byte-identical, and AO x shadow residuals are finite and
+deterministic.
+
+The planet fixtures corroborate source-proven `not-applicable`: planet HDR is
+byte-identical under AO and shadow toggles at day, limb, and eclipse. The
+planet-only camera does not contain ray-traceable hull geometry, so the audit
+records the absent mesh dispatch and retains a diagnostic shadow product
+without weakening the hull fail-closed ray-tracing contract. No lighting,
+grading, shadow-compensation, geometry, Silk, or froxel value changed. Verdict
+SHA-256 is
+`b6ee6e498ec47de7d64c5b3b76310e7c099b9b4b09ba5be0f740d81ec3d0460c`;
+aggregate PL-14H remains Active.

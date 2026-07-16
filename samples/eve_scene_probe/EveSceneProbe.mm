@@ -142,6 +142,11 @@ extern "C" bool TrinityStandaloneProbeWriteShipLightingReport( void* opaqueProbe
 extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
 	void* opaqueProbe, int station, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureOcclusionLightingAudit(
+	void* opaqueProbe, int station, int subject, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSelectOcclusionLightingProduct(
+	void* opaqueProbe, uint32_t product );
+extern "C" bool TrinityStandaloneProbeWriteOcclusionLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
@@ -404,6 +409,13 @@ enum class AoMethod
 {
 	Cortao,
 	Cacao,
+	Client,
+};
+
+enum class LightingAuditSubject
+{
+	Hull,
+	Planet,
 };
 
 enum class CameraView
@@ -722,6 +734,7 @@ struct Options
 	std::string solarIlluminationReportPath;
 	std::string presentationAuditReportPath;
 	std::string reflectionLightingReportPath;
+	std::string occlusionLightingReportPath;
 	std::string planetAuditReportPath;
 	std::string systemManifestPath;
 	std::string sceneConstructionReportPath;
@@ -767,6 +780,8 @@ struct Options
 	SolarIllumination solarIllumination = SolarIllumination::Frozen;
 	SolarIlluminationView solarIlluminationView = SolarIlluminationView::Unspecified;
 	LightingAuditStation lightingAuditStation = LightingAuditStation::Unspecified;
+	LightingAuditSubject lightingAuditSubject = LightingAuditSubject::Hull;
+	bool lightingAuditSubjectExplicit = false;
 	bool solarIlluminationExplicit = false;
 	bool solarIlluminationViewExplicit = false;
 	SolarEnvironment solarEnvironment = SolarEnvironment::Off;
@@ -1855,7 +1870,8 @@ bool ParseAmbientOcclusion( const std::string& value, AmbientOcclusion& ao )
 
 std::string AoMethodName( AoMethod method )
 {
-	return method == AoMethod::Cortao ? "cortao" : "cacao";
+	static const char* names[] = { "cortao", "cacao", "client" };
+	return names[static_cast<int>( method )];
 }
 
 bool ParseAoMethod( const std::string& value, AoMethod& method )
@@ -1869,6 +1885,27 @@ bool ParseAoMethod( const std::string& value, AoMethod& method )
 	if( normalized == "cacao" )
 	{
 		method = AoMethod::Cacao;
+		return true;
+	}
+	if( normalized == "client" )
+	{
+		method = AoMethod::Client;
+		return true;
+	}
+	return false;
+}
+
+bool ParseLightingAuditSubject( const std::string& value, LightingAuditSubject& subject )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "hull" )
+	{
+		subject = LightingAuditSubject::Hull;
+		return true;
+	}
+	if( normalized == "planet" )
+	{
+		subject = LightingAuditSubject::Planet;
 		return true;
 	}
 	return false;
@@ -3253,7 +3290,7 @@ void PrintUsage( const char* executable )
 		<< "       [--normal-map authored|flat]\n"
 		<< "       [--render-product window|color|depth|normal|shadow|shadow-atlas|local-shadow-atlas|ao|bent-normal|reflection|hdr-composite|post-tonemap|bloom|final-postprocess|distortion|volume-slices|froxel-fog|mie-environment|velocity|taa-input|taa-output|taa-cooldown|all]\n"
 		<< "       [--shadows auto|off|low|high|raytraced] [--ao auto|off|low|medium|high]\n"
-		<< "       [--ao-method cortao|cacao]\n"
+		<< "       [--ao-method client|cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers off|surface|atmosphere-inner|atmosphere-outer|atmosphere|clouds|aurora|data-driven|all]\n"
 		<< "       [--planet-audit-report PATH]\n"
@@ -3270,6 +3307,7 @@ void PrintUsage( const char* executable )
 		<< "       [--solar-illumination frozen|authored|off] [--solar-illumination-report PATH]\n"
 		<< "       [--presentation-audit-report PATH]\n"
 		<< "       [--lighting-audit-station near-sun|eve-gate|return-sun|planet-day|planet-limb|planet-eclipse|deep-space|planet-orbit]\n"
+		<< "       [--lighting-audit-subject hull|planet] [--occlusion-lighting-report PATH]\n"
 		<< "       [--reflection-lighting-report PATH]\n"
 		<< "       [--solar-illumination-view near-sun-hull|gate-hull|planet-day|planet-limb|planet-eclipse]\n"
 		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
@@ -4269,6 +4307,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--lighting-audit-subject" )
+		{
+			if( ++i >= argc || !ParseLightingAuditSubject( argv[i], options.lightingAuditSubject ) )
+			{
+				return false;
+			}
+			options.lightingAuditSubjectExplicit = true;
+		}
 		else if( arg == "--reflection-lighting-report" )
 		{
 			if( ++i >= argc )
@@ -4276,6 +4322,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.reflectionLightingReportPath = argv[i];
+		}
+		else if( arg == "--occlusion-lighting-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.occlusionLightingReportPath = argv[i];
 		}
 		else if( arg == "--ship-lighting-report" )
 		{
@@ -6855,10 +6909,30 @@ int main( int argc, char** argv )
 						 "--presentation-audit-report, and --capture-prefix\n";
 			return 2;
 		}
-		if( options.lightingAuditStation != LightingAuditStation::Unspecified &&
-			options.reflectionLightingReportPath.empty() )
+		if( !options.occlusionLightingReportPath.empty() &&
+			( options.lightingAuditStation == LightingAuditStation::Unspecified ||
+			  options.sceneFixture != SceneFixture::NewEden ||
+			  options.sceneConstruction != SceneConstruction::Canonical ||
+			  options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish ||
+			  options.ballpark != BallparkMode::Static || options.maxFrames <= 0 ||
+			  options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
 		{
-			std::cerr << "--lighting-audit-station is valid only with --reflection-lighting-report\n";
+			std::cerr << "--occlusion-lighting-report requires a named station and the finite-frame "
+						 "High-tier canonical New Eden hdr-finish profile with --ballpark static, "
+						 "--presentation-audit-report, and --capture-prefix\n";
+			return 2;
+		}
+		if( options.lightingAuditStation != LightingAuditStation::Unspecified &&
+			options.reflectionLightingReportPath.empty() &&
+			options.occlusionLightingReportPath.empty() )
+		{
+			std::cerr << "--lighting-audit-station requires a lighting-audit report\n";
+			return 2;
+		}
+		if( options.lightingAuditSubjectExplicit && options.occlusionLightingReportPath.empty() )
+		{
+			std::cerr << "--lighting-audit-subject is valid only with --occlusion-lighting-report\n";
 			return 2;
 		}
 		if( !options.planetAuditReportPath.empty() &&
@@ -7156,6 +7230,21 @@ int main( int argc, char** argv )
 				return 1;
 			}
 		}
+		if( !options.occlusionLightingReportPath.empty() )
+		{
+			if( !EnsureParentDirectory( options.occlusionLightingReportPath ) ||
+				!TrinityStandaloneProbeConfigureOcclusionLightingAudit(
+					probe,
+					static_cast<int>( options.lightingAuditStation ),
+					static_cast<int>( options.lightingAuditSubject ),
+					options.occlusionLightingReportPath.c_str() ) )
+			{
+				std::cerr << "Failed to configure the PL-14H3 AO/shadow audit\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
 		if( options.enableFroxels && !TrinityStandaloneProbeSetFroxelRenderingEnabled( probe, true ) )
 		{
 			std::cerr << "Failed to enable froxel rendering\n";
@@ -7402,7 +7491,8 @@ int main( int argc, char** argv )
 			( options.validateTemporal && options.resolvedTaa != TaaMode::Off ) ||
 			options.exposureSequence != ExposureSequence::None || !options.solarOpticsReportPath.empty() ||
 			!options.solarIlluminationReportPath.empty() || !options.shipLightingReportPath.empty() ||
-			!options.presentationAuditReportPath.empty() || !options.reflectionLightingReportPath.empty();
+			!options.presentationAuditReportPath.empty() || !options.reflectionLightingReportPath.empty() ||
+			!options.occlusionLightingReportPath.empty();
 		// Product capture must not silently add a same-time diagnostic rerender.
 		// Tone validation is an explicit contract because it reconfigures bloom and
 		// reads both sides of the tone pass; ordinary post-tone/all captures observe
@@ -7668,6 +7758,27 @@ int main( int argc, char** argv )
 								TrinityStandaloneProbeDestroyDevice( probe );
 								[window close];
 								return 1;
+							}
+						}
+						if( !options.occlusionLightingReportPath.empty() )
+						{
+							const std::array<std::pair<uint32_t, const char*>, 3> products = { {
+								{ TRINITY_STANDALONE_OCCLUSION_AO, "ao" },
+								{ TRINITY_STANDALONE_OCCLUSION_BENT_NORMAL, "bent-normal" },
+								{ TRINITY_STANDALONE_OCCLUSION_SHADOW, "shadow" },
+							} };
+							for( const auto& [product, name] : products )
+							{
+								const std::string path = CaptureBasePath( options ) + "_" + name + frameSuffix;
+								if( !TrinityStandaloneProbeSelectOcclusionLightingProduct( probe, product ) ||
+									!EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
+								{
+									std::cerr << "PL-14H3 retained occlusion capture failed at frame "
+											  << renderedFrames << "\n";
+									TrinityStandaloneProbeDestroyDevice( probe );
+									[window close];
+									return 1;
+								}
 							}
 						}
 					}
@@ -8576,11 +8687,22 @@ int main( int argc, char** argv )
 						  << options.reflectionLightingReportPath << "\n";
 			}
 		}
+		bool occlusionLightingReportSucceeded = true;
+		if( !options.occlusionLightingReportPath.empty() )
+		{
+			occlusionLightingReportSucceeded =
+				TrinityStandaloneProbeWriteOcclusionLightingReport( probe );
+			if( occlusionLightingReportSucceeded )
+			{
+				std::cout << "AO/shadow lighting report: "
+						  << options.occlusionLightingReportPath << "\n";
+			}
+		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
 			planetAuditReportSucceeded && sceneConstructionReportSucceeded &&
 			presentationAuditReportSucceeded && shipLightingReportSucceeded &&
-			reflectionLightingReportSucceeded &&
+			reflectionLightingReportSucceeded && occlusionLightingReportSucceeded &&
 			framePacingSucceeded &&
 			compositionValidationSucceeded && exposureValidationSucceeded && toneValidationSucceeded &&
 			postFinishValidationSucceeded && distortionValidationSucceeded && volumetricValidationSucceeded &&

@@ -23,6 +23,32 @@ BLUE_CLASS( Tr2SSAO ) :
 {
 public:
 	EXPOSE_TO_BLUE();
+	struct RuntimeDiagnostics
+	{
+		bool enabled = false;
+		bool cortaoEnabled = false;
+		bool cortaoBentNormal = false;
+		bool cortaoInitialized = false;
+		bool deterministicRandom = false;
+		bool temporal = false;
+		bool depthReady = false;
+		bool normalReady = false;
+		bool outputReady = false;
+		bool passSucceeded = false;
+		bool blurEnabled = false;
+		bool downsampled = false;
+		uint32_t quality = 0;
+		uint32_t inputWidth = 0;
+		uint32_t inputHeight = 0;
+		uint32_t outputWidth = 0;
+		uint32_t outputHeight = 0;
+		uint32_t outputFormat = 0;
+		uint64_t filterCount = 0;
+		float strength = 0.0f;
+		float radius = 0.0f;
+		float maxBlockerSearchRadius = 0.0f;
+		float mipBias = 0.0f;
+	};
 
 	Tr2SSAO( IRoot* lockobj = NULL );
 
@@ -51,6 +77,7 @@ public:
 	{
 		return m_cortaoDeterministicRandom;
 	}
+	RuntimeDiagnostics GetRuntimeDiagnostics() const;
 
 private:
 	struct SSAOResources;
@@ -134,6 +161,7 @@ private:
 	uint32_t m_cortaoRandSeeds[4] = {};
 	bool m_cortaoDeterministicRandom = false;
 	uint32_t m_cortaoDeterministicRandomState = 0;
+	RuntimeDiagnostics m_runtimeDiagnostics;
 
 	uint32_t Hash( uint32_t n );
 

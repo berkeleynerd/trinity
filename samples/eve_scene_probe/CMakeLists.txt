@@ -726,9 +726,12 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
         endforeach()
     endforeach()
     set(EVE_SCENE_PROBE_CORTAO_LOOKUP ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/ssao/24x24x16x16.dds)
+	set(EVE_SCENE_PROBE_DEFAULT_SSAO ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/default/ssao.black)
     list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${EVE_SCENE_PROBE_CORTAO_LOOKUP})
+	list(APPEND EVE_SCENE_PROBE_SHADOW_AO_OUTPUTS ${EVE_SCENE_PROBE_DEFAULT_SSAO})
     list(APPEND EVE_SCENE_PROBE_SHADOW_AO_COPY_ARGS
-        --copy-resource res:/texture/ssao/24x24x16x16.dds ${EVE_SCENE_PROBE_CORTAO_LOOKUP})
+		--copy-resource res:/texture/ssao/24x24x16x16.dds ${EVE_SCENE_PROBE_CORTAO_LOOKUP}
+		--copy-resource res:/dx9/default/ssao.black ${EVE_SCENE_PROBE_DEFAULT_SSAO})
     foreach(inherited_resource
         ${EVE_SCENE_PROBE_QUADV5_HI_RESOURCE}
         ${EVE_SCENE_PROBE_QUADV5_LO_RESOURCE}

@@ -4286,7 +4286,21 @@ enum StandaloneAoMethod
 {
 	STANDALONE_AO_CORTAO = 0,
 	STANDALONE_AO_CACAO = 1,
+	STANDALONE_AO_CLIENT = 2,
 };
+
+enum StandaloneLightingAuditSubject
+{
+	STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL = 0,
+	STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET = 1,
+};
+
+const char* AoMethodName( int method )
+{
+	static const char* names[] = { "cortao", "cacao", "client" };
+	return method >= STANDALONE_AO_CORTAO && method <= STANDALONE_AO_CLIENT ?
+		names[method] : "invalid";
+}
 
 enum StandaloneCameraView
 {
@@ -4990,7 +5004,9 @@ struct StandaloneProbe
 	std::string sceneConstructionReportPath;
 	std::string shipLightingReportPath;
 	std::string reflectionLightingReportPath;
+	std::string occlusionLightingReportPath;
 	int lightingAuditStation = STANDALONE_LIGHTING_AUDIT_UNSPECIFIED;
+	int lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
 	int shipLightingControl = STANDALONE_SHIP_LIGHTING_ASTERO;
 	Color authoredSceneAmbientColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
 	bool ambientLightingAuthored = true;
@@ -11887,6 +11903,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	}
 	const bool atomicProductCaptureRequested = probe.solarIlluminationCaptureRequested ||
 		probe.presentationAuditCaptureRequested;
+	const bool h3PlanetConsumerNotApplicable =
+		!probe.occlusionLightingReportPath.empty() &&
+		probe.lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 	if( atomicProductCaptureRequested )
 	{
 		const char* evidenceOutputs[] = {
@@ -12008,7 +12027,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				Tr2TextureAL& readback = probe.solarIlluminationProductReadbacks[product.product];
 				const bool disabledFallback =
 					( product.product == STANDALONE_SOLAR_PRODUCT_SHADOW &&
-					  probe.shadows == STANDALONE_SHADOWS_OFF ) ||
+					  ( probe.shadows == STANDALONE_SHADOWS_OFF ||
+						h3PlanetConsumerNotApplicable ) ) ||
 					( product.product == STANDALONE_SOLAR_PRODUCT_BLOOM &&
 					  probe.bloomMode == STANDALONE_POST_FINISH_OFF ) ||
 					( product.product == STANDALONE_SOLAR_PRODUCT_AO &&
@@ -12118,12 +12138,13 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			probe.solarIlluminationReceiverMeasurementReachable = true;
 			if( ok && !ReadSolarIlluminationReceiverMetrics( probe, renderContext ) )
 			{
-				if( probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER )
+				if( probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER ||
+					h3PlanetConsumerNotApplicable )
 				{
 					probe.solarIlluminationReceiverMeasurementReachable = false;
 					std::fprintf(
 						stderr,
-						"PL-14E observer frame has no reachable hull receiver at frame %llu\n",
+						"PL-14E/H3 frame has no reachable hull receiver at frame %llu\n",
 						static_cast<unsigned long long>( probe.renderedFrameCount ) );
 				}
 				else
@@ -13907,7 +13928,57 @@ bool ApplyLightingAuditStationCamera( StandaloneProbe& probe )
 {
 	if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_UNSPECIFIED )
 		return true;
-	if( !probe.view || !probe.projection || !probe.nativeShip )
+	if( !probe.view || !probe.projection )
+		return false;
+	if( probe.lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET )
+	{
+		if( !probe.newEdenPlanet || !probe.newEdenPlanet->GetTranslationCurve() ||
+			!probe.scene || !probe.scene->GetSunBall() )
+		{
+			return false;
+		}
+		Vector3 planet;
+		Vector3 sun;
+		if( !ReadSolarIlluminationPosition(
+				probe.newEdenPlanet->GetTranslationCurve(), probe.lastSimTime, planet ) ||
+			!ReadSolarIlluminationPosition(
+				probe.scene->GetSunBall(), probe.lastSimTime, sun ) )
+		{
+			return false;
+		}
+		Vector3 sunward = Normalize( sun - planet );
+		if( Length( sunward ) <= 0.0f )
+			sunward = Vector3( 0.0f, 0.0f, -1.0f );
+		Vector3 viewDirection = sunward;
+		if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_LIMB )
+		{
+			viewDirection = Normalize( Cross( sunward, Vector3( 0.0f, 1.0f, 0.0f ) ) );
+			if( Length( viewDirection ) <= 0.0f )
+				viewDirection = Vector3( 1.0f, 0.0f, 0.0f );
+		}
+		else if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE )
+		{
+			viewDirection = -sunward;
+		}
+		constexpr float fovRadians = 48.0f * 3.1415926535f / 180.0f;
+		const float discRadiusPixels = 120.0f;
+		const float distance = static_cast<float>( kNewEdenPlanetRadius ) *
+			( 0.5f * static_cast<float>( probe.renderHeight ) ) /
+			( discRadiusPixels * std::tan( 0.5f * fovRadians ) );
+		const Vector3 eye = planet + viewDirection * distance;
+		Vector3 up( 0.0f, 1.0f, 0.0f );
+		if( std::abs( Dot( Normalize( planet - eye ), up ) ) > 0.99f )
+			up = Vector3( 0.0f, 0.0f, 1.0f );
+		probe.view->SetLookAtPosition( eye, planet, up );
+		probe.projection->PerspectiveFov(
+			fovRadians,
+			static_cast<float>( probe.renderWidth ) /
+				std::max( 1.0f, static_cast<float>( probe.renderHeight ) ),
+			1.0f,
+			2.0e13f );
+		return true;
+	}
+	if( !probe.nativeShip )
 		return false;
 	const Vector3 ship = probe.nativeShip->GetWorldPosition();
 	const Vector3 eye = ship + Vector3(
@@ -15287,7 +15358,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 	if( shadows < STANDALONE_SHADOWS_OFF || shadows > STANDALONE_SHADOWS_RAYTRACED ||
 		ambientOcclusion < STANDALONE_AO_OFF || ambientOcclusion > STANDALONE_AO_HIGH ||
-		aoMethod < STANDALONE_AO_CORTAO || aoMethod > STANDALONE_AO_CACAO )
+		aoMethod < STANDALONE_AO_CORTAO || aoMethod > STANDALONE_AO_CLIENT )
 	{
 		CCP_LOGERR( "Invalid standalone shadow or ambient-occlusion mode" );
 		return false;
@@ -16133,13 +16204,32 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 	if( ambientOcclusion != STANDALONE_AO_OFF )
 	{
-		if( !probe.ssao.CreateInstance() )
+		if( aoMethod == STANDALONE_AO_CLIENT )
+		{
+			std::string ssaoError;
+			probe.ssao = LoadBlackObjectWithoutYield<Tr2SSAO>(
+				"res:/dx9/default/ssao.black", ssaoError );
+			if( !probe.ssao )
+			{
+				std::fprintf( stderr, "Failed to load client SSAO Black: %s\n", ssaoError.c_str() );
+				return false;
+			}
+			if( probe.ssao->GetCortaoEnabled() )
+			{
+				CCP_LOGERR( "Client SSAO Black unexpectedly selected CORTAO" );
+				return false;
+			}
+		}
+		else if( !probe.ssao.CreateInstance() )
 		{
 			CCP_LOGERR( "Failed to create Tr2SSAO" );
 			return false;
 		}
-		probe.ssao->SetCortaoEnabled( aoMethod == STANDALONE_AO_CORTAO );
-		probe.ssao->SetCortaoBentNormal( aoMethod == STANDALONE_AO_CORTAO );
+		if( aoMethod != STANDALONE_AO_CLIENT )
+		{
+			probe.ssao->SetCortaoEnabled( aoMethod == STANDALONE_AO_CORTAO );
+			probe.ssao->SetCortaoBentNormal( aoMethod == STANDALONE_AO_CORTAO );
+		}
 		if( probe.deterministicEvidence && aoMethod == STANDALONE_AO_CORTAO )
 		{
 			probe.ssao->ResetRandomSeedForTesting( probe.deterministicEvidenceSeed );
@@ -16245,7 +16335,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 															( localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? "probe-validation" : "none" ),
 		ambientOcclusion == STANDALONE_AO_HIGH ? "high" :
 												 ( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
-		aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "cacao",
+		AoMethodName( aoMethod ),
 		ambientOcclusion != STANDALONE_AO_OFF && aoMethod == STANDALONE_AO_CORTAO ? "enabled" : "disabled",
 		ReflectionSourceName( reflectionSource ),
 		sizeof( EveSpaceScene::PerFramePSData ),
@@ -17261,10 +17351,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRaytracedShadowDiagnosti
 	output->maskFormat = diagnostics.resultFormat;
 	output->maskWidth = diagnostics.resultWidth;
 	output->maskHeight = diagnostics.resultHeight;
-	return diagnostics.preparationAttempted && diagnostics.geometryPresent &&
+	const bool complete = diagnostics.preparationAttempted && diagnostics.geometryPresent &&
 		diagnostics.renderAttempted && diagnostics.dispatchSucceeded &&
 		diagnostics.dispatchCount != 0 && diagnostics.resultValid &&
 		( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded );
+	return complete || ( !probe->occlusionLightingReportPath.empty() &&
+		probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetLocalShadowDiagnostics(
@@ -20330,6 +20422,70 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectReflectionLightingCon
 	return probe->reflectionLightingContactSelected;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectOcclusionLightingProduct(
+	void* opaqueProbe,
+	uint32_t product )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !probe->presentationAuditSnapshotAvailable ||
+		product > TRINITY_STANDALONE_OCCLUSION_SHADOW )
+	{
+		return false;
+	}
+	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[
+		product == TRINITY_STANDALONE_OCCLUSION_SHADOW ?
+			STANDALONE_SOLAR_PRODUCT_SHADOW : STANDALONE_SOLAR_PRODUCT_AO];
+	if( product == TRINITY_STANDALONE_OCCLUSION_SHADOW ||
+		source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM )
+	{
+		return ConvertPresentationAuditProduct( *probe, source );
+	}
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( !source.IsValid() || FAILED( source.MapForReading(
+		Tr2TextureSubresource( 0 ), true, data, pitch, *probe->renderContext ) ) || !data )
+	{
+		return false;
+	}
+	probe->capturedProductWidth = source.GetWidth();
+	probe->capturedProductHeight = source.GetHeight();
+	probe->capturedProductPixels.assign(
+		static_cast<size_t>( source.GetWidth() ) * source.GetHeight() * 4u, 0 );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		const int8_t* row = reinterpret_cast<const int8_t*>(
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch );
+		uint8_t* destination = probe->capturedProductPixels.data() +
+			static_cast<size_t>( y ) * source.GetWidth() * 4u;
+		for( uint32_t x = 0; x < source.GetWidth(); ++x )
+		{
+			if( product == TRINITY_STANDALONE_OCCLUSION_AO )
+			{
+				const float normalized = std::clamp(
+					static_cast<float>( row[x * 4 + 3] ) / 127.0f, -1.0f, 1.0f );
+				const uint8_t value = static_cast<uint8_t>( std::lround(
+					( normalized * 0.5f + 0.5f ) * 255.0f ) );
+				destination[x * 4] = value;
+				destination[x * 4 + 1] = value;
+				destination[x * 4 + 2] = value;
+			}
+			else
+			{
+				for( uint32_t channel = 0; channel < 3; ++channel )
+				{
+					const float normalized = std::clamp(
+						static_cast<float>( row[x * 4 + channel] ) / 127.0f, -1.0f, 1.0f );
+					destination[x * 4 + channel] = static_cast<uint8_t>( std::lround(
+						( normalized * 0.5f + 0.5f ) * 255.0f ) );
+				}
+			}
+			destination[x * 4 + 3] = 255;
+		}
+	}
+	source.UnmapForReading( *probe->renderContext );
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditReport(
 	void* opaqueProbe )
 {
@@ -20458,6 +20614,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureReflectionLighting
 	}
 	probe->lightingAuditStation = station;
 	probe->reflectionLightingReportPath = reportPath;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureOcclusionLightingAudit(
+	void* opaqueProbe,
+	int station,
+	int subject,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] ||
+		station < STANDALONE_LIGHTING_AUDIT_NEAR_SUN ||
+		station > STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ||
+		subject < STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL ||
+		subject > STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET )
+	{
+		CCP_LOGERR( "PL-14H3 AO/shadow audit requires a valid station, subject, and report path" );
+		return false;
+	}
+	probe->lightingAuditStation = station;
+	probe->lightingAuditSubject = subject;
+	probe->occlusionLightingReportPath = reportPath;
 	return true;
 }
 
@@ -20769,6 +20947,209 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << ",\"dynamicExposure\":"
 		   << SolarBodyJsonString( frame.dynamicExposureApplied ? "client" : "off" )
 		   << ",\"tunedValuesAdded\":false,\"silk\":false,\"froxels\":false}\n}\n";
+	return output.good();
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->occlusionLightingReportPath.empty() || !probe->scene ||
+		!probe->driver || !probe->renderContext || probe->presentationAuditFrames.empty() )
+	{
+		CCP_LOGERR( "PL-14H3 AO/shadow report is not configured or lacks a retained frame" );
+		return false;
+	}
+	StandalonePresentationProductMetrics aoMetrics;
+	StandalonePresentationProductMetrics shadowMetrics;
+	Tr2TextureAL& ao =
+		probe->solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_AO];
+	Tr2TextureAL& shadow =
+		probe->solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_SHADOW];
+	if( !ReadPresentationProductMetrics( ao, aoMetrics, *probe->renderContext ) ||
+		!ReadPresentationProductMetrics( shadow, shadowMetrics, *probe->renderContext ) )
+	{
+		CCP_LOGERR( "PL-14H3 retained AO or shadow product is unavailable" );
+		return false;
+	}
+	const Tr2SSAO::RuntimeDiagnostics ssao = probe->ssao ?
+		probe->ssao->GetRuntimeDiagnostics() : Tr2SSAO::RuntimeDiagnostics{};
+	const EveSpaceScene::RaytracedShadowDiagnostics& raytraced =
+		probe->scene->GetRaytracedShadowDiagnostics();
+	const EveSpaceScene::DirectionalShadowDiagnostics& directional =
+		probe->scene->GetDirectionalShadowDiagnostics();
+	const StandalonePresentationAuditFrame& frame =
+		probe->presentationAuditFrames.back();
+	const bool hull =
+		probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+	const bool aoEnabled = probe->ambientOcclusion != STANDALONE_AO_OFF;
+	const bool shadowsEnabled = probe->shadows != STANDALONE_SHADOWS_OFF;
+	const bool raytracedSelected =
+		probe->shadows == STANDALONE_SHADOWS_RAYTRACED;
+	Vector3 auditSunPosition;
+	bool analyticPlanetSelected = false;
+	double planetOcclusionFraction = 0.0;
+	if( probe->scene->GetSunBall() )
+	{
+		ReadSolarIlluminationPosition(
+			probe->scene->GetSunBall(), frame.simulationTime, auditSunPosition );
+	}
+	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
+		 index < raytraced.analyticPlanetSpheres.size(); ++index )
+	{
+		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
+		if( sphere.w <= 0.0f )
+			continue;
+		analyticPlanetSelected = true;
+		planetOcclusionFraction = SolarDiscOcclusionCoverage(
+			auditSunPosition,
+			static_cast<float>( kNewEdenStarRadius ),
+			sphere.GetXYZ(),
+			sphere.w );
+		break;
+	}
+	const char* resolvedAo = !aoEnabled ? "neutral" :
+		probe->aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "ssao";
+	const char* productNames[] = {
+		"depth", "normal", "hdr", "taa-input", "taa-output", "bloom",
+		"post-tone", "final", "drawable",
+	};
+	auto writeMetrics = []( std::ostream& output,
+		const StandalonePresentationProductMetrics& metrics ) {
+		output << "{\"format\":" << metrics.format
+			   << ",\"width\":" << metrics.width
+			   << ",\"height\":" << metrics.height
+			   << ",\"hash\":\"" << std::hex << std::setw( 16 )
+			   << std::setfill( '0' ) << metrics.hash << std::dec << std::setfill( ' ' )
+			   << "\",\"finiteSamples\":" << metrics.finiteSamples
+			   << ",\"invalidSamples\":" << metrics.invalidSamples
+			   << ",\"minimum\":" << metrics.minimum
+			   << ",\"mean\":" << metrics.mean
+			   << ",\"maximum\":" << metrics.maximum
+			   << ",\"nonuniform\":" << ( metrics.nonuniform ? "true" : "false" )
+			   << ",\"capturedBeforeReuseOrRelease\":"
+			   << ( metrics.capturedBeforeReuseOrRelease ? "true" : "false" ) << '}';
+	};
+
+	std::ofstream output(
+		probe->occlusionLightingReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+		return false;
+	output << std::setprecision( 12 )
+		   << "{\n  \"schema\":\"trinity.occlusion-lighting-report.v1\",\n"
+		   << "  \"station\":{\"name\":"
+		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
+		   << ",\"fovDegrees\":48,\"subject\":"
+		   << SolarBodyJsonString( hull ? "hull" : "planet" )
+		   << ",\"mask\":"
+		   << SolarBodyJsonString( hull ? "depth-owned-hull" :
+			  "depth-owned-planet-surface-excluding-limb" ) << "},\n"
+		   << "  \"ao\":{\"requested\":"
+		   << SolarBodyJsonString( AoMethodName( probe->aoMethod ) )
+		   << ",\"resolvedAlgorithm\":" << SolarBodyJsonString( resolvedAo )
+		   << ",\"quality\":"
+		   << SolarBodyJsonString( aoEnabled ? "high" : "off" )
+		   << ",\"serializedResource\":"
+		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ?
+			  SolarBodyJsonString( "res:/dx9/default/ssao.black" ) : "null" )
+		   << ",\"serializedCortaoEnabled\":"
+		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ? "false" : "null" )
+		   << ",\"settledCortaoEnabled\":"
+		   << ( ssao.cortaoEnabled ? "true" : "false" )
+		   << ",\"bentNormalPresent\":"
+		   << ( aoEnabled && ssao.cortaoEnabled && ssao.cortaoBentNormal ? "true" : "false" )
+		   << ",\"temporal\":" << ( ssao.temporal ? "true" : "false" )
+		   << ",\"blur\":" << ( ssao.blurEnabled ? "true" : "false" )
+		   << ",\"downsampled\":" << ( ssao.downsampled ? "true" : "false" )
+		   << ",\"resourcesReady\":"
+		   << ( !aoEnabled || ssao.outputReady ? "true" : "false" )
+		   << ",\"passExecuted\":" << ( ssao.filterCount > 0 ? "true" : "false" )
+		   << ",\"passSucceeded\":" << ( ssao.passSucceeded ? "true" : "false" )
+		   << ",\"filterCount\":" << ssao.filterCount
+		   << ",\"input\":{\"depthReady\":" << ( ssao.depthReady ? "true" : "false" )
+		   << ",\"normalReady\":" << ( ssao.normalReady ? "true" : "false" )
+		   << ",\"width\":" << ssao.inputWidth << ",\"height\":" << ssao.inputHeight
+		   << "},\"output\":";
+	writeMetrics( output, aoMetrics );
+	output << ",\"neutralFallback\":{\"bound\":" << ( !aoEnabled ? "true" : "false" )
+		   << ",\"width\":1,\"height\":1,\"format\":"
+		   << static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
+		   << ",\"rgba\":[255,255,255,255]},\"settings\":{\"strength\":"
+		   << ssao.strength << ",\"radius\":" << ssao.radius
+		   << ",\"maxBlockerSearchRadius\":" << ssao.maxBlockerSearchRadius
+		   << ",\"mipBias\":" << ssao.mipBias << "}},\n"
+		   << "  \"directionalShadow\":{\"requested\":"
+		   << SolarBodyJsonString( !shadowsEnabled ? "off" :
+			  raytracedSelected ? "raytraced" : "raster" )
+		   << ",\"maximumQualityPolicy\":\"UltraRaytracedShadows\",\"product\":";
+	writeMetrics( output, shadowMetrics );
+	output << ",\"neutralFallback\":{\"bound\":"
+		   << ( !shadowsEnabled ? "true" : "false" )
+		   << ",\"width\":1,\"height\":1,\"format\":"
+		   << static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM )
+		   << ",\"value\":255},\"raster\":{\"casterTests\":"
+		   << directional.casterTests << ",\"acceptedCascades\":"
+		   << directional.acceptedCascades << ",\"committedBatches\":"
+		   << directional.committedBatches << "},\"raytraced\":{\"selected\":"
+		   << ( raytracedSelected ? "true" : "false" )
+		   << ",\"preparationAttempted\":"
+		   << ( raytraced.preparationAttempted ? "true" : "false" )
+		   << ",\"geometryPresent\":" << ( raytraced.geometryPresent ? "true" : "false" )
+		   << ",\"dispatchSucceeded\":" << ( raytraced.dispatchSucceeded ? "true" : "false" )
+		   << ",\"denoiserSucceeded\":" << ( raytraced.denoiserSucceeded ? "true" : "false" )
+		   << ",\"resultValid\":" << ( raytraced.resultValid ? "true" : "false" )
+		   << ",\"format\":" << raytraced.resultFormat
+		   << ",\"width\":" << raytraced.resultWidth
+		   << ",\"height\":" << raytraced.resultHeight
+		   << ",\"analyticPlanetSphereCount\":" << raytraced.analyticPlanetSphereCount
+		   << ",\"analyticPlanetSelected\":"
+		   << ( analyticPlanetSelected ? "true" : "false" )
+		   << ",\"planetOcclusionFraction\":" << planetOcclusionFraction
+		   << ",\"analyticVisibility\":" << ( 1.0 - planetOcclusionFraction )
+		   << ",\"analyticPlanetSpheres\":[";
+	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
+		 index < raytraced.analyticPlanetSpheres.size(); ++index )
+	{
+		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
+		output << ( index ? "," : "" ) << '[' << sphere.x << ',' << sphere.y << ','
+			   << sphere.z << ',' << sphere.w << ']';
+	}
+	output << "]}},\n  \"consumer\":{\"effect\":"
+		   << SolarBodyJsonString( hull ? "quadv5/quadheatv5.sm_hi" : "sandstormplanet.sm_hi" )
+		   << ",\"technique\":\"Main\",\"readsSSAOMap\":"
+		   << ( hull ? "true" : "false" )
+		   << ",\"readsEveSpaceSceneShadowMap\":" << ( hull ? "true" : "false" )
+		   << ",\"submitted\":true},\n  \"receiver\":{\"pixels\":"
+		   << probe->solarIlluminationReceiverPixels
+		   << ",\"litPixels\":" << probe->solarIlluminationReceiverLitPixels
+		   << ",\"hdrMean\":" << probe->solarIlluminationReceiverMeanLuminance
+		   << ",\"hdrMaximum\":" << probe->solarIlluminationReceiverMaximumLuminance
+		   << "},\n  \"invariants\":{\"trajectoryHash\":\"" << std::hex
+		   << frame.trajectoryHash << std::dec << "\",\"view\":";
+	WriteSolarBodyMatrix( output, frame.view );
+	output << ",\"projection\":";
+	WriteSolarBodyMatrix( output, frame.projection );
+	output << ",\"depthHash\":\"" << std::hex << std::setw( 16 )
+		   << std::setfill( '0' )
+		   << frame.products[TRINITY_STANDALONE_PRESENTATION_DEPTH].hash
+		   << "\",\"normalHash\":\"" << std::setw( 16 )
+		   << frame.products[TRINITY_STANDALONE_PRESENTATION_NORMAL].hash << std::dec
+		   << std::setfill( ' ' )
+		   << "\"},\n  \"presentation\":{\"adaptedLuminance\":" << frame.adaptedLuminance
+		   << ",\"exposureMultiplier\":" << frame.exposureMultiplier
+		   << ",\"products\":[";
+	for( uint32_t product = 0; product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+	{
+		output << ( product ? "," : "" ) << "{\"identity\":"
+			   << SolarBodyJsonString( productNames[product] ) << ",\"metrics\":";
+		writeMetrics( output, frame.products[product] );
+		output << '}';
+	}
+	output << "]},\n  \"controls\":{\"aoEnabled\":" << ( aoEnabled ? "true" : "false" )
+		   << ",\"shadowsEnabled\":" << ( shadowsEnabled ? "true" : "false" )
+		   << ",\"fillLightAdded\":false,\"shadowCompensationAdded\":false,"
+			  "\"alternateGradingAdded\":false,\"replacementGeometryAdded\":false,"
+			  "\"tunedIntensityAdded\":false,\"silk\":false,\"froxels\":false}\n}\n";
 	return output.good();
 }
 
@@ -26960,21 +27341,40 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		probe->scene )
 	{
 		const auto& diagnostics = probe->scene->GetRaytracedShadowDiagnostics();
+		const bool h3PlanetConsumerNotApplicable =
+			!probe->occlusionLightingReportPath.empty() &&
+			probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 		if( !diagnostics.preparationAttempted || !diagnostics.geometryPresent ||
 			!diagnostics.renderAttempted || !diagnostics.dispatchSucceeded ||
 			diagnostics.dispatchCount == 0 || !diagnostics.resultValid ||
 			( diagnostics.denoiserRequested && !diagnostics.denoiserSucceeded ) )
 		{
-			CCP_LOGERR( "Astero raytraced shadow execution diagnostics are incomplete" );
-			std::fprintf(
-				stderr,
-				"RenderFrame failure: raytraced shadow contract (frame=%llu geometry=%s dispatch=%s denoise=%s result=%s)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ),
-				diagnostics.geometryPresent ? "yes" : "no",
-				diagnostics.dispatchSucceeded ? "yes" : "no",
-				!diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "yes" : "no",
-				diagnostics.resultValid ? "yes" : "no" );
-			return false;
+			if( h3PlanetConsumerNotApplicable )
+			{
+				if( !probe->reportedShadowStats )
+				{
+					std::fprintf(
+						stderr,
+						"PL-14H3 planet material has no directional-shadow consumer; retained ray diagnostics geometry=%s dispatch=%s result=%s\n",
+						diagnostics.geometryPresent ? "yes" : "no",
+						diagnostics.dispatchSucceeded ? "yes" : "no",
+						diagnostics.resultValid ? "yes" : "no" );
+					probe->reportedShadowStats = true;
+				}
+			}
+			else
+			{
+				CCP_LOGERR( "Astero raytraced shadow execution diagnostics are incomplete" );
+				std::fprintf(
+					stderr,
+					"RenderFrame failure: raytraced shadow contract (frame=%llu geometry=%s dispatch=%s denoise=%s result=%s)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					diagnostics.geometryPresent ? "yes" : "no",
+					diagnostics.dispatchSucceeded ? "yes" : "no",
+					!diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "yes" : "no",
+					diagnostics.resultValid ? "yes" : "no" );
+				return false;
+			}
 		}
 	}
 	if( !rendered )

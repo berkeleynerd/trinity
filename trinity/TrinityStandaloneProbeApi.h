@@ -25,6 +25,13 @@ enum TrinityStandalonePresentationProduct : uint32_t
 	TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT = 9,
 };
 
+enum TrinityStandaloneOcclusionLightingProduct : uint32_t
+{
+	TRINITY_STANDALONE_OCCLUSION_AO = 0,
+	TRINITY_STANDALONE_OCCLUSION_BENT_NORMAL = 1,
+	TRINITY_STANDALONE_OCCLUSION_SHADOW = 2,
+};
+
 struct TrinityStandaloneRaytracedShadowDiagnostics
 {
 	bool preparationAttempted = false;
