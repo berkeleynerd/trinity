@@ -3478,7 +3478,7 @@ enable this continuation.
 Client source and resource evidence resolves maximum AO quality to High and
 loads `res:/dx9/default/ssao.red`, whose indexed Black is
 `res:/dx9/default/ssao.black`. The 55-byte `Tr2SSAO` object serializes only
-`cortaoEnabled=false`. The Tour nevertheless still requests CORTAO explicitly.
+`cortaoEnabled=false`. At audit entry the Tour nevertheless requested CORTAO explicitly.
 AIR evidence for both selected V5 hull/heat pixel shaders reads `SSAOMap` and
 `EveSpaceSceneShadowMap`; the selected SandStorm planet shader exposes neither.
 
@@ -3494,10 +3494,13 @@ The 60-lane background matrix is Accepted. Client SSAO executes successfully
 at 1280x960 but produces a uniform white texture at every hull station; its HDR
 and hull mean are byte-identical to AO-off. Explicit CORTAO produces a
 nonuniform AO texture at all three anchors, but it too leaves hull HDR
-byte-identical. H3 therefore classifies the canonical CORTAO override
-`misconfigured` and the effective hull AO path `missing`. PL-14I receives two
-normalized candidates: select the default SSAO Black, then repair the authored
-AO-map publication/consumption path without adding intensity or fill.
+byte-identical. The initial H3 verdict therefore classified the canonical
+CORTAO override `misconfigured` and the effective hull AO path `missing`.
+Promised Land's first narrow PL-14I repair now selects `--ao-method client`;
+source extraction and the full 60-lane matrix were revalidated against the
+unified binary. Selection is now `correct`, while the authored AO-map
+publication/consumption path remains `missing` without any authority to add
+intensity or fill.
 
 Maximum-quality directional shadows remain `correct`. Native ray-tracing
 preparation, geometry, dispatch, denoising, and mask publication succeed in
@@ -3513,7 +3516,7 @@ byte-identical under AO and shadow toggles at day, limb, and eclipse. The
 planet-only camera does not contain ray-traceable hull geometry, so the audit
 records the absent mesh dispatch and retains a diagnostic shadow product
 without weakening the hull fail-closed ray-tracing contract. No lighting,
-grading, shadow-compensation, geometry, Silk, or froxel value changed. Verdict
-SHA-256 is
-`b6ee6e498ec47de7d64c5b3b76310e7c099b9b4b09ba5be0f740d81ec3d0460c`;
+grading, shadow-compensation, geometry, Silk, or froxel value changed. The
+post-repair verdict SHA-256 is
+`4a5cd8f5425f364dc8a03063dccd95832fca6fc12edf33586bcc8fd35db207c6`;
 aggregate PL-14H remains Active.
