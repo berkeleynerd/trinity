@@ -34,6 +34,13 @@ public:
 		uint32_t height = 0;
 		Tr2RenderContextEnum::PixelFormat format = Tr2RenderContextEnum::PIXEL_FORMAT_UNKNOWN;
 		uint64_t hash = 0;
+		bool metricsAvailable = false;
+		uint64_t finiteSamples = 0;
+		uint64_t invalidSamples = 0;
+		double minimumLuminance = 0.0;
+		double meanLuminance = 0.0;
+		double maximumLuminance = 0.0;
+		double meanChroma = 0.0;
 	};
 
 	struct RawDiagnosticsForTesting
@@ -70,6 +77,11 @@ public:
 	uint32_t GetReflectionWidth() const;
 	uint32_t GetReflectionHeight() const;
 	uint32_t GetReflectionMipCount() const;
+	Vector3 GetPosition() const;
+	bool GetLockPosition() const;
+	bool GetHollywoodMode() const;
+	Color GetBackLightColor() const;
+	float GetBackLightContrast() const;
 	bool CollectRawDiagnosticsForTesting(
 		Tr2RenderContext & renderContext,
 		RawDiagnosticsForTesting & diagnostics ) const;

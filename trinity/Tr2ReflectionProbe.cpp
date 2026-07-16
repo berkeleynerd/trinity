@@ -24,6 +24,23 @@ const auto s_backLightColorName = BlueSharedString( "BackLightColor" );
 const auto s_backLightContrastName = BlueSharedString( "BackLightContrast" );
 const auto s_viewDirectionName = BlueSharedString( "ViewDirection" );
 
+float DecodeUnsignedFloatComponent( uint32_t value, uint32_t mantissaBits )
+{
+	const uint32_t mantissaMask = ( 1u << mantissaBits ) - 1u;
+	const uint32_t mantissa = value & mantissaMask;
+	const uint32_t exponent = ( value >> mantissaBits ) & 0x1fu;
+	if( exponent == 0 )
+		return std::ldexp( static_cast<float>( mantissa ), 1 - 15 - static_cast<int>( mantissaBits ) );
+	if( exponent == 0x1fu )
+	{
+		return mantissa == 0 ? std::numeric_limits<float>::infinity() :
+			std::numeric_limits<float>::quiet_NaN();
+	}
+	return std::ldexp(
+		1.0f + static_cast<float>( mantissa ) / static_cast<float>( 1u << mantissaBits ),
+		static_cast<int>( exponent ) - 15 );
+}
+
 }
 
 Tr2ReflectionProbe::Tr2ReflectionProbe( IRoot* lockobj ) :
@@ -272,6 +289,31 @@ uint32_t Tr2ReflectionProbe::GetReflectionMipCount() const
 	return m_postFilterTarget && m_postFilterTarget->IsValid() ? m_postFilterTarget->GetMipCount() : 0;
 }
 
+Vector3 Tr2ReflectionProbe::GetPosition() const
+{
+	return m_position;
+}
+
+bool Tr2ReflectionProbe::GetLockPosition() const
+{
+	return m_lockPosition;
+}
+
+bool Tr2ReflectionProbe::GetHollywoodMode() const
+{
+	return m_hollywoodMode;
+}
+
+Color Tr2ReflectionProbe::GetBackLightColor() const
+{
+	return m_backlightColor;
+}
+
+float Tr2ReflectionProbe::GetBackLightContrast() const
+{
+	return m_backlightContrast;
+}
+
 bool Tr2ReflectionProbe::CollectRawDiagnosticsForTesting(
 	Tr2RenderContext& renderContext,
 	RawDiagnosticsForTesting& diagnostics ) const
@@ -330,8 +372,74 @@ bool Tr2ReflectionProbe::CollectRawDiagnosticsForTesting(
 						hash = ( hash ^ row[byte] ) * fnvPrime;
 					}
 				}
+				RawTextureHashForTesting result;
+				result.face = face;
+				result.mip = mip;
+				result.width = width;
+				result.height = height;
+				result.format = source.GetFormat();
+				result.hash = hash;
+				if( source.GetFormat() == PIXEL_FORMAT_R16G16B16A16_FLOAT ||
+					source.GetFormat() == PIXEL_FORMAT_R11G11B10_FLOAT )
+				{
+					result.metricsAvailable = true;
+					result.minimumLuminance = std::numeric_limits<double>::max();
+					result.maximumLuminance = std::numeric_limits<double>::lowest();
+					double luminanceSum = 0.0;
+					double chromaSum = 0.0;
+					for( uint32_t y = 0; y < height; ++y )
+					{
+						const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
+							static_cast<size_t>( y ) * pitch;
+						for( uint32_t x = 0; x < width; ++x )
+						{
+							double red = 0.0;
+							double green = 0.0;
+							double blue = 0.0;
+							if( source.GetFormat() == PIXEL_FORMAT_R16G16B16A16_FLOAT )
+							{
+								const Float_16* fp16 = reinterpret_cast<const Float_16*>( row );
+								red = static_cast<float>( fp16[x * 4] );
+								green = static_cast<float>( fp16[x * 4 + 1] );
+								blue = static_cast<float>( fp16[x * 4 + 2] );
+							}
+							else
+							{
+								const uint32_t packed = reinterpret_cast<const uint32_t*>( row )[x];
+								red = DecodeUnsignedFloatComponent( packed, 6u );
+								green = DecodeUnsignedFloatComponent( packed >> 11u, 6u );
+								blue = DecodeUnsignedFloatComponent( packed >> 22u, 5u );
+							}
+							if( !std::isfinite( red ) || !std::isfinite( green ) ||
+								!std::isfinite( blue ) )
+							{
+								++result.invalidSamples;
+								continue;
+							}
+							const double luminance =
+								0.2126 * red + 0.7152 * green + 0.0722 * blue;
+							const double chroma = std::max( { red, green, blue } ) -
+								std::min( { red, green, blue } );
+							++result.finiteSamples;
+							result.minimumLuminance = std::min( result.minimumLuminance, luminance );
+							result.maximumLuminance = std::max( result.maximumLuminance, luminance );
+							luminanceSum += luminance;
+							chromaSum += chroma;
+						}
+					}
+					if( result.finiteSamples )
+					{
+						result.meanLuminance = luminanceSum / result.finiteSamples;
+						result.meanChroma = chromaSum / result.finiteSamples;
+					}
+					else
+					{
+						result.minimumLuminance = 0.0;
+						result.maximumLuminance = 0.0;
+					}
+				}
 				readback.UnmapForReading( renderContext );
-				hashes.push_back( { face, mip, width, height, source.GetFormat(), hash } );
+				hashes.push_back( result );
 			}
 		}
 		return true;

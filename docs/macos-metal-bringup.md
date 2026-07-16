@@ -3425,3 +3425,50 @@ nine background lanes and strict schemas classify the old multi-product capture
 as `misconfigured` and repaired. The authored exposure, gamma, color grade, SH,
 and lighting inputs were not changed. PL-14H2 proceeds against dynamic
 reflection/direct-light interaction with a trustworthy final-output boundary.
+
+## PL-14H2: dynamic reflection and direct-light interaction audit (2026-07-16)
+
+PL-14H2 adds fixed 48-degree hull fixtures at all eight lighting-audit
+stations and a native `trinity.reflection-lighting-report.v1` report. The
+report follows the effective `ReflectionMap` provider through the A01 static
+cube or camera-positioned dynamic probe, records all six 256x256 source faces
+and eight filtered/sample mips, and retains the H1 depth-through-drawable
+products. A separate contact sheet visualizes the resolved cube without
+rerendering or mutating temporal state. The report also closes
+`AmbientColor.w` reflection-intensity consumption, direct-Sun inputs, analytic
+planet occlusion, hull-region HDR response, and exposure ownership.
+
+The 51-lane Promised Land matrix is Accepted. Static and dynamic reflection
+both differ materially from the black control at every Astero station. At the
+three anchors, native dynamic A/B reports and all five PNG products are
+byte-identical. Venture receives the same scene and probe inputs at near Sun,
+EVE Gate, and planet orbit while retaining its authored material response, so
+the result is not an Astero-only host artifact.
+
+The darker/cooler observation is real but station-dependent, and the evidence
+does not support an intensity fix. The static A01 contact sheet has mean
+luminance `0.324017`; the dynamic sheet is brighter at near Sun (`0.357661`),
+EVE Gate (`0.345672`), and planet orbit (`0.337739`). At planet orbit its
+blue-difference channel rises while its red-difference channel falls relative
+to A01, yet the Astero hull mean falls from static `0.102636` to dynamic
+`0.089341`. Near Sun and EVE Gate the dynamic hull is instead slightly brighter
+than static. That combination is explained by source-selected directional cube
+content and authored V5 roughness/reflection consumption, not a missing probe,
+replacement cube, or arbitrary ambient fill.
+
+Direct-light controls close the remaining interaction. The authored planet
+produces occlusion fractions `0`, `0.50007379`, and `1` in the day, limb, and
+eclipse fixtures, with CPU direct-irradiance luminance `1.41476047`,
+`0.70725203`, and `0`. Exposure-off leaves reflection and HDR unchanged and
+changes only downstream presentation. PL-14H2 therefore classifies transport,
+binding, direct interaction, exposure, and cross-hull behavior `correct`, with
+no PL-14I repair candidate. Aggregate PL-14H remains Active for the other
+lighting components.
+
+The optional Tour continuation is now explicit: `--journey-planet-finale`
+retains the prior 5,702-frame endpoint, while `--journey-planet-orbit` begins
+alignment at frame 5,702 and settles in native ORBIT around ball `40334264` by
+frame 8,940. Requested surface range is 2,500 m; accepted terminal error is
+about 102 m, radial speed `11.05 m/s`, and tangential speed `311.76 m/s`.
+Frames 0-5,701 retain the H1 trajectory exactly. The ordinary Tour does not
+enable this continuation.

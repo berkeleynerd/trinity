@@ -557,7 +557,14 @@ extern "C" bool TrinityStandaloneProbeSetPresentationAuditCaptureRequested(
 extern "C" bool TrinityStandaloneProbeSelectPresentationAuditProduct(
 	void* opaqueProbe,
 	uint32_t product );
+extern "C" bool TrinityStandaloneProbeSelectReflectionLightingContact(
+	void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWritePresentationAuditReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
+	void* opaqueProbe,
+	int station,
+	const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
 														 int environmentMode,
 														 int environmentDistance,
@@ -690,6 +697,9 @@ extern "C" bool TrinityStandaloneProbeSetWarpTarget(
 	void* opaqueProbe,
 	int target );
 extern "C" bool TrinityStandaloneProbeSetJourneyPlanetFinale(
+	void* opaqueProbe,
+	bool enabled );
+extern "C" bool TrinityStandaloneProbeSetJourneyPlanetOrbit(
 	void* opaqueProbe,
 	bool enabled );
 extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
