@@ -4341,6 +4341,18 @@ enum StandaloneLegacySolarEnvironment
 	STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE = 1,
 };
 
+enum StandaloneTourColorGrade
+{
+	STANDALONE_TOUR_COLOR_GRADE_CLIENT_DEFAULT = 0,
+	STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE = 1,
+};
+
+enum StandaloneShipLightingControl
+{
+	STANDALONE_SHIP_LIGHTING_ASTERO = 0,
+	STANDALONE_SHIP_LIGHTING_VENTURE = 1,
+};
+
 enum StandaloneSunBodyLayers
 {
 	STANDALONE_SUN_BODY_OFF = 0,
@@ -4661,6 +4673,52 @@ struct StandaloneSceneConstructionCapture
 	uint64_t finalHash = 0;
 };
 
+struct StandalonePresentationProductMetrics
+{
+	bool available = false;
+	bool capturedBeforeReuseOrRelease = false;
+	uint32_t format = 0;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint64_t hash = 0;
+	uint64_t finiteSamples = 0;
+	uint64_t invalidSamples = 0;
+	double minimum = 0.0;
+	double mean = 0.0;
+	double maximum = 0.0;
+	bool nonuniform = false;
+};
+
+struct StandalonePresentationAuditFrame
+{
+	uint64_t frame = 0;
+	int64_t simulationTime = 0;
+	std::array<StandalonePresentationProductMetrics,
+		TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT>
+		products = {};
+	bool postProcessSucceeded = false;
+	bool exposureMeasured = false;
+	bool dynamicExposureActive = false;
+	bool dynamicExposureApplied = false;
+	float adaptedLuminance = 0.0f;
+	float exposureMultiplier = 1.0f;
+	StandalonePresentationProductMetrics exposure;
+	float gamma = 1.0f;
+	int32_t tonemappingMethod = -1;
+	bool bloomActive = false;
+	bool filmGrainActive = false;
+	bool taaActive = false;
+	bool desaturationActive = false;
+	float desaturationIntensity = 0.0f;
+	std::vector<std::string> passOrder;
+	bool drawableFormatsMatch = false;
+	bool drawableByteEqual = false;
+	std::string drawableConversion = "unresolved";
+	uint64_t trajectoryHash = 0;
+	Matrix view = IdentityMatrix();
+	Matrix projection = IdentityMatrix();
+};
+
 struct StandaloneSolarEnvironmentExitEvidence
 {
 	uint64_t frame = 0;
@@ -4795,6 +4853,7 @@ struct StandaloneProbe
 		{
 			readback = Tr2TextureAL{};
 		}
+		presentationDrawableReadback = Tr2TextureAL{};
 		renderProductVisualizer.Unlock();
 		reflectionProductVisualizer.Unlock();
 		volumeSlicesVisualizer.Unlock();
@@ -4820,6 +4879,7 @@ struct StandaloneProbe
 #endif
 		secondaryLights.clear();
 		shLightingManager.Unlock();
+		serializedShLightingManager.Unlock();
 		g_eveSpaceSceneDynamicLighting = false;
 		Tr2LightManager::SetDynamicLightShadowsEnabled( false );
 		Tr2LightManager::DeleteInstance();
@@ -4858,6 +4918,8 @@ struct StandaloneProbe
 	EveSOFBuildDiagnostics nativeSofDiagnostics;
 	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
 	Tr2ShLightingManagerPtr shLightingManager;
+	Tr2ShLightingManagerPtr serializedShLightingManager;
+	std::string shLightingManagerProvenance = "none";
 	int sceneConstruction = STANDALONE_SCENE_CONSTRUCTION_LEGACY;
 	int legacyShProxies = STANDALONE_LEGACY_SH_PROXIES_AUTHORED;
 	int legacyShReceiver = STANDALONE_LEGACY_SH_RECEIVER_ORIGIN;
@@ -4865,9 +4927,16 @@ struct StandaloneProbe
 	std::string systemManifestPath;
 	std::string systemManifestSha256;
 	std::string sceneConstructionReportPath;
+	std::string shipLightingReportPath;
+	int shipLightingControl = STANDALONE_SHIP_LIGHTING_ASTERO;
+	Color authoredSceneAmbientColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
+	bool ambientLightingAuthored = true;
 	std::vector<std::string> sceneConstructionTrace;
 	bool sceneConstructionConfigured = false;
 	bool sceneConstructionPublished = false;
+	bool backgroundNebulaAuthored = true;
+	bool backgroundStarfieldAuthored = true;
+	bool backgroundLayersConfigured = false;
 	bool canonicalStatePrepared = false;
 	uint64_t canonicalPacketSize = 0;
 	std::vector<std::string> canonicalPreparseRejections;
@@ -5040,6 +5109,11 @@ struct StandaloneProbe
 		solarIlluminationCurrentProductHashes = {};
 	std::array<Tr2TextureAL, STANDALONE_SOLAR_PRODUCT_COUNT>
 		solarIlluminationProductReadbacks;
+	std::string presentationAuditReportPath;
+	bool presentationAuditCaptureRequested = false;
+	bool presentationAuditSnapshotAvailable = false;
+	Tr2TextureAL presentationDrawableReadback;
+	std::vector<StandalonePresentationAuditFrame> presentationAuditFrames;
 	uint64_t solarIlluminationReceiverPixels = 0;
 	uint64_t solarIlluminationReceiverLitPixels = 0;
 	double solarIlluminationReceiverEnergy = 0.0;
@@ -5051,6 +5125,7 @@ struct StandaloneProbe
 	int solarEnvironmentDistance = STANDALONE_SOLAR_DISTANCE_CANONICAL;
 	bool sceneDistanceFogAuthored = true;
 	bool solarDesaturateAuthored = true;
+	int tourColorGrade = STANDALONE_TOUR_COLOR_GRADE_CLIENT_DEFAULT;
 	int solarOcclusionView = 0;
 	int sunEffectsMode = STANDALONE_SUN_EFFECTS_OFF;
 	std::string solarOpticsReportPath;
@@ -7326,9 +7401,7 @@ bool PreparePlanetTrafficGraph(
 			return false;
 		}
 		Tr2Effect* effect = additiveAreas->front()->GetMaterialInterface();
-		if( !effect || std::strcmp(
-				effect->GetEffectPathName(),
-				"res:/graphics/effect/managed/space/spaceobject/fx/traffic/traffic.fx" ) != 0 )
+		if( !effect || std::strcmp( effect->GetEffectPathName(), "res:/graphics/effect/managed/space/spaceobject/fx/traffic/traffic.fx" ) != 0 )
 		{
 			error = "PL-14F traffic mesh effect does not match the authored traffic shader";
 			return false;
@@ -7351,7 +7424,12 @@ bool PreparePlanetTrafficGraph(
 				continue;
 			}
 			const std::string name = texture->GetParameterName();
-			const std::string path = ToNarrowPath( texture->GetResourcePath() );
+			std::string path = ToNarrowPath( texture->GetResourcePath() );
+			std::transform(
+				path.begin(),
+				path.end(),
+				path.begin(),
+				[]( unsigned char value ) { return static_cast<char>( std::tolower( value ) ); } );
 			positionMapClosed |= name == "PositionMap" &&
 				path.find( "res:/graphics/generic/spline/" ) == 0 &&
 				path.rfind( ".dds" ) == path.size() - 4;
@@ -8303,6 +8381,28 @@ bool PrepareNewEdenCelestialsWithoutYield(
 	return initialized;
 }
 
+bool ConfigureBackgroundEffectLayers(
+	StandaloneProbe& probe,
+	EveSpaceScene& scene,
+	std::string& error )
+{
+	Tr2EffectPtr background = scene.GetBackgroundEffect();
+	if( !background )
+	{
+		error = "Background layer diagnostic has no background effect";
+		return false;
+	}
+	if( !probe.backgroundNebulaAuthored )
+	{
+		background->SetResourceTexture2D( BlueSharedString( "NebulaMap" ), "res:/texture/global/black.dds" );
+	}
+	if( !probe.backgroundStarfieldAuthored )
+	{
+		background->SetResourceTexture2D( BlueSharedString( "StarMap" ), "res:/texture/global/black.dds" );
+	}
+	return true;
+}
+
 bool ConfigureNewEdenSystem(
 	StandaloneProbe& probe,
 	EveSpaceScene& scene,
@@ -8338,6 +8438,15 @@ bool ConfigureNewEdenSystem(
 		static_cast<float>( observerZ / observerDistance ) );
 	const float distanceRatio = static_cast<float>(
 		1.0 / std::max( 1.0, observerDistance / starRadius * 0.5 ) );
+	if( !ConfigureBackgroundEffectLayers( probe, scene, error ) )
+	{
+		return false;
+	}
+	std::fprintf(
+		stderr,
+		"New Eden background diagnostic: nebula=%s starfield=%s\n",
+		probe.backgroundNebulaAuthored ? "authored" : "off",
+		probe.backgroundStarfieldAuthored ? "authored" : "off" );
 
 	const Vector3 closeHsv = RgbToHsv( emissiveR, emissiveG, emissiveB );
 	const float farSaturation = closeHsv.y * 0.5f;
@@ -8420,31 +8529,40 @@ bool ConfigureNewEdenSystem(
 		probe.solarIlluminationApplyCount = 1;
 		probe.solarIlluminationOffApplied = true;
 	}
-	const int32_t starCount = 500 + static_cast<int32_t>( 250.0f * securityStatus );
-	auto starfield = LoadBlackObjectWithoutYield<EveStarfield>(
-		"res:/dx9/scene/starfield/spritestars.black",
-		error );
-	if( !starfield )
+	const int32_t starCount = probe.backgroundStarfieldAuthored ?
+		500 + static_cast<int32_t>( 250.0f * securityStatus ) :
+		0;
+	if( starCount > 0 )
 	{
-		return false;
-	}
-	starfield->Configure( starCount, constellationId, 40.0f, 80.0f );
-	Tr2Effect* starfieldEffect = starfield->GetEffect();
-	if( !starfieldEffect )
-	{
-		error = "New Eden sprite starfield has no effect";
-		return false;
-	}
-	if( !PrepareEffectResourcesWithoutYield( *starfieldEffect, "sprite starfield", error ) ||
-		!starfield->Initialize() )
-	{
-		if( error.empty() )
+		auto starfield = LoadBlackObjectWithoutYield<EveStarfield>(
+			"res:/dx9/scene/starfield/spritestars.black",
+			error );
+		if( !starfield )
 		{
-			error = "New Eden sprite starfield failed to initialize";
+			return false;
 		}
-		return false;
+		starfield->Configure( starCount, constellationId, 40.0f, 80.0f );
+		Tr2Effect* starfieldEffect = starfield->GetEffect();
+		if( !starfieldEffect )
+		{
+			error = "New Eden sprite starfield has no effect";
+			return false;
+		}
+		if( !PrepareEffectResourcesWithoutYield( *starfieldEffect, "sprite starfield", error ) ||
+			!starfield->Initialize() )
+		{
+			if( error.empty() )
+			{
+				error = "New Eden sprite starfield failed to initialize";
+			}
+			return false;
+		}
+		scene.SetStarfield( starfield );
 	}
-	scene.SetStarfield( starfield );
+	else
+	{
+		scene.SetStarfield( nullptr );
+	}
 
 	auto sun = LoadBlackObjectWithoutYield<EvePlanet>(
 		"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black",
@@ -8671,7 +8789,8 @@ bool ConfigureNewEdenSystem(
 			const float orbitRadius = nativeBodyInspection ? selectedRadius * inspectionRadiusMultiple : selectedDistance;
 			const float angularRadius = std::asin( std::min( 1.0f, selectedRadius / orbitRadius ) );
 			const float projectionHeightFraction = nativeSolarBodyInspection ?
-				targetHeightFraction / probe.solarBodyGeometryRadius : targetHeightFraction;
+				targetHeightFraction / probe.solarBodyGeometryRadius :
+				targetHeightFraction;
 			probe.celestialInspectionTarget = inspectPlanet ? planet.p : sun.p;
 			probe.celestialInspectionName = inspectPlanet ? "planet" : "sun";
 			probe.celestialExpectedPixelDiameter = static_cast<float>( probe.renderHeight ) * targetHeightFraction;
@@ -8698,7 +8817,7 @@ bool ConfigureNewEdenSystem(
 				probe.celestialInspectionFovRadians * 180.0f / 3.1415926535f,
 				probe.celestialExpectedPixelDiameter,
 				nativeSolarBodyInspection ? "pl14b-native" :
-					( nativePlanetBodyInspection ? "pl14f-native" : "legacy-diagnostic" ) );
+											( nativePlanetBodyInspection ? "pl14f-native" : "legacy-diagnostic" ) );
 		}
 	}
 	auto describeCelestial = []( const char* role, EvePlanet& celestial ) {
@@ -8813,6 +8932,64 @@ bool ConfigureNewEdenSystem(
 	return true;
 }
 
+bool ConfigureSyntheticBackgroundLayers(
+	StandaloneProbe& probe,
+	EveSpaceScene& scene,
+	std::string& error )
+{
+	constexpr int32_t constellationId = 20000773;
+	constexpr float securityStatus = 0.2605538070201874f;
+	if( !ConfigureBackgroundEffectLayers( probe, scene, error ) )
+	{
+		return false;
+	}
+
+	const int32_t starCount = probe.backgroundStarfieldAuthored ?
+		500 + static_cast<int32_t>( 250.0f * securityStatus ) :
+		0;
+	if( starCount > 0 )
+	{
+		auto starfield = LoadBlackObjectWithoutYield<EveStarfield>(
+			"res:/dx9/scene/starfield/spritestars.black",
+			error );
+		if( !starfield )
+		{
+			return false;
+		}
+		starfield->Configure( starCount, constellationId, 40.0f, 80.0f );
+		Tr2Effect* effect = starfield->GetEffect();
+		if( !effect )
+		{
+			error = "Synthetic sprite starfield has no effect";
+			return false;
+		}
+		if( !PrepareEffectResourcesWithoutYield( *effect, "synthetic sprite starfield", error ) ||
+			!starfield->Initialize() )
+		{
+			if( error.empty() )
+			{
+				error = "Synthetic sprite starfield failed to initialize";
+			}
+			return false;
+		}
+		scene.SetStarfield( starfield );
+	}
+	else
+	{
+		scene.SetStarfield( nullptr );
+	}
+
+	std::fprintf(
+		stderr,
+		"Synthetic background fixture: ship=Astero nebula=%s starfield=%s stars=%d seed=%d "
+		"sun=off planet=off eveGate=off motion=off\n",
+		probe.backgroundNebulaAuthored ? "authored" : "off",
+		probe.backgroundStarfieldAuthored ? "authored" : "off",
+		starCount,
+		constellationId );
+	return true;
+}
+
 bool ConfigureShLighting(
 	StandaloneProbe& probe,
 	int lightingView,
@@ -8861,20 +9038,51 @@ bool ConfigureShLighting(
 		return true;
 	}
 
-	if( !probe.shLightingManager.CreateInstance() )
+	if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
 	{
-		error = "Failed to create Tr2ShLightingManager";
-		return false;
+		if( probe.serializedShLightingManager )
+		{
+			probe.shLightingManager = probe.serializedShLightingManager;
+			probe.shLightingManagerProvenance = "serialized-new-eden-scene";
+		}
+		else
+		{
+			// a01_cube.black contains no manager. Construct the native engine
+			// object without writing its intensities; this deliberately quarantines
+			// the historical 3.14 sample override while PL-14H resolves the client
+			// service that owns the runtime configuration.
+			if( !probe.shLightingManager.CreateInstance() )
+			{
+				error = "Failed to create canonical Tr2ShLightingManager";
+				return false;
+			}
+			probe.shLightingManagerProvenance =
+				"engine-constructor-default-no-serialized-manager";
+		}
 	}
-	probe.shLightingManager->SetPrimaryIntensity( 3.14f );
-	probe.shLightingManager->SetSecondaryIntensity( 3.14f );
+	else
+	{
+		if( !probe.shLightingManager.CreateInstance() )
+		{
+			error = "Failed to create legacy Tr2ShLightingManager";
+			return false;
+		}
+		// Retain the historical probe value only in the explicit legacy/control
+		// path. Canonical construction reuses a serialized manager when present,
+		// otherwise retains the engine constructor defaults, and never writes
+		// either intensity.
+		probe.shLightingManager->SetPrimaryIntensity( 3.14f );
+		probe.shLightingManager->SetSecondaryIntensity( 3.14f );
+		probe.shLightingManagerProvenance = "sample-legacy-control";
+	}
 	probe.scene->SetShLightingManager( probe.shLightingManager );
 	std::fprintf(
 		stderr,
-		"Trinity SH manager: primaryIntensity=%.2f secondaryIntensity=%.2f source=%s\n",
+		"Trinity SH manager: primaryIntensity=%.9g secondaryIntensity=%.9g source=%s provenance=%s\n",
 		probe.shLightingManager->GetPrimaryIntensity(),
 		probe.shLightingManager->GetSecondaryIntensity(),
-		shSource == STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS ? "new-eden-celestials" : "validation" );
+		shSource == STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS ? "new-eden-celestials" : "validation",
+		probe.shLightingManagerProvenance.c_str() );
 
 	auto addSecondarySource = [&]( const Vector3& position, float radius, const Color& albedo, const Color& emissive ) {
 		BluePtr<TrinityStandaloneSecondaryLight> source;
@@ -9891,6 +10099,120 @@ bool ReadSolarIlluminationProductHash(
 	}
 	readback.UnmapForReading( renderContext );
 	product.valid = true;
+	return true;
+}
+
+bool ReadPresentationProductMetrics(
+	Tr2TextureAL& readback,
+	StandalonePresentationProductMetrics& metrics,
+	Tr2RenderContext& renderContext )
+{
+	metrics = {};
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( !readback.IsValid() ||
+		FAILED( readback.MapForReading(
+			Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) ||
+		!data )
+	{
+		return false;
+	}
+	metrics.format = static_cast<uint32_t>( readback.GetFormat() );
+	metrics.width = readback.GetWidth();
+	metrics.height = readback.GetHeight();
+	const size_t bytesPerPixel =
+		Tr2RenderContextEnum::GetBytesPerPixel( readback.GetFormat() );
+	const size_t rowBytes = static_cast<size_t>( metrics.width ) * bytesPerPixel;
+	metrics.hash = HashTextureRows(
+		static_cast<const uint8_t*>( data ), pitch, metrics.height, rowBytes );
+	metrics.minimum = std::numeric_limits<double>::max();
+	metrics.maximum = -std::numeric_limits<double>::max();
+	double sum = 0.0;
+	auto accept = [&]( double value ) {
+		if( std::isfinite( value ) )
+		{
+			++metrics.finiteSamples;
+			metrics.minimum = std::min( metrics.minimum, value );
+			metrics.maximum = std::max( metrics.maximum, value );
+			sum += value;
+		}
+		else
+		{
+			++metrics.invalidSamples;
+		}
+	};
+	for( uint32_t y = 0; y < metrics.height; ++y )
+	{
+		const uint8_t* row = static_cast<const uint8_t*>( data ) +
+			static_cast<size_t>( y ) * pitch;
+		for( uint32_t x = 0; x < metrics.width; ++x )
+		{
+			if( readback.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT )
+			{
+				const Float_16* pixel =
+					reinterpret_cast<const Float_16*>( row ) + x * 4;
+				accept( 0.2126 * static_cast<float>( pixel[0] ) +
+					0.7152 * static_cast<float>( pixel[1] ) +
+					0.0722 * static_cast<float>( pixel[2] ) );
+			}
+			else if( readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+				 readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB ||
+				 readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+				 readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB )
+			{
+				const uint8_t* pixel = row + static_cast<size_t>( x ) * 4;
+				const bool bgra = readback.GetFormat() ==
+						Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+					readback.GetFormat() ==
+						Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
+				accept( ( 0.2126 * pixel[bgra ? 2 : 0] + 0.7152 * pixel[1] +
+					0.0722 * pixel[bgra ? 0 : 2] ) /
+					255.0 );
+			}
+			else if( readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+				 readback.GetFormat() ==
+					 Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+			{
+				accept( reinterpret_cast<const float*>( row )[x] );
+			}
+			else if( readback.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+			{
+				const uint32_t packed = reinterpret_cast<const uint32_t*>( row )[x];
+				const double red = static_cast<double>( packed & 0x3ffu ) / 1023.0;
+				const double green = static_cast<double>( ( packed >> 10 ) & 0x3ffu ) / 1023.0;
+				const double blue = static_cast<double>( ( packed >> 20 ) & 0x3ffu ) / 1023.0;
+				accept( 0.2126 * red + 0.7152 * green + 0.0722 * blue );
+			}
+			else
+			{
+				const uint8_t* pixel = row + static_cast<size_t>( x ) * bytesPerPixel;
+				double byteMean = 0.0;
+				for( size_t byte = 0; byte < bytesPerPixel; ++byte )
+				{
+					byteMean += pixel[byte];
+				}
+				accept( bytesPerPixel ? byteMean / ( 255.0 * bytesPerPixel ) : 0.0 );
+			}
+		}
+	}
+	readback.UnmapForReading( renderContext );
+	if( metrics.finiteSamples == 0 )
+	{
+		metrics.minimum = 0.0;
+		metrics.maximum = 0.0;
+		return false;
+	}
+	metrics.mean = sum / static_cast<double>( metrics.finiteSamples );
+	metrics.nonuniform = metrics.maximum - metrics.minimum > 0.000001;
+	metrics.available = true;
+	metrics.capturedBeforeReuseOrRelease = true;
 	return true;
 }
 
@@ -11498,7 +11820,9 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		outputStorage[requestedCount].name = requestedNames[requestedCount];
 		++requestedCount;
 	}
-	if( probe.solarIlluminationCaptureRequested )
+	const bool atomicProductCaptureRequested = probe.solarIlluminationCaptureRequested ||
+		probe.presentationAuditCaptureRequested;
+	if( atomicProductCaptureRequested )
 	{
 		const char* evidenceOutputs[] = {
 			"PreTaaColor",
@@ -11516,8 +11840,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		for( const char* outputName : evidenceOutputs )
 		{
 			if( probe.taaMode == STANDALONE_TAA_OFF &&
-				( std::strcmp( outputName, "PreTaaColor" ) == 0 ||
-				  std::strcmp( outputName, "PostTaaColor" ) == 0 ) )
+				std::strcmp( outputName, "PostTaaColor" ) == 0 )
 			{
 				continue;
 			}
@@ -11582,7 +11905,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 		const bool taaOutputProduct = captureProducts == STANDALONE_CAPTURE_TAA_OUTPUT;
 		const bool taaCooldownProduct = captureProducts == STANDALONE_CAPTURE_TAA_COOLDOWN;
 		const bool temporalSampleProduct = temporalSampleRequested;
-		if( ok && probe.solarIlluminationCaptureRequested )
+		if( ok && atomicProductCaptureRequested )
 		{
 			probe.solarIlluminationCurrentProductHashes = {};
 			auto findOutput = [&]( const char* name ) -> const Tr2TextureAL* {
@@ -11625,8 +11948,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					  probe.bloomMode == STANDALONE_POST_FINISH_OFF ) ||
 					( product.product == STANDALONE_SOLAR_PRODUCT_AO &&
 					  probe.ambientOcclusion == STANDALONE_AO_OFF ) ||
-					( ( product.product == STANDALONE_SOLAR_PRODUCT_TAA_INPUT ||
-						product.product == STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT ) &&
+					( product.product == STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT &&
 					  probe.taaMode == STANDALONE_TAA_OFF );
 				if( !source && disabledFallback )
 				{
@@ -11699,6 +12021,21 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_FULLSCREEN );
 				ok = Tr2Renderer::DrawTexture(
 					renderContext, probe.reflectionProductVisualizer, *reflection );
+			}
+			if( ok && probe.presentationAuditCaptureRequested )
+			{
+				if( !EnsureSolarIlluminationProductReadback(
+						probe.presentationDrawableReadback,
+						destination,
+						"PresentationDrawable",
+						renderContext ) ||
+					FAILED( destination.Resolve(
+						probe.presentationDrawableReadback, renderContext ) ) )
+				{
+					std::fprintf( stderr, "PL-14H1 drawable snapshot is unavailable\n" );
+					ok = false;
+				}
+				probe.presentationAuditSnapshotAvailable = ok;
 			}
 			if( ok )
 			{
@@ -13085,6 +13422,16 @@ bool SolarEnvironmentSelectsFinish( const StandaloneProbe& probe )
 		probe.solarEnvironment == STANDALONE_SOLAR_ENVIRONMENT_ALL;
 }
 
+Tr2PPDesaturateEffectPtr SolarEnvironmentBaselineDesaturate( const StandaloneProbe& probe )
+{
+	if( probe.tourColorGrade == STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE &&
+		probe.solarDesaturateAuthored )
+	{
+		return probe.solarEnvironmentDesaturate;
+	}
+	return probe.solarEnvironmentDefaultDesaturate;
+}
+
 void ApplySolarEnvironmentMembers( StandaloneProbe& probe, bool active )
 {
 	if( !probe.solarOpticsConfigured || !probe.clientPostProcess )
@@ -13105,7 +13452,7 @@ void ApplySolarEnvironmentMembers( StandaloneProbe& probe, bool active )
 		probe.bloomMode == STANDALONE_POST_FINISH_CLIENT ?
 			probe.clientBloom :
 			Tr2PPBloomEffectPtr{} );
-	Tr2PPDesaturateEffectPtr desaturate = probe.solarEnvironmentDefaultDesaturate;
+	Tr2PPDesaturateEffectPtr desaturate = SolarEnvironmentBaselineDesaturate( probe );
 	if( selectFinish )
 	{
 		desaturate = probe.solarDesaturateAuthored ?
@@ -13205,17 +13552,21 @@ bool BeginSolarEnvironmentExitEvidence( StandaloneProbe& probe )
 	const Tr2PPDesaturateEffectPtr selectedDesaturate =
 		probe.clientPostProcess->GetSelectedDesaturateForDiagnostics();
 	const Tr2PPFogEffectPtr expectedFog = SolarEnvironmentSelectsFog( probe ) ?
-		probe.solarEnvironmentFog : probe.solarEnvironmentDefaultFog;
+		probe.solarEnvironmentFog :
+		probe.solarEnvironmentDefaultFog;
 	const Tr2PPBloomEffectPtr activeBloom = SolarEnvironmentSelectsFinish( probe ) ?
-		probe.solarEnvironmentBloom : probe.solarEnvironmentDefaultBloom;
+		probe.solarEnvironmentBloom :
+		probe.solarEnvironmentDefaultBloom;
 	const Tr2PPBloomEffectPtr expectedBloom =
 		probe.bloomMode == STANDALONE_POST_FINISH_CLIENT ?
-		activeBloom : Tr2PPBloomEffectPtr{};
+		activeBloom :
+		Tr2PPBloomEffectPtr{};
 	const Tr2PPDesaturateEffectPtr expectedDesaturate =
 		SolarEnvironmentSelectsFinish( probe ) ?
 		( probe.solarDesaturateAuthored ?
-			probe.solarEnvironmentDesaturate : Tr2PPDesaturateEffectPtr{} ) :
-		probe.solarEnvironmentDefaultDesaturate;
+			  probe.solarEnvironmentDesaturate :
+			  Tr2PPDesaturateEffectPtr{} ) :
+		SolarEnvironmentBaselineDesaturate( probe );
 	evidence.environmentOwnersBefore = selectedFog.p == expectedFog.p &&
 		selectedBloom.p == expectedBloom.p &&
 		selectedDesaturate.p == expectedDesaturate.p;
@@ -13249,11 +13600,12 @@ bool CompleteSolarEnvironmentTeardownEvidence( StandaloneProbe& probe )
 		probe.clientPostProcess->GetSelectedDesaturateForDiagnostics();
 	const Tr2PPBloomEffectPtr expectedBloom =
 		probe.bloomMode == STANDALONE_POST_FINISH_CLIENT ?
-		probe.solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+		probe.solarEnvironmentDefaultBloom :
+		Tr2PPBloomEffectPtr{};
 	evidence.defaultOwnersAfterTeardown =
 		selectedFog.p == probe.solarEnvironmentDefaultFog.p &&
 		selectedBloom.p == expectedBloom.p &&
-		selectedDesaturate.p == probe.solarEnvironmentDefaultDesaturate.p;
+		selectedDesaturate.p == SolarEnvironmentBaselineDesaturate( probe ).p;
 	evidence.defaultValuesRestored = SamePostProcessMembers(
 		evidence.selectedAfterTeardown,
 		probe.solarEnvironmentDefaultMemberDiagnostics );
@@ -13270,8 +13622,7 @@ bool CompleteSolarEnvironmentExitFrameEvidence( StandaloneProbe& probe )
 	{
 		return true;
 	}
-	if( !probe.driver || probe.solarEnvironmentPendingExitEvidence >=
-		probe.solarEnvironmentExitEvidence.size() )
+	if( !probe.driver || probe.solarEnvironmentPendingExitEvidence >= probe.solarEnvironmentExitEvidence.size() )
 	{
 		return false;
 	}
@@ -13883,8 +14234,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	descriptor.celestialBallCount = 2;
 
 	auto sameCreationDiagnostics = [](
-		const DestinyEmbeddedFullStateCreationDiagnostics& first,
-		const DestinyEmbeddedFullStateCreationDiagnostics& second ) {
+									   const DestinyEmbeddedFullStateCreationDiagnostics& first,
+									   const DestinyEmbeddedFullStateCreationDiagnostics& second ) {
 		return first.creationAttemptCount == second.creationAttemptCount &&
 			first.preflightAttemptCount == second.preflightAttemptCount &&
 			first.preflightRejectionCount == second.preflightRejectionCount &&
@@ -13895,8 +14246,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 			first.successfulCreationCount == second.successfulCreationCount;
 	};
 	auto successfulCreationDelta = [](
-		const DestinyEmbeddedFullStateCreationDiagnostics& before,
-		const DestinyEmbeddedFullStateCreationDiagnostics& after ) {
+									   const DestinyEmbeddedFullStateCreationDiagnostics& before,
+									   const DestinyEmbeddedFullStateCreationDiagnostics& after ) {
 		return after.creationAttemptCount == before.creationAttemptCount + 1 &&
 			after.preflightAttemptCount == before.preflightAttemptCount + 1 &&
 			after.preflightRejectionCount == before.preflightRejectionCount &&
@@ -13982,8 +14333,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 		return true;
 	};
 	auto captureLiveState = [&]( DestinyEmbeddedSession* session,
-								DestinyEmbeddedDiagnostics& diagnostics,
-								std::array<DestinyEmbeddedCelestialState, 2>& celestials ) {
+								 DestinyEmbeddedDiagnostics& diagnostics,
+								 std::array<DestinyEmbeddedCelestialState, 2>& celestials ) {
 		return Destiny_GetEmbeddedDiagnostics( session, &diagnostics ) &&
 			Destiny_GetEmbeddedCelestialState( session, sun.ballId, &celestials[0] ) &&
 			Destiny_GetEmbeddedCelestialState( session, planet.ballId, &celestials[1] );
@@ -14038,7 +14389,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 			primaryPacket.size(),
 			static_cast<long long>( firstBallId ),
 			primaryPacket.size() > kFirstBallModeOffset ?
-				primaryPacket[kFirstBallModeOffset] : 0u );
+				primaryPacket[kFirstBallModeOffset] :
+				0u );
 		destroyTemporary();
 		return false;
 	}
@@ -14059,9 +14411,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 		target.insert( target.end(), bytes, bytes + sizeof( value ) );
 	};
 	auto expectRejection = [&]( const char* label,
-								 const std::vector<uint8_t>& malformedPacket,
-								 const DestinyEmbeddedFullStateDescriptor& malformedDescriptor,
-								 DestinyEmbeddedFullStateRejection expectedRejection ) {
+								const std::vector<uint8_t>& malformedPacket,
+								const DestinyEmbeddedFullStateDescriptor& malformedDescriptor,
+								DestinyEmbeddedFullStateRejection expectedRejection ) {
 		DestinyEmbeddedFullStateCreationDiagnostics beforeInspect = {};
 		DestinyEmbeddedFullStateCreationDiagnostics afterInspect = {};
 		DestinyEmbeddedFullStateCreationDiagnostics afterCreate = {};
@@ -14126,8 +14478,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	std::vector<uint8_t> malformed = primaryPacket;
 	malformed.resize( 4 );
 	if( !expectRejection(
-			"short-bytes", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_SHORT_PACKET ) )
+			"short-bytes", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_SHORT_PACKET ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14135,8 +14486,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformed = primaryPacket;
 	malformed.push_back( 0 );
 	if( !expectRejection(
-			"trailing-bytes", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_TRAILING_BYTES ) )
+			"trailing-bytes", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_TRAILING_BYTES ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14144,8 +14494,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformed = primaryPacket;
 	malformed[0] = 1;
 	if( !expectRejection(
-			"invalid-framing", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_FRAMING ) )
+			"invalid-framing", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_FRAMING ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14153,8 +14502,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformed = primaryPacket;
 	malformed[kFirstBallModeOffset] = 0xff;
 	if( !expectRejection(
-			"unknown-mode", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_MODE ) )
+			"unknown-mode", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_MODE ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14163,8 +14511,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	const int64_t zeroId = 0;
 	if( !storePacketValue( malformed, kFirstBallIdOffset, zeroId ) ||
 		!expectRejection(
-			"zero-id", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_ID ) )
+			"zero-id", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_ID ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14175,8 +14522,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 		primaryPacket.begin() + kFirstBallIdOffset,
 		primaryPacket.begin() + kFirstBallFlagsOffset + sizeof( uint8_t ) );
 	if( !expectRejection(
-			"duplicate-id", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_DUPLICATE_ID ) )
+			"duplicate-id", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_DUPLICATE_ID ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14185,8 +14531,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	const float nonfiniteRadius = std::numeric_limits<float>::quiet_NaN();
 	if( !storePacketValue( malformed, kFirstBallRadiusOffset, nonfiniteRadius ) ||
 		!expectRejection(
-			"nonfinite", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_NONFINITE_VALUE ) )
+			"nonfinite", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_NONFINITE_VALUE ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14195,8 +14540,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	const float outOfRangeRadius = 1.0e20f;
 	if( !storePacketValue( malformed, kFirstBallRadiusOffset, outOfRangeRadius ) ||
 		!expectRejection(
-			"out-of-range", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_OUT_OF_RANGE_VALUE ) )
+			"out-of-range", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_OUT_OF_RANGE_VALUE ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14204,8 +14548,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformed = primaryPacket;
 	malformed[kFirstBallFlagsOffset] |= 0x40;
 	if( !expectRejection(
-			"unsupported-flags", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNSUPPORTED_FLAGS ) )
+			"unsupported-flags", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_UNSUPPORTED_FLAGS ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14216,8 +14559,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	appendPacketValue( malformed, primary.ballId );
 	appendPacketValue( malformed, followRange );
 	if( !expectRejection(
-			"self-follow", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_SELF_FOLLOW ) )
+			"self-follow", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_SELF_FOLLOW ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14228,8 +14570,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	appendPacketValue( malformed, missingFollowId );
 	appendPacketValue( malformed, followRange );
 	if( !expectRejection(
-			"missing-follow-target", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_FOLLOW ) )
+			"missing-follow-target", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_FOLLOW ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14238,8 +14579,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	const int32_t nonzeroTimestamp = 1;
 	if( !storePacketValue( malformed, sizeof( uint8_t ), nonzeroTimestamp ) ||
 		!expectRejection(
-			"nonzero-timestamp", malformed, primaryDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_NONZERO_TIMESTAMP ) )
+			"nonzero-timestamp", malformed, primaryDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_NONZERO_TIMESTAMP ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14247,8 +14587,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	DestinyEmbeddedFullStateDescriptor malformedDescriptor = descriptor;
 	malformedDescriptor.celestialBallIds[1] = malformedDescriptor.fixedTargetBallId;
 	if( !expectRejection(
-			"conflicting-role", packet, malformedDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_CONFLICTING_ROLES ) )
+			"conflicting-role", packet, malformedDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_CONFLICTING_ROLES ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14256,8 +14595,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformedDescriptor = descriptor;
 	malformedDescriptor.celestialBallIds[1] = 99;
 	if( !expectRejection(
-			"missing-role", packet, malformedDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_ROLES ) )
+			"missing-role", packet, malformedDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_ROLES ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14268,8 +14606,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformedDescriptor.celestialBallIds[1] = 0;
 	malformedDescriptor.celestialBallCount = 1;
 	if( !expectRejection(
-			"incompatible-role", packet, malformedDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_INCOMPATIBLE_ROLES ) )
+			"incompatible-role", packet, malformedDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_INCOMPATIBLE_ROLES ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14277,8 +14614,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	malformedDescriptor = descriptor;
 	malformedDescriptor.wireProfile = static_cast<DestinyEmbeddedWireProfile>( 99 );
 	if( !expectRejection(
-			"unknown-wire-profile", packet, malformedDescriptor,
-			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_WIRE_PROFILE ) )
+			"unknown-wire-profile", packet, malformedDescriptor, DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_WIRE_PROFILE ) )
 	{
 		destroyTemporary();
 		return false;
@@ -14446,7 +14782,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 	probe->ballparkOrbitPolicy = orbitPolicy;
 	probe->ballparkOrbitRange = orbitRange;
 	probe->journeyPhase = canonicalTourProfile ?
-		STANDALONE_JOURNEY_GATE_ALIGN_PENDING : STANDALONE_JOURNEY_INACTIVE;
+		STANDALONE_JOURNEY_GATE_ALIGN_PENDING :
+		STANDALONE_JOURNEY_INACTIVE;
 	probe->destinyRegistration = registration;
 	probe->sceneConstructionTrace.push_back( "role-curves-resolved" );
 	return true;
@@ -14481,8 +14818,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	}
 	ITr2ControllerPtr shipController = LoadBlackObjectWithoutYield<ITr2Controller>(
 		"res:/dx9/model/controller/shipstandard.red", error );
-	if( !shipController || !probe.nativeSof->ConfigureControllerSubstitution(
-			"res:/dx9/model/controller/shipstandard.red", shipController ) )
+	if( !shipController || !probe.nativeSof->ConfigureControllerSubstitution( "res:/dx9/model/controller/shipstandard.red", shipController ) )
 	{
 		if( error.empty() )
 		{
@@ -14492,8 +14828,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	}
 	ITr2ControllerPtr audioController = LoadBlackObjectWithoutYield<ITr2Controller>(
 		"res:/dx9/model/controller/audioshipstandard.red", error );
-	if( !audioController || !probe.nativeSof->ConfigureControllerSubstitution(
-			"res:/dx9/model/controller/audioshipstandard.red", audioController ) )
+	if( !audioController || !probe.nativeSof->ConfigureControllerSubstitution( "res:/dx9/model/controller/audioshipstandard.red", audioController ) )
 	{
 		if( error.empty() )
 		{
@@ -14503,8 +14838,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	}
 	ITr2ControllerPtr visualDamageController = LoadBlackObjectWithoutYield<ITr2Controller>(
 		"res:/fisfx/vds/visualdamagecontroller.red", error );
-	if( !visualDamageController || !probe.nativeSof->ConfigureControllerSubstitution(
-			"res:/fisfx/vds/visualdamagecontroller.red", visualDamageController ) )
+	if( !visualDamageController || !probe.nativeSof->ConfigureControllerSubstitution( "res:/fisfx/vds/visualdamagecontroller.red", visualDamageController ) )
 	{
 		if( error.empty() )
 		{
@@ -14512,11 +14846,43 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		return false;
 	}
-	probe.sceneConstructionTrace.push_back( "sof-controller-closure-loaded" );
+	const bool ventureControl =
+		probe.shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE;
+	if( ventureControl )
+	{
+		constexpr std::array<const char*, 2> ventureEffectChildPaths = {
+			"res:/dx9/model/ship/ore/frigate/oref1/effects/oref1_t1_fx_01a.red",
+			"res:/dx9/model/shared/fx/smartlightsets/ore_primaryspotlight_01a.red",
+		};
+		for( const char* ventureEffectChildPath : ventureEffectChildPaths )
+		{
+			IRootPtr ventureEffectChild =
+				LoadBlackObjectWithoutYield<IRoot>( ventureEffectChildPath, error );
+			if( !ventureEffectChild ||
+				!probe.nativeSof->ConfigureEffectChildSubstitution(
+					ventureEffectChildPath,
+					ventureEffectChild ) )
+			{
+				if( error.empty() )
+				{
+					error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+				}
+				return false;
+			}
+		}
+	}
+	probe.sceneConstructionTrace.push_back( "sof-controller-and-child-closure-loaded" );
+	const char* shipDna = ventureControl ? "oref1_t1:orebase:ore" : "soef1_t1:soebase:soe";
+	const char* authoredHullGeometry = ventureControl ?
+		"res:/dx9/model/ship/ore/frigate/oref1/oref1_t1.gr2" :
+		"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2";
+	const char* stagedHullGeometry = ventureControl ?
+		"res:/VentureNative.cmf" :
+		"res:/AsteroNative.cmf";
 	const std::vector<EveSOFGeometrySubstitution> substitutions = {
 		{
-			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2",
-			"res:/AsteroNative.cmf",
+			authoredHullGeometry,
+			stagedHullGeometry,
 		},
 		{
 			"res:/dx9/model/ship/booster/volumetrictrail.gr2",
@@ -14530,16 +14896,16 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	if( !probe.nativeSof->ConfigureGeometrySubstitutions(
 			substitutions,
 			"res:/dx9/model/ship/booster/volumetrictrail.gr2" ) ||
-		!probe.nativeSof->ValidateDNA( "soef1_t1:soebase:soe" ) )
+		!probe.nativeSof->ValidateDNA( shipDna ) )
 	{
 		error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
 		if( error.empty() )
 		{
-			error = "Astero DNA did not validate against the pinned SOF database";
+			error = "Ship DNA did not validate against the pinned SOF database";
 		}
 		return false;
 	}
-	IRootPtr built = probe.nativeSof->BuildFromDNA( "soef1_t1:soebase:soe" );
+	IRootPtr built = probe.nativeSof->BuildFromDNA( shipDna );
 	probe.nativeShip = BlueCastPtr( built );
 	if( !probe.nativeShip )
 	{
@@ -14550,7 +14916,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		return false;
 	}
-	if( probe.nativeSof->GetLastBuildDiagnostics().impactEffectType !=
+	if( !ventureControl && probe.nativeSof->GetLastBuildDiagnostics().impactEffectType !=
 		EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 	{
 		error = "Astero impact type differs from the source-observed ELLIPSOID branch";
@@ -14570,67 +14936,74 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	probe.sceneConstructionTrace.push_back( "native-ship-built-and-curves-bound" );
 	Tr2MeshPtr mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
 	if( !mesh || !PrepareMeshWithoutYield(
-			*mesh, "res:/AsteroNative.cmf", "canonical native Astero", error ) )
+			 *mesh,
+			 stagedHullGeometry,
+			 ventureControl ? "PL-14H native Venture" : "canonical native Astero",
+			 error ) )
 	{
 		return false;
 	}
 	DrainResourceQueuesUntilSettled();
-	if( !probe.nativeSof->InspectNativeBuild(
-			probe.nativeShip->GetRawRoot(), probe.nativeSofDiagnostics ) ||
-		!probe.nativeSofDiagnostics.nativeShip ||
-		!probe.nativeSofDiagnostics.structuralComplete ||
-		!probe.nativeSofDiagnostics.meshAreasComplete ||
-		!probe.nativeSofDiagnostics.materialsComplete ||
-		!probe.nativeSofDiagnostics.geometryPrepared ||
-		!probe.nativeSofDiagnostics.geometrySkinningComplete ||
-		probe.nativeSofDiagnostics.geometryBoneBindingCount != 9 ||
-		probe.nativeSofDiagnostics.geometrySkeletonCount != 1 ||
-		probe.nativeSofDiagnostics.geometryAnimationCount != 4 ||
-		probe.nativeSofDiagnostics.geometrySkinnedAreaCount != 3 ||
-		probe.nativeSofDiagnostics.directHullLightCount != 0 ||
-		probe.nativeSofDiagnostics.attachmentLightCount != 6 ||
-		probe.nativeSofDiagnostics.localLightCount != 6 )
+	const bool inventoryComplete = probe.nativeSof->InspectNativeBuild(
+		probe.nativeShip->GetRawRoot(), probe.nativeSofDiagnostics );
+	const bool commonInventoryClosed = inventoryComplete &&
+		probe.nativeSofDiagnostics.nativeShip &&
+		probe.nativeSofDiagnostics.structuralComplete &&
+		probe.nativeSofDiagnostics.meshAreasComplete &&
+		probe.nativeSofDiagnostics.materialsComplete &&
+		probe.nativeSofDiagnostics.geometryPrepared &&
+		probe.nativeSofDiagnostics.geometrySkinningComplete &&
+		probe.nativeSofDiagnostics.geometrySkeletonCount == 1 &&
+		probe.nativeSofDiagnostics.geometryAnimationCount == 4;
+	const bool asteroInventoryClosed = ventureControl ||
+		( probe.nativeSofDiagnostics.geometryBoneBindingCount == 9 &&
+		  probe.nativeSofDiagnostics.geometrySkinnedAreaCount == 3 &&
+		  probe.nativeSofDiagnostics.directHullLightCount == 0 &&
+		  probe.nativeSofDiagnostics.attachmentLightCount == 6 &&
+		  probe.nativeSofDiagnostics.localLightCount == 6 );
+	if( !commonInventoryClosed || !asteroInventoryClosed )
 	{
 		std::ostringstream census;
 		if( !probe.nativeSofDiagnostics.failureReason.empty() )
 		{
 			census << probe.nativeSofDiagnostics.failureReason << "; ";
 		}
-		census << "native Astero inventory census: objectMatchesLastBuild="
-			<< ( probe.nativeSofDiagnostics.objectMatchesLastBuild ? "yes" : "no" )
-			<< " objectCreated=" << ( probe.nativeSofDiagnostics.objectCreated ? "yes" : "no" )
-			<< " nativeShip=" << ( probe.nativeSofDiagnostics.nativeShip ? "yes" : "no" )
-			<< " structuralComplete=" << ( probe.nativeSofDiagnostics.structuralComplete ? "yes" : "no" )
-			<< " meshCreated=" << ( probe.nativeSofDiagnostics.meshCreated ? "yes" : "no" )
-			<< " meshAreasComplete=" << ( probe.nativeSofDiagnostics.meshAreasComplete ? "yes" : "no" )
-			<< " materialsComplete=" << ( probe.nativeSofDiagnostics.materialsComplete ? "yes" : "no" )
-			<< " geometryClosureComplete=" << ( probe.nativeSofDiagnostics.geometryClosureComplete ? "yes" : "no" )
-			<< " controllerClosureComplete=" << ( probe.nativeSofDiagnostics.controllerClosureComplete ? "yes" : "no" )
-			<< " geometryResourceBound=" << ( probe.nativeSofDiagnostics.geometryResourceBound ? "yes" : "no" )
-			<< " geometryLoading=" << ( probe.nativeSofDiagnostics.geometryLoading ? "yes" : "no" )
-			<< " geometryPrepared=" << ( probe.nativeSofDiagnostics.geometryPrepared ? "yes" : "no" )
-			<< " geometrySkinningComplete="
-			<< ( probe.nativeSofDiagnostics.geometrySkinningComplete ? "yes" : "no" )
-			<< " boneBindings=" << probe.nativeSofDiagnostics.geometryBoneBindingCount
-			<< " skeletons=" << probe.nativeSofDiagnostics.geometrySkeletonCount
-			<< " animations=" << probe.nativeSofDiagnostics.geometryAnimationCount
-			<< " skinnedAreas=" << probe.nativeSofDiagnostics.geometrySkinnedAreaCount
-			<< " effects=" << probe.nativeSofDiagnostics.readyEffectResourceCount << "/"
-			<< probe.nativeSofDiagnostics.effectResourceCount
-			<< " directHullLights=" << probe.nativeSofDiagnostics.directHullLightCount
-			<< " attachmentLights=" << probe.nativeSofDiagnostics.attachmentLightCount
-			<< " localLights=" << probe.nativeSofDiagnostics.localLightCount
-			<< " boosters=" << probe.nativeSofDiagnostics.boosterCount
-			<< " boostersExpected=" << ( probe.nativeSofDiagnostics.boostersExpected ? "yes" : "no" )
-			<< " boostersCreated=" << ( probe.nativeSofDiagnostics.boostersCreated ? "yes" : "no" )
-			<< " trails=" << probe.nativeSofDiagnostics.trailCount
-			<< " trailsExpected=" << ( probe.nativeSofDiagnostics.trailsExpected ? "yes" : "no" )
-			<< " trailsCreated=" << ( probe.nativeSofDiagnostics.trailsCreated ? "yes" : "no" )
-			<< " trailsReady=" << ( probe.nativeSofDiagnostics.trailsReady ? "yes" : "no" )
-			<< " castsShadow=" << ( probe.nativeSofDiagnostics.castsShadow ? "yes" : "no" )
-			<< " reflectionMode=" << probe.nativeSofDiagnostics.reflectionMode
-			<< " resourceReady=" << ( probe.nativeSofDiagnostics.resourceReady ? "yes" : "no" )
-			<< " expectedAreas=[";
+		census << ( ventureControl ? "native Venture" : "native Astero" )
+			   << " inventory census: objectMatchesLastBuild="
+			   << ( probe.nativeSofDiagnostics.objectMatchesLastBuild ? "yes" : "no" )
+			   << " objectCreated=" << ( probe.nativeSofDiagnostics.objectCreated ? "yes" : "no" )
+			   << " nativeShip=" << ( probe.nativeSofDiagnostics.nativeShip ? "yes" : "no" )
+			   << " structuralComplete=" << ( probe.nativeSofDiagnostics.structuralComplete ? "yes" : "no" )
+			   << " meshCreated=" << ( probe.nativeSofDiagnostics.meshCreated ? "yes" : "no" )
+			   << " meshAreasComplete=" << ( probe.nativeSofDiagnostics.meshAreasComplete ? "yes" : "no" )
+			   << " materialsComplete=" << ( probe.nativeSofDiagnostics.materialsComplete ? "yes" : "no" )
+			   << " geometryClosureComplete=" << ( probe.nativeSofDiagnostics.geometryClosureComplete ? "yes" : "no" )
+			   << " controllerClosureComplete=" << ( probe.nativeSofDiagnostics.controllerClosureComplete ? "yes" : "no" )
+			   << " geometryResourceBound=" << ( probe.nativeSofDiagnostics.geometryResourceBound ? "yes" : "no" )
+			   << " geometryLoading=" << ( probe.nativeSofDiagnostics.geometryLoading ? "yes" : "no" )
+			   << " geometryPrepared=" << ( probe.nativeSofDiagnostics.geometryPrepared ? "yes" : "no" )
+			   << " geometrySkinningComplete="
+			   << ( probe.nativeSofDiagnostics.geometrySkinningComplete ? "yes" : "no" )
+			   << " boneBindings=" << probe.nativeSofDiagnostics.geometryBoneBindingCount
+			   << " skeletons=" << probe.nativeSofDiagnostics.geometrySkeletonCount
+			   << " animations=" << probe.nativeSofDiagnostics.geometryAnimationCount
+			   << " skinnedAreas=" << probe.nativeSofDiagnostics.geometrySkinnedAreaCount
+			   << " effects=" << probe.nativeSofDiagnostics.readyEffectResourceCount << "/"
+			   << probe.nativeSofDiagnostics.effectResourceCount
+			   << " directHullLights=" << probe.nativeSofDiagnostics.directHullLightCount
+			   << " attachmentLights=" << probe.nativeSofDiagnostics.attachmentLightCount
+			   << " localLights=" << probe.nativeSofDiagnostics.localLightCount
+			   << " boosters=" << probe.nativeSofDiagnostics.boosterCount
+			   << " boostersExpected=" << ( probe.nativeSofDiagnostics.boostersExpected ? "yes" : "no" )
+			   << " boostersCreated=" << ( probe.nativeSofDiagnostics.boostersCreated ? "yes" : "no" )
+			   << " trails=" << probe.nativeSofDiagnostics.trailCount
+			   << " trailsExpected=" << ( probe.nativeSofDiagnostics.trailsExpected ? "yes" : "no" )
+			   << " trailsCreated=" << ( probe.nativeSofDiagnostics.trailsCreated ? "yes" : "no" )
+			   << " trailsReady=" << ( probe.nativeSofDiagnostics.trailsReady ? "yes" : "no" )
+			   << " castsShadow=" << ( probe.nativeSofDiagnostics.castsShadow ? "yes" : "no" )
+			   << " reflectionMode=" << probe.nativeSofDiagnostics.reflectionMode
+			   << " resourceReady=" << ( probe.nativeSofDiagnostics.resourceReady ? "yes" : "no" )
+			   << " expectedAreas=[";
 		for( size_t index = 0; index < probe.nativeSofDiagnostics.expectedAreaCounts.size(); ++index )
 		{
 			census << ( index == 0 ? "" : "," ) << probe.nativeSofDiagnostics.expectedAreaCounts[index];
@@ -14647,18 +15020,19 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	const float nativeShipRadius = probe.nativeShip->GetRadius();
 	if( !std::isfinite( nativeShipRadius ) || nativeShipRadius <= 0.0f )
 	{
-		error = "native Astero has no finite positive authored bounding radius";
+		error = "native ship has no finite positive authored bounding radius";
 		return false;
 	}
 	// The model-view camera contract is expressed in object radii.  The legacy
 	// bridge obtains this scale from the CMF bounds; the native SOF path must use
 	// the EveShip2 bound populated from the authored hull DNA.  A unit scale puts
-	// the camera inside the full-size native Astero and makes every lighting
+	// the camera inside the full-size native ship and makes every lighting
 	// isolate observe only the common background.
 	probe.modelWorldScale = nativeShipRadius;
 	std::fprintf(
 		stderr,
-		"Native Astero authored-scale contract: radius=%.8f cameraDistance=%.8f\n",
+		"Native %s authored-scale contract: radius=%.8f cameraDistance=%.8f\n",
+		ventureControl ? "Venture" : "Astero",
 		nativeShipRadius,
 		5.2f * nativeShipRadius );
 	probe.sceneConstructionTrace.push_back( "native-ship-resources-settled" );
@@ -14757,7 +15131,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		else if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY &&
-			!probe.renderable.CreateInstance() )
+				 !probe.renderable.CreateInstance() )
 		{
 			CCP_LOGERR( "Failed to create the standalone EVE renderable" );
 			return false;
@@ -15275,12 +15649,21 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		probe.sceneConstructionTrace.push_back( "base-scene-loaded-unpublished" );
+		probe.authoredSceneAmbientColor = probe.scene->GetLightingSetup().ambientColor;
 		if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
 			probe.scene->GetShLightingManager() )
 		{
 			// Keep the scene unpublished and unowned while membership is built.
 			// A serialized manager would otherwise observe every list insertion
-			// and create transient duplicate registrations before replacement.
+			// and create transient duplicate registrations. Retain that exact
+			// manager for installation after final membership instead of replacing
+			// its authored intensities with sample-owned values.
+			probe.serializedShLightingManager = probe.scene->GetShLightingManager();
+			std::fprintf(
+				stderr,
+				"Serialized New Eden SH manager retained: primaryIntensity=%.9g secondaryIntensity=%.9g\n",
+				probe.serializedShLightingManager->GetPrimaryIntensity(),
+				probe.serializedShLightingManager->GetSecondaryIntensity() );
 			probe.scene->SetShLightingManager( nullptr );
 			probe.sceneConstructionTrace.push_back( "serialized-sh-manager-detached" );
 		}
@@ -15300,6 +15683,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		if( sceneFixture == 3 && !ConfigureNewEdenSystem( probe, *probe.scene, cameraView, composition, sunEffects, planetLayers, cloudYear, cloudMonth, cloudDay, sceneError ) )
 		{
 			std::fprintf( stderr, "Failed to configure New Eden system: %s\n", sceneError.c_str() );
+			return false;
+		}
+		if( sceneFixture == 2 && probe.backgroundLayersConfigured &&
+			!ConfigureSyntheticBackgroundLayers( probe, *probe.scene, sceneError ) )
+		{
+			std::fprintf( stderr, "Failed to configure synthetic background fixture: %s\n", sceneError.c_str() );
 			return false;
 		}
 		if( !PrepareSceneBackgroundWithoutYield( *probe.scene, sceneResourcePath, sceneError ) )
@@ -15407,7 +15796,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				// transition instead of smuggling enum state through construction.
 				const bool initiallyActive =
 					probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ?
-						false : selectedInitiallyActive;
+					false :
+					selectedInitiallyActive;
 				probe.solarEnvironmentFieldActive = initiallyActive;
 				ApplySolarEnvironmentMembers( probe, initiallyActive );
 				if( initiallyActive )
@@ -15594,14 +15984,14 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		probe.celestialInspectionTarget && probe.celestialInspectionFovRadians > 0.0f;
 	const bool nativeBodyInspection = exactSystemInspection &&
 		( !probe.solarBodyReportPath.empty() || !probe.solarHighReportPath.empty() ||
-			!probe.planetAuditReportPath.empty() );
+		  !probe.planetAuditReportPath.empty() );
 	const Vector3 inspectionEye = probe.celestialInspectionCenter -
 		probe.celestialInspectionDirection * probe.celestialInspectionOrbitRadius;
 	const Vector3 cameraEye = nativeBodyInspection ? inspectionEye : eye;
 	const Vector3 target = nativeBodyInspection ? probe.celestialInspectionCenter :
-													   ( exactSystemInspection ? eye + probe.celestialInspectionDirection :
-																				 ( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) :
-																																( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) ) );
+												  ( exactSystemInspection ? eye + probe.celestialInspectionDirection :
+																			( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) :
+																														   ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) ) );
 	probe.view->SetLookAtPosition( cameraEye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
 	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
 																		  ( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
@@ -16836,12 +17226,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 	{
 		const Tr2PPBloomEffectPtr expectedBloom =
 			bloomMode == STANDALONE_POST_FINISH_CLIENT ?
-			probe->solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+			probe->solarEnvironmentDefaultBloom :
+			Tr2PPBloomEffectPtr{};
 		probe->solarEnvironmentDefaultMemberDiagnostics =
 			Tr2PostProcess2::GetMemberDiagnosticsForDiagnostics(
 				probe->solarEnvironmentDefaultFog,
 				expectedBloom,
-				probe->solarEnvironmentDefaultDesaturate );
+				SolarEnvironmentBaselineDesaturate( *probe ) );
 	}
 	if( probe->solarOpticsConfigured &&
 		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
@@ -16854,17 +17245,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 			postProcess->GetSelectedDesaturateForDiagnostics();
 		const Tr2PPBloomEffectPtr expectedBloom =
 			bloomMode == STANDALONE_POST_FINISH_CLIENT ?
-			probe->solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+			probe->solarEnvironmentDefaultBloom :
+			Tr2PPBloomEffectPtr{};
 		if( selectedFog.p != probe->solarEnvironmentDefaultFog.p ||
 			selectedBloom.p != expectedBloom.p ||
-			selectedDesaturate.p != probe->solarEnvironmentDefaultDesaturate.p )
+			selectedDesaturate.p != SolarEnvironmentBaselineDesaturate( *probe ).p )
 		{
 			CCP_LOGERR( "Canonical postprocess did not begin from the default finish" );
 			return false;
 		}
 	}
 	probe->driver->SetUseNewBloom( false );
-	g_eveSpaceSceneGammaBrightness = 1.0f;
 	probe->dynamicExposureMode = dynamicExposureMode;
 	probe->bloomMode = bloomMode;
 	probe->filmGrainMode = filmGrainMode;
@@ -16873,11 +17264,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 	std::fprintf(
 		stderr,
 		"EVE postprocess mode: dynamicExposure=%s bloom=%s filmGrain=%s bloomImplementation=legacy "
-		"diagnostics=%s outputGamma=1.000000\n",
+		"diagnostics=%s outputGamma=%.9g gammaSource=registered-engine-setting tourColorGrade=%s\n",
 		dynamicExposureMode == STANDALONE_DYNAMIC_EXPOSURE_CLIENT ? "client" : "off",
 		bloomMode == STANDALONE_POST_FINISH_CLIENT ? "client" : "off",
 		filmGrainMode == STANDALONE_POST_FINISH_CLIENT ? "client" : "off",
-		diagnosticsEnabled ? "enabled" : "disabled" );
+		diagnosticsEnabled ? "enabled" : "disabled",
+		g_eveSpaceSceneGammaBrightness,
+		probe->tourColorGrade == STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE ?
+			"sun-desaturate" :
+			"client-default" );
 	return true;
 }
 
@@ -17116,22 +17511,70 @@ bool ComputePl14gFileSha256( const char* path, std::string& digest )
 	}
 
 	static constexpr uint32_t roundConstants[64] = {
-		0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
-		0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
-		0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u,
-		0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
-		0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu,
-		0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
-		0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u,
-		0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
-		0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u,
-		0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
-		0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u,
-		0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
-		0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
-		0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
-		0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u,
-		0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u,
+		0x428a2f98u,
+		0x71374491u,
+		0xb5c0fbcfu,
+		0xe9b5dba5u,
+		0x3956c25bu,
+		0x59f111f1u,
+		0x923f82a4u,
+		0xab1c5ed5u,
+		0xd807aa98u,
+		0x12835b01u,
+		0x243185beu,
+		0x550c7dc3u,
+		0x72be5d74u,
+		0x80deb1feu,
+		0x9bdc06a7u,
+		0xc19bf174u,
+		0xe49b69c1u,
+		0xefbe4786u,
+		0x0fc19dc6u,
+		0x240ca1ccu,
+		0x2de92c6fu,
+		0x4a7484aau,
+		0x5cb0a9dcu,
+		0x76f988dau,
+		0x983e5152u,
+		0xa831c66du,
+		0xb00327c8u,
+		0xbf597fc7u,
+		0xc6e00bf3u,
+		0xd5a79147u,
+		0x06ca6351u,
+		0x14292967u,
+		0x27b70a85u,
+		0x2e1b2138u,
+		0x4d2c6dfcu,
+		0x53380d13u,
+		0x650a7354u,
+		0x766a0abbu,
+		0x81c2c92eu,
+		0x92722c85u,
+		0xa2bfe8a1u,
+		0xa81a664bu,
+		0xc24b8b70u,
+		0xc76c51a3u,
+		0xd192e819u,
+		0xd6990624u,
+		0xf40e3585u,
+		0x106aa070u,
+		0x19a4c116u,
+		0x1e376c08u,
+		0x2748774cu,
+		0x34b0bcb5u,
+		0x391c0cb3u,
+		0x4ed8aa4au,
+		0x5b9cca4fu,
+		0x682e6ff3u,
+		0x748f82eeu,
+		0x78a5636fu,
+		0x84c87814u,
+		0x8cc70208u,
+		0x90befffau,
+		0xa4506cebu,
+		0xbef9a3f7u,
+		0xc67178f2u,
 	};
 	uint32_t state[8] = {
 		0x6a09e667u,
@@ -18912,6 +19355,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarIlluminationRepor
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBackgroundLayers(
+	void* opaqueProbe,
+	bool nebulaAuthored,
+	bool starfieldAuthored )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene || probe->driver )
+	{
+		CCP_LOGERR( "Invalid New Eden background layer diagnostic configuration" );
+		return false;
+	}
+	probe->backgroundNebulaAuthored = nebulaAuthored;
+	probe->backgroundStarfieldAuthored = starfieldAuthored;
+	probe->backgroundLayersConfigured = true;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
 	void* opaqueProbe,
 	int constructionMode,
@@ -19037,10 +19497,10 @@ StandaloneSolarIlluminationProduct SceneConstructionHdrProduct(
 	return composite.valid && composite.nonzeroBytes > alphaOnlyFloor ?
 		STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE :
 		preTaa.valid && preTaa.nonzeroBytes > alphaOnlyFloor ?
-			STANDALONE_SOLAR_PRODUCT_TAA_INPUT :
+		STANDALONE_SOLAR_PRODUCT_TAA_INPUT :
 		postTaa.valid && postTaa.nonzeroBytes > alphaOnlyFloor ?
-			STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT :
-			STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE;
+		STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT :
+		STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapture(
@@ -19082,13 +19542,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapt
 			static_cast<unsigned>( hdrProduct ),
 			static_cast<unsigned long long>(
 				probe ? probe->solarIlluminationCurrentProductHashes
-					[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE].nonzeroBytes : 0 ),
+							[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE]
+								.nonzeroBytes :
+						0 ),
 			static_cast<unsigned long long>(
 				probe ? probe->solarIlluminationCurrentProductHashes
-					[STANDALONE_SOLAR_PRODUCT_TAA_INPUT].nonzeroBytes : 0 ),
+							[STANDALONE_SOLAR_PRODUCT_TAA_INPUT]
+								.nonzeroBytes :
+						0 ),
 			static_cast<unsigned long long>(
 				probe ? probe->solarIlluminationCurrentProductHashes
-					[STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT].nonzeroBytes : 0 ) );
+							[STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT]
+								.nonzeroBytes :
+						0 ) );
 		return false;
 	}
 	const StandaloneSolarProductHash& hdr =
@@ -19147,10 +19613,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectSceneConstructionProd
 	}
 	const StandaloneSolarIlluminationProduct sourceProduct =
 		product == TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE ?
-			SceneConstructionHdrProduct( *probe ) :
+		SceneConstructionHdrProduct( *probe ) :
 		product == TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH ?
-			STANDALONE_SOLAR_PRODUCT_DEPTH :
-			STANDALONE_SOLAR_PRODUCT_FINAL_POSTPROCESS;
+		STANDALONE_SOLAR_PRODUCT_DEPTH :
+		STANDALONE_SOLAR_PRODUCT_FINAL_POSTPROCESS;
 	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[sourceProduct];
 	if( !source.IsValid() || source.GetWidth() == 0 || source.GetHeight() == 0 )
 	{
@@ -19241,8 +19707,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectSceneConstructionProd
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
 			source.GetFormat() ==
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
-		converted = bgra || source.GetFormat() ==
-			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM;
+		converted = bgra || source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM;
 		for( uint32_t y = 0; converted && y < height; ++y )
 		{
 			const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
@@ -19264,6 +19729,509 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectSceneConstructionProd
 		probe->capturedProductPixels.clear();
 	}
 	return converted;
+}
+
+Tr2TextureAL* PresentationAuditTexture(
+	StandaloneProbe& probe,
+	uint32_t product )
+{
+	static constexpr StandaloneSolarIlluminationProduct sources[] = {
+		STANDALONE_SOLAR_PRODUCT_DEPTH,
+		STANDALONE_SOLAR_PRODUCT_NORMAL,
+		STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE,
+		STANDALONE_SOLAR_PRODUCT_TAA_INPUT,
+		STANDALONE_SOLAR_PRODUCT_TAA_OUTPUT,
+		STANDALONE_SOLAR_PRODUCT_BLOOM,
+		STANDALONE_SOLAR_PRODUCT_POST_TONEMAP,
+		STANDALONE_SOLAR_PRODUCT_FINAL_POSTPROCESS,
+	};
+	if( product < std::size( sources ) )
+	{
+		const StandaloneSolarIlluminationProduct source =
+			product == TRINITY_STANDALONE_PRESENTATION_HDR ?
+			STANDALONE_SOLAR_PRODUCT_TAA_INPUT : sources[product];
+		return &probe.solarIlluminationProductReadbacks[source];
+	}
+	return product == TRINITY_STANDALONE_PRESENTATION_DRAWABLE ?
+		&probe.presentationDrawableReadback :
+		nullptr;
+}
+
+bool ConvertPresentationAuditProduct(
+	StandaloneProbe& probe,
+	Tr2TextureAL& source )
+{
+	if( !source.IsValid() || source.GetWidth() == 0 || source.GetHeight() == 0 )
+	{
+		return false;
+	}
+	const void* mapped = nullptr;
+	uint32_t pitch = 0;
+	if( FAILED( source.MapForReading(
+			Tr2TextureSubresource( 0 ), true, mapped, pitch, *probe.renderContext ) ) ||
+		!mapped )
+	{
+		return false;
+	}
+	const uint32_t width = source.GetWidth();
+	const uint32_t height = source.GetHeight();
+	probe.capturedProductWidth = width;
+	probe.capturedProductHeight = height;
+	probe.capturedProductPixels.assign(
+		static_cast<size_t>( width ) * height * 4, 0 );
+	bool converted = true;
+	if( source.GetFormat() ==
+		Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT )
+	{
+		for( uint32_t y = 0; y < height; ++y )
+		{
+			const Float_16* row = reinterpret_cast<const Float_16*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			uint8_t* destination = probe.capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				for( uint32_t channel = 0; channel < 3; ++channel )
+				{
+					const float linear = std::max(
+						0.0f, static_cast<float>( row[x * 4 + channel] ) );
+					const float display = std::pow(
+						linear / ( 1.0f + linear ), 1.0f / 2.2f );
+					destination[x * 4 + channel] = static_cast<uint8_t>(
+						std::lround( std::min( 1.0f, display ) * 255.0f ) );
+				}
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+		 source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+	{
+		float minimum = std::numeric_limits<float>::max();
+		float maximum = std::numeric_limits<float>::lowest();
+		for( uint32_t y = 0; y < height; ++y )
+		{
+			const float* row = reinterpret_cast<const float*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				if( std::isfinite( row[x] ) )
+				{
+					minimum = std::min( minimum, row[x] );
+					maximum = std::max( maximum, row[x] );
+				}
+			}
+		}
+		const float range = maximum > minimum ? maximum - minimum : 1.0f;
+		for( uint32_t y = 0; y < height; ++y )
+		{
+			const float* row = reinterpret_cast<const float*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			uint8_t* destination = probe.capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				const uint8_t value = static_cast<uint8_t>( std::lround(
+					std::clamp( ( row[x] - minimum ) / range, 0.0f, 1.0f ) * 255.0f ) );
+				destination[x * 4] = value;
+				destination[x * 4 + 1] = value;
+				destination[x * 4 + 2] = value;
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else if( source.GetFormat() ==
+		Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+	{
+		for( uint32_t y = 0; y < height; ++y )
+		{
+			const uint32_t* row = reinterpret_cast<const uint32_t*>(
+				static_cast<const uint8_t*>( mapped ) + static_cast<size_t>( y ) * pitch );
+			uint8_t* destination = probe.capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				const uint32_t packed = row[x];
+				destination[x * 4] = static_cast<uint8_t>(
+					( packed & 0x3ffu ) * 255u / 1023u );
+				destination[x * 4 + 1] = static_cast<uint8_t>(
+					( ( packed >> 10 ) & 0x3ffu ) * 255u / 1023u );
+				destination[x * 4 + 2] = static_cast<uint8_t>(
+					( ( packed >> 20 ) & 0x3ffu ) * 255u / 1023u );
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM )
+	{
+		for( uint32_t y = 0; y < height; ++y )
+		{
+			const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
+				static_cast<size_t>( y ) * pitch;
+			uint8_t* destination = probe.capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				destination[x * 4] = row[x];
+				destination[x * 4 + 1] = row[x];
+				destination[x * 4 + 2] = row[x];
+				destination[x * 4 + 3] = 255;
+			}
+		}
+	}
+	else
+	{
+		const bool bgra = source.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+			source.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
+		converted = bgra || source.GetFormat() ==
+			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+			source.GetFormat() ==
+				Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB;
+		for( uint32_t y = 0; converted && y < height; ++y )
+		{
+			const uint8_t* row = static_cast<const uint8_t*>( mapped ) +
+				static_cast<size_t>( y ) * pitch;
+			uint8_t* destination = probe.capturedProductPixels.data() +
+				static_cast<size_t>( y ) * width * 4;
+			for( uint32_t x = 0; x < width; ++x )
+			{
+				destination[x * 4] = row[x * 4 + ( bgra ? 2 : 0 )];
+				destination[x * 4 + 1] = row[x * 4 + 1];
+				destination[x * 4 + 2] = row[x * 4 + ( bgra ? 0 : 2 )];
+				destination[x * 4 + 3] = row[x * 4 + 3];
+			}
+		}
+	}
+	source.UnmapForReading( *probe.renderContext );
+	if( !converted )
+	{
+		probe.capturedProductPixels.clear();
+	}
+	return converted;
+}
+
+bool RecordPresentationAuditFrame(
+	StandaloneProbe& probe,
+	uint64_t frame,
+	int64_t simulationTime )
+{
+	if( !probe.presentationAuditCaptureRequested )
+	{
+		return true;
+	}
+	if( probe.presentationAuditReportPath.empty() )
+	{
+		Tr2TextureAL* hdrTexture = PresentationAuditTexture(
+			probe, TRINITY_STANDALONE_PRESENTATION_HDR );
+		if( !probe.presentationAuditSnapshotAvailable || !hdrTexture ||
+			!ReadRawHdrCompositeTexture( probe, *hdrTexture, *probe.renderContext ) )
+		{
+			return false;
+		}
+		probe.presentationAuditCaptureRequested = false;
+		return true;
+	}
+	if( !probe.presentationAuditSnapshotAvailable || !probe.renderContext ||
+		!probe.postProcessDiagnosticsEnabled )
+	{
+		CCP_LOGERR( "PL-14H1 synchronized presentation snapshot is unavailable" );
+		return false;
+	}
+	StandalonePresentationAuditFrame sample;
+	sample.frame = frame;
+	sample.simulationTime = simulationTime;
+	Tr2TextureAL* hdrTexture = PresentationAuditTexture(
+		probe, TRINITY_STANDALONE_PRESENTATION_HDR );
+	if( !hdrTexture || !ReadRawHdrCompositeTexture(
+			probe, *hdrTexture, *probe.renderContext ) )
+	{
+		CCP_LOGERR( "PL-14H1 pre-tone HDR metrics are unavailable" );
+		return false;
+	}
+	for( uint32_t product = 0;
+		product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+	{
+		Tr2TextureAL* texture = PresentationAuditTexture( probe, product );
+		if( !texture || !ReadPresentationProductMetrics(
+				*texture, sample.products[product], *probe.renderContext ) )
+		{
+			std::fprintf(
+				stderr, "PL-14H1 product %u could not be measured at frame %llu\n",
+				product, static_cast<unsigned long long>( frame ) );
+			return false;
+		}
+	}
+	const auto& diagnostics = probe.postProcessDiagnostics;
+	sample.postProcessSucceeded = probe.driver &&
+		probe.driver->GetLastPostProcessExecutionSucceeded();
+	sample.exposureMeasured = diagnostics.exposureMeasured;
+	sample.dynamicExposureActive = diagnostics.dynamicExposureActive;
+	sample.dynamicExposureApplied = diagnostics.dynamicExposureApplied;
+	sample.adaptedLuminance = diagnostics.exposure[0];
+	sample.exposure.available = true;
+	sample.exposure.capturedBeforeReuseOrRelease = true;
+	sample.exposure.format = Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT;
+	sample.exposure.width = static_cast<uint32_t>( std::size( diagnostics.exposure ) );
+	sample.exposure.height = 1;
+	sample.exposure.hash = HashTextureRows(
+		reinterpret_cast<const uint8_t*>( diagnostics.exposure ),
+		static_cast<uint32_t>( sizeof( diagnostics.exposure ) ),
+		1,
+		sizeof( diagnostics.exposure ) );
+	sample.exposure.minimum = std::numeric_limits<double>::max();
+	sample.exposure.maximum = std::numeric_limits<double>::lowest();
+	double exposureSum = 0.0;
+	for( float value : diagnostics.exposure )
+	{
+		if( std::isfinite( value ) )
+		{
+			++sample.exposure.finiteSamples;
+			sample.exposure.minimum = std::min(
+				sample.exposure.minimum, static_cast<double>( value ) );
+			sample.exposure.maximum = std::max(
+				sample.exposure.maximum, static_cast<double>( value ) );
+			exposureSum += value;
+		}
+		else
+		{
+			++sample.exposure.invalidSamples;
+		}
+	}
+	if( sample.exposure.finiteSamples )
+	{
+		sample.exposure.mean = exposureSum /
+			static_cast<double>( sample.exposure.finiteSamples );
+	}
+	else
+	{
+		sample.exposure.minimum = 0.0;
+		sample.exposure.maximum = 0.0;
+	}
+	sample.exposure.nonuniform =
+		sample.exposure.maximum > sample.exposure.minimum;
+	const float exposedLuminance = std::max(
+		0.0001f,
+		0.5f + ( sample.adaptedLuminance - 0.5f ) *
+			diagnostics.exposureInfluence );
+	sample.exposureMultiplier = diagnostics.dynamicExposureActive ?
+		std::pow( 2.0f, diagnostics.exposureAdjustment ) *
+			diagnostics.exposureMiddleValue / exposedLuminance :
+		std::pow( 2.0f, diagnostics.exposureAdjustment );
+	sample.gamma = diagnostics.outputGamma;
+	sample.tonemappingMethod = diagnostics.tonemappingMethod;
+	sample.bloomActive = diagnostics.bloomActive;
+	sample.filmGrainActive = diagnostics.filmGrainActive;
+	sample.taaActive = diagnostics.taaActive;
+	if( probe.clientPostProcess )
+	{
+		Tr2PPDesaturateEffectPtr desaturate =
+			probe.clientPostProcess->GetSelectedDesaturateForDiagnostics();
+		sample.desaturationActive = desaturate != nullptr;
+		sample.desaturationIntensity = desaturate ? desaturate->m_intensity : 0.0f;
+	}
+	if( probe.driver )
+	{
+		sample.passOrder = probe.driver->GetLastPostProcessExecutionOrder();
+	}
+	const auto& finalProduct =
+		sample.products[TRINITY_STANDALONE_PRESENTATION_FINAL];
+	const auto& drawableProduct =
+		sample.products[TRINITY_STANDALONE_PRESENTATION_DRAWABLE];
+	sample.drawableFormatsMatch = finalProduct.format == drawableProduct.format &&
+		finalProduct.width == drawableProduct.width &&
+		finalProduct.height == drawableProduct.height;
+	sample.drawableByteEqual = sample.drawableFormatsMatch &&
+		finalProduct.hash == drawableProduct.hash;
+	sample.drawableConversion = sample.drawableFormatsMatch ?
+		"byte-copy" : "unresolved-format-conversion";
+	sample.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
+	sample.view = Tr2Renderer::GetViewTransform();
+	sample.projection = Tr2Renderer::GetProjectionTransform();
+	probe.presentationAuditFrames.push_back( std::move( sample ) );
+	probe.presentationAuditCaptureRequested = false;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePresentationAudit(
+	void* opaqueProbe,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] )
+	{
+		return false;
+	}
+	probe->presentationAuditReportPath = reportPath;
+	if( probe->taaMode == STANDALONE_TAA_OFF )
+	{
+		// TAA owns the scene jitter as well as accumulation. The H1 isolate must
+		// remove only accumulation or its upstream depth and HDR products are no
+		// longer comparable to the High-TAA control. Retain a High-quality TAA
+		// descriptor for jitter, but prevent the postprocess renderer from
+		// executing the TAA pass. This path is report-only and never changes the
+		// ordinary --taa off behavior.
+		if( !probe->clientPostProcess || !probe->driver )
+		{
+			return false;
+		}
+		Tr2PPTaaEffectPtr jitterOwner;
+		jitterOwner.CreateInstance();
+		jitterOwner->m_quality = Tr2PPTaaEffect::TAA_HIGH;
+		probe->clientPostProcess->SetTaa( jitterOwner );
+		auto settings = probe->driver->GetSettings();
+		settings.antiAliasingQuality =
+			EveSpaceSceneRenderDriver::AntiAliasingQuality::High;
+		settings.forceVelocityMap = true;
+		probe->driver->SetSettings( settings );
+		probe->driver->SetTaaExecutionEnabledForTesting( false );
+	}
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetPresentationAuditCaptureRequested(
+	void* opaqueProbe,
+	bool requested )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	probe->presentationAuditCaptureRequested = requested;
+	if( requested )
+	{
+		probe->presentationAuditSnapshotAvailable = false;
+	}
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectPresentationAuditProduct(
+	void* opaqueProbe,
+	uint32_t product )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !probe->presentationAuditSnapshotAvailable ||
+		product >= TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT )
+	{
+		return false;
+	}
+	Tr2TextureAL* source = PresentationAuditTexture( *probe, product );
+	return source && ConvertPresentationAuditProduct( *probe, *source );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->presentationAuditReportPath.empty() ||
+		probe->presentationAuditFrames.empty() )
+	{
+		CCP_LOGERR( "PL-14H1 presentation report is not configured or has no samples" );
+		return false;
+	}
+	std::ofstream output(
+		probe->presentationAuditReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+	{
+		return false;
+	}
+	const char* productNames[] = {
+		"depth", "normal", "hdr", "taa-input", "taa-output", "exposure",
+		"bloom", "post-tone", "final", "drawable",
+	};
+	const char* owners[] = {
+		"EveSpaceSceneRenderDriver", "EveSpaceSceneRenderDriver",
+		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer", "Tr2RenderContext.defaultBackBuffer",
+	};
+	output << std::setprecision( 12 )
+		   << "{\n  \"schema\":\"trinity.presentation-audit-report.v1\",\n"
+		   << "  \"capturePolicy\":{\"completedFrameSnapshot\":true,"
+			  "\"diagnosticTargetsOffscreen\":true,\"advancingRerenders\":0,"
+			  "\"temporalHistoryMutation\":false},\n"
+		   << "  \"frames\":[";
+	for( size_t frameIndex = 0; frameIndex < probe->presentationAuditFrames.size();
+		 ++frameIndex )
+	{
+		const auto& frame = probe->presentationAuditFrames[frameIndex];
+		output << ( frameIndex ? "," : "" ) << "\n    {\"frame\":" << frame.frame
+			   << ",\"simulationTime\":" << frame.simulationTime
+			   << ",\"trajectoryHash\":\"" << std::hex << frame.trajectoryHash
+			   << std::dec << "\",\"postProcessSucceeded\":"
+			   << ( frame.postProcessSucceeded ? "true" : "false" )
+			   << ",\"camera\":{\"view\":";
+		WriteSolarBodyMatrix( output, frame.view );
+		output << ",\"projection\":";
+		WriteSolarBodyMatrix( output, frame.projection );
+		output << "},\"settings\":{\"adaptedLuminance\":" << frame.adaptedLuminance
+			   << ",\"exposureMultiplier\":" << frame.exposureMultiplier
+			   << ",\"exposureMeasured\":" << ( frame.exposureMeasured ? "true" : "false" )
+			   << ",\"dynamicExposureActive\":" << ( frame.dynamicExposureActive ? "true" : "false" )
+			   << ",\"dynamicExposureApplied\":" << ( frame.dynamicExposureApplied ? "true" : "false" )
+			   << ",\"gamma\":" << frame.gamma
+			   << ",\"tonemappingMethod\":" << frame.tonemappingMethod
+			   << ",\"bloomActive\":" << ( frame.bloomActive ? "true" : "false" )
+			   << ",\"desaturationActive\":" << ( frame.desaturationActive ? "true" : "false" )
+			   << ",\"desaturationIntensity\":" << frame.desaturationIntensity
+			   << ",\"filmGrainActive\":" << ( frame.filmGrainActive ? "true" : "false" )
+			   << ",\"taaActive\":" << ( frame.taaActive ? "true" : "false" ) << "}"
+			   << ",\"passOrder\":[";
+		for( size_t stage = 0; stage < frame.passOrder.size(); ++stage )
+		{
+			output << ( stage ? "," : "" ) << SolarBodyJsonString( frame.passOrder[stage] );
+		}
+		output << "],\"products\":[";
+		for( uint32_t product = 0;
+			 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+		{
+			const auto& metrics = frame.products[product];
+			const uint32_t reportIndex = product < TRINITY_STANDALONE_PRESENTATION_BLOOM ?
+				product : product + 1;
+			output << ( product ? "," : "" ) << "{\"identity\":"
+				   << SolarBodyJsonString( productNames[reportIndex] )
+				   << ",\"owner\":" << SolarBodyJsonString( owners[reportIndex] )
+				   << ",\"format\":" << metrics.format
+				   << ",\"width\":" << metrics.width
+				   << ",\"height\":" << metrics.height
+				   << ",\"hash\":\"" << std::hex << std::setw( 16 )
+				   << std::setfill( '0' ) << metrics.hash << std::dec << std::setfill( ' ' )
+				   << "\",\"finiteSamples\":" << metrics.finiteSamples
+				   << ",\"invalidSamples\":" << metrics.invalidSamples
+				   << ",\"minimum\":" << metrics.minimum
+				   << ",\"mean\":" << metrics.mean
+				   << ",\"maximum\":" << metrics.maximum
+				   << ",\"nonuniform\":" << ( metrics.nonuniform ? "true" : "false" )
+				   << ",\"capturedBeforeReuseOrRelease\":"
+				   << ( metrics.capturedBeforeReuseOrRelease ? "true" : "false" ) << "}";
+		}
+		const auto& exposure = frame.exposure;
+		output << "],\"exposure\":{\"identity\":\"ExposureBuffer\","
+			  "\"owner\":\"Tr2PostProcessRenderer\",\"format\":\"R32_FLOAT\","
+			  "\"width\":8,\"height\":1,\"hash\":\"" << std::hex
+			   << std::setw( 16 ) << std::setfill( '0' ) << exposure.hash
+			   << std::dec << std::setfill( ' ' )
+			   << "\",\"finiteSamples\":" << exposure.finiteSamples
+			   << ",\"invalidSamples\":" << exposure.invalidSamples
+			   << ",\"minimum\":" << exposure.minimum
+			   << ",\"mean\":" << exposure.mean
+			   << ",\"maximum\":" << exposure.maximum
+			   << ",\"nonuniform\":" << ( exposure.nonuniform ? "true" : "false" )
+			   << ",\"capturedBeforeReuseOrRelease\":"
+			   << ( exposure.capturedBeforeReuseOrRelease ? "true" : "false" )
+			   << ",\"adaptedLuminance\":"
+			   << frame.adaptedLuminance << "},\"drawableCopy\":{\"source\":"
+			   << "\"FinalPostProcessColor\",\"destination\":\"defaultBackBuffer\","
+				  "\"formatsMatch\":" << ( frame.drawableFormatsMatch ? "true" : "false" )
+			   << ",\"byteEqual\":" << ( frame.drawableByteEqual ? "true" : "false" )
+			   << ",\"conversion\":" << SolarBodyJsonString( frame.drawableConversion )
+			   << "}}";
+	}
+	output << "\n  ]\n}\n";
+	return output.good();
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionReport(
@@ -19294,19 +20262,22 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ? "live" : "origin";
 	const char* environmentName =
 		probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
-		"live-distance" : "scripted";
+		"live-distance" :
+		"scripted";
 	const size_t registeredSources = probe->shLightingManager ?
-		probe->shLightingManager->GetRegisteredSecondarySourceCountForDiagnostics() : 0;
+		probe->shLightingManager->GetRegisteredSecondarySourceCountForDiagnostics() :
+		0;
 	const uint64_t authoredOpaqueAreaCount = canonical ?
-		probe->nativeSofDiagnostics.actualAreaCounts[TRIBATCHTYPE_OPAQUE] : 0;
+		probe->nativeSofDiagnostics.actualAreaCounts[TRIBATCHTYPE_OPAQUE] :
+		0;
 	const uint64_t submittedOpaqueBatches = canonical ?
 		probe->scene->GetMainPassBatchDiagnostics().opaque :
 		( probe->renderable ? probe->renderable->GetCommittedOpaqueBatchCount() : 0 );
 	auto traceContains = [&]( const char* value ) {
 		return std::find(
-			probe->sceneConstructionTrace.begin(),
-			probe->sceneConstructionTrace.end(),
-			std::string( value ) ) != probe->sceneConstructionTrace.end();
+				   probe->sceneConstructionTrace.begin(),
+				   probe->sceneConstructionTrace.end(),
+				   std::string( value ) ) != probe->sceneConstructionTrace.end();
 	};
 	auto tracePrecedes = [&]( const char* first, const char* second ) {
 		const auto firstIt = std::find(
@@ -19438,7 +20409,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		canonical && traceContains( "single-sh-manager-installed" ) &&
 			tracePrecedes( "shared-sun-ball-bound", "single-sh-manager-installed" ) &&
 			( probe->shLightingSelected ? probe->shLightingManager.p != nullptr :
-				probe->shLightingManager.p == nullptr ),
+										  probe->shLightingManager.p == nullptr ),
 		canonical && nativeResourcesReady && publishedAfterPreparation &&
 			traceContains( "fresh-histories-reset" ) &&
 			tracePrecedes( "single-sh-manager-installed", "fresh-histories-reset" ) &&
@@ -19465,47 +20436,65 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		probe->solarEnvironment != STANDALONE_SOLAR_ENVIRONMENT_OFF;
 	const std::array<ResourceClosure, 11> resources = { {
 		{
-			"res:/dx9/scene/universe/a01_cube.black", "", "",
-			probe->backgroundPrepared, true,
+			"res:/dx9/scene/universe/a01_cube.black",
+			"",
+			"",
+			probe->backgroundPrepared,
+			true,
 		},
 		{
-			"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black", "", "",
-			probe->newEdenSun != nullptr, true,
+			"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black",
+			"",
+			"",
+			probe->newEdenSun != nullptr,
+			true,
 		},
 		{
-			"res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black", "", "",
-			probe->newEdenPlanet != nullptr, true,
+			"res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black",
+			"",
+			"",
+			probe->newEdenPlanet != nullptr,
+			true,
 		},
 		{
-			"res:/fisfx/lensflare/yellow_small.black", "", "",
-			probe->newEdenLensFlare != nullptr, lensFlareSelected,
+			"res:/fisfx/lensflare/yellow_small.black",
+			"",
+			"",
+			probe->newEdenLensFlare != nullptr,
+			lensFlareSelected,
 		},
 		{
-			"res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black", "", "",
+			"res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black",
+			"",
+			"",
 			probe->solarEnvironmentFog && probe->solarEnvironmentBloom &&
 				probe->solarEnvironmentDesaturate,
 			solarEnvironmentSelected,
 		},
 		{
-			"res:/dx9/model/spaceobjectfactory/data.black", "",
+			"res:/dx9/model/spaceobjectfactory/data.black",
+			"",
 			"6f119a90ff70318d4f4844f381214dda65f8c307adef7e6b0b17cd6b0349df0d",
 			probe->nativeSofDiagnostics.callerDataInstalled,
 			canonical,
 		},
 		{
-			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2", "",
+			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2",
+			"",
 			"4f4c6b44310b6b9b42b608a748085d33eb3ef82c85c6daf69bbb238d72a8e705",
 			canonical ? probe->nativeSofDiagnostics.geometryClosureComplete : probe->renderable != nullptr,
 			true,
 		},
 		{
-			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2", "probe:/AsteroNative.cmf",
+			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2",
+			"probe:/AsteroNative.cmf",
 			"fd89fbf8817c138fcca1ab9de8ab67d964b9c20d903f932f9d3bd4df9bb3c9db",
 			canonical ? probe->nativeSofDiagnostics.geometryPrepared : probe->renderable != nullptr,
 			true,
 		},
 		{
-			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2", "",
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2",
+			"",
 			"218bddc8bf53a448ce50b00e98c3e5e53a8f42d5a51aaa43eb90d688644271fc",
 			probe->nativeSofDiagnostics.geometryClosureComplete,
 			canonical,
@@ -19666,6 +20655,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		"scene-sun-diffuse-color",
 		"scene-sun-direction",
 		"scene-ambient-color",
+		"sh-intensities",
 		"sh-source-position",
 		"sh-receiver-position",
 		"solar-environment-active",
@@ -19674,10 +20664,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		"environment-bloom",
 		"environment-desaturation",
 	};
-	static constexpr const char* overrideOwners[] = {
+	const std::array<const char*, std::size( overrideFields )> overrideOwners = {
 		"authored-sun-color-controller",
 		"live-sun-ball",
 		"serialized-scene",
+		canonical ?
+			( probe->serializedShLightingManager ? "serialized-scene" : "engine-constructor-default" ) :
+			"sample-legacy-control",
 		"scene-membership",
 		"native-eveship2",
 		"live-sun-distance-field",
@@ -19689,7 +20682,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 	const std::array<bool, std::size( overrideFields )> overrideActive = {
 		false,
 		false,
-		false,
+		!probe->ambientLightingAuthored,
+		probe->shLightingManagerProvenance == "sample-legacy-control",
 		!canonical && probe->legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_AUTHORED,
 		!canonical && probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_ORIGIN,
 		!canonical && probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED,
@@ -19745,7 +20739,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		return hash.str();
 	};
 	auto writeHistoryDiagnostics = [&](
-		const Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) {
+									   const Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) {
 		output << "{\"taaResetCount\":" << diagnostics.taaResetCount
 			   << ",\"taaFrameCounter\":" << diagnostics.taaFrameCounter
 			   << ",\"taaResetPending\":"
@@ -19756,7 +20750,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 			   << diagnostics.exposureMeasurementCount << '}';
 	};
 	auto writeMemberDiagnostics = [&](
-		const Tr2PostProcess2::SelectedMemberDiagnostics& diagnostics ) {
+									  const Tr2PostProcess2::SelectedMemberDiagnostics& diagnostics ) {
 		output << "{\"hasFog\":" << ( diagnostics.hasFog ? "true" : "false" )
 			   << ",\"hasBloom\":" << ( diagnostics.hasBloom ? "true" : "false" )
 			   << ",\"hasDesaturate\":"
@@ -19816,30 +20810,31 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 	}
 	output << "],\n  \"sof\":{\"rootClass\":"
 		   << SolarBodyJsonString( canonical && probe->nativeShip ?
-			  "EveShip2" : ( probe->renderable ? "TrinityStandaloneRenderable" : "" ) )
+									   "EveShip2" :
+									   ( probe->renderable ? "TrinityStandaloneRenderable" : "" ) )
 		   << ",\"dna\":" << SolarBodyJsonString( canonical ? "soef1_t1:soebase:soe" : "" )
 		   << ",\"native\":" << ( canonical && probe->nativeShip ? "true" : "false" )
 		   << ",\"fallback\":" << ( canonical && !probe->renderable ? "false" : "true" )
 		   << ",\"impactType\":"
-			   << SolarBodyJsonString(
+		   << SolarBodyJsonString(
 				  probe->nativeSofDiagnostics.impactEffectType == EveSOFDataHull::IMPACTEFFECT_NONE ?
 					  "NONE" :
-				  probe->nativeSofDiagnostics.impactEffectType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID ?
+					  probe->nativeSofDiagnostics.impactEffectType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID ?
 					  "ELLIPSOID" :
 					  "HULL" )
-			   << ",\"radius\":"
-			   << ( canonical && probe->nativeShip ? probe->nativeShip->GetRadius() : probe->modelWorldScale )
-			   << ",\"boneCount\":"
-			   << probe->nativeSofDiagnostics.geometryBoneBindingCount
-			   << ",\"skinCount\":"
-			   << probe->nativeSofDiagnostics.geometrySkeletonCount
-			   << ",\"animationCount\":"
-			   << probe->nativeSofDiagnostics.geometryAnimationCount
-			   << ",\"skinnedAreaCount\":"
-			   << probe->nativeSofDiagnostics.geometrySkinnedAreaCount
-			   << ",\"affectedByBones\":"
-			   << ( probe->nativeSofDiagnostics.geometrySkinningComplete ? "true" : "false" )
-			   << ",\"authoredOpaqueAreaCount\":" << authoredOpaqueAreaCount
+		   << ",\"radius\":"
+		   << ( canonical && probe->nativeShip ? probe->nativeShip->GetRadius() : probe->modelWorldScale )
+		   << ",\"boneCount\":"
+		   << probe->nativeSofDiagnostics.geometryBoneBindingCount
+		   << ",\"skinCount\":"
+		   << probe->nativeSofDiagnostics.geometrySkeletonCount
+		   << ",\"animationCount\":"
+		   << probe->nativeSofDiagnostics.geometryAnimationCount
+		   << ",\"skinnedAreaCount\":"
+		   << probe->nativeSofDiagnostics.geometrySkinnedAreaCount
+		   << ",\"affectedByBones\":"
+		   << ( probe->nativeSofDiagnostics.geometrySkinningComplete ? "true" : "false" )
+		   << ",\"authoredOpaqueAreaCount\":" << authoredOpaqueAreaCount
 		   << ",\"submittedOpaqueBatches\":" << submittedOpaqueBatches
 		   << ",\"opaqueBatches\":" << submittedOpaqueBatches
 		   << ",\"directHullLightCount\":" << probe->nativeSofDiagnostics.directHullLightCount
@@ -19872,15 +20867,24 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 		   << ",\"proxySourceCount\":" << probe->secondaryLights.size()
 		   << ",\"receiverPositionSource\":"
 		   << SolarBodyJsonString(
-			  canonical || probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ?
-				  "live-ball" : "origin" ) << "},\n"
+				  canonical || probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ?
+					  "live-ball" :
+					  "origin" )
+		   << ",\"intensityProvenance\":"
+		   << SolarBodyJsonString( probe->shLightingManagerProvenance )
+		   << ",\"primaryIntensity\":"
+		   << ( probe->shLightingManager ? probe->shLightingManager->GetPrimaryIntensity() : 0.0f )
+		   << ",\"secondaryIntensity\":"
+		   << ( probe->shLightingManager ? probe->shLightingManager->GetSecondaryIntensity() : 0.0f )
+		   << "},\n"
 		   << "  \"environment\":{\"ownerCount\":"
 		   << ( probe->clientPostProcess ? 1 : 0 )
 		   << ",\"activationRadius\":" << kNewEdenSolarEnvironmentActivationRadius
 		   << ",\"fieldCenterSource\":"
 		   << SolarBodyJsonString(
-			  canonical || probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
-				  "live-sun-ball" : "fixed" )
+				  canonical || probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
+					  "live-sun-ball" :
+					  "fixed" )
 		   << ",\"fieldDimensions\":[" << kNewEdenSolarEnvironmentFieldDimension << ','
 		   << kNewEdenSolarEnvironmentFieldDimension << ','
 		   << kNewEdenSolarEnvironmentFieldDimension
@@ -19950,8 +20954,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionRepor
 	}
 	output << "],\"silkExecutions\":"
 		   << ( probe->volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
-				probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
-				probe->renderedFrameCount : 0 )
+						probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+					probe->renderedFrameCount :
+					0 )
 		   << ",\"froxelExecutions\":"
 		   << ( probe->froxelRenderingEnabled ? probe->renderedFrameCount : 0 ) << "},\n"
 		   << "  \"runtime\":{\"trajectorySha256\":"
@@ -20066,6 +21071,278 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarOptics(
 			!probe->solarOpticsReportPath.empty() && ( occlusionView == 5 || occlusionView == 6 ) );
 	}
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureTourColorGrade(
+	void* opaqueProbe,
+	int colorGrade )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || colorGrade < STANDALONE_TOUR_COLOR_GRADE_CLIENT_DEFAULT ||
+		colorGrade > STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE )
+	{
+		CCP_LOGERR( "Tour color-grade policy requires an initialized probe and valid selection" );
+		return false;
+	}
+	probe->tourColorGrade = colorGrade;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureAmbientLighting(
+	void* opaqueProbe,
+	bool authored )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->scene )
+	{
+		CCP_LOGERR( "Ambient-light audit requires a configured scene" );
+		return false;
+	}
+	probe->ambientLightingAuthored = authored;
+	probe->scene->SetAmbientColorForDiagnostics(
+		authored ? probe->authoredSceneAmbientColor : Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+	std::fprintf(
+		stderr,
+		"Scene ambient audit: mode=%s authored=(%.9g,%.9g,%.9g) applied=(%.9g,%.9g,%.9g)\n",
+		authored ? "authored" : "off",
+		probe->authoredSceneAmbientColor.r,
+		probe->authoredSceneAmbientColor.g,
+		probe->authoredSceneAmbientColor.b,
+		probe->scene->GetLightingSetup().ambientColor.r,
+		probe->scene->GetLightingSetup().ambientColor.g,
+		probe->scene->GetLightingSetup().ambientColor.b );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureShipLightingReport(
+	void* opaqueProbe,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] )
+	{
+		CCP_LOGERR( "Ship-lighting inheritance report requires an initialized probe and output path" );
+		return false;
+	}
+	probe->shipLightingReportPath = reportPath;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureShipLightingControl(
+	void* opaqueProbe,
+	int control )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || control < STANDALONE_SHIP_LIGHTING_ASTERO ||
+		control > STANDALONE_SHIP_LIGHTING_VENTURE )
+	{
+		CCP_LOGERR( "Ship-lighting control requires an initialized probe and valid hull" );
+		return false;
+	}
+	probe->shipLightingControl = control;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteShipLightingReport( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->shipLightingReportPath.empty() || !probe->scene || !probe->driver ||
+		!probe->nativeShip || !probe->nativeSofDiagnostics.nativeShip )
+	{
+		CCP_LOGERR( "Ship-lighting inheritance report requires a rendered canonical native ship" );
+		return false;
+	}
+
+	IEveSpaceObject2::ParentData parentData;
+	probe->nativeShip->GetParentData( &parentData );
+	double shMaximum = 0.0;
+	for( size_t index = 0; parentData.shLighting && index < Tr2ShLightingManager::PACKED_COEFFICIENT_COUNT; ++index )
+	{
+		const Vector4& coefficient = parentData.shLighting[index];
+		shMaximum = std::max( shMaximum, static_cast<double>( std::abs( coefficient.x ) ) );
+		shMaximum = std::max( shMaximum, static_cast<double>( std::abs( coefficient.y ) ) );
+		shMaximum = std::max( shMaximum, static_cast<double>( std::abs( coefficient.z ) ) );
+	}
+
+	const Vector3 worldPosition = probe->nativeShip->GetWorldPosition();
+	const EveSpaceScene::LightingSetup lighting = probe->scene->GetLightingSetup();
+	const EveSpaceSceneRenderDriver::Settings& settings = probe->driver->GetSettings();
+	const EveSpaceScene::RaytracedShadowDiagnostics& raytraced =
+		probe->scene->GetRaytracedShadowDiagnostics();
+	const Tr2ShLightingManagerPtr shManager = probe->scene->GetShLightingManager();
+	std::vector<Tr2ShLightingManager::SecondarySourceDiagnostics> shSources;
+	if( shManager )
+	{
+		shManager->GetSecondarySourceDiagnostics(
+			worldPosition,
+			probe->nativeShip->GetShLightingCutoffRadiusForDiagnostics(),
+			shSources );
+	}
+	const Tr2PPDesaturateEffectPtr desaturate = probe->clientPostProcess ?
+		probe->clientPostProcess->GetSelectedDesaturateForDiagnostics() :
+		Tr2PPDesaturateEffectPtr{};
+	const Tr2PPColorCorrectionEffectPtr colorCorrection = probe->clientPostProcess ?
+		probe->clientPostProcess->GetColorCorrectionIfAvailable( PostProcess::HIGH ) :
+		Tr2PPColorCorrectionEffectPtr{};
+	std::vector<const Tr2PPLutEffect*> luts;
+	if( probe->clientPostProcess )
+	{
+		probe->clientPostProcess->GetAvilableSortedLuts( luts, PostProcess::HIGH );
+	}
+	const bool postProcessDiagnosticsAvailable =
+		probe->postProcessDiagnosticsEnabled && probe->renderContext &&
+		ReadPostProcessDiagnostics( *probe, *probe->renderContext );
+	const auto& postProcess = probe->postProcessDiagnostics;
+	const float adaptedLuminance =
+		postProcessDiagnosticsAvailable ? postProcess.exposure[0] : 0.0f;
+	const float exposureDenominator = 0.5f +
+		( adaptedLuminance - 0.5f ) * postProcess.exposureInfluence;
+	const float exposureMultiplier = postProcessDiagnosticsAvailable ?
+		( postProcess.dynamicExposureApplied ?
+			  std::pow( 2.0f, postProcess.exposureAdjustment ) *
+				  postProcess.exposureMiddleValue /
+				  std::max( exposureDenominator, 0.000001f ) :
+			  std::pow( 2.0f, postProcess.exposureAdjustment ) ) :
+		0.0f;
+
+	std::ofstream output( probe->shipLightingReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+	{
+		CCP_LOGERR( "Could not open ship-lighting inheritance report output" );
+		return false;
+	}
+	const bool ventureControl =
+		probe->shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE;
+	output << std::setprecision( 10 )
+		   << "{\n"
+		   << "  \"schema\":\"trinity.ship-lighting-inheritance-report.v1\",\n"
+		   << "  \"ship\":{\"class\":\"EveShip2\",\"name\":"
+		   << SolarBodyJsonString( ventureControl ? "Venture" : "Astero" )
+		   << ",\"dna\":"
+		   << SolarBodyJsonString( ventureControl ? "oref1_t1:orebase:ore" : "soef1_t1:soebase:soe" )
+		   << ","
+			  "\"worldPosition\":["
+		   << worldPosition.x << ',' << worldPosition.y << ',' << worldPosition.z
+		   << "],\"radius\":" << probe->nativeShip->GetRadius()
+		   << ",\"castsShadow\":" << ( probe->nativeSofDiagnostics.castsShadow ? "true" : "false" )
+		   << ",\"reflectionMode\":" << probe->nativeSofDiagnostics.reflectionMode << "},\n"
+		   << "  \"universalSceneInputs\":{\"directSun\":{\"direction\":["
+		   << lighting.sunDirection.x << ',' << lighting.sunDirection.y << ',' << lighting.sunDirection.z
+		   << "],\"color\":[" << lighting.sunColor.r << ',' << lighting.sunColor.g << ','
+		   << lighting.sunColor.b << ',' << lighting.sunColor.a << "]},\"ambientColor\":["
+		   << lighting.ambientColor.r << ',' << lighting.ambientColor.g << ','
+		   << lighting.ambientColor.b << ',' << lighting.ambientColor.a
+		   << "],\"authoredAmbientColor\":[" << probe->authoredSceneAmbientColor.r << ','
+		   << probe->authoredSceneAmbientColor.g << ',' << probe->authoredSceneAmbientColor.b << ','
+		   << probe->authoredSceneAmbientColor.a << "],\"ambientProvenance\":"
+		   << SolarBodyJsonString(
+				  probe->ambientLightingAuthored ? "serialized-scene" : "diagnostic-off" )
+		   << ",\"nebulaIntensity\":" << lighting.nebulaIntensity
+		   << ",\"reflectionIntensity\":" << lighting.reflectionIntensity
+		   << ",\"backgroundReflectionIntensity\":" << lighting.backgroundReflectionIntensity
+		   << ",\"defaultDiffuseRoughness\":" << lighting.defaultDiffuseRoughness << "},\n"
+		   << "  \"sphericalHarmonics\":{\"receiver\":\"EveSpaceObject2\",\"samplePosition\":["
+		   << worldPosition.x << ',' << worldPosition.y << ',' << worldPosition.z
+		   << "],\"backingResolution\":[" << probe->renderWidth << ',' << probe->renderHeight
+		   << "],\"estimatedPixelDiameter\":" << probe->nativeShip->GetEstimatedPixelDiameter()
+		   << ",\"estimatedPixelDiameterWithChildren\":"
+		   << probe->nativeShip->GetEstimatedPixelDiameterWithChildren()
+		   << ",\"registeredSourceCount\":"
+		   << ( shManager ? shManager->GetRegisteredSecondarySourceCountForDiagnostics() : 0 )
+		   << ",\"intensityProvenance\":"
+		   << SolarBodyJsonString( probe->shLightingManagerProvenance )
+		   << ",\"primaryIntensity\":" << ( shManager ? shManager->GetPrimaryIntensity() : 0.0f )
+		   << ",\"secondaryIntensity\":" << ( shManager ? shManager->GetSecondaryIntensity() : 0.0f )
+		   << ",\"coefficientMaximum\":" << shMaximum
+		   << ",\"contributing\":" << ( shMaximum > 0.0 ? "true" : "false" )
+		   << ",\"receiverCutoffRadius\":"
+		   << probe->nativeShip->GetShLightingCutoffRadiusForDiagnostics()
+		   << ",\"sources\":[";
+	for( size_t index = 0; index < shSources.size(); ++index )
+	{
+		const auto& source = shSources[index];
+		if( index )
+		{
+			output << ',';
+		}
+		output << "{\"index\":" << index << ",\"position\":[" << source.position.x << ','
+			   << source.position.y << ',' << source.position.z << "],\"radius\":" << source.radius
+			   << ",\"albedo\":[" << source.albedo.r << ',' << source.albedo.g << ','
+			   << source.albedo.b << ',' << source.albedo.a << "],\"emissive\":["
+			   << source.emissive.r << ',' << source.emissive.g << ',' << source.emissive.b << ','
+			   << source.emissive.a << "],\"distanceToSample\":" << source.distanceToSample
+			   << ",\"maximumColorComponent\":" << source.maximumColorComponent
+			   << ",\"energyCutoffMetric\":" << source.energyCutoffMetric
+			   << ",\"passesRadiusCutoff\":" << ( source.passesRadiusCutoff ? "true" : "false" )
+			   << ",\"passesDistanceCutoff\":" << ( source.passesDistanceCutoff ? "true" : "false" )
+			   << ",\"passesEnergyCutoff\":" << ( source.passesEnergyCutoff ? "true" : "false" )
+			   << '}';
+	}
+	output << "]},\n"
+		   << "  \"shipSpecificInputs\":{\"materialAreas\":"
+		   << probe->nativeSofDiagnostics.materialAreaCount
+		   << ",\"directHullLights\":" << probe->nativeSofDiagnostics.directHullLightCount
+		   << ",\"attachmentLights\":" << probe->nativeSofDiagnostics.attachmentLightCount
+		   << ",\"localLights\":" << probe->nativeSofDiagnostics.localLightCount
+		   << ",\"boosters\":" << probe->nativeSofDiagnostics.boosterCount
+		   << ",\"trails\":" << probe->nativeSofDiagnostics.trailCount << "},\n"
+		   << "  \"transport\":{\"shadowQuality\":" << static_cast<int>( settings.shadowQuality )
+		   << ",\"directionalShadowsEnabled\":" << ( settings.enableDirectionalShadows ? "true" : "false" )
+		   << ",\"raytracingSupported\":" << ( probe->rayTracingSupported ? "true" : "false" )
+		   << ",\"raytracedGeometryPresent\":" << ( raytraced.geometryPresent ? "true" : "false" )
+		   << ",\"raytracedDispatchSucceeded\":" << ( raytraced.dispatchSucceeded ? "true" : "false" )
+		   << ",\"raytracedResultValid\":" << ( raytraced.resultValid ? "true" : "false" )
+		   << ",\"reflectionSource\":" << SolarBodyJsonString( ReflectionSourceName( probe->reflectionSource ) )
+		   << "},\n"
+		   << "  \"finish\":{\"tourColorGrade\":"
+		   << SolarBodyJsonString(
+				  probe->tourColorGrade == STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE ?
+					  "sun-desaturate" :
+					  "client-default" )
+		   << ",\"solarEnvironmentActive\":" << ( probe->solarEnvironmentFieldActive ? "true" : "false" )
+		   << ",\"desaturateIntensity\":" << ( desaturate ? desaturate->m_intensity : 0.0f )
+		   << ",\"colorCorrectionSelected\":" << ( colorCorrection ? "true" : "false" )
+		   << ",\"lutCount\":" << luts.size()
+		   << ",\"gamma\":{\"value\":" << g_eveSpaceSceneGammaBrightness
+		   << ",\"provenance\":\"registered-engine-setting-default\""
+			  ",\"sceneConsumer\":\"EveSpaceScene.PerFrameVS.GammaBrightness\""
+			  ",\"toneConsumer\":\"Tonemapping.OutputGamma\""
+		   << ",\"toneConsumerObserved\":"
+		   << ( postProcessDiagnosticsAvailable && postProcess.tonemappingSucceeded ? "true" : "false" )
+		   << ",\"reportedOutputGamma\":"
+		   << ( postProcessDiagnosticsAvailable ? postProcess.outputGamma : g_eveSpaceSceneGammaBrightness )
+		   << "},\"exposure\":{\"diagnosticsAvailable\":"
+		   << ( postProcessDiagnosticsAvailable ? "true" : "false" )
+		   << ",\"source\":\"Tr2PPDynamicExposureEffect\""
+		   << ",\"active\":" << ( postProcess.dynamicExposureActive ? "true" : "false" )
+		   << ",\"applied\":" << ( postProcess.dynamicExposureApplied ? "true" : "false" )
+		   << ",\"histogramCreated\":" << ( postProcess.histogramCreated ? "true" : "false" )
+		   << ",\"histogramMerged\":" << ( postProcess.histogramMerged ? "true" : "false" )
+		   << ",\"measured\":" << ( postProcess.exposureMeasured ? "true" : "false" )
+		   << ",\"historyReused\":"
+		   << ( postProcess.dynamicExposureHistoryReused ? "true" : "false" )
+		   << ",\"adaptedLuminance\":" << adaptedLuminance
+		   << ",\"influence\":" << postProcess.exposureInfluence
+		   << ",\"middleValue\":" << postProcess.exposureMiddleValue
+		   << ",\"adjustment\":" << postProcess.exposureAdjustment
+		   << ",\"minimum\":" << postProcess.minExposure
+		   << ",\"maximum\":" << postProcess.maxExposure
+		   << ",\"effectiveMultiplier\":" << exposureMultiplier
+		   << ",\"consumers\":{\"tonemapping\":"
+		   << ( postProcess.tonemappingSucceeded ? "true" : "false" )
+		   << ",\"bloom\":"
+		   << ( postProcess.bloomActive && postProcess.bloomExposureDependency ? "true" : "false" )
+		   << ",\"taa\":" << ( postProcess.taaActive ? "true" : "false" )
+		   << "}}},\n"
+		   << "  \"inheritance\":{\"universal\":[\"direct-sun\",\"scene-ambient\","
+			  "\"spherical-harmonics\",\"environment-reflection\",\"directional-shadow\","
+			  "\"postprocess-finish\"],\"shipSpecific\":[\"sof-materials\",\"attachments\","
+			  "\"authored-local-lights\",\"boosters\",\"trails\"]},\n"
+		   << "  \"crossHullControl\":{\"status\":"
+		   << SolarBodyJsonString( ventureControl ? "rendered" : "baseline" )
+		   << ",\"hull\":\"Venture\"}\n"
+		   << "}\n";
+	return output.good();
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe )
@@ -21969,7 +23246,7 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 		{
 			DestinyEmbeddedCelestialState state = {};
 			bool exact = Destiny_GetEmbeddedCelestialState(
-				probe.destinySession, kNewEdenEveGateBallId, &state ) &&
+							 probe.destinySession, kNewEdenEveGateBallId, &state ) &&
 				state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
 				!state.isMassive && !state.isInteractive && state.radius == diagnostics.ballRadius;
 			for( size_t axis = 0; exact && axis < 3; ++axis )
@@ -23612,8 +24889,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	probe->eveGateDiagnostics.authoredRadius = authoredRadius;
 	probe->eveGateDiagnostics.ballRadius =
 		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ?
-			1.0f :
-			std::max( 1.0f, authoredRadius );
+		1.0f :
+		std::max( 1.0f, authoredRadius );
 	// The contract expects the recovered landmark bearing, verifying that the
 	// authored offset is rotated onto the navigation direction.
 	for( size_t axis = 0; axis < 3; ++axis )
@@ -24684,7 +25961,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			CCP_LOGERR( "PL-14G could not close post-teardown history evidence" );
 			return false;
 		}
-		if( !probe->solarIlluminationReportPath.empty() && probe->postProcessDiagnosticsEnabled &&
+		if( ( !probe->solarIlluminationReportPath.empty() ||
+			  !probe->presentationAuditReportPath.empty() ) &&
+			probe->postProcessDiagnosticsEnabled &&
 			!ReadPostProcessDiagnostics( *probe, *probe->renderContext ) )
 		{
 			CCP_LOGERR( "Failed to refresh solar illumination exposure diagnostics" );
@@ -24737,6 +26016,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			probe->solarIlluminationCaptureRequested = false;
 		}
 		if( !RecordSolarIlluminationFrame(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ) ) )
+		{
+			return false;
+		}
+		if( !RecordPresentationAuditFrame(
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ) ) )
 		{
 			return false;

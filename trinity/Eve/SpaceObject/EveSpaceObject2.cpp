@@ -3342,6 +3342,16 @@ float EveSpaceObject2::GetEstimatedPixelDiameter() const
 	return m_estimatedPixelDiameter;
 }
 
+float EveSpaceObject2::GetEstimatedPixelDiameterWithChildren() const
+{
+	return m_estimatedPixelDiameterWithChildren;
+}
+
+float EveSpaceObject2::GetShLightingCutoffRadiusForDiagnostics() const
+{
+	return m_boundingSphereRadius * g_secondaryLightingRadiusCutoffFactor;
+}
+
 
 // --------------------------------------------------------------------------------
 // Description:

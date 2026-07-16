@@ -11,6 +11,20 @@ enum TrinityStandaloneSceneConstructionProduct : uint32_t
 	TRINITY_STANDALONE_SCENE_PRODUCT_FINAL = 2,
 };
 
+enum TrinityStandalonePresentationProduct : uint32_t
+{
+	TRINITY_STANDALONE_PRESENTATION_DEPTH = 0,
+	TRINITY_STANDALONE_PRESENTATION_NORMAL = 1,
+	TRINITY_STANDALONE_PRESENTATION_HDR = 2,
+	TRINITY_STANDALONE_PRESENTATION_TAA_INPUT = 3,
+	TRINITY_STANDALONE_PRESENTATION_TAA_OUTPUT = 4,
+	TRINITY_STANDALONE_PRESENTATION_BLOOM = 5,
+	TRINITY_STANDALONE_PRESENTATION_POST_TONE = 6,
+	TRINITY_STANDALONE_PRESENTATION_FINAL = 7,
+	TRINITY_STANDALONE_PRESENTATION_DRAWABLE = 8,
+	TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT = 9,
+};
+
 struct TrinityStandaloneRaytracedShadowDiagnostics
 {
 	bool preparationAttempted = false;
@@ -534,6 +548,16 @@ extern "C" bool TrinityStandaloneProbeSelectSceneConstructionProduct(
 	void* opaqueProbe,
 	uint32_t product );
 extern "C" bool TrinityStandaloneProbeWriteSceneConstructionReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigurePresentationAudit(
+	void* opaqueProbe,
+	const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSetPresentationAuditCaptureRequested(
+	void* opaqueProbe,
+	bool requested );
+extern "C" bool TrinityStandaloneProbeSelectPresentationAuditProduct(
+	void* opaqueProbe,
+	uint32_t product );
+extern "C" bool TrinityStandaloneProbeWritePresentationAuditReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
 														 int environmentMode,
 														 int environmentDistance,

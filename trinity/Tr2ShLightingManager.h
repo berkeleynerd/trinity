@@ -68,6 +68,23 @@ public:
 	{
 		return m_sources.size();
 	}
+	struct SecondarySourceDiagnostics
+	{
+		Vector3 position;
+		float radius;
+		Color albedo;
+		Color emissive;
+		float distanceToSample;
+		float maximumColorComponent;
+		float energyCutoffMetric;
+		bool passesRadiusCutoff;
+		bool passesDistanceCutoff;
+		bool passesEnergyCutoff;
+	};
+	void GetSecondarySourceDiagnostics(
+		const Vector3& samplePosition,
+		float receiverCutoffRadius,
+		std::vector<SecondarySourceDiagnostics>& diagnostics ) const;
 
 	static const size_t PACKED_COEFFICIENT_COUNT = 7;
 

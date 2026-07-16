@@ -387,6 +387,41 @@ inline float MaxVectorComponent( const Vector3& v )
 	return std::max( v.x, std::max( v.y, v.z ) );
 }
 
+void Tr2ShLightingManager::GetSecondarySourceDiagnostics(
+	const Vector3& samplePosition,
+	float receiverCutoffRadius,
+	std::vector<SecondarySourceDiagnostics>& diagnostics ) const
+{
+	diagnostics.clear();
+	diagnostics.reserve( m_sources.size() );
+	const float maximumSunComponent = MaxVectorComponent( m_sunColor );
+	for( const Source& source : m_sources )
+	{
+		SecondarySourceDiagnostics result{};
+		result.position = *source.position;
+		result.radius = *source.radius;
+		result.albedo = *source.albedo;
+		result.emissive = *source.emissive;
+		result.distanceToSample = Length( result.position - samplePosition );
+		const Vector3 scaledAlbedo =
+			*reinterpret_cast<const Vector3*>( source.albedo ) * m_secondaryIntensity;
+		const Vector3 scaledEmissive =
+			*reinterpret_cast<const Vector3*>( source.emissive ) * m_secondaryIntensity;
+		result.maximumColorComponent = std::max(
+			MaxVectorComponent( scaledAlbedo ) * maximumSunComponent,
+			MaxVectorComponent( scaledEmissive ) );
+		result.energyCutoffMetric =
+			result.distanceToSample > 0.0f && std::isfinite( result.distanceToSample ) ?
+				result.radius / result.distanceToSample * result.maximumColorComponent :
+				0.0f;
+		result.passesRadiusCutoff = result.radius >= receiverCutoffRadius;
+		result.passesDistanceCutoff =
+			std::isfinite( result.distanceToSample ) && result.distanceToSample >= 1.0f;
+		result.passesEnergyCutoff = result.energyCutoffMetric >= s_cutoffRadiusRatio;
+		diagnostics.push_back( result );
+	}
+}
+
 // --------------------------------------------------------------------------------------
 // Description:
 //   Updates packed secondary source data.

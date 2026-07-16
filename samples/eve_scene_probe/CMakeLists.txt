@@ -292,6 +292,23 @@ set(EVE_SCENE_PROBE_ASTERO_NATIVE_BIN ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/Astero
 set(EVE_SCENE_PROBE_ASTERO_NATIVE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/AsteroNative.cmf)
 set(EVE_SCENE_PROBE_ASTERO_NATIVE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroNativeGeometry.json)
 set(EVE_SCENE_PROBE_ASTERO_NATIVE_CMF_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroNativeCmf.sha256)
+set(EVE_SCENE_PROBE_VENTURE_MODEL "res:/dx9/model/ship/ore/frigate/oref1/oref1_t1.gr2")
+set(EVE_SCENE_PROBE_VENTURE_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/VentureAssets)
+set(EVE_SCENE_PROBE_VENTURE_GLTF ${EVE_SCENE_PROBE_VENTURE_BUILD_DIR}/Venture.gltf)
+set(EVE_SCENE_PROBE_VENTURE_BIN ${EVE_SCENE_PROBE_VENTURE_BUILD_DIR}/Venture.bin)
+set(EVE_SCENE_PROBE_VENTURE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/VentureNative.cmf)
+set(EVE_SCENE_PROBE_VENTURE_RESOURCE_DIR
+    ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/ore/frigate/oref1)
+set(EVE_SCENE_PROBE_VENTURE_EFFECT_DIR ${EVE_SCENE_PROBE_VENTURE_RESOURCE_DIR}/effects)
+set(EVE_SCENE_PROBE_VENTURE_SMART_LIGHT_DIR
+    ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/shared/fx/smartlightsets)
+set(EVE_SCENE_PROBE_VENTURE_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/sprite)
+set(EVE_SCENE_PROBE_VENTURE_SHADER_DIR
+    ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/spaceobject/v5/quad)
+set(EVE_SCENE_PROBE_VENTURE_MANIFEST
+    ${CMAKE_CURRENT_BINARY_DIR}/Reports/VentureLightingControlResources.json)
+set(EVE_SCENE_PROBE_VENTURE_CMF_HASH
+    ${CMAKE_CURRENT_BINARY_DIR}/Reports/VentureLightingControlCmf.sha256)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
 set(EVE_SCENE_PROBE_STAR_ATLAS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/staratlas.dds)
 set(EVE_SCENE_PROBE_STAR_COLORS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/starcolors.dds)
@@ -2530,6 +2547,97 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}")
             ${EVE_SCENE_PROBE_ASTERO_MODEL_MANIFEST}
     )
     add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeAsteroAsset)
+endif()
+
+# PL-14H uses a Venture as a cross-hull lighting-control lane. Keep this
+# closure deliberately narrow: native hull materials, the two SOF child roots
+# needed to construct its authored local-light inventory, and the glass shader
+# selected by the hull. Journey-visible effect-child geometry remains outside
+# this base-lighting census.
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_VENTURE_OUTPUTS)
+    set(EVE_SCENE_PROBE_VENTURE_COPY_ARGS)
+    foreach(texture_suffix a d g m n p3 r)
+        set(logical_texture
+            "res:/dx9/model/ship/ore/frigate/oref1/oref1_t1_${texture_suffix}.dds")
+        set(staged_texture
+            "${EVE_SCENE_PROBE_VENTURE_RESOURCE_DIR}/oref1_t1_${texture_suffix}.dds")
+        list(APPEND EVE_SCENE_PROBE_VENTURE_OUTPUTS ${staged_texture})
+        list(APPEND EVE_SCENE_PROBE_VENTURE_COPY_ARGS
+            --copy-resource ${logical_texture} ${staged_texture})
+    endforeach()
+    set(EVE_SCENE_PROBE_VENTURE_EFFECT_CHILD
+        ${EVE_SCENE_PROBE_VENTURE_EFFECT_DIR}/oref1_t1_fx_01a.red)
+    set(EVE_SCENE_PROBE_VENTURE_SMART_LIGHT
+        ${EVE_SCENE_PROBE_VENTURE_SMART_LIGHT_DIR}/ore_primaryspotlight_01a.red)
+    list(APPEND EVE_SCENE_PROBE_VENTURE_OUTPUTS
+        ${EVE_SCENE_PROBE_VENTURE_EFFECT_CHILD}
+        ${EVE_SCENE_PROBE_VENTURE_SMART_LIGHT})
+    list(APPEND EVE_SCENE_PROBE_VENTURE_COPY_ARGS
+        --copy-resource
+            res:/dx9/model/ship/ore/frigate/oref1/effects/oref1_t1_fx_01a.black
+            ${EVE_SCENE_PROBE_VENTURE_EFFECT_CHILD}
+        --copy-resource
+            res:/dx9/model/shared/fx/smartlightsets/ore_primaryspotlight_01a.black
+            ${EVE_SCENE_PROBE_VENTURE_SMART_LIGHT})
+    foreach(shader_variant hi lo depth)
+        set(logical_shader
+            "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadglassv5.sm_${shader_variant}")
+        set(staged_shader
+            "${EVE_SCENE_PROBE_VENTURE_SHADER_DIR}/skinned_quadglassv5.sm_${shader_variant}")
+        list(APPEND EVE_SCENE_PROBE_VENTURE_OUTPUTS ${staged_shader})
+        list(APPEND EVE_SCENE_PROBE_VENTURE_COPY_ARGS
+            --copy-resource ${logical_shader} ${staged_shader})
+    endforeach()
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_VENTURE_GLTF} ${EVE_SCENE_PROBE_VENTURE_BIN}
+            ${EVE_SCENE_PROBE_VENTURE_OUTPUTS} ${EVE_SCENE_PROBE_VENTURE_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_BUILD_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_RESOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_EFFECT_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_SMART_LIGHT_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_TEXTURE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_VENTURE_SHADER_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_VENTURE_MODEL}
+            --output ${EVE_SCENE_PROBE_VENTURE_GLTF}
+            --include-groups 0,1,2
+            --preserve-skin
+            ${EVE_SCENE_PROBE_VENTURE_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_VENTURE_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_VENTURE_CMF}
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_VENTURE_GLTF}
+            --output ${EVE_SCENE_PROBE_VENTURE_CMF}
+            --merge-meshes
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_VENTURE_GLTF}
+            ${EVE_SCENE_PROBE_VENTURE_BIN}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_VENTURE_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_VENTURE_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_VENTURE_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_VENTURE_CMF}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeVentureLightingControlAssets
+        DEPENDS ${EVE_SCENE_PROBE_VENTURE_CMF}
+            ${EVE_SCENE_PROBE_VENTURE_OUTPUTS}
+            ${EVE_SCENE_PROBE_VENTURE_MANIFEST}
+            ${EVE_SCENE_PROBE_VENTURE_CMF_HASH})
+    add_dependencies(TrinityEveSceneProbeAssets
+        TrinityEveSceneProbeVentureLightingControlAssets)
 endif()
 
 if(TARGET TrinityAnimatedModelAssets)

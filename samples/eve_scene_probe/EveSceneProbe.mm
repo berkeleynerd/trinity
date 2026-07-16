@@ -125,13 +125,20 @@ extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested( void
 extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigurePlanetAudit( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWritePlanetAuditReport( void* opaqueProbe );
+extern "C" bool
+	TrinityStandaloneProbeConfigureBackgroundLayers( void* opaqueProbe, bool nebulaAuthored, bool starfieldAuthored );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
-															int environmentMode,
-															int environmentDistance,
-															bool sceneDistanceFogAuthored,
-															bool desaturateAuthored,
-															int occlusionView,
-															const char* reportPath );
+														int environmentMode,
+														int environmentDistance,
+														bool sceneDistanceFogAuthored,
+														bool desaturateAuthored,
+														int occlusionView,
+														const char* reportPath );
+extern "C" bool TrinityStandaloneProbeConfigureTourColorGrade( void* opaqueProbe, int colorGrade );
+extern "C" bool TrinityStandaloneProbeConfigureAmbientLighting( void* opaqueProbe, bool authored );
+extern "C" bool TrinityStandaloneProbeConfigureShipLightingReport( void* opaqueProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeConfigureShipLightingControl( void* opaqueProbe, int control );
+extern "C" bool TrinityStandaloneProbeWriteShipLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
@@ -460,6 +467,18 @@ enum class LegacySolarEnvironment
 	LiveDistance,
 };
 
+enum class TourColorGrade
+{
+	ClientDefault,
+	SunDesaturate,
+};
+
+enum class ShipLightingControl
+{
+	Astero,
+	Venture,
+};
+
 enum class AuthoredToggle
 {
 	Authored,
@@ -685,9 +704,11 @@ struct Options
 	std::string solarHighReportPath;
 	std::string solarOpticsReportPath;
 	std::string solarIlluminationReportPath;
+	std::string presentationAuditReportPath;
 	std::string planetAuditReportPath;
 	std::string systemManifestPath;
 	std::string sceneConstructionReportPath;
+	std::string shipLightingReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -736,8 +757,14 @@ struct Options
 	LegacyShProxies legacyShProxies = LegacyShProxies::Authored;
 	LegacyShReceiver legacyShReceiver = LegacyShReceiver::Origin;
 	LegacySolarEnvironment legacySolarEnvironment = LegacySolarEnvironment::Scripted;
+	TourColorGrade tourColorGrade = TourColorGrade::ClientDefault;
+	ShipLightingControl shipLightingControl = ShipLightingControl::Astero;
 	AuthoredToggle sceneDistanceFog = AuthoredToggle::Authored;
 	AuthoredToggle solarDesaturate = AuthoredToggle::Authored;
+	AuthoredToggle nebula = AuthoredToggle::Authored;
+	AuthoredToggle starfield = AuthoredToggle::Authored;
+	AuthoredToggle ambientLight = AuthoredToggle::Authored;
+	bool backgroundLayersExplicit = false;
 	SolarOcclusionView solarOcclusionView = SolarOcclusionView::Unobscured;
 	SunBodyLayers sunBodyLayers = SunBodyLayers::All;
 	SunHighLayers sunHighLayers = SunHighLayers::Off;
@@ -2012,15 +2039,37 @@ bool ParseLegacyShReceiver( const std::string& value, LegacyShReceiver& receiver
 	return true;
 }
 
-bool ParseLegacySolarEnvironment(
-	const std::string& value,
-	LegacySolarEnvironment& environment )
+bool ParseLegacySolarEnvironment( const std::string& value, LegacySolarEnvironment& environment )
 {
 	const std::string normalized = ToLower( value );
 	if( normalized == "scripted" )
 		environment = LegacySolarEnvironment::Scripted;
 	else if( normalized == "live-distance" )
 		environment = LegacySolarEnvironment::LiveDistance;
+	else
+		return false;
+	return true;
+}
+
+bool ParseTourColorGrade( const std::string& value, TourColorGrade& colorGrade )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "client-default" )
+		colorGrade = TourColorGrade::ClientDefault;
+	else if( normalized == "sun-desaturate" )
+		colorGrade = TourColorGrade::SunDesaturate;
+	else
+		return false;
+	return true;
+}
+
+bool ParseShipLightingControl( const std::string& value, ShipLightingControl& control )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "astero" )
+		control = ShipLightingControl::Astero;
+	else if( normalized == "venture" )
+		control = ShipLightingControl::Venture;
 	else
 		return false;
 	return true;
@@ -2036,6 +2085,11 @@ bool ParseAuthoredToggle( const std::string& value, AuthoredToggle& toggle )
 	else
 		return false;
 	return true;
+}
+
+std::string AuthoredToggleName( AuthoredToggle toggle )
+{
+	return toggle == AuthoredToggle::Authored ? "authored" : "off";
 }
 
 bool ParseSolarOcclusionView( const std::string& value, SolarOcclusionView& view )
@@ -2281,6 +2335,43 @@ int RenderProductApiValue( RenderProduct product )
 		return 0;
 	}
 	return 0;
+}
+
+bool PresentationProductApiValue( RenderProduct product, uint32_t& value )
+{
+	switch( product )
+	{
+	case RenderProduct::Depth:
+		value = TRINITY_STANDALONE_PRESENTATION_DEPTH;
+		return true;
+	case RenderProduct::Normal:
+		value = TRINITY_STANDALONE_PRESENTATION_NORMAL;
+		return true;
+	case RenderProduct::HdrComposite:
+		value = TRINITY_STANDALONE_PRESENTATION_HDR;
+		return true;
+	case RenderProduct::TaaInput:
+		value = TRINITY_STANDALONE_PRESENTATION_TAA_INPUT;
+		return true;
+	case RenderProduct::TaaOutput:
+		value = TRINITY_STANDALONE_PRESENTATION_TAA_OUTPUT;
+		return true;
+	case RenderProduct::Bloom:
+		value = TRINITY_STANDALONE_PRESENTATION_BLOOM;
+		return true;
+	case RenderProduct::PostTonemap:
+		value = TRINITY_STANDALONE_PRESENTATION_POST_TONE;
+		return true;
+	case RenderProduct::FinalPostprocess:
+		value = TRINITY_STANDALONE_PRESENTATION_FINAL;
+		return true;
+	case RenderProduct::Color:
+	case RenderProduct::Window:
+		value = TRINITY_STANDALONE_PRESENTATION_DRAWABLE;
+		return true;
+	default:
+		return false;
+	}
 }
 
 int ShadowsApiValue( Shadows shadows )
@@ -2975,8 +3066,7 @@ constexpr char kCanonicalNewEdenManifest[] = R"manifest({
 
 bool IsJsonBoolean( id value )
 {
-	return [value isKindOfClass:[NSNumber class]] &&
-		CFGetTypeID( (__bridge CFTypeRef)value ) == CFBooleanGetTypeID();
+	return [value isKindOfClass:[NSNumber class]] && CFGetTypeID( (__bridge CFTypeRef)value ) == CFBooleanGetTypeID();
 }
 
 std::string JsonDescription( id value )
@@ -3037,10 +3127,8 @@ bool CompareCanonicalManifestValue( id actual, id expected, const std::string& p
 		}
 		for( NSUInteger index = 0; index < expectedArray.count; ++index )
 		{
-			if( !CompareCanonicalManifestValue( actualArray[index],
-					expectedArray[index],
-					path + "[" + std::to_string( index ) + "]",
-					failure ) )
+			if( !CompareCanonicalManifestValue(
+					actualArray[index], expectedArray[index], path + "[" + std::to_string( index ) + "]", failure ) )
 			{
 				return false;
 			}
@@ -3084,7 +3172,7 @@ bool ValidateCanonicalSystemManifest( const std::string& path )
 		return false;
 	}
 	NSData* expectedData = [NSData dataWithBytes:kCanonicalNewEdenManifest
-										length:sizeof( kCanonicalNewEdenManifest ) - 1];
+										  length:sizeof( kCanonicalNewEdenManifest ) - 1];
 	id expected = [NSJSONSerialization JSONObjectWithData:expectedData options:0 error:&error];
 	if( !expected )
 	{
@@ -3109,7 +3197,8 @@ void PrintUsage( const char* executable )
 		<< "       [--material-mode probe|eve-v5]\n"
 		<< "       [--area-view all|hull|booster|distortion]\n"
 		<< "       [--scene-fixture empty|fitting|a01|new-eden]\n"
-		<< "       [--lighting-view combined|direct|sh|local|environment] [--sh-source new-eden-celestials|validation|none]\n"
+		<< "       [--nebula authored|off] [--starfield authored|off]\n"
+		<< "       [--lighting-view combined|direct|sh|local|environment] [--sh-source new-eden-celestials|validation|none] [--ambient-light authored|off]\n"
 		<< "       [--local-lights off|authored|validation] [--local-shadows auto|off|authored|validation]\n"
 		<< "       [--attachments auto|off|authored] [--attachment-view all|sprites|sprite-lines|spotlights|planes|hazes|banners]\n"
 		<< "       [--decals auto|off|authored] [--decal-view all|standard|logos|killmarks] [--kill-count N]\n"
@@ -3129,10 +3218,13 @@ void PrintUsage( const char* executable )
 		<< "       [--scene-construction legacy|canonical] [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
 		<< "       [--legacy-sh-proxies authored|off] [--legacy-sh-receiver origin|live]\n"
 		<< "       [--legacy-solar-environment scripted|live-distance]\n"
+		<< "       [--tour-color-grade client-default|sun-desaturate]\n"
+		<< "       [--ship-lighting-report REPORT.json] [--ship-lighting-control astero|venture]\n"
 		<< "       [--scene-distance-fog authored|off] [--solar-desaturate authored|off]\n"
 		<< "       [--solar-occlusion-view unobscured|hull-partial|hull-total|planet-limb|planet-eclipse|hull-sweep|planet-sweep]\n"
 		<< "       [--solar-optics-report PATH]\n"
 		<< "       [--solar-illumination frozen|authored|off] [--solar-illumination-report PATH]\n"
+		<< "       [--presentation-audit-report PATH]\n"
 		<< "       [--solar-illumination-view near-sun-hull|gate-hull|planet-day|planet-limb|planet-eclipse]\n"
 		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
 		<< "       [--sun-high-layers off|whisps|huge-definition|uber-1|uber-2|rings-top|rings-bottom|rings|pillar-1|pillar-2|particle-scaler|particles|all]\n"
@@ -3730,6 +3822,13 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--ambient-light" )
+		{
+			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.ambientLight ) )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--local-lights" )
 		{
 			if( ++i >= argc || !ParseLocalLights( argv[i], options.localLights ) )
@@ -3922,6 +4021,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--nebula" )
+		{
+			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.nebula ) )
+			{
+				return false;
+			}
+			options.backgroundLayersExplicit = true;
+		}
+		else if( arg == "--starfield" )
+		{
+			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.starfield ) )
+			{
+				return false;
+			}
+			options.backgroundLayersExplicit = true;
+		}
 		else if( arg == "--system-manifest" )
 		{
 			if( ++i >= argc )
@@ -3954,8 +4069,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		}
 		else if( arg == "--legacy-solar-environment" )
 		{
-			if( ++i >= argc ||
-				!ParseLegacySolarEnvironment( argv[i], options.legacySolarEnvironment ) )
+			if( ++i >= argc || !ParseLegacySolarEnvironment( argv[i], options.legacySolarEnvironment ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--tour-color-grade" )
+		{
+			if( ++i >= argc || !ParseTourColorGrade( argv[i], options.tourColorGrade ) )
 			{
 				return false;
 			}
@@ -4082,6 +4203,29 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.solarIlluminationReportPath = argv[i];
+		}
+		else if( arg == "--presentation-audit-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.presentationAuditReportPath = argv[i];
+		}
+		else if( arg == "--ship-lighting-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.shipLightingReportPath = argv[i];
+		}
+		else if( arg == "--ship-lighting-control" )
+		{
+			if( ++i >= argc || !ParseShipLightingControl( argv[i], options.shipLightingControl ) )
+			{
+				return false;
+			}
 		}
 		else
 		{
@@ -5097,7 +5241,8 @@ std::string CaptureBasePath( const Options& options )
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lit-" +
-		LightingViewName( options.lightingView ) + "_sh-" + ShSourceName( options.shSource ) + "_ll-" +
+		LightingViewName( options.lightingView ) + "_ambient-" + AuthoredToggleName( options.ambientLight ) +
+		"_sh-" + ShSourceName( options.shSource ) + "_ll-" +
 		LocalLightsName( options.localLights ) + "_lsh-" + LocalShadowsName( options.resolvedLocalShadows ) +
 		"_reflsrc-" + ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_nrm-" +
@@ -5171,6 +5316,7 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "materialMode=" << MaterialModeName( options.materialMode ) << "\n";
 	metadata << "areaView=" << AreaViewName( options.areaView ) << "\n";
 	metadata << "lightingView=" << LightingViewName( options.lightingView ) << "\n";
+	metadata << "ambientLight=" << AuthoredToggleName( options.ambientLight ) << "\n";
 	metadata << "shSource=" << ShSourceName( options.shSource ) << "\n";
 	metadata << "localLights=" << LocalLightsName( options.localLights ) << "\n";
 	metadata << "localShadowsRequested=" << LocalShadowsName( options.localShadows ) << "\n";
@@ -6579,6 +6725,7 @@ int main( int argc, char** argv )
 			options.solarEnvironmentDistance != SolarEnvironmentDistance::Canonical ||
 			options.sceneDistanceFog != AuthoredToggle::Authored ||
 			options.solarDesaturate != AuthoredToggle::Authored ||
+			options.tourColorGrade != TourColorGrade::ClientDefault ||
 			options.solarOcclusionView != SolarOcclusionView::Unobscured;
 		if( solarOpticsRequested &&
 			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
@@ -6586,6 +6733,12 @@ int main( int argc, char** argv )
 		{
 			std::cerr
 				<< "PL-14D solar optics controls require the High-tier New Eden fixture at hdr-exposure or higher\n";
+			return 2;
+		}
+		if( options.backgroundLayersExplicit && options.sceneFixture != SceneFixture::A01 &&
+			options.sceneFixture != SceneFixture::NewEden )
+		{
+			std::cerr << "Background layer controls require --scene-fixture a01 or new-eden\n";
 			return 2;
 		}
 		if( !options.solarOpticsReportPath.empty() && options.maxFrames <= 0 )
@@ -6608,6 +6761,16 @@ int main( int argc, char** argv )
 			std::cerr << "--solar-illumination-report requires a positive finite --frames count\n";
 			return 2;
 		}
+		if( !options.presentationAuditReportPath.empty() &&
+			( options.sceneFixture != SceneFixture::NewEden ||
+			  options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish ||
+			  options.maxFrames <= 0 || options.capturePrefix.empty() ) )
+		{
+			std::cerr << "--presentation-audit-report requires the High-tier New Eden "
+						 "hdr-finish profile, --capture-prefix, and a positive finite --frames count\n";
+			return 2;
+		}
 		if( !options.planetAuditReportPath.empty() &&
 			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
 			  options.qualityRung < QualityRung::Model || options.maxFrames <= 0 ) )
@@ -6616,8 +6779,7 @@ int main( int argc, char** argv )
 						 "a model-or-higher quality rung, and a positive finite --frames count\n";
 			return 2;
 		}
-		const bool sceneConstructionRequested =
-			options.sceneConstruction == SceneConstruction::Canonical ||
+		const bool sceneConstructionRequested = options.sceneConstruction == SceneConstruction::Canonical ||
 			!options.systemManifestPath.empty() || !options.sceneConstructionReportPath.empty() ||
 			options.legacyShProxies != LegacyShProxies::Authored ||
 			options.legacyShReceiver != LegacyShReceiver::Origin ||
@@ -6628,8 +6790,7 @@ int main( int argc, char** argv )
 			return 2;
 		}
 		if( options.sceneConstruction == SceneConstruction::Canonical &&
-			( options.systemManifestPath.empty() ||
-			  options.legacyShProxies != LegacyShProxies::Off ||
+			( options.systemManifestPath.empty() || options.legacyShProxies != LegacyShProxies::Off ||
 			  options.legacyShReceiver != LegacyShReceiver::Live ||
 			  options.legacySolarEnvironment != LegacySolarEnvironment::LiveDistance ) )
 		{
@@ -6646,6 +6807,21 @@ int main( int argc, char** argv )
 		if( !options.sceneConstructionReportPath.empty() && options.maxFrames <= 0 )
 		{
 			std::cerr << "--scene-construction-report requires a positive finite --frames count\n";
+			return 2;
+		}
+		if( !options.shipLightingReportPath.empty() &&
+			( options.sceneFixture != SceneFixture::NewEden ||
+			  options.sceneConstruction != SceneConstruction::Canonical ||
+			  options.shaderTier != ShaderTier::High ||
+			  options.qualityRung < QualityRung::Model || options.maxFrames <= 0 ) )
+		{
+			std::cerr << "--ship-lighting-report requires the finite-frame High-tier canonical New Eden scene\n";
+			return 2;
+		}
+		if( options.shipLightingControl != ShipLightingControl::Astero &&
+			options.shipLightingReportPath.empty() )
+		{
+			std::cerr << "--ship-lighting-control venture is valid only with --ship-lighting-report\n";
 			return 2;
 		}
 		const bool planetIlluminationView = options.solarIlluminationView == SolarIlluminationView::PlanetDay ||
@@ -6736,6 +6912,15 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.backgroundLayersExplicit &&
+			!TrinityStandaloneProbeConfigureBackgroundLayers(
+				probe, options.nebula == AuthoredToggle::Authored, options.starfield == AuthoredToggle::Authored ) )
+		{
+			std::cerr << "Failed to configure the background layer diagnostic\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 		if( sceneConstructionRequested &&
 			( ( !options.sceneConstructionReportPath.empty() &&
 				!EnsureParentDirectory( options.sceneConstructionReportPath ) ) ||
@@ -6746,10 +6931,23 @@ int main( int argc, char** argv )
 				  static_cast<int>( options.legacyShReceiver ),
 				  static_cast<int>( options.legacySolarEnvironment ),
 				  options.systemManifestPath.empty() ? nullptr : options.systemManifestPath.c_str(),
-				  options.sceneConstructionReportPath.empty() ?
-					  nullptr : options.sceneConstructionReportPath.c_str() ) ) )
+				  options.sceneConstructionReportPath.empty() ? nullptr :
+																options.sceneConstructionReportPath.c_str() ) ) )
 		{
 			std::cerr << "Failed to configure the PL-14G scene-construction contract\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( !options.shipLightingReportPath.empty() &&
+			( !EnsureParentDirectory( options.shipLightingReportPath ) ||
+			  !TrinityStandaloneProbeConfigureShipLightingReport(
+				  probe, options.shipLightingReportPath.c_str() ) ||
+			  !TrinityStandaloneProbeConfigureShipLightingControl(
+				  probe,
+				  options.shipLightingControl == ShipLightingControl::Venture ? 1 : 0 ) ) )
+		{
+			std::cerr << "Failed to configure the ship-lighting inheritance report\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -6827,6 +7025,15 @@ int main( int argc, char** argv )
 				[window close];
 				return 1;
 			}
+			if( !TrinityStandaloneProbeConfigureTourColorGrade(
+					probe,
+					options.tourColorGrade == TourColorGrade::SunDesaturate ? 1 : 0 ) )
+			{
+				std::cerr << "Failed to configure the Tour color-grade policy\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
 		}
 		if( solarIlluminationRequested )
 		{
@@ -6885,18 +7092,15 @@ int main( int argc, char** argv )
 		}
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
-		if( options.qualityRung != QualityRung::Shell &&
-			options.sceneConstruction == SceneConstruction::Canonical )
+		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
-				!TrinityStandaloneProbeSetWarpTarget(
-					probe, options.warpTarget == WarpTarget::EveGate ? 1 : 0 ) ||
-				!TrinityStandaloneProbePrepareCanonicalState(
-					probe,
-					static_cast<int>( options.ballpark ),
-					static_cast<int>( options.ballparkFrame ),
-					options.orbitSolver == OrbitSolver::New ? 1 : 0,
-					options.orbitRange ) )
+				!TrinityStandaloneProbeSetWarpTarget( probe, options.warpTarget == WarpTarget::EveGate ? 1 : 0 ) ||
+				!TrinityStandaloneProbePrepareCanonicalState( probe,
+															  static_cast<int>( options.ballpark ),
+															  static_cast<int>( options.ballparkFrame ),
+															  options.orbitSolver == OrbitSolver::New ? 1 : 0,
+															  options.orbitRange ) )
 			{
 				std::cerr << "Failed to prepare the packet-born PL-14G Ballpark before scene construction\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
@@ -6945,6 +7149,15 @@ int main( int argc, char** argv )
 												   static_cast<int>( options.aoMethod ) ) )
 		{
 			std::cerr << "TrinityStandaloneProbeCreateEveScene failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( options.qualityRung != QualityRung::Shell &&
+			!TrinityStandaloneProbeConfigureAmbientLighting(
+				probe, options.ambientLight == AuthoredToggle::Authored ) )
+		{
+			std::cerr << "TrinityStandaloneProbeConfigureAmbientLighting failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -7077,7 +7290,8 @@ int main( int argc, char** argv )
 			options.validateDistortion || options.validateEngines ||
 			( options.validateTemporal && options.resolvedTaa != TaaMode::Off ) ||
 			options.exposureSequence != ExposureSequence::None || !options.solarOpticsReportPath.empty() ||
-			!options.solarIlluminationReportPath.empty();
+			!options.solarIlluminationReportPath.empty() || !options.shipLightingReportPath.empty() ||
+			!options.presentationAuditReportPath.empty();
 		// Product capture must not silently add a same-time diagnostic rerender.
 		// Tone validation is an explicit contract because it reconfigures bloom and
 		// reads both sides of the tone pass; ordinary post-tone/all captures observe
@@ -7093,6 +7307,16 @@ int main( int argc, char** argv )
 				collectExposureDiagnostics || captureToneSnapshot ) )
 		{
 			std::cerr << "TrinityStandaloneProbeConfigurePostProcess failed\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( !options.presentationAuditReportPath.empty() &&
+			( !EnsureParentDirectory( options.presentationAuditReportPath ) ||
+			  !TrinityStandaloneProbeConfigurePresentationAudit(
+				  probe, options.presentationAuditReportPath.c_str() ) ) )
+		{
+			std::cerr << "Failed to configure the PL-14H1 presentation audit\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -7239,7 +7463,15 @@ int main( int argc, char** argv )
 						( renderedFrames - options.captureStartFrame ) % options.captureEvery == 0 ) ||
 					  std::binary_search(
 						  options.captureFrames.begin(), options.captureFrames.end(), renderedFrames ) );
-				const int captureProducts = ( ballparkMilestone || captureSequenceFrame ) ?
+				const bool presentationSequenceFrame =
+					!options.presentationAuditReportPath.empty() && captureSequenceFrame;
+				const bool terminalAllSnapshot = options.renderProduct == RenderProduct::All &&
+					options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames;
+				const bool presentationSnapshotRequested =
+					presentationSequenceFrame || terminalAllSnapshot;
+				const int captureProducts = presentationSnapshotRequested ?
+					0 :
+					( ballparkMilestone || captureSequenceFrame ) ?
 					kCaptureColor :
 					captureTemporalSample ?
 					kCaptureTemporalSample :
@@ -7259,6 +7491,14 @@ int main( int argc, char** argv )
 					!TrinityStandaloneProbeSetSceneConstructionCaptureRequested( probe, true ) )
 				{
 					std::cerr << "Failed to mark the PL-14G capture frame\n";
+					TrinityStandaloneProbeDestroyDevice( probe );
+					[window close];
+					return 1;
+				}
+				if( presentationSnapshotRequested &&
+					!TrinityStandaloneProbeSetPresentationAuditCaptureRequested( probe, true ) )
+				{
+					std::cerr << "Failed to mark the PL-14H1 presentation snapshot\n";
 					TrinityStandaloneProbeDestroyDevice( probe );
 					[window close];
 					return 1;
@@ -7285,41 +7525,57 @@ int main( int argc, char** argv )
 				{
 					char frameSuffix[32];
 					std::snprintf( frameSuffix, sizeof frameSuffix, "_frame-%06d.png", renderedFrames );
-					const std::string path = CaptureBasePath( options ) + frameSuffix;
-					// One-time in-frame diagnostics (the dynamic-reflection
-					// runtime contract) reuse the readback target and can
-					// stomp a single frame; report and skip rather than abort.
-					if( !EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
+					if( presentationSequenceFrame )
 					{
-						std::cerr << "Frame-sequence capture skipped at frame " << renderedFrames << "\n";
+						const std::array<std::pair<uint32_t, const char*>, 4> products = { {
+							{ TRINITY_STANDALONE_PRESENTATION_HDR, "hdr" },
+							{ TRINITY_STANDALONE_PRESENTATION_POST_TONE, "post-tone" },
+							{ TRINITY_STANDALONE_PRESENTATION_FINAL, "final" },
+							{ TRINITY_STANDALONE_PRESENTATION_DRAWABLE, "drawable" },
+						} };
+						for( const auto& [product, name] : products )
+						{
+							const std::string path = CaptureBasePath( options ) + "_" + name + frameSuffix;
+							if( !TrinityStandaloneProbeSelectPresentationAuditProduct( probe, product ) ||
+								!EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
+							{
+								std::cerr << "PL-14H1 named capture failed at frame " << renderedFrames << "\n";
+								TrinityStandaloneProbeDestroyDevice( probe );
+								[window close];
+								return 1;
+							}
+						}
+					}
+					else
+					{
+						const std::string path = CaptureBasePath( options ) + frameSuffix;
+						// One-time in-frame diagnostics (the dynamic-reflection
+						// runtime contract) reuse the readback target and can
+						// stomp a single frame; report and skip rather than abort.
+						if( !EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
+						{
+							std::cerr << "Frame-sequence capture skipped at frame " << renderedFrames << "\n";
+						}
 					}
 					if( !options.sceneConstructionReportPath.empty() )
 					{
-						bool productsCaptured =
-							TrinityStandaloneProbeRecordSceneConstructionCapture(
-								probe, static_cast<uint64_t>( renderedFrames ) );
-						const std::array<std::pair<uint32_t, RenderProduct>, 3>
-							constructionProducts = {
-								std::pair<uint32_t, RenderProduct>{
-									TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE,
-									RenderProduct::HdrComposite },
-								std::pair<uint32_t, RenderProduct>{
-									TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH,
-									RenderProduct::Depth },
-								std::pair<uint32_t, RenderProduct>{
-									TRINITY_STANDALONE_SCENE_PRODUCT_FINAL,
-									RenderProduct::FinalPostprocess },
+						bool productsCaptured = TrinityStandaloneProbeRecordSceneConstructionCapture(
+							probe, static_cast<uint64_t>( renderedFrames ) );
+						const std::array<std::pair<uint32_t, RenderProduct>, 3> constructionProducts = {
+							std::pair<uint32_t, RenderProduct>{ TRINITY_STANDALONE_SCENE_PRODUCT_HDR_COMPOSITE,
+																RenderProduct::HdrComposite },
+							std::pair<uint32_t, RenderProduct>{ TRINITY_STANDALONE_SCENE_PRODUCT_DEPTH,
+																RenderProduct::Depth },
+							std::pair<uint32_t, RenderProduct>{ TRINITY_STANDALONE_SCENE_PRODUCT_FINAL,
+																RenderProduct::FinalPostprocess },
 						};
-						for( const auto& [evidenceProduct, renderProduct] :
-							 constructionProducts )
+						for( const auto& [evidenceProduct, renderProduct] : constructionProducts )
 						{
-							const std::string productPath = CaptureBasePath( options ) + "_" +
-								RenderProductName( renderProduct ) + frameSuffix;
+							const std::string productPath =
+								CaptureBasePath( options ) + "_" + RenderProductName( renderProduct ) + frameSuffix;
 							productsCaptured =
-								TrinityStandaloneProbeSelectSceneConstructionProduct(
-									probe, evidenceProduct ) &&
-								EnsureParentDirectory( productPath ) &&
-								CaptureProbeProductPng( probe, productPath ) &&
+								TrinityStandaloneProbeSelectSceneConstructionProduct( probe, evidenceProduct ) &&
+								EnsureParentDirectory( productPath ) && CaptureProbeProductPng( probe, productPath ) &&
 								productsCaptured;
 						}
 						if( !productsCaptured )
@@ -7875,21 +8131,19 @@ int main( int argc, char** argv )
 				}
 				else if( options.renderProduct == RenderProduct::All )
 				{
-					captureSucceeded = CapturePresentedProduct( probe, window, options, RenderProduct::Color );
-					productStats.emplace_back( "color", RenderProductStats( options, RenderProduct::Color ) );
-					std::vector<RenderProduct> diagnosticProducts = { RenderProduct::Depth,
-																	  RenderProduct::Normal,
-																	  RenderProduct::Reflection };
+					std::vector<RenderProduct> diagnosticProducts = {
+						RenderProduct::Color,
+						RenderProduct::Depth,
+						RenderProduct::Normal,
+					};
 					if( options.qualityRung >= QualityRung::HdrPost )
 					{
 						diagnosticProducts.push_back( RenderProduct::HdrComposite );
 					}
 					if( options.resolvedTaa != TaaMode::Off )
 					{
-						diagnosticProducts.push_back( RenderProduct::Velocity );
 						diagnosticProducts.push_back( RenderProduct::TaaInput );
 						diagnosticProducts.push_back( RenderProduct::TaaOutput );
-						diagnosticProducts.push_back( RenderProduct::TaaCooldown );
 					}
 					if( options.qualityRung >= QualityRung::HdrExposure )
 					{
@@ -7899,84 +8153,25 @@ int main( int argc, char** argv )
 					{
 						diagnosticProducts.push_back( RenderProduct::Bloom );
 						diagnosticProducts.push_back( RenderProduct::FinalPostprocess );
-						if( options.resolvedDistortion == DistortionMode::Authored )
-						{
-							diagnosticProducts.push_back( RenderProduct::Distortion );
-						}
-					}
-					if( options.resolvedShadows == Shadows::Raytraced )
-					{
-						TrinityStandaloneRaytracedShadowDiagnostics diagnostics;
-						if( !TrinityStandaloneProbeGetRaytracedShadowDiagnostics( probe, &diagnostics ) )
-						{
-							captureSucceeded = false;
-						}
-						else
-						{
-							std::ostringstream stats;
-							stats << "geometry=" << ( diagnostics.geometryPresent ? "ready" : "missing" )
-								  << " dispatch=" << ( diagnostics.dispatchSucceeded ? "success" : "failed" )
-								  << " dispatchCount=" << diagnostics.dispatchCount << " denoise="
-								  << ( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "success" :
-																										 "failed" )
-								  << " denoiserCount=" << diagnostics.denoiserCount
-								  << " maskGenerated=" << ( diagnostics.maskGenerated ? "true" : "false" )
-								  << " maskFormat=" << diagnostics.maskFormat << " mask=" << diagnostics.maskWidth
-								  << "x" << diagnostics.maskHeight;
-							productStats.emplace_back( "raytracedShadowRuntime", stats.str() );
-						}
-					}
-					else if( options.resolvedShadows != Shadows::Off )
-					{
-						diagnosticProducts.push_back( RenderProduct::Shadow );
-						diagnosticProducts.push_back( RenderProduct::ShadowAtlas );
-					}
-					if( options.resolvedLocalShadows != LocalShadows::Off )
-					{
-						diagnosticProducts.push_back( RenderProduct::LocalShadowAtlas );
-					}
-					if( options.resolvedAmbientOcclusion != AmbientOcclusion::Off )
-					{
-						diagnosticProducts.push_back( RenderProduct::AmbientOcclusion );
-						if( options.aoMethod == AoMethod::Cortao )
-						{
-							diagnosticProducts.push_back( RenderProduct::BentNormal );
-						}
-					}
-					if( options.resolvedVolumetrics == VolumetricMode::Silk ||
-						options.resolvedVolumetrics == VolumetricMode::All )
-					{
-						diagnosticProducts.push_back( RenderProduct::VolumeSlices );
-					}
-					if( options.resolvedVolumetrics == VolumetricMode::Froxel ||
-						options.resolvedVolumetrics == VolumetricMode::All )
-					{
-						diagnosticProducts.push_back( RenderProduct::FroxelFog );
-						diagnosticProducts.push_back( RenderProduct::MieEnvironment );
 					}
 					for( RenderProduct product : diagnosticProducts )
 					{
-						const int64_t captureTime =
-							static_cast<int64_t>( std::max( renderedFrames - 1, 0 ) ) * kFrameTime;
-						const int frozenProduct = RenderProductApiValue( product ) | kCaptureFreezeScene;
-						bool productRendered = captureSucceeded &&
-							TrinityStandaloneProbeRenderFrame(
-												   probe, qualityRung, captureTime, captureTime, frozenProduct );
-						if( productRendered )
-						{
-							productRendered = TrinityStandaloneProbeRenderFrame(
-								probe, qualityRung, captureTime, captureTime, frozenProduct );
-						}
-						if( !productRendered )
+						uint32_t presentationProduct = 0;
+						if( !PresentationProductApiValue( product, presentationProduct ) ||
+							!TrinityStandaloneProbeSelectPresentationAuditProduct(
+								probe, presentationProduct ) )
 						{
 							captureSucceeded = false;
 							break;
 						}
-						ProcessEvents( window );
-						captureSucceeded = CapturePresentedProduct( probe, window, options, product );
+						captureSucceeded = captureSucceeded &&
+							CapturePresentedProduct( probe, window, options, product );
 						productStats.emplace_back( RenderProductName( product ),
-												   RenderProductStats( options, product ) );
+															   RenderProductStats( options, product ) );
 					}
+					productStats.emplace_back(
+						"allCapturePolicy",
+						"completed-frame snapshot; presentation-chain diagnostics only; zero rerenders" );
 				}
 				else
 				{
@@ -8219,26 +8414,46 @@ int main( int argc, char** argv )
 		bool sceneConstructionReportSucceeded = true;
 		if( !options.sceneConstructionReportPath.empty() )
 		{
-			sceneConstructionReportSucceeded =
-				TrinityStandaloneProbeWriteSceneConstructionReport( probe );
+			sceneConstructionReportSucceeded = TrinityStandaloneProbeWriteSceneConstructionReport( probe );
 			if( sceneConstructionReportSucceeded )
 			{
-				std::cout << "Scene construction report: "
-						  << options.sceneConstructionReportPath << "\n";
+				std::cout << "Scene construction report: " << options.sceneConstructionReportPath << "\n";
+			}
+		}
+		bool presentationAuditReportSucceeded = true;
+		if( !options.presentationAuditReportPath.empty() )
+		{
+			presentationAuditReportSucceeded =
+				TrinityStandaloneProbeWritePresentationAuditReport( probe );
+			if( presentationAuditReportSucceeded )
+			{
+				std::cout << "Presentation audit report: "
+						  << options.presentationAuditReportPath << "\n";
+			}
+		}
+		bool shipLightingReportSucceeded = true;
+		if( !options.shipLightingReportPath.empty() )
+		{
+			shipLightingReportSucceeded = TrinityStandaloneProbeWriteShipLightingReport( probe );
+			if( shipLightingReportSucceeded )
+			{
+				std::cout << "Ship-lighting inheritance report: " << options.shipLightingReportPath << "\n";
 			}
 		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
 			planetAuditReportSucceeded && sceneConstructionReportSucceeded &&
-			framePacingSucceeded && compositionValidationSucceeded &&
-			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
-			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
-			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded && ballparkOrbitValidationSucceeded &&
-			ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded &&
-			ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded && chaseCameraValidationSucceeded &&
-			chaseCameraReportSucceeded && celestialValidationSucceeded && celestialReportSucceeded &&
-			eveGateValidationSucceeded && eveGateReportSucceeded && exposureReportsSucceeded;
+			presentationAuditReportSucceeded && shipLightingReportSucceeded &&
+			framePacingSucceeded &&
+			compositionValidationSucceeded && exposureValidationSucceeded && toneValidationSucceeded &&
+			postFinishValidationSucceeded && distortionValidationSucceeded && volumetricValidationSucceeded &&
+			engineValidationSucceeded && temporalValidationSucceeded && ballparkValidationSucceeded &&
+			ballparkReportSucceeded && ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
+			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded &&
+			ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
+			chaseCameraValidationSucceeded && chaseCameraReportSucceeded && celestialValidationSucceeded &&
+			celestialReportSucceeded && eveGateValidationSucceeded && eveGateReportSucceeded &&
+			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

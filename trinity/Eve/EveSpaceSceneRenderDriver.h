@@ -167,8 +167,20 @@ public:
 	void SetPostProcessDiagnosticsEnabled( bool enabled );
 	void SetDynamicExposureApplicationEnabledForTesting( bool enabled );
 	void SetDeterministicTaaExposureForTesting( bool enabled, float exposure );
+	void SetTaaExecutionEnabledForTesting( bool enabled )
+	{
+		if( m_postProcess )
+		{
+			m_postProcess->SetTaaExecutionEnabledForTesting( enabled );
+		}
+	}
 	bool ReadPostProcessDiagnostics( Tr2RenderContext & renderContext, Tr2PostProcessRenderer::Diagnostics & diagnostics ) const;
 	bool GetLastPostProcessExecutionSucceeded() const;
+	const std::vector<std::string>& GetLastPostProcessExecutionOrder() const
+	{
+		static const std::vector<std::string> empty;
+		return m_postProcess ? m_postProcess->GetLastExecutionOrder() : empty;
+	}
 	bool GetPostProcessHistoryDiagnostics(
 		Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) const
 	{

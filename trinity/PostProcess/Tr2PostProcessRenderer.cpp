@@ -774,6 +774,9 @@ void Tr2PostProcessRenderer::Execute(
 	m_lastDiagnostics = {};
 	m_lastExecutionSucceeded = true;
 	m_lastHistogramBuffer = {};
+	auto recordStage = [&]( const char* stage ) {
+		m_lastDiagnostics.executionOrder.emplace_back( stage );
+	};
 
 	if( !sourceBuffer.IsValid() )
 	{
@@ -814,6 +817,7 @@ void Tr2PostProcessRenderer::Execute(
 	}
 
 	// Always copy
+	recordStage( "hdr-resolve" );
 	auto nonMsaaSource = gpuResourcePool.GetTempTexture( "Pre-upscaling Composite", renderSize, sourceBuffer->GetFormat(), RENDER_TARGET );
 	sourceBuffer->Resolve( nonMsaaSource, renderContext );
 
@@ -824,11 +828,13 @@ void Tr2PostProcessRenderer::Execute(
 	{
 		if( auto genericEffect = postProcess->GetGenericEffectIfAvailable( m_quality ) )
 		{
+			recordStage( "generic-postprocess" );
 			RenderGenericEffect( nonMsaaSource, sourceBuffer, renderContext, genericEffect );
 		}
 
 		if( auto fog = postProcess->GetFogIfAvailable( m_quality ) )
 		{
+			recordStage( "environment-fog" );
 			m_lastDiagnostics.fogActive = true;
 			if( !RenderFog( nonMsaaSource, sourceBuffer, gpuResourcePool, renderContext, fog ) )
 			{
@@ -839,6 +845,7 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( auto godrays = postProcess->GetGodRaysIfAvailable( m_quality ) )
 		{
+			recordStage( "god-rays" );
 			m_lastDiagnostics.godRaysActive = true;
 			if( !RenderGodRays( nonMsaaSource, depthMap, gpuResourcePool, renderContext, godrays ) )
 			{
@@ -848,15 +855,21 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( auto dof = postProcess->GetDepthOfFieldIfAvailable( m_quality ) )
 		{
+			recordStage( "depth-of-field" );
 			bool temporal = upscalingInfo.temporal || postProcess->GetTaaIfAvailable( m_quality ) != nullptr;
 			RenderDepthOfField( nonMsaaSource, gpuResourcePool, renderContext, dof, temporal, upscalingInfo.upscalingAmount );
 		}
 
 		dynamicExposure = postProcess->GetDynamicExposureIfAvailable( m_quality );
 		auto taa = postProcess->GetTaaIfAvailable( m_quality );
+		if( !m_taaExecutionEnabledForTesting )
+		{
+			taa = nullptr;
+		}
 
 		if( taa != nullptr && !upscalingInfo.temporal )
 		{
+			recordStage( "taa" );
 			if( preTaaOutput )
 			{
 				*preTaaOutput = gpuResourcePool.GetTempTexture(
@@ -904,6 +917,7 @@ void Tr2PostProcessRenderer::Execute(
 
 		if( dynamicExposure )
 		{
+			recordStage( "exposure" );
 			if( m_dynamicExposureHistoryFrozen )
 			{
 				// Frozen diagnostic products rerender the settled scene at the same
@@ -978,6 +992,7 @@ void Tr2PostProcessRenderer::Execute(
 	{
 		if( auto bloom = postProcess->GetBloomIfAvailable( m_quality ) )
 		{
+			recordStage( "bloom" );
 			m_lastDiagnostics.bloomActive = true;
 			m_lastDiagnostics.bloomLuminanceThreshold = bloom->m_luminanceThreshold;
 			m_lastDiagnostics.bloomLuminanceScale = bloom->m_luminanceScale;
@@ -1009,6 +1024,10 @@ void Tr2PostProcessRenderer::Execute(
 		}
 	}
 
+	if( sharpeningRequired )
+	{
+		recordStage( "sharpening" );
+	}
 	upscaledSource = RenderSharpening( sharpeningRequired, upscaledSource, gpuResourcePool, renderContext );
 
 	TEMP_PARAM( m_tonemappingEffect, "BlitCurrent", bloomTexture );
@@ -1022,6 +1041,7 @@ void Tr2PostProcessRenderer::Execute(
 
 	Tr2PPFilmGrainEffect* filmGrain = postProcess != nullptr ? postProcess->GetFilmGrainIfAvailable( m_quality ) : nullptr;
 
+	recordStage( "tone-and-grade" );
 	if( !upscalingInfo.temporal || filmGrain != nullptr )
 	{
 		GPU_REGION( renderContext, "Tonemapping" );
@@ -1060,6 +1080,7 @@ void Tr2PostProcessRenderer::Execute(
 	Tr2GpuResourcePool::Texture finalOutput = output;
 	if( filmGrain != nullptr )
 	{
+		recordStage( "film-grain" );
 		m_lastDiagnostics.filmGrainActive = true;
 		m_lastDiagnostics.filmGrainColored = filmGrain->m_colored;
 		m_lastDiagnostics.filmGrainColorAmount = filmGrain->m_colorAmount;
@@ -1085,6 +1106,7 @@ void Tr2PostProcessRenderer::Execute(
 	m_lastDiagnostics.finalFormat = finalOutput.IsValid() ? static_cast<uint32_t>( finalOutput->GetFormat() ) : 0;
 
 	PrepareFullScreenTarget( destination, renderContext );
+	recordStage( "drawable-copy" );
 	const bool presentationSucceeded = Tr2Renderer::DrawTexture( renderContext, finalOutput );
 	m_lastExecutionSucceeded = bloomOutputSucceeded && m_lastDiagnostics.tonemappingSucceeded &&
 		( !m_lastDiagnostics.fogActive ||
@@ -1106,6 +1128,7 @@ void Tr2PostProcessRenderer::Execute(
 	{
 		if( auto signalLoss = postProcess->GetSignalLossIfAvailable( m_quality ) )
 		{
+			recordStage( "signal-loss" );
 			RenderSignalLoss( finalOutput, renderContext, signalLoss );
 		}
 	}

@@ -432,6 +432,8 @@ public:
 
 	// access to visiblity
 	float GetEstimatedPixelDiameter() const;
+	float GetEstimatedPixelDiameterWithChildren() const;
+	float GetShLightingCutoffRadiusForDiagnostics() const;
 	bool IsInFrustum() const;
 	bool IsImpostor() const;
 

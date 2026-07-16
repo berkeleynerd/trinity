@@ -202,6 +202,7 @@ public:
 		float filmGrainBrightnessModifier = 0.0f;
 		float taaBlendWeight = 0.0f;
 		float taaEarlyOutThreshold = 0.0f;
+		std::vector<std::string> executionOrder;
 	};
 
 	struct HistoryDiagnostics
@@ -247,6 +248,10 @@ public:
 	bool GetDiagnosticsEnabled() const;
 	bool ReadDiagnostics( Tr2GpuResourcePool & gpuResourcePool, Tr2RenderContext & renderContext, Diagnostics & diagnostics ) const;
 	bool GetLastExecutionSucceeded() const;
+	const std::vector<std::string>& GetLastExecutionOrder() const
+	{
+		return m_lastDiagnostics.executionOrder;
+	}
 	void ResetTaaHistory();
 	HistoryDiagnostics GetHistoryDiagnostics() const
 	{
@@ -261,6 +266,10 @@ public:
 	void SetTaaHistoryFrozen( bool frozen )
 	{
 		m_taaHistoryFrozen = frozen;
+	}
+	void SetTaaExecutionEnabledForTesting( bool enabled )
+	{
+		m_taaExecutionEnabledForTesting = enabled;
 	}
 	void SetDynamicExposureHistoryFrozen( bool frozen )
 	{
@@ -365,6 +374,7 @@ private:
 	Tr2PPTaaEffect::Quality m_taaQuality = Tr2PPTaaEffect::TAA_HIGH;
 	bool m_taaResetPending = true;
 	bool m_taaHistoryFrozen = false;
+	bool m_taaExecutionEnabledForTesting = true;
 
 	// film grain
 	bool RenderFilmGrain( const Tr2TextureAL& destination, const Tr2TextureAL& source, Tr2RenderContext& renderContext, Tr2PPFilmGrainEffect* filmGrain );

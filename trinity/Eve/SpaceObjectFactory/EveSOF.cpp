@@ -284,6 +284,30 @@ bool EveSOF::ConfigureControllerSubstitution( const char* authoredPath, ITr2Cont
 	return true;
 }
 
+bool EveSOF::ConfigureEffectChildSubstitution( const char* authoredPath, IRoot* child )
+{
+	if( !authoredPath || !authoredPath[0] || !child )
+	{
+		SetBuildFailure( "SOF effect-child substitution is incomplete" );
+		return false;
+	}
+	const std::string normalized = NormalizeSOFResourcePath( authoredPath );
+	if( normalized.rfind( "res:/", 0 ) != 0 ||
+		( !HasResourceExtension( normalized, ".red" ) && !HasResourceExtension( normalized, ".black" ) ) )
+	{
+		SetBuildFailure( "SOF effect-child substitution has an invalid authored identity: " + std::string( authoredPath ) );
+		return false;
+	}
+	if( m_effectChildSubstitutions.find( normalized ) != m_effectChildSubstitutions.end() )
+	{
+		SetBuildFailure( "SOF effect-child closure contains a duplicate authored identity: " + std::string( authoredPath ) );
+		return false;
+	}
+	m_effectChildSubstitutions.emplace( normalized, child );
+	m_lastBuildDiagnostics.failureReason.clear();
+	return true;
+}
+
 void EveSOF::ClearGeometrySubstitutions()
 {
 	m_geometrySubstitutions.clear();
@@ -292,6 +316,8 @@ void EveSOF::ClearGeometrySubstitutions()
 	m_requireGeometrySubstitutions = false;
 	m_controllerSubstitutions.clear();
 	m_usedControllerSubstitutions.clear();
+	m_effectChildSubstitutions.clear();
+	m_usedEffectChildSubstitutions.clear();
 }
 
 const EveSOFBuildDiagnostics& EveSOF::GetLastBuildDiagnostics() const
@@ -428,11 +454,15 @@ bool EveSOF::InspectNativeBuild( IRoot* object, EveSOFBuildDiagnostics& diagnost
 	diagnostics.resourceReady = false;
 	diagnostics.configuredGeometrySubstitutionCount = uint32_t( m_geometrySubstitutions.size() );
 	diagnostics.usedGeometrySubstitutionCount = uint32_t( m_usedGeometrySubstitutions.size() );
+	diagnostics.configuredEffectChildSubstitutionCount = uint32_t( m_effectChildSubstitutions.size() );
+	diagnostics.usedEffectChildSubstitutionCount = uint32_t( m_usedEffectChildSubstitutions.size() );
 	diagnostics.geometryClosureComplete = !m_requireGeometrySubstitutions ||
 		diagnostics.configuredGeometrySubstitutionCount == diagnostics.usedGeometrySubstitutionCount;
 	diagnostics.controllerClosureComplete = !m_requireGeometrySubstitutions ||
 		( diagnostics.expectedControllerCount == diagnostics.installedControllerCount &&
 		  m_controllerSubstitutions.size() == m_usedControllerSubstitutions.size() );
+	diagnostics.effectChildClosureComplete = !m_requireGeometrySubstitutions ||
+		m_effectChildSubstitutions.size() == m_usedEffectChildSubstitutions.size();
 
 	EveSpaceObject2Ptr spaceObject = BlueCastPtr( object );
 	if( !spaceObject )
@@ -494,7 +524,7 @@ bool EveSOF::InspectNativeBuild( IRoot* object, EveSOFBuildDiagnostics& diagnost
 	const bool expectedClassPresent = diagnostics.buildClass != EveSOFDataHull::BUILDCLASS_SHIP || diagnostics.nativeShip;
 	diagnostics.structuralComplete = diagnostics.objectCreated && expectedClassPresent && diagnostics.meshCreated &&
 		diagnostics.meshAreasComplete && diagnostics.materialsComplete && diagnostics.geometryClosureComplete &&
-		diagnostics.controllerClosureComplete &&
+		diagnostics.controllerClosureComplete && diagnostics.effectChildClosureComplete &&
 		( !diagnostics.boostersExpected || diagnostics.boostersCreated ) &&
 		( !diagnostics.trailsExpected || diagnostics.trailsCreated );
 	const bool effectsReady = diagnostics.effectResourceCount != 0 &&
@@ -517,6 +547,7 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	m_lastBuildDiagnostics.configuredGeometrySubstitutionCount = uint32_t( m_geometrySubstitutions.size() );
 	m_usedGeometrySubstitutions.clear();
 	m_usedControllerSubstitutions.clear();
+	m_usedEffectChildSubstitutions.clear();
 	m_lastBuiltObjectIdentity = nullptr;
 	if( !dnaString || !dnaString[0] )
 	{
@@ -2369,7 +2400,24 @@ void EveSOF::SetupEffectChildren( EveSpaceObject2Ptr newObj, IEveEffectChildrenO
 				continue;
 			}
 
-			IRootPtr p = BeResMan->LoadObject( childSetItem.redFilePath.c_str() );
+			IRootPtr p;
+			if( m_requireGeometrySubstitutions )
+			{
+				const std::string authoredPath = childSetItem.redFilePath.c_str();
+				const std::string normalized = NormalizeSOFResourcePath( authoredPath );
+				const auto substitution = m_effectChildSubstitutions.find( normalized );
+				if( substitution == m_effectChildSubstitutions.end() || !substitution->second )
+				{
+					SetBuildFailure( "strict SOF effect-child closure is missing authored resource: " + authoredPath );
+					continue;
+				}
+				p = substitution->second;
+				m_usedEffectChildSubstitutions.insert( normalized );
+			}
+			else
+			{
+				p = BeResMan->LoadObject( childSetItem.redFilePath.c_str() );
+			}
 			if( !p )
 			{
 				CCP_LOGERR( "resource file %s is invalid!", childSetItem.redFilePath.c_str() );

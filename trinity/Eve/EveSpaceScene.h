@@ -446,6 +446,10 @@ public:
 			m_lowQualityNebulaMixResPath,
 		};
 	}
+	void SetAmbientColorForDiagnostics( const Color& color )
+	{
+		m_ambientColor = color;
+	}
 	Tr2EffectPtr GetBackgroundEffect() const
 	{
 		return m_backgroundEffect;

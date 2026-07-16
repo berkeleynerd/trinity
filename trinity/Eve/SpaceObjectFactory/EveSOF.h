@@ -57,6 +57,8 @@ struct EveSOFBuildDiagnostics
 	uint32_t readyEffectResourceCount = 0;
 	uint32_t configuredGeometrySubstitutionCount = 0;
 	uint32_t usedGeometrySubstitutionCount = 0;
+	uint32_t configuredEffectChildSubstitutionCount = 0;
+	uint32_t usedEffectChildSubstitutionCount = 0;
 	uint32_t geometryBoneBindingCount = 0;
 	uint32_t geometrySkeletonCount = 0;
 	uint32_t geometryAnimationCount = 0;
@@ -73,6 +75,7 @@ struct EveSOFBuildDiagnostics
 	int32_t reflectionMode = -1;
 	bool callerDataInstalled = false;
 	bool controllerClosureComplete = false;
+	bool effectChildClosureComplete = false;
 	bool strictGeometrySubstitutions = false;
 	bool dnaValid = false;
 	bool impactEffectNone = false;
@@ -144,6 +147,9 @@ public:
 	// Standalone hosts use this after reading the Black synchronously so native
 	// construction never enters Blue's tasklet-yielding LoadObject path.
 	bool ConfigureControllerSubstitution( const char* authoredPath, ITr2Controller* controller );
+	// Install a child graph named by SOF hull data. Standalone hosts use this
+	// beside the controller seam so native construction remains non-yielding.
+	bool ConfigureEffectChildSubstitution( const char* authoredPath, IRoot* child );
 	void ClearGeometrySubstitutions();
 	bool InspectNativeBuild( IRoot* object, EveSOFBuildDiagnostics& diagnostics ) const;
 	const EveSOFBuildDiagnostics& GetLastBuildDiagnostics() const;
@@ -257,6 +263,8 @@ private:
 	std::string m_authoredVolumetricTrailPath;
 	std::unordered_map<std::string, ITr2ControllerPtr> m_controllerSubstitutions;
 	mutable std::unordered_set<std::string> m_usedControllerSubstitutions;
+	std::unordered_map<std::string, IRootPtr> m_effectChildSubstitutions;
+	mutable std::unordered_set<std::string> m_usedEffectChildSubstitutions;
 	bool m_requireGeometrySubstitutions;
 	bool m_callerDataInstalled;
 	mutable EveSOFBuildDiagnostics m_lastBuildDiagnostics;

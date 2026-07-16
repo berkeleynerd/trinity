@@ -3338,5 +3338,90 @@ planetary rendering parity, and the terminal crescent remain unclaimed.
 
 PL-14F subsequently accepted F0 planetary provenance and F1 Tour promotion;
 F2 remains blocked only on delivery-storage capacity. PL-14F does not consume
-a Trinity capability number. CP-44 is reserved for PL-14G's canonical fresh
-scene-construction contract.
+a Trinity capability number.
+
+## CP-44 follow-up: canonical SH, gamma, and exposure census (2026-07-16)
+
+PL-14G accepted CP-44's Destiny-first construction transaction. The first
+PL-14H cross-hull census then found that the selected `a01_cube.black` scene
+serializes no `Tr2ShLightingManager`. Canonical construction had been creating
+a replacement and writing `3.14` into both intensities. That sample ownership
+is now quarantined to the explicit legacy control. Canonical mode creates the
+native manager without calling either intensity setter, retaining its engine
+constructor defaults `1.0/1.0`, and reports
+`engine-constructor-default-no-serialized-manager`. Four native Sun/planet/ship
+sources still contribute identical packed coefficients to matched Astero and
+Venture lanes. Exact client runtime manager ownership remains unresolved and
+is not inferred from the older source note that mentions `3.14`.
+
+The sample also no longer assigns `g_eveSpaceSceneGammaBrightness`. Its actual
+registered engine-setting value is reported at both consumers: the scene
+per-frame constant and `Tonemapping.OutputGamma`; both observe `1.0`. Dynamic
+exposure diagnostics now carry the executed histogram/measurement state,
+adapted luminance, source constants, effective multiplier, and tone/bloom/TAA
+consumer state into the ship-lighting report.
+
+A deterministic 180-frame near-Sun Astero isolate settled at adapted luminance
+`0.9414938092` and effective client multiplier `0.5841780305`. Exposure-on and
+exposure-off products were byte-identical through depth, normals, velocity,
+reflection, HDR composite, bloom, and TAA. Only post-tone and final changed:
+1,228,439 pixels with maximum 8-bit channel delta 43. The much larger `67.9x`
+four-frame observation was cold-start history, not settled behavior. This
+accepts exposure ordering/consumption for that fixed station only; the
+remaining PL-14H subjects and stations stay open.
+
+The first matched route-station isolates also separate scene ambient RGB from
+the actual V5 ambient mechanism. AIR metadata and disassembly of the selected
+default permutation-zero `Main` pixel shaders in `quadv5.sm_hi` and
+`quadheatv5.sm_hi` show that `AmbientColor` is read only at byte offset 236,
+its W component. Trinity stores `ReflectionIntensity` there; RGB at bytes
+224-235 is not consumed. Authored ambient versus ambient-off is consequently
+byte-identical near the Sun and at route frames 900 and 1621. This is a
+source-proven `not-applicable` path for those selected permutations, not a
+missing fill light.
+
+SH behaves independently and correctly at the sampled stations. Near the Sun,
+SH-on changes 66,101 pixels and reports coefficient maximum `2.49195075`; the
+Sun source's energy metric is `4.999999523`. At the EVE Gate its metric falls
+to `0.0298031047`, below the authored `0.315` cutoff, so coefficient maximum is
+zero. Read-only diagnostics now record every source's position, radius, color,
+distance, cutoff metric, and cutoff decision without changing evaluation.
+
+Static and dynamic reflection both materially illuminate the hull. At frame
+900, static versus off changes 53,852 pixels, dynamic versus off changes
+53,803, and dynamic versus static changes 53,895; depth and normals remain
+byte-identical. Dynamic is visibly cooler and darker than static, so the next
+PL-14H slice audits source-selected reflection content and its interaction with
+direct light and exposure rather than introducing arbitrary ambient values.
+
+## PL-14H1: integrated presentation and final-output audit (2026-07-16)
+
+The first PL-14H captures showed readable, nonuniform pre-tone HDR beside a
+nearly uniform black final capture. That was a diagnostic defect. The old
+`--render-product all` path advanced the driver again for each requested
+product, allowing completed-frame targets and temporal state to be reused while
+the evidence was being collected.
+
+`--presentation-audit-report` now resolves depth, normal, pre/post-TAA HDR,
+exposure, bloom, post-tone, final, and the drawable from one ordinary advancing
+frame. Each product records identity, owner, format, dimensions, raw hash,
+finite range, luminance statistics, and whether it was retained before reuse or
+release. Diagnostic visualization reads those retained snapshots into separate
+offscreen/CPU storage. `--render-product all` uses this path and performs zero
+diagnostic rerenders, with no variable-store or temporal-history mutation.
+
+At settled near-Sun frame 180, pre-TAA HDR spans `0.01719–4.84963` and the
+post-tone, final, and drawable stages are all finite and nonuniform. Final and
+the default back buffer use the same format and are byte-identical. The native
+trace is HDR resolve, environment fog, god rays, TAA, exposure, bloom,
+tone/grade, film grain, and drawable copy. Gamma is `1.0`; adapted luminance is
+approximately `0.94144` and the effective exposure multiplier is approximately
+`0.58421x`.
+
+The report-only TAA isolate retains the High-tier jitter owner while suppressing
+only TAA execution. This keeps depth, normal, and pre-TAA HDR byte-identical to
+the full lane and leaves ordinary `--taa off` unchanged. Promised Land H1's
+nine background lanes and strict schemas classify the old multi-product capture
+as `misconfigured` and repaired. The authored exposure, gamma, color grade, SH,
+and lighting inputs were not changed. PL-14H2 proceeds against dynamic
+reflection/direct-light interaction with a trustworthy final-output boundary.
