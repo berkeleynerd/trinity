@@ -1421,11 +1421,13 @@ CP-23 were accepted here, making bloom the next direct-path unit under RC-11.
 
 ### Client legacy bloom and film grain (RC-11)
 
-The installed client bytecode at
+The historical RC-11 installed client bytecode snapshot at
 `/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
 (30,935,325 bytes, SHA-256
 `232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`)
-sets `newBloom=false`. RC-11 therefore uses Trinity's legacy high-pass plus
+sets `newBloom=false`. It is not the current PL-14G bytecode authority, which
+is `19ff580705e3800ccaba7cc03b7b8c988ab4095eafc36912f090896082311564`.
+RC-11 therefore uses Trinity's legacy high-pass plus
 separable-blur path, not the dormant six-level new-bloom implementation.
 
 Live Black inspection confirms bloom threshold `0`, scale `0.5`, brightness
@@ -3332,5 +3334,9 @@ illumination and High raster shadows. Promised Land's opt-in
 with raster local shadows explicitly disabled because the two maximum-quality
 contracts are mutually exclusive. Both default and preview background smokes
 pass with volumetrics off. Exact client pixels, color, camera, exposure,
-planetary rendering parity, and the terminal crescent remain unclaimed and
-belong to the planetary audit and PL-14F.
+planetary rendering parity, and the terminal crescent remain unclaimed.
+
+PL-14F subsequently accepted F0 planetary provenance and F1 Tour promotion;
+F2 remains blocked only on delivery-storage capacity. PL-14F does not consume
+a Trinity capability number. CP-44 is reserved for PL-14G's canonical fresh
+scene-construction contract.

@@ -505,6 +505,25 @@ extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested(
 	void* opaqueProbe,
 	bool requested );
 extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSceneConstruction( void* opaqueProbe,
+	int constructionMode,
+	int legacyShProxies,
+	int legacyShReceiver,
+	int legacySolarEnvironment,
+	const char* manifestPath,
+	const char* reportPath );
+extern "C" bool TrinityStandaloneProbePrepareCanonicalState( void* opaqueProbe,
+	int mode,
+	int referenceFrame,
+	int orbitPolicy,
+	float orbitRange );
+extern "C" bool TrinityStandaloneProbeSetSceneConstructionCaptureRequested(
+	void* opaqueProbe,
+	bool requested );
+extern "C" bool TrinityStandaloneProbeRecordSceneConstructionCapture(
+	void* opaqueProbe,
+	uint64_t frame );
+extern "C" bool TrinityStandaloneProbeWriteSceneConstructionReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
 														 int environmentMode,
 														 int environmentDistance,

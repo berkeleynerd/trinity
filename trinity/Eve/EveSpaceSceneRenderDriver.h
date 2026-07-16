@@ -169,6 +169,16 @@ public:
 	void SetDeterministicTaaExposureForTesting( bool enabled, float exposure );
 	bool ReadPostProcessDiagnostics( Tr2RenderContext & renderContext, Tr2PostProcessRenderer::Diagnostics & diagnostics ) const;
 	bool GetLastPostProcessExecutionSucceeded() const;
+	bool GetPostProcessHistoryDiagnostics(
+		Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) const
+	{
+		if( !m_postProcess )
+		{
+			return false;
+		}
+		diagnostics = m_postProcess->GetHistoryDiagnostics();
+		return true;
+	}
 	void ResetTemporalHistory();
 	void SetTemporalHistoryFrozen( bool frozen );
 	const TemporalFrameSnapshot& GetTemporalFrameSnapshot() const

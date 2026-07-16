@@ -62,6 +62,37 @@ public:
 	Tr2PPTonemappingEffectPtr GetTonemappingIfAvailable( PostProcess::Quality qualitySetting = PostProcess::Quality::HIGH ) const;
 	Tr2PPColorCorrectionEffectPtr GetColorCorrectionIfAvailable( PostProcess::Quality qualitySetting = PostProcess::Quality::HIGH ) const;
 	Tr2PPGenericEffectPtr GetGenericEffectIfAvailable( PostProcess::Quality qualitySetting = PostProcess::Quality::HIGH ) const;
+	// Read-only ownership diagnostics. Unlike the quality-filtered accessors
+	// above, these expose the selected member even when that member is
+	// currently inactive. This lets finite-frame audits prove that an
+	// environment teardown restored the original postprocess graph rather
+	// than merely observing an inert render pass.
+	Tr2PPFogEffectPtr GetSelectedFogForDiagnostics() const
+	{
+		return m_fog;
+	}
+	Tr2PPBloomEffectPtr GetSelectedBloomForDiagnostics() const
+	{
+		return m_bloom;
+	}
+	Tr2PPDesaturateEffectPtr GetSelectedDesaturateForDiagnostics() const
+	{
+		return m_desaturate;
+	}
+	struct SelectedMemberDiagnostics
+	{
+		bool hasFog = false;
+		bool hasBloom = false;
+		bool hasDesaturate = false;
+		uint64_t fogFingerprint = 0;
+		uint64_t bloomFingerprint = 0;
+		uint64_t desaturateFingerprint = 0;
+	};
+	SelectedMemberDiagnostics GetSelectedMemberDiagnostics() const;
+	static SelectedMemberDiagnostics GetMemberDiagnosticsForDiagnostics(
+		Tr2PPFogEffectPtr fog,
+		Tr2PPBloomEffectPtr bloom,
+		Tr2PPDesaturateEffectPtr desaturate );
 
 	void GetAvilableSortedLuts( std::vector<const Tr2PPLutEffect*> & container, PostProcess::Quality qualitySetting = PostProcess::Quality::HIGH ) const;
 	void ClearLuts();

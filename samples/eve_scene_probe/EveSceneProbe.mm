@@ -436,6 +436,30 @@ enum class SolarEnvironmentDistance
 	ExitBoundary,
 };
 
+enum class SceneConstruction
+{
+	Legacy,
+	Canonical,
+};
+
+enum class LegacyShProxies
+{
+	Authored,
+	Off,
+};
+
+enum class LegacyShReceiver
+{
+	Origin,
+	Live,
+};
+
+enum class LegacySolarEnvironment
+{
+	Scripted,
+	LiveDistance,
+};
+
 enum class AuthoredToggle
 {
 	Authored,
@@ -662,6 +686,8 @@ struct Options
 	std::string solarOpticsReportPath;
 	std::string solarIlluminationReportPath;
 	std::string planetAuditReportPath;
+	std::string systemManifestPath;
+	std::string sceneConstructionReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
 	MaterialMode materialMode = MaterialMode::Probe;
@@ -706,6 +732,10 @@ struct Options
 	bool solarIlluminationViewExplicit = false;
 	SolarEnvironment solarEnvironment = SolarEnvironment::Off;
 	SolarEnvironmentDistance solarEnvironmentDistance = SolarEnvironmentDistance::Canonical;
+	SceneConstruction sceneConstruction = SceneConstruction::Legacy;
+	LegacyShProxies legacyShProxies = LegacyShProxies::Authored;
+	LegacyShReceiver legacyShReceiver = LegacyShReceiver::Origin;
+	LegacySolarEnvironment legacySolarEnvironment = LegacySolarEnvironment::Scripted;
 	AuthoredToggle sceneDistanceFog = AuthoredToggle::Authored;
 	AuthoredToggle solarDesaturate = AuthoredToggle::Authored;
 	SolarOcclusionView solarOcclusionView = SolarOcclusionView::Unobscured;
@@ -1946,6 +1976,56 @@ bool ParseSolarEnvironmentDistance( const std::string& value, SolarEnvironmentDi
 	return true;
 }
 
+bool ParseSceneConstruction( const std::string& value, SceneConstruction& construction )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "legacy" )
+		construction = SceneConstruction::Legacy;
+	else if( normalized == "canonical" )
+		construction = SceneConstruction::Canonical;
+	else
+		return false;
+	return true;
+}
+
+bool ParseLegacyShProxies( const std::string& value, LegacyShProxies& proxies )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "authored" )
+		proxies = LegacyShProxies::Authored;
+	else if( normalized == "off" )
+		proxies = LegacyShProxies::Off;
+	else
+		return false;
+	return true;
+}
+
+bool ParseLegacyShReceiver( const std::string& value, LegacyShReceiver& receiver )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "origin" )
+		receiver = LegacyShReceiver::Origin;
+	else if( normalized == "live" )
+		receiver = LegacyShReceiver::Live;
+	else
+		return false;
+	return true;
+}
+
+bool ParseLegacySolarEnvironment(
+	const std::string& value,
+	LegacySolarEnvironment& environment )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "scripted" )
+		environment = LegacySolarEnvironment::Scripted;
+	else if( normalized == "live-distance" )
+		environment = LegacySolarEnvironment::LiveDistance;
+	else
+		return false;
+	return true;
+}
+
 bool ParseAuthoredToggle( const std::string& value, AuthoredToggle& toggle )
 {
 	const std::string normalized = ToLower( value );
@@ -2757,6 +2837,270 @@ bool FileExists( const std::string& path )
 	return file.good();
 }
 
+constexpr char kCanonicalNewEdenManifest[] = R"manifest({
+  "schema": "promised-land.new-eden-system-manifest.v1",
+  "systemId": 30005286,
+  "initialTimestamp": 0,
+  "primaryBallId": 1,
+  "egoBallId": 1,
+  "observerBallId": 2,
+  "fixedTargetBallId": 900001,
+  "wireProfile": "dynamic-orientation-v1",
+  "referenceFrame": "ego",
+  "orbitPolicy": "frontier-new",
+  "balls": [
+    {
+      "id": 1,
+      "role": "primary-ship",
+      "motion": {
+        "mode": "STOP",
+        "radius": 35.0,
+        "mass": 975000.0,
+        "maxVelocity": 312.0,
+        "position": [1069645255061.4542, -202664525006.24222, -831871005056.5251],
+        "rotation": [0.0, 0.0, 0.3826834323650898, 0.9238795325112867],
+        "flags": ["free", "massive", "interactive"]
+      },
+      "visual": {
+        "dispatch": "sof-dna",
+        "resource": "res:/dx9/model/spaceobjectfactory/data.black",
+        "dna": "soef1_t1:soebase:soe",
+        "authored": true
+      }
+    },
+    {
+      "id": 40334263,
+      "role": "primary-star",
+      "motion": {
+        "mode": "RIGID",
+        "radius": 158400000.0,
+        "mass": 0.0,
+        "maxVelocity": 0.0,
+        "position": [1069486940160.0, -202669301760.0, -831868968960.0],
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "flags": ["global", "fixed"]
+      },
+      "visual": {
+        "dispatch": "celestial-black",
+        "resource": "res:/dx9/model/celestial/sun/sun_yellow_small_01b.black",
+        "dna": "",
+        "authored": true
+      }
+    },
+    {
+      "id": 40334264,
+      "role": "planet",
+      "motion": {
+        "mode": "RIGID",
+        "radius": 2630000.0,
+        "mass": 0.0,
+        "maxVelocity": 0.0,
+        "position": [1083758787326.0, -205372890997.0, -787280443197.0],
+        "rotation": [0.0, 0.0, 0.0, 1.0],
+        "flags": ["global", "fixed"]
+      },
+      "visual": {
+        "dispatch": "celestial-black",
+        "resource": "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black",
+        "dna": "",
+        "authored": true
+      }
+    }
+  ],
+  "scene": {
+    "baseScene": "res:/dx9/scene/universe/a01_cube.black",
+    "starfield": "res:/dx9/scene/starfield/spritestars.black",
+    "sun": "res:/dx9/model/celestial/sun/sun_yellow_small_01b.black",
+    "planet": "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black",
+    "lensFlare": "res:/fisfx/lensflare/yellow_small.black",
+    "environmentTemplate": "res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black",
+    "defaultPostprocess": "res:/dx9/default/postprocess.black",
+    "eveGateOverlay": "res:/dx9/model/celestial/landmark/landmark_evegate_01a.black",
+    "eveGateOverlayPlacement": "demo-program-camera-anchored",
+    "owners": {
+      "baseScene": "scene",
+      "starfield": "scene",
+      "sun": "ball:40334263",
+      "planet": "ball:40334264",
+      "lensFlare": "ball:40334263",
+      "environmentTemplate": "live-sun-distance-field",
+      "defaultPostprocess": "scene-driver",
+      "eveGateOverlay": "demo-program"
+    }
+  },
+  "geometry": {
+    "mainHullLogical": "res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2",
+    "mainHullLogicalSha256": "4f4c6b44310b6b9b42b608a748085d33eb3ef82c85c6daf69bbb238d72a8e705",
+    "mainHullStaged": "probe:/AsteroNative.cmf",
+    "mainHullStagedSha256": "fd89fbf8817c138fcca1ab9de8ab67d964b9c20d903f932f9d3bd4df9bb3c9db",
+    "impactType": "ELLIPSOID",
+    "shieldLogical": "res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2",
+    "shieldLogicalSha256": "218bddc8bf53a448ce50b00e98c3e5e53a8f42d5a51aaa43eb90d688644271fc",
+    "shieldStaged": "res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.cmf",
+    "shieldStagedSha256": "d54938c9d068bd2bd4939e794358816902936eaa00fed65bee8f8125617a40ec",
+    "volumetricTrailLogical": "res:/dx9/model/ship/booster/volumetrictrail.gr2",
+    "volumetricTrailStaged": "res:/dx9/model/ship/booster/volumetrictrail.cmf",
+    "volumetricTrailStagedSha256": "bae4ad5063f2fd9015a7ddb4cf443f46455f1fd065901c4430483f158046cdb3"
+  },
+  "environment": {
+    "sunRadius": 158400000.0,
+    "fogFieldDimensions": [475200000.0, 475200000.0, 475200000.0],
+    "activationRadius": 10060000256.0,
+    "pollFrames": 30,
+    "adjustmentFrames": 12,
+    "fadeFrames": 90
+  },
+  "navigationAnchors": [
+    {
+      "id": 2,
+      "role": "observer",
+      "position": [0.0, 0.0, 0.0],
+      "authored": false,
+      "visual": false
+    },
+    {
+      "id": 900001,
+      "role": "eve-gate-navigation-anchor",
+      "position": [1096057063200.0, -201867615160.0, -832210688752.0],
+      "motion": {
+        "mode": "STOP",
+        "radius": 1.0,
+        "flags": ["fixed-target"]
+      },
+      "authored": false,
+      "visual": false
+    }
+  ]
+})manifest";
+
+bool IsJsonBoolean( id value )
+{
+	return [value isKindOfClass:[NSNumber class]] &&
+		CFGetTypeID( (__bridge CFTypeRef)value ) == CFBooleanGetTypeID();
+}
+
+std::string JsonDescription( id value )
+{
+	NSString* description = [value description];
+	return description ? description.UTF8String : "<unavailable>";
+}
+
+bool CompareCanonicalManifestValue( id actual, id expected, const std::string& path, std::string& failure )
+{
+	if( [expected isKindOfClass:[NSDictionary class]] )
+	{
+		if( ![actual isKindOfClass:[NSDictionary class]] )
+		{
+			failure = path + " must be an object";
+			return false;
+		}
+		NSDictionary* actualObject = static_cast<NSDictionary*>( actual );
+		NSDictionary* expectedObject = static_cast<NSDictionary*>( expected );
+		for( id key in actualObject )
+		{
+			if( ![key isKindOfClass:[NSString class]] || expectedObject[key] == nil )
+			{
+				failure = path + " has unknown field " + JsonDescription( key );
+				return false;
+			}
+		}
+		NSArray* keys = [[expectedObject allKeys] sortedArrayUsingSelector:@selector( compare: )];
+		for( NSString* key in keys )
+		{
+			id actualValue = actualObject[key];
+			if( actualValue == nil )
+			{
+				failure = path + " is missing field " + key.UTF8String;
+				return false;
+			}
+			if( !CompareCanonicalManifestValue(
+					actualValue, expectedObject[key], path + "." + key.UTF8String, failure ) )
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	if( [expected isKindOfClass:[NSArray class]] )
+	{
+		if( ![actual isKindOfClass:[NSArray class]] )
+		{
+			failure = path + " must be an array";
+			return false;
+		}
+		NSArray* actualArray = static_cast<NSArray*>( actual );
+		NSArray* expectedArray = static_cast<NSArray*>( expected );
+		if( actualArray.count != expectedArray.count )
+		{
+			failure = path + " must contain exactly " + std::to_string( expectedArray.count ) + " entries";
+			return false;
+		}
+		for( NSUInteger index = 0; index < expectedArray.count; ++index )
+		{
+			if( !CompareCanonicalManifestValue( actualArray[index],
+					expectedArray[index],
+					path + "[" + std::to_string( index ) + "]",
+					failure ) )
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+	if( [expected isKindOfClass:[NSNumber class]] )
+	{
+		if( ![actual isKindOfClass:[NSNumber class]] || IsJsonBoolean( actual ) != IsJsonBoolean( expected ) ||
+			![static_cast<NSNumber*>( actual ) isEqualToNumber:static_cast<NSNumber*>( expected )] )
+		{
+			failure = path + " must be " + JsonDescription( expected ) + ", got " + JsonDescription( actual );
+			return false;
+		}
+		return true;
+	}
+	if( ![actual isEqual:expected] )
+	{
+		failure = path + " must be " + JsonDescription( expected ) + ", got " + JsonDescription( actual );
+		return false;
+	}
+	return true;
+}
+
+bool ValidateCanonicalSystemManifest( const std::string& path )
+{
+	NSString* filePath = [NSString stringWithUTF8String:path.c_str()];
+	NSData* data = filePath ? [NSData dataWithContentsOfFile:filePath] : nil;
+	if( !data || data.length == 0 || data.length > 1024 * 1024 )
+	{
+		std::cerr << "Canonical New Eden manifest is missing, empty, or larger than 1 MiB: " << path << "\n";
+		return false;
+	}
+
+	NSError* error = nil;
+	id actual = [NSJSONSerialization JSONObjectWithData:data options:0 error:&error];
+	if( !actual )
+	{
+		std::cerr << "Canonical New Eden manifest is not valid JSON: "
+				  << ( error ? error.localizedDescription.UTF8String : "unknown parser error" ) << "\n";
+		return false;
+	}
+	NSData* expectedData = [NSData dataWithBytes:kCanonicalNewEdenManifest
+										length:sizeof( kCanonicalNewEdenManifest ) - 1];
+	id expected = [NSJSONSerialization JSONObjectWithData:expectedData options:0 error:&error];
+	if( !expected )
+	{
+		std::cerr << "Internal canonical New Eden manifest contract is invalid\n";
+		return false;
+	}
+
+	std::string failure;
+	if( !CompareCanonicalManifestValue( actual, expected, "$", failure ) )
+	{
+		std::cerr << "Canonical New Eden manifest rejected: " << failure << "\n";
+		return false;
+	}
+	return true;
+}
+
 void PrintUsage( const char* executable )
 {
 	std::cerr
@@ -2782,6 +3126,9 @@ void PrintUsage( const char* executable )
 		<< "       [--planet-audit-report PATH]\n"
 		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
+		<< "       [--scene-construction legacy|canonical] [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
+		<< "       [--legacy-sh-proxies authored|off] [--legacy-sh-receiver origin|live]\n"
+		<< "       [--legacy-solar-environment scripted|live-distance]\n"
 		<< "       [--scene-distance-fog authored|off] [--solar-desaturate authored|off]\n"
 		<< "       [--solar-occlusion-view unobscured|hull-partial|hull-total|planet-limb|planet-eclipse|hull-sweep|planet-sweep]\n"
 		<< "       [--solar-optics-report PATH]\n"
@@ -3564,6 +3911,51 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--solar-environment-distance" )
 		{
 			if( ++i >= argc || !ParseSolarEnvironmentDistance( argv[i], options.solarEnvironmentDistance ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--scene-construction" )
+		{
+			if( ++i >= argc || !ParseSceneConstruction( argv[i], options.sceneConstruction ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--system-manifest" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.systemManifestPath = argv[i];
+		}
+		else if( arg == "--scene-construction-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.sceneConstructionReportPath = argv[i];
+		}
+		else if( arg == "--legacy-sh-proxies" )
+		{
+			if( ++i >= argc || !ParseLegacyShProxies( argv[i], options.legacyShProxies ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--legacy-sh-receiver" )
+		{
+			if( ++i >= argc || !ParseLegacyShReceiver( argv[i], options.legacyShReceiver ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--legacy-solar-environment" )
+		{
+			if( ++i >= argc ||
+				!ParseLegacySolarEnvironment( argv[i], options.legacySolarEnvironment ) )
 			{
 				return false;
 			}
@@ -6224,6 +6616,38 @@ int main( int argc, char** argv )
 						 "a model-or-higher quality rung, and a positive finite --frames count\n";
 			return 2;
 		}
+		const bool sceneConstructionRequested =
+			options.sceneConstruction == SceneConstruction::Canonical ||
+			!options.systemManifestPath.empty() || !options.sceneConstructionReportPath.empty() ||
+			options.legacyShProxies != LegacyShProxies::Authored ||
+			options.legacyShReceiver != LegacyShReceiver::Origin ||
+			options.legacySolarEnvironment != LegacySolarEnvironment::Scripted;
+		if( sceneConstructionRequested && options.sceneFixture != SceneFixture::NewEden )
+		{
+			std::cerr << "PL-14G scene construction controls require --scene-fixture new-eden\n";
+			return 2;
+		}
+		if( options.sceneConstruction == SceneConstruction::Canonical &&
+			( options.systemManifestPath.empty() || options.sceneConstructionReportPath.empty() ||
+			  options.legacyShProxies != LegacyShProxies::Off ||
+			  options.legacyShReceiver != LegacyShReceiver::Live ||
+			  options.legacySolarEnvironment != LegacySolarEnvironment::LiveDistance ) )
+		{
+			std::cerr << "Canonical construction requires --system-manifest, --scene-construction-report, "
+						 "--legacy-sh-proxies off, --legacy-sh-receiver live, and "
+						 "--legacy-solar-environment live-distance\n";
+			return 2;
+		}
+		if( options.sceneConstruction == SceneConstruction::Canonical &&
+			!ValidateCanonicalSystemManifest( options.systemManifestPath ) )
+		{
+			return 2;
+		}
+		if( !options.sceneConstructionReportPath.empty() && options.maxFrames <= 0 )
+		{
+			std::cerr << "--scene-construction-report requires a positive finite --frames count\n";
+			return 2;
+		}
 		const bool planetIlluminationView = options.solarIlluminationView == SolarIlluminationView::PlanetDay ||
 			options.solarIlluminationView == SolarIlluminationView::PlanetLimb ||
 			options.solarIlluminationView == SolarIlluminationView::PlanetEclipse;
@@ -6308,6 +6732,24 @@ int main( int argc, char** argv )
 		if( options.deterministicEvidence && !TrinityStandaloneProbeConfigureDeterministicEvidence( probe, 3430261 ) )
 		{
 			std::cerr << "Failed to configure deterministic finite-frame evidence\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( sceneConstructionRequested &&
+			( ( !options.sceneConstructionReportPath.empty() &&
+				!EnsureParentDirectory( options.sceneConstructionReportPath ) ) ||
+			  !TrinityStandaloneProbeConfigureSceneConstruction(
+				  probe,
+				  static_cast<int>( options.sceneConstruction ),
+				  static_cast<int>( options.legacyShProxies ),
+				  static_cast<int>( options.legacyShReceiver ),
+				  static_cast<int>( options.legacySolarEnvironment ),
+				  options.systemManifestPath.empty() ? nullptr : options.systemManifestPath.c_str(),
+				  options.sceneConstructionReportPath.empty() ?
+					  nullptr : options.sceneConstructionReportPath.c_str() ) ) )
+		{
+			std::cerr << "Failed to configure the PL-14G scene-construction contract\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -6443,6 +6885,25 @@ int main( int argc, char** argv )
 		}
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
+		if( options.qualityRung != QualityRung::Shell &&
+			options.sceneConstruction == SceneConstruction::Canonical )
+		{
+			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
+				!TrinityStandaloneProbeSetWarpTarget(
+					probe, options.warpTarget == WarpTarget::EveGate ? 1 : 0 ) ||
+				!TrinityStandaloneProbePrepareCanonicalState(
+					probe,
+					static_cast<int>( options.ballpark ),
+					static_cast<int>( options.ballparkFrame ),
+					options.orbitSolver == OrbitSolver::New ? 1 : 0,
+					options.orbitRange ) )
+			{
+				std::cerr << "Failed to prepare the packet-born PL-14G Ballpark before scene construction\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
 		if( options.qualityRung != QualityRung::Shell &&
 			!TrinityStandaloneProbeCreateEveScene( probe,
 												   qualityRung,
@@ -6794,6 +7255,14 @@ int main( int argc, char** argv )
 					[window close];
 					return 1;
 				}
+				if( !options.sceneConstructionReportPath.empty() && captureSequenceFrame &&
+					!TrinityStandaloneProbeSetSceneConstructionCaptureRequested( probe, true ) )
+				{
+					std::cerr << "Failed to mark the PL-14G capture frame\n";
+					TrinityStandaloneProbeDestroyDevice( probe );
+					[window close];
+					return 1;
+				}
 				const auto frameStart = std::chrono::steady_clock::now();
 				const bool rendered =
 					TrinityStandaloneProbeRenderFrame( probe, qualityRung, realTime, simTime, captureProducts );
@@ -6823,6 +7292,44 @@ int main( int argc, char** argv )
 					if( !EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
 					{
 						std::cerr << "Frame-sequence capture skipped at frame " << renderedFrames << "\n";
+					}
+					if( !options.sceneConstructionReportPath.empty() )
+					{
+						const std::array<RenderProduct, 3> constructionProducts = {
+							RenderProduct::HdrComposite,
+							RenderProduct::Depth,
+							RenderProduct::FinalPostprocess,
+						};
+						bool productsCaptured = true;
+						for( RenderProduct product : constructionProducts )
+						{
+							const int frozenProduct =
+								RenderProductApiValue( product ) | kCaptureFreezeScene;
+							bool productRendered = TrinityStandaloneProbeRenderFrame(
+								probe, qualityRung, realTime, simTime, frozenProduct );
+							if( productRendered )
+							{
+								productRendered = TrinityStandaloneProbeRenderFrame(
+									probe, qualityRung, realTime, simTime, frozenProduct );
+							}
+							ProcessEvents( window );
+							const std::string productPath = CaptureBasePath( options ) + "_" +
+								RenderProductName( product ) + frameSuffix;
+							productsCaptured = productRendered &&
+								EnsureParentDirectory( productPath ) &&
+								CaptureProbeProductPng( probe, productPath ) &&
+								productsCaptured;
+						}
+						productsCaptured = productsCaptured &&
+							TrinityStandaloneProbeRecordSceneConstructionCapture(
+								probe, static_cast<uint64_t>( renderedFrames ) );
+						if( !productsCaptured )
+						{
+							std::cerr << "PL-14G named capture failed at frame " << renderedFrames << "\n";
+							TrinityStandaloneProbeDestroyDevice( probe );
+							[window close];
+							return 1;
+						}
 					}
 				}
 				if( collectExposureDiagnostics )
@@ -7710,9 +8217,21 @@ int main( int argc, char** argv )
 				std::cout << "Planet audit report: " << options.planetAuditReportPath << "\n";
 			}
 		}
+		bool sceneConstructionReportSucceeded = true;
+		if( !options.sceneConstructionReportPath.empty() )
+		{
+			sceneConstructionReportSucceeded =
+				TrinityStandaloneProbeWriteSceneConstructionReport( probe );
+			if( sceneConstructionReportSucceeded )
+			{
+				std::cout << "Scene construction report: "
+						  << options.sceneConstructionReportPath << "\n";
+			}
+		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
-			planetAuditReportSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
+			planetAuditReportSucceeded && sceneConstructionReportSucceeded &&
+			framePacingSucceeded && compositionValidationSucceeded &&
 			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
 			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
 			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&

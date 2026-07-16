@@ -8,6 +8,7 @@
 #include "EveSOFUtils.h"
 #include "Tr2ExternalParameter.h"
 #include "Controllers/ITr2ControllerOwner.h"
+#include "Controllers/ITr2Controller.h"
 #include <ITr2AudEmitter.h>
 #include "Eve/EveTransform.h"
 #include "Eve/Turret/EveTurretSet.h"
@@ -34,6 +35,8 @@
 #include "Tr2Mesh.h"
 #include "Tr2MeshArea.h"
 #include "Tr2RuntimeInstanceData.h"
+#include "Resources/TriGeometryRes.h"
+#include "Resources/Tr2EffectRes.h"
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/TriTextureParameter.h"
 #include "Shader/Parameter/Tr2Vector4Parameter.h"
@@ -58,6 +61,8 @@
 
 #include <ITriFunction.h>
 
+#include <cctype>
+
 bool g_alphaCutoutShadowsEnabled = false; // alpha cutout refers to TRIBATCHTYPE_DECAL
 TRI_REGISTER_SETTING( "alphaCutoutShadowsEnabled", g_alphaCutoutShadowsEnabled );
 
@@ -69,6 +74,23 @@ namespace
 const float MIN_DECAL_SCREEN_SIZE = 10.f;
 const float MIN_MESH_SCREEN_SIZE = 2.5f;
 const uint8_t PICKABLE_HANGARVIEO_BUFFER_ID = 100;
+
+std::string NormalizeSOFResourcePath( const std::string& path )
+{
+	std::string normalized = path;
+	std::transform( normalized.begin(), normalized.end(), normalized.begin(), []( unsigned char character ) {
+		return static_cast<char>( std::tolower( character ) );
+	} );
+	std::replace( normalized.begin(), normalized.end(), '\\', '/' );
+	return normalized;
+}
+
+bool HasResourceExtension( const std::string& path, const char* extension )
+{
+	const std::string normalized = NormalizeSOFResourcePath( path );
+	const size_t extensionLength = strlen( extension );
+	return normalized.size() >= extensionLength && normalized.compare( normalized.size() - extensionLength, extensionLength, extension ) == 0;
+}
 
 const char* GetPlaneSetEffectPath( EveSOFDataHullPlaneSet::Usage usage, bool isSkinned )
 {
@@ -110,7 +132,10 @@ Color ModifyColor( const Color& color, float saturation, float brightness )
 EveSOF::EveSOF( IRoot* lockobj ) :
 	PARENTLOCK( m_dataMgr ),
 	m_allowFileCaching( true ),
-	m_editorMode( false )
+	m_editorMode( false ),
+	m_requireGeometrySubstitutions( false ),
+	m_callerDataInstalled( false ),
+	m_lastBuiltObjectIdentity( nullptr )
 {
 	// hard-coded names
 	m_depthOnlyEffectName = BlueSharedString( "depthonlyv5.fx" );
@@ -166,7 +191,317 @@ EveSOF::~EveSOF()
 // --------------------------------------------------------------------------------
 bool EveSOF::LoadData( const char* filePath )
 {
+	m_callerDataInstalled = false;
 	return m_dataMgr.LoadData( filePath );
+}
+
+bool EveSOF::SetData( EveSOFData* data )
+{
+	m_callerDataInstalled = m_dataMgr.SetData( data );
+	return m_callerDataInstalled;
+}
+
+bool EveSOF::ConfigureGeometrySubstitutions(
+	const std::vector<EveSOFGeometrySubstitution>& substitutions,
+	const char* authoredVolumetricTrailPath )
+{
+	// Enter strict mode before validation.  If configuration fails and a caller
+	// accidentally continues, the empty closure still makes construction fail
+	// instead of falling back to authored GR2 paths.
+	m_geometrySubstitutions.clear();
+	m_usedGeometrySubstitutions.clear();
+	m_authoredVolumetricTrailPath.clear();
+	m_requireGeometrySubstitutions = true;
+	std::unordered_map<std::string, std::string> resolved;
+	if( substitutions.empty() )
+	{
+		SetBuildFailure( "strict SOF geometry closure is empty" );
+		return false;
+	}
+
+	for( const EveSOFGeometrySubstitution& substitution : substitutions )
+	{
+		const std::string authored = NormalizeSOFResourcePath( substitution.authoredPath );
+		const std::string staged = NormalizeSOFResourcePath( substitution.stagedPath );
+		if( authored.rfind( "res:/", 0 ) != 0 || !HasResourceExtension( authored, ".gr2" ) )
+		{
+			SetBuildFailure( "SOF geometry substitution has a non-GR2 authored identity: " + substitution.authoredPath );
+			return false;
+		}
+		if( staged.rfind( "res:/", 0 ) != 0 || !HasResourceExtension( staged, ".cmf" ) )
+		{
+			SetBuildFailure( "SOF geometry substitution has a non-CMF staged identity: " + substitution.stagedPath );
+			return false;
+		}
+		if( resolved.find( authored ) != resolved.end() )
+		{
+			SetBuildFailure( "SOF geometry closure contains a duplicate authored identity: " + substitution.authoredPath );
+			return false;
+		}
+		resolved.emplace( authored, substitution.stagedPath );
+	}
+
+	if( !authoredVolumetricTrailPath || !authoredVolumetricTrailPath[0] )
+	{
+		SetBuildFailure( "strict SOF geometry closure is missing the authored volumetric trail identity" );
+		return false;
+	}
+	const std::string authoredTrail = NormalizeSOFResourcePath( authoredVolumetricTrailPath );
+	if( !HasResourceExtension( authoredTrail, ".gr2" ) || resolved.find( authoredTrail ) == resolved.end() )
+	{
+		SetBuildFailure( "strict SOF geometry closure does not resolve the authored volumetric trail: " + std::string( authoredVolumetricTrailPath ) );
+		return false;
+	}
+
+	m_geometrySubstitutions = std::move( resolved );
+	m_usedGeometrySubstitutions.clear();
+	m_authoredVolumetricTrailPath = authoredVolumetricTrailPath;
+	m_lastBuildDiagnostics.failureReason.clear();
+	return true;
+}
+
+bool EveSOF::ConfigureControllerSubstitution( const char* authoredPath, ITr2Controller* controller )
+{
+	if( !authoredPath || !authoredPath[0] || !controller )
+	{
+		SetBuildFailure( "SOF controller substitution is incomplete" );
+		return false;
+	}
+	const std::string normalized = NormalizeSOFResourcePath( authoredPath );
+	if( normalized.rfind( "res:/", 0 ) != 0 ||
+		( !HasResourceExtension( normalized, ".red" ) && !HasResourceExtension( normalized, ".black" ) ) )
+	{
+		SetBuildFailure( "SOF controller substitution has an invalid authored identity: " + std::string( authoredPath ) );
+		return false;
+	}
+	if( m_controllerSubstitutions.find( normalized ) != m_controllerSubstitutions.end() )
+	{
+		SetBuildFailure( "SOF controller closure contains a duplicate authored identity: " + std::string( authoredPath ) );
+		return false;
+	}
+	m_controllerSubstitutions.emplace( normalized, controller );
+	m_lastBuildDiagnostics.failureReason.clear();
+	return true;
+}
+
+void EveSOF::ClearGeometrySubstitutions()
+{
+	m_geometrySubstitutions.clear();
+	m_usedGeometrySubstitutions.clear();
+	m_authoredVolumetricTrailPath.clear();
+	m_requireGeometrySubstitutions = false;
+	m_controllerSubstitutions.clear();
+	m_usedControllerSubstitutions.clear();
+}
+
+const EveSOFBuildDiagnostics& EveSOF::GetLastBuildDiagnostics() const
+{
+	return m_lastBuildDiagnostics;
+}
+
+void EveSOF::SetBuildFailure( const std::string& reason ) const
+{
+	m_lastBuildDiagnostics.failureReason = reason;
+	m_lastBuildDiagnostics.buildSucceeded = false;
+}
+
+bool EveSOF::ResolveGeometryPath( const std::string& authoredPath, std::string& resolvedPath ) const
+{
+	if( !m_requireGeometrySubstitutions )
+	{
+		resolvedPath = authoredPath;
+		return true;
+	}
+
+	const std::string normalized = NormalizeSOFResourcePath( authoredPath );
+	if( !HasResourceExtension( normalized, ".gr2" ) )
+	{
+		SetBuildFailure( "strict SOF construction requested a non-GR2 authored geometry: " + authoredPath );
+		return false;
+	}
+	const auto substitution = m_geometrySubstitutions.find( normalized );
+	if( substitution == m_geometrySubstitutions.end() )
+	{
+		SetBuildFailure( "strict SOF geometry closure is missing authored resource: " + authoredPath );
+		return false;
+	}
+	resolvedPath = substitution->second;
+	m_usedGeometrySubstitutions.insert( normalized );
+	return true;
+}
+
+void EveSOF::RecordExpectedMeshInventory( const EveSOFDNAPtr dna ) const
+{
+	m_lastBuildDiagnostics.expectedAreaCounts.fill( 0 );
+	for( size_t hullIndex = 0; hullIndex < dna->GetMultiHullCount(); ++hullIndex )
+	{
+		const auto* opaque = dna->GetHullMeshAreas( TRIBATCHTYPE_OPAQUE, hullIndex );
+		const auto* decals = dna->GetHullMeshAreas( TRIBATCHTYPE_DECAL, hullIndex );
+		const auto* transparent = dna->GetHullMeshAreas( TRIBATCHTYPE_TRANSPARENT, hullIndex );
+		const auto* additive = dna->GetHullMeshAreas( TRIBATCHTYPE_ADDITIVE, hullIndex );
+		const auto* distortion = dna->GetHullMeshAreas( TRIBATCHTYPE_DISTORTION, hullIndex );
+		m_lastBuildDiagnostics.expectedAreaCounts[TRIBATCHTYPE_OPAQUE] += uint32_t( opaque->size() + decals->size() );
+		m_lastBuildDiagnostics.expectedAreaCounts[TRIBATCHTYPE_TRANSPARENT] += uint32_t( transparent->size() );
+		m_lastBuildDiagnostics.expectedAreaCounts[TRIBATCHTYPE_ADDITIVE] += uint32_t( additive->size() );
+		m_lastBuildDiagnostics.expectedAreaCounts[TRIBATCHTYPE_DISTORTION] += uint32_t( distortion->size() );
+		for( const auto& area : *transparent )
+		{
+			const EveSOFDataMgr::GenericShaderData* shader = dna->GetGenericAreaShaderData( area.shader );
+			if( shader && shader->doGenerateDepthArea )
+			{
+				++m_lastBuildDiagnostics.expectedAreaCounts[TRIBATCHTYPE_DEPTH];
+			}
+		}
+	}
+}
+
+void EveSOF::RecordActualMeshInventory( const Tr2MeshBase* mesh, EveSOFBuildDiagnostics& diagnostics ) const
+{
+	diagnostics.actualAreaCounts.fill( 0 );
+	diagnostics.materialAreaCount = 0;
+	diagnostics.effectResourceCount = 0;
+	diagnostics.readyEffectResourceCount = 0;
+	if( !mesh )
+	{
+		diagnostics.meshCreated = false;
+		diagnostics.meshAreasComplete = false;
+		diagnostics.materialsComplete = false;
+		return;
+	}
+
+	diagnostics.meshCreated = true;
+	for( int batchType = 0; batchType < TRIBATCHTYPE_COUNT_OF_BATCH_TYPES; ++batchType )
+	{
+		const auto type = static_cast<TriBatchType>( batchType );
+		const Tr2MeshAreaVector* areas = mesh->GetAreas( type );
+		if( !areas )
+		{
+			continue;
+		}
+		diagnostics.actualAreaCounts[batchType] = uint32_t( areas->size() );
+		for( const Tr2MeshAreaPtr& area : *areas )
+		{
+			Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+			if( !effect )
+			{
+				continue;
+			}
+			++diagnostics.materialAreaCount;
+			++diagnostics.effectResourceCount;
+			Tr2EffectRes* resource = effect->GetEffectRes();
+			if( resource && resource->IsGood() )
+			{
+				++diagnostics.readyEffectResourceCount;
+			}
+		}
+	}
+
+	diagnostics.meshAreasComplete = diagnostics.actualAreaCounts == diagnostics.expectedAreaCounts;
+	uint32_t actualAreaCount = 0;
+	for( uint32_t count : diagnostics.actualAreaCounts )
+	{
+		actualAreaCount += count;
+	}
+	diagnostics.materialsComplete = diagnostics.materialAreaCount == actualAreaCount;
+}
+
+bool EveSOF::InspectNativeBuild( IRoot* object, EveSOFBuildDiagnostics& diagnostics ) const
+{
+	diagnostics = m_lastBuildDiagnostics;
+	diagnostics.objectMatchesLastBuild = object && object == m_lastBuiltObjectIdentity;
+	diagnostics.objectCreated = false;
+	diagnostics.nativeShip = false;
+	diagnostics.geometryResourceBound = false;
+	diagnostics.geometryLoading = false;
+	diagnostics.geometryPrepared = false;
+	diagnostics.geometryBoneBindingCount = 0;
+	diagnostics.geometrySkeletonCount = 0;
+	diagnostics.geometryAnimationCount = 0;
+	diagnostics.geometrySkinnedAreaCount = 0;
+	diagnostics.geometrySkinningComplete = false;
+	diagnostics.boostersCreated = false;
+	diagnostics.trailsCreated = false;
+	diagnostics.trailsReady = false;
+	diagnostics.boosterCount = 0;
+	diagnostics.trailCount = 0;
+	diagnostics.structuralComplete = false;
+	diagnostics.resourceReady = false;
+	diagnostics.configuredGeometrySubstitutionCount = uint32_t( m_geometrySubstitutions.size() );
+	diagnostics.usedGeometrySubstitutionCount = uint32_t( m_usedGeometrySubstitutions.size() );
+	diagnostics.geometryClosureComplete = !m_requireGeometrySubstitutions ||
+		diagnostics.configuredGeometrySubstitutionCount == diagnostics.usedGeometrySubstitutionCount;
+	diagnostics.controllerClosureComplete = !m_requireGeometrySubstitutions ||
+		( diagnostics.expectedControllerCount == diagnostics.installedControllerCount &&
+		  m_controllerSubstitutions.size() == m_usedControllerSubstitutions.size() );
+
+	EveSpaceObject2Ptr spaceObject = BlueCastPtr( object );
+	if( !spaceObject )
+	{
+		diagnostics.failureReason = "native SOF build did not return an EveSpaceObject2";
+		return false;
+	}
+	diagnostics.objectCreated = true;
+
+	EveShip2Ptr ship = BlueCastPtr( object );
+	diagnostics.nativeShip = ship != nullptr;
+	Tr2MeshBase* mesh = spaceObject->GetMesh();
+	RecordActualMeshInventory( mesh, diagnostics );
+	if( mesh )
+	{
+		TriGeometryRes* geometry = mesh->GetGeometryResource();
+		diagnostics.geometryResourceBound = geometry != nullptr;
+		diagnostics.geometryLoading = mesh->IsLoading();
+		diagnostics.geometryPrepared = geometry && geometry->IsPrepared();
+		if( geometry )
+		{
+			const int meshIndex = mesh->GetMeshIndex();
+			TriGeometryResMeshData* geometryMesh =
+				meshIndex >= 0 ? geometry->GetMeshData( static_cast<unsigned int>( meshIndex ) ) : nullptr;
+			TriGeometryResLodData* geometryLod =
+				meshIndex >= 0 ? geometry->GetMeshLod( static_cast<unsigned int>( meshIndex ), 0 ) : nullptr;
+			diagnostics.geometryBoneBindingCount = geometryMesh ?
+				static_cast<uint32_t>( geometryMesh->m_jointBindings.size() ) : 0;
+			diagnostics.geometrySkeletonCount = geometry->GetSkeletonCount();
+			diagnostics.geometryAnimationCount = geometry->GetAnimationCount();
+			if( geometryLod )
+			{
+				for( const TriGeometryResAreaData& area : geometryLod->m_areas )
+				{
+					diagnostics.geometrySkinnedAreaCount += area.m_isSkinned ? 1u : 0u;
+				}
+			}
+			diagnostics.geometrySkinningComplete =
+				diagnostics.geometryBoneBindingCount != 0 &&
+				diagnostics.geometrySkeletonCount != 0 &&
+				diagnostics.geometrySkinnedAreaCount != 0;
+		}
+	}
+
+	if( ship )
+	{
+		EveBoosterSet2* boosters = ship->GetBoosters();
+		diagnostics.boostersCreated = boosters != nullptr;
+		if( boosters )
+		{
+			const EveBoosterSet2Diagnostics boosterDiagnostics = boosters->GetDiagnostics();
+			diagnostics.boosterCount = boosterDiagnostics.boosterCount;
+			diagnostics.trailCount = boosterDiagnostics.trailCount;
+			diagnostics.trailsCreated = boosters->GetTrail() != nullptr;
+			diagnostics.trailsReady = !diagnostics.trailsCreated || boosters->GetTrail()->IsReady();
+		}
+	}
+
+	const bool expectedClassPresent = diagnostics.buildClass != EveSOFDataHull::BUILDCLASS_SHIP || diagnostics.nativeShip;
+	diagnostics.structuralComplete = diagnostics.objectCreated && expectedClassPresent && diagnostics.meshCreated &&
+		diagnostics.meshAreasComplete && diagnostics.materialsComplete && diagnostics.geometryClosureComplete &&
+		diagnostics.controllerClosureComplete &&
+		( !diagnostics.boostersExpected || diagnostics.boostersCreated ) &&
+		( !diagnostics.trailsExpected || diagnostics.trailsCreated );
+	const bool effectsReady = diagnostics.effectResourceCount != 0 &&
+		diagnostics.readyEffectResourceCount == diagnostics.effectResourceCount;
+	diagnostics.resourceReady = diagnostics.structuralComplete && diagnostics.geometryPrepared && effectsReady &&
+		( !diagnostics.trailsExpected || diagnostics.trailsReady );
+	return diagnostics.structuralComplete;
 }
 
 // --------------------------------------------------------------------------------
@@ -175,6 +510,20 @@ bool EveSOF::LoadData( const char* filePath )
 // --------------------------------------------------------------------------------
 IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 {
+	m_lastBuildDiagnostics = EveSOFBuildDiagnostics{};
+	m_lastBuildDiagnostics.dna = dnaString ? dnaString : "";
+	m_lastBuildDiagnostics.callerDataInstalled = m_callerDataInstalled;
+	m_lastBuildDiagnostics.strictGeometrySubstitutions = m_requireGeometrySubstitutions;
+	m_lastBuildDiagnostics.configuredGeometrySubstitutionCount = uint32_t( m_geometrySubstitutions.size() );
+	m_usedGeometrySubstitutions.clear();
+	m_usedControllerSubstitutions.clear();
+	m_lastBuiltObjectIdentity = nullptr;
+	if( !dnaString || !dnaString[0] )
+	{
+		SetBuildFailure( "SOF DNA is empty" );
+		return nullptr;
+	}
+
 	std::string s = "BuildFromDna ";
 	s += std::string( dnaString );
 	CCP_STATS_ZONE( s.c_str() );
@@ -182,15 +531,26 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	EveSOFDNAPtr dna = CreateDna( dnaString );
 	if( dna == nullptr )
 	{
+		SetBuildFailure( "SOF DNA did not validate against the installed database: " + std::string( dnaString ) );
 		return nullptr;
 	}
+	m_lastBuildDiagnostics.dnaValid = true;
+	m_lastBuildDiagnostics.buildClass = int32_t( dna->GetBuildClass() );
+	m_lastBuildDiagnostics.impactEffectType = int32_t( dna->GetImpactEffectType() );
+	m_lastBuildDiagnostics.impactEffectNone = dna->GetImpactEffectType() == EveSOFDataHull::IMPACTEFFECT_NONE;
+	m_lastBuildDiagnostics.reflectionMode = int32_t( dna->GetReflectionMode() );
+	m_lastBuildDiagnostics.castsShadow = dna->CastShadow();
+	m_lastBuildDiagnostics.boostersExpected = dna->GetHullBoosterCount() != 0;
+	RecordExpectedMeshInventory( dna );
 
 	// create what we need to build
 	EveSpaceObject2Ptr newObj = CreateSpaceObject( dna );
 	if( newObj == nullptr )
 	{
+		SetBuildFailure( "SOF DNA selected an unsupported native build class" );
 		return nullptr;
 	}
+	m_lastBuildDiagnostics.objectCreated = true;
 
 	// set all easy consts
 	SetupConsts( newObj, dna );
@@ -239,7 +599,10 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	}
 
 	// get us the base geometry
-	SetupMesh( newObj, dna );
+	if( !SetupMesh( newObj, dna ) )
+	{
+		return nullptr;
+	}
 	SetupCustomMask( newObj, dna );
 
 	// decals
@@ -287,7 +650,10 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	EveShip2Ptr newShip;
 	if( newObj->GetRawRoot()->QueryInterface( BlueInterfaceIID<EveShip2>(), (void**)&newShip, BEQI_SILENT ) )
 	{
-		SetupBoosters( newShip, dna );
+		if( !SetupBoosters( newShip, dna ) )
+		{
+			return nullptr;
+		}
 	}
 
 	// EveSwarm-specific setups
@@ -296,10 +662,31 @@ IRootPtr EveSOF::BuildFromDNA( const char* dnaString )
 	{
 		newSwarm->SetBehavior( dna->GetGenericSwarmProperties() );
 	}
+	if( m_requireGeometrySubstitutions && !m_lastBuildDiagnostics.failureReason.empty() )
+	{
+		return nullptr;
+	}
 
 	// ships needs a final ::Initialize call
 	newObj->Initialize();
-
+	m_lastBuildDiagnostics.initialized = true;
+	m_lastBuiltObjectIdentity = newObj->GetRawRoot();
+	EveSOFBuildDiagnostics inspected;
+	InspectNativeBuild( newObj->GetRawRoot(), inspected );
+	inspected.initialized = true;
+	inspected.buildSucceeded = !m_requireGeometrySubstitutions || inspected.structuralComplete;
+	if( m_requireGeometrySubstitutions && !inspected.structuralComplete )
+	{
+		if( inspected.failureReason.empty() )
+		{
+			inspected.failureReason = "strict native SOF construction produced an incomplete object inventory";
+		}
+		m_lastBuildDiagnostics = inspected;
+		m_lastBuildDiagnostics.buildSucceeded = false;
+		m_lastBuiltObjectIdentity = nullptr;
+		return nullptr;
+	}
+	m_lastBuildDiagnostics = inspected;
 	return newObj->GetRawRoot();
 }
 
@@ -473,7 +860,7 @@ void EveSOF::SetupConsts( EveSpaceObject2Ptr ship, const EveSOFDNAPtr dna ) cons
 // Description:
 //   This is where it is all going to happen
 // --------------------------------------------------------------------------------
-void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
+bool EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
@@ -486,10 +873,29 @@ void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 	obj->SetIsAnimated( dna->IsHullAnimated() );
 
 	// assign mesh to ship
-	obj->SetMesh( CreateMesh( dna ) );
+	Tr2MeshPtr mesh = CreateMesh( dna );
+	if( !mesh )
+	{
+		if( m_lastBuildDiagnostics.failureReason.empty() )
+		{
+			SetBuildFailure( "native SOF construction did not create the authored hull mesh" );
+		}
+		return false;
+	}
+	obj->SetMesh( mesh );
+	if( m_requireGeometrySubstitutions )
+	{
+		RecordActualMeshInventory( mesh, m_lastBuildDiagnostics );
+		if( !m_lastBuildDiagnostics.meshAreasComplete || !m_lastBuildDiagnostics.materialsComplete )
+		{
+			SetBuildFailure( "strict native SOF construction did not close the authored mesh-area and material inventory" );
+			return false;
+		}
+	}
 
 	// Set the reflectionMode based on the category
 	obj->SetReflectionMode( dna->GetReflectionMode() );
+	return true;
 }
 
 
@@ -499,19 +905,30 @@ void EveSOF::SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const
 // --------------------------------------------------------------------------------
 Tr2MeshPtr EveSOF::CreateMesh( const EveSOFDNAPtr dna ) const
 {
+	const std::string authoredPath = dna->GetHullGeometryResPath();
+	std::string resolvedPath;
+	if( !ResolveGeometryPath( authoredPath, resolvedPath ) )
+	{
+		return nullptr;
+	}
+	if( m_lastBuildDiagnostics.authoredHullGeometryPath.empty() )
+	{
+		m_lastBuildDiagnostics.authoredHullGeometryPath = authoredPath;
+		m_lastBuildDiagnostics.resolvedHullGeometryPath = resolvedPath;
+	}
+
 	// need a mesh
 	Tr2MeshPtr mesh;
 	mesh.CreateInstance();
 
 	// gr2 res path
-	mesh->SetMeshResPath( dna->GetHullGeometryResPath().c_str() );
+	mesh->SetMeshResPath( resolvedPath.c_str() );
 
 
 	SetupShaders( dna, mesh );
 
 	// some areas need an accompanying depth area
 	GenerateDepthFromAreaVector( mesh, mesh->GetAreas( TRIBATCHTYPE_TRANSPARENT ), dna );
-
 	return mesh;
 }
 
@@ -773,6 +1190,8 @@ void EveSOF::SetupSpriteSets( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSO
 
 								EveSpriteLight light( lightData, itemData->blinkPhase, itemData->blinkRate, itemData->minScale, itemData->maxScale, index, itemData->light->lightProfilePath );
 								spriteSet->AddLightFromSOF( light );
+								++m_lastBuildDiagnostics.attachmentLightCount;
+								++m_lastBuildDiagnostics.localLightCount;
 							}
 							index++;
 						}
@@ -927,6 +1346,8 @@ void EveSOF::SetupSpotlightSets( IEveSpaceObjectAttachmentOwnerPtr obj, const Ev
 							data.brightness *= ssiit.coneIntensity;
 
 							spotlightSet->AddLightFromSOF( EveSpotlightLight( data, index, ssiit.light->lightProfilePath, ssiit.boosterGainInfluence ) );
+							++m_lastBuildDiagnostics.attachmentLightCount;
+							++m_lastBuildDiagnostics.localLightCount;
 						}
 						index++;
 					}
@@ -1091,6 +1512,8 @@ void EveSOF::SetupPlaneSets( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSOF
 							lightData.boneIndex = planeSetItem->m_boneIndex;
 
 							planeSet->AddLightFromSOF( EvePlaneLight( lightData, pslight.saturation, index, pslight.lightProfilePath, (EveSpaceObjectAttachmentUtils::FadeType)psiit.blinkMode, psiit.phase, psiit.rate ) );
+							++m_lastBuildDiagnostics.attachmentLightCount;
+							++m_lastBuildDiagnostics.localLightCount;
 						}
 
 						index++;
@@ -1208,6 +1631,8 @@ void EveSOF::SetupSpriteLineSets( IEveSpaceObjectAttachmentOwnerPtr obj, const E
 									light.maxScale = itemData->maxScale;
 
 									spriteLineSet->AddLightFromSOF( light );
+									++m_lastBuildDiagnostics.attachmentLightCount;
+									++m_lastBuildDiagnostics.localLightCount;
 								}
 							}
 							index++;
@@ -1324,6 +1749,8 @@ void EveSOF::SetupHazeSets( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSOFD
 								EveHazeSetLight hazeSetLight( lightData, index, light.lightProfilePath, itemData->boosterGainInfluence );
 
 								hazeSet->AddLightFromSOF( hazeSetLight );
+								++m_lastBuildDiagnostics.attachmentLightCount;
+								++m_lastBuildDiagnostics.localLightCount;
 							}
 						}
 
@@ -1412,6 +1839,8 @@ void EveSOF::SetupBanners( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, const
 					bannerLight.saturation = itemData.bannerLight.saturation;
 					bannerLight.index = index;
 					bannerSet->AddLightFromSOF( bannerLight );
+					++m_lastBuildDiagnostics.attachmentLightCount;
+					++m_lastBuildDiagnostics.localLightCount;
 					index++;
 				}
 			}
@@ -1565,6 +1994,8 @@ void EveSOF::SetupBannerSets( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna, co
 							EveBannerLight bannerLight( lightData, banner.light->saturation, index, banner.light->lightProfilePath );
 
 							bannerSet->AddLightFromSOF( bannerLight );
+							++m_lastBuildDiagnostics.attachmentLightCount;
+							++m_lastBuildDiagnostics.localLightCount;
 						}
 					}
 					index++;
@@ -2020,10 +2451,27 @@ void EveSOF::SetupControllers( ITr2ControllerOwnerPtr owner, const EveSOFDNAPtr 
 		{
 			continue;
 		}
+		++m_lastBuildDiagnostics.expectedControllerCount;
+		if( m_requireGeometrySubstitutions )
+		{
+			const std::string authoredPath = cit->path.c_str();
+			const std::string normalized = NormalizeSOFResourcePath( authoredPath );
+			const auto substitution = m_controllerSubstitutions.find( normalized );
+			if( substitution == m_controllerSubstitutions.end() || !substitution->second )
+			{
+				SetBuildFailure( "strict SOF controller closure is missing authored resource: " + authoredPath );
+				continue;
+			}
+			owner->AddController( substitution->second );
+			m_usedControllerSubstitutions.insert( normalized );
+			++m_lastBuildDiagnostics.installedControllerCount;
+			continue;
+		}
 
 		if( auto controller = BeResMan->LoadObject<ITr2Controller>( cit->path.c_str() ) )
 		{
 			owner->AddController( controller );
+			++m_lastBuildDiagnostics.installedControllerCount;
 		}
 		else
 		{
@@ -2086,6 +2534,11 @@ void EveSOF::SetupAudio( ITr2SoundEmitterOwnerPtr newObj, const EveSOFDNAPtr dna
 // --------------------------------------------------------------------------------
 Tr2InstancedMeshPtr EveSOF::CreateInstancedMesh( std::vector<EveSOFDataMgr::HullMeshInstance> instances, std::string resPath ) const
 {
+	std::string resolvedPath;
+	if( !ResolveGeometryPath( resPath, resolvedPath ) )
+	{
+		return nullptr;
+	}
 	Tr2InstancedMeshPtr mesh;
 	mesh.CreateInstance();
 
@@ -2118,7 +2571,7 @@ Tr2InstancedMeshPtr EveSOF::CreateInstancedMesh( std::vector<EveSOFDataMgr::Hull
 	mesh->SetDynamicScaledBounds( sqrt( maxScale ) );
 
 	mesh->SetInstanceGeometryRes( instanceData );
-	mesh->SetMeshResPath( resPath.c_str() );
+	mesh->SetMeshResPath( resolvedPath.c_str() );
 
 	return mesh;
 }
@@ -2232,6 +2685,10 @@ void EveSOF::SetupInstancedMeshes( EveSpaceObject2Ptr newObj, const EveSOFDNAPtr
 		}
 
 		auto instancedMesh = CreateInstancedMesh( instances, him->geometryResPath );
+		if( !instancedMesh )
+		{
+			return;
+		}
 
 		Tr2MeshAreaVector* areas = instancedMesh->GetAreas( TRIBATCHTYPE_OPAQUE );
 
@@ -2423,7 +2880,12 @@ void EveSOF::SetupImpactEffects( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna 
 					meshArea->SetCount( 1 + dna->GetHighestMeshAreaIndex( TRIBATCHTYPE_OPAQUE ) );
 				}
 
-				shieldMesh->SetMeshResPath( geometryPath.c_str() );
+				std::string resolvedGeometryPath;
+				if( !ResolveGeometryPath( geometryPath, resolvedGeometryPath ) )
+				{
+					return;
+				}
+				shieldMesh->SetMeshResPath( resolvedGeometryPath.c_str() );
 
 				shieldMesh->GetAreas( TRIBATCHTYPE_ADDITIVE )->Append( meshArea );
 			}
@@ -2586,6 +3048,8 @@ void EveSOF::SetupLights( ITr2LightOwnerPtr spaceObject, const EveSOFDNAPtr dna,
 					light->SetLightData( data );
 
 					spaceObject->AddLight( light );
+					++m_lastBuildDiagnostics.directHullLightCount;
+					++m_lastBuildDiagnostics.localLightCount;
 				}
 			}
 		}
@@ -2647,14 +3111,35 @@ Tr2EffectPtr EveSOF::CreateBoosterEffect( const EveSOFDataMgr::RaceBoosterData* 
 // Description:
 //   add the booster to the new ship
 // --------------------------------------------------------------------------------
-void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
+bool EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 {
 	CCP_STATS_ZONE( __FUNCTION__ );
 
 	// does this hull have boosters at all?
 	if( dna->GetHullBoosterCount() == 0 )
 	{
-		return;
+		return true;
+	}
+
+	std::string trailGeometryPath = g_volumetricTrailPath;
+	for( size_t hullIndex = 0; hullIndex < dna->GetMultiHullCount(); ++hullIndex )
+	{
+		const EveSOFDataMgr::HullBoosterData* hullData = dna->GetHullBoosterData( hullIndex );
+		m_lastBuildDiagnostics.trailsExpected = m_lastBuildDiagnostics.trailsExpected || ( hullData && hullData->hasTrails );
+	}
+	if( m_lastBuildDiagnostics.trailsExpected && m_requireGeometrySubstitutions )
+	{
+		m_lastBuildDiagnostics.authoredTrailGeometryPath = m_authoredVolumetricTrailPath;
+		if( !ResolveGeometryPath( m_authoredVolumetricTrailPath, trailGeometryPath ) )
+		{
+			return false;
+		}
+		m_lastBuildDiagnostics.resolvedTrailGeometryPath = trailGeometryPath;
+	}
+	else if( m_lastBuildDiagnostics.trailsExpected )
+	{
+		m_lastBuildDiagnostics.authoredTrailGeometryPath = g_volumetricTrailPath;
+		m_lastBuildDiagnostics.resolvedTrailGeometryPath = g_volumetricTrailPath;
 	}
 
 	// create
@@ -2717,7 +3202,7 @@ void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 			trailEffect->AddParameterColor( BlueSharedString( "TrailColor" ), &rdata->trailColor );
 			trailEffect->EndUpdate();
 			trail->SetEffect( trailEffect );
-			trail->SetMeshResPath( g_volumetricTrailPath.c_str() );
+			trail->SetMeshResPath( trailGeometryPath.c_str() );
 
 			set->SetTrail( trail );
 		}
@@ -2776,6 +3261,7 @@ void EveSOF::SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const
 	// add it to ship
 	set->PrepareResources();
 	ship->SetBoosters( set );
+	return true;
 }
 
 // --------------------------------------------------------------------------------
@@ -3644,8 +4130,13 @@ void EveSOF::CreatePlacement(
 					areas.push_back( EveChildInstancedMeshes::MeshArea{ effect, type == TRIBATCHTYPE_DECAL ? TRIBATCHTYPE_OPAQUE : type, uint32_t( area->GetIndex() ), uint32_t( area->GetCount() ) } );
 				}
 			}
+			std::string resolvedGeometryPath;
+			if( !ResolveGeometryPath( extensionDna->GetHullGeometryResPath(), resolvedGeometryPath ) )
+			{
+				return;
+			}
 			sharedMeshes->AddMesh(
-				extensionDna->GetHullGeometryResPath().c_str(),
+				resolvedGeometryPath.c_str(),
 				extensionDna->CastShadow(),
 				extensionDna->GetReflectionMode(),
 				0,
@@ -3659,6 +4150,10 @@ void EveSOF::CreatePlacement(
 		else
 		{
 			auto instancedMesh = CreateInstancedMesh( instances, extensionDna->GetHullGeometryResPath() );
+			if( !instancedMesh )
+			{
+				return;
+			}
 			SetupShaders( extensionDna, instancedMesh );
 
 			EveChildMeshPtr child;

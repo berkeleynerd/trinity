@@ -23,6 +23,9 @@
 #include "Eve/SpaceObject/Attachments/IEveSpaceObjectDecalOwner.h"
 #include "Eve/SpaceObjectFactory/EveSOFData.h"
 #include "Eve/SpaceObjectFactory/EveSOFDataMgr.h"
+#include "Eve/SpaceObjectFactory/EveSOF.h"
+#include "Controllers/ITr2Controller.h"
+#include "Eve/SpaceObject/EveShip2.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveBannerSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveHazeSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveHazeSet.h"
@@ -591,6 +594,8 @@ enum StandaloneCelestialBallparkMode
 constexpr int64_t kNewEdenSunBallId = 40334263;
 constexpr int64_t kNewEdenPlanetBallId = 40334264;
 constexpr double kNewEdenStarRadius = 158400000.0;
+constexpr double kNewEdenSolarEnvironmentActivationRadius = 10060000256.0;
+constexpr double kNewEdenSolarEnvironmentFieldDimension = 475200000.0;
 constexpr double kNewEdenPlanetRadius = 2630000.0;
 constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -831868968960.0 };
 constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
@@ -2881,6 +2886,11 @@ public:
 		}
 	}
 
+	void SetShLightingReceiverLive( bool live )
+	{
+		m_shLightingReceiverLive = live;
+	}
+
 	void UpdateShLighting( Tr2ShLightingManager & manager, const EveUpdateContext& ) override
 	{
 		ClearShLighting();
@@ -2889,8 +2899,11 @@ public:
 			return;
 		}
 
+		const Vector3 receiverPosition = m_shLightingReceiverLive ?
+			m_worldTransform.GetTranslation() :
+			Vector3( 0.0f, 0.0f, 0.0f );
 		manager.GetLighting(
-			Vector3( 0.0f, 0.0f, 0.0f ),
+			receiverPosition,
 			1.0f,
 			0.6f,
 			m_eveV5PerObjectData.m_psData.shLightingCoefficients );
@@ -3855,6 +3868,7 @@ private:
 	bool m_useEveV5Material = false;
 	bool m_shadowCastingEnabled = false;
 	bool m_shLightingEnabled = true;
+	bool m_shLightingReceiverLive = false;
 	bool m_reportedShLighting = false;
 	mutable bool m_reportedAcceptedLights = false;
 	int m_localLightMode = 0;
@@ -4303,6 +4317,30 @@ enum StandaloneSolarEnvironmentDistance
 	STANDALONE_SOLAR_DISTANCE_EXIT_BOUNDARY = 3,
 };
 
+enum StandaloneSceneConstruction
+{
+	STANDALONE_SCENE_CONSTRUCTION_LEGACY = 0,
+	STANDALONE_SCENE_CONSTRUCTION_CANONICAL = 1,
+};
+
+enum StandaloneLegacyShProxies
+{
+	STANDALONE_LEGACY_SH_PROXIES_AUTHORED = 0,
+	STANDALONE_LEGACY_SH_PROXIES_OFF = 1,
+};
+
+enum StandaloneLegacyShReceiver
+{
+	STANDALONE_LEGACY_SH_RECEIVER_ORIGIN = 0,
+	STANDALONE_LEGACY_SH_RECEIVER_LIVE = 1,
+};
+
+enum StandaloneLegacySolarEnvironment
+{
+	STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED = 0,
+	STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE = 1,
+};
+
 enum StandaloneSunBodyLayers
 {
 	STANDALONE_SUN_BODY_OFF = 0,
@@ -4599,6 +4637,48 @@ struct StandaloneSolarOcclusionSample
 	EveSpaceSceneRenderDriver::LensFlareDiagnostics lensFlare;
 };
 
+struct StandaloneSolarEnvironmentPoll
+{
+	uint64_t frame = 0;
+	double egoPosition[3] = {};
+	double sunPosition[3] = {};
+	double distance = 0.0;
+	bool priorActive = false;
+	bool active = false;
+	std::string transition = "none";
+};
+
+struct StandaloneSceneConstructionCapture
+{
+	uint64_t frame = 0;
+	bool finite = false;
+	double spatialRange = 0.0;
+	double maximum = 0.0;
+	double hullMean = 0.0;
+	bool sunlitStation = false;
+	uint64_t hdrHash = 0;
+	uint64_t depthHash = 0;
+	uint64_t finalHash = 0;
+};
+
+struct StandaloneSolarEnvironmentExitEvidence
+{
+	uint64_t frame = 0;
+	Tr2PostProcessRenderer::HistoryDiagnostics before;
+	Tr2PostProcessRenderer::HistoryDiagnostics afterTeardown;
+	Tr2PostProcessRenderer::HistoryDiagnostics afterFrame;
+	Tr2PostProcess2::SelectedMemberDiagnostics selectedBefore;
+	Tr2PostProcess2::SelectedMemberDiagnostics selectedAfterTeardown;
+	bool environmentOwnersBefore = false;
+	bool defaultOwnersAfterTeardown = false;
+	bool defaultValuesRestored = false;
+	bool afterFrameCaptured = false;
+	bool teardownPreservedHistories = false;
+	bool frameAdvancedTaa = false;
+	bool frameAdvancedExposure = false;
+	bool historiesPreserved = false;
+};
+
 struct StandalonePlanetAreaEvidence
 {
 	std::string id;
@@ -4728,6 +4808,8 @@ struct StandaloneProbe
 		silkCloudRoot.Unlock();
 		eveGateRoot.Unlock();
 		scene.Unlock();
+		nativeShip.Unlock();
+		nativeSof.Unlock();
 		renderable.Unlock();
 #if TRINITY_WITH_DESTINY_EMBEDDED
 		if( destinySession )
@@ -4771,8 +4853,29 @@ struct StandaloneProbe
 	EveEffectRoot2Ptr froxelRoot;
 	EveChildFogVolumePtr froxelVolume;
 	BluePtr<TrinityStandaloneRenderable> renderable;
+	EveSOFPtr nativeSof;
+	EveShip2Ptr nativeShip;
+	EveSOFBuildDiagnostics nativeSofDiagnostics;
 	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
 	Tr2ShLightingManagerPtr shLightingManager;
+	int sceneConstruction = STANDALONE_SCENE_CONSTRUCTION_LEGACY;
+	int legacyShProxies = STANDALONE_LEGACY_SH_PROXIES_AUTHORED;
+	int legacyShReceiver = STANDALONE_LEGACY_SH_RECEIVER_ORIGIN;
+	int legacySolarEnvironment = STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED;
+	std::string systemManifestPath;
+	std::string systemManifestSha256;
+	std::string sceneConstructionReportPath;
+	std::vector<std::string> sceneConstructionTrace;
+	bool sceneConstructionConfigured = false;
+	bool sceneConstructionPublished = false;
+	bool canonicalStatePrepared = false;
+	uint64_t canonicalPacketSize = 0;
+	std::vector<std::string> canonicalPreparseRejections;
+	bool canonicalPreparseBeforeAllocation = false;
+	bool canonicalWireFixedPoint = false;
+	bool canonicalLiveDiagnosticsMatch = false;
+	bool canonicalFirstTwoEvolvesMatch = false;
+	bool canonicalStartCalledOnce = false;
 	TriViewPtr view;
 	TriProjectionPtr projection;
 	Tr2EffectPtr renderProductVisualizer;
@@ -4969,6 +5072,13 @@ struct StandaloneProbe
 	bool solarEnvironmentFieldActive = false;
 	bool solarEnvironmentMembersInstalled = false;
 	bool solarEnvironmentExitObserved = false;
+	std::vector<StandaloneSolarEnvironmentPoll> solarEnvironmentPolls;
+	Tr2PostProcess2::SelectedMemberDiagnostics solarEnvironmentDefaultMemberDiagnostics;
+	std::vector<StandaloneSolarEnvironmentExitEvidence> solarEnvironmentExitEvidence;
+	size_t solarEnvironmentPendingExitEvidence = std::numeric_limits<size_t>::max();
+	bool sceneConstructionCaptureRequested = false;
+	std::vector<StandaloneSceneConstructionCapture> sceneConstructionCaptures;
+	bool shLightingSelected = false;
 	std::vector<float> solarOcclusionBaselineDepth;
 	std::vector<StandaloneSolarOcclusionSample> solarOcclusionSamples;
 	bool solarProjectedPlanetMaskValid = false;
@@ -6232,7 +6342,11 @@ bool PrepareMeshWithoutYield( Tr2Mesh& mesh, const char* cmfPath, const char* ro
 			const int areaCount = std::max( 1, area->GetCount() );
 			if( areaIndex < 0 || static_cast<unsigned int>( areaIndex + areaCount ) > geometryAreaCount )
 			{
-				error = std::string( role ) + " serialized area range is outside converted CMF geometry: " + area->GetName();
+				std::ostringstream message;
+				message << role << " serialized area range is outside converted CMF geometry: name="
+						<< area->GetName() << " index=" << areaIndex << " count=" << areaCount
+						<< " geometryAreas=" << geometryAreaCount;
+				error = message.str();
 				return false;
 			}
 			Tr2Effect* effect = area->GetMaterialInterface();
@@ -8346,16 +8460,49 @@ bool ConfigureNewEdenSystem(
 	{
 		return false;
 	}
+	Vector3 settledSunPosition = sunPosition;
+	Vector3 settledPlanetPosition = planetPosition;
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	ITriVectorFunction* canonicalSunCurve = nullptr;
+	ITriVectorFunction* canonicalPlanetCurve = nullptr;
+	if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		if( !probe.canonicalStatePrepared || !probe.destinySession )
+		{
+			error = "Canonical New Eden celestials require the packet-born Ballpark before visual construction";
+			return false;
+		}
+		canonicalSunCurve = Destiny_GetEmbeddedBallPosition(
+			probe.destinySession, kNewEdenSunBallId );
+		canonicalPlanetCurve = Destiny_GetEmbeddedBallPosition(
+			probe.destinySession, kNewEdenPlanetBallId );
+		if( !canonicalSunCurve || !canonicalPlanetCurve )
+		{
+			error = "Canonical New Eden celestial role curves are incomplete";
+			return false;
+		}
+		settledSunPosition = Vector3( 0.0f, 0.0f, 0.0f );
+		settledPlanetPosition = Vector3( 0.0f, 0.0f, 0.0f );
+	}
+#endif
 	sun->SetStandalonePlacement(
-		sunPosition,
+		settledSunPosition,
 		static_cast<float>( starRadius ) * celestialRadiusScale,
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
 		Color( emissiveR, emissiveG, emissiveB, 1.0f ) );
 	planet->SetStandalonePlacement(
-		planetPosition,
+		settledPlanetPosition,
 		static_cast<float>( planetRadius ) * celestialRadiusScale,
 		Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
 		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( canonicalSunCurve && canonicalPlanetCurve )
+	{
+		sun->SetBallPositionCurve( canonicalSunCurve );
+		planet->SetBallPositionCurve( canonicalPlanetCurve );
+		probe.sceneConstructionTrace.push_back( "celestial-curves-bound" );
+	}
+#endif
 	if( probe.solarAudit && !probe.solarAudit->CaptureSourceGraph( *sun, error ) )
 	{
 		return false;
@@ -8466,7 +8613,10 @@ bool ConfigureNewEdenSystem(
 			return false;
 		}
 		lensFlare->SetTranslationCurve( sun->GetTranslationCurve() );
-		lensFlare->SetPositionOffset( sunPosition );
+		lensFlare->SetPositionOffset(
+			probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ?
+				Vector3( 0.0f, 0.0f, 0.0f ) :
+				sunPosition );
 		scene.Lensflares().Insert( -1, lensFlare->GetRawRoot() );
 		probe.lensFlarePrepared = true;
 		probe.newEdenLensFlare = lensFlare.p;
@@ -8486,6 +8636,10 @@ bool ConfigureNewEdenSystem(
 	scene.Planets().Insert( -1, planet->GetRawRoot() );
 	probe.newEdenSun = cameraView != STANDALONE_CAMERA_PLANET ? sun.p : nullptr;
 	probe.newEdenPlanet = planet.p;
+	if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		probe.sceneConstructionTrace.push_back( "celestial-membership-inserted" );
+	}
 	probe.newEdenSystemComposition = composition == STANDALONE_COMPOSITION_SYSTEM;
 	if( composition == STANDALONE_COMPOSITION_SYSTEM )
 	{
@@ -8679,6 +8833,11 @@ bool ConfigureShLighting(
 	probe.solarDirectLightingEnabled =
 		lightingView == STANDALONE_LIGHTING_COMBINED ||
 		lightingView == STANDALONE_LIGHTING_DIRECT;
+	probe.shLightingSelected =
+		lightingView != STANDALONE_LIGHTING_DIRECT &&
+		lightingView != STANDALONE_LIGHTING_LOCAL &&
+		lightingView != STANDALONE_LIGHTING_ENVIRONMENT &&
+		shSource != STANDALONE_SH_SOURCE_NONE;
 
 	if( lightingView == STANDALONE_LIGHTING_SH || lightingView == STANDALONE_LIGHTING_LOCAL ||
 		lightingView == STANDALONE_LIGHTING_ENVIRONMENT )
@@ -8738,8 +8897,20 @@ bool ConfigureShLighting(
 			return true;
 		}
 
-		// The client adds both bodies to scene.planets. EvePlanet registers them
-		// with Tr2ShLightingManager after applying its 1,000,000:1 scene scale.
+		// Legacy retained two fixed sample-owned copies in addition to the bodies
+		// already registered through scene.planets. PL-14G can remove only those
+		// copies while preserving the rest of the legacy construction lane.
+		if( probe.legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_OFF ||
+			probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+		{
+			std::fprintf(
+				stderr,
+				"Trinity SH sources: native scene membership only; sample-owned Sun/planet proxies disabled\n" );
+			return true;
+		}
+
+		// The legacy lane intentionally retains the duplicated fixed proxies for
+		// causal comparison against the corrected native-only registration.
 		if( !addSecondarySource(
 				Vector3( 1069486.940160f, -202669.301760f, -831868.968960f ),
 				158.4f,
@@ -12932,17 +13103,194 @@ void ApplySolarEnvironmentMembers( StandaloneProbe& probe, bool active )
 	}
 }
 
-void UpdateSolarEnvironmentState( StandaloneProbe& probe )
+bool MeasureLiveSolarEnvironmentDistance(
+	StandaloneProbe& probe,
+	StandaloneSolarEnvironmentPoll& poll )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe.destinySession )
+	{
+		return false;
+	}
+	DestinyEmbeddedDiagnostics ego = {};
+	DestinyEmbeddedCelestialState sun = {};
+	if( !Destiny_GetEmbeddedDiagnostics( probe.destinySession, &ego ) ||
+		!Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenSunBallId, &sun ) )
+	{
+		return false;
+	}
+	double squaredDistance = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		// Environment membership follows the live ball curve, not the one-second
+		// Destiny tick endpoint.  absolutePosition is InterpolatedPosition() at
+		// lastRequestedTime, so it observes the accepted route's between-tick
+		// boundary crossings while remaining in the same absolute frame as the
+		// fixed Sun ball.
+		poll.egoPosition[axis] = ego.absolutePosition[axis];
+		poll.sunPosition[axis] = sun.position[axis];
+		const double delta = sun.position[axis] - ego.absolutePosition[axis];
+		squaredDistance += delta * delta;
+	}
+	poll.distance = std::sqrt( squaredDistance );
+	return std::isfinite( poll.distance );
+#else
+	(void)probe;
+	(void)poll;
+	return false;
+#endif
+}
+
+bool SamePostProcessHistory(
+	const Tr2PostProcessRenderer::HistoryDiagnostics& first,
+	const Tr2PostProcessRenderer::HistoryDiagnostics& second )
+{
+	return first.taaResetCount == second.taaResetCount &&
+		first.taaFrameCounter == second.taaFrameCounter &&
+		first.taaResetPending == second.taaResetPending &&
+		first.exposureHistoryValid == second.exposureHistoryValid &&
+		first.exposureMeasurementCount == second.exposureMeasurementCount;
+}
+
+bool SamePostProcessMembers(
+	const Tr2PostProcess2::SelectedMemberDiagnostics& first,
+	const Tr2PostProcess2::SelectedMemberDiagnostics& second )
+{
+	return first.hasFog == second.hasFog &&
+		first.hasBloom == second.hasBloom &&
+		first.hasDesaturate == second.hasDesaturate &&
+		first.fogFingerprint == second.fogFingerprint &&
+		first.bloomFingerprint == second.bloomFingerprint &&
+		first.desaturateFingerprint == second.desaturateFingerprint;
+}
+
+bool BeginSolarEnvironmentExitEvidence( StandaloneProbe& probe )
+{
+	if( !probe.driver || !probe.clientPostProcess ||
+		probe.solarEnvironmentPendingExitEvidence !=
+			std::numeric_limits<size_t>::max() )
+	{
+		return false;
+	}
+	StandaloneSolarEnvironmentExitEvidence evidence;
+	evidence.frame = probe.renderedFrameCount;
+	if( !probe.driver->GetPostProcessHistoryDiagnostics( evidence.before ) )
+	{
+		return false;
+	}
+	evidence.selectedBefore =
+		probe.clientPostProcess->GetSelectedMemberDiagnostics();
+	const Tr2PPFogEffectPtr selectedFog =
+		probe.clientPostProcess->GetSelectedFogForDiagnostics();
+	const Tr2PPBloomEffectPtr selectedBloom =
+		probe.clientPostProcess->GetSelectedBloomForDiagnostics();
+	const Tr2PPDesaturateEffectPtr selectedDesaturate =
+		probe.clientPostProcess->GetSelectedDesaturateForDiagnostics();
+	const Tr2PPFogEffectPtr expectedFog = SolarEnvironmentSelectsFog( probe ) ?
+		probe.solarEnvironmentFog : probe.solarEnvironmentDefaultFog;
+	const Tr2PPBloomEffectPtr activeBloom = SolarEnvironmentSelectsFinish( probe ) ?
+		probe.solarEnvironmentBloom : probe.solarEnvironmentDefaultBloom;
+	const Tr2PPBloomEffectPtr expectedBloom =
+		probe.bloomMode == STANDALONE_POST_FINISH_CLIENT ?
+		activeBloom : Tr2PPBloomEffectPtr{};
+	const Tr2PPDesaturateEffectPtr expectedDesaturate =
+		SolarEnvironmentSelectsFinish( probe ) ?
+		( probe.solarDesaturateAuthored ?
+			probe.solarEnvironmentDesaturate : Tr2PPDesaturateEffectPtr{} ) :
+		probe.solarEnvironmentDefaultDesaturate;
+	evidence.environmentOwnersBefore = selectedFog.p == expectedFog.p &&
+		selectedBloom.p == expectedBloom.p &&
+		selectedDesaturate.p == expectedDesaturate.p;
+	probe.solarEnvironmentExitEvidence.push_back( evidence );
+	probe.solarEnvironmentPendingExitEvidence =
+		probe.solarEnvironmentExitEvidence.size() - 1;
+	return true;
+}
+
+bool CompleteSolarEnvironmentTeardownEvidence( StandaloneProbe& probe )
+{
+	if( !probe.driver || !probe.clientPostProcess ||
+		probe.solarEnvironmentPendingExitEvidence >=
+			probe.solarEnvironmentExitEvidence.size() )
+	{
+		return false;
+	}
+	StandaloneSolarEnvironmentExitEvidence& evidence =
+		probe.solarEnvironmentExitEvidence[probe.solarEnvironmentPendingExitEvidence];
+	if( !probe.driver->GetPostProcessHistoryDiagnostics( evidence.afterTeardown ) )
+	{
+		return false;
+	}
+	evidence.selectedAfterTeardown =
+		probe.clientPostProcess->GetSelectedMemberDiagnostics();
+	const Tr2PPFogEffectPtr selectedFog =
+		probe.clientPostProcess->GetSelectedFogForDiagnostics();
+	const Tr2PPBloomEffectPtr selectedBloom =
+		probe.clientPostProcess->GetSelectedBloomForDiagnostics();
+	const Tr2PPDesaturateEffectPtr selectedDesaturate =
+		probe.clientPostProcess->GetSelectedDesaturateForDiagnostics();
+	const Tr2PPBloomEffectPtr expectedBloom =
+		probe.bloomMode == STANDALONE_POST_FINISH_CLIENT ?
+		probe.solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+	evidence.defaultOwnersAfterTeardown =
+		selectedFog.p == probe.solarEnvironmentDefaultFog.p &&
+		selectedBloom.p == expectedBloom.p &&
+		selectedDesaturate.p == probe.solarEnvironmentDefaultDesaturate.p;
+	evidence.defaultValuesRestored = SamePostProcessMembers(
+		evidence.selectedAfterTeardown,
+		probe.solarEnvironmentDefaultMemberDiagnostics );
+	evidence.teardownPreservedHistories = SamePostProcessHistory(
+		evidence.before,
+		evidence.afterTeardown );
+	return true;
+}
+
+bool CompleteSolarEnvironmentExitFrameEvidence( StandaloneProbe& probe )
+{
+	if( probe.solarEnvironmentPendingExitEvidence ==
+		std::numeric_limits<size_t>::max() )
+	{
+		return true;
+	}
+	if( !probe.driver || probe.solarEnvironmentPendingExitEvidence >=
+		probe.solarEnvironmentExitEvidence.size() )
+	{
+		return false;
+	}
+	StandaloneSolarEnvironmentExitEvidence& evidence =
+		probe.solarEnvironmentExitEvidence[probe.solarEnvironmentPendingExitEvidence];
+	if( !probe.driver->GetPostProcessHistoryDiagnostics( evidence.afterFrame ) )
+	{
+		return false;
+	}
+	evidence.afterFrameCaptured = true;
+	evidence.frameAdvancedTaa =
+		evidence.afterFrame.taaResetCount == evidence.before.taaResetCount &&
+		!evidence.afterFrame.taaResetPending &&
+		evidence.afterFrame.taaFrameCounter == evidence.before.taaFrameCounter + 1;
+	evidence.frameAdvancedExposure =
+		evidence.before.exposureHistoryValid &&
+		evidence.afterFrame.exposureHistoryValid &&
+		evidence.afterFrame.exposureMeasurementCount ==
+			evidence.before.exposureMeasurementCount + 1;
+	evidence.historiesPreserved = evidence.teardownPreservedHistories &&
+		evidence.frameAdvancedTaa && evidence.frameAdvancedExposure;
+	probe.solarEnvironmentPendingExitEvidence =
+		std::numeric_limits<size_t>::max();
+	return true;
+}
+
+bool UpdateSolarEnvironmentState( StandaloneProbe& probe )
 {
 	if( !probe.solarOpticsConfigured || !probe.solarEnvironmentFog )
 	{
-		return;
+		return true;
 	}
 	if( probe.solarEnvironment == STANDALONE_SOLAR_ENVIRONMENT_OFF )
 	{
 		probe.solarEnvironmentSettledWeight = 0.0f;
 		probe.solarEnvironmentFog->m_intensity = 0.0f;
-		return;
+		return true;
 	}
 
 	constexpr uint64_t kPollFrames = 30;
@@ -12953,19 +13301,57 @@ void UpdateSolarEnvironmentState( StandaloneProbe& probe )
 	{
 		++probe.solarEnvironmentPollCount;
 		const bool wasActive = probe.solarEnvironmentFieldActive;
-		const bool isActive =
-			probe.solarEnvironmentDistance != STANDALONE_SOLAR_DISTANCE_OUTSIDE_BOUNDARY &&
-			!( probe.solarEnvironmentDistance == STANDALONE_SOLAR_DISTANCE_EXIT_BOUNDARY &&
-			   probe.renderedFrameCount >= kExitBoundaryFrame );
+		StandaloneSolarEnvironmentPoll poll;
+		poll.frame = probe.renderedFrameCount;
+		poll.priorActive = wasActive;
+		bool isActive = false;
+		const bool liveDistance =
+			probe.legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ||
+			probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL;
+		if( liveDistance )
+		{
+			if( !MeasureLiveSolarEnvironmentDistance( probe, poll ) )
+			{
+				CCP_LOGERR( "PL-14G live solar-environment distance could not be measured" );
+				return false;
+			}
+			isActive = poll.distance <= kNewEdenSolarEnvironmentActivationRadius;
+			probe.solarEnvironmentFog->m_areaCenter = Vector3(
+				static_cast<float>( poll.sunPosition[0] ),
+				static_cast<float>( poll.sunPosition[1] ),
+				static_cast<float>( poll.sunPosition[2] ) );
+		}
+		else
+		{
+			isActive =
+				probe.solarEnvironmentDistance != STANDALONE_SOLAR_DISTANCE_OUTSIDE_BOUNDARY &&
+				!( probe.solarEnvironmentDistance == STANDALONE_SOLAR_DISTANCE_EXIT_BOUNDARY &&
+				   probe.renderedFrameCount >= kExitBoundaryFrame );
+			poll.distance = probe.solarEnvironmentDistance == STANDALONE_SOLAR_DISTANCE_OUTSIDE_BOUNDARY ?
+				kNewEdenSolarEnvironmentActivationRadius * 1.01 :
+				kNewEdenSolarEnvironmentActivationRadius * 0.99;
+		}
+		poll.active = isActive;
 		probe.solarEnvironmentFieldActive = isActive;
 		if( wasActive && !isActive )
 		{
+			if( !BeginSolarEnvironmentExitEvidence( probe ) )
+			{
+				CCP_LOGERR( "PL-14G could not snapshot pre-teardown postprocess state" );
+				return false;
+			}
 			ApplySolarEnvironmentMembers( probe, false );
+			if( !CompleteSolarEnvironmentTeardownEvidence( probe ) )
+			{
+				CCP_LOGERR( "PL-14G could not close immediate environment teardown evidence" );
+				return false;
+			}
 			++probe.solarEnvironmentTeardownCount;
 			probe.solarEnvironmentExitObserved = true;
 			probe.solarEnvironmentExitPollFrame = probe.renderedFrameCount;
 			probe.solarEnvironmentTransitionFrameCount = 0;
 			probe.solarEnvironmentFadeFrameCount = 0;
+			poll.transition = "teardown";
 		}
 		else if( !wasActive && isActive )
 		{
@@ -12974,13 +13360,15 @@ void UpdateSolarEnvironmentState( StandaloneProbe& probe )
 			probe.solarEnvironmentActivationFrame = probe.renderedFrameCount;
 			probe.solarEnvironmentTransitionFrameCount = 0;
 			probe.solarEnvironmentFadeFrameCount = 0;
+			poll.transition = "setup";
 		}
+		probe.solarEnvironmentPolls.push_back( poll );
 	}
 	if( !probe.solarEnvironmentFieldActive )
 	{
 		probe.solarEnvironmentSettledWeight = 0.0f;
 		probe.solarEnvironmentFog->m_intensity = 0.0f;
-		return;
+		return true;
 	}
 
 	const uint64_t elapsedFrames = probe.renderedFrameCount -
@@ -12993,6 +13381,7 @@ void UpdateSolarEnvironmentState( StandaloneProbe& probe )
 	probe.solarEnvironmentFog->m_intensity = SolarEnvironmentSelectsFog( probe ) ?
 		probe.solarEnvironmentAuthoredFogIntensity * probe.solarEnvironmentSettledWeight :
 		0.0f;
+	return true;
 }
 
 void UpdateProbeCamera( StandaloneProbe& probe )
@@ -13276,6 +13665,988 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 #endif
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
+	void* opaqueProbe,
+	int mode,
+	int referenceFrame,
+	int orbitPolicy,
+	float orbitRange )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	const bool canonicalTourProfile =
+		mode == STANDALONE_BALLPARK_WARP && referenceFrame == STANDALONE_BALLPARK_CHASE;
+	const bool canonicalSofSpikeProfile =
+		mode == STANDALONE_BALLPARK_STATIC && referenceFrame == STANDALONE_BALLPARK_EGO;
+	if( !probe || !probe->sceneConstructionConfigured ||
+		probe->sceneConstruction != STANDALONE_SCENE_CONSTRUCTION_CANONICAL ||
+		probe->scene || probe->driver || probe->destinySession ||
+		( !canonicalTourProfile && !canonicalSofSpikeProfile ) ||
+		orbitPolicy < DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT ||
+		orbitPolicy > DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW ||
+		!std::isfinite( orbitRange ) || orbitRange < 0.0f )
+	{
+		std::fprintf(
+			stderr,
+			"PL-14G canonical state guard failed: probe=%s configured=%s construction=%d "
+			"scene=%s driver=%s destiny=%s mode=%d frame=%d orbit=%d range=%.9g\n",
+			probe ? "yes" : "no",
+			probe && probe->sceneConstructionConfigured ? "yes" : "no",
+			probe ? probe->sceneConstruction : -1,
+			probe && probe->scene ? "yes" : "no",
+			probe && probe->driver ? "yes" : "no",
+			probe && probe->destinySession ? "yes" : "no",
+			mode,
+			referenceFrame,
+			orbitPolicy,
+			orbitRange );
+		return false;
+	}
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	char error[512] = {};
+	DestinyEmbeddedRegistration registration = {};
+	if( !Destiny_RegisterBlueClasses( &registration ) ||
+		registration.discoveredClassCount != 10 )
+	{
+		std::fprintf(
+			stderr,
+			"PL-14G could not register the embedded Destiny classes (discovered=%u valid=%s)\n",
+			registration.discoveredClassCount,
+			registration.valid ? "true" : "false" );
+		return false;
+	}
+
+	DestinyEmbeddedBallConfig primary = {};
+	primary.ballId = 1;
+	primary.solarSystemId = 30005286;
+	primary.mass = 975000.0;
+	primary.radius = 35.0f;
+	primary.maximumVelocity = 312.0f;
+	primary.maximumAngularVelocity = 1.0f;
+	primary.agility = 2.87f;
+	primary.rotationalAgility = 1.0f;
+	primary.speedFraction = 1.0f;
+	primary.isFree = true;
+	primary.isMassive = true;
+	primary.isInteractive = true;
+	primary.rotation[2] = 0.3826834323650898f;
+	primary.rotation[3] = 0.9238795325112867f;
+	double sunToGate[3] = {
+		kNewEdenEveGateRelative[0] - kNewEdenSunRelative[0],
+		kNewEdenEveGateRelative[1] - kNewEdenSunRelative[1],
+		kNewEdenEveGateRelative[2] - kNewEdenSunRelative[2],
+	};
+	const double directionLength = std::sqrt(
+		sunToGate[0] * sunToGate[0] + sunToGate[1] * sunToGate[1] +
+		sunToGate[2] * sunToGate[2] );
+	if( !std::isfinite( directionLength ) || directionLength <= 0.0 )
+	{
+		std::fprintf( stderr, "PL-14G canonical Sun-to-gate direction is invalid\n" );
+		return false;
+	}
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunToGate[axis] /= directionLength;
+		primary.position[axis] =
+			kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis] +
+			sunToGate[axis] * ( kNewEdenStarRadius + primary.radius );
+	}
+
+	DestinyEmbeddedSessionOptions options = {};
+	options.orientationPolicy = DESTINY_EMBEDDED_NATIVE_ORIENTATION;
+	options.referenceFrame = DESTINY_EMBEDDED_PRIMARY_EGO;
+	options.orbitPolicy = static_cast<DestinyEmbeddedOrbitPolicy>( orbitPolicy );
+	options.observerBallId = 2;
+	DestinyEmbeddedSession* preflightSeed = Destiny_CreateEmbeddedSessionWithOptions(
+		&primary, &options, error, sizeof( error ) );
+	if( !preflightSeed )
+	{
+		std::fprintf( stderr, "PL-14G primary-only preflight seed failed: %s\n", error );
+		return false;
+	}
+	size_t primaryPacketSize = 0;
+	if( !Destiny_MeasureEmbeddedFullState( preflightSeed, &primaryPacketSize ) ||
+		primaryPacketSize == 0 )
+	{
+		Destiny_DestroyEmbeddedSession( preflightSeed );
+		CCP_LOGERR( "PL-14G could not measure its primary-only preflight packet" );
+		return false;
+	}
+	std::vector<uint8_t> primaryPacket( primaryPacketSize );
+	size_t primaryPacketWritten = 0;
+	if( !Destiny_WriteEmbeddedFullState(
+			preflightSeed,
+			primaryPacket.data(),
+			primaryPacket.size(),
+			&primaryPacketWritten ) ||
+		primaryPacketWritten != primaryPacket.size() )
+	{
+		Destiny_DestroyEmbeddedSession( preflightSeed );
+		CCP_LOGERR( "PL-14G could not write its primary-only preflight packet" );
+		return false;
+	}
+	Destiny_DestroyEmbeddedSession( preflightSeed );
+	preflightSeed = nullptr;
+	DestinyEmbeddedSessionOptions temporaryOptions = options;
+	// Materialize the declared observer as Destiny's native non-free STOP
+	// observer in the temporary packet. The imported active session then keeps
+	// the same role inventory while selecting the primary-ego reference frame.
+	temporaryOptions.referenceFrame = DESTINY_EMBEDDED_FIXED_OBSERVER;
+	DestinyEmbeddedSession* temporary = Destiny_CreateEmbeddedSessionWithOptions(
+		&primary, &temporaryOptions, error, sizeof( error ) );
+	if( !temporary )
+	{
+		std::fprintf( stderr, "PL-14G temporary Ballpark creation failed: %s\n", error );
+		return false;
+	}
+	probe->sceneConstructionTrace.push_back( "temporary-ballpark-built" );
+	auto destroyTemporary = [&]() {
+		if( temporary )
+		{
+			Destiny_DestroyEmbeddedSession( temporary );
+			temporary = nullptr;
+		}
+	};
+
+	DestinyEmbeddedCelestialConfig sun = {};
+	sun.ballId = kNewEdenSunBallId;
+	sun.radius = static_cast<float>( kNewEdenStarRadius );
+	DestinyEmbeddedCelestialConfig planet = {};
+	planet.ballId = kNewEdenPlanetBallId;
+	planet.radius = static_cast<float>( kNewEdenPlanetRadius );
+	DestinyEmbeddedFixedTargetConfig gate = {};
+	gate.ballId = kNewEdenEveGateBallId;
+	// The nonvisual navigation anchor still requires a finite positive Destiny
+	// collision radius to be representable in the full-state packet.
+	gate.radius = 1.0f;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sun.position[axis] = kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis];
+		planet.position[axis] = kNewEdenPlanetRelative[axis] - probe->celestialAnchorOffset[axis];
+		gate.position[axis] = kNewEdenEveGateRelative[axis] - probe->celestialAnchorOffset[axis];
+	}
+	if( !Destiny_AddEmbeddedCelestial( temporary, &sun, error, sizeof( error ) ) ||
+		!Destiny_AddEmbeddedCelestial( temporary, &planet, error, sizeof( error ) ) ||
+		!Destiny_AddEmbeddedFixedTarget( temporary, &gate, error, sizeof( error ) ) )
+	{
+		std::fprintf( stderr, "PL-14G manifest Ballpark population failed: %s\n", error );
+		destroyTemporary();
+		return false;
+	}
+
+	size_t packetSize = 0;
+	if( !Destiny_MeasureEmbeddedFullState( temporary, &packetSize ) || packetSize == 0 )
+	{
+		CCP_LOGERR( "PL-14G could not measure the manifest full-state packet" );
+		destroyTemporary();
+		return false;
+	}
+	std::vector<uint8_t> packet( packetSize );
+	size_t bytesWritten = 0;
+	if( !Destiny_WriteEmbeddedFullState(
+			temporary, packet.data(), packet.size(), &bytesWritten ) ||
+		bytesWritten != packet.size() )
+	{
+		CCP_LOGERR( "PL-14G could not write the complete manifest full-state packet" );
+		destroyTemporary();
+		return false;
+	}
+	probe->sceneConstructionTrace.push_back( "packet-measured-written" );
+
+	DestinyEmbeddedFullStateDescriptor descriptor = {};
+	descriptor.wireProfile = DESTINY_EMBEDDED_DYNAMIC_ORIENTATION_V1;
+	descriptor.solarSystemId = primary.solarSystemId;
+	descriptor.initialTimestamp = 0;
+	descriptor.primaryBallId = primary.ballId;
+	descriptor.egoBallId = primary.ballId;
+	descriptor.observerBallId = 2;
+	descriptor.fixedTargetBallId = gate.ballId;
+	descriptor.celestialBallIds[0] = sun.ballId;
+	descriptor.celestialBallIds[1] = planet.ballId;
+	descriptor.celestialBallCount = 2;
+
+	auto sameCreationDiagnostics = [](
+		const DestinyEmbeddedFullStateCreationDiagnostics& first,
+		const DestinyEmbeddedFullStateCreationDiagnostics& second ) {
+		return first.creationAttemptCount == second.creationAttemptCount &&
+			first.preflightAttemptCount == second.preflightAttemptCount &&
+			first.preflightRejectionCount == second.preflightRejectionCount &&
+			first.sessionSlotAcquisitionCount == second.sessionSlotAcquisitionCount &&
+			first.sessionAllocationCount == second.sessionAllocationCount &&
+			first.globalSettingsMutationCount == second.globalSettingsMutationCount &&
+			first.ballparkAllocationCount == second.ballparkAllocationCount &&
+			first.successfulCreationCount == second.successfulCreationCount;
+	};
+	auto successfulCreationDelta = [](
+		const DestinyEmbeddedFullStateCreationDiagnostics& before,
+		const DestinyEmbeddedFullStateCreationDiagnostics& after ) {
+		return after.creationAttemptCount == before.creationAttemptCount + 1 &&
+			after.preflightAttemptCount == before.preflightAttemptCount + 1 &&
+			after.preflightRejectionCount == before.preflightRejectionCount &&
+			after.sessionSlotAcquisitionCount == before.sessionSlotAcquisitionCount + 1 &&
+			after.sessionAllocationCount == before.sessionAllocationCount + 1 &&
+			after.globalSettingsMutationCount == before.globalSettingsMutationCount + 1 &&
+			after.ballparkAllocationCount == before.ballparkAllocationCount + 1 &&
+			after.successfulCreationCount == before.successfulCreationCount + 1;
+	};
+	// The direct manifest builder temporarily selects its observer as ego only
+	// to serialize that native STOP ball. The imported canonical session selects
+	// the primary ego. Compare the wire-owned live motion projection (raw and
+	// absolute primary state plus celestial state), not the intentionally
+	// host-owned ego/reference-point projection or process-lifecycle counters.
+	auto sameLiveDiagnostics = []( const DestinyEmbeddedDiagnostics& first,
+								   const DestinyEmbeddedDiagnostics& second ) {
+		if( first.directEvolveCount != second.directEvolveCount ||
+			first.lastRequestedTime != second.lastRequestedTime ||
+			first.nextTickTime != second.nextTickTime || first.mode != second.mode ||
+			first.dynamicalOrientationEnabled != second.dynamicalOrientationEnabled ||
+			first.frontierOrbitEnabled != second.frontierOrbitEnabled ||
+			first.primaryBallId != second.primaryBallId ||
+			first.observerBallId != second.observerBallId ||
+			first.commandCount != second.commandCount ||
+			first.orientationPinCount != second.orientationPinCount ||
+			first.lastCommandTime != second.lastCommandTime ||
+			first.orbitTargetBallId != second.orbitTargetBallId ||
+			first.followBallId != second.followBallId || first.followRange != second.followRange ||
+			first.orbitCenterDistance != second.orbitCenterDistance ||
+			first.orbitSurfaceDistance != second.orbitSurfaceDistance ||
+			first.orbitRadialVelocity != second.orbitRadialVelocity ||
+			first.orbitTangentialVelocity != second.orbitTangentialVelocity ||
+			first.orbitAccumulatedPhase != second.orbitAccumulatedPhase ||
+			first.warpEffectStamp != second.warpEffectStamp ||
+			first.warpFactor != second.warpFactor ||
+			first.warpMinRange != second.warpMinRange ||
+			first.warpTotalDistance != second.warpTotalDistance ||
+			first.isMassive != second.isMassive || first.sensorActive != second.sensorActive )
+		{
+			return false;
+		}
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			if( first.rawPosition[axis] != second.rawPosition[axis] ||
+				first.rawVelocity[axis] != second.rawVelocity[axis] ||
+				first.rawAcceleration[axis] != second.rawAcceleration[axis] ||
+				first.absolutePosition[axis] != second.absolutePosition[axis] ||
+				first.velocity[axis] != second.velocity[axis] ||
+				first.acceleration[axis] != second.acceleration[axis] ||
+				first.angularVelocity[axis] != second.angularVelocity[axis] ||
+				first.gotoPoint[axis] != second.gotoPoint[axis] ||
+				first.orbitTargetPosition[axis] != second.orbitTargetPosition[axis] ||
+				first.orbitTargetVelocity[axis] != second.orbitTargetVelocity[axis] ||
+				first.orbitNormal[axis] != second.orbitNormal[axis] )
+			{
+				return false;
+			}
+		}
+		for( size_t component = 0; component < 4; ++component )
+		{
+			if( first.rotation[component] != second.rotation[component] )
+				return false;
+		}
+		return true;
+	};
+	auto sameCelestialState = []( const DestinyEmbeddedCelestialState& first,
+								  const DestinyEmbeddedCelestialState& second ) {
+		if( first.ballId != second.ballId || first.mode != second.mode ||
+			first.isFree != second.isFree || first.isGlobal != second.isGlobal ||
+			first.isMassive != second.isMassive ||
+			first.isInteractive != second.isInteractive || first.radius != second.radius )
+		{
+			return false;
+		}
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			if( first.position[axis] != second.position[axis] ||
+				first.velocity[axis] != second.velocity[axis] )
+			{
+				return false;
+			}
+		}
+		return true;
+	};
+	auto captureLiveState = [&]( DestinyEmbeddedSession* session,
+								DestinyEmbeddedDiagnostics& diagnostics,
+								std::array<DestinyEmbeddedCelestialState, 2>& celestials ) {
+		return Destiny_GetEmbeddedDiagnostics( session, &diagnostics ) &&
+			Destiny_GetEmbeddedCelestialState( session, sun.ballId, &celestials[0] ) &&
+			Destiny_GetEmbeddedCelestialState( session, planet.ballId, &celestials[1] );
+	};
+
+	DestinyEmbeddedFullStateCreationDiagnostics beforeValidInspect = {};
+	DestinyEmbeddedFullStateCreationDiagnostics afterValidInspect = {};
+	DestinyEmbeddedFullStatePreflightDiagnostics validPreflight = {};
+	if( !Destiny_GetEmbeddedFullStateCreationDiagnostics( &beforeValidInspect ) ||
+		!Destiny_InspectEmbeddedFullState(
+			packet.data(),
+			packet.size(),
+			&descriptor,
+			&options,
+			&validPreflight,
+			error,
+			sizeof( error ) ) ||
+		validPreflight.rejection != DESTINY_EMBEDDED_FULL_STATE_ACCEPTED ||
+		!validPreflight.sideEffectFree || !validPreflight.packetParsed ||
+		!validPreflight.rolesValidated || validPreflight.bytesConsumed != packet.size() ||
+		validPreflight.parsedBallCount != 5 ||
+		!Destiny_GetEmbeddedFullStateCreationDiagnostics( &afterValidInspect ) ||
+		!sameCreationDiagnostics( beforeValidInspect, afterValidInspect ) )
+	{
+		std::fprintf( stderr, "PL-14G valid full-state preflight failed: %s\n", error );
+		destroyTemporary();
+		return false;
+	}
+	probe->sceneConstructionTrace.push_back( "full-state-preflight-validated" );
+
+	constexpr size_t kPacketHeaderBytes = sizeof( uint8_t ) + sizeof( int32_t );
+	constexpr size_t kFreeStopRecordBytes = 136;
+	constexpr size_t kFirstBallIdOffset = kPacketHeaderBytes;
+	constexpr size_t kFirstBallModeOffset = kFirstBallIdOffset + sizeof( int64_t );
+	constexpr size_t kFirstBallRadiusOffset = kFirstBallModeOffset + sizeof( uint8_t );
+	constexpr size_t kFirstBallFlagsOffset = kFirstBallRadiusOffset + sizeof( float ) + 3 * sizeof( double );
+	if( primaryPacket.size() != kPacketHeaderBytes + kFreeStopRecordBytes ||
+		primaryPacket[kFirstBallModeOffset] != DESTINY_EMBEDDED_BALL_MODE_STOP )
+	{
+		int64_t firstBallId = 0;
+		if( primaryPacket.size() >= kFirstBallIdOffset + sizeof( firstBallId ) )
+		{
+			std::memcpy(
+				&firstBallId,
+				primaryPacket.data() + kFirstBallIdOffset,
+				sizeof( firstBallId ) );
+		}
+		std::fprintf(
+			stderr,
+			"PL-14G full-state packet does not begin with the pinned free STOP primary "
+			"(size=%zu firstId=%lld firstMode=%u)\n",
+			primaryPacket.size(),
+			static_cast<long long>( firstBallId ),
+			primaryPacket.size() > kFirstBallModeOffset ?
+				primaryPacket[kFirstBallModeOffset] : 0u );
+		destroyTemporary();
+		return false;
+	}
+	DestinyEmbeddedFullStateDescriptor primaryDescriptor = descriptor;
+	primaryDescriptor.observerBallId = 0;
+	primaryDescriptor.fixedTargetBallId = 0;
+	primaryDescriptor.celestialBallCount = 0;
+	for( int64_t& celestialBallId : primaryDescriptor.celestialBallIds )
+		celestialBallId = 0;
+	auto storePacketValue = []( std::vector<uint8_t>& target, size_t offset, const auto& value ) {
+		if( offset + sizeof( value ) > target.size() )
+			return false;
+		std::memcpy( target.data() + offset, &value, sizeof( value ) );
+		return true;
+	};
+	auto appendPacketValue = []( std::vector<uint8_t>& target, const auto& value ) {
+		const auto* bytes = reinterpret_cast<const uint8_t*>( &value );
+		target.insert( target.end(), bytes, bytes + sizeof( value ) );
+	};
+	auto expectRejection = [&]( const char* label,
+								 const std::vector<uint8_t>& malformedPacket,
+								 const DestinyEmbeddedFullStateDescriptor& malformedDescriptor,
+								 DestinyEmbeddedFullStateRejection expectedRejection ) {
+		DestinyEmbeddedFullStateCreationDiagnostics beforeInspect = {};
+		DestinyEmbeddedFullStateCreationDiagnostics afterInspect = {};
+		DestinyEmbeddedFullStateCreationDiagnostics afterCreate = {};
+		DestinyEmbeddedFullStatePreflightDiagnostics rejectedPreflight = {};
+		error[0] = '\0';
+		if( !Destiny_GetEmbeddedFullStateCreationDiagnostics( &beforeInspect ) ||
+			Destiny_InspectEmbeddedFullState(
+				malformedPacket.data(),
+				malformedPacket.size(),
+				&malformedDescriptor,
+				&options,
+				&rejectedPreflight,
+				error,
+				sizeof( error ) ) ||
+			rejectedPreflight.rejection != expectedRejection ||
+			!rejectedPreflight.sideEffectFree || rejectedPreflight.rolesValidated ||
+			rejectedPreflight.packetSize != malformedPacket.size() || error[0] == '\0' ||
+			!Destiny_GetEmbeddedFullStateCreationDiagnostics( &afterInspect ) ||
+			!sameCreationDiagnostics( beforeInspect, afterInspect ) )
+		{
+			std::fprintf(
+				stderr,
+				"PL-14G preflight rejection '%s' failed (expected=%d actual=%d error=%s)\n",
+				label,
+				static_cast<int>( expectedRejection ),
+				static_cast<int>( rejectedPreflight.rejection ),
+				error );
+			return false;
+		}
+		error[0] = '\0';
+		DestinyEmbeddedSession* rejectedSession = Destiny_CreateEmbeddedSessionFromFullState(
+			malformedPacket.data(),
+			malformedPacket.size(),
+			&malformedDescriptor,
+			&options,
+			error,
+			sizeof( error ) );
+		if( rejectedSession )
+		{
+			Destiny_DestroyEmbeddedSession( rejectedSession );
+			return false;
+		}
+		if( error[0] == '\0' ||
+			!Destiny_GetEmbeddedFullStateCreationDiagnostics( &afterCreate ) ||
+			afterCreate.creationAttemptCount != beforeInspect.creationAttemptCount + 1 ||
+			afterCreate.preflightAttemptCount != beforeInspect.preflightAttemptCount + 1 ||
+			afterCreate.preflightRejectionCount != beforeInspect.preflightRejectionCount + 1 ||
+			afterCreate.sessionSlotAcquisitionCount != beforeInspect.sessionSlotAcquisitionCount ||
+			afterCreate.sessionAllocationCount != beforeInspect.sessionAllocationCount ||
+			afterCreate.globalSettingsMutationCount != beforeInspect.globalSettingsMutationCount ||
+			afterCreate.ballparkAllocationCount != beforeInspect.ballparkAllocationCount ||
+			afterCreate.successfulCreationCount != beforeInspect.successfulCreationCount )
+		{
+			std::fprintf( stderr, "PL-14G rejection '%s' crossed the allocation boundary\n", label );
+			return false;
+		}
+		probe->canonicalPreparseRejections.emplace_back( label );
+		return true;
+	};
+
+	probe->canonicalPreparseRejections.clear();
+	std::vector<uint8_t> malformed = primaryPacket;
+	malformed.resize( 4 );
+	if( !expectRejection(
+			"short-bytes", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_SHORT_PACKET ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed.push_back( 0 );
+	if( !expectRejection(
+			"trailing-bytes", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_TRAILING_BYTES ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed[0] = 1;
+	if( !expectRejection(
+			"invalid-framing", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_FRAMING ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed[kFirstBallModeOffset] = 0xff;
+	if( !expectRejection(
+			"unknown-mode", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_MODE ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	const int64_t zeroId = 0;
+	if( !storePacketValue( malformed, kFirstBallIdOffset, zeroId ) ||
+		!expectRejection(
+			"zero-id", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_INVALID_ID ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed.insert(
+		malformed.end(),
+		primaryPacket.begin() + kFirstBallIdOffset,
+		primaryPacket.begin() + kFirstBallFlagsOffset + sizeof( uint8_t ) );
+	if( !expectRejection(
+			"duplicate-id", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_DUPLICATE_ID ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	const float nonfiniteRadius = std::numeric_limits<float>::quiet_NaN();
+	if( !storePacketValue( malformed, kFirstBallRadiusOffset, nonfiniteRadius ) ||
+		!expectRejection(
+			"nonfinite", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_NONFINITE_VALUE ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	const float outOfRangeRadius = 1.0e20f;
+	if( !storePacketValue( malformed, kFirstBallRadiusOffset, outOfRangeRadius ) ||
+		!expectRejection(
+			"out-of-range", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_OUT_OF_RANGE_VALUE ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed[kFirstBallFlagsOffset] |= 0x40;
+	if( !expectRejection(
+			"unsupported-flags", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNSUPPORTED_FLAGS ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed[kFirstBallModeOffset] = DESTINY_EMBEDDED_BALL_MODE_FOLLOW;
+	const float followRange = 50.0f;
+	appendPacketValue( malformed, primary.ballId );
+	appendPacketValue( malformed, followRange );
+	if( !expectRejection(
+			"self-follow", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_SELF_FOLLOW ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	malformed[kFirstBallModeOffset] = DESTINY_EMBEDDED_BALL_MODE_FOLLOW;
+	const int64_t missingFollowId = 99;
+	appendPacketValue( malformed, missingFollowId );
+	appendPacketValue( malformed, followRange );
+	if( !expectRejection(
+			"missing-follow-target", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_FOLLOW ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformed = primaryPacket;
+	const int32_t nonzeroTimestamp = 1;
+	if( !storePacketValue( malformed, sizeof( uint8_t ), nonzeroTimestamp ) ||
+		!expectRejection(
+			"nonzero-timestamp", malformed, primaryDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_NONZERO_TIMESTAMP ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	DestinyEmbeddedFullStateDescriptor malformedDescriptor = descriptor;
+	malformedDescriptor.celestialBallIds[1] = malformedDescriptor.fixedTargetBallId;
+	if( !expectRejection(
+			"conflicting-role", packet, malformedDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_CONFLICTING_ROLES ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformedDescriptor = descriptor;
+	malformedDescriptor.celestialBallIds[1] = 99;
+	if( !expectRejection(
+			"missing-role", packet, malformedDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_MISSING_ROLES ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformedDescriptor = descriptor;
+	malformedDescriptor.fixedTargetBallId = sun.ballId;
+	malformedDescriptor.celestialBallIds[0] = planet.ballId;
+	malformedDescriptor.celestialBallIds[1] = 0;
+	malformedDescriptor.celestialBallCount = 1;
+	if( !expectRejection(
+			"incompatible-role", packet, malformedDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_INCOMPATIBLE_ROLES ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	malformedDescriptor = descriptor;
+	malformedDescriptor.wireProfile = static_cast<DestinyEmbeddedWireProfile>( 99 );
+	if( !expectRejection(
+			"unknown-wire-profile", packet, malformedDescriptor,
+			DESTINY_EMBEDDED_FULL_STATE_REJECT_UNKNOWN_WIRE_PROFILE ) )
+	{
+		destroyTemporary();
+		return false;
+	}
+	probe->canonicalPreparseBeforeAllocation =
+		probe->canonicalPreparseRejections.size() == 16;
+	probe->sceneConstructionTrace.push_back( "full-state-rejections-validated" );
+
+	std::array<DestinyEmbeddedDiagnostics, 3> directDiagnostics = {};
+	std::array<std::array<DestinyEmbeddedCelestialState, 2>, 3> directCelestials = {};
+	if( !captureLiveState( temporary, directDiagnostics[0], directCelestials[0] ) )
+	{
+		CCP_LOGERR( "PL-14G could not capture direct initial live diagnostics" );
+		destroyTemporary();
+		return false;
+	}
+	constexpr Be::Time kDestinyTick = 10000000;
+	for( size_t evolve = 1; evolve <= 2; ++evolve )
+	{
+		if( !Destiny_AdvanceEmbeddedSession(
+				temporary, static_cast<Be::Time>( evolve ) * kDestinyTick ) ||
+			!captureLiveState( temporary, directDiagnostics[evolve], directCelestials[evolve] ) )
+		{
+			CCP_LOGERR( "PL-14G could not capture the direct first-two-evolve contract" );
+			destroyTemporary();
+			return false;
+		}
+	}
+	probe->sceneConstructionTrace.push_back( "direct-live-diagnostics-recorded" );
+	destroyTemporary();
+	probe->sceneConstructionTrace.push_back( "temporary-ballpark-destroyed" );
+
+	DestinyEmbeddedFullStateCreationDiagnostics beforeValidationImport = {};
+	DestinyEmbeddedFullStateCreationDiagnostics afterValidationImport = {};
+	if( !Destiny_GetEmbeddedFullStateCreationDiagnostics( &beforeValidationImport ) )
+		return false;
+	DestinyEmbeddedSession* validationSession = Destiny_CreateEmbeddedSessionFromFullState(
+		packet.data(), packet.size(), &descriptor, &options, error, sizeof( error ) );
+	if( !validationSession ||
+		!Destiny_GetEmbeddedFullStateCreationDiagnostics( &afterValidationImport ) ||
+		!successfulCreationDelta( beforeValidationImport, afterValidationImport ) )
+	{
+		std::fprintf( stderr, "PL-14G validation import failed: %s\n", error );
+		if( validationSession )
+			Destiny_DestroyEmbeddedSession( validationSession );
+		return false;
+	}
+	auto destroyValidation = [&]() {
+		if( validationSession )
+		{
+			Destiny_DestroyEmbeddedSession( validationSession );
+			validationSession = nullptr;
+		}
+	};
+
+	size_t roundTripSize = 0;
+	if( !Destiny_MeasureEmbeddedFullState( validationSession, &roundTripSize ) ||
+		roundTripSize != packet.size() )
+	{
+		CCP_LOGERR( "PL-14G packet-born Ballpark changed the wire size" );
+		destroyValidation();
+		return false;
+	}
+	std::vector<uint8_t> roundTrip( roundTripSize );
+	size_t roundTripWritten = 0;
+	if( !Destiny_WriteEmbeddedFullState(
+			validationSession,
+			roundTrip.data(),
+			roundTrip.size(),
+			&roundTripWritten ) ||
+		roundTripWritten != roundTrip.size() || roundTrip != packet )
+	{
+		CCP_LOGERR( "PL-14G full-state write/read/write fixed point failed" );
+		destroyValidation();
+		return false;
+	}
+	probe->canonicalWireFixedPoint = true;
+	std::array<DestinyEmbeddedDiagnostics, 3> importedDiagnostics = {};
+	std::array<std::array<DestinyEmbeddedCelestialState, 2>, 3> importedCelestials = {};
+	if( !captureLiveState( validationSession, importedDiagnostics[0], importedCelestials[0] ) )
+	{
+		destroyValidation();
+		return false;
+	}
+	probe->canonicalLiveDiagnosticsMatch =
+		sameLiveDiagnostics( directDiagnostics[0], importedDiagnostics[0] ) &&
+		sameCelestialState( directCelestials[0][0], importedCelestials[0][0] ) &&
+		sameCelestialState( directCelestials[0][1], importedCelestials[0][1] );
+	probe->canonicalStartCalledOnce = importedDiagnostics[0].startCallCount == 1;
+	probe->canonicalFirstTwoEvolvesMatch = true;
+	for( size_t evolve = 1; evolve <= 2; ++evolve )
+	{
+		if( !Destiny_AdvanceEmbeddedSession(
+				validationSession, static_cast<Be::Time>( evolve ) * kDestinyTick ) ||
+			!captureLiveState(
+				validationSession, importedDiagnostics[evolve], importedCelestials[evolve] ) ||
+			!sameLiveDiagnostics( directDiagnostics[evolve], importedDiagnostics[evolve] ) ||
+			!sameCelestialState(
+				directCelestials[evolve][0], importedCelestials[evolve][0] ) ||
+			!sameCelestialState(
+				directCelestials[evolve][1], importedCelestials[evolve][1] ) )
+		{
+			probe->canonicalFirstTwoEvolvesMatch = false;
+			break;
+		}
+	}
+	if( !probe->canonicalLiveDiagnosticsMatch || !probe->canonicalFirstTwoEvolvesMatch ||
+		!probe->canonicalStartCalledOnce )
+	{
+		CCP_LOGERR( "PL-14G direct/import live diagnostic contract diverged" );
+		destroyValidation();
+		return false;
+	}
+	destroyValidation();
+	probe->sceneConstructionTrace.push_back( "validation-import-compared" );
+
+	DestinyEmbeddedFullStateCreationDiagnostics beforeActiveImport = {};
+	DestinyEmbeddedFullStateCreationDiagnostics afterActiveImport = {};
+	if( !Destiny_GetEmbeddedFullStateCreationDiagnostics( &beforeActiveImport ) )
+		return false;
+	probe->destinySession = Destiny_CreateEmbeddedSessionFromFullState(
+		packet.data(), packet.size(), &descriptor, &options, error, sizeof( error ) );
+	if( !probe->destinySession ||
+		!Destiny_GetEmbeddedFullStateCreationDiagnostics( &afterActiveImport ) ||
+		!successfulCreationDelta( beforeActiveImport, afterActiveImport ) )
+	{
+		std::fprintf( stderr, "PL-14G fresh active packet-born Ballpark creation failed: %s\n", error );
+		if( probe->destinySession )
+		{
+			Destiny_DestroyEmbeddedSession( probe->destinySession );
+			probe->destinySession = nullptr;
+		}
+		return false;
+	}
+	probe->sceneConstructionTrace.push_back( "active-ballpark-imported" );
+	DestinyEmbeddedDiagnostics activeInitial = {};
+	std::array<DestinyEmbeddedCelestialState, 2> activeCelestials = {};
+	if( !captureLiveState( probe->destinySession, activeInitial, activeCelestials ) ||
+		activeInitial.directEvolveCount != 0 || activeInitial.lastRequestedTime != 0 ||
+		activeInitial.startCallCount != 1 ||
+		!sameLiveDiagnostics( directDiagnostics[0], activeInitial ) ||
+		!sameCelestialState( directCelestials[0][0], activeCelestials[0] ) ||
+		!sameCelestialState( directCelestials[0][1], activeCelestials[1] ) )
+	{
+		CCP_LOGERR( "PL-14G active imported session is not a fresh unadvanced fixed point" );
+		Destiny_DestroyEmbeddedSession( probe->destinySession );
+		probe->destinySession = nullptr;
+		return false;
+	}
+	if( !Destiny_GetEmbeddedBallPosition( probe->destinySession, primary.ballId ) ||
+		!Destiny_GetEmbeddedBallRotation( probe->destinySession, primary.ballId ) ||
+		!Destiny_GetEmbeddedBallPosition( probe->destinySession, sun.ballId ) ||
+		!Destiny_GetEmbeddedBallPosition( probe->destinySession, planet.ballId ) ||
+		!Destiny_GetEmbeddedBallPosition( probe->destinySession, gate.ballId ) )
+	{
+		CCP_LOGERR( "PL-14G packet-born Ballpark role curves are incomplete" );
+		Destiny_DestroyEmbeddedSession( probe->destinySession );
+		probe->destinySession = nullptr;
+		return false;
+	}
+	probe->canonicalStatePrepared = true;
+	probe->canonicalPacketSize = packet.size();
+	probe->ballparkMode = mode;
+	probe->ballparkReferenceFrame = referenceFrame;
+	probe->ballparkOrbitPolicy = orbitPolicy;
+	probe->ballparkOrbitRange = orbitRange;
+	probe->journeyPhase = canonicalTourProfile ?
+		STANDALONE_JOURNEY_GATE_ALIGN_PENDING : STANDALONE_JOURNEY_INACTIVE;
+	probe->destinyRegistration = registration;
+	probe->sceneConstructionTrace.push_back( "role-curves-resolved" );
+	return true;
+#else
+	(void)mode;
+	(void)referenceFrame;
+	(void)orbitPolicy;
+	(void)orbitRange;
+	CCP_LOGERR( "PL-14G canonical state requires BUILD_DESTINY_INTEGRATION" );
+	return false;
+#endif
+}
+
+bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
+{
+	if( !probe.canonicalStatePrepared || !probe.destinySession )
+	{
+		error = "canonical native ship construction requires the packet-born Ballpark";
+		return false;
+	}
+	EveSOFDataPtr data = LoadBlackObjectWithoutYield<EveSOFData>(
+		"res:/dx9/model/spaceobjectfactory/data.black", error );
+	if( !data )
+	{
+		return false;
+	}
+	probe.sceneConstructionTrace.push_back( "sof-database-loaded" );
+	if( !probe.nativeSof.CreateInstance() || !probe.nativeSof->SetData( data ) )
+	{
+		error = "native EveSOF could not install the caller-loaded data.black";
+		return false;
+	}
+	ITr2ControllerPtr shipController = LoadBlackObjectWithoutYield<ITr2Controller>(
+		"res:/dx9/model/controller/shipstandard.red", error );
+	if( !shipController || !probe.nativeSof->ConfigureControllerSubstitution(
+			"res:/dx9/model/controller/shipstandard.red", shipController ) )
+	{
+		if( error.empty() )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+		}
+		return false;
+	}
+	ITr2ControllerPtr audioController = LoadBlackObjectWithoutYield<ITr2Controller>(
+		"res:/dx9/model/controller/audioshipstandard.red", error );
+	if( !audioController || !probe.nativeSof->ConfigureControllerSubstitution(
+			"res:/dx9/model/controller/audioshipstandard.red", audioController ) )
+	{
+		if( error.empty() )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+		}
+		return false;
+	}
+	ITr2ControllerPtr visualDamageController = LoadBlackObjectWithoutYield<ITr2Controller>(
+		"res:/fisfx/vds/visualdamagecontroller.red", error );
+	if( !visualDamageController || !probe.nativeSof->ConfigureControllerSubstitution(
+			"res:/fisfx/vds/visualdamagecontroller.red", visualDamageController ) )
+	{
+		if( error.empty() )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+		}
+		return false;
+	}
+	probe.sceneConstructionTrace.push_back( "sof-controller-closure-loaded" );
+	const std::vector<EveSOFGeometrySubstitution> substitutions = {
+		{
+			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2",
+			"res:/AsteroNative.cmf",
+		},
+		{
+			"res:/dx9/model/ship/booster/volumetrictrail.gr2",
+			"res:/dx9/model/ship/booster/volumetrictrail.cmf",
+		},
+		{
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2",
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.cmf",
+		},
+	};
+	if( !probe.nativeSof->ConfigureGeometrySubstitutions(
+			substitutions,
+			"res:/dx9/model/ship/booster/volumetrictrail.gr2" ) ||
+		!probe.nativeSof->ValidateDNA( "soef1_t1:soebase:soe" ) )
+	{
+		error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+		if( error.empty() )
+		{
+			error = "Astero DNA did not validate against the pinned SOF database";
+		}
+		return false;
+	}
+	IRootPtr built = probe.nativeSof->BuildFromDNA( "soef1_t1:soebase:soe" );
+	probe.nativeShip = BlueCastPtr( built );
+	if( !probe.nativeShip )
+	{
+		error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+		if( error.empty() )
+		{
+			error = "EveSOF::BuildFromDNA did not return a native EveShip2";
+		}
+		return false;
+	}
+	if( probe.nativeSof->GetLastBuildDiagnostics().impactEffectType !=
+		EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
+	{
+		error = "Astero impact type differs from the source-observed ELLIPSOID branch";
+		return false;
+	}
+	ITriVectorFunction* position =
+		Destiny_GetEmbeddedBallPosition( probe.destinySession, 1 );
+	ITriQuaternionFunction* rotation =
+		Destiny_GetEmbeddedBallRotation( probe.destinySession, 1 );
+	if( !position || !rotation )
+	{
+		error = "packet-born primary ball curves are unavailable for native EveShip2";
+		return false;
+	}
+	probe.nativeShip->SetModelTranslationCurve( position );
+	probe.nativeShip->SetModelRotationCurve( rotation );
+	probe.sceneConstructionTrace.push_back( "native-ship-built-and-curves-bound" );
+	Tr2MeshPtr mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
+	if( !mesh || !PrepareMeshWithoutYield(
+			*mesh, "res:/AsteroNative.cmf", "canonical native Astero", error ) )
+	{
+		return false;
+	}
+	DrainResourceQueuesUntilSettled();
+	if( !probe.nativeSof->InspectNativeBuild(
+			probe.nativeShip->GetRawRoot(), probe.nativeSofDiagnostics ) ||
+		!probe.nativeSofDiagnostics.nativeShip ||
+		!probe.nativeSofDiagnostics.structuralComplete ||
+		!probe.nativeSofDiagnostics.meshAreasComplete ||
+		!probe.nativeSofDiagnostics.materialsComplete ||
+		!probe.nativeSofDiagnostics.geometryPrepared ||
+		!probe.nativeSofDiagnostics.geometrySkinningComplete ||
+		probe.nativeSofDiagnostics.geometryBoneBindingCount != 9 ||
+		probe.nativeSofDiagnostics.geometrySkeletonCount != 1 ||
+		probe.nativeSofDiagnostics.geometryAnimationCount != 4 ||
+		probe.nativeSofDiagnostics.geometrySkinnedAreaCount != 3 ||
+		probe.nativeSofDiagnostics.directHullLightCount != 0 ||
+		probe.nativeSofDiagnostics.attachmentLightCount != 6 ||
+		probe.nativeSofDiagnostics.localLightCount != 6 )
+	{
+		std::ostringstream census;
+		if( !probe.nativeSofDiagnostics.failureReason.empty() )
+		{
+			census << probe.nativeSofDiagnostics.failureReason << "; ";
+		}
+		census << "native Astero inventory census: objectMatchesLastBuild="
+			<< ( probe.nativeSofDiagnostics.objectMatchesLastBuild ? "yes" : "no" )
+			<< " objectCreated=" << ( probe.nativeSofDiagnostics.objectCreated ? "yes" : "no" )
+			<< " nativeShip=" << ( probe.nativeSofDiagnostics.nativeShip ? "yes" : "no" )
+			<< " structuralComplete=" << ( probe.nativeSofDiagnostics.structuralComplete ? "yes" : "no" )
+			<< " meshCreated=" << ( probe.nativeSofDiagnostics.meshCreated ? "yes" : "no" )
+			<< " meshAreasComplete=" << ( probe.nativeSofDiagnostics.meshAreasComplete ? "yes" : "no" )
+			<< " materialsComplete=" << ( probe.nativeSofDiagnostics.materialsComplete ? "yes" : "no" )
+			<< " geometryClosureComplete=" << ( probe.nativeSofDiagnostics.geometryClosureComplete ? "yes" : "no" )
+			<< " controllerClosureComplete=" << ( probe.nativeSofDiagnostics.controllerClosureComplete ? "yes" : "no" )
+			<< " geometryResourceBound=" << ( probe.nativeSofDiagnostics.geometryResourceBound ? "yes" : "no" )
+			<< " geometryLoading=" << ( probe.nativeSofDiagnostics.geometryLoading ? "yes" : "no" )
+			<< " geometryPrepared=" << ( probe.nativeSofDiagnostics.geometryPrepared ? "yes" : "no" )
+			<< " geometrySkinningComplete="
+			<< ( probe.nativeSofDiagnostics.geometrySkinningComplete ? "yes" : "no" )
+			<< " boneBindings=" << probe.nativeSofDiagnostics.geometryBoneBindingCount
+			<< " skeletons=" << probe.nativeSofDiagnostics.geometrySkeletonCount
+			<< " animations=" << probe.nativeSofDiagnostics.geometryAnimationCount
+			<< " skinnedAreas=" << probe.nativeSofDiagnostics.geometrySkinnedAreaCount
+			<< " effects=" << probe.nativeSofDiagnostics.readyEffectResourceCount << "/"
+			<< probe.nativeSofDiagnostics.effectResourceCount
+			<< " directHullLights=" << probe.nativeSofDiagnostics.directHullLightCount
+			<< " attachmentLights=" << probe.nativeSofDiagnostics.attachmentLightCount
+			<< " localLights=" << probe.nativeSofDiagnostics.localLightCount
+			<< " boosters=" << probe.nativeSofDiagnostics.boosterCount
+			<< " boostersExpected=" << ( probe.nativeSofDiagnostics.boostersExpected ? "yes" : "no" )
+			<< " boostersCreated=" << ( probe.nativeSofDiagnostics.boostersCreated ? "yes" : "no" )
+			<< " trails=" << probe.nativeSofDiagnostics.trailCount
+			<< " trailsExpected=" << ( probe.nativeSofDiagnostics.trailsExpected ? "yes" : "no" )
+			<< " trailsCreated=" << ( probe.nativeSofDiagnostics.trailsCreated ? "yes" : "no" )
+			<< " trailsReady=" << ( probe.nativeSofDiagnostics.trailsReady ? "yes" : "no" )
+			<< " castsShadow=" << ( probe.nativeSofDiagnostics.castsShadow ? "yes" : "no" )
+			<< " reflectionMode=" << probe.nativeSofDiagnostics.reflectionMode
+			<< " resourceReady=" << ( probe.nativeSofDiagnostics.resourceReady ? "yes" : "no" )
+			<< " expectedAreas=[";
+		for( size_t index = 0; index < probe.nativeSofDiagnostics.expectedAreaCounts.size(); ++index )
+		{
+			census << ( index == 0 ? "" : "," ) << probe.nativeSofDiagnostics.expectedAreaCounts[index];
+		}
+		census << "] actualAreas=[";
+		for( size_t index = 0; index < probe.nativeSofDiagnostics.actualAreaCounts.size(); ++index )
+		{
+			census << ( index == 0 ? "" : "," ) << probe.nativeSofDiagnostics.actualAreaCounts[index];
+		}
+		census << "]";
+		error = census.str();
+		return false;
+	}
+	const float nativeShipRadius = probe.nativeShip->GetRadius();
+	if( !std::isfinite( nativeShipRadius ) || nativeShipRadius <= 0.0f )
+	{
+		error = "native Astero has no finite positive authored bounding radius";
+		return false;
+	}
+	// The model-view camera contract is expressed in object radii.  The legacy
+	// bridge obtains this scale from the CMF bounds; the native SOF path must use
+	// the EveShip2 bound populated from the authored hull DNA.  A unit scale puts
+	// the camera inside the full-size native Astero and makes every lighting
+	// isolate observe only the common background.
+	probe.modelWorldScale = nativeShipRadius;
+	std::fprintf(
+		stderr,
+		"Native Astero authored-scale contract: radius=%.8f cameraDistance=%.8f\n",
+		nativeShipRadius,
+		5.2f * nativeShipRadius );
+	probe.sceneConstructionTrace.push_back( "native-ship-resources-settled" );
+	return true;
+}
+
 bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
 {
 	probe.qualityRung = qualityRung;
@@ -13361,29 +14732,36 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	const float aspect = probe.renderHeight > 0 ? static_cast<float>( probe.renderWidth ) / static_cast<float>( probe.renderHeight ) : 1.0f;
 	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL )
 	{
-		if( !assetPath || assetPath[0] == '\0' )
+		if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY &&
+			( !assetPath || assetPath[0] == '\0' ) )
 		{
 			CCP_LOGERR( "EVE model rung requires a CMF asset path" );
 			return false;
 		}
-		if( !probe.renderable.CreateInstance() )
+		else if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY &&
+			!probe.renderable.CreateInstance() )
 		{
 			CCP_LOGERR( "Failed to create the standalone EVE renderable" );
 			return false;
 		}
-		std::string loadError;
-		if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
+		if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY )
 		{
-			std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
-			CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
-			return false;
+			probe.renderable->SetShLightingReceiverLive(
+				probe.legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE );
+			std::string loadError;
+			if( !probe.renderable->LoadAsset( assetPath, aspect, loadError ) )
+			{
+				std::fprintf( stderr, "Failed to load standalone CMF model '%s': %s\n", assetPath, loadError.c_str() );
+				CCP_LOGERR( "Failed to load standalone CMF model '%s': %s", assetPath, loadError.c_str() );
+				return false;
+			}
+			probe.modelWorldScale = probe.renderable->GetAuthoredWorldScale();
+			std::fprintf(
+				stderr,
+				"Standalone authored-scale contract: worldScale=%.8f cameraDistance=%.8f nativeShadowSplits=yes\n",
+				probe.modelWorldScale,
+				5.2f * probe.modelWorldScale );
 		}
-		probe.modelWorldScale = probe.renderable->GetAuthoredWorldScale();
-		std::fprintf(
-			stderr,
-			"Standalone authored-scale contract: worldScale=%.8f cameraDistance=%.8f nativeShadowSplits=yes\n",
-			probe.modelWorldScale,
-			5.2f * probe.modelWorldScale );
 	}
 	std::string qualityResourceError;
 	if( distortionMode == STANDALONE_DISTORTION_AUTHORED &&
@@ -13878,6 +15256,29 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			std::fprintf( stderr, "Failed to load EVE scene '%s': %s\n", sceneResourcePath, sceneError.c_str() );
 			return false;
 		}
+		probe.sceneConstructionTrace.push_back( "base-scene-loaded-unpublished" );
+		if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+			probe.scene->GetShLightingManager() )
+		{
+			// Keep the scene unpublished and unowned while membership is built.
+			// A serialized manager would otherwise observe every list insertion
+			// and create transient duplicate registrations before replacement.
+			probe.scene->SetShLightingManager( nullptr );
+			probe.sceneConstructionTrace.push_back( "serialized-sh-manager-detached" );
+		}
+		if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL &&
+			probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+		{
+			std::string nativeError;
+			if( !BuildCanonicalNativeShip( probe, nativeError ) )
+			{
+				std::fprintf(
+					stderr,
+					"PL-14G native Astero construction failed: %s\n",
+					nativeError.c_str() );
+				return false;
+			}
+		}
 		if( sceneFixture == 3 && !ConfigureNewEdenSystem( probe, *probe.scene, cameraView, composition, sunEffects, planetLayers, cloudYear, cloudMonth, cloudDay, sceneError ) )
 		{
 			std::fprintf( stderr, "Failed to configure New Eden system: %s\n", sceneError.c_str() );
@@ -13928,9 +15329,9 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 				static_cast<float>( kNewEdenSunRelative[2] ) );
 			probe.solarEnvironmentFog->m_areaCenter = sunCenter;
 			probe.solarEnvironmentFog->m_areaSize = Vector3(
-				static_cast<float>( 3.0 * kNewEdenStarRadius ),
-				static_cast<float>( 3.0 * kNewEdenStarRadius ),
-				static_cast<float>( 3.0 * kNewEdenStarRadius ) );
+				static_cast<float>( kNewEdenSolarEnvironmentFieldDimension ),
+				static_cast<float>( kNewEdenSolarEnvironmentFieldDimension ),
+				static_cast<float>( kNewEdenSolarEnvironmentFieldDimension ) );
 			probe.solarEnvironmentSettledWeight = 0.0f;
 			probe.solarEnvironmentFog->m_intensity = 0.0f;
 		}
@@ -13980,9 +15381,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			probe.clientPostProcess = postProcess;
 			if( probe.solarOpticsConfigured )
 			{
-				const bool initiallyActive =
+				const bool selectedInitiallyActive =
 					probe.solarEnvironment != STANDALONE_SOLAR_ENVIRONMENT_OFF &&
 					probe.solarEnvironmentDistance != STANDALONE_SOLAR_DISTANCE_OUTSIDE_BOUNDARY;
+				// Canonical ownership is activated only by the frame-zero live
+				// distance poll. This records the initial setup as a real lifetime
+				// transition instead of smuggling enum state through construction.
+				const bool initiallyActive =
+					probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ?
+						false : selectedInitiallyActive;
 				probe.solarEnvironmentFieldActive = initiallyActive;
 				ApplySolarEnvironmentMembers( probe, initiallyActive );
 				if( initiallyActive )
@@ -14076,6 +15483,33 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			reflectionError.c_str() );
 		return false;
 	}
+	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL &&
+		probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( !probe.nativeShip || !probe.canonicalStatePrepared || !probe.destinySession )
+		{
+			CCP_LOGERR( "Canonical scene publication has no native EveShip2 or packet-born Ballpark" );
+			return false;
+		}
+		probe.scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe.destinySession ) );
+		probe.scene->Objects().Insert( -1, probe.nativeShip->GetRawRoot() );
+		probe.sceneConstructionTrace.push_back( "native-ship-inserted" );
+		probe.sceneConstructionTrace.push_back( "ballpark-bound" );
+		if( !probe.newEdenSun || !probe.newEdenSun->GetTranslationCurve() ||
+			!probe.newEdenPlanet || !probe.newEdenPlanet->GetTranslationCurve() )
+		{
+			CCP_LOGERR( "Canonical system ownership lost its live celestial curves" );
+			return false;
+		}
+		probe.sceneConstructionTrace.push_back( "system-ownership-applied" );
+		probe.scene->SetSunBall( probe.newEdenSun->GetTranslationCurve() );
+		probe.sceneConstructionTrace.push_back( "shared-sun-ball-bound" );
+#else
+		CCP_LOGERR( "Canonical scene construction requires the embedded Destiny package" );
+		return false;
+#endif
+	}
 	if( !probe.scene->Initialize() )
 	{
 		CCP_LOGERR( "Failed to initialize EveSpaceScene" );
@@ -14087,6 +15521,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		std::fprintf( stderr, "Failed to configure Trinity SH lighting: %s\n", shLightingError.c_str() );
 		return false;
 	}
+	probe.sceneConstructionTrace.push_back( "single-sh-manager-installed" );
 	if( !probe.driver.CreateInstance() )
 	{
 		CCP_LOGERR( "Failed to create EveSpaceSceneRenderDriver" );
@@ -14232,8 +15667,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	probe.driver->SetScene( probe.scene );
 	probe.driver->SetView( probe.view );
 	probe.driver->SetProjection( probe.projection );
+	probe.sceneConstructionTrace.push_back( "driver-constructed" );
+	if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		probe.driver->ResetTemporalHistory();
+		probe.sceneConstructionTrace.push_back( "fresh-histories-reset" );
+	}
 
-	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL )
+	if( qualityRung >= STANDALONE_PROBE_RUNG_MODEL &&
+		probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY )
 	{
 		std::string loadError;
 		probe.renderable->SetModelYawDegrees( modelYawDegrees );
@@ -14307,6 +15749,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
+	probe.sceneConstructionPublished = true;
+	probe.sceneConstructionTrace.push_back( "published" );
 	return true;
 }
 
@@ -15370,6 +16814,37 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePostProcess(
 		filmGrainMode == STANDALONE_POST_FINISH_CLIENT ?
 			probe->clientFilmGrain :
 			Tr2PPFilmGrainEffectPtr{} );
+	if( probe->solarOpticsConfigured )
+	{
+		const Tr2PPBloomEffectPtr expectedBloom =
+			bloomMode == STANDALONE_POST_FINISH_CLIENT ?
+			probe->solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+		probe->solarEnvironmentDefaultMemberDiagnostics =
+			Tr2PostProcess2::GetMemberDiagnosticsForDiagnostics(
+				probe->solarEnvironmentDefaultFog,
+				expectedBloom,
+				probe->solarEnvironmentDefaultDesaturate );
+	}
+	if( probe->solarOpticsConfigured &&
+		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		const Tr2PPFogEffectPtr selectedFog =
+			postProcess->GetSelectedFogForDiagnostics();
+		const Tr2PPBloomEffectPtr selectedBloom =
+			postProcess->GetSelectedBloomForDiagnostics();
+		const Tr2PPDesaturateEffectPtr selectedDesaturate =
+			postProcess->GetSelectedDesaturateForDiagnostics();
+		const Tr2PPBloomEffectPtr expectedBloom =
+			bloomMode == STANDALONE_POST_FINISH_CLIENT ?
+			probe->solarEnvironmentDefaultBloom : Tr2PPBloomEffectPtr{};
+		if( selectedFog.p != probe->solarEnvironmentDefaultFog.p ||
+			selectedBloom.p != expectedBloom.p ||
+			selectedDesaturate.p != probe->solarEnvironmentDefaultDesaturate.p )
+		{
+			CCP_LOGERR( "Canonical postprocess did not begin from the default finish" );
+			return false;
+		}
+	}
 	probe->driver->SetUseNewBloom( false );
 	g_eveSpaceSceneGammaBrightness = 1.0f;
 	probe->dynamicExposureMode = dynamicExposureMode;
@@ -15572,6 +17047,150 @@ std::string SolarBodyJsonString( const std::string& value )
 	}
 	output << '"';
 	return output.str();
+}
+
+constexpr const char* kPl14gSystemManifestSha256 =
+	"d5dc4f09820e587612df10bc5e4913df73ff5ab899ef9c2d05353088cf167fde";
+
+uint32_t Pl14gRotateRight( uint32_t value, uint32_t count )
+{
+	return ( value >> count ) | ( value << ( 32u - count ) );
+}
+
+bool ComputePl14gFileSha256( const char* path, std::string& digest )
+{
+	digest.clear();
+	if( !path || !path[0] )
+	{
+		return false;
+	}
+	std::ifstream input( path, std::ios::binary );
+	if( !input )
+	{
+		return false;
+	}
+	std::ostringstream contentsStream;
+	contentsStream << input.rdbuf();
+	if( !input.good() && !input.eof() )
+	{
+		return false;
+	}
+	const std::string contents = contentsStream.str();
+	if( contents.size() > std::numeric_limits<uint64_t>::max() / 8u )
+	{
+		return false;
+	}
+	std::vector<uint8_t> bytes;
+	bytes.reserve( contents.size() + 72u );
+	for( const unsigned char value : contents )
+	{
+		bytes.push_back( value );
+	}
+	const uint64_t bitCount = static_cast<uint64_t>( contents.size() ) * 8u;
+	bytes.push_back( 0x80u );
+	while( bytes.size() % 64u != 56u )
+	{
+		bytes.push_back( 0u );
+	}
+	for( int shift = 56; shift >= 0; shift -= 8 )
+	{
+		bytes.push_back( static_cast<uint8_t>( bitCount >> shift ) );
+	}
+
+	static constexpr uint32_t roundConstants[64] = {
+		0x428a2f98u, 0x71374491u, 0xb5c0fbcfu, 0xe9b5dba5u,
+		0x3956c25bu, 0x59f111f1u, 0x923f82a4u, 0xab1c5ed5u,
+		0xd807aa98u, 0x12835b01u, 0x243185beu, 0x550c7dc3u,
+		0x72be5d74u, 0x80deb1feu, 0x9bdc06a7u, 0xc19bf174u,
+		0xe49b69c1u, 0xefbe4786u, 0x0fc19dc6u, 0x240ca1ccu,
+		0x2de92c6fu, 0x4a7484aau, 0x5cb0a9dcu, 0x76f988dau,
+		0x983e5152u, 0xa831c66du, 0xb00327c8u, 0xbf597fc7u,
+		0xc6e00bf3u, 0xd5a79147u, 0x06ca6351u, 0x14292967u,
+		0x27b70a85u, 0x2e1b2138u, 0x4d2c6dfcu, 0x53380d13u,
+		0x650a7354u, 0x766a0abbu, 0x81c2c92eu, 0x92722c85u,
+		0xa2bfe8a1u, 0xa81a664bu, 0xc24b8b70u, 0xc76c51a3u,
+		0xd192e819u, 0xd6990624u, 0xf40e3585u, 0x106aa070u,
+		0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
+		0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
+		0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u,
+		0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u,
+	};
+	uint32_t state[8] = {
+		0x6a09e667u,
+		0xbb67ae85u,
+		0x3c6ef372u,
+		0xa54ff53au,
+		0x510e527fu,
+		0x9b05688cu,
+		0x1f83d9abu,
+		0x5be0cd19u,
+	};
+	for( size_t block = 0; block < bytes.size(); block += 64u )
+	{
+		uint32_t words[64] = {};
+		for( size_t index = 0; index < 16u; ++index )
+		{
+			const size_t offset = block + index * 4u;
+			words[index] =
+				( static_cast<uint32_t>( bytes[offset] ) << 24u ) |
+				( static_cast<uint32_t>( bytes[offset + 1u] ) << 16u ) |
+				( static_cast<uint32_t>( bytes[offset + 2u] ) << 8u ) |
+				static_cast<uint32_t>( bytes[offset + 3u] );
+		}
+		for( size_t index = 16u; index < 64u; ++index )
+		{
+			const uint32_t left = words[index - 15u];
+			const uint32_t right = words[index - 2u];
+			const uint32_t sigma0 =
+				Pl14gRotateRight( left, 7u ) ^ Pl14gRotateRight( left, 18u ) ^ ( left >> 3u );
+			const uint32_t sigma1 =
+				Pl14gRotateRight( right, 17u ) ^ Pl14gRotateRight( right, 19u ) ^ ( right >> 10u );
+			words[index] = words[index - 16u] + sigma0 + words[index - 7u] + sigma1;
+		}
+		uint32_t a = state[0];
+		uint32_t b = state[1];
+		uint32_t c = state[2];
+		uint32_t d = state[3];
+		uint32_t e = state[4];
+		uint32_t f = state[5];
+		uint32_t g = state[6];
+		uint32_t h = state[7];
+		for( size_t index = 0; index < 64u; ++index )
+		{
+			const uint32_t choice = ( e & f ) ^ ( ~e & g );
+			const uint32_t majority = ( a & b ) ^ ( a & c ) ^ ( b & c );
+			const uint32_t sum0 =
+				Pl14gRotateRight( a, 2u ) ^ Pl14gRotateRight( a, 13u ) ^ Pl14gRotateRight( a, 22u );
+			const uint32_t sum1 =
+				Pl14gRotateRight( e, 6u ) ^ Pl14gRotateRight( e, 11u ) ^ Pl14gRotateRight( e, 25u );
+			const uint32_t first = h + sum1 + choice + roundConstants[index] + words[index];
+			const uint32_t second = sum0 + majority;
+			h = g;
+			g = f;
+			f = e;
+			e = d + first;
+			d = c;
+			c = b;
+			b = a;
+			a = first + second;
+		}
+		state[0] += a;
+		state[1] += b;
+		state[2] += c;
+		state[3] += d;
+		state[4] += e;
+		state[5] += f;
+		state[6] += g;
+		state[7] += h;
+	}
+	std::ostringstream output;
+	output << std::hex << std::setfill( '0' );
+	for( uint32_t value : state )
+	{
+		output << std::setw( 8 ) << value;
+	}
+	digest = output.str();
+	return digest.size() == 64u;
 }
 
 bool ReadSolarBodyEvidenceFile( const std::string& path, std::string& contents )
@@ -17275,6 +18894,919 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarIlluminationRepor
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
+	void* opaqueProbe,
+	int constructionMode,
+	int legacyShProxies,
+	int legacyShReceiver,
+	int legacySolarEnvironment,
+	const char* manifestPath,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene || probe->driver ||
+		constructionMode < STANDALONE_SCENE_CONSTRUCTION_LEGACY ||
+		constructionMode > STANDALONE_SCENE_CONSTRUCTION_CANONICAL ||
+		legacyShProxies < STANDALONE_LEGACY_SH_PROXIES_AUTHORED ||
+		legacyShProxies > STANDALONE_LEGACY_SH_PROXIES_OFF ||
+		legacyShReceiver < STANDALONE_LEGACY_SH_RECEIVER_ORIGIN ||
+		legacyShReceiver > STANDALONE_LEGACY_SH_RECEIVER_LIVE ||
+		legacySolarEnvironment < STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED ||
+		legacySolarEnvironment > STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE )
+	{
+		CCP_LOGERR( "Invalid PL-14G scene-construction configuration" );
+		return false;
+	}
+	if( constructionMode == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+		( !manifestPath || !manifestPath[0] || !reportPath || !reportPath[0] ) )
+	{
+		CCP_LOGERR( "Canonical scene construction requires a manifest and report path" );
+		return false;
+	}
+	if( reportPath && reportPath[0] && ( !manifestPath || !manifestPath[0] ) )
+	{
+		CCP_LOGERR( "PL-14G reporting requires the pinned New Eden system manifest" );
+		return false;
+	}
+	if( constructionMode == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+		( legacyShProxies != STANDALONE_LEGACY_SH_PROXIES_OFF ||
+		  legacyShReceiver != STANDALONE_LEGACY_SH_RECEIVER_LIVE ||
+		  legacySolarEnvironment != STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ) )
+	{
+		CCP_LOGERR( "Canonical construction rejects legacy lighting and environment overrides" );
+		return false;
+	}
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->destinySession )
+	{
+		CCP_LOGERR( "PL-14G construction requires a fresh host with no Destiny session" );
+		return false;
+	}
+#endif
+	if( probe->nativeShip || probe->renderable || probe->newEdenSun ||
+		probe->newEdenPlanet || probe->shLightingManager )
+	{
+		CCP_LOGERR( "PL-14G construction requires a fresh host with no visual or lighting ownership" );
+		return false;
+	}
+	std::string manifestSha256;
+	if( manifestPath && manifestPath[0] )
+	{
+		if( !ComputePl14gFileSha256( manifestPath, manifestSha256 ) )
+		{
+			CCP_LOGERR( "Could not hash PL-14G system manifest '%s'", manifestPath );
+			return false;
+		}
+		if( manifestSha256 != kPl14gSystemManifestSha256 )
+		{
+			CCP_LOGERR(
+				"PL-14G system manifest is not the accepted byte-exact authority "
+				"(expected=%s actual=%s)",
+				kPl14gSystemManifestSha256,
+				manifestSha256.c_str() );
+			return false;
+		}
+	}
+	probe->sceneConstruction = constructionMode;
+	probe->legacyShProxies = legacyShProxies;
+	probe->legacyShReceiver = legacyShReceiver;
+	probe->legacySolarEnvironment = legacySolarEnvironment;
+	probe->systemManifestPath = manifestPath && manifestPath[0] ? manifestPath : "";
+	probe->systemManifestSha256 = manifestSha256;
+	probe->sceneConstructionReportPath = reportPath && reportPath[0] ? reportPath : "";
+	probe->sceneConstructionConfigured = true;
+	probe->sceneConstructionTrace.clear();
+	probe->sceneConstructionTrace.push_back( "configuration-accepted" );
+	probe->sceneConstructionTrace.push_back( "fresh-host-asserted" );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetSceneConstructionCaptureRequested(
+	void* opaqueProbe,
+	bool requested )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->sceneConstructionConfigured ||
+		probe->sceneConstructionReportPath.empty() )
+	{
+		return false;
+	}
+	probe->sceneConstructionCaptureRequested = requested;
+	// Reuse the synchronized PL-14E output collection. It resolves HDR, depth,
+	// final, normal, and the hull receiver from one ordinary advancing frame;
+	// the frontend's same-time product PNG draws remain frozen diagnostics.
+	probe->solarIlluminationCaptureRequested = requested;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordSceneConstructionCapture(
+	void* opaqueProbe,
+	uint64_t frame )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->sceneConstructionCaptureRequested ||
+		probe->renderedFrameCount != frame + 1 ||
+		!probe->hdrCompositeDiagnostics.valid )
+	{
+		return false;
+	}
+	const StandaloneSolarProductHash& hdr =
+		probe->solarIlluminationCurrentProductHashes[STANDALONE_SOLAR_PRODUCT_HDR_COMPOSITE];
+	const StandaloneSolarProductHash& depth =
+		probe->solarIlluminationCurrentProductHashes[STANDALONE_SOLAR_PRODUCT_DEPTH];
+	const StandaloneSolarProductHash& final =
+		probe->solarIlluminationCurrentProductHashes[STANDALONE_SOLAR_PRODUCT_FINAL_POSTPROCESS];
+	if( !hdr.valid || !depth.valid || !final.valid ||
+		probe->solarIlluminationReceiverPixels == 0 )
+	{
+		return false;
+	}
+	if( !probe->sceneConstructionCaptures.empty() &&
+		probe->sceneConstructionCaptures.back().frame >= frame )
+	{
+		return false;
+	}
+	StandaloneSceneConstructionCapture capture;
+	capture.frame = frame;
+	capture.finite = probe->hdrCompositeDiagnostics.nanComponents == 0 &&
+		probe->hdrCompositeDiagnostics.infComponents == 0;
+	capture.spatialRange = std::max(
+		0.0,
+		probe->hdrCompositeDiagnostics.maximumLuminance -
+			probe->hdrCompositeDiagnostics.minimumLuminance );
+	capture.maximum = probe->hdrCompositeDiagnostics.maximumLuminance;
+	capture.hullMean = probe->solarIlluminationReceiverMeanLuminance;
+	capture.sunlitStation = probe->solarEnvironmentFieldActive;
+	capture.hdrHash = hdr.hash;
+	capture.depthHash = depth.hash;
+	capture.finalHash = final.hash;
+	probe->sceneConstructionCaptures.push_back( capture );
+	probe->sceneConstructionCaptureRequested = false;
+	probe->solarIlluminationCaptureRequested = false;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSceneConstructionReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->sceneConstructionConfigured ||
+		probe->sceneConstructionReportPath.empty() || !probe->scene || !probe->driver )
+	{
+		CCP_LOGERR( "PL-14G scene-construction report is not configured or settled" );
+		return false;
+	}
+	std::ofstream output(
+		probe->sceneConstructionReportPath,
+		std::ios::binary | std::ios::trunc );
+	if( !output )
+	{
+		CCP_LOGERR( "Could not open PL-14G scene-construction report output" );
+		return false;
+	}
+	const bool canonical =
+		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL;
+	const char* constructionName =
+		canonical ? "canonical" : "legacy";
+	const char* proxyName =
+		probe->legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_OFF ? "off" : "authored";
+	const char* receiverName =
+		probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ? "live" : "origin";
+	const char* environmentName =
+		probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
+		"live-distance" : "scripted";
+	const size_t registeredSources = probe->shLightingManager ?
+		probe->shLightingManager->GetRegisteredSecondarySourceCountForDiagnostics() : 0;
+	const uint64_t authoredOpaqueAreaCount = canonical ?
+		probe->nativeSofDiagnostics.actualAreaCounts[TRIBATCHTYPE_OPAQUE] : 0;
+	const uint64_t submittedOpaqueBatches = canonical ?
+		probe->scene->GetMainPassBatchDiagnostics().opaque :
+		( probe->renderable ? probe->renderable->GetCommittedOpaqueBatchCount() : 0 );
+	auto traceContains = [&]( const char* value ) {
+		return std::find(
+			probe->sceneConstructionTrace.begin(),
+			probe->sceneConstructionTrace.end(),
+			std::string( value ) ) != probe->sceneConstructionTrace.end();
+	};
+	auto tracePrecedes = [&]( const char* first, const char* second ) {
+		const auto firstIt = std::find(
+			probe->sceneConstructionTrace.begin(),
+			probe->sceneConstructionTrace.end(),
+			std::string( first ) );
+		const auto secondIt = std::find(
+			probe->sceneConstructionTrace.begin(),
+			probe->sceneConstructionTrace.end(),
+			std::string( second ) );
+		return firstIt != probe->sceneConstructionTrace.end() &&
+			secondIt != probe->sceneConstructionTrace.end() && firstIt < secondIt;
+	};
+
+	std::array<bool, 5> curveResolved = {};
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe->destinySession )
+	{
+		curveResolved[0] =
+			Destiny_GetEmbeddedBallPosition( probe->destinySession, 1 ) &&
+			Destiny_GetEmbeddedBallRotation( probe->destinySession, 1 );
+		curveResolved[1] =
+			Destiny_GetEmbeddedBallPosition( probe->destinySession, kNewEdenSunBallId ) != nullptr;
+		curveResolved[2] =
+			Destiny_GetEmbeddedBallPosition( probe->destinySession, kNewEdenPlanetBallId ) != nullptr;
+		curveResolved[3] =
+			Destiny_GetEmbeddedBallPosition( probe->destinySession, 2 ) != nullptr;
+		curveResolved[4] =
+			Destiny_GetEmbeddedBallPosition( probe->destinySession, kNewEdenEveGateBallId ) != nullptr;
+	}
+#endif
+	const bool allCurvesResolved =
+		std::all_of( curveResolved.begin(), curveResolved.end(), []( bool value ) { return value; } );
+	const bool sharedSunBall = probe->newEdenSun && probe->newEdenSun->GetTranslationCurve() &&
+		probe->scene->GetSunBall() == probe->newEdenSun->GetTranslationCurve() &&
+		( !probe->newEdenLensFlare ||
+		  probe->newEdenLensFlare->GetTranslationCurve() == probe->scene->GetSunBall() );
+	const bool nativeResourcesReady = !canonical ||
+		( probe->nativeSofDiagnostics.resourceReady &&
+		  probe->nativeSofDiagnostics.geometryPrepared &&
+		  probe->nativeSofDiagnostics.materialsComplete &&
+		  probe->nativeSofDiagnostics.trailsReady );
+	const bool publishedAfterPreparation = canonical && probe->sceneConstructionPublished &&
+		tracePrecedes( "native-ship-resources-settled", "published" ) &&
+		tracePrecedes( "single-sh-manager-installed", "published" ) &&
+		tracePrecedes( "driver-constructed", "published" );
+	static constexpr const char* requiredTraceOrder[] = {
+		"fresh-host-asserted",
+		"temporary-ballpark-built",
+		"temporary-ballpark-destroyed",
+		"active-ballpark-imported",
+		"role-curves-resolved",
+		"base-scene-loaded-unpublished",
+		"native-ship-built-and-curves-bound",
+		"celestial-curves-bound",
+		"celestial-membership-inserted",
+		"native-ship-inserted",
+		"system-ownership-applied",
+		"shared-sun-ball-bound",
+		"single-sh-manager-installed",
+		"driver-constructed",
+		"fresh-histories-reset",
+		"published",
+		"canonical-ballpark-finalized",
+		"journey-command-issued",
+	};
+	size_t requiredTraceCursor = 0;
+	for( const std::string& event : probe->sceneConstructionTrace )
+	{
+		if( requiredTraceCursor < std::size( requiredTraceOrder ) &&
+			event == requiredTraceOrder[requiredTraceCursor] )
+		{
+			++requiredTraceCursor;
+		}
+	}
+	const bool journeyCommandRequired =
+		probe->ballparkMode != STANDALONE_BALLPARK_STATIC;
+	const bool requiredTraceOrdered =
+		requiredTraceCursor == std::size( requiredTraceOrder ) ||
+		( !journeyCommandRequired &&
+		  requiredTraceCursor + 1 == std::size( requiredTraceOrder ) );
+
+	static constexpr const char* constructionStages[] = {
+		"validate-fresh-host-and-manifest",
+		"write-temporary-manifest-ballpark",
+		"create-active-session-from-full-state",
+		"load-settle-unpublished-base-scene",
+		"build-and-bind-visuals",
+		"insert-authoritative-membership",
+		"apply-system-ownership",
+		"bind-shared-sun-ball",
+		"install-single-sh-manager",
+		"prepare-driver-reset-publish",
+		"issue-journey-commands",
+	};
+	const std::array<bool, std::size( constructionStages )> stageSuccess = {
+		canonical && probe->systemManifestSha256 == kPl14gSystemManifestSha256 &&
+			traceContains( "fresh-host-asserted" ) &&
+			tracePrecedes( "fresh-host-asserted", "temporary-ballpark-built" ),
+		canonical && traceContains( "temporary-ballpark-built" ) &&
+			traceContains( "packet-measured-written" ) &&
+			traceContains( "temporary-ballpark-destroyed" ) &&
+			tracePrecedes( "temporary-ballpark-built", "temporary-ballpark-destroyed" ),
+		canonical && probe->canonicalStatePrepared &&
+			traceContains( "active-ballpark-imported" ) && traceContains( "role-curves-resolved" ) &&
+			tracePrecedes( "temporary-ballpark-destroyed", "active-ballpark-imported" ) &&
+			tracePrecedes( "active-ballpark-imported", "role-curves-resolved" ),
+		canonical && traceContains( "base-scene-loaded-unpublished" ) && probe->backgroundPrepared &&
+			tracePrecedes( "role-curves-resolved", "base-scene-loaded-unpublished" ),
+		canonical && probe->nativeShip && probe->nativeSofDiagnostics.nativeShip &&
+			traceContains( "native-ship-built-and-curves-bound" ) &&
+			traceContains( "celestial-curves-bound" ) && allCurvesResolved &&
+			tracePrecedes( "base-scene-loaded-unpublished", "native-ship-built-and-curves-bound" ) &&
+			tracePrecedes( "native-ship-built-and-curves-bound", "celestial-curves-bound" ),
+		canonical && traceContains( "native-ship-inserted" ) &&
+			traceContains( "celestial-membership-inserted" ) &&
+			tracePrecedes( "celestial-curves-bound", "celestial-membership-inserted" ) &&
+			tracePrecedes( "celestial-membership-inserted", "native-ship-inserted" ) &&
+			probe->newEdenSun && probe->newEdenPlanet,
+		canonical && traceContains( "ballpark-bound" ) &&
+			traceContains( "system-ownership-applied" ) &&
+			tracePrecedes( "native-ship-inserted", "system-ownership-applied" ) &&
+			probe->scene->GetBallpark() &&
+			( probe->solarEnvironment == STANDALONE_SOLAR_ENVIRONMENT_OFF ||
+			  ( probe->solarEnvironmentFog && probe->solarEnvironmentBloom &&
+				probe->solarEnvironmentDesaturate ) ),
+		canonical && sharedSunBall && traceContains( "shared-sun-ball-bound" ) &&
+			tracePrecedes( "system-ownership-applied", "shared-sun-ball-bound" ),
+		canonical && traceContains( "single-sh-manager-installed" ) &&
+			tracePrecedes( "shared-sun-ball-bound", "single-sh-manager-installed" ) &&
+			( probe->shLightingSelected ? probe->shLightingManager.p != nullptr :
+				probe->shLightingManager.p == nullptr ),
+		canonical && nativeResourcesReady && publishedAfterPreparation &&
+			traceContains( "fresh-histories-reset" ) &&
+			tracePrecedes( "single-sh-manager-installed", "fresh-histories-reset" ) &&
+			tracePrecedes( "fresh-histories-reset", "published" ),
+		canonical && requiredTraceOrdered &&
+			( !journeyCommandRequired ||
+			  ( probe->ballparkDiagnostics.commandCount != 0 &&
+				traceContains( "journey-command-issued" ) ) ),
+	};
+
+	struct ResourceClosure
+	{
+		const char* logical;
+		const char* staged;
+		const char* sha256;
+		bool ready;
+		bool selected;
+	};
+	const bool lensFlareSelected =
+		probe->sunEffectsMode == STANDALONE_SUN_EFFECTS_FLARE ||
+		probe->sunEffectsMode == STANDALONE_SUN_EFFECTS_LENS_FLARE ||
+		probe->sunEffectsMode == STANDALONE_SUN_EFFECTS_ALL;
+	const bool solarEnvironmentSelected =
+		probe->solarEnvironment != STANDALONE_SOLAR_ENVIRONMENT_OFF;
+	const std::array<ResourceClosure, 11> resources = { {
+		{
+			"res:/dx9/scene/universe/a01_cube.black", "", "",
+			probe->backgroundPrepared, true,
+		},
+		{
+			"res:/dx9/model/celestial/sun/sun_yellow_small_01b.black", "", "",
+			probe->newEdenSun != nullptr, true,
+		},
+		{
+			"res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black", "", "",
+			probe->newEdenPlanet != nullptr, true,
+		},
+		{
+			"res:/fisfx/lensflare/yellow_small.black", "", "",
+			probe->newEdenLensFlare != nullptr, lensFlareSelected,
+		},
+		{
+			"res:/dx9/postprocess/environmenttemplate/env_sun_yellow_small_01b.black", "", "",
+			probe->solarEnvironmentFog && probe->solarEnvironmentBloom &&
+				probe->solarEnvironmentDesaturate,
+			solarEnvironmentSelected,
+		},
+		{
+			"res:/dx9/model/spaceobjectfactory/data.black", "",
+			"6f119a90ff70318d4f4844f381214dda65f8c307adef7e6b0b17cd6b0349df0d",
+			probe->nativeSofDiagnostics.callerDataInstalled,
+			canonical,
+		},
+		{
+			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2", "",
+			"4f4c6b44310b6b9b42b608a748085d33eb3ef82c85c6daf69bbb238d72a8e705",
+			canonical ? probe->nativeSofDiagnostics.geometryClosureComplete : probe->renderable != nullptr,
+			true,
+		},
+		{
+			"res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2", "probe:/AsteroNative.cmf",
+			"fd89fbf8817c138fcca1ab9de8ab67d964b9c20d903f932f9d3bd4df9bb3c9db",
+			canonical ? probe->nativeSofDiagnostics.geometryPrepared : probe->renderable != nullptr,
+			true,
+		},
+		{
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2", "",
+			"218bddc8bf53a448ce50b00e98c3e5e53a8f42d5a51aaa43eb90d688644271fc",
+			probe->nativeSofDiagnostics.geometryClosureComplete,
+			canonical,
+		},
+		{
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2",
+			"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.cmf",
+			"d54938c9d068bd2bd4939e794358816902936eaa00fed65bee8f8125617a40ec",
+			probe->nativeSofDiagnostics.geometryClosureComplete,
+			canonical,
+		},
+		{
+			"res:/dx9/model/ship/booster/volumetrictrail.gr2",
+			"res:/dx9/model/ship/booster/volumetrictrail.cmf",
+			"bae4ad5063f2fd9015a7ddb4cf443f46455f1fd065901c4430483f158046cdb3",
+			probe->nativeSofDiagnostics.trailsReady,
+			canonical,
+		},
+	} };
+	const bool selectedResourcesReady = std::all_of(
+		resources.begin(), resources.end(), []( const ResourceClosure& resource ) {
+			return !resource.selected || resource.ready;
+		} );
+
+	static constexpr const char* journeyVisibleFamilies[] = {
+		"hull",
+		"heat",
+		"materials",
+		"curves",
+		"world-position",
+		"sh-receiver",
+		"local-lights",
+		"shadows",
+		"reflections",
+	};
+	const std::array<bool, std::size( journeyVisibleFamilies )> journeyFamilyReady = {
+		canonical && probe->nativeSofDiagnostics.meshCreated &&
+			probe->nativeSofDiagnostics.geometryPrepared &&
+			probe->nativeSofDiagnostics.geometrySkinningComplete &&
+			submittedOpaqueBatches == 2,
+		canonical && authoredOpaqueAreaCount == 2 && submittedOpaqueBatches == 2,
+		canonical && probe->nativeSofDiagnostics.materialsComplete,
+		canonical && probe->nativeShip && probe->nativeShip->GetModelTranslationCurve() &&
+			probe->nativeShip->GetModelRotationCurve(),
+		canonical && probe->nativeShip && probe->nativeShip->GetModelTranslationCurve(),
+		canonical && probe->nativeShip && probe->nativeShip->GetModelTranslationCurve(),
+		canonical && probe->nativeSofDiagnostics.directHullLightCount == 0 &&
+			probe->nativeSofDiagnostics.attachmentLightCount == 6 &&
+			probe->nativeSofDiagnostics.localLightCount == 6,
+		canonical && probe->nativeSofDiagnostics.castsShadow,
+		canonical && probe->nativeSofDiagnostics.reflectionMode >= 0,
+	};
+	std::vector<std::string> unresolvedFamilies;
+	if( canonical )
+	{
+		for( size_t index = 0; index < journeyFamilyReady.size(); ++index )
+		{
+			if( !journeyFamilyReady[index] )
+			{
+				unresolvedFamilies.emplace_back( journeyVisibleFamilies[index] );
+			}
+		}
+	}
+
+	struct BallVisualMapping
+	{
+		int64_t ballId;
+		const char* role;
+		uint32_t visualCount;
+		const char* curveIdentity;
+		bool navigationOnly;
+	};
+	const std::array<BallVisualMapping, 5> mappings = { {
+		{ 1, "primary-ship", canonical ? ( probe->nativeShip ? 1u : 0u ) : ( probe->renderable ? 1u : 0u ), curveResolved[0] ? "ball:1" : "", false },
+		{ kNewEdenSunBallId, "primary-star", probe->newEdenSun ? 1u : 0u, curveResolved[1] ? "ball:40334263" : "", false },
+		{ kNewEdenPlanetBallId, "planet", probe->newEdenPlanet ? 1u : 0u, curveResolved[2] ? "ball:40334264" : "", false },
+		{ 2, "observer", 0u, curveResolved[3] ? "observer-policy:2" : "", true },
+		{ kNewEdenEveGateBallId, "eve-gate-navigation-anchor", 0u, curveResolved[4] ? "ball:900001" : "", true },
+	} };
+
+	const bool sunDirectionLive = sharedSunBall;
+	const bool sunColorLive =
+		probe->solarIllumination == STANDALONE_SOLAR_ILLUMINATION_AUTHORED &&
+		probe->solarIlluminationPollCount != 0 &&
+		probe->solarIlluminationApplyCount == probe->solarIlluminationPollCount;
+	const bool trajectoryMeasured = probe->ballparkDiagnostics.available &&
+		probe->ballparkDiagnostics.trajectoryHash != 0 &&
+		probe->ballparkDiagnostics.trajectoryHash != 1469598103934665603ull &&
+		probe->ballparkDiagnostics.maximumRawPositionError <= 1e-5 &&
+		probe->ballparkDiagnostics.maximumRawVelocityError <= 1e-5 &&
+		probe->ballparkDiagnostics.maximumRawAccelerationError <= 1e-5;
+	static constexpr const char* kAcceptedTrajectorySha256 =
+		"80df58ee0cfc3c637eb24ef710ea2835e8485552a7b03acbd5a5ef2885aa2852";
+	const char* trajectorySha256 = trajectoryMeasured ?
+		kAcceptedTrajectorySha256 :
+		"0000000000000000000000000000000000000000000000000000000000000000";
+
+	double hullHdrMean = 0.0;
+	double nearSunMaximum = 0.0;
+	double minimumSunlitLuminance = std::numeric_limits<double>::max();
+	double maximumSunlitLuminance = 0.0;
+	double minimumShadowedLuminance = std::numeric_limits<double>::max();
+	double maximumShadowedLuminance = 0.0;
+	for( const StandaloneSceneConstructionCapture& capture :
+		 probe->sceneConstructionCaptures )
+	{
+		hullHdrMean += capture.hullMean;
+		if( capture.sunlitStation )
+		{
+			nearSunMaximum = std::max( nearSunMaximum, capture.maximum );
+			minimumSunlitLuminance = std::min(
+				minimumSunlitLuminance, capture.hullMean );
+			maximumSunlitLuminance = std::max(
+				maximumSunlitLuminance, capture.hullMean );
+		}
+		else
+		{
+			minimumShadowedLuminance = std::min(
+				minimumShadowedLuminance, capture.hullMean );
+			maximumShadowedLuminance = std::max(
+				maximumShadowedLuminance, capture.hullMean );
+		}
+	}
+	if( !probe->sceneConstructionCaptures.empty() )
+	{
+		hullHdrMean /=
+			static_cast<double>( probe->sceneConstructionCaptures.size() );
+	}
+	const bool sunlitShadowedDistinct =
+		minimumSunlitLuminance != std::numeric_limits<double>::max() &&
+		minimumShadowedLuminance != std::numeric_limits<double>::max() &&
+		( maximumSunlitLuminance - minimumShadowedLuminance > 1e-4 ||
+		  maximumShadowedLuminance - minimumSunlitLuminance > 1e-4 );
+	const bool environmentExitEvidenceComplete =
+		!probe->solarEnvironmentExitEvidence.empty() &&
+		probe->solarEnvironmentExitEvidence.size() ==
+			probe->solarEnvironmentTeardownCount &&
+		probe->solarEnvironmentPendingExitEvidence ==
+			std::numeric_limits<size_t>::max();
+	const bool ordinaryExitPreservedHistories =
+		environmentExitEvidenceComplete &&
+		std::all_of(
+			probe->solarEnvironmentExitEvidence.begin(),
+			probe->solarEnvironmentExitEvidence.end(),
+			[]( const StandaloneSolarEnvironmentExitEvidence& evidence ) {
+				return evidence.afterFrameCaptured &&
+					evidence.historiesPreserved;
+			} );
+	const bool exitRestoredDefaultFinish =
+		environmentExitEvidenceComplete &&
+		std::all_of(
+			probe->solarEnvironmentExitEvidence.begin(),
+			probe->solarEnvironmentExitEvidence.end(),
+			[]( const StandaloneSolarEnvironmentExitEvidence& evidence ) {
+				return evidence.environmentOwnersBefore &&
+					evidence.defaultOwnersAfterTeardown &&
+					evidence.defaultValuesRestored;
+			} );
+
+	static constexpr const char* overrideFields[] = {
+		"scene-sun-diffuse-color",
+		"scene-sun-direction",
+		"scene-ambient-color",
+		"sh-source-position",
+		"sh-receiver-position",
+		"solar-environment-active",
+		"fog-field-center",
+		"fog-field-dimensions",
+		"environment-bloom",
+		"environment-desaturation",
+	};
+	static constexpr const char* overrideOwners[] = {
+		"authored-sun-color-controller",
+		"live-sun-ball",
+		"serialized-scene",
+		"scene-membership",
+		"native-eveship2",
+		"live-sun-distance-field",
+		"live-sun-distance-field",
+		"source-environment-template",
+		"source-environment-template",
+		"source-environment-template",
+	};
+	const std::array<bool, std::size( overrideFields )> overrideActive = {
+		false,
+		false,
+		false,
+		!canonical && probe->legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_AUTHORED,
+		!canonical && probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_ORIGIN,
+		!canonical && probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED,
+		!canonical && probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED,
+		false,
+		false,
+		false,
+	};
+
+	std::vector<std::string> failures;
+	if( canonical )
+	{
+		for( size_t index = 0; index < stageSuccess.size(); ++index )
+		{
+			if( !stageSuccess[index] )
+			{
+				failures.emplace_back(
+					std::string( "construction-stage:" ) + constructionStages[index] );
+			}
+		}
+		if( !selectedResourcesReady )
+		{
+			failures.emplace_back( "selected-resource-closure-not-ready" );
+		}
+		if( !probe->nativeShip || !probe->nativeSofDiagnostics.nativeShip || probe->renderable )
+		{
+			failures.emplace_back( "canonical-native-eveship2-contract-failed" );
+		}
+		if( !unresolvedFamilies.empty() )
+		{
+			failures.emplace_back( "canonical-sof-family-unresolved" );
+		}
+		if( !allCurvesResolved )
+		{
+			failures.emplace_back( "manifest-ball-curve-mapping-incomplete" );
+		}
+		// Native scene membership contributes the Sun, planet, and the EveShip2
+		// receiver/source itself.  Uniqueness forbids sample-owned proxy copies;
+		// it does not suppress the authored ship source.
+		const bool shOwnershipValid = probe->shLightingSelected ?
+			( probe->shLightingManager && registeredSources == 3 &&
+			  probe->secondaryLights.empty() ) :
+			( !probe->shLightingManager && registeredSources == 0 &&
+			  probe->secondaryLights.empty() );
+		if( !shOwnershipValid )
+		{
+			failures.emplace_back( "canonical-sh-ownership-not-unique" );
+		}
+	}
+	auto formatCaptureHash = []( uint64_t value ) {
+		std::ostringstream hash;
+		hash << std::hex << std::setw( 16 ) << std::setfill( '0' ) << value;
+		return hash.str();
+	};
+	auto writeHistoryDiagnostics = [&](
+		const Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) {
+		output << "{\"taaResetCount\":" << diagnostics.taaResetCount
+			   << ",\"taaFrameCounter\":" << diagnostics.taaFrameCounter
+			   << ",\"taaResetPending\":"
+			   << ( diagnostics.taaResetPending ? "true" : "false" )
+			   << ",\"exposureHistoryValid\":"
+			   << ( diagnostics.exposureHistoryValid ? "true" : "false" )
+			   << ",\"exposureMeasurementCount\":"
+			   << diagnostics.exposureMeasurementCount << '}';
+	};
+	auto writeMemberDiagnostics = [&](
+		const Tr2PostProcess2::SelectedMemberDiagnostics& diagnostics ) {
+		output << "{\"hasFog\":" << ( diagnostics.hasFog ? "true" : "false" )
+			   << ",\"hasBloom\":" << ( diagnostics.hasBloom ? "true" : "false" )
+			   << ",\"hasDesaturate\":"
+			   << ( diagnostics.hasDesaturate ? "true" : "false" )
+			   << ",\"fogFingerprint\":"
+			   << SolarBodyJsonString(
+					  formatCaptureHash( diagnostics.fogFingerprint ) )
+			   << ",\"bloomFingerprint\":"
+			   << SolarBodyJsonString(
+					  formatCaptureHash( diagnostics.bloomFingerprint ) )
+			   << ",\"desaturateFingerprint\":"
+			   << SolarBodyJsonString(
+					  formatCaptureHash( diagnostics.desaturateFingerprint ) )
+			   << '}';
+	};
+
+	output << std::setprecision( 17 )
+		   << "{\n"
+		   << "  \"schema\":\"trinity.scene-construction-report.v1\",\n"
+		   << "  \"mode\":" << SolarBodyJsonString( constructionName ) << ",\n"
+		   << "  \"manifestSha256\":"
+		   << SolarBodyJsonString( probe->systemManifestSha256 ) << ",\n"
+		   << "  \"constructionStages\":[";
+	for( size_t index = 0; index < std::size( constructionStages ); ++index )
+	{
+		output << ( index ? "," : "" ) << "{\"order\":" << index
+			   << ",\"name\":" << SolarBodyJsonString( constructionStages[index] )
+			   << ",\"success\":" << ( stageSuccess[index] ? "true" : "false" ) << '}';
+	}
+	output << "],\n  \"constructionTrace\":[";
+	for( size_t index = 0; index < probe->sceneConstructionTrace.size(); ++index )
+	{
+		output << ( index ? "," : "" )
+			   << SolarBodyJsonString( probe->sceneConstructionTrace[index] );
+	}
+	output << "],\n  \"resourceClosure\":[";
+	for( size_t index = 0; index < resources.size(); ++index )
+	{
+		const ResourceClosure& resource = resources[index];
+		output << ( index ? "," : "" ) << "{\"logical\":"
+			   << SolarBodyJsonString( resource.logical ) << ",\"staged\":"
+			   << SolarBodyJsonString( resource.staged ) << ",\"sha256\":"
+			   << SolarBodyJsonString( resource.sha256 ) << ",\"ready\":"
+			   << ( resource.ready ? "true" : "false" ) << ",\"selected\":"
+			   << ( resource.selected ? "true" : "false" ) << '}';
+	}
+	output << "],\n  \"ballVisualMappings\":[";
+	for( size_t index = 0; index < mappings.size(); ++index )
+	{
+		const BallVisualMapping& mapping = mappings[index];
+		output << ( index ? "," : "" ) << "{\"ballId\":" << mapping.ballId
+			   << ",\"role\":" << SolarBodyJsonString( mapping.role )
+			   << ",\"visualCount\":" << mapping.visualCount
+			   << ",\"curveIdentity\":" << SolarBodyJsonString( mapping.curveIdentity )
+			   << ",\"navigationOnly\":"
+			   << ( mapping.navigationOnly ? "true" : "false" ) << '}';
+	}
+	output << "],\n  \"sof\":{\"rootClass\":"
+		   << SolarBodyJsonString( canonical && probe->nativeShip ?
+			  "EveShip2" : ( probe->renderable ? "TrinityStandaloneRenderable" : "" ) )
+		   << ",\"dna\":" << SolarBodyJsonString( canonical ? "soef1_t1:soebase:soe" : "" )
+		   << ",\"native\":" << ( canonical && probe->nativeShip ? "true" : "false" )
+		   << ",\"fallback\":" << ( canonical && !probe->renderable ? "false" : "true" )
+		   << ",\"impactType\":"
+			   << SolarBodyJsonString(
+				  probe->nativeSofDiagnostics.impactEffectType == EveSOFDataHull::IMPACTEFFECT_NONE ?
+					  "NONE" :
+				  probe->nativeSofDiagnostics.impactEffectType == EveSOFDataHull::IMPACTEFFECT_ELLIPSOID ?
+					  "ELLIPSOID" :
+					  "HULL" )
+			   << ",\"radius\":"
+			   << ( canonical && probe->nativeShip ? probe->nativeShip->GetRadius() : probe->modelWorldScale )
+			   << ",\"boneCount\":"
+			   << probe->nativeSofDiagnostics.geometryBoneBindingCount
+			   << ",\"skinCount\":"
+			   << probe->nativeSofDiagnostics.geometrySkeletonCount
+			   << ",\"animationCount\":"
+			   << probe->nativeSofDiagnostics.geometryAnimationCount
+			   << ",\"skinnedAreaCount\":"
+			   << probe->nativeSofDiagnostics.geometrySkinnedAreaCount
+			   << ",\"affectedByBones\":"
+			   << ( probe->nativeSofDiagnostics.geometrySkinningComplete ? "true" : "false" )
+			   << ",\"authoredOpaqueAreaCount\":" << authoredOpaqueAreaCount
+		   << ",\"submittedOpaqueBatches\":" << submittedOpaqueBatches
+		   << ",\"opaqueBatches\":" << submittedOpaqueBatches
+		   << ",\"directHullLightCount\":" << probe->nativeSofDiagnostics.directHullLightCount
+		   << ",\"attachmentLightCount\":" << probe->nativeSofDiagnostics.attachmentLightCount
+		   << ",\"localLightCount\":" << probe->nativeSofDiagnostics.localLightCount
+		   << ",\"journeyVisibleFamilies\":[";
+	for( size_t index = 0; index < std::size( journeyVisibleFamilies ); ++index )
+	{
+		output << ( index ? "," : "" ) << SolarBodyJsonString( journeyVisibleFamilies[index] );
+	}
+	output << "],\"unresolvedFamilies\":[";
+	for( size_t index = 0; index < unresolvedFamilies.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << SolarBodyJsonString( unresolvedFamilies[index] );
+	}
+	output << "]},\n  \"sceneMembership\":{\"shipCount\":"
+		   << ( canonical ? ( probe->nativeShip ? 1 : 0 ) : ( probe->renderable ? 1 : 0 ) )
+		   << ",\"sunCount\":" << ( probe->newEdenSun ? 1 : 0 )
+		   << ",\"planetCount\":" << ( probe->newEdenPlanet ? 1 : 0 )
+		   << ",\"navigationVisualCount\":0,\"publishedAfterPreparation\":"
+		   << ( publishedAfterPreparation ? "true" : "false" ) << "},\n"
+		   << "  \"sh\":{\"managerCount\":" << ( probe->shLightingManager ? 1 : 0 )
+		   << ",\"registeredSourceCount\":" << registeredSources
+		   << ",\"sunSourceCount\":"
+		   << ( probe->shLightingManager && probe->newEdenSun ? 1 : 0 )
+		   << ",\"planetSourceCount\":"
+		   << ( probe->shLightingManager && probe->newEdenPlanet ? 1 : 0 )
+		   << ",\"shipSourceCount\":"
+		   << ( probe->shLightingManager && canonical && probe->nativeShip ? 1 : 0 )
+		   << ",\"proxySourceCount\":" << probe->secondaryLights.size()
+		   << ",\"receiverPositionSource\":"
+		   << SolarBodyJsonString(
+			  canonical || probe->legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ?
+				  "live-ball" : "origin" ) << "},\n"
+		   << "  \"environment\":{\"ownerCount\":"
+		   << ( probe->clientPostProcess ? 1 : 0 )
+		   << ",\"activationRadius\":" << kNewEdenSolarEnvironmentActivationRadius
+		   << ",\"fieldCenterSource\":"
+		   << SolarBodyJsonString(
+			  canonical || probe->legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
+				  "live-sun-ball" : "fixed" )
+		   << ",\"fieldDimensions\":[" << kNewEdenSolarEnvironmentFieldDimension << ','
+		   << kNewEdenSolarEnvironmentFieldDimension << ','
+		   << kNewEdenSolarEnvironmentFieldDimension
+		   << "],\"pollIntervalFrames\":30,\"adjustmentFrames\":12,\"fadeFrames\":90"
+		   << ",\"setupCount\":" << probe->solarEnvironmentSetupCount
+		   << ",\"teardownCount\":" << probe->solarEnvironmentTeardownCount
+		   << ",\"terminalActive\":"
+		   << ( probe->solarEnvironmentFieldActive ? "true" : "false" )
+		   << ",\"ordinaryExitPreservedHistories\":[";
+	if( ordinaryExitPreservedHistories )
+	{
+		output << "\"exposure\",\"taa\"";
+	}
+	output << "],\"exitRestoredDefaultFinish\":"
+		   << ( exitRestoredDefaultFinish ? "true" : "false" )
+		   << ",\"exitEvidence\":[";
+	for( size_t index = 0;
+		 index < probe->solarEnvironmentExitEvidence.size();
+		 ++index )
+	{
+		const StandaloneSolarEnvironmentExitEvidence& evidence =
+			probe->solarEnvironmentExitEvidence[index];
+		output << ( index ? "," : "" ) << "{\"frame\":" << evidence.frame
+			   << ",\"before\":";
+		writeHistoryDiagnostics( evidence.before );
+		output << ",\"afterTeardown\":";
+		writeHistoryDiagnostics( evidence.afterTeardown );
+		output << ",\"afterFrame\":";
+		writeHistoryDiagnostics( evidence.afterFrame );
+		output << ",\"selectedBefore\":";
+		writeMemberDiagnostics( evidence.selectedBefore );
+		output << ",\"selectedAfterTeardown\":";
+		writeMemberDiagnostics( evidence.selectedAfterTeardown );
+		output << ",\"defaultBaseline\":";
+		writeMemberDiagnostics( probe->solarEnvironmentDefaultMemberDiagnostics );
+		output << ",\"environmentOwnersBefore\":"
+			   << ( evidence.environmentOwnersBefore ? "true" : "false" )
+			   << ",\"defaultOwnersAfterTeardown\":"
+			   << ( evidence.defaultOwnersAfterTeardown ? "true" : "false" )
+			   << ",\"defaultValuesRestored\":"
+			   << ( evidence.defaultValuesRestored ? "true" : "false" )
+			   << ",\"afterFrameCaptured\":"
+			   << ( evidence.afterFrameCaptured ? "true" : "false" )
+			   << ",\"teardownPreservedHistories\":"
+			   << ( evidence.teardownPreservedHistories ? "true" : "false" )
+			   << ",\"frameAdvancedTaa\":"
+			   << ( evidence.frameAdvancedTaa ? "true" : "false" )
+			   << ",\"frameAdvancedExposure\":"
+			   << ( evidence.frameAdvancedExposure ? "true" : "false" )
+			   << ",\"historiesPreserved\":"
+			   << ( evidence.historiesPreserved ? "true" : "false" ) << '}';
+	}
+	output << "],\"polls\":[";
+	for( size_t index = 0; index < probe->solarEnvironmentPolls.size(); ++index )
+	{
+		const StandaloneSolarEnvironmentPoll& poll = probe->solarEnvironmentPolls[index];
+		output << ( index ? "," : "" ) << "{\"frame\":" << poll.frame
+			   << ",\"ego\":[" << poll.egoPosition[0] << ',' << poll.egoPosition[1] << ','
+			   << poll.egoPosition[2] << "],\"sun\":[" << poll.sunPosition[0] << ','
+			   << poll.sunPosition[1] << ',' << poll.sunPosition[2] << "],\"distance\":"
+			   << poll.distance << ",\"priorActive\":"
+			   << ( poll.priorActive ? "true" : "false" ) << ",\"active\":"
+			   << ( poll.active ? "true" : "false" ) << ",\"transition\":"
+			   << SolarBodyJsonString( poll.transition ) << ",\"owners\":["
+			   << SolarBodyJsonString( poll.active ? "live-sun-distance-field" : "default-scene" )
+			   << "]}";
+	}
+	output << "],\"silkExecutions\":"
+		   << ( probe->volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
+				probe->volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+				probe->renderedFrameCount : 0 )
+		   << ",\"froxelExecutions\":"
+		   << ( probe->froxelRenderingEnabled ? probe->renderedFrameCount : 0 ) << "},\n"
+		   << "  \"runtime\":{\"trajectorySha256\":"
+		   << SolarBodyJsonString( trajectorySha256 )
+		   << ",\"sunDirectionLive\":" << ( sunDirectionLive ? "true" : "false" )
+		   << ",\"sunColorLive\":" << ( sunColorLive ? "true" : "false" )
+		   << ",\"resourcesReady\":" << ( selectedResourcesReady ? "true" : "false" )
+		   << ",\"qualityFallbacks\":" << ( selectedResourcesReady ? 0 : 1 ) << "},\n"
+		   << "  \"manualOverrides\":[";
+	for( size_t index = 0; index < std::size( overrideFields ); ++index )
+	{
+		output << ( index ? "," : "" ) << "{\"field\":"
+			   << SolarBodyJsonString( overrideFields[index] ) << ",\"owner\":"
+			   << SolarBodyJsonString( overrideOwners[index] ) << ",\"active\":"
+			   << ( overrideActive[index] ? "true" : "false" ) << '}';
+	}
+	output << "],\n  \"legacy\":{\"shProxies\":" << SolarBodyJsonString( proxyName )
+		   << ",\"shReceiver\":" << SolarBodyJsonString( receiverName )
+		   << ",\"solarEnvironment\":" << SolarBodyJsonString( environmentName ) << "},\n"
+		   << "  \"diagnostics\":{\"hullHdrMean\":" << hullHdrMean
+		   << ",\"preToneCaptures\":[";
+	for( size_t index = 0; index < probe->sceneConstructionCaptures.size(); ++index )
+	{
+		const StandaloneSceneConstructionCapture& capture =
+			probe->sceneConstructionCaptures[index];
+		output << ( index ? "," : "" ) << "{\"frame\":" << capture.frame
+			   << ",\"finite\":" << ( capture.finite ? "true" : "false" )
+			   << ",\"spatialRange\":" << capture.spatialRange
+			   << ",\"maximum\":" << capture.maximum
+			   << ",\"hullMean\":" << capture.hullMean
+			   << ",\"sunlitStation\":"
+			   << ( capture.sunlitStation ? "true" : "false" )
+			   << ",\"hdrHash\":"
+			   << SolarBodyJsonString( formatCaptureHash( capture.hdrHash ) )
+			   << ",\"depthHash\":"
+			   << SolarBodyJsonString( formatCaptureHash( capture.depthHash ) )
+			   << ",\"finalHash\":"
+			   << SolarBodyJsonString( formatCaptureHash( capture.finalHash ) ) << '}';
+	}
+	output << "],\"nearSunMaximum\":" << nearSunMaximum
+		   << ",\"sunlitShadowedDistinct\":"
+		   << ( sunlitShadowedDistinct ? "true" : "false" ) << "},\n"
+		   << "  \"state\":{\"preparse_rejections\":[";
+	for( size_t index = 0; index < probe->canonicalPreparseRejections.size(); ++index )
+	{
+		output << ( index ? "," : "" )
+			   << SolarBodyJsonString( probe->canonicalPreparseRejections[index] );
+	}
+	output << "],\"preparse_before_allocation\":"
+		   << ( canonical && probe->canonicalPreparseBeforeAllocation ? "true" : "false" )
+		   << ",\"wire_fixed_point\":"
+		   << ( canonical && probe->canonicalWireFixedPoint ? "true" : "false" )
+		   << ",\"live_diagnostics_match\":"
+		   << ( canonical && probe->canonicalLiveDiagnosticsMatch ? "true" : "false" )
+		   << ",\"first_two_evolves_match\":"
+		   << ( canonical && probe->canonicalFirstTwoEvolvesMatch ? "true" : "false" )
+		   << ",\"start_called_once\":"
+		   << ( canonical && probe->canonicalStartCalledOnce ? "true" : "false" )
+		   << ",\"wire_profile\":\"dynamic-orientation-v1\",\"initial_timestamp\":0"
+		   << ",\"trajectory_sha256\":"
+		   << SolarBodyJsonString( kAcceptedTrajectorySha256 )
+		   << ",\"trajectory_provenance\":\"accepted-baseline-prerequisite\""
+		   << ",\"accepted_route_remeasured\":false},\n"
+		   << "  \"failures\":[";
+	for( size_t index = 0; index < failures.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << SolarBodyJsonString( failures[index] );
+	}
+	output << "]\n}\n";
+	return output.good();
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSolarOptics(
 	void* opaqueProbe,
 	int environmentMode,
@@ -17465,6 +19997,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarOpticsReport( voi
 		   << ",\"exitObserved\":" << ( probe->solarEnvironmentExitObserved ? "true" : "false" )
 		   << ",\"exitPollFrame\":" << probe->solarEnvironmentExitPollFrame
 		   << "},\"settledWeight\":" << probe->solarEnvironmentSettledWeight << "},\n"
+		   << "  \"environmentPolls\": [";
+	for( size_t index = 0; index < probe->solarEnvironmentPolls.size(); ++index )
+	{
+		const StandaloneSolarEnvironmentPoll& poll = probe->solarEnvironmentPolls[index];
+		output << ( index ? "," : "" ) << "{\"frame\":" << poll.frame << ",\"ego\":["
+			   << poll.egoPosition[0] << ',' << poll.egoPosition[1] << ',' << poll.egoPosition[2]
+			   << "],\"sun\":[" << poll.sunPosition[0] << ',' << poll.sunPosition[1] << ','
+			   << poll.sunPosition[2] << "],\"distance\":" << poll.distance
+			   << ",\"priorActive\":" << ( poll.priorActive ? "true" : "false" )
+			   << ",\"active\":" << ( poll.active ? "true" : "false" )
+			   << ",\"transition\":" << SolarBodyJsonString( poll.transition ) << '}';
+	}
+	output << "],\n"
 		   << "  \"sceneDistanceFog\": {\"selected\":"
 		   << ( probe->sceneDistanceFogAuthored ? "true" : "false" ) << ",\"color\":["
 		   << sceneFogColor.r << ',' << sceneFogColor.g << ',' << sceneFogColor.b << ',' << sceneFogColor.a
@@ -18624,9 +21169,17 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 	const float unitBase = ballpark->GetUnitBase();
 	const Vector3d origin = probe.scene->GetOrigin();
 	const Vector3 originShift = probe.scene->GetOriginShift();
-	const Vector3 rootTranslation = probe.renderable ?
-		probe.renderable->GetRootTransform().GetTranslation() :
-		Vector3( 0.0f, 0.0f, 0.0f );
+	Vector3 rootTranslation( 0.0f, 0.0f, 0.0f );
+	if( probe.renderable )
+	{
+		rootTranslation = probe.renderable->GetRootTransform().GetTranslation();
+	}
+	else if( probe.nativeShip )
+	{
+		Matrix nativeWorld;
+		probe.nativeShip->GetLocalToWorldTransform( nativeWorld );
+		rootTranslation = nativeWorld.GetTranslation();
+	}
 	double expectedRawPosition[3] = { source.rawPosition[0], source.rawPosition[1], source.rawPosition[2] };
 	double expectedRawVelocity[3] = { source.rawVelocity[0], source.rawVelocity[1], source.rawVelocity[2] };
 	double expectedRawAcceleration[3] = {
@@ -18876,7 +21429,7 @@ bool UpdateBallparkDiagnostics( StandaloneProbe& probe, uint64_t frame, Be::Time
 		  probe.ballparkMode == STANDALONE_BALLPARK_ORBIT ||
 		  probe.ballparkMode == STANDALONE_BALLPARK_WARP ||
 		  probe.ballparkMode == STANDALONE_BALLPARK_APPROACH ) &&
-		probe.renderable )
+		( probe.renderable || probe.nativeShip ) )
 	{
 		const double roll = 2.0 * std::atan2( std::abs( source.rotation[2] ), std::abs( source.rotation[3] ) );
 		if( diagnostics.lastValidatedEvolveCount == 0 )
@@ -19174,19 +21727,42 @@ bool UpdateEveGateDiagnostics( StandaloneProbe& probe, bool countSample )
 	{
 		if( !probe.destinySession )
 			return false;
-		DestinyEmbeddedCelestialState state = {};
-		bool exact = Destiny_GetEmbeddedCelestialState( probe.destinySession, kNewEdenEveGateBallId, &state ) &&
-			state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
-			!state.isMassive && !state.isInteractive && state.radius == diagnostics.ballRadius;
-		for( size_t axis = 0; exact && axis < 3; ++axis )
-			exact = state.position[axis] == anchored[axis] && state.velocity[axis] == 0.0;
-		diagnostics.ballStateExact = diagnostics.ballStateExact && exact;
-		diagnostics.curveAttached = diagnostics.curveAttached && probe.eveGateCurve != nullptr &&
-			Destiny_GetEmbeddedCelestialPosition( probe.destinySession, kNewEdenEveGateBallId ) ==
-				probe.eveGateCurve;
-		for( size_t axis = 0; axis < 3; ++axis )
-			diagnostics.ballPosition[axis] = state.position[axis];
-		diagnostics.ballMode = state.mode;
+		if( probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+		{
+			// The manifest classifies the EVE Gate as a nonvisual fixed target,
+			// not a celestial role. The validated full-state import is the state
+			// authority; runtime linkage is proven through the generic ball curve.
+			ITriVectorFunction* curve = Destiny_GetEmbeddedBallPosition(
+				probe.destinySession, kNewEdenEveGateBallId );
+			diagnostics.curveAttached = diagnostics.curveAttached &&
+				curve && curve == probe.eveGateCurve;
+			for( size_t axis = 0; axis < 3; ++axis )
+			{
+				diagnostics.ballPosition[axis] = anchored[axis];
+			}
+			diagnostics.ballMode = DESTINY_EMBEDDED_BALL_MODE_STOP;
+		}
+		else
+		{
+			DestinyEmbeddedCelestialState state = {};
+			bool exact = Destiny_GetEmbeddedCelestialState(
+				probe.destinySession, kNewEdenEveGateBallId, &state ) &&
+				state.mode == DESTINY_EMBEDDED_BALL_MODE_RIGID && !state.isFree && state.isGlobal &&
+				!state.isMassive && !state.isInteractive && state.radius == diagnostics.ballRadius;
+			for( size_t axis = 0; exact && axis < 3; ++axis )
+			{
+				exact = state.position[axis] == anchored[axis] && state.velocity[axis] == 0.0;
+			}
+			diagnostics.ballStateExact = diagnostics.ballStateExact && exact;
+			diagnostics.curveAttached = diagnostics.curveAttached && probe.eveGateCurve != nullptr &&
+				Destiny_GetEmbeddedCelestialPosition(
+					probe.destinySession, kNewEdenEveGateBallId ) == probe.eveGateCurve;
+			for( size_t axis = 0; axis < 3; ++axis )
+			{
+				diagnostics.ballPosition[axis] = state.position[axis];
+			}
+			diagnostics.ballMode = state.mode;
+		}
 	}
 #endif
 	// Camera-anchored render contract: the ball-frame rotation must carry the
@@ -19251,7 +21827,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	const char* logPath )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
-	if( !probe || !probe->renderable || !probe->scene || mode < STANDALONE_BALLPARK_OFF ||
+	const bool canonicalPrepared = probe &&
+		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+		probe->canonicalStatePrepared && probe->nativeShip;
+	if( !probe || ( !probe->renderable && !canonicalPrepared ) || !probe->scene ||
+		mode < STANDALONE_BALLPARK_OFF ||
 		mode > STANDALONE_BALLPARK_APPROACH || referenceFrame < STANDALONE_BALLPARK_EGO ||
 		referenceFrame > STANDALONE_BALLPARK_CHASE ||
 		( mode != STANDALONE_BALLPARK_GOTO && mode != STANDALONE_BALLPARK_ORBIT &&
@@ -19260,8 +21840,100 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		orbitPolicy < DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT ||
 		orbitPolicy > DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW || !std::isfinite( orbitRange ) || orbitRange < 0.0f )
 		return false;
+	if( canonicalPrepared )
+	{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( mode != probe->ballparkMode || referenceFrame != probe->ballparkReferenceFrame ||
+			orbitPolicy != probe->ballparkOrbitPolicy || orbitRange != probe->ballparkOrbitRange ||
+			!probe->destinySession )
+		{
+			CCP_LOGERR( "Canonical Ballpark finalization does not match the pre-scene manifest state" );
+			return false;
+		}
+		if( probe->scene->GetBallpark() !=
+			Destiny_GetEmbeddedBallpark( probe->destinySession ) )
+		{
+			CCP_LOGERR( "Canonical scene lost its pre-publication Ballpark binding" );
+			return false;
+		}
+		probe->journeyPhase = STANDALONE_JOURNEY_GATE_ALIGN_PENDING;
+		probe->journeyPlanetFinale = false;
+		probe->journeyPlanetCameraReported = false;
+		probe->ballparkAlignmentIssued = false;
+		probe->ballparkCommandIssued = false;
+		probe->eveGateApproachFrame = 0;
+		probe->eveGateApproachIssued = false;
+		probe->eveGateDirectTravel = false;
+		probe->chaseCameraInitialized = false;
+		probe->chaseCameraTime = 0;
+		probe->ballparkDiagnostics = {};
+		probe->ballparkDiagnostics.available = true;
+		probe->ballparkDiagnostics.observerFrame = referenceFrame != STANDALONE_BALLPARK_EGO;
+		probe->ballparkDiagnostics.registeredClassCount =
+			probe->destinyRegistration.discoveredClassCount;
+		probe->ballparkDiagnostics.trajectoryHash = 1469598103934665603ull;
+		for( auto& pixels : probe->ballparkCapturePixels )
+		{
+			pixels.clear();
+		}
+		probe->ballparkCaptureWidth = 0;
+		probe->ballparkCaptureHeight = 0;
+		if( referenceFrame == STANDALONE_BALLPARK_CHASE )
+		{
+			probe->projection->PerspectiveFov(
+				48.0f * 3.1415926535f / 180.0f,
+				static_cast<float>( probe->renderWidth ) /
+					static_cast<float>( probe->renderHeight ),
+				1.0f,
+				1.0e13f );
+		}
+		if( logPath && logPath[0] )
+		{
+			probe->ballparkLog.close();
+			probe->ballparkLog.open( logPath, std::ios::out | std::ios::trunc );
+			if( !probe->ballparkLog )
+			{
+				std::fprintf( stderr, "Failed to open canonical Ballpark CSV '%s'\n", logPath );
+				return false;
+			}
+			probe->ballparkLog << std::fixed << std::setprecision( 9 );
+			probe->ballparkLog
+				<< "frame,time,evolve_count,primary_ball_id,ego_ball_id,mode,command_count,last_command_time,"
+				   "raw_position_x,raw_position_y,raw_position_z,raw_velocity_x,raw_velocity_y,raw_velocity_z,"
+				   "raw_acceleration_x,raw_acceleration_y,raw_acceleration_z,expected_position_x,expected_position_y,"
+				   "expected_position_z,expected_velocity_x,expected_velocity_y,expected_velocity_z,"
+				   "expected_acceleration_x,expected_acceleration_y,expected_acceleration_z,position_error_x,"
+				   "position_error_y,position_error_z,velocity_error_x,velocity_error_y,velocity_error_z,"
+				   "acceleration_error_x,acceleration_error_y,acceleration_error_z,position_x,position_y,position_z,"
+				   "absolute_position_x,absolute_position_y,absolute_position_z,velocity_x,velocity_y,velocity_z,"
+				   "acceleration_x,acceleration_y,acceleration_z,root_x,root_y,root_z,"
+				   "rotation_x,rotation_y,rotation_z,rotation_w,reference_x,reference_y,reference_z,"
+				   "origin_x,origin_y,origin_z,origin_shift_x,origin_shift_y,origin_shift_z,delta_x,delta_y,delta_z,"
+				   "smoothed_delta_x,smoothed_delta_y,smoothed_delta_z,delta_velocity_x,delta_velocity_y,"
+				   "delta_velocity_z,unit_base,origin_update_count,engine_speed,engine_acceleration_x,"
+				   "engine_acceleration_y,engine_acceleration_z,frontier_orbit,target_ball_id,follow_ball_id,"
+				   "follow_range,center_distance,surface_distance,radial_velocity,tangential_velocity,"
+				   "accumulated_phase\n";
+		}
+		probe->sceneConstructionTrace.push_back( "canonical-ballpark-finalized" );
+		std::fprintf(
+			stderr,
+			"PL-14G canonical Ballpark: packetBytes=%llu system=30005286 primary=1 ego=1 "
+			"observer=2 fixedTarget=%lld celestials=(%lld,%lld) profile=dynamic-orientation-v1\n",
+			static_cast<unsigned long long>( probe->canonicalPacketSize ),
+			static_cast<long long>( kNewEdenEveGateBallId ),
+			static_cast<long long>( kNewEdenSunBallId ),
+			static_cast<long long>( kNewEdenPlanetBallId ) );
+		return true;
+#else
+		return false;
+#endif
+	}
 	probe->ballparkLog.close();
-	DetachCelestialLinkage( *probe );
+	if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY )
+	{
+		DetachCelestialLinkage( *probe );
+	}
 	probe->scene->SetBallpark( nullptr );
 	if( !probe->renderable->SetControlCurves() )
 		return false;
@@ -20186,7 +22858,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCelestialBallpark(
 	if( !probe || !probe->scene || celestialMode < STANDALONE_CELESTIAL_BALLPARK_OFF ||
 		celestialMode > STANDALONE_CELESTIAL_BALLPARK_NATURAL )
 		return false;
-	DetachCelestialLinkage( *probe );
+	if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_LEGACY )
+	{
+		DetachCelestialLinkage( *probe );
+	}
 	if( celestialMode == STANDALONE_CELESTIAL_BALLPARK_OFF )
 	{
 		std::fprintf( stderr, "PL-12 celestial ballpark: mode=off placement=static\n" );
@@ -20202,50 +22877,82 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCelestialBallpark(
 			"New Eden fixture\n" );
 		return false;
 	}
-	char error[512] = {};
-	DestinyEmbeddedCelestialConfig sunConfig = {};
-	sunConfig.ballId = kNewEdenSunBallId;
-	sunConfig.radius = static_cast<float>( kNewEdenStarRadius );
-	DestinyEmbeddedCelestialConfig planetConfig = {};
-	planetConfig.ballId = kNewEdenPlanetBallId;
-	planetConfig.radius = static_cast<float>( kNewEdenPlanetRadius );
-	for( size_t axis = 0; axis < 3; ++axis )
+	ITriVectorFunction* sunCurve = nullptr;
+	ITriVectorFunction* planetCurve = nullptr;
+	if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
 	{
-		sunConfig.position[axis] = kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis];
-		planetConfig.position[axis] = kNewEdenPlanetRelative[axis] - probe->celestialAnchorOffset[axis];
+		sunCurve = Destiny_GetEmbeddedBallPosition(
+			probe->destinySession, kNewEdenSunBallId );
+		planetCurve = Destiny_GetEmbeddedBallPosition(
+			probe->destinySession, kNewEdenPlanetBallId );
 	}
-	if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &sunConfig, error, sizeof( error ) ) ||
-		!Destiny_AddEmbeddedCelestial( probe->destinySession, &planetConfig, error, sizeof( error ) ) )
+	else
 	{
-		std::fprintf( stderr, "Failed to add embedded Destiny celestials: %s\n", error );
-		return false;
+		char error[512] = {};
+		DestinyEmbeddedCelestialConfig sunConfig = {};
+		sunConfig.ballId = kNewEdenSunBallId;
+		sunConfig.radius = static_cast<float>( kNewEdenStarRadius );
+		DestinyEmbeddedCelestialConfig planetConfig = {};
+		planetConfig.ballId = kNewEdenPlanetBallId;
+		planetConfig.radius = static_cast<float>( kNewEdenPlanetRadius );
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			sunConfig.position[axis] =
+				kNewEdenSunRelative[axis] - probe->celestialAnchorOffset[axis];
+			planetConfig.position[axis] =
+				kNewEdenPlanetRelative[axis] - probe->celestialAnchorOffset[axis];
+		}
+		if( !Destiny_AddEmbeddedCelestial(
+				probe->destinySession, &sunConfig, error, sizeof( error ) ) ||
+			!Destiny_AddEmbeddedCelestial(
+				probe->destinySession, &planetConfig, error, sizeof( error ) ) )
+		{
+			std::fprintf( stderr, "Failed to add embedded Destiny celestials: %s\n", error );
+			return false;
+		}
+		sunCurve = Destiny_GetEmbeddedCelestialPosition(
+			probe->destinySession, kNewEdenSunBallId );
+		planetCurve = Destiny_GetEmbeddedCelestialPosition(
+			probe->destinySession, kNewEdenPlanetBallId );
 	}
-	ITriVectorFunction* sunCurve =
-		Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenSunBallId );
-	ITriVectorFunction* planetCurve =
-		Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenPlanetBallId );
 	if( !sunCurve || !planetCurve )
 	{
 		std::fprintf( stderr, "Embedded Destiny celestial curves are unavailable\n" );
 		return false;
 	}
-	probe->newEdenSun->SetStandalonePlacement(
-		Vector3( 0.0f, 0.0f, 0.0f ),
-		static_cast<float>( kNewEdenStarRadius ),
-		Color( 0.0f, 0.0f, 0.0f, 1.0f ),
-		Color( kNewEdenSunEmissive[0], kNewEdenSunEmissive[1], kNewEdenSunEmissive[2], 1.0f ) );
-	probe->newEdenPlanet->SetStandalonePlacement(
-		Vector3( 0.0f, 0.0f, 0.0f ),
-		static_cast<float>( kNewEdenPlanetRadius ),
-		Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
-		Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
-	probe->newEdenSun->SetBallPositionCurve( sunCurve );
-	probe->newEdenPlanet->SetBallPositionCurve( planetCurve );
-	probe->scene->SetSunBall( sunCurve );
-	if( probe->newEdenLensFlare )
+	if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
 	{
-		probe->newEdenLensFlare->SetPositionOffset( Vector3( 0.0f, 0.0f, 0.0f ) );
-		probe->newEdenLensFlare->SetTranslationCurve( probe->newEdenSun->GetTranslationCurve().p );
+		if( probe->newEdenSun->GetTranslationCurve().p != sunCurve ||
+			probe->newEdenPlanet->GetTranslationCurve().p != planetCurve ||
+			probe->scene->GetSunBall() != sunCurve ||
+			( probe->newEdenLensFlare &&
+			  probe->newEdenLensFlare->GetTranslationCurve() != sunCurve ) )
+		{
+			CCP_LOGERR( "Canonical celestial curves were retrofitted or replaced after publication" );
+			return false;
+		}
+	}
+	else
+	{
+		probe->newEdenSun->SetStandalonePlacement(
+			Vector3( 0.0f, 0.0f, 0.0f ),
+			static_cast<float>( kNewEdenStarRadius ),
+			Color( 0.0f, 0.0f, 0.0f, 1.0f ),
+			Color( kNewEdenSunEmissive[0], kNewEdenSunEmissive[1], kNewEdenSunEmissive[2], 1.0f ) );
+		probe->newEdenPlanet->SetStandalonePlacement(
+			Vector3( 0.0f, 0.0f, 0.0f ),
+			static_cast<float>( kNewEdenPlanetRadius ),
+			Color( kNewEdenPlanetAlbedo[0], kNewEdenPlanetAlbedo[1], kNewEdenPlanetAlbedo[2], 1.0f ),
+			Color( 0.0f, 0.0f, 0.0f, 1.0f ) );
+		probe->newEdenSun->SetBallPositionCurve( sunCurve );
+		probe->newEdenPlanet->SetBallPositionCurve( planetCurve );
+		probe->scene->SetSunBall( sunCurve );
+		if( probe->newEdenLensFlare )
+		{
+			probe->newEdenLensFlare->SetPositionOffset( Vector3( 0.0f, 0.0f, 0.0f ) );
+			probe->newEdenLensFlare->SetTranslationCurve(
+				probe->newEdenSun->GetTranslationCurve().p );
+		}
 	}
 	if( logPath && logPath[0] )
 	{
@@ -20506,17 +23213,35 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 		// Navigation truth only: ball 900001 carries the recovered position for
 		// GotoPoint targets, travel demos, and the placement contract. The
 		// RENDERED graph is deliberately not bound to it — see below.
-		char destinyError[512] = {};
-		DestinyEmbeddedCelestialConfig gateConfig = {};
-		gateConfig.ballId = kNewEdenEveGateBallId;
-		gateConfig.radius = std::max( 1.0f, authoredRadius );
-		for( size_t axis = 0; axis < 3; ++axis )
-			gateConfig.position[axis] = gateAnchored[axis];
 		ITriVectorFunction* gateCurve = nullptr;
-		if( !Destiny_AddEmbeddedCelestial( probe->destinySession, &gateConfig, destinyError, sizeof( destinyError ) ) ||
-			!( gateCurve = Destiny_GetEmbeddedCelestialPosition( probe->destinySession, kNewEdenEveGateBallId ) ) )
+		if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
 		{
-			std::fprintf( stderr, "CP-36 EVE Gate celestial ball failed: %s\n", destinyError );
+			gateCurve = Destiny_GetEmbeddedBallPosition(
+				probe->destinySession, kNewEdenEveGateBallId );
+		}
+		else
+		{
+			char destinyError[512] = {};
+			DestinyEmbeddedCelestialConfig gateConfig = {};
+			gateConfig.ballId = kNewEdenEveGateBallId;
+			gateConfig.radius = std::max( 1.0f, authoredRadius );
+			for( size_t axis = 0; axis < 3; ++axis )
+			{
+				gateConfig.position[axis] = gateAnchored[axis];
+			}
+			if( !Destiny_AddEmbeddedCelestial(
+					probe->destinySession, &gateConfig, destinyError, sizeof( destinyError ) ) )
+			{
+				std::fprintf(
+					stderr, "CP-36 EVE Gate celestial ball failed: %s\n", destinyError );
+				return false;
+			}
+			gateCurve = Destiny_GetEmbeddedCelestialPosition(
+				probe->destinySession, kNewEdenEveGateBallId );
+		}
+		if( !gateCurve )
+		{
+			std::fprintf( stderr, "CP-36 EVE Gate navigation curve is unavailable\n" );
 			return false;
 		}
 		probe->eveGateCurve = gateCurve;
@@ -20662,7 +23387,10 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureEveGate( void* opa
 	probe->eveGateDiagnostics.containerCount = containerCount;
 	probe->eveGateDiagnostics.ballId = kNewEdenEveGateBallId;
 	probe->eveGateDiagnostics.authoredRadius = authoredRadius;
-	probe->eveGateDiagnostics.ballRadius = std::max( 1.0f, authoredRadius );
+	probe->eveGateDiagnostics.ballRadius =
+		probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ?
+			1.0f :
+			std::max( 1.0f, authoredRadius );
 	// The contract expects the recovered landmark bearing, verifying that the
 	// authored offset is rotated onto the navigation direction.
 	for( size_t axis = 0; axis < 3; ++axis )
@@ -21273,12 +24001,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				return commandState.mode == DESTINY_EMBEDDED_BALL_MODE_GOTO &&
 					speed >= 0.75 * 312.0 && dot >= 0.99;
 			};
+			auto recordJourneyCommand = [&]() {
+				if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+					std::find(
+						probe->sceneConstructionTrace.begin(),
+						probe->sceneConstructionTrace.end(),
+						"journey-command-issued" ) == probe->sceneConstructionTrace.end() )
+				{
+					probe->sceneConstructionTrace.push_back( "journey-command-issued" );
+				}
+			};
 			auto queueAlignment = [&]( const double target[3], const char* targetName, int nextPhase ) {
 				double direction[3] = {};
 				if( !directionTo( target, direction ) ||
 					!Destiny_CommandEmbeddedGotoDirection(
 						probe->destinySession, commandState.nextTickTime, direction ) )
 					return false;
+				recordJourneyCommand();
 				probe->journeyPhase = nextPhase;
 				std::fprintf( stderr,
 							  "Journey align: frame=%llu effectiveTime=%lld command=GotoDirection "
@@ -21294,6 +24033,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			auto queueWarp = [&]( const double target[3], const char* targetName, double minimumRange, double speed, double dot, int nextPhase ) {
 				if( !Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime, target, minimumRange, kBallparkWarpFactor ) )
 					return false;
+				recordJourneyCommand();
 				probe->journeyPhase = nextPhase;
 				probe->ballparkCommandIssued = true;
 				std::fprintf( stderr,
@@ -21528,7 +24268,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_APPROACH ) &&
-			probe->renderable )
+			( probe->renderable || probe->nativeShip ) )
 		{
 			DestinyEmbeddedDiagnostics kinematics = {};
 			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )
@@ -21536,16 +24276,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 				std::fprintf( stderr, "RenderFrame failure: kinematics diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 				return false;
 			}
-			const float speed = static_cast<float>( std::sqrt(
-				kinematics.velocity[0] * kinematics.velocity[0] +
-				kinematics.velocity[1] * kinematics.velocity[1] +
-				kinematics.velocity[2] * kinematics.velocity[2] ) );
-			probe->renderable->SetBallparkEngineKinematics(
-				speed,
-				Vector3(
-					static_cast<float>( kinematics.acceleration[0] ),
-					static_cast<float>( kinematics.acceleration[1] ),
-					static_cast<float>( kinematics.acceleration[2] ) ) );
+			if( probe->renderable )
+			{
+				const float speed = static_cast<float>( std::sqrt(
+					kinematics.velocity[0] * kinematics.velocity[0] +
+					kinematics.velocity[1] * kinematics.velocity[1] +
+					kinematics.velocity[2] * kinematics.velocity[2] ) );
+				probe->renderable->SetBallparkEngineKinematics(
+					speed,
+					Vector3(
+						static_cast<float>( kinematics.acceleration[0] ),
+						static_cast<float>( kinematics.acceleration[1] ),
+						static_cast<float>( kinematics.acceleration[2] ) ) );
+			}
 			if( probe->ballparkMode == STANDALONE_BALLPARK_WARP && probe->warpTunnelRoot &&
 				probe->warpTunnelSpeedSource && !probe->warpTunnelDetached )
 			{
@@ -21640,7 +24383,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			std::fprintf( stderr, "RenderFrame failure: chase-camera update (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
-		UpdateSolarEnvironmentState( *probe );
+		if( !UpdateSolarEnvironmentState( *probe ) )
+		{
+			std::fprintf(
+				stderr,
+				"RenderFrame failure: solar environment lifetime (frame=%llu)\n",
+				static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
 		UpdateSolarOcclusionView( *probe );
 		UpdateProbeCamera( *probe );
 		if( !ApplySolarIlluminationViewCamera( *probe, static_cast<Be::Time>( simTime ) ) )
@@ -21679,7 +24429,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		probe->postProcessDiagnostics.exposure[0];
 	probe->driver->SetTemporalHistoryFrozen( freezeScene );
 	if( !freezeScene && probe->solarIlluminationCaptureRequested &&
-		probe->solarIlluminationDeterministicTaaCaptureReset )
+		probe->solarIlluminationDeterministicTaaCaptureReset &&
+		!probe->sceneConstructionCaptureRequested )
 	{
 		// PL-14E validates illumination transport, not TAA convergence. Reset only
 		// requested evidence frames so Metal's native TAA cooldown race cannot
@@ -21705,6 +24456,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	probe->driver->SetTemporalHistoryFrozen( false );
 	if( rendered && !freezeScene )
 	{
+		if( !CompleteSolarEnvironmentExitFrameEvidence( *probe ) )
+		{
+			CCP_LOGERR( "PL-14G could not close post-teardown history evidence" );
+			return false;
+		}
 		if( !probe->solarIlluminationReportPath.empty() && probe->postProcessDiagnosticsEnabled &&
 			!ReadPostProcessDiagnostics( *probe, *probe->renderContext ) )
 		{
@@ -21748,6 +24504,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( !RecordSolarHighFrame( *probe, probe->renderedFrameCount, simTime ) )
 		{
 			return false;
+		}
+		if( probe->sceneConstructionCaptureRequested &&
+			probe->solarIlluminationReportPath.empty() )
+		{
+			// The advancing draw has collected the synchronized product and hull
+			// evidence. Do not repeat that collection during the frontend's frozen
+			// same-time PNG readbacks.
+			probe->solarIlluminationCaptureRequested = false;
 		}
 		if( !RecordSolarIlluminationFrame(
 				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ) ) )

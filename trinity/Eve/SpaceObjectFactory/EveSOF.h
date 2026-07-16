@@ -7,11 +7,18 @@
 #include "EveSOFDataMgr.h"
 #include "ITr2Renderable.h"
 
+#include <array>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
+#include <vector>
+
 // forwards
 BLUE_DECLARE( EveTurretSet );
 BLUE_DECLARE( Tr2Effect );
 BLUE_DECLARE( Tr2LodResource );
 BLUE_DECLARE_INTERFACE( IEveSpaceObjectDecalOwner );
+BLUE_DECLARE_INTERFACE( ITr2Controller );
 BLUE_DECLARE( EveSpaceObject2 );
 BLUE_DECLARE( EveShip2 );
 BLUE_DECLARE( EveSOF );
@@ -24,6 +31,73 @@ BLUE_DECLARE_INTERFACE( ITr2LightOwner );
 BLUE_DECLARE_INTERFACE( IEveSpaceObjectAttachment );
 BLUE_DECLARE_VECTOR( Tr2MeshArea );
 BLUE_DECLARE( EveChildInstancedMeshes );
+
+struct EveSOFGeometrySubstitution
+{
+	std::string authoredPath;
+	std::string stagedPath;
+};
+
+// A C++-only census of the native object returned by BuildFromDNA.  This is
+// deliberately not exposed to Blue: standalone validation hosts use it to
+// distinguish a complete native build from the partial object that legacy SOF
+// construction can otherwise return while resources are still settling.
+struct EveSOFBuildDiagnostics
+{
+	std::string dna;
+	std::string failureReason;
+	std::string authoredHullGeometryPath;
+	std::string resolvedHullGeometryPath;
+	std::string authoredTrailGeometryPath;
+	std::string resolvedTrailGeometryPath;
+	std::array<uint32_t, TRIBATCHTYPE_COUNT_OF_BATCH_TYPES> expectedAreaCounts{};
+	std::array<uint32_t, TRIBATCHTYPE_COUNT_OF_BATCH_TYPES> actualAreaCounts{};
+	uint32_t materialAreaCount = 0;
+	uint32_t effectResourceCount = 0;
+	uint32_t readyEffectResourceCount = 0;
+	uint32_t configuredGeometrySubstitutionCount = 0;
+	uint32_t usedGeometrySubstitutionCount = 0;
+	uint32_t geometryBoneBindingCount = 0;
+	uint32_t geometrySkeletonCount = 0;
+	uint32_t geometryAnimationCount = 0;
+	uint32_t geometrySkinnedAreaCount = 0;
+	uint32_t directHullLightCount = 0;
+	uint32_t attachmentLightCount = 0;
+	uint32_t localLightCount = 0;
+	uint32_t boosterCount = 0;
+	uint32_t trailCount = 0;
+	uint32_t expectedControllerCount = 0;
+	uint32_t installedControllerCount = 0;
+	int32_t buildClass = -1;
+	int32_t impactEffectType = -1;
+	int32_t reflectionMode = -1;
+	bool callerDataInstalled = false;
+	bool controllerClosureComplete = false;
+	bool strictGeometrySubstitutions = false;
+	bool dnaValid = false;
+	bool impactEffectNone = false;
+	bool objectCreated = false;
+	bool objectMatchesLastBuild = false;
+	bool nativeShip = false;
+	bool meshCreated = false;
+	bool meshAreasComplete = false;
+	bool materialsComplete = false;
+	bool geometryClosureComplete = false;
+	bool geometryResourceBound = false;
+	bool geometryLoading = false;
+	bool geometryPrepared = false;
+	bool geometrySkinningComplete = false;
+	bool boostersExpected = false;
+	bool boostersCreated = false;
+	bool trailsExpected = false;
+	bool trailsCreated = false;
+	bool trailsReady = false;
+	bool castsShadow = false;
+	bool initialized = false;
+	bool structuralComplete = false;
+	bool resourceReady = false;
+	bool buildSucceeded = false;
+};
 
 // --------------------------------------------------------------------------------
 // Description:
@@ -54,6 +128,25 @@ public:
 	void SetupTurretMaterialFromFaction( EveTurretSet * turretSet, const char* factionName );
 
 	bool LoadData( const char* filePath );
+	// Install an already-loaded SOF database.  This is the non-yielding seam
+	// used by standalone hosts that load data.black through BlackReader.
+	bool SetData( EveSOFData* data );
+
+	// Configure an exact authored-GR2 to staged-CMF closure.  Once configured,
+	// every GR2 requested by native construction must have a unique mapping;
+	// missing or conflicting mappings make BuildFromDNA fail closed.  The
+	// authored trail path is supplied separately because production obtains the
+	// resolved trail path from a setting rather than from SOF data.
+	bool ConfigureGeometrySubstitutions(
+		const std::vector<EveSOFGeometrySubstitution>& substitutions,
+		const char* authoredVolumetricTrailPath );
+	// Install a controller that the authored graph names by resource path.
+	// Standalone hosts use this after reading the Black synchronously so native
+	// construction never enters Blue's tasklet-yielding LoadObject path.
+	bool ConfigureControllerSubstitution( const char* authoredPath, ITr2Controller* controller );
+	void ClearGeometrySubstitutions();
+	bool InspectNativeBuild( IRoot* object, EveSOFBuildDiagnostics& diagnostics ) const;
+	const EveSOFBuildDiagnostics& GetLastBuildDiagnostics() const;
 
 private:
 	// creation
@@ -86,7 +179,7 @@ private:
 
 	// all setup functions for the to-be-created space object
 	void SetupConsts( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
-	void SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
+	bool SetupMesh( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 	void SetupAttachments( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets, uint32_t buildFlags ) const;
 	void SetupSpriteSets( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets, uint32_t buildFlags ) const;
 	void SetupSpotlightSets( IEveSpaceObjectAttachmentOwnerPtr obj, const EveSOFDNAPtr dna, const std::vector<Matrix>& offsets, uint32_t buildFlags ) const;
@@ -127,7 +220,7 @@ private:
 	void SetupCustomMask( EveSpaceObject2Ptr obj, const EveSOFDNAPtr dna ) const;
 
 	// all setup functions for ships only
-	void SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;
+	bool SetupBoosters( EveShip2Ptr ship, const EveSOFDNAPtr dna ) const;
 
 	Tr2EffectPtr CreateBoosterEffect( const EveSOFDataMgr::RaceBoosterData* rdata, const BlueSharedString& lodOption ) const;
 
@@ -141,6 +234,10 @@ private:
 	void GenerateDepthFromAreaVector( Tr2MeshBase * mesh, const Tr2MeshAreaVector* meshAreaVector, const EveSOFDNAPtr dna ) const;
 	void CreatePointLightData( const Vector3& pos, const float scale, const Color& color, const EveSOFDataMgr::PointLightAttachment* lightData ) const;
 	void CreateTexturedPointLightData( const Vector3& pos, const float scale, const std::string& texturePath, const EveSOFDataMgr::PointLightAttachment* lightData ) const;
+	bool ResolveGeometryPath( const std::string& authoredPath, std::string& resolvedPath ) const;
+	void SetBuildFailure( const std::string& reason ) const;
+	void RecordExpectedMeshInventory( const EveSOFDNAPtr dna ) const;
+	void RecordActualMeshInventory( const Tr2MeshBase* mesh, EveSOFBuildDiagnostics& diagnostics ) const;
 
 	// all the source data
 	PEveSOFDataMgr m_dataMgr;
@@ -154,6 +251,16 @@ private:
 	bool m_allowFileCaching;
 
 	bool m_editorMode;
+
+	std::unordered_map<std::string, std::string> m_geometrySubstitutions;
+	mutable std::unordered_set<std::string> m_usedGeometrySubstitutions;
+	std::string m_authoredVolumetricTrailPath;
+	std::unordered_map<std::string, ITr2ControllerPtr> m_controllerSubstitutions;
+	mutable std::unordered_set<std::string> m_usedControllerSubstitutions;
+	bool m_requireGeometrySubstitutions;
+	bool m_callerDataInstalled;
+	mutable EveSOFBuildDiagnostics m_lastBuildDiagnostics;
+	mutable const IRoot* m_lastBuiltObjectIdentity;
 };
 
 TYPEDEF_BLUECLASS( EveSOF );

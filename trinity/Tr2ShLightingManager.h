@@ -64,6 +64,10 @@ public:
 	{
 		m_secondaryIntensity = intensity;
 	}
+	size_t GetRegisteredSecondarySourceCountForDiagnostics() const
+	{
+		return m_sources.size();
+	}
 
 	static const size_t PACKED_COEFFICIENT_COUNT = 7;
 

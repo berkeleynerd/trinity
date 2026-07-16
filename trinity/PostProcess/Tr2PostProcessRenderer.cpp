@@ -685,6 +685,7 @@ void Tr2PostProcessRenderer::SetPostProcessingQuality( PostProcess::Quality qual
 
 void Tr2PostProcessRenderer::ResetTaaHistory()
 {
+	++m_taaResetCount;
 	m_taaFrameCounter = 0;
 	m_taaResetPending = true;
 }
@@ -1614,6 +1615,7 @@ Tr2GpuResourcePool::Buffer Tr2PostProcessRenderer::RenderDynamicExposure( const 
 	m_lastDiagnostics.histogramMerged = mergedHistogram;
 	m_lastDiagnostics.exposureMeasured = measuredExposure && exposureBuffer.IsValid();
 	m_dynamicExposureHistoryValid = m_lastDiagnostics.exposureMeasured;
+	m_exposureMeasurementCount += m_lastDiagnostics.exposureMeasured ? 1u : 0u;
 	static bool reportedComputeFailure = false;
 	if( !reportedComputeFailure && ( !createdHistogram || !mergedHistogram || !measuredExposure ) )
 	{

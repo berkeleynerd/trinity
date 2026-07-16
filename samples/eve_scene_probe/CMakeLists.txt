@@ -23,6 +23,9 @@ set(EVE_SCENE_PROBE_SHIP_BASECOLOR_METADATA ${EVE_SCENE_PROBE_SHIP_CMF}.basecolo
 set(EVE_SCENE_PROBE_SHARED_CACHE "$ENV{HOME}/Library/Application Support/EVE Online/SharedCache" CACHE PATH "EVE SharedCache used by the scene probe")
 set(EVE_SCENE_PROBE_SHARED_CACHE_INDEX ${EVE_SCENE_PROBE_SHARED_CACHE}/tq/EVE.app/Contents/Resources/build/resfileindex.txt)
 set(EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX ${EVE_SCENE_PROBE_SHARED_CACHE}/tq/EVE.app/Contents/Resources/build/resfileindex_macOS.txt)
+set(EVE_SCENE_PROBE_SOF_DATA_BLACK
+    "$ENV{HOME}/Library/Application Support/EVE Online/SharedCache/ResFiles/35/350cf81f2f26b64b_9beb1bb27658e150aa261cd9d6d3d8fb"
+    CACHE FILEPATH "Pinned EVE SOF data.black used only by canonical scene construction")
 set(EVE_SCENE_PROBE_ASTERO_MODEL "res:/dx9/model/ship/soe/frigate/soef1/soef1_t1.gr2")
 set(EVE_SCENE_PROBE_ASTERO_BASE_COLOR "res:/dx9/model/ship/soe/frigate/soef1/soef1_t1_a.dds")
 set(EVE_SCENE_PROBE_ASTERO_NORMAL "res:/dx9/model/ship/soe/frigate/soef1/soef1_t1_n.dds")
@@ -120,6 +123,9 @@ set(EVE_SCENE_PROBE_REFLECTION_CORRECTION_RESOURCE "res:/texture/reflectioncorre
 set(EVE_SCENE_PROBE_REFLECTION_CORRECTION_TEXTURE ${EVE_SCENE_PROBE_ASSETS_DIR}/texture/reflectioncorrection/128x128.dds)
 set(EVE_SCENE_PROBE_ASTERO_HULL_BLACK_RESOURCE "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black")
 set(EVE_SCENE_PROBE_ASTERO_FACTION_BLACK_RESOURCE "res:/dx9/model/spaceobjectfactory/factions/soebase.black")
+set(EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER_RESOURCE "res:/dx9/model/controller/shipstandard.black")
+set(EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER_RESOURCE "res:/dx9/model/controller/audioshipstandard.black")
+set(EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER_RESOURCE "res:/fisfx/vds/visualdamagecontroller.black")
 set(EVE_SCENE_PROBE_ASTERO_MATERIAL_RESOURCES
     "res:/dx9/model/spaceobjectfactory/materials/chrome_metallic.black"
     "res:/dx9/model/spaceobjectfactory/materials/grey_steel_brushed.black"
@@ -130,12 +136,21 @@ set(EVE_SCENE_PROBE_ASTERO_MATERIAL_RESOURCES
 set(EVE_SCENE_PROBE_QUADV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_hi")
 set(EVE_SCENE_PROBE_QUADV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_lo")
 set(EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_depth")
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_hi")
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_lo")
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_depth")
 set(EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_hi")
 set(EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_lo")
 set(EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_depth")
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_hi")
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_lo")
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_depth")
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_hi")
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_lo")
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_depth")
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_hi")
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_lo")
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH_RESOURCE "res:/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_depth")
 set(EVE_SCENE_PROBE_WARP_DISTORTION_RESOURCE "res:/texture/sprite/warptunnel4_n.dds")
 set(EVE_SCENE_PROBE_FITTING_SCENE_RESOURCE "res:/dx9/scene/fitting/fitting.black")
 set(EVE_SCENE_PROBE_FITTING_CUBE_RESOURCE "res:/dx9/scene/fitting/fitting_cube.dds")
@@ -184,6 +199,9 @@ set(EVE_SCENE_PROBE_CLIENT_SPRITE_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/text
 set(EVE_SCENE_PROBE_CLIENT_FITTING_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/fitting)
 set(EVE_SCENE_PROBE_ASTERO_HULL_BLACK ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}/soef1_t1.black)
 set(EVE_SCENE_PROBE_ASTERO_FACTION_BLACK ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}/soebase.black)
+set(EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/controller/shipstandard.red)
+set(EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/controller/audioshipstandard.red)
+set(EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/vds/visualdamagecontroller.red)
 set(EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}/chrome_metallic.black)
 set(EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}/grey_steel_brushed.black)
 set(EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}/white_ghost_matt.black)
@@ -192,12 +210,21 @@ set(EVE_SCENE_PROBE_GLASS_MATERIAL_BLACK ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}/
 set(EVE_SCENE_PROBE_QUADV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_hi)
 set(EVE_SCENE_PROBE_QUADV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_lo)
 set(EVE_SCENE_PROBE_QUADV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadv5.sm_depth)
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadv5.sm_hi)
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadv5.sm_lo)
+set(EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadv5.sm_depth)
 set(EVE_SCENE_PROBE_QUADHEATV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_hi)
 set(EVE_SCENE_PROBE_QUADHEATV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_lo)
 set(EVE_SCENE_PROBE_QUADHEATV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/quadheatv5.sm_depth)
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadheatv5.sm_hi)
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadheatv5.sm_lo)
+set(EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}/skinned_quadheatv5.sm_depth)
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_HI ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_hi)
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_LO ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_lo)
 set(EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/fxdistortionv5.sm_depth)
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/skinned_fxdistortionv5.sm_hi)
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/skinned_fxdistortionv5.sm_lo)
+set(EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}/skinned_fxdistortionv5.sm_depth)
 set(EVE_SCENE_PROBE_WARP_DISTORTION ${EVE_SCENE_PROBE_CLIENT_SPRITE_TEXTURE_DIR}/warptunnel4_n.dds)
 set(EVE_SCENE_PROBE_FITTING_SCENE ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}/fitting.black)
 set(EVE_SCENE_PROBE_FITTING_CUBE ${EVE_SCENE_PROBE_CLIENT_FITTING_DIR}/fitting_cube.dds)
@@ -251,10 +278,20 @@ set(EVE_SCENE_PROBE_ENGINE_RACE_BLACK ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/sp
 set(EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/VolumetricTrail.gltf)
 set(EVE_SCENE_PROBE_ENGINE_TRAIL_BIN ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/VolumetricTrail.bin)
 set(EVE_SCENE_PROBE_ENGINE_TRAIL_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/booster/volumetrictrail.cmf)
+set(EVE_SCENE_PROBE_SHIELD_GEOMETRY_GLTF ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/ShieldGeometry.gltf)
+set(EVE_SCENE_PROBE_SHIELD_GEOMETRY_BIN ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/ShieldGeometry.bin)
+set(EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.cmf)
+set(EVE_SCENE_PROBE_SHIELD_GEOMETRY_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroShieldGeometry.json)
+set(EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroShieldGeometryCmf.sha256)
 set(EVE_SCENE_PROBE_ENGINE_EFFECT_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/effect.metal/managed/space/booster)
 set(EVE_SCENE_PROBE_ENGINE_TEXTURE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/booster)
 set(EVE_SCENE_PROBE_CLIENT_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroClientResources.json)
 set(EVE_SCENE_PROBE_ASTERO_MODEL_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroModelResources.json)
+set(EVE_SCENE_PROBE_ASTERO_NATIVE_GLTF ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/AsteroNative.gltf)
+set(EVE_SCENE_PROBE_ASTERO_NATIVE_BIN ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}/AsteroNative.bin)
+set(EVE_SCENE_PROBE_ASTERO_NATIVE_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/AsteroNative.cmf)
+set(EVE_SCENE_PROBE_ASTERO_NATIVE_MANIFEST ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroNativeGeometry.json)
+set(EVE_SCENE_PROBE_ASTERO_NATIVE_CMF_HASH ${CMAKE_CURRENT_BINARY_DIR}/Reports/AsteroNativeCmf.sha256)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
 set(EVE_SCENE_PROBE_STAR_ATLAS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/staratlas.dds)
 set(EVE_SCENE_PROBE_STAR_COLORS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/starcolors.dds)
@@ -1179,6 +1216,40 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_ENGINE_TRAIL_GLTF} ${EVE_SCENE_PROBE_ENGINE_TRAIL_BIN}
         VERBATIM)
     add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_GLTF} ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_BIN}
+            ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2
+            --output ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_GLTF}
+            --lod 0
+            --manifest ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitsphere
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_GLTF}
+            --output ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_GLTF}
+            ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_BIN}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
+    add_custom_command(
         OUTPUT ${EVE_SCENE_PROBE_ENGINE_CMF_HASH}
         COMMAND ${CMAKE_COMMAND}
             -DINPUT=${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
@@ -1188,7 +1259,10 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         VERBATIM)
     add_custom_target(TrinityEveSceneProbeAsteroEngineAssets
         DEPENDS ${EVE_SCENE_PROBE_ENGINE_OUTPUTS} ${EVE_SCENE_PROBE_ENGINE_MANIFEST}
-            ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF} ${EVE_SCENE_PROBE_ENGINE_CMF_HASH})
+            ${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF} ${EVE_SCENE_PROBE_ENGINE_CMF_HASH}
+            ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
+            ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_MANIFEST}
+            ${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF_HASH})
     if(TARGET TrinityEveSceneProbeAsteroAttachmentAssets)
         add_dependencies(TrinityEveSceneProbeAsteroEngineAssets TrinityEveSceneProbeAsteroAttachmentAssets)
     endif()
@@ -1203,6 +1277,9 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         OUTPUT
             ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK}
             ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK}
+            ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER}
+            ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER}
+            ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER}
             ${EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK}
             ${EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK}
             ${EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK}
@@ -1211,12 +1288,21 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_QUADV5_HI}
             ${EVE_SCENE_PROBE_QUADV5_LO}
             ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH}
             ${EVE_SCENE_PROBE_QUADHEATV5_HI}
             ${EVE_SCENE_PROBE_QUADHEATV5_LO}
             ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH}
             ${EVE_SCENE_PROBE_WARP_DISTORTION}
             ${EVE_SCENE_PROBE_FITTING_SCENE}
             ${EVE_SCENE_PROBE_FITTING_CUBE}
@@ -1226,6 +1312,8 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_CLIENT_MANIFEST}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/controller
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ASSETS_DIR}/fisfx/vds
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_MATERIAL_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_EFFECT_DIR}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FX_EFFECT_DIR}
@@ -1236,6 +1324,9 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
             --copy-resource ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK_RESOURCE} ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK}
             --copy-resource ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK_RESOURCE} ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK}
+            --copy-resource ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER_RESOURCE} ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER}
+            --copy-resource ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER_RESOURCE} ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER}
+            --copy-resource ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER_RESOURCE} ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER}
             --copy-resource res:/dx9/model/spaceobjectfactory/materials/chrome_metallic.black ${EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK}
             --copy-resource res:/dx9/model/spaceobjectfactory/materials/grey_steel_brushed.black ${EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK}
             --copy-resource res:/dx9/model/spaceobjectfactory/materials/white_ghost_matt.black ${EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK}
@@ -1244,12 +1335,21 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_HI_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_HI}
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_LO_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_LO}
             --copy-resource ${EVE_SCENE_PROBE_QUADV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH}
             --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_HI_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_HI}
             --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_LO_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_LO}
             --copy-resource ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH}
             --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
             --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
             --copy-resource ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO}
+            --copy-resource ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH_RESOURCE} ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH}
             --copy-resource ${EVE_SCENE_PROBE_WARP_DISTORTION_RESOURCE} ${EVE_SCENE_PROBE_WARP_DISTORTION}
             --copy-resource ${EVE_SCENE_PROBE_FITTING_SCENE_RESOURCE} ${EVE_SCENE_PROBE_FITTING_SCENE}
             --copy-resource ${EVE_SCENE_PROBE_FITTING_CUBE_RESOURCE} ${EVE_SCENE_PROBE_FITTING_CUBE}
@@ -1269,6 +1369,9 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         DEPENDS
             ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK}
             ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK}
+            ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER}
+            ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER}
+            ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER}
             ${EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK}
             ${EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK}
             ${EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK}
@@ -1277,12 +1380,21 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_QUADV5_HI}
             ${EVE_SCENE_PROBE_QUADV5_LO}
             ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH}
             ${EVE_SCENE_PROBE_QUADHEATV5_HI}
             ${EVE_SCENE_PROBE_QUADHEATV5_LO}
             ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
             ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO}
+            ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH}
             ${EVE_SCENE_PROBE_WARP_DISTORTION}
             ${EVE_SCENE_PROBE_FITTING_SCENE}
             ${EVE_SCENE_PROBE_FITTING_CUBE}
@@ -2349,6 +2461,40 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}")
             ${EVE_SCENE_PROBE_ASTERO_BIN}
         VERBATIM
     )
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ASTERO_NATIVE_GLTF} ${EVE_SCENE_PROBE_ASTERO_NATIVE_BIN}
+            ${EVE_SCENE_PROBE_ASTERO_NATIVE_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_ENGINE_BUILD_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_ASTERO_MODEL}
+            --output ${EVE_SCENE_PROBE_ASTERO_NATIVE_GLTF}
+            --include-groups 0,1,2
+            --preserve-skin
+            --manifest ${EVE_SCENE_PROBE_ASTERO_NATIVE_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF}
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_ASTERO_NATIVE_GLTF}
+            --output ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF}
+            --merge-meshes
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_ASTERO_NATIVE_GLTF}
+            ${EVE_SCENE_PROBE_ASTERO_NATIVE_BIN}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
 
     add_eve_scene_probe_dds_conversion(${EVE_SCENE_PROBE_ASTERO_DDS} ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_RGBA} ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_METADATA})
     add_eve_scene_probe_dds_conversion(${EVE_SCENE_PROBE_ASTERO_NORMAL_DDS} ${EVE_SCENE_PROBE_ASTERO_NORMAL_RGBA} ${EVE_SCENE_PROBE_ASTERO_NORMAL_METADATA})
@@ -2362,6 +2508,9 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}")
     add_custom_target(TrinityEveSceneProbeAsteroAsset
         DEPENDS
             ${EVE_SCENE_PROBE_ASTERO_CMF}
+            ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF}
+            ${EVE_SCENE_PROBE_ASTERO_NATIVE_MANIFEST}
+            ${EVE_SCENE_PROBE_ASTERO_NATIVE_CMF_HASH}
             ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_RGBA}
             ${EVE_SCENE_PROBE_ASTERO_BASECOLOR_METADATA}
             ${EVE_SCENE_PROBE_ASTERO_NORMAL_RGBA}
@@ -2486,6 +2635,9 @@ if(TARGET TrinityEveSceneProbeClientAssets)
     set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
         ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK}
         ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK}
+        ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER}
+        ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER}
+        ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER}
         ${EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK}
         ${EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK}
         ${EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK}
@@ -2494,12 +2646,21 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         ${EVE_SCENE_PROBE_QUADV5_HI}
         ${EVE_SCENE_PROBE_QUADV5_LO}
         ${EVE_SCENE_PROBE_QUADV5_DEPTH}
+        ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI}
+        ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO}
+        ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH}
         ${EVE_SCENE_PROBE_QUADHEATV5_HI}
         ${EVE_SCENE_PROBE_QUADHEATV5_LO}
         ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH}
+        ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI}
+        ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO}
+        ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH}
         ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI}
         ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO}
         ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH}
+        ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI}
+        ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO}
+        ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH}
         ${EVE_SCENE_PROBE_WARP_DISTORTION}
         ${EVE_SCENE_PROBE_FITTING_SCENE}
         ${EVE_SCENE_PROBE_FITTING_CUBE}
@@ -2513,6 +2674,8 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/hulls
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/factions
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/controller
+        COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/fisfx/vds
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/materials
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx
@@ -2521,6 +2684,9 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         COMMAND ${CMAKE_COMMAND} -E make_directory $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/default
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_HULL_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/hulls/soef1_t1.black
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_ASTERO_FACTION_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/factions/soebase.black
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SHIP_STANDARD_CONTROLLER} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/controller/shipstandard.red
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_AUDIO_SHIP_STANDARD_CONTROLLER} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/controller/audioshipstandard.red
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_VISUAL_DAMAGE_CONTROLLER} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/fisfx/vds/visualdamagecontroller.red
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_CHROME_MATERIAL_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/materials/chrome_metallic.black
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_STEEL_MATERIAL_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/materials/grey_steel_brushed.black
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_WHITE_MATERIAL_BLACK} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/materials/white_ghost_matt.black
@@ -2529,12 +2695,21 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_hi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_lo
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_hi
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_lo
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadv5.sm_depth
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_hi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_lo
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_QUADHEATV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/quadheatv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_hi
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_lo
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_QUADHEATV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/quad/skinned_quadheatv5.sm_depth
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_hi
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_lo
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FXDISTORTIONV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/fxdistortionv5.sm_depth
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_HI} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_hi
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_LO} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_lo
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_SKINNED_FXDISTORTIONV5_DEPTH} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/graphics/effect.metal/managed/space/spaceobject/v5/fx/skinned_fxdistortionv5.sm_depth
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_WARP_DISTORTION} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/texture/sprite/warptunnel4_n.dds
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FITTING_SCENE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting/fitting.black
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_FITTING_CUBE} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/scene/fitting/fitting_cube.dds
@@ -2543,6 +2718,20 @@ if(TARGET TrinityEveSceneProbeClientAssets)
         COMMAND ${CMAKE_COMMAND} -E copy_if_different ${EVE_SCENE_PROBE_DEFAULT_POSTPROCESS} $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/default/postprocess.black
         VERBATIM
     )
+endif()
+
+if(EXISTS "${EVE_SCENE_PROBE_SOF_DATA_BLACK}")
+    set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
+        "${EVE_SCENE_PROBE_SOF_DATA_BLACK}")
+    add_custom_command(
+        TARGET TrinityALEveSceneProbe_metal
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${EVE_SCENE_PROBE_SOF_DATA_BLACK}"
+            $<TARGET_FILE_DIR:TrinityALEveSceneProbe_metal>/Assets/dx9/model/spaceobjectfactory/data.black
+        VERBATIM)
 endif()
 
 if(TARGET TrinityEveSceneProbeA01Assets)
@@ -2667,8 +2856,11 @@ if(TARGET TrinityEveSceneProbeAsteroEngineAssets)
 	set_property(TARGET TrinityALEveSceneProbe_metal APPEND PROPERTY LINK_DEPENDS
 		${EVE_SCENE_PROBE_ENGINE_OUTPUTS}
 		${EVE_SCENE_PROBE_ENGINE_TRAIL_CMF}
+		${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF}
 		${EVE_SCENE_PROBE_ENGINE_MANIFEST}
-		${EVE_SCENE_PROBE_ENGINE_CMF_HASH})
+		${EVE_SCENE_PROBE_ENGINE_CMF_HASH}
+		${EVE_SCENE_PROBE_SHIELD_GEOMETRY_MANIFEST}
+		${EVE_SCENE_PROBE_SHIELD_GEOMETRY_CMF_HASH})
 endif()
 
 if(TARGET TrinityEveSceneProbeSolarHighAssets)

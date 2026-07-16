@@ -300,10 +300,12 @@ res:/texture/global/film_grain_noise.png
 
 `Reports/PostFinishResources.json` also records inherited checksummed evidence
 for `postprocess.black`, tone mapping, and exposure shaders. The installed
-client bytecode used to establish `newBloom=false` is
+historical RC-11 client bytecode used to establish `newBloom=false` is
 `/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
 (30,935,325 bytes, SHA-256
 `232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`).
+This is an archive-specific RC-11 snapshot, not the current PL-14G authority;
+PL-14G pins `19ff580705e3800ccaba7cc03b7b8c988ab4095eafc36912f090896082311564`.
 
 ### RC-12A authored distortion resources
 
@@ -444,11 +446,14 @@ Their SHA-256 values are
 `fa319e0546d80a9d0ade6a6f4615cf3ab597d989a65f19747b7794d2606b477c`
 and `265514e4e923d4519d6f8a56b90e3832bc1a539af414570a09b58362354e7d18`.
 The manifest records absolute sources, sizes, and checksums for all variants.
-Policy evidence remains at
+Historical RC-11 policy evidence remains at
 `/Users/rebecca/Library/Application Support/EVE Online/SharedCache/tq/EVE.app/Contents/Resources/build/code.ccp`
 (SHA-256 `232a2c1552cd00d030e7b9f6bf1d4956673e3c1be85f07f4b19ebe19131fa67f`);
-it is checksummed in place and is not copied. The legacy
-`res:/fisfx/postprocess/taa.black` is unused because the current client creates
+it is checksummed in place and is not copied. That hash is archive-specific;
+the current PL-14G bytecode authority is
+`19ff580705e3800ccaba7cc03b7b8c988ab4095eafc36912f090896082311564`.
+The legacy `res:/fisfx/postprocess/taa.black` is unused because the current
+client creates
 `Tr2PPTaaEffect` through render-driver settings.
 
 RC-13 closeout required no additional client payload. Atomic temporal reports

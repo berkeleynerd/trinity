@@ -204,6 +204,15 @@ public:
 		float taaEarlyOutThreshold = 0.0f;
 	};
 
+	struct HistoryDiagnostics
+	{
+		uint64_t taaResetCount = 0;
+		uint32_t taaFrameCounter = 0;
+		bool taaResetPending = false;
+		bool exposureHistoryValid = false;
+		uint64_t exposureMeasurementCount = 0;
+	};
+
 	enum class BloomDebugMode
 	{
 		BLOOM_DEBUG_NONE,
@@ -239,6 +248,16 @@ public:
 	bool ReadDiagnostics( Tr2GpuResourcePool & gpuResourcePool, Tr2RenderContext & renderContext, Diagnostics & diagnostics ) const;
 	bool GetLastExecutionSucceeded() const;
 	void ResetTaaHistory();
+	HistoryDiagnostics GetHistoryDiagnostics() const
+	{
+		HistoryDiagnostics diagnostics;
+		diagnostics.taaResetCount = m_taaResetCount;
+		diagnostics.taaFrameCounter = m_taaFrameCounter;
+		diagnostics.taaResetPending = m_taaResetPending;
+		diagnostics.exposureHistoryValid = m_dynamicExposureHistoryValid;
+		diagnostics.exposureMeasurementCount = m_exposureMeasurementCount;
+		return diagnostics;
+	}
 	void SetTaaHistoryFrozen( bool frozen )
 	{
 		m_taaHistoryFrozen = frozen;
@@ -340,6 +359,7 @@ private:
 		Tr2GpuResourcePool::Texture* cooldownOutput );
 	Tr2EffectPtr m_taaEffect, m_taaCopyEffect;
 	uint32_t m_taaFrameCounter;
+	uint64_t m_taaResetCount = 0;
 	uint32_t m_taaWidth = 0;
 	uint32_t m_taaHeight = 0;
 	Tr2PPTaaEffect::Quality m_taaQuality = Tr2PPTaaEffect::TAA_HIGH;
@@ -409,6 +429,7 @@ private:
 	Tr2BufferAL m_deterministicTaaExposureBuffer;
 	bool m_dynamicExposureHistoryFrozen = false;
 	bool m_dynamicExposureHistoryValid = false;
+	uint64_t m_exposureMeasurementCount = 0;
 	bool m_lastExecutionSucceeded = true;
 	Diagnostics m_lastDiagnostics;
 	Tr2GpuResourcePool::Buffer m_lastHistogramBuffer;

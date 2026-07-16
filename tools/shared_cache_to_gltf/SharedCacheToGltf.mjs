@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 import CjsFormatGr2 from "@carbonenginejs/format-gr2";
 
@@ -11,7 +12,8 @@ function usage()
     console.error(
         "Usage: SharedCacheToGltf.mjs --cache-root PATH [--model RES_PATH --output MODEL.gltf]\n" +
         "       [--base-color RES_PATH --base-color-output TEXTURE.dds] [--lod N]\n" +
-        "       [--include-groups 0,1,...] [--instance-data] [--copy-resource RES_PATH OUTPUT]\n" +
+        "       [--include-groups 0,1,...] [--preserve-skin] [--instance-data]\n" +
+        "       [--copy-resource RES_PATH OUTPUT]\n" +
         "       [--manifest OUTPUT.json] [--summary]" );
 }
 
@@ -29,6 +31,11 @@ function parseArgs( argv )
         if( arg === "--instance-data" )
         {
             options.instanceData = true;
+            continue;
+        }
+        if( arg === "--preserve-skin" )
+        {
+            options.preserveSkin = true;
             continue;
         }
         if( arg === "--copy-resource" )
@@ -103,6 +110,14 @@ function parseArgs( argv )
     if( options.baseColor && !options.model )
     {
         throw new Error( "--base-color requires a model conversion" );
+    }
+    if( options.preserveSkin && !options.model )
+    {
+        throw new Error( "--preserve-skin requires a model conversion" );
+    }
+    if( options.preserveSkin && options.instanceData )
+    {
+        throw new Error( "--preserve-skin and --instance-data are mutually exclusive" );
     }
     return options;
 }
@@ -209,7 +224,251 @@ function align4( value )
     return ( value + 3 ) & ~3;
 }
 
-function buildGltf( mesh, sourcePath, outputPath, includeGroups )
+function finiteArray( values, count, label )
+{
+    if( !Array.isArray( values ) || values.length !== count || values.some( value => !Number.isFinite( value ) ) )
+    {
+        throw new Error( `${label} must contain exactly ${count} finite values` );
+    }
+    return values;
+}
+
+function normalizeQuaternion( values, label )
+{
+    const quaternion = finiteArray( values, 4, label ).slice();
+    const length = Math.hypot( ...quaternion );
+    if( length < 1.0e-8 )
+    {
+        throw new Error( `${label} is a zero quaternion` );
+    }
+    for( let component = 0; component < 4; ++component )
+    {
+        quaternion[component] /= length;
+    }
+    return quaternion;
+}
+
+function buildSkinData( root, rawRoot, mesh, meshIndex )
+{
+    const vertexCount = mesh.vertex.position.length / 3;
+    const sourceJointIndices = mesh.vertex.blendIndice || [];
+    const sourceWeights = mesh.vertex.blendWeight || [];
+    const boneBindings = mesh.boneBindings || [];
+    const hasSkinData = sourceJointIndices.length !== 0 || sourceWeights.length !== 0 || boneBindings.length !== 0;
+    if( !hasSkinData )
+    {
+        return null;
+    }
+    if( boneBindings.length === 0 || sourceJointIndices.length !== vertexCount * 4 )
+    {
+        throw new Error( `GR2 mesh '${mesh.name}' has incomplete authored skin data` );
+    }
+    if( sourceWeights.length !== 0 && sourceWeights.length !== vertexCount * 4 )
+    {
+        throw new Error( `GR2 mesh '${mesh.name}' has an incomplete authored bone-weight stream` );
+    }
+
+    const modelIndex = ( root.models || [] ).findIndex( model => ( model.meshBindings || [] ).includes( meshIndex ) );
+    if( modelIndex < 0 )
+    {
+        throw new Error( `GR2 mesh '${mesh.name}' has bone bindings but no owning model` );
+    }
+    const model = root.models[modelIndex];
+    const skeleton = model.skeleton;
+    if( !skeleton || !Array.isArray( skeleton.bones ) || skeleton.bones.length === 0 )
+    {
+        throw new Error( `GR2 model '${model.name}' has no authored skeleton` );
+    }
+    if( skeleton.bones.length > 254 )
+    {
+        throw new Error( `GR2 skeleton '${skeleton.name}' exceeds the CMF v1 254-bone limit` );
+    }
+
+    const rawModel = rawRoot?.fileInfo?.Models?.[modelIndex];
+    const rawSkeleton = rawModel?.Skeleton;
+    if( !rawSkeleton || !Array.isArray( rawSkeleton.Bones ) || rawSkeleton.Bones.length !== skeleton.bones.length )
+    {
+        throw new Error( `GR2 model '${model.name}' has no matching raw skeleton for inverse bind matrices` );
+    }
+
+    const skeletonIndexByName = new Map();
+    for( let boneIndex = 0; boneIndex < skeleton.bones.length; ++boneIndex )
+    {
+        const bone = skeleton.bones[boneIndex];
+        if( !bone.name || skeletonIndexByName.has( bone.name ) )
+        {
+            throw new Error( `GR2 skeleton '${skeleton.name}' has an empty or duplicate bone name` );
+        }
+        skeletonIndexByName.set( bone.name, boneIndex );
+        if( bone.parentIndex < -1 || bone.parentIndex >= skeleton.bones.length || bone.parentIndex === boneIndex )
+        {
+            throw new Error( `GR2 skeleton '${skeleton.name}' bone '${bone.name}' has an invalid parent` );
+        }
+    }
+
+    const bindingToSkeleton = boneBindings.map( binding => {
+        const index = skeletonIndexByName.get( binding.name );
+        if( index === undefined )
+        {
+            throw new Error( `GR2 mesh '${mesh.name}' bone binding '${binding.name}' is absent from its skeleton` );
+        }
+        return index;
+    } );
+    const joints = new Uint8Array( vertexCount * 4 );
+    const weights = new Float32Array( vertexCount * 4 );
+    for( let vertexIndex = 0; vertexIndex < vertexCount; ++vertexIndex )
+    {
+        const offset = vertexIndex * 4;
+        for( let influence = 0; influence < 4; ++influence )
+        {
+            const bindingIndex = sourceJointIndices[offset + influence];
+            if( !Number.isInteger( bindingIndex ) || bindingIndex < 0 || bindingIndex >= bindingToSkeleton.length )
+            {
+                throw new Error( `GR2 mesh '${mesh.name}' vertex ${vertexIndex} has an invalid bone-binding index` );
+            }
+            joints[offset + influence] = bindingToSkeleton[bindingIndex];
+        }
+
+        if( sourceWeights.length === 0 )
+        {
+            // Granny's rigid skin stream repeats one bone index in all four
+            // lanes and omits weights. Express that exact contract in glTF.
+            if( joints[offset] !== joints[offset + 1] || joints[offset] !== joints[offset + 2] || joints[offset] !== joints[offset + 3] )
+            {
+                throw new Error( `GR2 mesh '${mesh.name}' vertex ${vertexIndex} omits weights for a non-rigid bone tuple` );
+            }
+            weights[offset] = 1.0;
+        }
+        else
+        {
+            let sum = 0.0;
+            for( let influence = 0; influence < 4; ++influence )
+            {
+                const value = sourceWeights[offset + influence];
+                if( !Number.isFinite( value ) || value < 0.0 )
+                {
+                    throw new Error( `GR2 mesh '${mesh.name}' vertex ${vertexIndex} has an invalid bone weight` );
+                }
+                sum += value;
+            }
+            if( sum <= 0.0 )
+            {
+                throw new Error( `GR2 mesh '${mesh.name}' vertex ${vertexIndex} has zero total bone weight` );
+            }
+            for( let influence = 0; influence < 4; ++influence )
+            {
+                weights[offset + influence] = sourceWeights[offset + influence] / sum;
+            }
+        }
+    }
+
+    const rawBoneByName = new Map( rawSkeleton.Bones.map( bone => [ bone.Name, bone ] ) );
+    const inverseBindMatrices = new Float32Array( skeleton.bones.length * 16 );
+    const nodes = skeleton.bones.map( ( bone, boneIndex ) => {
+        const rawBone = rawBoneByName.get( bone.name );
+        const inverseWorld = finiteArray( rawBone?.InverseWorldTransform, 16, `GR2 bone '${bone.name}' inverse world transform` );
+        inverseBindMatrices.set( inverseWorld, boneIndex * 16 );
+
+        const scaleShear = bone.scaleShear || [ 1, 0, 0, 0, 1, 0, 0, 0, 1 ];
+        finiteArray( scaleShear, 9, `GR2 bone '${bone.name}' scale/shear` );
+        const shear = [ scaleShear[1], scaleShear[2], scaleShear[3], scaleShear[5], scaleShear[6], scaleShear[7] ];
+        if( shear.some( value => Math.abs( value ) > 1.0e-5 ) )
+        {
+            throw new Error( `GR2 bone '${bone.name}' has authored shear that glTF TRS cannot preserve` );
+        }
+        return {
+            name: bone.name,
+            translation: finiteArray( bone.position || [ 0, 0, 0 ], 3, `GR2 bone '${bone.name}' position` ).slice(),
+            rotation: normalizeQuaternion( bone.orientation || [ 0, 0, 0, 1 ], `GR2 bone '${bone.name}' orientation` ),
+            scale: [ scaleShear[0], scaleShear[4], scaleShear[8] ],
+        };
+    } );
+    for( let boneIndex = 0; boneIndex < skeleton.bones.length; ++boneIndex )
+    {
+        const parentIndex = skeleton.bones[boneIndex].parentIndex;
+        if( parentIndex >= 0 )
+        {
+            const children = nodes[parentIndex].children || [];
+            children.push( boneIndex );
+            nodes[parentIndex].children = children;
+        }
+    }
+
+    return {
+        model,
+        skeleton,
+        nodes,
+        roots: skeleton.bones.map( ( bone, index ) => bone.parentIndex < 0 ? index : -1 ).filter( index => index >= 0 ),
+        joints,
+        weights,
+        inverseBindMatrices,
+    };
+}
+
+function animationSampleTimes( animation )
+{
+    if( !Number.isFinite( animation.duration ) || animation.duration < 0.0 )
+    {
+        throw new Error( `GR2 animation '${animation.name}' has an invalid duration` );
+    }
+    if( animation.duration === 0.0 )
+    {
+        return new Float32Array( [ 0.0 ] );
+    }
+    if( !Number.isFinite( animation.timeStep ) || animation.timeStep <= 0.0 )
+    {
+        throw new Error( `GR2 animation '${animation.name}' has no valid authored timestep` );
+    }
+    const samples = [];
+    for( let time = 0.0; time < animation.duration; time += animation.timeStep )
+    {
+        samples.push( time );
+    }
+    if( samples.length === 0 || Math.abs( samples[samples.length - 1] - animation.duration ) > 1.0e-7 )
+    {
+        samples.push( animation.duration );
+    }
+    return new Float32Array( samples );
+}
+
+function sampleTransformCurve( curve, dimension, times, duration, label )
+{
+    if( !curve || curve.dimension !== dimension || !Array.isArray( curve.knots ) || !Array.isArray( curve.controls ) )
+    {
+        throw new Error( `${label} was not decompressed into an authored ${dimension}-component curve` );
+    }
+    const values = new Float32Array( times.length * dimension );
+    const sample = new Array( dimension ).fill( 0.0 );
+    let previousQuaternion = null;
+    for( let sampleIndex = 0; sampleIndex < times.length; ++sampleIndex )
+    {
+        CjsFormatGr2.curves.sample( sample, curve, times[sampleIndex], false, duration );
+        if( sample.some( value => !Number.isFinite( value ) ) )
+        {
+            throw new Error( `${label} produced a nonfinite sample` );
+        }
+        if( dimension === 4 )
+        {
+            const quaternion = normalizeQuaternion( sample, label );
+            if( previousQuaternion && quaternion.reduce( ( dot, value, index ) => dot + value * previousQuaternion[index], 0.0 ) < 0.0 )
+            {
+                for( let component = 0; component < 4; ++component )
+                {
+                    quaternion[component] = -quaternion[component];
+                }
+            }
+            values.set( quaternion, sampleIndex * dimension );
+            previousQuaternion = quaternion;
+        }
+        else
+        {
+            values.set( sample, sampleIndex * dimension );
+        }
+    }
+    return values;
+}
+
+function buildGltf( root, rawRoot, mesh, meshIndex, sourcePath, outputPath, includeGroups, preserveSkin )
 {
     const { vertexCount, normalComponents, tangentComponents, texcoordComponents } = validateMesh( mesh );
     const hasTangents = tangentComponents !== 0;
@@ -313,6 +572,39 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
     const normalView = append( normals, 34962 );
     const tangentView = tangents ? append( tangents, 34962 ) : null;
     const texcoordView = texcoords ? append( texcoords, 34962 ) : null;
+    const skin = preserveSkin ? buildSkinData( root, rawRoot, mesh, meshIndex ) : null;
+    const jointView = skin ? append( skin.joints, 34962 ) : null;
+    const weightView = skin ? append( skin.weights, 34962 ) : null;
+    const inverseBindView = skin ? append( skin.inverseBindMatrices, undefined ) : null;
+
+    const bounds = positionBounds( positions );
+    const accessors = [];
+    const attributes = {};
+    attributes.POSITION = accessors.length;
+    accessors.push( { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum } );
+    attributes.NORMAL = accessors.length;
+    accessors.push( { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" } );
+    if( tangents )
+    {
+        attributes.TANGENT = accessors.length;
+        accessors.push( { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" } );
+    }
+    if( texcoords )
+    {
+        attributes.TEXCOORD_0 = accessors.length;
+        accessors.push( { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" } );
+    }
+    let inverseBindAccessor = null;
+    if( skin )
+    {
+        attributes.JOINTS_0 = accessors.length;
+        accessors.push( { bufferView: jointView, componentType: 5121, count: vertexCount, type: "VEC4" } );
+        attributes.WEIGHTS_0 = accessors.length;
+        accessors.push( { bufferView: weightView, componentType: 5126, count: vertexCount, type: "VEC4" } );
+        inverseBindAccessor = accessors.length;
+        accessors.push( { bufferView: inverseBindView, componentType: 5126, count: skin.nodes.length, type: "MAT4" } );
+    }
+
     const groupData = selectedGroups.map( sourceGroup => {
         const faces = mesh.indices[sourceGroup].faces;
         if( faces.length === 0 || faces.length % 3 !== 0 )
@@ -330,60 +622,160 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
             sourceGroup,
             indices,
             indexView: append( indices, 34963 ),
+            indexAccessor: -1,
         };
     } );
+    for( const group of groupData )
+    {
+        group.indexAccessor = accessors.length;
+        accessors.push( {
+            bufferView: group.indexView,
+            componentType: group.indices.BYTES_PER_ELEMENT === 2 ? 5123 : 5125,
+            count: group.indices.length,
+            type: "SCALAR",
+        } );
+    }
+
+    const nodes = groupData.map( ( group, groupIndex ) => ( {
+        name: `Astero_group_${group.sourceGroup}`,
+        mesh: groupIndex,
+        ...( skin ? { skin: 0 } : {} ),
+    } ) );
+    const sceneNodes = groupData.map( ( _, groupIndex ) => groupIndex );
+    let skins;
+    let animations;
+    if( skin )
+    {
+        const boneNodeOffset = nodes.length;
+        for( const sourceNode of skin.nodes )
+        {
+            nodes.push( {
+                ...sourceNode,
+                ...( sourceNode.children ? { children: sourceNode.children.map( child => child + boneNodeOffset ) } : {} ),
+            } );
+        }
+        sceneNodes.push( ...skin.roots.map( rootIndex => rootIndex + boneNodeOffset ) );
+        skins = [ {
+            name: skin.skeleton.name || skin.model.name || "GR2_Skeleton",
+            inverseBindMatrices: inverseBindAccessor,
+            joints: skin.nodes.map( ( _, boneIndex ) => boneIndex + boneNodeOffset ),
+            skeleton: skin.roots[0] + boneNodeOffset,
+        } ];
+
+        animations = [];
+        for( const sourceAnimation of root.animations || [] )
+        {
+            const tracksByName = new Map();
+            for( const trackGroup of sourceAnimation.trackGroups || [] )
+            {
+                for( const track of trackGroup.transformTracks || [] )
+                {
+                    if( tracksByName.has( track.name ) )
+                    {
+                        throw new Error( `GR2 animation '${sourceAnimation.name}' has duplicate track '${track.name}'` );
+                    }
+                    tracksByName.set( track.name, track );
+                }
+            }
+            const times = animationSampleTimes( sourceAnimation );
+            const timeView = append( times, undefined );
+            const timeAccessor = accessors.length;
+            accessors.push( {
+                bufferView: timeView,
+                componentType: 5126,
+                count: times.length,
+                type: "SCALAR",
+                min: [ times[0] ],
+                max: [ times[times.length - 1] ],
+            } );
+            const animation = { name: sourceAnimation.name || `animation_${animations.length}`, samplers: [], channels: [] };
+            for( let boneIndex = 0; boneIndex < skin.skeleton.bones.length; ++boneIndex )
+            {
+                const bone = skin.skeleton.bones[boneIndex];
+                const track = tracksByName.get( bone.name );
+                if( !track )
+                {
+                    continue;
+                }
+                const channelData = [
+                    { path: "translation", dimension: 3, values: sampleTransformCurve( track.position, 3, times, sourceAnimation.duration, `GR2 animation '${sourceAnimation.name}' track '${bone.name}' position` ) },
+                    { path: "rotation", dimension: 4, values: sampleTransformCurve( track.orientation, 4, times, sourceAnimation.duration, `GR2 animation '${sourceAnimation.name}' track '${bone.name}' orientation` ) },
+                ];
+                const scaleShear = sampleTransformCurve( track.scaleShear, 9, times, sourceAnimation.duration, `GR2 animation '${sourceAnimation.name}' track '${bone.name}' scale/shear` );
+                const scaleValues = new Float32Array( times.length * 3 );
+                for( let sampleIndex = 0; sampleIndex < times.length; ++sampleIndex )
+                {
+                    const offset = sampleIndex * 9;
+                    const shear = [
+                        scaleShear[offset + 1], scaleShear[offset + 2], scaleShear[offset + 3],
+                        scaleShear[offset + 5], scaleShear[offset + 6], scaleShear[offset + 7],
+                    ];
+                    if( shear.some( value => Math.abs( value ) > 1.0e-5 ) )
+                    {
+                        throw new Error( `GR2 animation '${sourceAnimation.name}' track '${bone.name}' has shear that glTF cannot preserve` );
+                    }
+                    scaleValues.set( [ scaleShear[offset], scaleShear[offset + 4], scaleShear[offset + 8] ], sampleIndex * 3 );
+                }
+                channelData.push( { path: "scale", dimension: 3, values: scaleValues } );
+
+                for( const channel of channelData )
+                {
+                    const outputView = append( channel.values, undefined );
+                    const outputAccessor = accessors.length;
+                    accessors.push( {
+                        bufferView: outputView,
+                        componentType: 5126,
+                        count: times.length,
+                        type: channel.dimension === 4 ? "VEC4" : "VEC3",
+                    } );
+                    const samplerIndex = animation.samplers.length;
+                    animation.samplers.push( { input: timeAccessor, output: outputAccessor, interpolation: "LINEAR" } );
+                    animation.channels.push( {
+                        sampler: samplerIndex,
+                        target: { node: boneNodeOffset + boneIndex, path: channel.path },
+                    } );
+                }
+            }
+            if( animation.channels.length !== 0 )
+            {
+                animations.push( animation );
+            }
+        }
+    }
+
     const binary = Buffer.concat( chunks );
-    const bounds = positionBounds( positions );
     const binaryName = `${path.basename( outputPath, path.extname( outputPath ) )}.bin`;
-
-    const attributes = { POSITION: 0, NORMAL: 1 };
-    const vertexAccessors = [
-        { bufferView: positionView, componentType: 5126, count: vertexCount, type: "VEC3", min: bounds.minimum, max: bounds.maximum },
-        { bufferView: normalView, componentType: 5126, count: vertexCount, type: "VEC3" },
-    ];
-    if( tangents )
-    {
-        attributes.TANGENT = vertexAccessors.length;
-        vertexAccessors.push( { bufferView: tangentView, componentType: 5126, count: vertexCount, type: "VEC4" } );
-    }
-    if( texcoords )
-    {
-        attributes.TEXCOORD_0 = vertexAccessors.length;
-        vertexAccessors.push( { bufferView: texcoordView, componentType: 5126, count: vertexCount, type: "VEC2" } );
-    }
-
     const gltf = {
         asset: {
             version: "2.0",
             generator: "Trinity SharedCache GR2 bridge",
-            extras: { source: sourcePath, sourceGroups: selectedGroups },
+            extras: {
+                source: sourcePath,
+                sourceGroups: selectedGroups,
+                ...( skin ? {
+                    skinned: true,
+                    boneCount: skin.nodes.length,
+                    animationCount: animations?.length || 0,
+                } : {} ),
+            },
         },
         buffers: [ { uri: binaryName, byteLength: binary.length } ],
         bufferViews,
-        accessors: [
-            ...vertexAccessors,
-            ...groupData.map( group => ( {
-                bufferView: group.indexView,
-                componentType: group.indices.BYTES_PER_ELEMENT === 2 ? 5123 : 5125,
-                count: group.indices.length,
-                type: "SCALAR",
-            } ) ),
-        ],
+        accessors,
         meshes: groupData.map( ( group, groupIndex ) => ( {
             name: `${mesh.name}_group_${group.sourceGroup}`,
             extras: { sourceGroup: group.sourceGroup },
             primitives: [ {
                 attributes,
-                indices: vertexAccessors.length + groupIndex,
+                indices: group.indexAccessor,
                 mode: 4,
                 extras: { sourceGroup: group.sourceGroup },
             } ],
         } ) ),
-        nodes: groupData.map( ( group, groupIndex ) => ( {
-            name: `Astero_group_${group.sourceGroup}`,
-            mesh: groupIndex,
-        } ) ),
-        scenes: [ { name: "Astero", nodes: groupData.map( ( _, groupIndex ) => groupIndex ) } ],
+        nodes,
+        ...( skins ? { skins } : {} ),
+        ...( animations?.length ? { animations } : {} ),
+        scenes: [ { name: "Astero", nodes: sceneNodes } ],
         scene: 0,
     };
 
@@ -395,6 +787,8 @@ function buildGltf( mesh, sourcePath, outputPath, includeGroups )
         indexCount: groupData.reduce( ( total, group ) => total + group.indices.length, 0 ),
         selectedGroups,
         groupData,
+        boneCount: skin?.nodes.length || 0,
+        animationCount: animations?.length || 0,
         binaryPath: path.join( path.dirname( outputPath ), binaryName ),
     };
 }
@@ -512,19 +906,19 @@ function main()
     if( options.model )
     {
         const sourceBytes = fs.readFileSync( resolved.get( options.model ).physicalPath );
-        const reader = new CjsFormatGr2( { emit: "json", unpackTangents: true } );
+        const reader = new CjsFormatGr2( { emit: "json", decompressCurves: Boolean( options.preserveSkin ), unpackTangents: true } );
         const root = reader.Read( sourceBytes );
         if( options.lod >= root.meshes.length )
         {
             throw new Error( `Requested LOD ${options.lod}, but the GR2 contains ${root.meshes.length} meshes` );
         }
         mesh = root.meshes[options.lod];
-        const rawRoot = options.instanceData ?
+        const rawRoot = options.instanceData || options.preserveSkin ?
             new CjsFormatGr2( { emit: "raw" } ).Read( sourceBytes ) : null;
         const rawMesh = rawRoot?.fileInfo?.Meshes?.[options.lod];
         result = options.instanceData ?
             buildInstanceDataGltf( mesh, rawMesh, options.model, path.resolve( options.output ) ) :
-            buildGltf( mesh, options.model, path.resolve( options.output ), options.includeGroups );
+            buildGltf( root, rawRoot, mesh, options.lod, options.model, path.resolve( options.output ), options.includeGroups, options.preserveSkin );
     }
 
     if( options.baseColor )
@@ -585,6 +979,8 @@ function main()
                 console.log( `Group ${group.sourceGroup}: ${group.indices.length / 3} triangles` );
             }
             console.log( `Triangles: ${result.indexCount / 3}` );
+            console.log( `Bones: ${result.boneCount || 0}` );
+            console.log( `Animations: ${result.animationCount || 0}` );
             console.log( `glTF: ${path.resolve( options.output )}` );
         }
         if( options.baseColor )
@@ -602,13 +998,18 @@ function main()
     }
 }
 
-try
+export { buildGltf, buildSkinData, parseArgs, sampleTransformCurve };
+
+if( process.argv[1] && path.resolve( process.argv[1] ) === fileURLToPath( import.meta.url ) )
 {
-    main();
-}
-catch( error )
-{
-    usage();
-    console.error( error instanceof Error ? error.message : String( error ) );
-    process.exit( 1 );
+    try
+    {
+        main();
+    }
+    catch( error )
+    {
+        usage();
+        console.error( error instanceof Error ? error.message : String( error ) );
+        process.exit( 1 );
+    }
 }
