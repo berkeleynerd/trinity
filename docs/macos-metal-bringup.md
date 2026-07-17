@@ -3596,10 +3596,12 @@ the EVE Gate likewise left the outer Gate and sky regions byte-identical.
 
 The observed darkness is therefore not a global planet mesh or directional-
 shadow multiply. Planet occlusion correctly removes a broad additive solar
-optics contribution. PL-14H4 now resolves the remaining background split:
-source exposure and the sparse starfield are live, while the authored A01
-nebula cube contributes zero pixels before exposure. Generated PNGs, reports,
-and logs remain ignored beneath Promised Land's PL-14H build tree.
+optics contribution. Corrected PL-14H4 resolves the remaining background
+split: source exposure and the sparse starfield are live, and a
+source-readable A01 view proves the authored nebula transport live as well.
+The retained route directions sample mostly dark cube content. Generated
+PNGs, reports, and logs remain ignored beneath Promised Land's PL-14H build
+tree.
 
 ## PL-14H4 background and exposure audit (2026-07-17)
 
@@ -3613,21 +3615,30 @@ sky multiplier.
 
 The selected `background.sm_depth` `Main` AIR samples `NebulaMap` as a cube at
 register zero. Runtime reports effect readiness, authored intensity `1.25`, and
-the staged nonempty 2048×2048 BC6H-SF16 A01 cube. Replacing that binding with
-black nevertheless changes zero pixels in HDR, post-tone, final, or drawable
-at every sampled frame. H4 classifies the authored nebula path `missing` and
-records one narrow repair candidate at the Metal BC6H-SF16 texture/sample
-boundary. No alternate texture, intensity, gamma, exposure, or grading value
-is authorized.
+the staged nonempty 2048×2048 BC6H-SF16 A01 cube. A source-readable A01
+authored/black pair with starfield and exposure disabled changes 754,491
+full-frame pixels and 406,080 registered outer pixels; maximum outer delta is
+56 and mean luminance delta is `0.082605712`. CPU BC6H decode also produces
+finite, nonempty RGB. Metal texture creation, upload, cube sampling, and shader
+consumption are therefore `correct`.
+
+The original H4 validator compared only 8-bit route visualizations and
+incorrectly generalized their terminal equality into a transport failure.
+Native retained hashes actually change at frame 5,701 in HDR and at frames
+5,521/5,701 downstream, below diagnostic-PNG quantization. The original
+Accepted verdict SHA-256 `01c296619015cecaa59255aa8f7a23d30a858603968927e747394d0c65da033c`
+is retained as superseded evidence and no longer authorizes a repair.
+Corrected H4 verdict SHA-256 is
+`f32a929765b7126c28e6203d369bc798168bbb1ffd516c1c01afce3dea1e7180`.
 
 The 565-sprite starfield is healthy: disabling it changes 128 frame-5701 outer
 HDR pixels (maximum channel delta 35) and 83 drawable pixels (maximum delta
 14). Source exposure is also correct. It uses the serialized 90–98% histogram
 window, luminance clamp `[0.4649, 10]`, middle value `0.55`, and `2.0/1.5`
 adaptation speeds. Observed adapted luminance stays in `0.486338…–0.834362…`;
-the sparse stars do not move the selected percentile. H4 is Accepted with
-nebula `missing`, and starfield, exposure, presentation, and construction-
-background equivalence `correct`.
+the sparse stars do not move the selected percentile. Corrected H4 is Accepted
+with nebula, starfield, exposure, presentation, and construction-background
+equivalence `correct`, with no PL-14I repair candidate.
 
 ## Bright-background feature staircase (2026-07-17)
 
@@ -3651,7 +3662,7 @@ The accepted sequence is:
 | 5 | Client bloom and final composition | Pass |
 | 6 | Client film grain | Pass |
 | 7 | High TAA | Pass |
-| 8 | New Eden background-effect and starfield ownership | Pass; H4 later proves this did not establish live `NebulaMap` contribution |
+| 8 | New Eden background-effect and starfield ownership | Pass; corrected H4 independently proves live `NebulaMap` contribution |
 | 9 | New Eden SH transport | Pass; legacy `3.14` remains quarantined |
 | 10 | Authored local-light path | Pass |
 | 11 | Static A01 reflection | Pass |
@@ -3684,8 +3695,9 @@ The accepted sequence is:
 | 38 | Authored warp tunnel during active outbound warp | Pass; strong intentional warp-local overlay, absent from the later planet view |
 | 39 | Full planet-finale choreography through settled frame 5701 | Pass; exact reported endpoint looks good on the accumulated legacy path |
 
-Steps 0-29 preserve a plainly bright, readable nebula-like field and starfield.
-H4 later proves that field is not live output from the authored `NebulaMap`. Step 29
+Steps 0-29 preserve a plainly bright, readable nebula and starfield. Corrected
+H4 confirms the field can be live output from the authored `NebulaMap`; exact
+client camera orientation and appearance remain unclaimed. Step 29
 places the static ego about `1.370e12 m` from the Sun, approximately `136x` the
 `10,060,000,256 m` activation radius, and correctly leaves the solar
 environment inactive. Step 30 moves the same static Ballpark to the accepted
@@ -3775,7 +3787,7 @@ silhouette, and restrained optical residual are all readable; the operator's
 verdict was "This looks great." This is the strongest control in the
 staircase: the reported endpoint is healthy after the real environment exits,
 exposure history, three warp legs, Gate traversal, authored Sun controller,
-live SH receiver, and planet choreography. H4 later proves the outer background
-is equivalent across canonical and legacy construction; the remaining
-construction difference is ship-owned geometry/presentation, while the common
-A01 `NebulaMap` path is independently missing.
+live SH receiver, and planet choreography. H4 proves the outer background is
+equivalent across canonical and legacy construction; the remaining
+construction difference is ship-owned geometry/presentation. The corrected
+source-readable control closes the common A01 `NebulaMap` path as healthy.
