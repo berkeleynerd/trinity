@@ -180,6 +180,54 @@ race (CoreAnalytics allocating on a dispatch worker while the last
 MetalContext drains — probabilistic, load-dependent, all outputs
 already on disk when it fires). Default off; normal teardown unchanged.
 
+## Procedural modernization pass v1 — glow (2026-07-17)
+
+`--mode v1` on the bootstrap replaces the tint spike with a procedural
+pass. This first iteration authors the `_g` slot the client ships as a
+flat 827-byte placeholder (shared with `_p3`): it traces a teal emissive
+glow along the hull's panel seams, so a dormant wreck reads as barely
+alive. The albedo and every other map pass through unchanged; detail
+normals and a roughness curve are the next passes on this lane.
+
+The synthesis rides the albedo alone — panel grooves are dark lines, so
+a forward-difference luminance gradient peaks along them and is flat on
+clean plating. (`_p3` is the flat placeholder and cannot gate the seams;
+`_m`, real content, is a possible future gate.) Knobs, all with
+defaults: `--glow-hue R,G,B` (`0,180,200`), `--glow-intensity` (`2.0`;
+~1 whispers, 4+ is pronounced), `--glow-threshold` (`14`; lower picks up
+albedo micro-detail as speckle). Glow is opaque RGB, so the encoder
+auto-picks BC1 — the same path the other opaque maps take.
+
+```sh
+# Seed v1 into an ISOLATED workspace (see below), then stage:
+python3 samples/eve_scene_probe/bootstrap_talocan_modern_workspace.py --mode v1 \
+    --dds-to-rgba $BUILD/tools/dds_to_rgba/Debug/TrinityDdsToRgba_debug \
+    --originals-dir $BUILD/samples/eve_scene_probe/Assets/dx9/model/ship/talocan/destroyer/tde1 \
+    --workspace ~/TalocanModernization/tm1-tde1_t1_wreck
+cmake --build $BUILD --config Debug --target TrinityEveSceneProbeTalocanModernAssets
+cmake --build $BUILD --config Debug --target TrinityEveSceneProbeRuntimeAssets
+```
+
+Isolated workspace for parallel agents: pass a distinct `--workspace`
+and the matching `-DEVE_SCENE_PROBE_TALOCAN_MODERN_DIR=` at configure so
+a second lane on the host does not clobber the shared default masters.
+
+Build order matters: `TrinityEveSceneProbeRuntimeAssets` copies the
+Assets tree but has no dependency edge on the modern target, so build
+`TrinityEveSceneProbeTalocanModernAssets` first, then RuntimeAssets, as
+separate steps — a single combined invocation can copy before the
+modern DDS are encoded.
+
+Accepted evidence (default knobs, `--asset talocan`): A/A
+`diff_pixel_fraction = 0.0` / `mean_abs_delta = 0.0`; A/B vs original
+`diff_pixel_fraction = 0.0037`, bbox tight on the hull; GlowMap binds
+from `res:/modernized/…_g.dds`, zero FAILED slots; astero and
+solo-talocan-original smokes exit 0. In the bright New Eden fixture the
+glow is a subtle, hull-localized contribution — the intended dormant
+reading; it dominates only against shadow. The authored seam network is
+clearest in texture space (the edge map) and in an amplified
+original-vs-modernized frame difference.
+
 ## Known limitations
 
 - `TrinityRgbaToDds` mip generation is a byte-space 2x2 box (not
