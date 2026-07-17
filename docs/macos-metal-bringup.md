@@ -3640,6 +3640,40 @@ the sparse stars do not move the selected percentile. Corrected H4 is Accepted
 with nebula, starfield, exposure, presentation, and construction-background
 equivalence `correct`, with no PL-14I repair candidate.
 
+## PL-14H5 authored ship-local-light audit (2026-07-17)
+
+H5 closes the remaining aggregate lighting component with nine 181-frame,
+background-only lanes. The report follows the native SOF graph rather than the
+historical bridge: Astero contains six authored attachment-light definitions
+and Venture contains five, while both native roots correctly contain zero
+direct hull lights. Authored definition count is not runtime submission count.
+At the settled fixture, Astero expands to two active attachment lights and
+Venture expands to fourteen. Forcing either runtime count to equal the source
+definition count would be a false defect.
+
+The first diagnostic run exposed an isolation mistake. `--engines off`
+disabled the bridge engines but did not set the canonical native
+`EveBoosterSet2` display state. Canonical construction now applies the existing
+engine control to the native booster set. The accepted capture reports booster
+display off and zero booster-light submissions in every lane; the ordinary
+Tour still selects authored engines and is unchanged.
+
+The exact maximum-quality consumer containers are `quadv5.sm_depth` and
+`quadheatv5.sm_depth`. Despite the historical suffix, `.sm_depth` is the High
+client tier; `.sm_hi` is Medium. AIR and live material diagnostics both prove
+`LightBuffer` and `LightIndexBuffer` on submitted hull and heat passes.
+Authored/off depth, normals, camera, and Destiny state are invariant. Astero
+changes 56 HDR pixels with maximum channel delta 3 and hull-mean delta
+`2.54271e-5`; Venture changes 110 pixels with maximum delta 48 and hull-mean
+delta `3.26476e-4`. Astero A/B reports and sequences are byte-identical, so the
+small fixture-local footprints are above zero repeat noise rather than a
+reason to import reflection-sized thresholds.
+
+PL-14H5 classifies authored inventory, tiled transport, V5 consumption, and
+the Venture cross-hull control `correct`. It creates no PL-14I repair candidate
+and changes no light value, shader, material, exposure, grade, Silk, or froxel
+setting. Aggregate PL-14H is Accepted.
+
 ## Bright-background feature staircase (2026-07-17)
 
 The planet-shadow investigation stopped using canonical on/off isolates after

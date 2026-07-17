@@ -912,6 +912,13 @@ ALResult Tr2LightManager::GetLastUpdateResult() const
 	return m_lastUpdateResult;
 }
 
+bool Tr2LightManager::ArePublishedBuffersValidForDiagnostics() const
+{
+	return m_lightBuffer && m_lightBuffer->IsValid() &&
+		m_indexBuffer && m_indexBuffer->IsValid() &&
+		m_indexBufferCounter && m_indexBufferCounter->IsValid();
+}
+
 void Tr2LightManager::ReleaseResources( TriStorage s )
 {
 	if( s & m_perFrameData.GetMemoryClass() )

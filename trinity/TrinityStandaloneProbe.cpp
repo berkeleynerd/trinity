@@ -16150,6 +16150,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 					nativeError.c_str() );
 				return false;
 			}
+			if( EveBoosterSet2* boosters = probe.nativeShip->GetBoosters() )
+			{
+				const bool displayBoosters = engines == STANDALONE_ENGINES_AUTHORED;
+				boosters->SetDisplay( displayBoosters );
+				std::fprintf(
+					stderr,
+					"Canonical native booster participation: engines=%s display=%s\n",
+					displayBoosters ? "authored" : "off",
+					boosters->GetDisplay() ? "on" : "off" );
+			}
 		}
 		if( sceneFixture == 3 && !ConfigureNewEdenSystem( probe, *probe.scene, cameraView, composition, sunEffects, planetLayers, cloudYear, cloudMonth, cloudDay, sceneError ) )
 		{
@@ -23132,6 +23142,61 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteShipLightingReport( vo
 				  std::max( exposureDenominator, 0.000001f ) :
 			  std::pow( 2.0f, postProcess.exposureAdjustment ) ) :
 		0.0f;
+	Tr2LightManager* localLightManager = Tr2LightManager::GetInstance();
+	const bool localLightsSelected =
+		probe->localLights == STANDALONE_LOCAL_LIGHTS_AUTHORED;
+	const size_t rootLocalLightCount =
+		probe->nativeShip->GetLocalLightCountForDiagnostics();
+	const size_t authoredLocalLightCount =
+		probe->nativeSofDiagnostics.localLightCount;
+	EveBoosterSet2* nativeBoosters = probe->nativeShip->GetBoosters();
+	const EveBoosterSet2Diagnostics nativeBoosterDiagnostics =
+		nativeBoosters ? nativeBoosters->GetDiagnostics() : EveBoosterSet2Diagnostics{};
+	const size_t resolvedLocalLightCount =
+		localLightManager ? localLightManager->GetResolvedLightCount() : 0;
+	struct LocalLightConsumerDiagnostics
+	{
+		std::string family;
+		std::string effectPath;
+		bool displayed = false;
+		bool lightBuffer = false;
+		bool lightIndexBuffer = false;
+	};
+	std::vector<LocalLightConsumerDiagnostics> localLightConsumers;
+	if( Tr2MeshBase* mesh = probe->nativeShip->GetMesh() )
+	{
+		for( const Tr2MeshAreaPtr& area : mesh->GetAllAreas() )
+		{
+			Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+			const std::string path = effect && effect->GetEffectPathName() ?
+				effect->GetEffectPathName() :
+				"";
+			const bool heat = path.find( "quadheatv5" ) != std::string::npos;
+			const bool hull = !heat && path.find( "quadv5" ) != std::string::npos;
+			if( !hull && !heat )
+			{
+				continue;
+			}
+			const std::string family = heat ? "heat" : "hull";
+			if( std::find_if(
+					localLightConsumers.begin(),
+					localLightConsumers.end(),
+					[&]( const LocalLightConsumerDiagnostics& value ) {
+						return value.family == family;
+					} ) != localLightConsumers.end() )
+			{
+				continue;
+			}
+			Tr2Shader* shader = effect->GetShaderStateInterface();
+			LocalLightConsumerDiagnostics consumer;
+			consumer.family = family;
+			consumer.effectPath = path;
+			consumer.displayed = area->GetDisplay();
+			consumer.lightBuffer = shader && shader->GetResource( "LightBuffer" );
+			consumer.lightIndexBuffer = shader && shader->GetResource( "LightIndexBuffer" );
+			localLightConsumers.push_back( consumer );
+		}
+	}
 
 	std::ofstream output( probe->shipLightingReportPath, std::ios::binary | std::ios::trunc );
 	if( !output )
@@ -23213,8 +23278,108 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteShipLightingReport( vo
 		   << ",\"attachmentLights\":" << probe->nativeSofDiagnostics.attachmentLightCount
 		   << ",\"localLights\":" << probe->nativeSofDiagnostics.localLightCount
 		   << ",\"boosters\":" << probe->nativeSofDiagnostics.boosterCount
-		   << ",\"trails\":" << probe->nativeSofDiagnostics.trailCount << "},\n"
-		   << "  \"transport\":{\"shadowQuality\":" << static_cast<int>( settings.shadowQuality )
+		   << ",\"trails\":" << probe->nativeSofDiagnostics.trailCount << "},\n";
+	output << "  \"authoredLocalLighting\":{\"selection\":"
+		   << SolarBodyJsonString( localLightsSelected ? "authored" : "off" )
+		   << ",\"owner\":\"native-SOF-ship-graph\",\"effect\":"
+		   << SolarBodyJsonString(
+				  "res:/graphics/effect/managed/space/system/computelightlists.fx" )
+		   << ",\"authoredCount\":" << authoredLocalLightCount
+		   << ",\"rootCount\":" << rootLocalLightCount
+		   << ",\"rootLights\":[";
+	for( size_t index = 0; index < rootLocalLightCount; ++index )
+	{
+		const Tr2Light* light = probe->nativeShip->GetLocalLightForDiagnostics( index );
+		if( !light )
+		{
+			CCP_LOGERR( "Native ship local-light diagnostics encountered a null light" );
+			return false;
+		}
+		const LightData& data = light->GetLightData();
+		output << ( index ? "," : "" ) << "{\"index\":" << index
+			   << ",\"kind\":"
+			   << SolarBodyJsonString( data.outerAngle > 0.0f ? "spot" : "point" )
+			   << ",\"position\":[" << data.position.x << ',' << data.position.y << ','
+			   << data.position.z << "],\"color\":[" << data.color.r << ',' << data.color.g
+			   << ',' << data.color.b << ',' << data.color.a << "],\"brightness\":"
+			   << data.brightness << ",\"brightnessMultiplier\":"
+			   << light->GetBrightnessMultiplier() << ",\"radius\":" << data.radius
+			   << ",\"innerRadius\":" << static_cast<float>( data.innerRadius )
+			   << ",\"noiseAmplitude\":"
+			   << data.noiseAmplitude << ",\"noiseFrequency\":" << data.noiseFrequency
+			   << ",\"noiseOctaves\":" << data.noiseOctaves << ",\"boneIndex\":"
+			   << data.boneIndex << ",\"flags\":" << data.flags << ",\"castsShadows\":"
+			   << static_cast<int>( data.castsShadows ) << '}';
+	}
+	output << "],\"boosters\":{\"present\":"
+		   << ( nativeBoosters ? "true" : "false" )
+		   << ",\"displayed\":"
+		   << ( nativeBoosters && nativeBoosters->GetDisplay() ? "true" : "false" )
+		   << ",\"authoredExhaustCount\":" << nativeBoosterDiagnostics.boosterCount
+		   << ",\"submittedLights\":" << nativeBoosterDiagnostics.lightSubmissionCount
+		   << "},\"manager\":{\"present\":"
+		   << ( localLightManager ? "true" : "false" )
+		   << ",\"buffersValid\":"
+		   << ( localLightManager &&
+					localLightManager->ArePublishedBuffersValidForDiagnostics() ?
+					"true" :
+					"false" )
+		   << ",\"updateSucceeded\":"
+		   << ( localLightManager && SUCCEEDED( localLightManager->GetLastUpdateResult() ) ?
+					"true" :
+					"false" )
+		   << ",\"resolvedCount\":" << resolvedLocalLightCount
+		   << ",\"deterministicOrdering\":"
+		   << ( localLightManager &&
+					localLightManager->IsDeterministicListOrderingForTesting() ?
+					"true" :
+					"false" )
+		   << ",\"dataOrderingPasses\":"
+		   << ( localLightManager ?
+					localLightManager->GetDeterministicLightDataOrderingPassCountForTesting() :
+					0 )
+		   << ",\"listOrderingPasses\":"
+		   << ( localLightManager ?
+					localLightManager->GetDeterministicListOrderingPassCountForTesting() :
+					0 )
+		   << ",\"localShadowsEnabled\":"
+		   << ( Tr2LightManager::AreDynamicLightShadowsEnabled() ? "true" : "false" )
+		   << "},\"resolved\":[";
+	for( size_t index = 0; index < resolvedLocalLightCount; ++index )
+	{
+		const Tr2LightManager::PerLightData& data = localLightManager->GetLightData(
+			static_cast<uint32_t>( index ) );
+		output << ( index ? "," : "" ) << "{\"index\":" << index
+			   << ",\"position\":[" << data.position.x << ',' << data.position.y << ','
+			   << data.position.z << "],\"color\":[" << data.color.x << ',' << data.color.y
+			   << ',' << data.color.z << "],\"radius\":" << data.radius
+			   << ",\"innerRadius\":" << static_cast<float>( data.innerRadius )
+			   << ",\"flags\":" << data.flags
+			   << '}';
+	}
+	output << "],\"consumer\":{\"effects\":[\"quadv5.sm_depth\",\"quadheatv5.sm_depth\"],"
+			  "\"technique\":\"Main\",\"resources\":[\"LightBuffer\",\"LightIndexBuffer\"],"
+			  "\"shaderTier\":\"high\",\"bindings\":[";
+	for( size_t index = 0; index < localLightConsumers.size(); ++index )
+	{
+		const auto& consumer = localLightConsumers[index];
+		output << ( index ? "," : "" ) << "{\"family\":"
+			   << SolarBodyJsonString( consumer.family ) << ",\"effectPath\":"
+			   << SolarBodyJsonString( consumer.effectPath ) << ",\"displayed\":"
+			   << ( consumer.displayed ? "true" : "false" ) << ",\"lightBuffer\":"
+			   << ( consumer.lightBuffer ? "true" : "false" )
+			   << ",\"lightIndexBuffer\":"
+			   << ( consumer.lightIndexBuffer ? "true" : "false" ) << '}';
+	}
+	output << "],\"submitted\":"
+		   << ( probe->nativeSofDiagnostics.materialAreaCount > 0 ? "true" : "false" )
+		   << "},\"hullMetrics\":{\"pixels\":"
+		   << probe->solarIlluminationReceiverPixels << ",\"litPixels\":"
+		   << probe->solarIlluminationReceiverLitPixels << ",\"energy\":"
+		   << probe->solarIlluminationReceiverEnergy << ",\"meanLuminance\":"
+		   << probe->solarIlluminationReceiverMeanLuminance << ",\"maximumLuminance\":"
+		   << probe->solarIlluminationReceiverMaximumLuminance << "}},\n";
+	output << "  \"transport\":{\"shadowQuality\":" << static_cast<int>( settings.shadowQuality )
 		   << ",\"directionalShadowsEnabled\":" << ( settings.enableDirectionalShadows ? "true" : "false" )
 		   << ",\"raytracingSupported\":" << ( probe->rayTracingSupported ? "true" : "false" )
 		   << ",\"raytracedGeometryPresent\":" << ( raytraced.geometryPresent ? "true" : "false" )

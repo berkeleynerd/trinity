@@ -7059,7 +7059,7 @@ int main( int argc, char** argv )
 		}
 		if( options.lightingAuditStation != LightingAuditStation::Unspecified &&
 			options.reflectionLightingReportPath.empty() && options.occlusionLightingReportPath.empty() &&
-			options.ssaoTransportReportPath.empty() )
+			options.ssaoTransportReportPath.empty() && options.shipLightingReportPath.empty() )
 		{
 			std::cerr << "--lighting-audit-station requires a lighting-audit report\n";
 			return 2;

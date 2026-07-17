@@ -261,6 +261,8 @@ public:
 		return m_display;
 	}
 	void SetDisplay( bool display );
+	size_t GetLocalLightCountForDiagnostics() const;
+	const Tr2Light* GetLocalLightForDiagnostics( size_t index ) const;
 
 	void PlayAnimation( const char* animName, bool replace, int loopCount, float start, float speed, Be::OptionalWithDefaultValue<bool, true> clearWhenDone );
 	void PlayAnimationOnce( const char* animName );

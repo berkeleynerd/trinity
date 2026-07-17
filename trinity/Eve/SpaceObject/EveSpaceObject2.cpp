@@ -3573,6 +3573,16 @@ void EveSpaceObject2::GetLights( Tr2LightManager& lightManager ) const
 	auto displayChildren = DisplayChildren();
 }
 
+size_t EveSpaceObject2::GetLocalLightCountForDiagnostics() const
+{
+	return m_lights.size();
+}
+
+const Tr2Light* EveSpaceObject2::GetLocalLightForDiagnostics( size_t index ) const
+{
+	return index < m_lights.size() ? m_lights[index] : nullptr;
+}
+
 // --------------------------------------------------------------------------------
 bool EveSpaceObject2::IsPickable() const
 {

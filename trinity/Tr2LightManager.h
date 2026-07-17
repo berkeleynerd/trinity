@@ -139,6 +139,7 @@ public:
 	size_t GetResolvedLightCount() const;
 	size_t GetCurrentThreadPendingLightCount();
 	ALResult GetLastUpdateResult() const;
+	bool ArePublishedBuffersValidForDiagnostics() const;
 	void SetVariableStore();
 	void AdjustLightCutoff( float lodFactor );
 
