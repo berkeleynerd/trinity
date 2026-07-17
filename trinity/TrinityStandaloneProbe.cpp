@@ -496,6 +496,9 @@ const char* const kDefaultSofHullPath = "res:/dx9/model/spaceobjectfactory/hulls
 const char* const kDefaultSofFactionPath = "res:/dx9/model/spaceobjectfactory/factions/soebase.black";
 std::string g_sofHullPath = kDefaultSofHullPath;
 std::string g_sofFactionPath = kDefaultSofFactionPath;
+// Parallel res:/ prefix for the modernized-texture switch; empty renders the
+// hull's original maps.
+std::string g_sofTextureRoot;
 
 struct StandaloneProbe;
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
@@ -9423,9 +9426,17 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 	{
 		const bool useFlatNormal = opaqueArea && normalMapMode == STANDALONE_NORMAL_MAP_FLAT &&
 			std::strcmp( texture->m_name.c_str(), "NormalMap" ) == 0;
-		effect.AddResourceTexture2D(
-			texture->m_name,
-			useFlatNormal ? "res:/texture/global/flatnormal.dds" : texture->m_resFilePath.c_str() );
+		std::string texturePath =
+			useFlatNormal ? "res:/texture/global/flatnormal.dds" : texture->m_resFilePath.c_str();
+		if( opaqueArea && !useFlatNormal && !g_sofTextureRoot.empty() &&
+			texturePath.rfind( "res:/", 0 ) == 0 )
+		{
+			// Parallel prefix, not overlay: Blue resolves one root per res:/
+			// prefix, so the modernized set lives under its own subtree and a
+			// missing override fails loudly at texture validation.
+			texturePath = "res:/" + g_sofTextureRoot + "/" + texturePath.substr( 5 );
+		}
+		effect.AddResourceTexture2D( texture->m_name, texturePath.c_str() );
 	}
 	if( opaqueArea )
 	{
@@ -22395,6 +22406,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrewarmSolarParticles( void
 		static_cast<double>( probe->solarParticlePrewarmTime ) / 10000000.0,
 		emitter->GetEmittedParticleCount() );
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofTextureRoot( const char* root )
+{
+	g_sofTextureRoot = root ? root : "";
+	std::fprintf( stderr, "SOF texture set selected: %s\n",
+				  g_sofTextureRoot.empty() ? "original" : g_sofTextureRoot.c_str() );
 }
 
 TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath )

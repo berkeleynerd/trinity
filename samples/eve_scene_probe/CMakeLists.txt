@@ -2736,6 +2736,44 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         TrinityEveSceneProbeTalocanWreckAssets)
 endif()
 
+# Modernized texture set for the tde1 wreck. PNG masters live in an
+# out-of-repo workspace (bootstrap_talocan_modern_workspace.py seeds a
+# tint-spike set from the staged originals); when present they are encoded
+# into a parallel res:/modernized/ prefix that --sof-texture-set modernized
+# selects at run time. Deliberately NOT wired into TrinityEveSceneProbeAssets:
+# machines without the workspace stay green, and no derivative bytes enter
+# git. The workspace is scanned at configure time — reconfigure after adding
+# masters.
+set(EVE_SCENE_PROBE_TALOCAN_MODERN_DIR "$ENV{HOME}/TalocanModernization/tde1_t1_wreck"
+    CACHE PATH "Out-of-repo workspace holding modernized tde1 PNG masters")
+if(EXISTS "${EVE_SCENE_PROBE_TALOCAN_MODERN_DIR}")
+    set(EVE_SCENE_PROBE_TALOCAN_MODERN_STAGE_DIR
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/modernized/dx9/model/ship/talocan/destroyer/tde1)
+    set(EVE_SCENE_PROBE_TALOCAN_MODERN_OUTPUTS)
+    foreach(texture_suffix a d g m n p3 r)
+        set(modern_png
+            "${EVE_SCENE_PROBE_TALOCAN_MODERN_DIR}/tde1_t1_wreck_${texture_suffix}.png")
+        if(EXISTS "${modern_png}")
+            set(modern_dds
+                "${EVE_SCENE_PROBE_TALOCAN_MODERN_STAGE_DIR}/tde1_t1_wreck_${texture_suffix}.dds")
+            add_custom_command(
+                OUTPUT ${modern_dds}
+                COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_TALOCAN_MODERN_STAGE_DIR}
+                COMMAND $<TARGET_FILE:TrinityRgbaToDds>
+                    --input ${modern_png}
+                    --output ${modern_dds}
+                    --summary
+                DEPENDS TrinityRgbaToDds ${modern_png}
+                VERBATIM)
+            list(APPEND EVE_SCENE_PROBE_TALOCAN_MODERN_OUTPUTS ${modern_dds})
+        endif()
+    endforeach()
+    if(EVE_SCENE_PROBE_TALOCAN_MODERN_OUTPUTS)
+        add_custom_target(TrinityEveSceneProbeTalocanModernAssets
+            DEPENDS ${EVE_SCENE_PROBE_TALOCAN_MODERN_OUTPUTS})
+    endif()
+endif()
+
 if(TARGET TrinityAnimatedModelAssets)
     set(EVE_SCENE_PROBE_FOX_CMF ${CMAKE_BINARY_DIR}/samples/animated_model/Assets/Fox.cmf)
     add_dependencies(TrinityEveSceneProbeAssets TrinityAnimatedModelAssets)

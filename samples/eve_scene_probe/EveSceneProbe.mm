@@ -144,6 +144,7 @@ extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
 extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
+extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -713,6 +714,7 @@ enum class ShSource
 struct Options
 {
 	std::string asset = "astero";
+	std::string sofTextureSet = "original";
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -4103,6 +4105,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--sof-texture-set" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.sofTextureSet = ToLower( argv[i] );
+			if( options.sofTextureSet != "original" && options.sofTextureSet != "modernized" )
+			{
+				return false;
+			}
+		}
 		else if( arg == "--nebula" )
 		{
 			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.nebula ) )
@@ -4338,6 +4352,12 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( !options.materialModeExplicit && IsSofAsset( options ) )
 	{
 		options.materialMode = MaterialMode::EveV5;
+	}
+	if( options.sofTextureSet == "modernized" &&
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ) )
+	{
+		std::cerr << "--sof-texture-set modernized requires a SOF asset rendered with --material-mode eve-v5\n";
+		return false;
 	}
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
 	{
@@ -5359,7 +5379,8 @@ std::string CaptureBasePath( const Options& options )
 		DecalViewName( options.decalView ) + "-kills-" + std::to_string( options.killCount ) + "_shadow-" +
 		ShadowsName( options.resolvedShadows ) + "_ao-" + AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
-	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
+	const std::string fullPath = options.capturePrefix + "_" + options.asset +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
 		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
@@ -5383,7 +5404,9 @@ std::string CaptureBasePath( const Options& options )
 	}
 	char hashText[17];
 	std::snprintf( hashText, sizeof( hashText ), "%016llx", static_cast<unsigned long long>( hash ) );
-	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + "_decal-" +
+	return options.capturePrefix + "_" + options.asset +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) + "_" +
+		QualityRungName( options.qualityRung ) + "_decal-" +
 		DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
 		std::to_string( options.killCount ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
 		PlanetCloudDateName( options ) + "_" + hashText;
@@ -7231,6 +7254,7 @@ int main( int argc, char** argv )
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
 		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
+		TrinityStandaloneProbeSetSofTextureRoot( options.sofTextureSet == "modernized" ? "modernized" : "" );
 		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
