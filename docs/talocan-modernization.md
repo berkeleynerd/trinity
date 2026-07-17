@@ -156,6 +156,16 @@ formation flags with `--scene-fixture new-eden --composition system
 --eve-gate authored --celestial-anchor stargate` and no ballpark
 render all four hulls lit three-quarter on the default model camera.
 
+For a posed static shot, `--camera-azimuth DEG --camera-elevation DEG
+--camera-distance M` re-aim the model camera around the formation
+(azimuth rotates from the authored -Z eye; zero distance keeps the
+authored pose). The accepted no-warp gate composition places the fleet
+at the stargate anchor and swings the camera until the authored gate
+sits behind the line: `--camera-azimuth -119 --camera-elevation 2
+--camera-distance 4300` (the anchor's gate bearing is close to the sun
+direction, so dead-on aim silhouettes the hulls; ~10-20 degrees off
+keeps them lit).
+
 ## Known limitations
 
 - `TrinityRgbaToDds` mip generation is a byte-space 2x2 box (not

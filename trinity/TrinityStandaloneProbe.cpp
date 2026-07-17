@@ -5381,6 +5381,11 @@ struct StandaloneProbe
 	// chase for hulls far larger than the Astero the constants were tuned for.
 	float chaseCameraDistanceOverride = 0.0f;
 	float chaseCameraHeightOverride = 0.0f;
+	// Static model-camera pose override: distance in meters enables it;
+	// azimuth rotates around +Y from the authored -Z eye, elevation lifts it.
+	float staticCameraAzimuthDegrees = 0.0f;
+	float staticCameraElevationDegrees = 0.0f;
+	float staticCameraDistance = 0.0f;
 	Vector3 chaseCameraEye = Vector3( 0.0f, 0.0f, 0.0f );
 	Vector3 chaseCameraTarget = Vector3( 0.0f, 0.0f, 0.0f );
 	TrinityStandaloneCelestialDiagnostics celestialDiagnostics;
@@ -16520,7 +16525,28 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 												  ( exactSystemInspection ? eye + probe.celestialInspectionDirection :
 																			( cameraView == STANDALONE_CAMERA_CELESTIALS ? eye + Normalize( Vector3( 1069486940160.0f, -202669301760.0f, -831868968960.0f ) ) :
 																														   ( cameraView == STANDALONE_CAMERA_PLANET ? planetPosition : Vector3( 0.0f, 0.0f, 0.0f ) ) ) );
-	probe.view->SetLookAtPosition( cameraEye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
+	Vector3 posedEye = cameraEye;
+	Vector3 posedTarget = target;
+	if( probe.staticCameraDistance > 0.0f && !nativeBodyInspection && !exactSystemInspection &&
+		cameraView == STANDALONE_CAMERA_MODEL )
+	{
+		constexpr float degreesToRadians = 3.1415926535f / 180.0f;
+		const float azimuth = probe.staticCameraAzimuthDegrees * degreesToRadians;
+		const float elevation = probe.staticCameraElevationDegrees * degreesToRadians;
+		posedEye = Vector3(
+					   std::sin( azimuth ) * std::cos( elevation ),
+					   std::sin( elevation ),
+					   -std::cos( azimuth ) * std::cos( elevation ) ) *
+			probe.staticCameraDistance;
+		posedTarget = Vector3( 0.0f, 0.0f, 0.0f );
+		std::fprintf(
+			stderr,
+			"Static camera rig override: azimuth=%g elevation=%g distance=%g\n",
+			probe.staticCameraAzimuthDegrees,
+			probe.staticCameraElevationDegrees,
+			probe.staticCameraDistance );
+	}
+	probe.view->SetLookAtPosition( posedEye, posedTarget, Vector3( 0.0f, 1.0f, 0.0f ) );
 	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
 																		  ( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
 	const float cameraFovRadians = exactSystemInspection ? probe.celestialInspectionFovRadians : 60.0f * 3.1415926535f / 180.0f;
@@ -25575,6 +25601,14 @@ TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetChaseCameraRig( void* op
 					  probe->chaseCameraDistanceOverride,
 					  probe->chaseCameraHeightOverride );
 	}
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe, float azimuthDegrees, float elevationDegrees, float distance )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	probe->staticCameraAzimuthDegrees = azimuthDegrees;
+	probe->staticCameraElevationDegrees = elevationDegrees;
+	probe->staticCameraDistance = distance > 0.0f ? distance : 0.0f;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* opaqueProbe, int anchor )

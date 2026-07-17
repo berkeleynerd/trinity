@@ -147,6 +147,7 @@ extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const ch
 extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
 extern "C" void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath );
 extern "C" void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height );
+extern "C" void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe, float azimuthDegrees, float elevationDegrees, float distance );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -720,6 +721,9 @@ struct Options
 	std::vector<std::string> formationShips;
 	float chaseDistance = 0.0f;
 	float chaseHeight = 0.0f;
+	float cameraAzimuth = 0.0f;
+	float cameraElevation = 0.0f;
+	float cameraDistance = 0.0f;
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -4181,6 +4185,33 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--camera-azimuth" || arg == "--camera-elevation" || arg == "--camera-distance" )
+		{
+			const std::string cameraArg = arg;
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) ||
+				( cameraArg == "--camera-distance" && parsed <= 0.0f ) )
+			{
+				return false;
+			}
+			if( cameraArg == "--camera-azimuth" )
+			{
+				options.cameraAzimuth = parsed;
+			}
+			else if( cameraArg == "--camera-elevation" )
+			{
+				options.cameraElevation = parsed;
+			}
+			else
+			{
+				options.cameraDistance = parsed;
+			}
+		}
 		else if( arg == "--chase-distance" || arg == "--chase-height" )
 		{
 			const bool isDistance = arg == "--chase-distance";
@@ -7385,6 +7416,8 @@ int main( int argc, char** argv )
 				formationCmf.c_str(), SofHullPathForAssetId( formationShip ) );
 		}
 		TrinityStandaloneProbeSetChaseCameraRig( probe, options.chaseDistance, options.chaseHeight );
+		TrinityStandaloneProbeSetStaticCameraRig(
+			probe, options.cameraAzimuth, options.cameraElevation, options.cameraDistance );
 		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
