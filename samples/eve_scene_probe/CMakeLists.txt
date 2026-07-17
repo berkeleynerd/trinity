@@ -2736,6 +2736,93 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
         TrinityEveSceneProbeTalocanWreckAssets)
 endif()
 
+# The remaining Talocan ship-class dormant hulls share the tde1 closure
+# shape exactly: one GR2 plus the same seven authored map suffixes and a
+# SOF hull black. The faction and race blacks ride the tde1 lane above, so
+# the family targets depend on it. Each entry is class;model-subdir;stem.
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    foreach(talocan_entry
+        "Frigate;frigate/tf1;tf1"
+        "Cruiser;cruiser/tc1;tc1"
+        "Battleship;battleship/tb1;tb1")
+        list(GET talocan_entry 0 talocan_class)
+        list(GET talocan_entry 1 talocan_subdir)
+        list(GET talocan_entry 2 talocan_stem)
+
+        set(talocan_model
+            "res:/dx9/model/ship/talocan/${talocan_subdir}/${talocan_stem}_t1_wreck.gr2")
+        set(talocan_build_dir ${CMAKE_CURRENT_BINARY_DIR}/Talocan${talocan_class}Assets)
+        set(talocan_gltf ${talocan_build_dir}/Talocan${talocan_class}.gltf)
+        set(talocan_bin ${talocan_build_dir}/Talocan${talocan_class}.bin)
+        set(talocan_cmf ${EVE_SCENE_PROBE_ASSETS_DIR}/Talocan${talocan_class}.cmf)
+        set(talocan_resource_dir
+            ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/talocan/${talocan_subdir})
+        set(talocan_hull_black
+            ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}/${talocan_stem}_t1_wreck.black)
+        set(talocan_manifest
+            ${CMAKE_CURRENT_BINARY_DIR}/Reports/Talocan${talocan_class}WreckResources.json)
+        set(talocan_cmf_hash
+            ${CMAKE_CURRENT_BINARY_DIR}/Reports/Talocan${talocan_class}WreckCmf.sha256)
+
+        set(talocan_outputs)
+        set(talocan_copy_args)
+        foreach(texture_suffix a d g m n p3 r)
+            set(logical_texture
+                "res:/dx9/model/ship/talocan/${talocan_subdir}/${talocan_stem}_t1_wreck_${texture_suffix}.dds")
+            set(staged_texture
+                "${talocan_resource_dir}/${talocan_stem}_t1_wreck_${texture_suffix}.dds")
+            list(APPEND talocan_outputs ${staged_texture})
+            list(APPEND talocan_copy_args
+                --copy-resource ${logical_texture} ${staged_texture})
+        endforeach()
+        list(APPEND talocan_outputs ${talocan_hull_black})
+        list(APPEND talocan_copy_args
+            --copy-resource
+                res:/dx9/model/spaceobjectfactory/hulls/${talocan_stem}_t1_wreck.black
+                ${talocan_hull_black})
+
+        add_custom_command(
+            OUTPUT ${talocan_gltf} ${talocan_bin} ${talocan_outputs} ${talocan_manifest}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${talocan_build_dir}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${talocan_resource_dir}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}
+            COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+                --model ${talocan_model}
+                --output ${talocan_gltf}
+                ${talocan_copy_args}
+                --manifest ${talocan_manifest}
+                --summary
+            DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+                ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+            VERBATIM)
+        add_custom_command(
+            OUTPUT ${talocan_cmf}
+            COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+                --input ${talocan_gltf}
+                --output ${talocan_cmf}
+                --merge-meshes
+                --summary
+            DEPENDS TrinityGltfToCmf ${talocan_gltf} ${talocan_bin}
+            VERBATIM)
+        add_custom_command(
+            OUTPUT ${talocan_cmf_hash}
+            COMMAND ${CMAKE_COMMAND}
+                -DINPUT=${talocan_cmf}
+                -DOUTPUT=${talocan_cmf_hash}
+                -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+            DEPENDS ${talocan_cmf} ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+            VERBATIM)
+        add_custom_target(TrinityEveSceneProbeTalocan${talocan_class}WreckAssets
+            DEPENDS ${talocan_cmf} ${talocan_outputs} ${talocan_manifest} ${talocan_cmf_hash})
+        add_dependencies(TrinityEveSceneProbeTalocan${talocan_class}WreckAssets
+            TrinityEveSceneProbeTalocanWreckAssets)
+        add_dependencies(TrinityEveSceneProbeAssets
+            TrinityEveSceneProbeTalocan${talocan_class}WreckAssets)
+    endforeach()
+endif()
+
 # Modernized texture set for the tde1 wreck. PNG masters live in an
 # out-of-repo workspace (bootstrap_talocan_modern_workspace.py seeds a
 # tint-spike set from the staged originals); when present they are encoded

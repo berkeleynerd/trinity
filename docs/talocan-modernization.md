@@ -12,6 +12,13 @@ set at run time with a byte-deterministic A/B rig around the swap.
   (`talocanbase.black`) drive areas, textures, and glow; the probe treats
   the model's only GR2 group as the hull and tolerates texture slots the
   hull's area leaves unset.
+- The full ship-class family on the same machinery: `talocan-frigate`
+  (tf1), `talocan-cruiser` (tc1), and `talocan-battleship` (tb1). All
+  four wrecks are single group-0 meshes with the identical seven-map
+  closure; every hull reached first light with zero FAILED slots. The
+  modernization workspace and `--sof-texture-set` rewrite remain
+  rehearsed on tde1 (the rewrite itself is path-generic, so a family
+  workspace is a staging-lane clone away).
 - Staging: `TrinityEveSceneProbeTalocanWreckAssets` pulls the GR2, seven
   authored maps, and the SOF hull/faction/race blacks from the SharedCache
   into the ignored build tree (ledger: "Talocan tde1 wreck").

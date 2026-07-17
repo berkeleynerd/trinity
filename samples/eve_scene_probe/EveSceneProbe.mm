@@ -2831,13 +2831,33 @@ std::string DefaultAssetPath( const Options& options )
 	{
 		return executableDirectory + "/Assets/Talocan.cmf";
 	}
+	if( options.asset == "talocan-frigate" )
+	{
+		return executableDirectory + "/Assets/TalocanFrigate.cmf";
+	}
+	if( options.asset == "talocan-cruiser" )
+	{
+		return executableDirectory + "/Assets/TalocanCruiser.cmf";
+	}
+	if( options.asset == "talocan-battleship" )
+	{
+		return executableDirectory + "/Assets/TalocanBattleship.cmf";
+	}
 	return executableDirectory + "/Assets/11989_lite.cmf";
+}
+
+// The Talocan ship-class dormant hulls; "talocan" is the tde1 destroyer, the
+// original rehearsal hull.
+bool IsTalocanAsset( const Options& options )
+{
+	return options.asset == "talocan" || options.asset == "talocan-frigate" ||
+		options.asset == "talocan-cruiser" || options.asset == "talocan-battleship";
 }
 
 // Assets rendered through the EVE SOF / eve-v5 material path.
 bool IsSofAsset( const Options& options )
 {
-	return options.asset == "astero" || options.asset == "talocan";
+	return options.asset == "astero" || IsTalocanAsset( options );
 }
 
 // Each SOF hull declares its own areas and texture paths, so selecting the hull
@@ -2848,12 +2868,24 @@ const char* SofHullPath( const Options& options )
 	{
 		return "res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black";
 	}
+	if( options.asset == "talocan-frigate" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tf1_t1_wreck.black";
+	}
+	if( options.asset == "talocan-cruiser" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tc1_t1_wreck.black";
+	}
+	if( options.asset == "talocan-battleship" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tb1_t1_wreck.black";
+	}
 	return "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black";
 }
 
 const char* SofFactionPath( const Options& options )
 {
-	if( options.asset == "talocan" )
+	if( IsTalocanAsset( options ) )
 	{
 		return "res:/dx9/model/spaceobjectfactory/factions/talocanbase.black";
 	}
@@ -3405,7 +3437,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			}
 			options.asset = ToLower( argv[i] );
 			if( options.asset != "astero" && options.asset != "ship" && options.asset != "fox" &&
-				options.asset != "talocan" )
+				options.asset != "talocan" && options.asset != "talocan-frigate" &&
+				options.asset != "talocan-cruiser" && options.asset != "talocan-battleship" )
 			{
 				return false;
 			}

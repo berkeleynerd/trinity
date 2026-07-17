@@ -96,6 +96,23 @@ res:/dx9/model/spaceobjectfactory/factions/talocanbase.black
 res:/dx9/model/spaceobjectfactory/races/talocan.black
 ```
 
+The remaining ship-class dormant hulls share the tde1 closure shape —
+one GR2 plus the same seven map suffixes (`_a _d _g _m _n _p3 _r`) and a
+SOF hull black; faction and race are shared with the destroyer above.
+Reports land in `Talocan<Class>WreckResources.json` / `...Cmf.sha256`:
+
+```text
+res:/dx9/model/ship/talocan/frigate/tf1/tf1_t1_wreck.gr2
+res:/dx9/model/ship/talocan/frigate/tf1/tf1_t1_wreck_{a,d,g,m,n,p3,r}.dds
+res:/dx9/model/spaceobjectfactory/hulls/tf1_t1_wreck.black
+res:/dx9/model/ship/talocan/cruiser/tc1/tc1_t1_wreck.gr2
+res:/dx9/model/ship/talocan/cruiser/tc1/tc1_t1_wreck_{a,d,g,m,n,p3,r}.dds
+res:/dx9/model/spaceobjectfactory/hulls/tc1_t1_wreck.black
+res:/dx9/model/ship/talocan/battleship/tb1/tb1_t1_wreck.gr2
+res:/dx9/model/ship/talocan/battleship/tb1/tb1_t1_wreck_{a,d,g,m,n,p3,r}.dds
+res:/dx9/model/spaceobjectfactory/hulls/tb1_t1_wreck.black
+```
+
 The parallel `res:/modernized/` prefix (selected by
 `--sof-texture-set modernized`) is populated only from the out-of-repo
 workspace `~/TalocanModernization/` via `TrinityRgbaToDds` at build time.
