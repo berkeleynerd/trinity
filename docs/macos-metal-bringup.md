@@ -3596,12 +3596,38 @@ the EVE Gate likewise left the outer Gate and sky regions byte-identical.
 
 The observed darkness is therefore not a global planet mesh or directional-
 shadow multiply. Planet occlusion correctly removes a broad additive solar
-optics contribution, while the current source-selected exposure settles near
-its lower adaptation boundary and does not open the authored nebula or sparse
-starfield. The next environment/background audit must resolve histogram and
-minimum-luminance semantics, background shader consumption, and any client
-background-specific exposure policy before changing a value. Generated PNGs,
-reports, and logs remain ignored under `.cmake-build-arm64-osx-debug/pl14/pl14i1/`.
+optics contribution. PL-14H4 now resolves the remaining background split:
+source exposure and the sparse starfield are live, while the authored A01
+nebula cube contributes zero pixels before exposure. Generated PNGs, reports,
+and logs remain ignored beneath Promised Land's PL-14H build tree.
+
+## PL-14H4 background and exposure audit (2026-07-17)
+
+Seven background-only full-route lanes retain frames 180, 900, 1621, 2520,
+4260, 5521, 5581, and 5701. Canonical and legacy construction each repeat
+exactly for camera, trajectory, exposure, depth, normals, and the audited outer
+background products. At frame 5701 their HDR background strips are byte-exact;
+post-tone through drawable differ by at most two code values at boundary spill.
+The native ship remains a geometry/presentation delta, but it is not a global
+sky multiplier.
+
+The selected `background.sm_depth` `Main` AIR samples `NebulaMap` as a cube at
+register zero. Runtime reports effect readiness, authored intensity `1.25`, and
+the staged nonempty 2048×2048 BC6H-SF16 A01 cube. Replacing that binding with
+black nevertheless changes zero pixels in HDR, post-tone, final, or drawable
+at every sampled frame. H4 classifies the authored nebula path `missing` and
+records one narrow repair candidate at the Metal BC6H-SF16 texture/sample
+boundary. No alternate texture, intensity, gamma, exposure, or grading value
+is authorized.
+
+The 565-sprite starfield is healthy: disabling it changes 128 frame-5701 outer
+HDR pixels (maximum channel delta 35) and 83 drawable pixels (maximum delta
+14). Source exposure is also correct. It uses the serialized 90–98% histogram
+window, luminance clamp `[0.4649, 10]`, middle value `0.55`, and `2.0/1.5`
+adaptation speeds. Observed adapted luminance stays in `0.486338…–0.834362…`;
+the sparse stars do not move the selected percentile. H4 is Accepted with
+nebula `missing`, and starfield, exposure, presentation, and construction-
+background equivalence `correct`.
 
 ## Bright-background feature staircase (2026-07-17)
 
@@ -3625,7 +3651,7 @@ The accepted sequence is:
 | 5 | Client bloom and final composition | Pass |
 | 6 | Client film grain | Pass |
 | 7 | High TAA | Pass |
-| 8 | New Eden scene, nebula, and starfield ownership | Pass |
+| 8 | New Eden background-effect and starfield ownership | Pass; H4 later proves this did not establish live `NebulaMap` contribution |
 | 9 | New Eden SH transport | Pass; legacy `3.14` remains quarantined |
 | 10 | Authored local-light path | Pass |
 | 11 | Static A01 reflection | Pass |
@@ -3658,7 +3684,8 @@ The accepted sequence is:
 | 38 | Authored warp tunnel during active outbound warp | Pass; strong intentional warp-local overlay, absent from the later planet view |
 | 39 | Full planet-finale choreography through settled frame 5701 | Pass; exact reported endpoint looks good on the accumulated legacy path |
 
-Steps 0-29 preserve a plainly bright, readable nebula and starfield. Step 29
+Steps 0-29 preserve a plainly bright, readable nebula-like field and starfield.
+H4 later proves that field is not live output from the authored `NebulaMap`. Step 29
 places the static ego about `1.370e12 m` from the Sun, approximately `136x` the
 `10,060,000,256 m` activation radius, and correctly leaves the solar
 environment inactive. Step 30 moves the same static Ballpark to the accepted
@@ -3713,7 +3740,7 @@ near-Sun dimming contributor.
 Step 35 replaces frozen direct-Sun color with the source-authored distance/HSV
 controller. The fixed background mean falls from `22.8934` to `21.2408`, its
 maximum falls from `80` to `70`, and full-frame SSIM against Step 34 is
-`0.963775`. The nebula and stars remain readable, so the operator accepted it
+`0.963775`. The nebula-like field and stars remain readable, so the operator accepted it
 as another qualified pass rather than the failure. The controller changes only
 scene diffuse-Sun color; the background response is therefore downstream
 exposure coupling, not evidence that the background shaders consume Sun color.
@@ -3721,7 +3748,7 @@ exposure coupling, not evidence that the background shaders consume Sun color.
 Step 36 replaces the static near-Sun ball with the accepted Destiny warp-route
 state machine while retaining the ego reference, fixed model camera, and
 warp-tunnel-off control. At frame 300 the ship is visibly rotating into its EVE
-Gate departure alignment, but the starfield and nebula remain readable. The
+Gate departure alignment, but the starfield and nebula-like field remain readable. The
 operator accepted the rung. This separates route motion from the subsequent
 chase-camera and tunnel switches and confirms that Destiny evolution alone is
 not the near-black trigger.
@@ -3748,5 +3775,7 @@ silhouette, and restrained optical residual are all readable; the operator's
 verdict was "This looks great." This is the strongest control in the
 staircase: the reported endpoint is healthy after the real environment exits,
 exposure history, three warp legs, Gate traversal, authored Sun controller,
-live SH receiver, and planet choreography. Canonical packet-born/native-SOF
-construction is now the only remaining delta.
+live SH receiver, and planet choreography. H4 later proves the outer background
+is equivalent across canonical and legacy construction; the remaining
+construction difference is ship-owned geometry/presentation, while the common
+A01 `NebulaMap` path is independently missing.
