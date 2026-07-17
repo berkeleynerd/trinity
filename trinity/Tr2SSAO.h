@@ -23,6 +23,69 @@ BLUE_CLASS( Tr2SSAO ) :
 {
 public:
 	EXPOSE_TO_BLUE();
+	struct RuntimeDiagnostics
+	{
+		struct Dispatch
+		{
+			uint32_t count = 0;
+			bool succeeded = true;
+		};
+
+		bool enabled = false;
+		bool cortaoEnabled = false;
+		bool cortaoBentNormal = false;
+		bool cortaoInitialized = false;
+		bool deterministicRandom = false;
+		bool temporal = false;
+		bool depthReady = false;
+		bool normalReady = false;
+		bool outputReady = false;
+		bool passSucceeded = false;
+		bool blurEnabled = false;
+		bool downsampled = false;
+		uint32_t quality = 0;
+		uint32_t inputWidth = 0;
+		uint32_t inputHeight = 0;
+		uint32_t outputWidth = 0;
+		uint32_t outputHeight = 0;
+		uint32_t outputFormat = 0;
+		uint64_t filterCount = 0;
+		float strength = 0.0f;
+		float radius = 0.0f;
+		float maxBlockerSearchRadius = 0.0f;
+		float mipBias = 0.0f;
+		float zoomLevel = 0.0f;
+		Vector2 depthUnpackConsts;
+		Vector2 ndcToViewMul;
+		Vector2 ndcToViewAdd;
+		float effectRadius = 0.0f;
+		float effectShadowStrength = 0.0f;
+		float effectHorizonAngleThreshold = 0.0f;
+		float effectFadeOutMul = 0.0f;
+		float effectFadeOutAdd = 0.0f;
+		Matrix projection = IdentityMatrix();
+		Matrix normalsWorldToView = IdentityMatrix();
+		Dispatch clearLoadCounter;
+		Dispatch prepareDepth;
+		Dispatch prepareDepthMips;
+		Dispatch prepareNormal;
+		Dispatch generateBase;
+		Dispatch importance;
+		Dispatch generateMain;
+		Dispatch blur;
+		Dispatch apply;
+	};
+
+	struct DiagnosticTextures
+	{
+		Tr2TextureAL deinterleavedDepth;
+		Tr2TextureAL deinterleavedNormal;
+		Tr2TextureAL baseOutput;
+		Tr2TextureAL importanceOutput;
+		Tr2TextureAL mainOutput;
+		Tr2TextureAL blurOutput;
+		Tr2TextureAL output;
+	};
 
 	Tr2SSAO( IRoot* lockobj = NULL );
 
@@ -51,6 +114,15 @@ public:
 	{
 		return m_cortaoDeterministicRandom;
 	}
+	void SetRetainDiagnosticIntermediates( bool enabled )
+	{
+		m_retainDiagnosticIntermediates = enabled;
+	}
+	RuntimeDiagnostics GetRuntimeDiagnostics() const;
+	const DiagnosticTextures& GetDiagnosticTextures() const
+	{
+		return m_diagnosticTextures;
+	}
 
 private:
 	struct SSAOResources;
@@ -73,6 +145,9 @@ private:
 	Layer m_detail = { true, SSAOQuality::HIGHEST, false, 5.f };
 
 	Tr2ConstantBufferAL m_constBuffers[SSAO_PASS_COUNT + 1]{};
+	Tr2EffectPtr m_applyEffect;
+	Tr2EffectPtr m_depthMipEffect;
+	Tr2ConstantBufferAL m_depthMipConstantBuffer;
 
 
 	//CORTAO stuff
@@ -134,6 +209,9 @@ private:
 	uint32_t m_cortaoRandSeeds[4] = {};
 	bool m_cortaoDeterministicRandom = false;
 	uint32_t m_cortaoDeterministicRandomState = 0;
+	RuntimeDiagnostics m_runtimeDiagnostics;
+	DiagnosticTextures m_diagnosticTextures;
+	bool m_retainDiagnosticIntermediates = false;
 
 	uint32_t Hash( uint32_t n );
 

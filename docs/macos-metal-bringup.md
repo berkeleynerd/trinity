@@ -3472,3 +3472,419 @@ frame 8,940. Requested surface range is 2,500 m; accepted terminal error is
 about 102 m, radial speed `11.05 m/s`, and tangential speed `311.76 m/s`.
 Frames 0-5,701 retain the H1 trajectory exactly. The ordinary Tour does not
 enable this continuation.
+
+## PL-14H3: source-selected AO and directional-shadow audit (2026-07-16)
+
+Client source and resource evidence resolves maximum AO quality to High and
+loads `res:/dx9/default/ssao.red`, whose indexed Black is
+`res:/dx9/default/ssao.black`. The 55-byte `Tr2SSAO` object serializes only
+`cortaoEnabled=false`. At audit entry the Tour nevertheless requested CORTAO explicitly.
+AIR evidence for both selected V5 hull/heat pixel shaders reads `SSAOMap` and
+`EveSpaceSceneShadowMap`; the selected SandStorm planet shader exposes neither.
+
+`--ao-method client` now loads that Black without yielding and reports both its
+serialized and settled values. Read-only `Tr2SSAO` diagnostics retain input and
+output dimensions, resource readiness, algorithm, quality, settings, temporal
+policy, pass result, and filter count. H3 also retains the raw AO map, optional
+bent-normal visualization, ray-traced shadow mask, and the already accepted H1
+depth-through-drawable products from the same completed frame. Diagnostic
+collection performs no rerender.
+
+The 60-lane background matrix is Accepted. Client SSAO executes successfully
+at 1280x960 but produces a uniform white texture at every hull station; its HDR
+and hull mean are byte-identical to AO-off. Explicit CORTAO produces a
+nonuniform AO texture at all three anchors, but it too leaves hull HDR
+byte-identical. The initial H3 verdict therefore classified the canonical
+CORTAO override `misconfigured` and the effective hull AO path `missing`.
+Promised Land's first narrow PL-14I repair now selects `--ao-method client`;
+source extraction and the full 60-lane matrix were revalidated against the
+unified binary. Selection is now `correct`, while the authored AO-map
+publication/consumption path remains `missing` without any authority to add
+intensity or fill.
+
+Maximum-quality directional shadows remain `correct`. Native ray-tracing
+preparation, geometry, dispatch, denoising, and mask publication succeed in
+every hull lane. Analytic visibility is `1`, approximately `0.499926`, and `0`
+for day, limb, and eclipse; a uniform zero mask at total eclipse and the
+eclipsed planet-orbit station is the expected fully attenuated result, not a
+missing pass. Astero and Venture control invariants hold, all four client/full
+A/B repeats are byte-identical, and AO x shadow residuals are finite and
+deterministic.
+
+The planet fixtures corroborate source-proven `not-applicable`: planet HDR is
+byte-identical under AO and shadow toggles at day, limb, and eclipse. The
+planet-only camera does not contain ray-traceable hull geometry, so the audit
+records the absent mesh dispatch and retains a diagnostic shadow product
+without weakening the hull fail-closed ray-tracing contract. No lighting,
+grading, shadow-compensation, geometry, Silk, or froxel value changed. The
+post-repair verdict SHA-256 is
+`4a5cd8f5425f364dc8a03063dccd95832fca6fc12edf33586bcc8fd35db207c6`;
+aggregate PL-14H remains Active.
+
+## PL-14I1: legacy CACAO transport boundary (2026-07-17)
+
+PL-14I1 traces the source-selected legacy SSAO path without changing the
+serialized `res:/dx9/default/ssao.black` selection or any AO strength. The
+report-only `--ssao-transport-report` lane records all nine required dispatch
+families, retained intermediates, publication identity, and the submitted V5
+hull/heat bindings. `--ao-binding-probe white|black` substitutes only the
+main-pass global `SSAOMap` and is invalid without that report.
+
+The first defect was Metal array-view transport rather than scene lighting.
+The authored CACAO AIR writes a logical pass to layer zero; Metal retains a
+single-slice SRV view but does not remap the corresponding UAV write through
+the parent array. The repaired diagnostic path renders the four logical passes
+into physical two-layer array targets and assembles them into the authored
+four-slice working textures. High quality also requires CACAO's depth-aware
+smart-average mip contract; generic color mip generation discarded the nearest
+surface at discontinuities. Runtime texture parameters now include the actual
+texture object and UAV mip in resource-set identity and invalidate the owning
+effect when either changes.
+
+Those repairs make load-counter clear, depth/normal preparation, depth mips,
+four Q3 base passes, three importance passes, four main passes, four blur
+passes, and final apply all report successful. Prepared depth/normals and the
+Q3/main/blur working products are finite. The CPU depth-neighbor oracle
+also finds 79,014 positive-obscurance pairs for the current Astero near-Sun
+fixture, but its cardinal offsets are not the authored randomized shader
+pattern and therefore are not a pixel oracle.
+
+Publication and consumption are no longer ambiguous. The generated and
+published texture identities match, both V5 `Main` passes resolve the global
+provider at pixel register 1, and report-only black/white probes reach the
+same resource slot. White retains hull HDR mean `0.551967875015`; black lowers
+it to `0.0112871507474`. Publication and the V5 consumer are therefore live.
+
+The final diagnosis disassembled the shipped `GenerateQ3Base`, `GenerateQ3`,
+and `Apply` Metal AIR and checked the exact 384-byte FidelityFX constant ABI,
+static point-clamp sampler, retained inputs, and draw-time resources. CACAO's
+working RG texture stores AO in channel zero and packed edge data in channel
+one. Channel zero remains exactly neutral `1.0`; only the auxiliary edge
+channel is nonuniform. `Apply` correctly publishes channel zero as uniform-
+white R8. Direct authored four-slice dispatch and the Metal physical-slice
+staging produce byte-identical output, and a SampleLevel-versus-Load probe
+finds zero discrepancy across all tested pixels and mips. A dedicated Metal
+apply effect now prevents cross-technique SRV/UAV state inheritance, but does
+not manufacture AO.
+
+PL-14I1 consequently qualifies H3's hull-AO `missing` result to source-correct,
+visually neutral for the audited isolated-space fixtures. No evidence supports
+a stronger radius, intensity, replacement shader, CORTAO promotion, or fill
+light. The historic 60-lane H3 matrix remains immutable; the focused transport
+and binding proof resolves its candidate without repeating the matrix for an
+unchanged image. A fresh 14-lane capture accepts producer and consumer as
+`correct` with zero repair candidates; verdict SHA-256 is
+`1cd777336ba96f2882220810066f8062d2649c12032caabebcec4a91e988fd1d`.
+
+## Planet-limb darkness diagnostic (2026-07-17)
+
+The Tour contains two visually different planet compositions that must not be
+conflated. Frame 5,701 is the distant 48-degree limb stop: the planet is a
+small disc with a solar crescent. The opt-in continuation after frame 5,702
+eventually enters the close orbit. The close crescent is visually coherent and
+is not a repair target.
+
+A naive planet-on/off comparison at the distant limb made the whole image much
+brighter, but `--planet-layers off` also prevented the planet's background
+lens-flare occlusion query. That comparison restored broad additive Sun flare
+and god-ray energy and could not prove a fullscreen planet blend. The corrected
+pair disabled Sun optics in both lanes. It held adapted luminance at
+`0.486335635185` and the exposure multiplier at `1.13090622425`; the left and
+right 280-pixel strips were byte-identical, and the only material change was
+the small planet/crescent region. Separate ray-traced-shadow on/off captures at
+the EVE Gate likewise left the outer Gate and sky regions byte-identical.
+
+The observed darkness is therefore not a global planet mesh or directional-
+shadow multiply. Planet occlusion correctly removes a broad additive solar
+optics contribution. Corrected PL-14H4 resolves the remaining background
+split: source exposure and the sparse starfield are live, and a
+source-readable A01 view proves the authored nebula transport live as well.
+The retained route directions sample mostly dark cube content. Generated
+PNGs, reports, and logs remain ignored beneath Promised Land's PL-14H build
+tree.
+
+## PL-14H4 background and exposure audit (2026-07-17)
+
+Seven background-only full-route lanes retain frames 180, 900, 1621, 2520,
+4260, 5521, 5581, and 5701. Canonical and legacy construction each repeat
+exactly for camera, trajectory, exposure, depth, normals, and the audited outer
+background products. At frame 5701 their HDR background strips are byte-exact;
+post-tone through drawable differ by at most two code values at boundary spill.
+The native ship remains a geometry/presentation delta, but it is not a global
+sky multiplier.
+
+The selected `background.sm_depth` `Main` AIR samples `NebulaMap` as a cube at
+register zero. Runtime reports effect readiness, authored intensity `1.25`, and
+the staged nonempty 2048×2048 BC6H-SF16 A01 cube. A source-readable A01
+authored/black pair with starfield and exposure disabled changes 754,491
+full-frame pixels and 406,080 registered outer pixels; maximum outer delta is
+56 and mean luminance delta is `0.082605712`. CPU BC6H decode also produces
+finite, nonempty RGB. Metal texture creation, upload, cube sampling, and shader
+consumption are therefore `correct`.
+
+The original H4 validator compared only 8-bit route visualizations and
+incorrectly generalized their terminal equality into a transport failure.
+Native retained hashes actually change at frame 5,701 in HDR and at frames
+5,521/5,701 downstream, below diagnostic-PNG quantization. The original
+Accepted verdict SHA-256 `01c296619015cecaa59255aa8f7a23d30a858603968927e747394d0c65da033c`
+is retained as superseded evidence and no longer authorizes a repair.
+Corrected H4 verdict SHA-256 is
+`f32a929765b7126c28e6203d369bc798168bbb1ffd516c1c01afce3dea1e7180`.
+
+The 565-sprite starfield is healthy: disabling it changes 128 frame-5701 outer
+HDR pixels (maximum channel delta 35) and 83 drawable pixels (maximum delta
+14). Source exposure is also correct. It uses the serialized 90–98% histogram
+window, luminance clamp `[0.4649, 10]`, middle value `0.55`, and `2.0/1.5`
+adaptation speeds. Observed adapted luminance stays in `0.486338…–0.834362…`;
+the sparse stars do not move the selected percentile. Corrected H4 is Accepted
+with nebula, starfield, exposure, presentation, and construction-background
+equivalence `correct`, with no PL-14I repair candidate.
+
+## PL-14H5 authored ship-local-light audit (2026-07-17)
+
+H5 closes the remaining aggregate lighting component with nine 181-frame,
+background-only lanes. The report follows the native SOF graph rather than the
+historical bridge: Astero contains six authored attachment-light definitions
+and Venture contains five, while both native roots correctly contain zero
+direct hull lights. Authored definition count is not runtime submission count.
+At the settled fixture, Astero expands to two active attachment lights and
+Venture expands to fourteen. Forcing either runtime count to equal the source
+definition count would be a false defect.
+
+The first diagnostic run exposed an isolation mistake. `--engines off`
+disabled the bridge engines but did not set the canonical native
+`EveBoosterSet2` display state. Canonical construction now applies the existing
+engine control to the native booster set. The accepted capture reports booster
+display off and zero booster-light submissions in every lane; the ordinary
+Tour still selects authored engines and is unchanged.
+
+The exact maximum-quality consumer containers are `quadv5.sm_depth` and
+`quadheatv5.sm_depth`. Despite the historical suffix, `.sm_depth` is the High
+client tier; `.sm_hi` is Medium. AIR and live material diagnostics both prove
+`LightBuffer` and `LightIndexBuffer` on submitted hull and heat passes.
+Authored/off depth, normals, camera, and Destiny state are invariant. Astero
+changes 56 HDR pixels with maximum channel delta 3 and hull-mean delta
+`2.54271e-5`; Venture changes 110 pixels with maximum delta 48 and hull-mean
+delta `3.26476e-4`. Astero A/B reports and sequences are byte-identical, so the
+small fixture-local footprints are above zero repeat noise rather than a
+reason to import reflection-sized thresholds.
+
+PL-14H5 classifies authored inventory, tiled transport, V5 consumption, and
+the Venture cross-hull control `correct`. It creates no PL-14I repair candidate
+and changes no light value, shader, material, exposure, grade, Silk, or froxel
+setting. Aggregate PL-14H is Accepted.
+
+## PL-14J source-selected planet appearance (2026-07-17)
+
+PL-14J closes the remaining planetary appearance question with a compact
+source-backed audit rather than another broad renderer ratchet. The High-tier
+New Eden graph retains the SandStorm surface, the authored `Atmo` inner and
+outer areas, and the EarthlikeClouds shell. The report records every settled
+effect, texture, vector constant, native planet batch, live Sun input, camera,
+scale, envelope, and retained presentation product. Atmosphere and cloud AIR
+both consume `EveSceneFogVolumeMap`; `EveSpaceScene::RenderPlanets` publishes
+the native empty 1x1x4 fallback while Silk and froxels remain inactive.
+
+The first composite appeared to have broken planet geometry. The surface
+isolate proved otherwise: the black foreground cuts exactly matched the
+offscreen-lighting Astero. Fixed day, limb, and eclipse fixtures now retain the
+ship in scene state but suppress all ship visual participation. They also
+suppress Sun optics while retaining authored Sun illumination, because a
+planet-on/planet-off eclipse comparison otherwise measures full-screen lens
+flare occlusion instead of planet material. Finale/orbit fixtures and both
+complete 8,941-frame route repeats retain the ship and optics. This is audit
+isolation only; the Tour default is unchanged.
+
+Thirty-two fixed lanes close five views across the operator-approved bright
+legacy presentation and matched canonical controls. The surface is visible in
+day, limb, and eclipse; both atmosphere areas are distinct; the front-lit cloud
+shell contributes in its day control; combined stacks remain localized once
+optics are isolated. Legacy and canonical planet regions agree above repeat
+noise. The route repeats retain identical trajectory SHA-256 and exact HDR;
+post-tone/final/drawable differences are bounded to one LDR code value and are
+below the material-change gate. The Accepted verdict classifies surface,
+atmosphere, clouds, volume transport, construction equivalence, and route
+integration `correct`, records CP-45, and creates no repair candidate. Exact
+client pixels, color, camera, and exposure remain unclaimed. Aurora and native
+population traffic remain accepted PL-14F regression content.
+
+## Bright-background feature staircase (2026-07-17)
+
+The planet-shadow investigation stopped using canonical on/off isolates after
+they failed to reproduce the known-good sky. A new visual staircase instead
+started from the bright noncanonical probe and added one feature at a time.
+Every rung was rendered at 1280x960 for 301 frames, inspected at settled frame
+300, shown to the operator, and explicitly accepted before the next rung. The
+generated captures and runtime logs are retained under the ignored
+`.cmake-build-arm64-osx-debug/background-feature-staircase-20260717/` tree.
+
+The accepted sequence is:
+
+| Step | Single added capability | Operator result |
+| ---: | --- | --- |
+| 0 | Known-good bright probe baseline | Baseline; sky good, geometry invalid |
+| 1 | Eve V5 material and correct Astero geometry | Pass |
+| 2 | HDR blit | Pass |
+| 3 | Static tone mapping | Pass |
+| 4 | Settled client dynamic exposure | Pass |
+| 5 | Client bloom and final composition | Pass |
+| 6 | Client film grain | Pass |
+| 7 | High TAA | Pass |
+| 8 | New Eden background-effect and starfield ownership | Pass; corrected H4 independently proves live `NebulaMap` contribution |
+| 9 | New Eden SH transport | Pass; legacy `3.14` remains quarantined |
+| 10 | Authored local-light path | Pass |
+| 11 | Static A01 reflection | Pass |
+| 12 | Dynamic six-face/eight-mip reflection | Pass |
+| 13 | Authored attachments | Pass |
+| 14 | Authored decals | Pass |
+| 15 | Authored engines | Pass |
+| 16 | Authored distortion | Pass |
+| 17 | Client-selected AO | Pass; later PL-14I1 evidence closes the neutral-white fixture result as source-correct rather than a missing renderer path |
+| 18 | High raster directional shadows | Pass |
+| 19 | Ray-traced directional shadows | Pass |
+| 20 | Authored Sun body and corona | Pass |
+| 21 | Remaining High Sun branches | Pass |
+| 22 | Complete planet graph | Pass |
+| 23 | Authored `SunFlares` | Pass |
+| 24 | System lens flare | Pass |
+| 25 | God rays | Pass |
+| 26 | Static embedded Ballpark and live ship curves | Pass |
+| 27 | Exact-system composition | Pass |
+| 28 | Live Destiny Sun and planet curves | Pass |
+| 29 | Live-distance solar-environment ownership while outside its radius | Pass |
+| 30 | Route-derived near-Sun position, naturally activating the solar environment | Pass, qualified: first material sky dimming, but not the near-black failure |
+| 31 | Authored EVE Gate target and phenomenon, with the ship still stationary near the Sun | Pass, qualified: second measurable dimming contributor, but not the near-black failure |
+| 32 | Persistent authored Sun desaturation grade | Pass; visually inert while the active Sun environment already selects the same grade |
+| 33 | Remove the duplicate legacy Sun/planet SH proxies | Pass; native scene membership alone preserves the image |
+| 34 | Sample SH at the live ship position instead of the ego-relative origin | Pass; the positions coincide at the stationary fixture and preserve the image |
+| 35 | Source-authored 100 ms Sun diffuse-color controller | Pass, qualified: third measurable dimming contributor, but not the near-black failure |
+| 36 | Native Destiny EVE Gate warp state machine in the ego reference | Pass; route alignment changes ship orientation without collapsing the sky |
+| 37 | Canonical 48-degree chase reference and camera | Pass; the Gate enters the composition but stars remain readable |
+| 38 | Authored warp tunnel during active outbound warp | Pass; strong intentional warp-local overlay, absent from the later planet view |
+| 39 | Full planet-finale choreography through settled frame 5701 | Pass; exact reported endpoint looks good on the accumulated legacy path |
+
+Steps 0-29 preserve a plainly bright, readable nebula and starfield. Corrected
+H4 confirms the field can be live output from the authored `NebulaMap`; exact
+client camera orientation and appearance remain unclaimed. Step 29
+places the static ego about `1.370e12 m` from the Sun, approximately `136x` the
+`10,060,000,256 m` activation radius, and correctly leaves the solar
+environment inactive. Step 30 moves the same static Ballpark to the accepted
+near-Sun route position, approximately one `158,400,000 m` stellar radius from
+the Sun. Live polling then activates the selected environment. The hull
+becomes strongly exposed and the sky dims materially, but both the nebula and
+stars remain plainly visible. The operator explicitly accepted this as a
+qualified pass: it is the first suspect transition and must remain in the
+causal record, but it does not reproduce the reported global near-black sky.
+
+This staircase does not yet assign the Step 30 change to fog, finish,
+directional illumination, or exposure, because moving to the near-Sun station
+changes the source-selected inputs that drive all four. Those may be separated
+only after the route staircase reproduces the actual failure. In particular,
+do not cite Step 30 as proof that the solar environment alone is defective.
+
+Step 31 adds only the authored EVE Gate graph; the stargate anchor was already
+the default and Destiny motion remains stopped. Although the Gate is not
+visibly in the camera, the fixed upper-left background region changes from
+mean/max luma `25.4804/137` to `22.8934/80`, and full-frame SSIM against Step
+30 is `0.945041`. The operator again accepted the image because the nebula and
+stars remain readable, but explicitly classified the Gate graph as a dimming
+contributor. This is evidence of influence, not yet evidence of the final
+failure or of a particular Gate pass; exposure and off-camera additive content
+remain plausible mediators.
+
+Step 32 changes only the outside-volume Tour baseline from the default grade to
+the authored Sun desaturation. At the current inside-volume near-Sun station it
+is intentionally redundant: the fixed background mean/max remain
+`22.8934/80`, and full-frame SSIM against Step 31 is `0.999997`. This confirms
+that the persistent-grade policy is not an additional dimming contributor at
+this station; its behavior must still be observed after live environment exit.
+
+Step 33 disables the sample-owned fixed Sun/planet SH proxies while retaining
+the native scene sources. The fixed background mean/max again remain
+`22.8934/80`, with full-frame SSIM `0.999998` against Step 32. The operator then
+inspected the complete Sun to EVE Gate to Sun to planet-limb route using this
+Step 33 rendering state. Route motion and the chase camera were enabled only to
+exercise the journey; the final canonical-construction, live-receiver,
+authored-Sun-color, and warp-tunnel switches remained overridden to legacy,
+origin, frozen, and off respectively. The complete visual run passed. This is
+important negative evidence: route traversal alone does not reproduce the
+global near-black background with the accepted Step 33 renderer state.
+
+Step 34 changes only the receiver position policy to `live`. The background
+mean/max stay `22.8934/80` and full-frame SSIM against Step 33 is `0.999998`.
+This agrees with the earlier source review: the ego-relative origin and ship
+position are effectively coincident in this stationary fixture. The live
+receiver remains architecturally necessary for travel, but it is not a
+near-Sun dimming contributor.
+
+Step 35 replaces frozen direct-Sun color with the source-authored distance/HSV
+controller. The fixed background mean falls from `22.8934` to `21.2408`, its
+maximum falls from `80` to `70`, and full-frame SSIM against Step 34 is
+`0.963775`. The nebula-like field and stars remain readable, so the operator accepted it
+as another qualified pass rather than the failure. The controller changes only
+scene diffuse-Sun color; the background response is therefore downstream
+exposure coupling, not evidence that the background shaders consume Sun color.
+
+Step 36 replaces the static near-Sun ball with the accepted Destiny warp-route
+state machine while retaining the ego reference, fixed model camera, and
+warp-tunnel-off control. At frame 300 the ship is visibly rotating into its EVE
+Gate departure alignment, but the starfield and nebula-like field remain readable. The
+operator accepted the rung. This separates route motion from the subsequent
+chase-camera and tunnel switches and confirms that Destiny evolution alone is
+not the near-black trigger.
+
+Step 37 changes only the Ballpark reference/camera to the accepted chase
+contract. At frame 300 the new view contains the bright EVE Gate phenomenon,
+so exposure and pixel differences against the fixed model camera are expected
+and cannot be attributed to a renderer failure. Stars remain clearly visible
+across the darker right half of the image, and the operator accepted the rung.
+
+Step 38 compares tunnel-off and tunnel-on at outbound-warp frame 900 rather
+than at the earlier alignment frame where the tunnel cannot contribute. The
+authored transparent, additive, and distortion branches materially darken and
+streak the background while active. The operator accepted that appearance.
+This is a strong temporal background modifier but not a planet-shadow
+candidate: Ballpark state drives its lifetime and the graph is removed after
+warp exit. The paired evidence is retained in the `step-38-warp-frame900-off-control`
+and `step-38-warp-tunnel-run1` directories.
+
+Step 39 renders the entire 5,702-frame route with every previously accepted
+visual and transport feature enabled, including the warp tunnel, then captures
+settled planet-limb frame 5701. The planet crescent, sparse starfield, hull
+silhouette, and restrained optical residual are all readable; the operator's
+verdict was "This looks great." This is the strongest control in the
+staircase: the reported endpoint is healthy after the real environment exits,
+exposure history, three warp legs, Gate traversal, authored Sun controller,
+live SH receiver, and planet choreography. H4 proves the outer background is
+equivalent across canonical and legacy construction; the remaining
+construction difference is ship-owned geometry/presentation. The corrected
+source-readable control closes the common A01 `NebulaMap` path as healthy.
+
+## Sunward surface Tour and active aurora (2026-07-17)
+
+The operator selected the accepted bright legacy staircase as the default Tour
+construction path while the integrated canonical planet-shadow background gap
+remains tracked separately. This is a presentation policy, not a rollback of
+CP-44: canonical construction remains available for diagnostics, while the
+Tour uses legacy construction with duplicate SH proxies off, the live SH
+receiver, and live-distance solar-environment ownership.
+
+The optional `--planet-aurora active` control starts the authored `PlayAurora`
+curve set with the already accepted Python-2.7 seed, duration, and
+source-reachable midpoint. The default source policy remains unchanged when
+the switch is absent. The Tour enables the switch so the rare event is visible
+during an ordinary demonstration rather than waiting through its multi-day
+client period.
+
+`--journey-planet-surface` extends the existing limb finale without changing
+its validated frames. At frame 5,702 the ship first warps to a point 10,000 km
+above the Sun-facing radial, aligns directly inward, and then warps to the
+planet/Astero contact position. A coordinate-only stop was rejected after a
+test exposed 25 m of penetration and continuing drift. The landed ship now
+enters Destiny's native zero-surface-range ORBIT around ball `40334264`, which
+is the actual surface-to-surface gameplay contract. The station is accepted
+only after its surface error is within one metre of zero, radial speed is no
+more than 15 m/s, and tangential speed exceeds 300 m/s. At this radius the
+312 m/s motion changes the Sun-facing longitude only imperceptibly during a
+normal inspection while keeping the camera pointed down at the fully lit
+surface.

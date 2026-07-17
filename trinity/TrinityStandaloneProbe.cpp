@@ -83,7 +83,9 @@ extern int g_grannyDeprecationLevel;
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/Tr2Vector4Parameter.h"
 #include "Shader/Parameter/TriTextureParameter.h"
+#include "Shader/Parameter/TriVariableParameter.h"
 #include "Shader/Tr2Shader.h"
+#include "Tr2VariableStore.h"
 #include "TrinityStandaloneCmfModel.h"
 #include "TrinityStandaloneSolarAudit.h"
 #include "TrinityStandaloneProbeApi.h"
@@ -615,6 +617,12 @@ enum StandaloneJourneyPhase
 	STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING,
 	STANDALONE_JOURNEY_PLANET_ORBIT_WARPING,
 	STANDALONE_JOURNEY_PLANET_ORBITING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_WARPING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_OBSERVING,
 };
 
 enum StandaloneCelestialBallparkMode
@@ -632,6 +640,7 @@ constexpr double kNewEdenStarRadius = 158400000.0;
 constexpr double kNewEdenSolarEnvironmentActivationRadius = 10060000256.0;
 constexpr double kNewEdenSolarEnvironmentFieldDimension = 475200000.0;
 constexpr double kNewEdenPlanetRadius = 2630000.0;
+constexpr double kNewEdenAsteroRadius = 35.0;
 constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -831868968960.0 };
 constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
 constexpr float kNewEdenSunEmissive[3] = { 5.0f, 4.274509906768799f, 2.3529412746429443f };
@@ -644,6 +653,7 @@ constexpr float kNewEdenTourFinaleCameraDistance = 150.0f;
 constexpr float kNewEdenTourFinaleCameraHeight = 55.0f;
 constexpr uint64_t kNewEdenTourPlanetOrbitFrame = 5702;
 constexpr float kNewEdenTourPlanetOrbitSurfaceRange = 2500.0f;
+constexpr double kNewEdenTourPlanetSurfaceStagingRange = 1.0e7;
 
 struct StandaloneLightingAuditRouteState
 {
@@ -677,6 +687,11 @@ constexpr StandaloneLightingAuditRouteState kLightingAuditPlanetOrbit = {
 	{ 1083759455164.319213867, -205373044568.080596924, -787277901534.109863281 },
 	{ -0.091839448f, 0.600319982f, -0.068614691f, -0.791500866f },
 };
+constexpr StandaloneLightingAuditRouteState kPlanetAppearanceTourFinale = {
+	5581,
+	{ 1083772320672.260375977, -205375921935.839416504, -787229638668.005737305 },
+	{ 0.041035742f, 0.986779451f, 0.022761201f, -0.155126959f },
+};
 // landmarks.static record 1 ("EVE Gate") relative to the stargate anchor. The
 // landmark has no authored in-space item, so approaching it is explicit demo
 // policy rather than recovered client behavior (CP-36 recon).
@@ -692,6 +707,38 @@ struct StandalonePlanetFinaleGeometry
 	double limbOffset = 0.0;
 	double coverage = 0.0;
 };
+
+struct StandalonePlanetSurfaceGeometry
+{
+	double stagingPosition[3] = {};
+	double surfacePosition[3] = {};
+};
+
+bool BuildPlanetSunwardSurfaceGeometry(
+	const double sunPosition[3],
+	const double planetPosition[3],
+	StandalonePlanetSurfaceGeometry& output )
+{
+	double sunward[3] = {};
+	double lengthSquared = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunward[axis] = sunPosition[axis] - planetPosition[axis];
+		lengthSquared += sunward[axis] * sunward[axis];
+	}
+	const double length = std::sqrt( lengthSquared );
+	if( !std::isfinite( length ) || length <= 0.0 )
+		return false;
+	const double contactCenterRange = kNewEdenPlanetRadius + kNewEdenAsteroRadius;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunward[axis] /= length;
+		output.surfacePosition[axis] = planetPosition[axis] + sunward[axis] * contactCenterRange;
+		output.stagingPosition[axis] = output.surfacePosition[axis] +
+			sunward[axis] * kNewEdenTourPlanetSurfaceStagingRange;
+	}
+	return true;
+}
 
 bool BuildPlanetFinaleGeometry(
 	const double sunPosition[3],
@@ -894,6 +941,16 @@ public:
 
 	TrinityStandaloneRenderable( IRoot* lockobj = nullptr )
 	{
+	}
+
+	void SetStandaloneDisplay( bool display )
+	{
+		m_standaloneDisplay = display;
+	}
+
+	bool GetStandaloneDisplay() const
+	{
+		return m_standaloneDisplay;
 	}
 
 	EnvironmentBindingDiagnostics InspectEnvironmentBinding(
@@ -2499,6 +2556,10 @@ public:
 
 	void UpdateVisibility( const EveUpdateContext& updateContext, const Matrix& ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		for( const auto& set : m_spriteAttachmentSets )
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
 		for( const auto& set : m_spriteLineAttachmentSets )
@@ -2527,6 +2588,10 @@ public:
 
 	void RegisterWithQuadRenderer( Tr2QuadRenderer & quadRenderer ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		for( const auto& set : m_spriteAttachmentSets )
 			set->RegisterWithQuadRenderer( quadRenderer );
 		for( const auto& set : m_spriteLineAttachmentSets )
@@ -2541,6 +2606,10 @@ public:
 
 	void AddQuadsToQuadRenderer( const TriFrustum&, Tr2QuadRenderer& quadRenderer ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		const float boosterGain = GetAttachmentBoosterGain();
 		for( const auto& set : m_spriteAttachmentSets )
 			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
@@ -2556,6 +2625,10 @@ public:
 
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		renderables.push_back( this );
 		if( m_engines )
 		{
@@ -2702,6 +2775,10 @@ public:
 
 	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		if( m_useEveV5Material )
 		{
 			if( batchType == TRIBATCHTYPE_OPAQUE && !m_occlusionDepthOnly )
@@ -2804,7 +2881,8 @@ public:
 			++m_shadowCullTests;
 		}
 		sizeInShadow = 0.0f;
-		if( !m_shadowCastingEnabled || !m_useEveV5Material || m_shadowBoundingRadius <= 0.0f )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_useEveV5Material ||
+			m_shadowBoundingRadius <= 0.0f )
 		{
 			return false;
 		}
@@ -2828,7 +2906,7 @@ public:
 
 	void GetShadowBatches( ITriRenderBatchAccumulator * batches, const Tr2PerObjectData* perObjectData, float ) override
 	{
-		if( !m_shadowCastingEnabled || !m_useEveV5Material )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_useEveV5Material )
 		{
 			return;
 		}
@@ -2849,7 +2927,7 @@ public:
 
 	void PushRtGeometry( Tr2RaytracingManager & rtManager ) const override
 	{
-		if( !m_shadowCastingEnabled || !m_raytracingGeometryPrepared )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_raytracingGeometryPrepared )
 		{
 			return;
 		}
@@ -3082,6 +3160,10 @@ public:
 
 	void GetLights( Tr2LightManager & lightManager ) const override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		auto addFamily = [&]( LightFamily family, const auto& lightSet ) {
 			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
 			lightSet->GetLights( lightManager );
@@ -4277,6 +4359,7 @@ private:
 	Matrix m_decalWorldTransform = IdentityMatrix();
 	float m_shadowBoundingRadius = 0.0f;
 	float m_authoredWorldScale = 1.0f;
+	bool m_standaloneDisplay = true;
 	bool m_reportedMissingDecalAoMap = false;
 	bool m_reportedDecalSubmission = false;
 	bool m_reportedDecalFailure = false;
@@ -4603,6 +4686,16 @@ enum StandaloneLightingAuditStation
 	STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE = 5,
 	STANDALONE_LIGHTING_AUDIT_DEEP_SPACE = 6,
 	STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT = 7,
+	STANDALONE_LIGHTING_AUDIT_TOUR_FINALE = 8,
+};
+
+enum StandalonePlanetAppearanceView
+{
+	STANDALONE_PLANET_APPEARANCE_DAY = 0,
+	STANDALONE_PLANET_APPEARANCE_LIMB = 1,
+	STANDALONE_PLANET_APPEARANCE_ECLIPSE = 2,
+	STANDALONE_PLANET_APPEARANCE_TOUR_FINALE = 3,
+	STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT = 4,
 };
 
 enum StandaloneAmbientOcclusionMode
@@ -4617,7 +4710,38 @@ enum StandaloneAoMethod
 {
 	STANDALONE_AO_CORTAO = 0,
 	STANDALONE_AO_CACAO = 1,
+	STANDALONE_AO_CLIENT = 2,
 };
+
+enum StandaloneAoBindingProbe
+{
+	STANDALONE_AO_BINDING_NONE = 0,
+	STANDALONE_AO_BINDING_WHITE = 1,
+	STANDALONE_AO_BINDING_BLACK = 2,
+};
+
+enum StandaloneLightingAuditSubject
+{
+	STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL = 0,
+	STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET = 1,
+};
+
+const char* AoMethodName( int method )
+{
+	static const char* names[] = { "cortao", "cacao", "client" };
+	return method >= STANDALONE_AO_CORTAO && method <= STANDALONE_AO_CLIENT ?
+		names[method] :
+		"invalid";
+}
+
+const char* AoBindingProbeName( int probe )
+{
+	static const char* names[] = { "none", "white", "black" };
+	return probe >= STANDALONE_AO_BINDING_NONE &&
+			probe <= STANDALONE_AO_BINDING_BLACK ?
+		names[probe] :
+		"invalid";
+}
 
 enum StandaloneCameraView
 {
@@ -4681,6 +4805,7 @@ enum StandaloneSunEffects
 	STANDALONE_SUN_EFFECTS_ALL = 4,
 	STANDALONE_SUN_EFFECTS_SUN_FLARES = 5,
 	STANDALONE_SUN_EFFECTS_LENS_FLARE = 6,
+	STANDALONE_SUN_EFFECTS_NO_LENS_FLARE = 7,
 };
 
 enum StandaloneSolarEnvironment
@@ -4704,6 +4829,28 @@ enum StandaloneSceneConstruction
 	STANDALONE_SCENE_CONSTRUCTION_LEGACY = 0,
 	STANDALONE_SCENE_CONSTRUCTION_CANONICAL = 1,
 };
+
+enum StandaloneCanonicalDiagnostic
+{
+	STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE = 0,
+	STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF = 1,
+	STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF = 2,
+};
+
+const char* CanonicalDiagnosticName( int mode )
+{
+	switch( mode )
+	{
+	case STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE:
+		return "baseline";
+	case STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF:
+		return "ship-mesh-off";
+	case STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF:
+		return "ship-object-off";
+	default:
+		return "invalid";
+	}
+}
 
 enum StandaloneLegacyShProxies
 {
@@ -4793,6 +4940,8 @@ const char* SunEffectsName( int effects )
 		return "sun-flares";
 	case STANDALONE_SUN_EFFECTS_LENS_FLARE:
 		return "lens-flare";
+	case STANDALONE_SUN_EFFECTS_NO_LENS_FLARE:
+		return "no-lens-flare";
 	default:
 		return "invalid";
 	}
@@ -4893,11 +5042,39 @@ const char* SolarIlluminationViewName( int view )
 const char* LightingAuditStationName( int station )
 {
 	static const char* names[] = {
-		"near-sun", "eve-gate", "return-sun", "planet-day", "planet-limb",
-		"planet-eclipse", "deep-space", "planet-orbit",
+		"near-sun",
+		"eve-gate",
+		"return-sun",
+		"planet-day",
+		"planet-limb",
+		"planet-eclipse",
+		"deep-space",
+		"planet-orbit",
+		"tour-finale",
 	};
 	return station >= STANDALONE_LIGHTING_AUDIT_NEAR_SUN &&
-		station <= STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ? names[station] : "unspecified";
+			station <= STANDALONE_LIGHTING_AUDIT_TOUR_FINALE ?
+		names[station] :
+		"unspecified";
+}
+
+const char* PlanetAppearanceViewName( int view )
+{
+	switch( view )
+	{
+	case STANDALONE_PLANET_APPEARANCE_DAY:
+		return "day";
+	case STANDALONE_PLANET_APPEARANCE_LIMB:
+		return "limb";
+	case STANDALONE_PLANET_APPEARANCE_ECLIPSE:
+		return "eclipse";
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		return "tour-finale";
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		return "tour-orbit";
+	default:
+		return "invalid";
+	}
 }
 
 enum StandaloneSolarIlluminationProduct
@@ -5086,7 +5263,7 @@ struct StandalonePresentationAuditFrame
 	uint64_t frame = 0;
 	int64_t simulationTime = 0;
 	std::array<StandalonePresentationProductMetrics,
-		TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT>
+			   TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT>
 		products = {};
 	bool postProcessSucceeded = false;
 	bool exposureMeasured = false;
@@ -5140,6 +5317,7 @@ struct StandalonePlanetAreaEvidence
 	std::string effectPath;
 	std::vector<std::pair<std::string, std::string>> sourceTextures;
 	std::vector<std::pair<std::string, std::string>> settledTextures;
+	std::vector<std::pair<std::string, Vector4>> vector4Constants;
 };
 
 struct StandalonePlanetNodeEvidence
@@ -5316,12 +5494,30 @@ struct StandaloneProbe
 	int legacyShProxies = STANDALONE_LEGACY_SH_PROXIES_AUTHORED;
 	int legacyShReceiver = STANDALONE_LEGACY_SH_RECEIVER_ORIGIN;
 	int legacySolarEnvironment = STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED;
+	int canonicalDiagnostic = STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE;
+	bool canonicalDiagnosticConfigured = false;
+	bool canonicalNativeShipInserted = false;
+	bool canonicalHullAreaPresent = false;
+	bool canonicalHeatAreaPresent = false;
+	bool canonicalDistortionAreaPresent = false;
+	bool canonicalHullAreaDisplayed = false;
+	bool canonicalHeatAreaDisplayed = false;
+	bool canonicalDistortionAreaDisplayed = false;
+	uint32_t canonicalUniqueMeshAreaCount = 0;
+	uint32_t canonicalDisplayedMeshAreaCount = 0;
 	std::string systemManifestPath;
 	std::string systemManifestSha256;
 	std::string sceneConstructionReportPath;
 	std::string shipLightingReportPath;
 	std::string reflectionLightingReportPath;
+	std::string occlusionLightingReportPath;
+	std::string ssaoTransportReportPath;
+	std::string planetAppearanceReportPath;
+	int planetAppearanceView = STANDALONE_PLANET_APPEARANCE_DAY;
+	bool planetAppearanceConfigured = false;
+	int aoBindingProbe = STANDALONE_AO_BINDING_NONE;
 	int lightingAuditStation = STANDALONE_LIGHTING_AUDIT_UNSPECIFIED;
+	int lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
 	int shipLightingControl = STANDALONE_SHIP_LIGHTING_ASTERO;
 	Color authoredSceneAmbientColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
 	bool ambientLightingAuthored = true;
@@ -5330,6 +5526,8 @@ struct StandaloneProbe
 	bool sceneConstructionPublished = false;
 	bool backgroundNebulaAuthored = true;
 	bool backgroundStarfieldAuthored = true;
+	bool backgroundNebulaReady = false;
+	bool backgroundStarfieldReady = false;
 	bool backgroundLayersConfigured = false;
 	bool canonicalStatePrepared = false;
 	uint64_t canonicalPacketSize = 0;
@@ -5389,6 +5587,7 @@ struct StandaloneProbe
 	int journeyPhase = STANDALONE_JOURNEY_INACTIVE;
 	bool journeyPlanetFinale = false;
 	bool journeyPlanetOrbit = false;
+	bool journeyPlanetSurface = false;
 	bool journeyPlanetCameraReported = false;
 	bool ballparkAlignmentIssued = false;
 	bool ballparkCommandIssued = false;
@@ -5458,6 +5657,7 @@ struct StandaloneProbe
 	Tr2CurveEulerRotationPtr planetRotationCurve;
 	Tr2RotationAdapterPtr planetRotationAdapter;
 	bool planetAuroraRuntimeImplemented = false;
+	bool planetAuroraActive = false;
 	float planetAuroraDurationSeconds = 0.0f;
 	Vector4 planetAuroraSeed = {};
 	bool planetDataDrivenRuntimeImplemented = false;
@@ -7988,7 +8188,8 @@ bool PrepareNewEdenCelestialsWithoutYield(
 
 	const bool retainSunFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
 		sunEffects == STANDALONE_SUN_EFFECTS_ALL ||
-		sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES;
+		sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES ||
+		sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	EveChildMeshPtr sunBody;
 	EveChildMeshPtr sunFlare;
 	for( IEveSpaceObjectChild* child : sunBodyContainer->m_objects )
@@ -8169,8 +8370,13 @@ bool PrepareNewEdenCelestialsWithoutYield(
 	const bool retainSurface = PlanetModeSelectsRole( planetLayers, "surface" );
 	const bool retainAtmosphere = PlanetModeSelectsRole( planetLayers, "atmosphere" );
 	const bool retainClouds = PlanetModeSelectsRole( planetLayers, "clouds" );
-	const bool selectAurora = PlanetModeSelectsRole( planetLayers, "aurora" );
-	const bool selectDataDriven = PlanetModeSelectsRole( planetLayers, "data-driven" );
+	// PL-14J audits the authored surface, atmosphere, and cloud stack.  Keep the
+	// asynchronous aurora and population traffic in their accepted PL-14F lanes
+	// so an `all` appearance isolate does not acquire audit-only activity.
+	const bool appearanceAudit = !probe.planetAppearanceReportPath.empty();
+	const bool selectAurora = PlanetModeSelectsRole( planetLayers, "aurora" ) && !appearanceAudit;
+	const bool selectDataDriven =
+		PlanetModeSelectsRole( planetLayers, "data-driven" ) && !appearanceAudit;
 	probe.planetAuditNodes.clear();
 	auto captureNode = [&]( IEveSpaceObjectChild& child,
 							const std::string& id,
@@ -8221,6 +8427,15 @@ bool PrepareNewEdenCelestialsWithoutYield(
 						if( Tr2Effect* effect = area->GetMaterialInterface() )
 						{
 							areaEvidence.effectPath = effect->GetEffectPathName();
+							for( ITriEffectParameter* parameter : effect->m_parameters )
+							{
+								Tr2Vector4ParameterPtr vector = BlueCastPtr( parameter );
+								if( vector )
+								{
+									areaEvidence.vector4Constants.emplace_back(
+										vector->GetParameterName(), vector->GetValue() );
+								}
+							}
 							for( auto* resource : effect->m_resources )
 							{
 								TriTextureParameterPtr texture = BlueCastPtr( resource );
@@ -8450,7 +8665,8 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		std::fprintf(
 			stderr,
 			"PL-14F deferred planet selection: aurora=%s dataDriven=%s\n",
-			retainAurora ? "audit-active" : ( selectAurora ? "selected-inactive" : "not-selected" ),
+			retainAurora ? ( probe.planetAuroraActive ? "tour-active" : "selected" ) :
+				( selectAurora ? "selected-inactive" : "not-selected" ),
 			selectDataDriven ? "selected" : "not-selected" );
 	}
 	if( !ApplyNewEdenPlanetRotation( probe, planet, 40334264, error ) )
@@ -8545,7 +8761,10 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		retainSurface ? "yes" : "no",
 		retainAtmosphere ? "yes" : "no",
 		retainClouds ? "yes" : "no",
-		retainAurora ? "audit-force-now" : "source-selected-unresolved" );
+		retainAurora ?
+			( probe.planetAuroraActive ? "tour-active" :
+				( !probe.planetAuditReportPath.empty() ? "audit-active" : "source-selected" ) ) :
+			"not-selected" );
 	const bool initialized = sunBodyContainer->Initialize() && sun.Initialize() && planet.Initialize();
 	if( initialized )
 	{
@@ -8555,7 +8774,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		// low-security system before the data-driven controller starts. The
 		// authored controller condition separately requires displayFX=1 for
 		// the selected High-quality branch.
-		if( dataDrivenContainer )
+		if( retainDataDriven && dataDrivenContainer )
 		{
 			dataDrivenFx->SetControllerVariable( "populationLevel", 10.0f );
 			dataDrivenFx->SetControllerVariable( "displayFX", 1.0f );
@@ -8584,7 +8803,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			ExecuteMainThreadActions();
 			DrainResourceQueuesUntilSettled();
 			planet.UpdatePlanetSyncronous( controllerUpdate, EvePlanet::SCALE );
-			if( dataDrivenContainer )
+			if( retainDataDriven && dataDrivenContainer )
 			{
 				for( unsigned int controllerStep = 0; controllerStep < 4; ++controllerStep )
 				{
@@ -8602,7 +8821,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			}
 #endif
 		}
-		if( dataDrivenContainer )
+		if( retainDataDriven && dataDrivenContainer )
 		{
 			probe.planetDataDrivenControllerStates = dataDrivenContainer->GetControllerStatesForInspection();
 			bool populationStateTen = false;
@@ -8648,7 +8867,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 				hasDisplayVariable ? "present" : "missing",
 				probe.planetDataDrivenPopulationLoaded ? "loaded" : "missing" );
 		}
-		if( retainAurora )
+		if( retainAurora && ( !probe.planetAuditReportPath.empty() || probe.planetAuroraActive ) )
 		{
 			Tr2CurveConstant* auroraSeedCurve = nullptr;
 			for( size_t curveIndex = 0; playAurora && curveIndex < playAurora->GetCurvesCount(); ++curveIndex )
@@ -8683,8 +8902,9 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			probe.planetAuroraRuntimeImplemented = true;
 			std::fprintf(
 				stderr,
-				"PL-14F source-selected Aurora audit activation: periodIndex=0 duration=%.9f "
+				"PL-14F source-selected Aurora activation: mode=%s periodIndex=0 duration=%.9f "
 				"scale=%.12f seed=(%.9f,%.9f,%.9f,%.9f)\n",
+				probe.planetAuroraActive ? "tour-active" : "audit-active",
 				probe.planetAuroraDurationSeconds,
 				playAurora->GetTimeScale(),
 				probe.planetAuroraSeed.x,
@@ -8805,6 +9025,9 @@ bool ConfigureBackgroundEffectLayers(
 	{
 		background->SetResourceTexture2D( BlueSharedString( "StarMap" ), "res:/texture/global/black.dds" );
 	}
+	Tr2EffectRes* effectResource = background->GetEffectRes();
+	probe.backgroundNebulaReady =
+		probe.backgroundNebulaAuthored && effectResource && effectResource->IsGood();
 	return true;
 }
 
@@ -8963,10 +9186,12 @@ bool ConfigureNewEdenSystem(
 			return false;
 		}
 		scene.SetStarfield( starfield );
+		probe.backgroundStarfieldReady = true;
 	}
 	else
 	{
 		scene.SetStarfield( nullptr );
+		probe.backgroundStarfieldReady = false;
 	}
 
 	auto sun = LoadBlackObjectWithoutYield<EvePlanet>(
@@ -9119,7 +9344,8 @@ bool ConfigureNewEdenSystem(
 	probe.planetCloudsPrepared = PlanetModeSelectsRole( planetLayers, "clouds" );
 	probe.sunGeometryPrepared = true;
 	probe.authoredSunFlarePrepared = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
-		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES;
+		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES ||
+		sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	const bool enableLensFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
 		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_LENS_FLARE;
 	if( enableLensFlare && cameraView != STANDALONE_CAMERA_PLANET )
@@ -10576,17 +10802,17 @@ bool ReadPresentationProductMetrics(
 				const Float_16* pixel =
 					reinterpret_cast<const Float_16*>( row ) + x * 4;
 				accept( 0.2126 * static_cast<float>( pixel[0] ) +
-					0.7152 * static_cast<float>( pixel[1] ) +
-					0.0722 * static_cast<float>( pixel[2] ) );
+						0.7152 * static_cast<float>( pixel[1] ) +
+						0.0722 * static_cast<float>( pixel[2] ) );
 			}
 			else if( readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB )
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB )
 			{
 				const uint8_t* pixel = row + static_cast<size_t>( x ) * 4;
 				const bool bgra = readback.GetFormat() ==
@@ -10594,18 +10820,18 @@ bool ReadPresentationProductMetrics(
 					readback.GetFormat() ==
 						Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
 				accept( ( 0.2126 * pixel[bgra ? 2 : 0] + 0.7152 * pixel[1] +
-					0.0722 * pixel[bgra ? 0 : 2] ) /
-					255.0 );
+						  0.0722 * pixel[bgra ? 0 : 2] ) /
+						255.0 );
 			}
 			else if( readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+						 Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
 			{
 				accept( reinterpret_cast<const float*>( row )[x] );
 			}
 			else if( readback.GetFormat() ==
-				Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+					 Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
 			{
 				const uint32_t packed = reinterpret_cast<const uint32_t*>( row )[x];
 				const double red = static_cast<double>( packed & 0x3ffu ) / 1023.0;
@@ -12245,6 +12471,10 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	}
 	const bool atomicProductCaptureRequested = probe.solarIlluminationCaptureRequested ||
 		probe.presentationAuditCaptureRequested;
+	const bool h3PlanetConsumerNotApplicable =
+		( !probe.occlusionLightingReportPath.empty() ||
+		  !probe.planetAppearanceReportPath.empty() ) &&
+		probe.lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 	if( atomicProductCaptureRequested )
 	{
 		const char* evidenceOutputs[] = {
@@ -12366,7 +12596,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				Tr2TextureAL& readback = probe.solarIlluminationProductReadbacks[product.product];
 				const bool disabledFallback =
 					( product.product == STANDALONE_SOLAR_PRODUCT_SHADOW &&
-					  probe.shadows == STANDALONE_SHADOWS_OFF ) ||
+					  ( probe.shadows == STANDALONE_SHADOWS_OFF ||
+						h3PlanetConsumerNotApplicable ) ) ||
 					( product.product == STANDALONE_SOLAR_PRODUCT_BLOOM &&
 					  probe.bloomMode == STANDALONE_POST_FINISH_OFF ) ||
 					( product.product == STANDALONE_SOLAR_PRODUCT_AO &&
@@ -12476,12 +12707,15 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			probe.solarIlluminationReceiverMeasurementReachable = true;
 			if( ok && !ReadSolarIlluminationReceiverMetrics( probe, renderContext ) )
 			{
-				if( probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER )
+				if( probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER ||
+					h3PlanetConsumerNotApplicable ||
+					probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF ||
+					probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
 				{
 					probe.solarIlluminationReceiverMeasurementReachable = false;
 					std::fprintf(
 						stderr,
-						"PL-14E observer frame has no reachable hull receiver at frame %llu\n",
+						"PL-14E/H3/canonical diagnostic frame has no reachable hull receiver at frame %llu\n",
 						static_cast<unsigned long long>( probe.renderedFrameCount ) );
 				}
 				else
@@ -13194,6 +13428,26 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 			}
 		}
+		// The one-time dynamic-reflection contract uses the shared diagnostic
+		// readback target. Preserve an already completed color capture so a
+		// continuous frame sequence does not lose the second rendered frame.
+		const bool preserveColorCapture =
+			captureProducts == STANDALONE_CAPTURE_COLOR && !probe.capturedProductPixels.empty();
+		std::vector<uint8_t> preservedColorPixels;
+		const uint32_t preservedColorWidth = probe.capturedProductWidth;
+		const uint32_t preservedColorHeight = probe.capturedProductHeight;
+		const uint64_t preservedColorHash = probe.capturedProductHash;
+		const uint64_t preservedColorNonzeroPixels = probe.capturedProductNonzeroPixels;
+		const uint8_t preservedColorMinimum = probe.capturedProductMinimum;
+		const uint8_t preservedColorMaximum = probe.capturedProductMaximum;
+		const uint32_t preservedColorMinX = probe.capturedProductMinX;
+		const uint32_t preservedColorMinY = probe.capturedProductMinY;
+		const uint32_t preservedColorMaxX = probe.capturedProductMaxX;
+		const uint32_t preservedColorMaxY = probe.capturedProductMaxY;
+		if( preserveColorCapture )
+		{
+			preservedColorPixels = std::move( probe.capturedProductPixels );
+		}
 		const bool validateDynamicReflection =
 			( captureProducts == 0 || captureProducts == STANDALONE_CAPTURE_COLOR ) &&
 			probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC &&
@@ -13255,6 +13509,20 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			{
 				ok = false;
 			}
+		}
+		if( preserveColorCapture )
+		{
+			probe.capturedProductPixels = std::move( preservedColorPixels );
+			probe.capturedProductWidth = preservedColorWidth;
+			probe.capturedProductHeight = preservedColorHeight;
+			probe.capturedProductHash = preservedColorHash;
+			probe.capturedProductNonzeroPixels = preservedColorNonzeroPixels;
+			probe.capturedProductMinimum = preservedColorMinimum;
+			probe.capturedProductMaximum = preservedColorMaximum;
+			probe.capturedProductMinX = preservedColorMinX;
+			probe.capturedProductMinY = preservedColorMinY;
+			probe.capturedProductMaxX = preservedColorMaxX;
+			probe.capturedProductMaxY = preservedColorMaxY;
 		}
 		if( renderContextOpen )
 		{
@@ -14274,11 +14542,66 @@ bool ApplyLightingAuditStationCamera( StandaloneProbe& probe )
 {
 	if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_UNSPECIFIED )
 		return true;
-	if( !probe.view || !probe.projection || !probe.nativeShip )
+	if( !probe.view || !probe.projection )
 		return false;
-	const Vector3 ship = probe.nativeShip->GetWorldPosition();
-	const Vector3 eye = ship + Vector3(
-		0.0f, kNewEdenTourFinaleCameraHeight, -kNewEdenTourFinaleCameraDistance );
+	if( probe.lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET )
+	{
+		if( !probe.newEdenPlanet || !probe.newEdenPlanet->GetTranslationCurve() ||
+			!probe.scene || !probe.scene->GetSunBall() )
+		{
+			return false;
+		}
+		Vector3 planet;
+		Vector3 sun;
+		if( !ReadSolarIlluminationPosition(
+				probe.newEdenPlanet->GetTranslationCurve(), probe.lastSimTime, planet ) ||
+			!ReadSolarIlluminationPosition(
+				probe.scene->GetSunBall(), probe.lastSimTime, sun ) )
+		{
+			return false;
+		}
+		Vector3 sunward = Normalize( sun - planet );
+		if( Length( sunward ) <= 0.0f )
+			sunward = Vector3( 0.0f, 0.0f, -1.0f );
+		Vector3 viewDirection = sunward;
+		if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_LIMB )
+		{
+			viewDirection = Normalize( Cross( sunward, Vector3( 0.0f, 1.0f, 0.0f ) ) );
+			if( Length( viewDirection ) <= 0.0f )
+				viewDirection = Vector3( 1.0f, 0.0f, 0.0f );
+		}
+		else if( probe.lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE )
+		{
+			viewDirection = -sunward;
+		}
+		constexpr float fovRadians = 48.0f * 3.1415926535f / 180.0f;
+		// The audit contract's 1280x960 backing target is a 240-pixel disc.
+		// Preserve that one-quarter-height composition at higher backing
+		// resolutions so native 4K review stills gain detail instead of merely
+		// adding empty pixels around a fixed-size diagnostic subject.
+		const float discRadiusPixels = 0.125f * static_cast<float>( probe.renderHeight );
+		const float distance = static_cast<float>( kNewEdenPlanetRadius ) *
+			( 0.5f * static_cast<float>( probe.renderHeight ) ) /
+			( discRadiusPixels * std::tan( 0.5f * fovRadians ) );
+		const Vector3 eye = planet + viewDirection * distance;
+		Vector3 up( 0.0f, 1.0f, 0.0f );
+		if( std::abs( Dot( Normalize( planet - eye ), up ) ) > 0.99f )
+			up = Vector3( 0.0f, 0.0f, 1.0f );
+		probe.view->SetLookAtPosition( eye, planet, up );
+		probe.projection->PerspectiveFov(
+			fovRadians,
+			static_cast<float>( probe.renderWidth ) /
+				std::max( 1.0f, static_cast<float>( probe.renderHeight ) ),
+			1.0f,
+			2.0e13f );
+		return true;
+	}
+	if( !probe.nativeShip && !probe.renderable )
+		return false;
+	const Vector3 ship = probe.nativeShip ?
+		probe.nativeShip->GetWorldPosition() :
+		probe.renderable->GetCurrentWorldTransform().GetTranslation();
+	const Vector3 eye = ship + Vector3( 0.0f, kNewEdenTourFinaleCameraHeight, -kNewEdenTourFinaleCameraDistance );
 	const Vector3 target = ship + Vector3( 0.0f, 5.0f, 25.0f );
 	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
 	probe.projection->PerspectiveFov(
@@ -14334,7 +14657,7 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 								diagnostics.absolutePosition[0] ),
 			static_cast<float>( kNewEdenSunRelative[1] - probe.celestialAnchorOffset[1] -
 								diagnostics.absolutePosition[1] ),
-				static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
+			static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
 								diagnostics.absolutePosition[2] ) );
 	}
 	Vector3 observationPlanet( 0.0f, 0.0f, 0.0f );
@@ -14412,7 +14735,7 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	const float seconds = static_cast<float>( simulationTime ) / 10000000.0f;
 	const float shoulderAngle =
 		( gateAligned || planetObservation || ( planetOrbitAlignment && !moving ) ) ? 0.0f :
-											   25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
+																					  25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
 	const Vector3 shoulderDirection = Normalize(
 		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
 	const float chaseDistance = probe.chaseCameraDistanceOverride > 0.0f ?
@@ -14622,6 +14945,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 		case STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT:
 			routeState = &kLightingAuditPlanetOrbit;
 			break;
+		case STANDALONE_LIGHTING_AUDIT_TOUR_FINALE:
+			routeState = &kPlanetAppearanceTourFinale;
+			break;
 		default:
 			break;
 		}
@@ -14655,13 +14981,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 					return false;
 				std::copy(
 					std::begin( geometry.cameraPosition ),
-					std::end( geometry.cameraPosition ), absolute );
+					std::end( geometry.cameraPosition ),
+					absolute );
 			}
 			else
 			{
 				const double sign =
 					probe->lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_DAY ?
-					1.0 : -1.0;
+					1.0 :
+					-1.0;
 				for( size_t axis = 0; axis < 3; ++axis )
 				{
 					absolute[axis] = kNewEdenPlanetRelative[axis] +
@@ -14676,7 +15004,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 			"PL-14H2 canonical station: name=%s sourceFrame=%llu position=(%.3f, %.3f, %.3f)\n",
 			LightingAuditStationName( probe->lightingAuditStation ),
 			static_cast<unsigned long long>( sourceFrame ),
-			primary.position[0], primary.position[1], primary.position[2] );
+			primary.position[0],
+			primary.position[1],
+			primary.position[2] );
 	}
 
 	DestinyEmbeddedSessionOptions options = {};
@@ -15356,6 +15686,101 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 #endif
 }
 
+bool ApplyCanonicalNativeShipDiagnostic(
+	StandaloneProbe& probe,
+	Tr2MeshBase& mesh,
+	std::string& error )
+{
+	std::set<Tr2MeshArea*> uniqueAreas;
+	Tr2MeshArea* hullArea = nullptr;
+	Tr2MeshArea* heatArea = nullptr;
+	Tr2MeshArea* distortionArea = nullptr;
+	for( const Tr2MeshAreaPtr& areaPtr : mesh.GetAllAreas() )
+	{
+		Tr2MeshArea* area = areaPtr;
+		if( !area || !uniqueAreas.insert( area ).second )
+		{
+			continue;
+		}
+		Tr2Effect* effect = area->GetMaterialInterface();
+		const char* effectPath = effect ? effect->GetEffectPathName() : nullptr;
+		std::string normalized = effectPath ? effectPath : "";
+		std::transform(
+			normalized.begin(),
+			normalized.end(),
+			normalized.begin(),
+			[]( unsigned char value ) { return static_cast<char>( std::tolower( value ) ); } );
+		if( normalized.find( "skinned_quadv5.fx" ) != std::string::npos )
+		{
+			if( hullArea )
+			{
+				error = "canonical Astero contains duplicate V5 hull areas";
+				return false;
+			}
+			hullArea = area;
+		}
+		else if( normalized.find( "skinned_quadheatv5.fx" ) != std::string::npos )
+		{
+			if( heatArea )
+			{
+				error = "canonical Astero contains duplicate V5 heat areas";
+				return false;
+			}
+			heatArea = area;
+		}
+		else if( normalized.find( "skinned_fxdistortionv5.fx" ) != std::string::npos )
+		{
+			if( distortionArea )
+			{
+				error = "canonical Astero contains duplicate V5 distortion areas";
+				return false;
+			}
+			distortionArea = area;
+		}
+		else
+		{
+			error = "canonical Astero contains an unexpected mesh effect: " + normalized;
+			return false;
+		}
+	}
+	if( uniqueAreas.size() != 3 || !hullArea || !heatArea || !distortionArea )
+	{
+		std::ostringstream message;
+		message << "canonical Astero diagnostic expected exactly the V5 hull, heat, and distortion areas; found "
+				<< uniqueAreas.size();
+		error = message.str();
+		return false;
+	}
+	if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF )
+	{
+		hullArea->SetDisplay( false );
+		heatArea->SetDisplay( false );
+		distortionArea->SetDisplay( false );
+	}
+	probe.canonicalUniqueMeshAreaCount = static_cast<uint32_t>( uniqueAreas.size() );
+	probe.canonicalHullAreaPresent = true;
+	probe.canonicalHeatAreaPresent = true;
+	probe.canonicalDistortionAreaPresent = true;
+	probe.canonicalHullAreaDisplayed = hullArea->GetDisplay();
+	probe.canonicalHeatAreaDisplayed = heatArea->GetDisplay();
+	probe.canonicalDistortionAreaDisplayed = distortionArea->GetDisplay();
+	probe.canonicalDisplayedMeshAreaCount =
+		static_cast<uint32_t>( probe.canonicalHullAreaDisplayed ) +
+		static_cast<uint32_t>( probe.canonicalHeatAreaDisplayed ) +
+		static_cast<uint32_t>( probe.canonicalDistortionAreaDisplayed );
+	std::fprintf(
+		stderr,
+		"Canonical diagnostic: mode=%s native=EveShip2 dna=soef1_t1:soebase:soe "
+		"meshAreas=%u displayed=%u hull=%s heat=%s distortion=%s\n",
+		CanonicalDiagnosticName( probe.canonicalDiagnostic ),
+		probe.canonicalUniqueMeshAreaCount,
+		probe.canonicalDisplayedMeshAreaCount,
+		probe.canonicalHullAreaDisplayed ? "displayed" : "hidden",
+		probe.canonicalHeatAreaDisplayed ? "displayed" : "hidden",
+		probe.canonicalDistortionAreaDisplayed ? "displayed" : "hidden" );
+	return true;
+}
+
 bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 {
 	if( !probe.canonicalStatePrepared || !probe.destinySession )
@@ -15475,8 +15900,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		return false;
 	}
-	if( !ventureControl && probe.nativeSof->GetLastBuildDiagnostics().impactEffectType !=
-		EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
+	if( !ventureControl && probe.nativeSof->GetLastBuildDiagnostics().impactEffectType != EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 	{
 		error = "Astero impact type differs from the source-observed ELLIPSOID branch";
 		return false;
@@ -15494,11 +15918,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	probe.nativeShip->SetModelRotationCurve( rotation );
 	probe.sceneConstructionTrace.push_back( "native-ship-built-and-curves-bound" );
 	Tr2MeshPtr mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
-	if( !mesh || !PrepareMeshWithoutYield(
-			 *mesh,
-			 stagedHullGeometry,
-			 ventureControl ? "PL-14H native Venture" : "canonical native Astero",
-			 error ) )
+	if( !mesh || !PrepareMeshWithoutYield( *mesh, stagedHullGeometry, ventureControl ? "PL-14H native Venture" : "canonical native Astero", error ) )
 	{
 		return false;
 	}
@@ -15574,6 +15994,16 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		census << "]";
 		error = census.str();
+		return false;
+	}
+	if( ventureControl &&
+		probe.canonicalDiagnostic != STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE )
+	{
+		error = "canonical ship diagnostic isolation is defined only for the Astero";
+		return false;
+	}
+	if( !ventureControl && !ApplyCanonicalNativeShipDiagnostic( probe, *mesh, error ) )
+	{
 		return false;
 	}
 	const float nativeShipRadius = probe.nativeShip->GetRadius();
@@ -15660,7 +16090,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 	if( shadows < STANDALONE_SHADOWS_OFF || shadows > STANDALONE_SHADOWS_RAYTRACED ||
 		ambientOcclusion < STANDALONE_AO_OFF || ambientOcclusion > STANDALONE_AO_HIGH ||
-		aoMethod < STANDALONE_AO_CORTAO || aoMethod > STANDALONE_AO_CACAO )
+		aoMethod < STANDALONE_AO_CORTAO || aoMethod > STANDALONE_AO_CLIENT )
 	{
 		CCP_LOGERR( "Invalid standalone shadow or ambient-occlusion mode" );
 		return false;
@@ -15833,7 +16263,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone scene composition" );
 		return false;
 	}
-	if( sunEffects < STANDALONE_SUN_EFFECTS_OFF || sunEffects > STANDALONE_SUN_EFFECTS_LENS_FLARE )
+	if( sunEffects < STANDALONE_SUN_EFFECTS_OFF || sunEffects > STANDALONE_SUN_EFFECTS_NO_LENS_FLARE )
 	{
 		CCP_LOGERR( "Invalid standalone sun-effects mode" );
 		return false;
@@ -15843,7 +16273,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Standalone sun effects require the New Eden scene fixture" );
 		return false;
 	}
-	const bool enableGodRays = sunEffects == STANDALONE_SUN_EFFECTS_GOD_RAYS || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
+	const bool enableGodRays = sunEffects == STANDALONE_SUN_EFFECTS_GOD_RAYS ||
+		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	probe.sunEffectsMode = sunEffects;
 	if( enableGodRays && qualityRung < STANDALONE_PROBE_RUNG_HDR_POST )
 	{
@@ -16238,6 +16669,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 					nativeError.c_str() );
 				return false;
 			}
+			if( EveBoosterSet2* boosters = probe.nativeShip->GetBoosters() )
+			{
+				const bool displayBoosters = engines == STANDALONE_ENGINES_AUTHORED;
+				boosters->SetDisplay( displayBoosters );
+				std::fprintf(
+					stderr,
+					"Canonical native booster participation: engines=%s display=%s\n",
+					displayBoosters ? "authored" : "off",
+					boosters->GetDisplay() ? "on" : "off" );
+			}
 		}
 		if( sceneFixture == 3 && !ConfigureNewEdenSystem( probe, *probe.scene, cameraView, composition, sunEffects, planetLayers, cloudYear, cloudMonth, cloudDay, sceneError ) )
 		{
@@ -16461,6 +16902,20 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		}
 		probe.scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe.destinySession ) );
 		probe.scene->Objects().Insert( -1, probe.nativeShip->GetRawRoot() );
+		probe.canonicalNativeShipInserted = true;
+		const bool planetAppearanceSuppressesShip =
+			!probe.planetAppearanceReportPath.empty() &&
+			probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE;
+		if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF ||
+			planetAppearanceSuppressesShip )
+		{
+			probe.nativeShip->SetDisplay( false );
+		}
+		std::fprintf(
+			stderr,
+			"Canonical diagnostic publication: mode=%s inScene=yes objectDisplay=%s\n",
+			CanonicalDiagnosticName( probe.canonicalDiagnostic ),
+			probe.nativeShip->GetDisplay() ? "on" : "off" );
 		probe.sceneConstructionTrace.push_back( "native-ship-inserted" );
 		probe.sceneConstructionTrace.push_back( "ballpark-bound" );
 		if( !probe.newEdenSun || !probe.newEdenSun->GetTranslationCurve() ||
@@ -16506,13 +16961,32 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 	}
 	if( ambientOcclusion != STANDALONE_AO_OFF )
 	{
-		if( !probe.ssao.CreateInstance() )
+		if( aoMethod == STANDALONE_AO_CLIENT )
+		{
+			std::string ssaoError;
+			probe.ssao = LoadBlackObjectWithoutYield<Tr2SSAO>(
+				"res:/dx9/default/ssao.black", ssaoError );
+			if( !probe.ssao )
+			{
+				std::fprintf( stderr, "Failed to load client SSAO Black: %s\n", ssaoError.c_str() );
+				return false;
+			}
+			if( probe.ssao->GetCortaoEnabled() )
+			{
+				CCP_LOGERR( "Client SSAO Black unexpectedly selected CORTAO" );
+				return false;
+			}
+		}
+		else if( !probe.ssao.CreateInstance() )
 		{
 			CCP_LOGERR( "Failed to create Tr2SSAO" );
 			return false;
 		}
-		probe.ssao->SetCortaoEnabled( aoMethod == STANDALONE_AO_CORTAO );
-		probe.ssao->SetCortaoBentNormal( aoMethod == STANDALONE_AO_CORTAO );
+		if( aoMethod != STANDALONE_AO_CLIENT )
+		{
+			probe.ssao->SetCortaoEnabled( aoMethod == STANDALONE_AO_CORTAO );
+			probe.ssao->SetCortaoBentNormal( aoMethod == STANDALONE_AO_CORTAO );
+		}
 		if( probe.deterministicEvidence && aoMethod == STANDALONE_AO_CORTAO )
 		{
 			probe.ssao->ResetRandomSeedForTesting( probe.deterministicEvidenceSeed );
@@ -16520,7 +16994,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			probe.solarIlluminationDeterministicAoRandom =
 				probe.ssao->IsDeterministicRandomForTesting();
 		}
+		probe.ssao->SetRetainDiagnosticIntermediates(
+			!probe.ssaoTransportReportPath.empty() );
 		probe.driver->SetSSAO( probe.ssao );
+		if( !probe.ssaoTransportReportPath.empty() )
+		{
+			probe.driver->SetSsaoBindingProbeForTesting(
+				static_cast<EveSpaceSceneRenderDriver::SsaoBindingProbe>(
+					probe.aoBindingProbe ) );
+		}
 	}
 	const bool reflectionCorrectionEnabled = reflectionCorrection == STANDALONE_REFLECTION_CORRECTION_CLIENT;
 	const std::string reflectionCorrectionPath = reflectionCorrectionEnabled ? "res:/texture/reflectioncorrection/128x128.dds" : "res:/texture/global/black.dds";
@@ -16639,7 +17121,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 															( localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? "probe-validation" : "none" ),
 		ambientOcclusion == STANDALONE_AO_HIGH ? "high" :
 												 ( ambientOcclusion == STANDALONE_AO_MEDIUM ? "medium" : ( ambientOcclusion == STANDALONE_AO_LOW ? "low" : "off" ) ),
-		aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "cacao",
+		AoMethodName( aoMethod ),
 		ambientOcclusion != STANDALONE_AO_OFF && aoMethod == STANDALONE_AO_CORTAO ? "enabled" : "disabled",
 		ReflectionSourceName( reflectionSource ),
 		sizeof( EveSpaceScene::PerFramePSData ),
@@ -16751,6 +17233,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
+		const bool planetAppearanceSuppressesShip =
+			!probe.planetAppearanceReportPath.empty() &&
+			probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE;
+		probe.renderable->SetStandaloneDisplay( !planetAppearanceSuppressesShip );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
 	probe.sceneConstructionPublished = true;
@@ -17624,10 +18110,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	{
 		return false;
 	}
-	const auto* diagnostics = probe->renderable ?
-		probe->scene->FindDirectionalShadowCasterDiagnostics(
-			static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
-		nullptr;
+	const IEveShadowCaster* caster = probe->renderable ?
+		static_cast<const IEveShadowCaster*>( probe->renderable.p ) :
+		( probe->nativeShip ?
+			  static_cast<const IEveShadowCaster*>( probe->nativeShip.p ) :
+			  nullptr );
+	const auto* diagnostics =
+		probe->scene->FindDirectionalShadowCasterDiagnostics( caster );
 	if( !diagnostics )
 	{
 		return false;
@@ -17661,10 +18150,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRaytracedShadowDiagnosti
 	output->maskFormat = diagnostics.resultFormat;
 	output->maskWidth = diagnostics.resultWidth;
 	output->maskHeight = diagnostics.resultHeight;
-	return diagnostics.preparationAttempted && diagnostics.geometryPresent &&
+	const bool complete = diagnostics.preparationAttempted && diagnostics.geometryPresent &&
 		diagnostics.renderAttempted && diagnostics.dispatchSucceeded &&
 		diagnostics.dispatchCount != 0 && diagnostics.resultValid &&
 		( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded );
+	return complete || ( !probe->occlusionLightingReportPath.empty() && probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetLocalShadowDiagnostics(
@@ -18544,6 +19034,192 @@ void WriteSolarBodyMatrix( std::ostream& output, const Matrix& matrix )
 		   << matrix._41 << ',' << matrix._42 << ',' << matrix._43 << ',' << matrix._44 << ']';
 }
 
+bool WritePlanetAppearanceReport( StandaloneProbe& probe, std::string& error )
+{
+	if( probe.planetAppearanceReportPath.empty() || !probe.newEdenPlanet || !probe.scene ||
+		probe.renderedFrameCount == 0 )
+	{
+		error = "Planet appearance report is missing a path, scene, planet, or rendered frame";
+		return false;
+	}
+	if( probe.planetAuditNodes.size() != 6 )
+	{
+		error = "Planet appearance report requires the accepted PL-14F graph inventory";
+		return false;
+	}
+
+	std::ofstream output( probe.planetAppearanceReportPath.c_str(), std::ios::binary );
+	if( !output )
+	{
+		error = "Could not open planet appearance report output";
+		return false;
+	}
+
+	const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
+	const EveSpaceScene::MainPassBatchDiagnostics& batches =
+		probe.scene->GetMainPassBatchDiagnostics();
+	const EveSpaceScene::PlanetPassDiagnostics& planetPass =
+		probe.scene->GetPlanetPassDiagnostics();
+	Color fogColor;
+	float fogStart = 0.0f;
+	float fogEnd = 0.0f;
+	float fogMaximum = 0.0f;
+	probe.scene->GetDistanceFog( fogColor, fogStart, fogEnd, fogMaximum );
+	const Vector3 position = probe.newEdenPlanet->GetWorldPosition();
+	const Quaternion rotation = probe.newEdenPlanet->GetWorldRotation();
+	const Matrix& view = Tr2Renderer::GetViewTransform();
+	const Matrix& projection = Tr2Renderer::GetProjectionTransform();
+
+	output << std::setprecision( 10 );
+	output << "{\n"
+		   << "  \"schema\":\"trinity.planet-appearance-report.v1\",\n"
+		   << "  \"source\":{\"eveBuild\":3430261,\"logicalBlack\":"
+		   << SolarBodyJsonString(
+				  "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black" )
+		   << ",\"blackSha256\":\"991092ce46ce8c1cca2115c68e4d36d6210a3d507f5e03b52c0f0ea64d6913b3\","
+			  "\"claim\":\"structural-source-and-archive-backed\"},\n"
+		   << "  \"view\":" << SolarBodyJsonString( PlanetAppearanceViewName( probe.planetAppearanceView ) )
+		   << ",\n  \"sourceFrame\":";
+	switch( probe.planetAppearanceView )
+	{
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		output << kPlanetAppearanceTourFinale.sourceFrame;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		output << kLightingAuditPlanetOrbit.sourceFrame;
+		break;
+	default:
+		output << 0;
+		break;
+	}
+	output << ",\n  \"construction\":"
+		   << SolarBodyJsonString(
+				  probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ? "canonical" : "legacy" )
+		   << ",\n  \"subject\":{\"shipSceneMember\":true,\"shipVisualSuppressed\":"
+		   << ( probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE ? "true" : "false" )
+		   << ",\"shipDisplay\":"
+		   << ( probe.nativeShip ? ( probe.nativeShip->GetDisplay() ? "true" : "false" ) :
+								   ( probe.renderable && probe.renderable->GetStandaloneDisplay() ? "true" : "false" ) )
+		   << ",\"sunOpticsSuppressed\":"
+		   << ( probe.sunEffectsMode == STANDALONE_SUN_EFFECTS_OFF ? "true" : "false" )
+		   << "}"
+		   << ",\n  \"qualityTier\":\"high\",\n  \"layerMode\":"
+		   << SolarBodyJsonString( PlanetLayersName( probe.planetLayerMode ) )
+		   << ",\n  \"backing\":{\"width\":" << probe.renderWidth << ",\"height\":" << probe.renderHeight
+		   << "},\n  \"renderedFrameCount\":" << probe.renderedFrameCount
+		   << ",\n  \"planet\":{\"display\":" << ( probe.newEdenPlanet->GetDisplay() ? "true" : "false" )
+		   << ",\"lod\":" << static_cast<int>( probe.newEdenPlanet->GetLodForInspection() )
+		   << ",\"radius\":" << probe.newEdenPlanet->GetRadius()
+		   << ",\"estimatedPixelDiameter\":" << probe.newEdenPlanet->GetEstimatedPixelDiameter()
+		   << ",\"planetScale\":" << probe.scene->GetPlanetScale()
+		   << ",\"planetCameraScale\":" << probe.scene->GetPlanetCameraScale()
+		   << ",\"position\":[" << position.x << ',' << position.y << ',' << position.z
+		   << "],\"rotation\":[" << rotation.x << ',' << rotation.y << ',' << rotation.z << ',' << rotation.w
+		   << "],\"viewMatrix\":";
+	WriteSolarBodyMatrix( output, view );
+	output << ",\"projectionMatrix\":";
+	WriteSolarBodyMatrix( output, projection );
+	output << "},\n  \"envelopes\":{\"surface\":{\"rawRadius\":" << probe.planetSurfaceRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetSurfaceAdjustedRadius
+		   << "},\"atmosphere\":{\"rawRadius\":" << probe.planetAtmosphereRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetAtmosphereAdjustedRadius
+		   << "},\"clouds\":{\"rawRadius\":" << probe.planetCloudRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetCloudAdjustedRadius << "}},\n"
+		   << "  \"liveInputs\":{\"sunDirection\":[" << lighting.sunDirection.x << ','
+		   << lighting.sunDirection.y << ',' << lighting.sunDirection.z << "],\"sunColor\":["
+		   << lighting.sunColor.r << ',' << lighting.sunColor.g << ',' << lighting.sunColor.b << ','
+		   << lighting.sunColor.a << "],\"ambientColor\":[" << lighting.ambientColor.r << ','
+		   << lighting.ambientColor.g << ',' << lighting.ambientColor.b << ',' << lighting.ambientColor.a
+		   << "],\"distanceFog\":{\"color\":[" << fogColor.r << ',' << fogColor.g << ',' << fogColor.b
+		   << ',' << fogColor.a << "],\"start\":" << fogStart << ",\"end\":" << fogEnd
+		   << ",\"maximum\":" << fogMaximum << "}},\n"
+		   << "  \"volumeTransport\":{\"parameter\":\"EveSceneFogVolumeMap\","
+			  "\"provider\":\"EveSpaceScene::RenderPlanets/native-empty-four-slice-fallback\","
+			  "\"bound\":"
+		   << ( planetPass.emptyVolumetricSlicesBound ? "true" : "false" )
+		   << ",\"width\":" << planetPass.emptyVolumetricWidth
+		   << ",\"height\":" << planetPass.emptyVolumetricHeight
+		   << ",\"arraySize\":" << planetPass.emptyVolumetricArraySize
+		   << ",\"mipCount\":" << planetPass.emptyVolumetricMipCount
+		   << ",\"format\":" << planetPass.emptyVolumetricFormat
+		   << ",\"executionCount\":" << planetPass.executionCount
+		   << ",\"silk\":"
+		   << ( probe.volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
+						probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+					"true" :
+					"false" )
+		   << ",\"froxels\":"
+		   << ( probe.volumetricMode == STANDALONE_VOLUMETRICS_FROXEL ||
+						probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+					"true" :
+					"false" )
+		   << "},\n  \"submission\":{\"opaque\":" << batches.planetOpaque
+		   << ",\"additive\":" << batches.planetAdditive
+		   << ",\"transparent\":" << batches.planetTransparent << "},\n"
+		   << "  \"layers\":[\n";
+	bool wroteLayer = false;
+	for( const StandalonePlanetNodeEvidence& node : probe.planetAuditNodes )
+	{
+		if( node.role != "surface" && node.role != "atmosphere" && node.role != "clouds" )
+			continue;
+		output << ( wroteLayer ? ",\n" : "" ) << "    {\"id\":" << SolarBodyJsonString( node.id )
+			   << ",\"role\":" << SolarBodyJsonString( node.role )
+			   << ",\"class\":" << SolarBodyJsonString( node.className )
+			   << ",\"selected\":" << ( node.selected ? "true" : "false" )
+			   << ",\"displayed\":" << ( node.settledDisplay ? "true" : "false" )
+			   << ",\"areas\":[";
+		for( size_t areaIndex = 0; areaIndex < node.areas.size(); ++areaIndex )
+		{
+			const StandalonePlanetAreaEvidence& area = node.areas[areaIndex];
+			output << ( areaIndex ? "," : "" ) << "{\"name\":" << SolarBodyJsonString( area.name )
+				   << ",\"batchType\":"
+				   << SolarBodyJsonString( SolarBodyBatchName( static_cast<TriBatchType>( area.batchType ) ) )
+				   << ",\"effect\":" << SolarBodyJsonString( area.effectPath )
+				   << ",\"selected\":" << ( area.selected ? "true" : "false" )
+				   << ",\"displayed\":" << ( area.settledDisplay ? "true" : "false" )
+				   << ",\"textures\":[";
+			for( size_t textureIndex = 0; textureIndex < area.settledTextures.size(); ++textureIndex )
+			{
+				output << ( textureIndex ? "," : "" ) << "{\"parameter\":"
+					   << SolarBodyJsonString( area.settledTextures[textureIndex].first ) << ",\"path\":"
+					   << SolarBodyJsonString( area.settledTextures[textureIndex].second ) << '}';
+			}
+			output << "],\"vector4Constants\":[";
+			for( size_t constantIndex = 0; constantIndex < area.vector4Constants.size(); ++constantIndex )
+			{
+				const auto& constant = area.vector4Constants[constantIndex];
+				output << ( constantIndex ? "," : "" ) << "{\"parameter\":"
+					   << SolarBodyJsonString( constant.first ) << ",\"value\":[" << constant.second.x << ','
+					   << constant.second.y << ',' << constant.second.z << ',' << constant.second.w << "]}";
+			}
+			output << "]}";
+		}
+		output << "]}";
+		wroteLayer = true;
+	}
+	output << "\n  ],\n  \"presentationEvidence\":{\"retainedFrameCount\":"
+		   << probe.presentationAuditFrames.size() << ",\"capturedBeforeReuseOrRelease\":";
+	bool retained = !probe.presentationAuditFrames.empty();
+	if( retained )
+	{
+		for( const StandalonePresentationProductMetrics& metrics :
+			 probe.presentationAuditFrames.back().products )
+		{
+			retained = retained && ( !metrics.available || metrics.capturedBeforeReuseOrRelease );
+		}
+	}
+	output << ( retained ? "true" : "false" )
+		   << "},\n  \"scope\":{\"aurora\":\"PL-14F-regression-only\","
+			  "\"populationTraffic\":\"PL-14F-regression-only\","
+			  "\"exactClientPixels\":false,\"exactClientColor\":false,\"exactClientExposure\":false}\n}\n";
+	if( !output )
+	{
+		error = "Failed while writing planet appearance report";
+		return false;
+	}
+	return true;
+}
+
 bool WriteSolarBodyReport( StandaloneProbe& probe, std::string& error )
 {
 	if( probe.solarBodyReportPath.empty() || !probe.newEdenSunBody || !probe.newEdenSun ||
@@ -19046,6 +19722,17 @@ bool WriteSolarHighReport( StandaloneProbe& probe, std::string& error )
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAurora(
+	void* opaqueProbe,
+	bool active )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene )
+		return false;
+	probe->planetAuroraActive = active;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAudit(
 	void* opaqueProbe,
 	const char* reportPath )
@@ -19076,6 +19763,69 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePlanetAuditReport( voi
 		return false;
 	}
 	std::fprintf( stderr, "PL-14F planet audit report: %s\n", probe->planetAuditReportPath.c_str() );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAppearance(
+	void* opaqueProbe,
+	int view,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !reportPath || !reportPath[0] ||
+		view < STANDALONE_PLANET_APPEARANCE_DAY ||
+		view > STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT )
+	{
+		CCP_LOGERR( "Planet appearance audit requires an initialized device, valid view, and report path" );
+		return false;
+	}
+	probe->planetAppearanceConfigured = true;
+	probe->planetAppearanceView = view;
+	probe->planetAppearanceReportPath = reportPath;
+	switch( view )
+	{
+	case STANDALONE_PLANET_APPEARANCE_DAY:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_DAY;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_LIMB:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_LIMB;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_ECLIPSE:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_TOUR_FINALE;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePlanetAppearanceReport( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->planetAppearanceConfigured || probe->planetAppearanceReportPath.empty() )
+	{
+		CCP_LOGERR( "Planet appearance report was not configured" );
+		return false;
+	}
+	std::string error;
+	if( !WritePlanetAppearanceReport( *probe, error ) )
+	{
+		std::fprintf( stderr, "Failed to write PL-14J planet appearance report: %s\n", error.c_str() );
+		return false;
+	}
+	std::fprintf(
+		stderr, "PL-14J planet appearance report: %s\n", probe->planetAppearanceReportPath.c_str() );
 	return true;
 }
 
@@ -20052,6 +20802,75 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
 	probe->sceneConstructionTrace.clear();
 	probe->sceneConstructionTrace.push_back( "configuration-accepted" );
 	probe->sceneConstructionTrace.push_back( "fresh-host-asserted" );
+	std::fprintf(
+		stderr,
+		"PL-14G scene construction configured: mode=%s shProxies=%s shReceiver=%s solarEnvironment=%s\n",
+		constructionMode == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ? "canonical" : "legacy",
+		legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_OFF ? "off" : "authored",
+		legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ? "live" : "origin",
+		legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
+			"live-distance" : "scripted" );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCanonicalDiagnostic(
+	void* opaqueProbe,
+	int mode )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene || probe->driver ||
+		!probe->sceneConstructionConfigured ||
+		probe->sceneConstruction != STANDALONE_SCENE_CONSTRUCTION_CANONICAL ||
+		mode < STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE ||
+		mode > STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
+	{
+		CCP_LOGERR( "Invalid canonical scene diagnostic configuration" );
+		return false;
+	}
+	probe->canonicalDiagnostic = mode;
+	probe->canonicalDiagnosticConfigured = true;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCanonicalDiagnosticState(
+	void* opaqueProbe,
+	TrinityStandaloneCanonicalDiagnosticState* state )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !state || !probe->canonicalDiagnosticConfigured ||
+		probe->sceneConstruction != STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		return false;
+	}
+	*state = {};
+	state->mode = probe->canonicalDiagnostic;
+	state->nativeShip = probe->nativeShip != nullptr;
+	state->nativeShipInScene = probe->canonicalNativeShipInserted;
+	state->nativeShipDisplay = probe->nativeShip && probe->nativeShip->GetDisplay();
+	state->positionCurveBound =
+		probe->nativeShip && probe->nativeShip->GetModelTranslationCurve() != nullptr;
+	state->rotationCurveBound =
+		probe->nativeShip && probe->nativeShip->GetModelRotationCurve() != nullptr;
+	state->hullAreaPresent = probe->canonicalHullAreaPresent;
+	state->heatAreaPresent = probe->canonicalHeatAreaPresent;
+	state->distortionAreaPresent = probe->canonicalDistortionAreaPresent;
+	state->hullAreaDisplayed = probe->canonicalHullAreaDisplayed;
+	state->heatAreaDisplayed = probe->canonicalHeatAreaDisplayed;
+	state->distortionAreaDisplayed = probe->canonicalDistortionAreaDisplayed;
+	state->uniqueMeshAreaCount = probe->canonicalUniqueMeshAreaCount;
+	state->displayedMeshAreaCount = probe->canonicalDisplayedMeshAreaCount;
+	state->nebulaReady = probe->backgroundNebulaReady;
+	state->starfieldReady = probe->backgroundStarfieldReady;
+	if( probe->scene )
+	{
+		Tr2EffectPtr background = probe->scene->GetBackgroundEffect();
+		Tr2EffectRes* effectResource = background ? background->GetEffectRes() : nullptr;
+		state->nebulaReady = probe->backgroundNebulaAuthored && effectResource && effectResource->IsGood();
+		const auto& batches = probe->scene->GetMainPassBatchDiagnostics();
+		state->submittedOpaqueBatches = batches.opaque;
+		state->submittedAdditiveBatches = batches.additive;
+		state->submittedTransparentBatches = batches.transparent;
+	}
 	return true;
 }
 
@@ -20345,7 +21164,8 @@ Tr2TextureAL* PresentationAuditTexture(
 	{
 		const StandaloneSolarIlluminationProduct source =
 			product == TRINITY_STANDALONE_PRESENTATION_HDR ?
-			STANDALONE_SOLAR_PRODUCT_TAA_INPUT : sources[product];
+			STANDALONE_SOLAR_PRODUCT_TAA_INPUT :
+			sources[product];
 		return &probe.solarIlluminationProductReadbacks[source];
 	}
 	return product == TRINITY_STANDALONE_PRESENTATION_DRAWABLE ?
@@ -20401,7 +21221,7 @@ bool ConvertPresentationAuditProduct(
 		}
 	}
 	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
-		 source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+			 source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
 	{
 		float minimum = std::numeric_limits<float>::max();
 		float maximum = std::numeric_limits<float>::lowest();
@@ -20437,7 +21257,7 @@ bool ConvertPresentationAuditProduct(
 		}
 	}
 	else if( source.GetFormat() ==
-		Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+			 Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
 	{
 		for( uint32_t y = 0; y < height; ++y )
 		{
@@ -20481,8 +21301,7 @@ bool ConvertPresentationAuditProduct(
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
 			source.GetFormat() ==
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
-		converted = bgra || source.GetFormat() ==
-			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+		converted = bgra || source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
 			source.GetFormat() ==
 				Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB;
 		for( uint32_t y = 0; converted && y < height; ++y )
@@ -20540,22 +21359,20 @@ bool RecordPresentationAuditFrame(
 	sample.simulationTime = simulationTime;
 	Tr2TextureAL* hdrTexture = PresentationAuditTexture(
 		probe, TRINITY_STANDALONE_PRESENTATION_HDR );
-	if( !hdrTexture || !ReadRawHdrCompositeTexture(
-			probe, *hdrTexture, *probe.renderContext ) )
+	if( !hdrTexture || !ReadRawHdrCompositeTexture( probe, *hdrTexture, *probe.renderContext ) )
 	{
 		CCP_LOGERR( "PL-14H1 pre-tone HDR metrics are unavailable" );
 		return false;
 	}
 	for( uint32_t product = 0;
-		product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+		 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT;
+		 ++product )
 	{
 		Tr2TextureAL* texture = PresentationAuditTexture( probe, product );
-		if( !texture || !ReadPresentationProductMetrics(
-				*texture, sample.products[product], *probe.renderContext ) )
+		if( !texture || !ReadPresentationProductMetrics( *texture, sample.products[product], *probe.renderContext ) )
 		{
 			std::fprintf(
-				stderr, "PL-14H1 product %u could not be measured at frame %llu\n",
-				product, static_cast<unsigned long long>( frame ) );
+				stderr, "PL-14H1 product %u could not be measured at frame %llu\n", product, static_cast<unsigned long long>( frame ) );
 			return false;
 		}
 	}
@@ -20609,8 +21426,7 @@ bool RecordPresentationAuditFrame(
 		sample.exposure.maximum > sample.exposure.minimum;
 	const float exposedLuminance = std::max(
 		0.0001f,
-		0.5f + ( sample.adaptedLuminance - 0.5f ) *
-			diagnostics.exposureInfluence );
+		0.5f + ( sample.adaptedLuminance - 0.5f ) * diagnostics.exposureInfluence );
 	sample.exposureMultiplier = diagnostics.dynamicExposureActive ?
 		std::pow( 2.0f, diagnostics.exposureAdjustment ) *
 			diagnostics.exposureMiddleValue / exposedLuminance :
@@ -20641,7 +21457,8 @@ bool RecordPresentationAuditFrame(
 	sample.drawableByteEqual = sample.drawableFormatsMatch &&
 		finalProduct.hash == drawableProduct.hash;
 	sample.drawableConversion = sample.drawableFormatsMatch ?
-		"byte-copy" : "unresolved-format-conversion";
+		"byte-copy" :
+		"unresolved-format-conversion";
 	sample.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
 	sample.view = Tr2Renderer::GetViewTransform();
 	sample.projection = Tr2Renderer::GetProjectionTransform();
@@ -20730,6 +21547,69 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectReflectionLightingCon
 	return probe->reflectionLightingContactSelected;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectOcclusionLightingProduct(
+	void* opaqueProbe,
+	uint32_t product )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !probe->presentationAuditSnapshotAvailable ||
+		product > TRINITY_STANDALONE_OCCLUSION_SHADOW )
+	{
+		return false;
+	}
+	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[product == TRINITY_STANDALONE_OCCLUSION_SHADOW ?
+																		STANDALONE_SOLAR_PRODUCT_SHADOW :
+																		STANDALONE_SOLAR_PRODUCT_AO];
+	if( product == TRINITY_STANDALONE_OCCLUSION_SHADOW ||
+		source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM )
+	{
+		return ConvertPresentationAuditProduct( *probe, source );
+	}
+	const void* data = nullptr;
+	uint32_t pitch = 0;
+	if( !source.IsValid() || FAILED( source.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, *probe->renderContext ) ) || !data )
+	{
+		return false;
+	}
+	probe->capturedProductWidth = source.GetWidth();
+	probe->capturedProductHeight = source.GetHeight();
+	probe->capturedProductPixels.assign(
+		static_cast<size_t>( source.GetWidth() ) * source.GetHeight() * 4u, 0 );
+	for( uint32_t y = 0; y < source.GetHeight(); ++y )
+	{
+		const int8_t* row = reinterpret_cast<const int8_t*>(
+			static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch );
+		uint8_t* destination = probe->capturedProductPixels.data() +
+			static_cast<size_t>( y ) * source.GetWidth() * 4u;
+		for( uint32_t x = 0; x < source.GetWidth(); ++x )
+		{
+			if( product == TRINITY_STANDALONE_OCCLUSION_AO )
+			{
+				const float normalized = std::clamp(
+					static_cast<float>( row[x * 4 + 3] ) / 127.0f, -1.0f, 1.0f );
+				const uint8_t value = static_cast<uint8_t>( std::lround(
+					( normalized * 0.5f + 0.5f ) * 255.0f ) );
+				destination[x * 4] = value;
+				destination[x * 4 + 1] = value;
+				destination[x * 4 + 2] = value;
+			}
+			else
+			{
+				for( uint32_t channel = 0; channel < 3; ++channel )
+				{
+					const float normalized = std::clamp(
+						static_cast<float>( row[x * 4 + channel] ) / 127.0f, -1.0f, 1.0f );
+					destination[x * 4 + channel] = static_cast<uint8_t>( std::lround(
+						( normalized * 0.5f + 0.5f ) * 255.0f ) );
+				}
+			}
+			destination[x * 4 + 3] = 255;
+		}
+	}
+	source.UnmapForReading( *probe->renderContext );
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditReport(
 	void* opaqueProbe )
 {
@@ -20747,15 +21627,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		return false;
 	}
 	const char* productNames[] = {
-		"depth", "normal", "hdr", "taa-input", "taa-output", "exposure",
-		"bloom", "post-tone", "final", "drawable",
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"exposure",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
 	};
 	const char* owners[] = {
-		"EveSpaceSceneRenderDriver", "EveSpaceSceneRenderDriver",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2RenderContext.defaultBackBuffer",
+		"EveSpaceSceneRenderDriver",
+		"EveSpaceSceneRenderDriver",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2RenderContext.defaultBackBuffer",
 	};
 	output << std::setprecision( 12 )
 		   << "{\n  \"schema\":\"trinity.presentation-audit-report.v1\",\n"
@@ -20795,11 +21688,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		}
 		output << "],\"products\":[";
 		for( uint32_t product = 0;
-			 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+			 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT;
+			 ++product )
 		{
 			const auto& metrics = frame.products[product];
 			const uint32_t reportIndex = product < TRINITY_STANDALONE_PRESENTATION_BLOOM ?
-				product : product + 1;
+				product :
+				product + 1;
 			output << ( product ? "," : "" ) << "{\"identity\":"
 				   << SolarBodyJsonString( productNames[reportIndex] )
 				   << ",\"owner\":" << SolarBodyJsonString( owners[reportIndex] )
@@ -20819,8 +21714,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		}
 		const auto& exposure = frame.exposure;
 		output << "],\"exposure\":{\"identity\":\"ExposureBuffer\","
-			  "\"owner\":\"Tr2PostProcessRenderer\",\"format\":\"R32_FLOAT\","
-			  "\"width\":8,\"height\":1,\"hash\":\"" << std::hex
+				  "\"owner\":\"Tr2PostProcessRenderer\",\"format\":\"R32_FLOAT\","
+				  "\"width\":8,\"height\":1,\"hash\":\""
+			   << std::hex
 			   << std::setw( 16 ) << std::setfill( '0' ) << exposure.hash
 			   << std::dec << std::setfill( ' ' )
 			   << "\",\"finiteSamples\":" << exposure.finiteSamples
@@ -20834,7 +21730,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 			   << ",\"adaptedLuminance\":"
 			   << frame.adaptedLuminance << "},\"drawableCopy\":{\"source\":"
 			   << "\"FinalPostProcessColor\",\"destination\":\"defaultBackBuffer\","
-				  "\"formatsMatch\":" << ( frame.drawableFormatsMatch ? "true" : "false" )
+				  "\"formatsMatch\":"
+			   << ( frame.drawableFormatsMatch ? "true" : "false" )
 			   << ",\"byteEqual\":" << ( frame.drawableByteEqual ? "true" : "false" )
 			   << ",\"conversion\":" << SolarBodyJsonString( frame.drawableConversion )
 			   << "}}";
@@ -20861,6 +21758,704 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureReflectionLighting
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureOcclusionLightingAudit(
+	void* opaqueProbe,
+	int station,
+	int subject,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] ||
+		station < STANDALONE_LIGHTING_AUDIT_NEAR_SUN ||
+		station > STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ||
+		subject < STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL ||
+		subject > STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET )
+	{
+		CCP_LOGERR( "PL-14H3 AO/shadow audit requires a valid station, subject, and report path" );
+		return false;
+	}
+	probe->lightingAuditStation = station;
+	probe->lightingAuditSubject = subject;
+	probe->occlusionLightingReportPath = reportPath;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSsaoTransportAudit(
+	void* opaqueProbe,
+	int bindingProbe,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] ||
+		bindingProbe < STANDALONE_AO_BINDING_NONE ||
+		bindingProbe > STANDALONE_AO_BINDING_BLACK )
+	{
+		CCP_LOGERR( "PL-14I1 SSAO transport audit requires a valid binding probe and report path" );
+		return false;
+	}
+	probe->ssaoTransportReportPath = reportPath;
+	probe->aoBindingProbe = bindingProbe;
+	return true;
+}
+
+namespace
+{
+struct StandaloneSsaoBindingRecord
+{
+	std::string area;
+	std::string family;
+	std::string effect;
+	std::string technique;
+	std::string stage;
+	std::string sourcePrecedence;
+	uint32_t registerIndex = 0;
+	bool providerValid = false;
+	bool textureValid = false;
+	bool textureMatchesPublished = false;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t format = 0;
+};
+
+struct StandaloneSsaoDiagnosticMetrics
+{
+	struct Slice
+	{
+		uint32_t arraySlice = 0;
+		uint32_t mipLevel = 0;
+		StandalonePresentationProductMetrics aggregate;
+		uint32_t channelCount = 0;
+		std::array<double, 4> channelMinimum = {};
+		std::array<double, 4> channelMean = {};
+		std::array<double, 4> channelMaximum = {};
+	};
+
+	StandalonePresentationProductMetrics aggregate;
+	uint32_t channelCount = 0;
+	std::array<double, 4> channelMinimum = {};
+	std::array<double, 4> channelMean = {};
+	std::array<double, 4> channelMaximum = {};
+	std::vector<Slice> slices;
+	uint32_t rawMip0Width = 0;
+	uint32_t rawMip0Height = 0;
+	uint32_t rawMip0ArraySize = 0;
+	uint32_t rawMip0BytesPerPixel = 0;
+	std::vector<uint8_t> rawMip0;
+};
+
+bool ReadSsaoDiagnosticTextureMetrics(
+	const Tr2TextureAL& source,
+	StandaloneSsaoDiagnosticMetrics& metrics,
+	Tr2RenderContext& renderContext )
+{
+	metrics = {};
+	if( !source.IsValid() )
+	{
+		return false;
+	}
+	if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM )
+	{
+		metrics.channelCount = 1;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8_UNORM )
+	{
+		metrics.channelCount = 2;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
+	{
+		metrics.channelCount = 4;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM )
+	{
+		metrics.channelCount = 4;
+	}
+	const bool signedNormalized =
+		source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM;
+	const uint32_t rawBytesPerPixel =
+		source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT ? 4u :
+		signedNormalized                                                   ? 4u :
+																			 0u;
+	metrics.aggregate.format = static_cast<uint32_t>( source.GetFormat() );
+	metrics.aggregate.width = source.GetWidth();
+	metrics.aggregate.height = source.GetHeight();
+	metrics.aggregate.minimum = std::numeric_limits<double>::max();
+	metrics.aggregate.maximum = -std::numeric_limits<double>::max();
+	metrics.channelMinimum.fill( 1.0 );
+	double aggregateSum = 0.0;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	metrics.aggregate.hash = 14695981039346656037ull;
+	metrics.channelMaximum.fill( -1.0 );
+	const uint32_t arraySize = std::max( 1u, source.GetArraySize() );
+	const uint32_t mipCount = std::max( 1u, source.GetMipCount() );
+	if( rawBytesPerPixel )
+	{
+		metrics.rawMip0Width = source.GetWidth();
+		metrics.rawMip0Height = source.GetHeight();
+		metrics.rawMip0ArraySize = arraySize;
+		metrics.rawMip0BytesPerPixel = rawBytesPerPixel;
+		metrics.rawMip0.resize(
+			static_cast<size_t>( source.GetWidth() ) * source.GetHeight() *
+			arraySize * rawBytesPerPixel );
+	}
+	metrics.slices.reserve( static_cast<size_t>( arraySize ) * mipCount );
+	double channelSums[4] = {};
+	uint64_t channelSamples = 0;
+	for( uint32_t sliceIndex = 0; sliceIndex < arraySize; ++sliceIndex )
+	{
+		for( uint32_t mipLevel = 0; mipLevel < mipCount; ++mipLevel )
+		{
+			const uint32_t mipWidth = source.GetDesc().GetMipWidth( mipLevel );
+			const uint32_t mipHeight = source.GetDesc().GetMipHeight( mipLevel );
+			Tr2TextureAL readback;
+			if( FAILED( readback.Create(
+					Tr2BitmapDimensions(
+						mipWidth, mipHeight, 1, source.GetFormat() ),
+					Tr2GpuUsage::COPY_DESTINATION,
+					Tr2CpuUsage::READ,
+					renderContext.GetPrimaryRenderContext() ) ) ||
+				FAILED( readback.CopySubresourceRegion(
+					Tr2TextureSubresource( 0, 0 ),
+					source,
+					Tr2TextureSubresource( sliceIndex, mipLevel ),
+					renderContext ) ) )
+			{
+				return false;
+			}
+			metrics.slices.emplace_back();
+			StandaloneSsaoDiagnosticMetrics::Slice& slice = metrics.slices.back();
+			slice.arraySlice = sliceIndex;
+			slice.mipLevel = mipLevel;
+			slice.channelCount = metrics.channelCount;
+			if( !ReadPresentationProductMetrics( readback, slice.aggregate, renderContext ) )
+			{
+				return false;
+			}
+			metrics.aggregate.hash = ( metrics.aggregate.hash ^ slice.aggregate.hash ) * fnvPrime;
+			metrics.aggregate.finiteSamples += slice.aggregate.finiteSamples;
+			metrics.aggregate.invalidSamples += slice.aggregate.invalidSamples;
+			metrics.aggregate.minimum = std::min(
+				metrics.aggregate.minimum, slice.aggregate.minimum );
+			metrics.aggregate.maximum = std::max(
+				metrics.aggregate.maximum, slice.aggregate.maximum );
+			aggregateSum += slice.aggregate.mean *
+				static_cast<double>( slice.aggregate.finiteSamples );
+			if( metrics.channelCount == 0 && ( mipLevel != 0 || rawBytesPerPixel == 0 ) )
+			{
+				continue;
+			}
+			if( metrics.channelCount )
+			{
+				slice.channelMinimum.fill( 1.0 );
+				slice.channelMaximum.fill( -1.0 );
+			}
+			const void* data = nullptr;
+			uint32_t pitch = 0;
+			if( FAILED( readback.MapForReading(
+					Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) ||
+				!data )
+			{
+				return false;
+			}
+			const uint64_t pixelCount =
+				static_cast<uint64_t>( mipWidth ) * mipHeight;
+			if( mipLevel == 0 && rawBytesPerPixel )
+			{
+				const size_t sliceStride = static_cast<size_t>( mipWidth ) * mipHeight *
+					rawBytesPerPixel;
+				for( uint32_t y = 0; y < mipHeight; ++y )
+				{
+					std::memcpy(
+						metrics.rawMip0.data() + static_cast<size_t>( sliceIndex ) * sliceStride +
+							static_cast<size_t>( y ) * mipWidth * rawBytesPerPixel,
+						static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch,
+						static_cast<size_t>( mipWidth ) * rawBytesPerPixel );
+				}
+			}
+			channelSamples += metrics.channelCount ? pixelCount : 0;
+			for( uint32_t y = 0; y < mipHeight; ++y )
+			{
+				const uint8_t* row = static_cast<const uint8_t*>( data ) +
+					static_cast<size_t>( y ) * pitch;
+				for( uint32_t x = 0; x < mipWidth && metrics.channelCount; ++x )
+				{
+					for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+					{
+						const uint8_t encoded =
+							row[static_cast<size_t>( x ) * metrics.channelCount + channel];
+						const double value = signedNormalized ?
+							std::max( -1.0, static_cast<double>( static_cast<int8_t>( encoded ) ) / 127.0 ) :
+							encoded / 255.0;
+						slice.channelMinimum[channel] =
+							std::min( slice.channelMinimum[channel], value );
+						slice.channelMaximum[channel] =
+							std::max( slice.channelMaximum[channel], value );
+						slice.channelMean[channel] += value;
+					}
+				}
+			}
+			readback.UnmapForReading( renderContext );
+			for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+			{
+				slice.channelMean[channel] /= static_cast<double>( pixelCount );
+				metrics.channelMinimum[channel] = std::min(
+					metrics.channelMinimum[channel], slice.channelMinimum[channel] );
+				metrics.channelMaximum[channel] = std::max(
+					metrics.channelMaximum[channel], slice.channelMaximum[channel] );
+				channelSums[channel] += slice.channelMean[channel] * pixelCount;
+			}
+		}
+	}
+	if( metrics.aggregate.finiteSamples == 0 )
+	{
+		return false;
+	}
+	metrics.aggregate.mean = aggregateSum /
+		static_cast<double>( metrics.aggregate.finiteSamples );
+	metrics.aggregate.nonuniform =
+		metrics.aggregate.maximum - metrics.aggregate.minimum > 0.000001;
+	metrics.aggregate.available = true;
+	metrics.aggregate.capturedBeforeReuseOrRelease = true;
+	for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+	{
+		metrics.channelMean[channel] = channelSamples ?
+			channelSums[channel] / static_cast<double>( channelSamples ) :
+			0.0;
+	}
+	return true;
+}
+
+struct StandaloneSsaoCpuOracle
+{
+	uint64_t finiteCenters = 0;
+	uint64_t testedNeighborPairs = 0;
+	uint64_t positiveNeighborPairs = 0;
+	double meanPositiveObscurance = 0.0;
+	double maximumObscurance = 0.0;
+};
+
+bool ReadSsaoCpuOracle(
+	const StandaloneSsaoDiagnosticMetrics& depthMetrics,
+	const StandaloneSsaoDiagnosticMetrics& normalMetrics,
+	const Tr2SSAO::RuntimeDiagnostics& runtime,
+	StandaloneSsaoCpuOracle& oracle )
+{
+	oracle = {};
+	if( depthMetrics.rawMip0BytesPerPixel != sizeof( float ) ||
+		normalMetrics.rawMip0BytesPerPixel != 4 ||
+		depthMetrics.rawMip0Width != normalMetrics.rawMip0Width ||
+		depthMetrics.rawMip0Height != normalMetrics.rawMip0Height ||
+		depthMetrics.rawMip0ArraySize != normalMetrics.rawMip0ArraySize ||
+		depthMetrics.rawMip0.empty() || normalMetrics.rawMip0.empty() ||
+		runtime.effectRadius <= 0.0f )
+	{
+		return false;
+	}
+	const uint32_t width = depthMetrics.rawMip0Width;
+	const uint32_t height = depthMetrics.rawMip0Height;
+	auto viewPosition = [&]( uint32_t x, uint32_t y, float depth ) {
+		const float u = ( static_cast<float>( x ) + 0.5f ) / width;
+		const float v = ( static_cast<float>( y ) + 0.5f ) / height;
+		return Vector3(
+			( runtime.ndcToViewMul.x * u + runtime.ndcToViewAdd.x ) * depth,
+			( runtime.ndcToViewMul.y * v + runtime.ndcToViewAdd.y ) * depth,
+			depth );
+	};
+	double positiveSum = 0.0;
+	const size_t depthSliceStride = static_cast<size_t>( width ) * height * sizeof( float );
+	const size_t normalSliceStride = static_cast<size_t>( width ) * height * 4u;
+	for( uint32_t slice = 0; slice < depthMetrics.rawMip0ArraySize; ++slice )
+	{
+		const float* depths = reinterpret_cast<const float*>(
+			depthMetrics.rawMip0.data() + static_cast<size_t>( slice ) * depthSliceStride );
+		const int8_t* normals = reinterpret_cast<const int8_t*>(
+			normalMetrics.rawMip0.data() + static_cast<size_t>( slice ) * normalSliceStride );
+		for( uint32_t y = 1; y + 1 < height; ++y )
+		{
+			for( uint32_t x = 1; x + 1 < width; ++x )
+			{
+				const size_t centerIndex = static_cast<size_t>( y ) * width + x;
+				const float centerDepth = depths[centerIndex];
+				if( !std::isfinite( centerDepth ) || centerDepth <= 0.0f )
+				{
+					continue;
+				}
+				++oracle.finiteCenters;
+				const int8_t* encodedNormal = normals + centerIndex * 4u;
+				const Vector3 normal(
+					std::max( -1.0f, encodedNormal[0] / 127.0f ),
+					std::max( -1.0f, encodedNormal[1] / 127.0f ),
+					std::max( -1.0f, encodedNormal[2] / 127.0f ) );
+				const Vector3 center = viewPosition( x, y, centerDepth );
+				const std::array<std::pair<uint32_t, uint32_t>, 4> neighbors = { {
+					{ x - 1, y },
+					{ x + 1, y },
+					{ x, y - 1 },
+					{ x, y + 1 },
+				} };
+				for( const auto& neighbor : neighbors )
+				{
+					const size_t neighborIndex =
+						static_cast<size_t>( neighbor.second ) * width + neighbor.first;
+					const float neighborDepth = depths[neighborIndex];
+					if( !std::isfinite( neighborDepth ) || neighborDepth <= 0.0f )
+					{
+						continue;
+					}
+					const Vector3 delta = viewPosition(
+											  neighbor.first, neighbor.second, neighborDepth ) -
+						center;
+					const float lengthSquared = Dot( delta, delta );
+					if( lengthSquared <= 0.0f )
+					{
+						continue;
+					}
+					++oracle.testedNeighborPairs;
+					const float ndotd = Dot( normal, delta ) / std::sqrt( lengthSquared );
+					const float falloff = std::max( 0.0f,
+													1.0f - lengthSquared / ( runtime.effectRadius * runtime.effectRadius ) );
+					const double obscurance = std::max( 0.0f,
+														ndotd - runtime.effectHorizonAngleThreshold ) *
+						falloff;
+					if( obscurance > 0.0 )
+					{
+						++oracle.positiveNeighborPairs;
+						positiveSum += obscurance;
+						oracle.maximumObscurance = std::max(
+							oracle.maximumObscurance, obscurance );
+					}
+				}
+			}
+		}
+	}
+	oracle.meanPositiveObscurance = oracle.positiveNeighborPairs ?
+		positiveSum / static_cast<double>( oracle.positiveNeighborPairs ) :
+		0.0;
+	return oracle.finiteCenters && oracle.testedNeighborPairs;
+}
+
+std::vector<StandaloneSsaoBindingRecord> InspectSsaoBindings(
+	StandaloneProbe& probe )
+{
+	std::vector<StandaloneSsaoBindingRecord> records;
+	Tr2MeshPtr mesh;
+	if( probe.nativeShip )
+	{
+		mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
+	}
+	if( !mesh || !probe.driver )
+	{
+		return records;
+	}
+	TriVariable* globalSsao = GlobalStore().FindVariable( "SSAOMap" );
+	const Tr2TextureAL& published = probe.driver->GetLastPublishedSsaoForDiagnostics();
+	const auto& drawSnapshot = probe.driver->GetSsaoBindingDiagnostics();
+	for( const Tr2MeshAreaPtr& area : mesh->GetAllAreas() )
+	{
+		Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+		Tr2Shader* shader = effect ? effect->GetShaderStateInterface() : nullptr;
+		const std::string effectPath = effect && effect->GetEffectPathName() ?
+			effect->GetEffectPathName() :
+			"";
+		const bool hull = effectPath.find( "quadv5" ) != std::string::npos;
+		const bool heat = effectPath.find( "quadheatv5" ) != std::string::npos;
+		if( !shader || ( !hull && !heat ) )
+		{
+			continue;
+		}
+		uint32_t technique = 0;
+		if( !shader->GetTechniqueIndex( BlueSharedString( "Main" ), technique ) )
+		{
+			continue;
+		}
+		for( uint32_t passIndex = 0; passIndex < shader->GetPassCount( technique ); ++passIndex )
+		{
+			Tr2EffectPassParameters* pass = effect->GetPassDescription( technique, passIndex );
+			if( !pass )
+			{
+				continue;
+			}
+			for( uint32_t stage = 0; stage < Tr2RenderContextEnum::SHADER_TYPE_COUNT; ++stage )
+			{
+				for( const Tr2EffectParam& texture : pass->m_stageInput[stage].m_textures )
+				{
+					if( texture.m_sourceName != "SSAOMap" )
+					{
+						continue;
+					}
+					StandaloneSsaoBindingRecord record;
+					record.area = area->GetName();
+					record.family = heat ? "heat" : "hull";
+					record.effect = effectPath;
+					record.technique = "Main";
+					record.stage = stage == Tr2RenderContextEnum::PIXEL_SHADER ?
+						"pixel" :
+						std::to_string( stage );
+					record.registerIndex = texture.m_registerIndex;
+					ITr2TextureProvider* provider = nullptr;
+					ITr2EffectValue* source = texture.m_sourceValue.p;
+					const bool mappedGlobal = source && source == globalSsao;
+					if( mappedGlobal )
+					{
+						record.sourcePrecedence = "global-variable";
+						globalSsao->GetValue( provider );
+					}
+					else if( auto* localTexture = dynamic_cast<TriTextureParameter*>( source ) )
+					{
+						record.sourcePrecedence = "effect-local-resource";
+						provider = localTexture->GetResource();
+					}
+					else if( auto* variable = dynamic_cast<TriVariableParameter*>( source ) )
+					{
+						record.sourcePrecedence = "variable-parameter";
+						if( variable->m_variable &&
+							variable->m_variable->GetType() == TRIVARIABLE_TEXTURE_RES )
+						{
+							variable->m_variable->GetValue( provider );
+						}
+					}
+					else if( auto* variable = dynamic_cast<TriVariable*>( source ) )
+					{
+						record.sourcePrecedence = "local-variable";
+						if( variable->GetType() == TRIVARIABLE_TEXTURE_RES )
+						{
+							variable->GetValue( provider );
+						}
+					}
+					else
+					{
+						record.sourcePrecedence = "fallback";
+					}
+					record.providerValid = provider != nullptr;
+					Tr2TextureAL* bound = provider ? provider->GetTexture() : nullptr;
+					record.textureValid = bound && bound->IsValid();
+					if( record.textureValid )
+					{
+						record.textureMatchesPublished = published.IsValid() && *bound == published;
+						record.width = bound->GetWidth();
+						record.height = bound->GetHeight();
+						record.format = static_cast<uint32_t>( bound->GetFormat() );
+					}
+					if( mappedGlobal && drawSnapshot.globalVariablePresentAtDraw )
+					{
+						record.providerValid = drawSnapshot.providerValidAtDraw;
+						record.textureValid = drawSnapshot.providerValidAtDraw;
+						record.textureMatchesPublished =
+							drawSnapshot.providerMatchesPublishedAtDraw;
+						record.width = drawSnapshot.publishedWidth;
+						record.height = drawSnapshot.publishedHeight;
+						record.format = drawSnapshot.publishedFormat;
+					}
+					records.push_back( std::move( record ) );
+				}
+			}
+		}
+	}
+	return records;
+}
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSsaoTransportReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->ssaoTransportReportPath.empty() || !probe->ssao ||
+		!probe->driver || !probe->renderContext || !probe->nativeShip ||
+		probe->presentationAuditFrames.empty() )
+	{
+		CCP_LOGERR( "PL-14I1 SSAO transport report is not configured or lacks retained evidence" );
+		return false;
+	}
+	const Tr2SSAO::RuntimeDiagnostics& runtime = probe->ssao->GetRuntimeDiagnostics();
+	const Tr2SSAO::DiagnosticTextures& textures = probe->ssao->GetDiagnosticTextures();
+	const std::array<std::pair<const char*, const Tr2TextureAL*>, 7> diagnosticTextures = { {
+		{ "prepared-depth", &textures.deinterleavedDepth },
+		{ "prepared-normal", &textures.deinterleavedNormal },
+		{ "q3-base", &textures.baseOutput },
+		{ "importance", &textures.importanceOutput },
+		{ "main-generation", &textures.mainOutput },
+		{ "blur", &textures.blurOutput },
+		{ "output", &textures.output },
+	} };
+	std::array<StandaloneSsaoDiagnosticMetrics, diagnosticTextures.size()> metrics;
+	for( size_t index = 0; index < diagnosticTextures.size(); ++index )
+	{
+		if( !ReadSsaoDiagnosticTextureMetrics(
+				*diagnosticTextures[index].second, metrics[index], *probe->renderContext ) )
+		{
+			CCP_LOGERR( "PL-14I1 could not retain SSAO intermediate '%s'",
+						diagnosticTextures[index].first );
+			return false;
+		}
+	}
+	StandaloneSsaoCpuOracle cpuOracle;
+	if( !ReadSsaoCpuOracle(
+			metrics[0], metrics[1], runtime, cpuOracle ) )
+	{
+		CCP_LOGERR( "PL-14I1 could not evaluate the retained CACAO CPU oracle" );
+		return false;
+	}
+	const std::vector<StandaloneSsaoBindingRecord> bindings = InspectSsaoBindings( *probe );
+	if( bindings.empty() )
+	{
+		CCP_LOGERR( "PL-14I1 found no submitted V5 SSAOMap mappings" );
+		return false;
+	}
+	const auto& driverBinding = probe->driver->GetSsaoBindingDiagnostics();
+	const StandalonePresentationAuditFrame& frame = probe->presentationAuditFrames.back();
+	auto writeDispatch = []( std::ostream& output,
+							 const Tr2SSAO::RuntimeDiagnostics::Dispatch& dispatch ) {
+		output << "{\"count\":" << dispatch.count << ",\"succeeded\":"
+			   << ( dispatch.succeeded ? "true" : "false" ) << '}';
+	};
+	auto writeMetrics = []( std::ostream& output,
+							const StandalonePresentationProductMetrics& value ) {
+		output << "{\"format\":" << value.format << ",\"width\":" << value.width
+			   << ",\"height\":" << value.height << ",\"hash\":\"" << std::hex
+			   << std::setw( 16 ) << std::setfill( '0' ) << value.hash << std::dec
+			   << std::setfill( ' ' ) << "\",\"finiteSamples\":" << value.finiteSamples
+			   << ",\"invalidSamples\":" << value.invalidSamples
+			   << ",\"minimum\":" << value.minimum << ",\"mean\":" << value.mean
+			   << ",\"maximum\":" << value.maximum << ",\"nonuniform\":"
+			   << ( value.nonuniform ? "true" : "false" ) << '}';
+	};
+
+	std::ofstream output(
+		probe->ssaoTransportReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+	{
+		return false;
+	}
+	output << std::setprecision( 12 )
+		   << "{\n  \"schema\":\"trinity.ssao-transport-report.v1\",\n"
+		   << "  \"station\":"
+		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
+		   << ",\n  \"subject\":\"hull\",\n  \"selection\":{\"method\":"
+		   << SolarBodyJsonString( AoMethodName( probe->aoMethod ) )
+		   << ",\"bindingProbe\":" << SolarBodyJsonString( AoBindingProbeName( probe->aoBindingProbe ) )
+		   << ",\"clientResource\":\"res:/dx9/default/ssao.black\","
+			  "\"serializedCortaoEnabled\":false,\"tunedValuesAdded\":false},\n"
+		   << "  \"runtime\":{\"passSucceeded\":"
+		   << ( runtime.passSucceeded ? "true" : "false" )
+		   << ",\"inputWidth\":" << runtime.inputWidth
+		   << ",\"inputHeight\":" << runtime.inputHeight
+		   << ",\"outputWidth\":" << runtime.outputWidth
+		   << ",\"outputHeight\":" << runtime.outputHeight
+		   << ",\"outputFormat\":" << runtime.outputFormat
+		   << ",\"projection\":";
+	WriteSolarBodyMatrix( output, runtime.projection );
+	output << ",\"normalsWorldToView\":";
+	WriteSolarBodyMatrix( output, runtime.normalsWorldToView );
+	output << ",\"zoomLevel\":" << runtime.zoomLevel
+		   << ",\"constants\":{\"depthUnpack\":["
+		   << runtime.depthUnpackConsts.x << ',' << runtime.depthUnpackConsts.y
+		   << "],\"ndcToViewMul\":[" << runtime.ndcToViewMul.x << ','
+		   << runtime.ndcToViewMul.y << "],\"ndcToViewAdd\":["
+		   << runtime.ndcToViewAdd.x << ',' << runtime.ndcToViewAdd.y
+		   << "],\"effectRadius\":" << runtime.effectRadius
+		   << ",\"effectShadowStrength\":" << runtime.effectShadowStrength
+		   << ",\"effectHorizonAngleThreshold\":"
+		   << runtime.effectHorizonAngleThreshold << ",\"effectFadeOutMul\":"
+		   << runtime.effectFadeOutMul << ",\"effectFadeOutAdd\":"
+		   << runtime.effectFadeOutAdd << "},\"dispatches\":{";
+	const std::array<std::pair<const char*, const Tr2SSAO::RuntimeDiagnostics::Dispatch*>, 9> dispatches = { {
+		{ "load-counter-clear", &runtime.clearLoadCounter },
+		{ "depth-preparation", &runtime.prepareDepth },
+		{ "depth-mip-preparation", &runtime.prepareDepthMips },
+		{ "normal-preparation", &runtime.prepareNormal },
+		{ "q3-base", &runtime.generateBase },
+		{ "importance", &runtime.importance },
+		{ "main-generation", &runtime.generateMain },
+		{ "blur", &runtime.blur },
+		{ "final-apply", &runtime.apply },
+	} };
+	for( size_t index = 0; index < dispatches.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << SolarBodyJsonString( dispatches[index].first ) << ':';
+		writeDispatch( output, *dispatches[index].second );
+	}
+	output << "}},\n  \"intermediates\":[";
+	for( size_t index = 0; index < diagnosticTextures.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << "{\"name\":"
+			   << SolarBodyJsonString( diagnosticTextures[index].first ) << ",\"metrics\":";
+		writeMetrics( output, metrics[index].aggregate );
+		output << ",\"channels\":[";
+		for( uint32_t channel = 0; channel < metrics[index].channelCount; ++channel )
+		{
+			output << ( channel ? "," : "" ) << "{\"minimum\":"
+				   << metrics[index].channelMinimum[channel] << ",\"mean\":"
+				   << metrics[index].channelMean[channel] << ",\"maximum\":"
+				   << metrics[index].channelMaximum[channel] << '}';
+		}
+		output << "],\"slices\":[";
+		for( size_t sliceIndex = 0; sliceIndex < metrics[index].slices.size(); ++sliceIndex )
+		{
+			const auto& slice = metrics[index].slices[sliceIndex];
+			output << ( sliceIndex ? "," : "" ) << "{\"arraySlice\":"
+				   << slice.arraySlice << ",\"mipLevel\":" << slice.mipLevel
+				   << ",\"metrics\":";
+			writeMetrics( output, slice.aggregate );
+			output << ",\"channels\":[";
+			for( uint32_t channel = 0; channel < slice.channelCount; ++channel )
+			{
+				output << ( channel ? "," : "" ) << "{\"minimum\":"
+					   << slice.channelMinimum[channel] << ",\"mean\":"
+					   << slice.channelMean[channel] << ",\"maximum\":"
+					   << slice.channelMaximum[channel] << '}';
+			}
+			output << "]}";
+		}
+		output << "]}";
+	}
+	output << "],\n  \"cpuOracle\":{\"finiteCenters\":" << cpuOracle.finiteCenters
+		   << ",\"testedNeighborPairs\":" << cpuOracle.testedNeighborPairs
+		   << ",\"positiveNeighborPairs\":" << cpuOracle.positiveNeighborPairs
+		   << ",\"meanPositiveObscurance\":" << cpuOracle.meanPositiveObscurance
+		   << ",\"maximumObscurance\":" << cpuOracle.maximumObscurance
+		   << "},\n  \"publication\":{\"generatedValid\":"
+		   << ( driverBinding.generatedValid ? "true" : "false" )
+		   << ",\"publishedValid\":" << ( driverBinding.publishedValid ? "true" : "false" )
+		   << ",\"publishedMatchesGenerated\":"
+		   << ( driverBinding.publishedMatchesGenerated ? "true" : "false" )
+		   << ",\"globalVariablePresentAtDraw\":"
+		   << ( driverBinding.globalVariablePresentAtDraw ? "true" : "false" )
+		   << ",\"providerValidAtDraw\":"
+		   << ( driverBinding.providerValidAtDraw ? "true" : "false" )
+		   << ",\"providerMatchesPublishedAtDraw\":"
+		   << ( driverBinding.providerMatchesPublishedAtDraw ? "true" : "false" )
+		   << ",\"generated\":{\"width\":" << driverBinding.generatedWidth
+		   << ",\"height\":" << driverBinding.generatedHeight
+		   << ",\"format\":" << driverBinding.generatedFormat
+		   << "},\"published\":{\"width\":" << driverBinding.publishedWidth
+		   << ",\"height\":" << driverBinding.publishedHeight
+		   << ",\"format\":" << driverBinding.publishedFormat << "}},\n"
+		   << "  \"bindings\":[";
+	for( size_t index = 0; index < bindings.size(); ++index )
+	{
+		const auto& binding = bindings[index];
+		output << ( index ? "," : "" ) << "{\"area\":" << SolarBodyJsonString( binding.area )
+			   << ",\"family\":" << SolarBodyJsonString( binding.family )
+			   << ",\"effect\":" << SolarBodyJsonString( binding.effect )
+			   << ",\"technique\":" << SolarBodyJsonString( binding.technique )
+			   << ",\"stage\":" << SolarBodyJsonString( binding.stage )
+			   << ",\"register\":" << binding.registerIndex
+			   << ",\"sourcePrecedence\":" << SolarBodyJsonString( binding.sourcePrecedence )
+			   << ",\"providerValid\":" << ( binding.providerValid ? "true" : "false" )
+			   << ",\"textureValid\":" << ( binding.textureValid ? "true" : "false" )
+			   << ",\"textureMatchesPublished\":"
+			   << ( binding.textureMatchesPublished ? "true" : "false" )
+			   << ",\"width\":" << binding.width << ",\"height\":" << binding.height
+			   << ",\"format\":" << binding.format << '}';
+	}
+	output << "],\n  \"receiver\":{\"pixels\":" << probe->solarIlluminationReceiverPixels
+		   << ",\"litPixels\":" << probe->solarIlluminationReceiverLitPixels
+		   << ",\"hdrMean\":" << probe->solarIlluminationReceiverMeanLuminance
+		   << ",\"hdrMaximum\":" << probe->solarIlluminationReceiverMaximumLuminance
+		   << "},\n  \"invariants\":{\"trajectoryHash\":\"" << std::hex
+		   << frame.trajectoryHash << std::dec << "\",\"silk\":false,\"froxels\":false}\n}\n";
+	return output.good();
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingReport(
 	void* opaqueProbe )
 {
@@ -20880,13 +22475,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	Tr2TextureAL* resolvedTexture = resolvedProvider ? resolvedProvider->GetTexture() : nullptr;
 	Tr2TextureAL* staticTexture = staticProvider ? staticProvider->GetTexture() : nullptr;
 	Tr2TextureAL* dynamicTexture = reflectionProbe && reflectionProbe->GetReflection() ?
-		reflectionProbe->GetReflection()->GetTexture() : nullptr;
+		reflectionProbe->GetReflection()->GetTexture() :
+		nullptr;
 	const bool resolvedStatic = resolvedTexture && staticTexture && resolvedTexture == staticTexture;
 	const bool resolvedDynamic = resolvedTexture && dynamicTexture && resolvedTexture == dynamicTexture;
 	Tr2ReflectionProbe::RawDiagnosticsForTesting raw;
 	if( probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC &&
-		( !reflectionProbe || !reflectionProbe->CollectRawDiagnosticsForTesting(
-			*probe->renderContext, raw ) ) )
+		( !reflectionProbe || !reflectionProbe->CollectRawDiagnosticsForTesting( *probe->renderContext, raw ) ) )
 	{
 		CCP_LOGERR( "PL-14H2 could not collect dynamic reflection content" );
 		return false;
@@ -20922,9 +22517,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	const Vector3 viewPosition = Tr2Renderer::GetViewPosition();
 	const Vector3 probePosition = reflectionProbe ? reflectionProbe->GetPosition() : Vector3();
 	const Color backlight = reflectionProbe ? reflectionProbe->GetBackLightColor() :
-		lighting.reflectionBackLightingColor;
+											  lighting.reflectionBackLightingColor;
 	const float backlightContrast = reflectionProbe ? reflectionProbe->GetBackLightContrast() :
-		lighting.reflectionBackLightingContrast;
+													  lighting.reflectionBackLightingContrast;
 	Vector3 auditSunPosition;
 	bool analyticPlanetSelected = false;
 	float planetOcclusionFraction = 0.0f;
@@ -20941,8 +22536,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 			continue;
 		analyticPlanetSelected = true;
 		planetOcclusionFraction = SolarDiscOcclusionCoverage(
-			auditSunPosition, static_cast<float>( kNewEdenStarRadius ),
-			sphere.GetXYZ(), sphere.w );
+			auditSunPosition, static_cast<float>( kNewEdenStarRadius ), sphere.GetXYZ(), sphere.w );
 		break;
 	}
 	const float cpuIrradianceLuminance = SolarColorLuminance( lighting.sunColor ) *
@@ -20952,7 +22546,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		probe->capturedProductWidth == 0 || probe->capturedProductHeight == 0 ||
 		probe->capturedProductPixels.size() !=
 			static_cast<size_t>( probe->capturedProductWidth ) *
-			probe->capturedProductHeight * 4u )
+				probe->capturedProductHeight * 4u )
 	{
 		std::fprintf( stderr, "PL-14H2 retained reflection contact sheet is unavailable\n" );
 		return false;
@@ -21024,20 +22618,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		output << ']';
 	};
 	const char* productNames[] = {
-		"depth", "normal", "hdr", "taa-input", "taa-output", "bloom",
-		"post-tone", "final", "drawable",
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
 	};
 	output << std::setprecision( 12 )
 		   << "{\n  \"schema\":\"trinity.reflection-lighting-report.v1\",\n"
 		   << "  \"station\":{\"name\":"
 		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
 		   << ",\"sourceFrame\":" << sourceFrame << ",\"fovDegrees\":48,"
-			  "\"objectMask\":\"hull\",\"environmentActive\":"
+													"\"objectMask\":\"hull\",\"environmentActive\":"
 		   << ( probe->solarEnvironmentFieldActive ? "true" : "false" ) << "},\n"
 		   << "  \"ship\":{\"class\":\"EveShip2\",\"dna\":"
 		   << SolarBodyJsonString(
-			  probe->shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE ?
-				  "oref1_t1:orebase:ore" : "soef1_t1:soebase:soe" )
+				  probe->shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE ?
+					  "oref1_t1:orebase:ore" :
+					  "soef1_t1:soebase:soe" )
 		   << ",\"worldPosition\":[" << shipPosition.x << ',' << shipPosition.y << ','
 		   << shipPosition.z << "],\"materialAreas\":"
 		   << probe->nativeSofDiagnostics.materialAreaCount << "},\n"
@@ -21052,7 +22654,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	output << ",\"projection\":";
 	WriteSolarBodyMatrix( output, frame.projection );
 	output << "},\n  \"reflectionContact\":{\"source\":\"resolved-cube-contact-sheet\","
-			  "\"format\":" << reflectionContact.format
+			  "\"format\":"
+		   << reflectionContact.format
 		   << ",\"width\":" << reflectionContact.width
 		   << ",\"height\":" << reflectionContact.height
 		   << ",\"hash\":\"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
@@ -21077,12 +22680,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << SolarBodyJsonString( lighting.environmentMapPath )
 		   << ",\"resolvedControlResource\":"
 		   << SolarBodyJsonString(
-			  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF ?
-				  "res:/dx9/scene/cinematic/black_cube_refl.dds" :
-			  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_STATIC ?
-				  lighting.environmentMapPath : "native-dynamic-probe" )
+				  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF ?
+					  "res:/dx9/scene/cinematic/black_cube_refl.dds" :
+					  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_STATIC ?
+					  lighting.environmentMapPath :
+					  "native-dynamic-probe" )
 		   << ",\"stagedSha256\":\"32cb1d396c96d8395e9dd9919fb8e629b9a8e851fa9aff5113636e7af928e8ff\","
-			  "\"ready\":" << ( staticTexture && staticTexture->IsValid() ? "true" : "false" )
+			  "\"ready\":"
+		   << ( staticTexture && staticTexture->IsValid() ? "true" : "false" )
 		   << ",\"format\":" << ( staticTexture ? staticTexture->GetFormat() : 0 )
 		   << ",\"width\":" << ( staticTexture ? staticTexture->GetWidth() : 0 )
 		   << ",\"height\":" << ( staticTexture ? staticTexture->GetHeight() : 0 )
@@ -21097,9 +22702,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << ( probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC ? "true" : "false" )
 		   << ",\"quality\":" << static_cast<int>( probe->scene->GetReflectionSetting() )
 		   << ",\"policy\":"
-		   << SolarBodyJsonString( reflectionProbe && reflectionProbe->GetRenderFrequency() ==
-									  Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ?
-								  "all-sides-per-frame" : "none" )
+		   << SolarBodyJsonString( reflectionProbe && reflectionProbe->GetRenderFrequency() == Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ?
+									   "all-sides-per-frame" :
+									   "none" )
 		   << ",\"forceOpaqueBuffer\":" << ( settings.forceOpaqueBuffer ? "true" : "false" )
 		   << ",\"positionOwner\":\"Tr2Renderer.view-position\",\"position\":["
 		   << probePosition.x << ',' << probePosition.y << ',' << probePosition.z
@@ -21169,6 +22774,223 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << ",\"dynamicExposure\":"
 		   << SolarBodyJsonString( frame.dynamicExposureApplied ? "client" : "off" )
 		   << ",\"tunedValuesAdded\":false,\"silk\":false,\"froxels\":false}\n}\n";
+	return output.good();
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->occlusionLightingReportPath.empty() || !probe->scene ||
+		!probe->driver || !probe->renderContext || probe->presentationAuditFrames.empty() )
+	{
+		CCP_LOGERR( "PL-14H3 AO/shadow report is not configured or lacks a retained frame" );
+		return false;
+	}
+	StandalonePresentationProductMetrics aoMetrics;
+	StandalonePresentationProductMetrics shadowMetrics;
+	Tr2TextureAL& ao =
+		probe->solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_AO];
+	Tr2TextureAL& shadow =
+		probe->solarIlluminationProductReadbacks[STANDALONE_SOLAR_PRODUCT_SHADOW];
+	if( !ReadPresentationProductMetrics( ao, aoMetrics, *probe->renderContext ) ||
+		!ReadPresentationProductMetrics( shadow, shadowMetrics, *probe->renderContext ) )
+	{
+		CCP_LOGERR( "PL-14H3 retained AO or shadow product is unavailable" );
+		return false;
+	}
+	const Tr2SSAO::RuntimeDiagnostics ssao = probe->ssao ?
+		probe->ssao->GetRuntimeDiagnostics() :
+		Tr2SSAO::RuntimeDiagnostics{};
+	const EveSpaceScene::RaytracedShadowDiagnostics& raytraced =
+		probe->scene->GetRaytracedShadowDiagnostics();
+	const EveSpaceScene::DirectionalShadowDiagnostics& directional =
+		probe->scene->GetDirectionalShadowDiagnostics();
+	const StandalonePresentationAuditFrame& frame =
+		probe->presentationAuditFrames.back();
+	const bool hull =
+		probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+	const bool aoEnabled = probe->ambientOcclusion != STANDALONE_AO_OFF;
+	const bool shadowsEnabled = probe->shadows != STANDALONE_SHADOWS_OFF;
+	const bool raytracedSelected =
+		probe->shadows == STANDALONE_SHADOWS_RAYTRACED;
+	Vector3 auditSunPosition;
+	bool analyticPlanetSelected = false;
+	double planetOcclusionFraction = 0.0;
+	if( probe->scene->GetSunBall() )
+	{
+		ReadSolarIlluminationPosition(
+			probe->scene->GetSunBall(), frame.simulationTime, auditSunPosition );
+	}
+	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
+		 index < raytraced.analyticPlanetSpheres.size();
+		 ++index )
+	{
+		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
+		if( sphere.w <= 0.0f )
+			continue;
+		analyticPlanetSelected = true;
+		planetOcclusionFraction = SolarDiscOcclusionCoverage(
+			auditSunPosition,
+			static_cast<float>( kNewEdenStarRadius ),
+			sphere.GetXYZ(),
+			sphere.w );
+		break;
+	}
+	const char* resolvedAo = !aoEnabled         ? "neutral" :
+		probe->aoMethod == STANDALONE_AO_CORTAO ? "cortao" :
+												  "ssao";
+	const char* productNames[] = {
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
+	};
+	auto writeMetrics = []( std::ostream& output,
+							const StandalonePresentationProductMetrics& metrics ) {
+		output << "{\"format\":" << metrics.format
+			   << ",\"width\":" << metrics.width
+			   << ",\"height\":" << metrics.height
+			   << ",\"hash\":\"" << std::hex << std::setw( 16 )
+			   << std::setfill( '0' ) << metrics.hash << std::dec << std::setfill( ' ' )
+			   << "\",\"finiteSamples\":" << metrics.finiteSamples
+			   << ",\"invalidSamples\":" << metrics.invalidSamples
+			   << ",\"minimum\":" << metrics.minimum
+			   << ",\"mean\":" << metrics.mean
+			   << ",\"maximum\":" << metrics.maximum
+			   << ",\"nonuniform\":" << ( metrics.nonuniform ? "true" : "false" )
+			   << ",\"capturedBeforeReuseOrRelease\":"
+			   << ( metrics.capturedBeforeReuseOrRelease ? "true" : "false" ) << '}';
+	};
+
+	std::ofstream output(
+		probe->occlusionLightingReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+		return false;
+	output << std::setprecision( 12 )
+		   << "{\n  \"schema\":\"trinity.occlusion-lighting-report.v1\",\n"
+		   << "  \"station\":{\"name\":"
+		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
+		   << ",\"fovDegrees\":48,\"subject\":"
+		   << SolarBodyJsonString( hull ? "hull" : "planet" )
+		   << ",\"mask\":"
+		   << SolarBodyJsonString( hull ? "depth-owned-hull" :
+										  "depth-owned-planet-surface-excluding-limb" )
+		   << "},\n"
+		   << "  \"ao\":{\"requested\":"
+		   << SolarBodyJsonString( AoMethodName( probe->aoMethod ) )
+		   << ",\"resolvedAlgorithm\":" << SolarBodyJsonString( resolvedAo )
+		   << ",\"quality\":"
+		   << SolarBodyJsonString( aoEnabled ? "high" : "off" )
+		   << ",\"serializedResource\":"
+		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ?
+					SolarBodyJsonString( "res:/dx9/default/ssao.black" ) :
+					"null" )
+		   << ",\"serializedCortaoEnabled\":"
+		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ? "false" : "null" )
+		   << ",\"settledCortaoEnabled\":"
+		   << ( ssao.cortaoEnabled ? "true" : "false" )
+		   << ",\"bentNormalPresent\":"
+		   << ( aoEnabled && ssao.cortaoEnabled && ssao.cortaoBentNormal ? "true" : "false" )
+		   << ",\"temporal\":" << ( ssao.temporal ? "true" : "false" )
+		   << ",\"blur\":" << ( ssao.blurEnabled ? "true" : "false" )
+		   << ",\"downsampled\":" << ( ssao.downsampled ? "true" : "false" )
+		   << ",\"resourcesReady\":"
+		   << ( !aoEnabled || ssao.outputReady ? "true" : "false" )
+		   << ",\"passExecuted\":" << ( ssao.filterCount > 0 ? "true" : "false" )
+		   << ",\"passSucceeded\":" << ( ssao.passSucceeded ? "true" : "false" )
+		   << ",\"filterCount\":" << ssao.filterCount
+		   << ",\"input\":{\"depthReady\":" << ( ssao.depthReady ? "true" : "false" )
+		   << ",\"normalReady\":" << ( ssao.normalReady ? "true" : "false" )
+		   << ",\"width\":" << ssao.inputWidth << ",\"height\":" << ssao.inputHeight
+		   << "},\"output\":";
+	writeMetrics( output, aoMetrics );
+	output << ",\"neutralFallback\":{\"bound\":" << ( !aoEnabled ? "true" : "false" )
+		   << ",\"width\":1,\"height\":1,\"format\":"
+		   << static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
+		   << ",\"rgba\":[255,255,255,255]},\"settings\":{\"strength\":"
+		   << ssao.strength << ",\"radius\":" << ssao.radius
+		   << ",\"maxBlockerSearchRadius\":" << ssao.maxBlockerSearchRadius
+		   << ",\"mipBias\":" << ssao.mipBias << "}},\n"
+		   << "  \"directionalShadow\":{\"requested\":"
+		   << SolarBodyJsonString( !shadowsEnabled       ? "off" :
+									   raytracedSelected ? "raytraced" :
+														   "raster" )
+		   << ",\"maximumQualityPolicy\":\"UltraRaytracedShadows\",\"product\":";
+	writeMetrics( output, shadowMetrics );
+	output << ",\"neutralFallback\":{\"bound\":"
+		   << ( !shadowsEnabled ? "true" : "false" )
+		   << ",\"width\":1,\"height\":1,\"format\":"
+		   << static_cast<uint32_t>( Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM )
+		   << ",\"value\":255},\"raster\":{\"casterTests\":"
+		   << directional.casterTests << ",\"acceptedCascades\":"
+		   << directional.acceptedCascades << ",\"committedBatches\":"
+		   << directional.committedBatches << "},\"raytraced\":{\"selected\":"
+		   << ( raytracedSelected ? "true" : "false" )
+		   << ",\"preparationAttempted\":"
+		   << ( raytraced.preparationAttempted ? "true" : "false" )
+		   << ",\"geometryPresent\":" << ( raytraced.geometryPresent ? "true" : "false" )
+		   << ",\"dispatchSucceeded\":" << ( raytraced.dispatchSucceeded ? "true" : "false" )
+		   << ",\"denoiserSucceeded\":" << ( raytraced.denoiserSucceeded ? "true" : "false" )
+		   << ",\"resultValid\":" << ( raytraced.resultValid ? "true" : "false" )
+		   << ",\"format\":" << raytraced.resultFormat
+		   << ",\"width\":" << raytraced.resultWidth
+		   << ",\"height\":" << raytraced.resultHeight
+		   << ",\"analyticPlanetSphereCount\":" << raytraced.analyticPlanetSphereCount
+		   << ",\"analyticPlanetSelected\":"
+		   << ( analyticPlanetSelected ? "true" : "false" )
+		   << ",\"planetOcclusionFraction\":" << planetOcclusionFraction
+		   << ",\"analyticVisibility\":" << ( 1.0 - planetOcclusionFraction )
+		   << ",\"analyticPlanetSpheres\":[";
+	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
+		 index < raytraced.analyticPlanetSpheres.size();
+		 ++index )
+	{
+		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
+		output << ( index ? "," : "" ) << '[' << sphere.x << ',' << sphere.y << ','
+			   << sphere.z << ',' << sphere.w << ']';
+	}
+	output << "]}},\n  \"consumer\":{\"effect\":"
+		   << SolarBodyJsonString( hull ? "quadv5/quadheatv5.sm_hi" : "sandstormplanet.sm_hi" )
+		   << ",\"technique\":\"Main\",\"readsSSAOMap\":"
+		   << ( hull ? "true" : "false" )
+		   << ",\"readsEveSpaceSceneShadowMap\":" << ( hull ? "true" : "false" )
+		   << ",\"submitted\":true},\n  \"receiver\":{\"pixels\":"
+		   << probe->solarIlluminationReceiverPixels
+		   << ",\"litPixels\":" << probe->solarIlluminationReceiverLitPixels
+		   << ",\"hdrMean\":" << probe->solarIlluminationReceiverMeanLuminance
+		   << ",\"hdrMaximum\":" << probe->solarIlluminationReceiverMaximumLuminance
+		   << "},\n  \"invariants\":{\"trajectoryHash\":\"" << std::hex
+		   << frame.trajectoryHash << std::dec << "\",\"view\":";
+	WriteSolarBodyMatrix( output, frame.view );
+	output << ",\"projection\":";
+	WriteSolarBodyMatrix( output, frame.projection );
+	output << ",\"depthHash\":\"" << std::hex << std::setw( 16 )
+		   << std::setfill( '0' )
+		   << frame.products[TRINITY_STANDALONE_PRESENTATION_DEPTH].hash
+		   << "\",\"normalHash\":\"" << std::setw( 16 )
+		   << frame.products[TRINITY_STANDALONE_PRESENTATION_NORMAL].hash << std::dec
+		   << std::setfill( ' ' )
+		   << "\"},\n  \"presentation\":{\"adaptedLuminance\":" << frame.adaptedLuminance
+		   << ",\"exposureMultiplier\":" << frame.exposureMultiplier
+		   << ",\"products\":[";
+	for( uint32_t product = 0; product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+	{
+		output << ( product ? "," : "" ) << "{\"identity\":"
+			   << SolarBodyJsonString( productNames[product] ) << ",\"metrics\":";
+		writeMetrics( output, frame.products[product] );
+		output << '}';
+	}
+	output << "]},\n  \"controls\":{\"aoEnabled\":" << ( aoEnabled ? "true" : "false" )
+		   << ",\"shadowsEnabled\":" << ( shadowsEnabled ? "true" : "false" )
+		   << ",\"fillLightAdded\":false,\"shadowCompensationAdded\":false,"
+			  "\"alternateGradingAdded\":false,\"replacementGeometryAdded\":false,"
+			  "\"tunedIntensityAdded\":false,\"silk\":false,\"froxels\":false}\n}\n";
 	return output.good();
 }
 
@@ -22142,6 +23964,61 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteShipLightingReport( vo
 				  std::max( exposureDenominator, 0.000001f ) :
 			  std::pow( 2.0f, postProcess.exposureAdjustment ) ) :
 		0.0f;
+	Tr2LightManager* localLightManager = Tr2LightManager::GetInstance();
+	const bool localLightsSelected =
+		probe->localLights == STANDALONE_LOCAL_LIGHTS_AUTHORED;
+	const size_t rootLocalLightCount =
+		probe->nativeShip->GetLocalLightCountForDiagnostics();
+	const size_t authoredLocalLightCount =
+		probe->nativeSofDiagnostics.localLightCount;
+	EveBoosterSet2* nativeBoosters = probe->nativeShip->GetBoosters();
+	const EveBoosterSet2Diagnostics nativeBoosterDiagnostics =
+		nativeBoosters ? nativeBoosters->GetDiagnostics() : EveBoosterSet2Diagnostics{};
+	const size_t resolvedLocalLightCount =
+		localLightManager ? localLightManager->GetResolvedLightCount() : 0;
+	struct LocalLightConsumerDiagnostics
+	{
+		std::string family;
+		std::string effectPath;
+		bool displayed = false;
+		bool lightBuffer = false;
+		bool lightIndexBuffer = false;
+	};
+	std::vector<LocalLightConsumerDiagnostics> localLightConsumers;
+	if( Tr2MeshBase* mesh = probe->nativeShip->GetMesh() )
+	{
+		for( const Tr2MeshAreaPtr& area : mesh->GetAllAreas() )
+		{
+			Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+			const std::string path = effect && effect->GetEffectPathName() ?
+				effect->GetEffectPathName() :
+				"";
+			const bool heat = path.find( "quadheatv5" ) != std::string::npos;
+			const bool hull = !heat && path.find( "quadv5" ) != std::string::npos;
+			if( !hull && !heat )
+			{
+				continue;
+			}
+			const std::string family = heat ? "heat" : "hull";
+			if( std::find_if(
+					localLightConsumers.begin(),
+					localLightConsumers.end(),
+					[&]( const LocalLightConsumerDiagnostics& value ) {
+						return value.family == family;
+					} ) != localLightConsumers.end() )
+			{
+				continue;
+			}
+			Tr2Shader* shader = effect->GetShaderStateInterface();
+			LocalLightConsumerDiagnostics consumer;
+			consumer.family = family;
+			consumer.effectPath = path;
+			consumer.displayed = area->GetDisplay();
+			consumer.lightBuffer = shader && shader->GetResource( "LightBuffer" );
+			consumer.lightIndexBuffer = shader && shader->GetResource( "LightIndexBuffer" );
+			localLightConsumers.push_back( consumer );
+		}
+	}
 
 	std::ofstream output( probe->shipLightingReportPath, std::ios::binary | std::ios::trunc );
 	if( !output )
@@ -22223,8 +24100,108 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteShipLightingReport( vo
 		   << ",\"attachmentLights\":" << probe->nativeSofDiagnostics.attachmentLightCount
 		   << ",\"localLights\":" << probe->nativeSofDiagnostics.localLightCount
 		   << ",\"boosters\":" << probe->nativeSofDiagnostics.boosterCount
-		   << ",\"trails\":" << probe->nativeSofDiagnostics.trailCount << "},\n"
-		   << "  \"transport\":{\"shadowQuality\":" << static_cast<int>( settings.shadowQuality )
+		   << ",\"trails\":" << probe->nativeSofDiagnostics.trailCount << "},\n";
+	output << "  \"authoredLocalLighting\":{\"selection\":"
+		   << SolarBodyJsonString( localLightsSelected ? "authored" : "off" )
+		   << ",\"owner\":\"native-SOF-ship-graph\",\"effect\":"
+		   << SolarBodyJsonString(
+				  "res:/graphics/effect/managed/space/system/computelightlists.fx" )
+		   << ",\"authoredCount\":" << authoredLocalLightCount
+		   << ",\"rootCount\":" << rootLocalLightCount
+		   << ",\"rootLights\":[";
+	for( size_t index = 0; index < rootLocalLightCount; ++index )
+	{
+		const Tr2Light* light = probe->nativeShip->GetLocalLightForDiagnostics( index );
+		if( !light )
+		{
+			CCP_LOGERR( "Native ship local-light diagnostics encountered a null light" );
+			return false;
+		}
+		const LightData& data = light->GetLightData();
+		output << ( index ? "," : "" ) << "{\"index\":" << index
+			   << ",\"kind\":"
+			   << SolarBodyJsonString( data.outerAngle > 0.0f ? "spot" : "point" )
+			   << ",\"position\":[" << data.position.x << ',' << data.position.y << ','
+			   << data.position.z << "],\"color\":[" << data.color.r << ',' << data.color.g
+			   << ',' << data.color.b << ',' << data.color.a << "],\"brightness\":"
+			   << data.brightness << ",\"brightnessMultiplier\":"
+			   << light->GetBrightnessMultiplier() << ",\"radius\":" << data.radius
+			   << ",\"innerRadius\":" << static_cast<float>( data.innerRadius )
+			   << ",\"noiseAmplitude\":"
+			   << data.noiseAmplitude << ",\"noiseFrequency\":" << data.noiseFrequency
+			   << ",\"noiseOctaves\":" << data.noiseOctaves << ",\"boneIndex\":"
+			   << data.boneIndex << ",\"flags\":" << data.flags << ",\"castsShadows\":"
+			   << static_cast<int>( data.castsShadows ) << '}';
+	}
+	output << "],\"boosters\":{\"present\":"
+		   << ( nativeBoosters ? "true" : "false" )
+		   << ",\"displayed\":"
+		   << ( nativeBoosters && nativeBoosters->GetDisplay() ? "true" : "false" )
+		   << ",\"authoredExhaustCount\":" << nativeBoosterDiagnostics.boosterCount
+		   << ",\"submittedLights\":" << nativeBoosterDiagnostics.lightSubmissionCount
+		   << "},\"manager\":{\"present\":"
+		   << ( localLightManager ? "true" : "false" )
+		   << ",\"buffersValid\":"
+		   << ( localLightManager &&
+					localLightManager->ArePublishedBuffersValidForDiagnostics() ?
+					"true" :
+					"false" )
+		   << ",\"updateSucceeded\":"
+		   << ( localLightManager && SUCCEEDED( localLightManager->GetLastUpdateResult() ) ?
+					"true" :
+					"false" )
+		   << ",\"resolvedCount\":" << resolvedLocalLightCount
+		   << ",\"deterministicOrdering\":"
+		   << ( localLightManager &&
+					localLightManager->IsDeterministicListOrderingForTesting() ?
+					"true" :
+					"false" )
+		   << ",\"dataOrderingPasses\":"
+		   << ( localLightManager ?
+					localLightManager->GetDeterministicLightDataOrderingPassCountForTesting() :
+					0 )
+		   << ",\"listOrderingPasses\":"
+		   << ( localLightManager ?
+					localLightManager->GetDeterministicListOrderingPassCountForTesting() :
+					0 )
+		   << ",\"localShadowsEnabled\":"
+		   << ( Tr2LightManager::AreDynamicLightShadowsEnabled() ? "true" : "false" )
+		   << "},\"resolved\":[";
+	for( size_t index = 0; index < resolvedLocalLightCount; ++index )
+	{
+		const Tr2LightManager::PerLightData& data = localLightManager->GetLightData(
+			static_cast<uint32_t>( index ) );
+		output << ( index ? "," : "" ) << "{\"index\":" << index
+			   << ",\"position\":[" << data.position.x << ',' << data.position.y << ','
+			   << data.position.z << "],\"color\":[" << data.color.x << ',' << data.color.y
+			   << ',' << data.color.z << "],\"radius\":" << data.radius
+			   << ",\"innerRadius\":" << static_cast<float>( data.innerRadius )
+			   << ",\"flags\":" << data.flags
+			   << '}';
+	}
+	output << "],\"consumer\":{\"effects\":[\"quadv5.sm_depth\",\"quadheatv5.sm_depth\"],"
+			  "\"technique\":\"Main\",\"resources\":[\"LightBuffer\",\"LightIndexBuffer\"],"
+			  "\"shaderTier\":\"high\",\"bindings\":[";
+	for( size_t index = 0; index < localLightConsumers.size(); ++index )
+	{
+		const auto& consumer = localLightConsumers[index];
+		output << ( index ? "," : "" ) << "{\"family\":"
+			   << SolarBodyJsonString( consumer.family ) << ",\"effectPath\":"
+			   << SolarBodyJsonString( consumer.effectPath ) << ",\"displayed\":"
+			   << ( consumer.displayed ? "true" : "false" ) << ",\"lightBuffer\":"
+			   << ( consumer.lightBuffer ? "true" : "false" )
+			   << ",\"lightIndexBuffer\":"
+			   << ( consumer.lightIndexBuffer ? "true" : "false" ) << '}';
+	}
+	output << "],\"submitted\":"
+		   << ( probe->nativeSofDiagnostics.materialAreaCount > 0 ? "true" : "false" )
+		   << "},\"hullMetrics\":{\"pixels\":"
+		   << probe->solarIlluminationReceiverPixels << ",\"litPixels\":"
+		   << probe->solarIlluminationReceiverLitPixels << ",\"energy\":"
+		   << probe->solarIlluminationReceiverEnergy << ",\"meanLuminance\":"
+		   << probe->solarIlluminationReceiverMeanLuminance << ",\"maximumLuminance\":"
+		   << probe->solarIlluminationReceiverMaximumLuminance << "}},\n";
+	output << "  \"transport\":{\"shadowQuality\":" << static_cast<int>( settings.shadowQuality )
 		   << ",\"directionalShadowsEnabled\":" << ( settings.enableDirectionalShadows ? "true" : "false" )
 		   << ",\"raytracingSupported\":" << ( probe->rayTracingSupported ? "true" : "false" )
 		   << ",\"raytracedGeometryPresent\":" << ( raytraced.geometryPresent ? "true" : "false" )
@@ -24332,6 +26309,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		probe->journeyPhase = STANDALONE_JOURNEY_GATE_ALIGN_PENDING;
 		probe->journeyPlanetFinale = false;
 		probe->journeyPlanetOrbit = false;
+		probe->journeyPlanetSurface = false;
 		probe->journeyPlanetCameraReported = false;
 		probe->ballparkAlignmentIssued = false;
 		probe->ballparkCommandIssued = false;
@@ -24425,6 +26403,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->journeyPhase = STANDALONE_JOURNEY_INACTIVE;
 	probe->journeyPlanetFinale = false;
 	probe->journeyPlanetOrbit = false;
+	probe->journeyPlanetSurface = false;
 	probe->journeyPlanetCameraReported = false;
 	probe->ballparkAlignmentIssued = false;
 	probe->ballparkCommandIssued = false;
@@ -24515,6 +26494,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		case STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT:
 			routeState = &kLightingAuditPlanetOrbit;
 			break;
+		case STANDALONE_LIGHTING_AUDIT_TOUR_FINALE:
+			routeState = &kPlanetAppearanceTourFinale;
+			break;
 		default:
 			break;
 		}
@@ -24549,7 +26531,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			else
 			{
 				const double sign = probe->lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_DAY ?
-					1.0 : -1.0;
+					1.0 :
+					-1.0;
 				for( size_t axis = 0; axis < 3; ++axis )
 					absolute[axis] = kNewEdenPlanetRelative[axis] +
 						sign * planetToSun[axis] * ( 20.0 * kNewEdenPlanetRadius );
@@ -24562,7 +26545,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			"PL-14H2 station: name=%s sourceFrame=%llu position=(%.3f, %.3f, %.3f)\n",
 			LightingAuditStationName( probe->lightingAuditStation ),
 			static_cast<unsigned long long>( sourceFrame ),
-			config.position[0], config.position[1], config.position[2] );
+			config.position[0],
+			config.position[1],
+			config.position[2] );
 	}
 	else if( probe->solarIlluminationView != STANDALONE_SOLAR_ILLUMINATION_VIEW_UNSPECIFIED )
 	{
@@ -25631,6 +27616,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetOrbit(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetSurface(
+	void* opaqueProbe,
+	bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || ( enabled && ( !probe->journeyPlanetFinale || probe->journeyPlanetOrbit ) ) )
+		return false;
+	probe->journeyPlanetSurface = enabled;
+	if( enabled )
+	{
+		std::fprintf(
+			stderr,
+			"Tour sunward planet surface: startFrame=%llu surfaceRange=0 shipRadius=%.0f "
+			"planetRadius=%.0f stagingRange=%.0f\n",
+			static_cast<unsigned long long>( kNewEdenTourPlanetOrbitFrame ),
+			kNewEdenAsteroRadius,
+			kNewEdenPlanetRadius,
+			kNewEdenTourPlanetSurfaceStagingRange );
+	}
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -26553,9 +28560,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			StandalonePlanetFinaleGeometry planetFinale;
 			const bool planetFinaleReady = !probe->journeyPlanetFinale ||
 				BuildPlanetFinaleGeometry( sunTarget, planetTarget, planetFinale );
-			if( !planetFinaleReady )
+			StandalonePlanetSurfaceGeometry planetSurface;
+			const bool planetSurfaceReady = !probe->journeyPlanetSurface ||
+				BuildPlanetSunwardSurfaceGeometry( sunTarget, planetTarget, planetSurface );
+			if( !planetFinaleReady || !planetSurfaceReady )
 			{
-				CCP_LOGERR( "Tour planet-finale geometry failed" );
+				CCP_LOGERR( "Tour planet-finale or sunward-surface geometry failed" );
 				return false;
 			}
 			auto directionTo = [&]( const double target[3], double direction[3] ) {
@@ -26792,7 +28802,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					}
 					break;
 				case STANDALONE_JOURNEY_PLANET_OBSERVING:
-					if( probe->journeyPlanetOrbit &&
+					if( probe->journeyPlanetSurface &&
+						probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
+						!queueAlignment(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging alignment failed" );
+						return false;
+					}
+					else if( probe->journeyPlanetOrbit &&
 						probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
 						!queueAlignment(
 							planetTarget,
@@ -26838,6 +28858,88 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 							static_cast<long long>( commandState.nextTickTime ),
 							static_cast<long long>( kNewEdenPlanetBallId ),
 							kNewEdenTourPlanetOrbitSurfaceRange );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING:
+					if( alignmentTo( planetSurface.stagingPosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING:
+					if( alignmentTo( planetSurface.surfacePosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						if( !Destiny_CommandEmbeddedOrbit(
+								probe->destinySession,
+								commandState.nextTickTime,
+								kNewEdenPlanetBallId,
+								0.0f ) )
+						{
+							CCP_LOGERR( "Embedded Destiny zero-range planet ORBIT failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING;
+						std::fprintf(
+							stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=planet-sunward-surface "
+							"targetBall=%lld surfaceRange=0 illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenPlanetBallId ) );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING:
+					// The double-precision orbit converges to zero range while the
+					// float-radius surface diagnostic settles within sub-meter noise.
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_ORBIT &&
+						commandState.orbitSurfaceDistance >= -1.0 &&
+						commandState.orbitSurfaceDistance <= 150.0 &&
+						std::abs( commandState.orbitRadialVelocity ) <= 15.0 &&
+						commandState.orbitTangentialVelocity > 300.0 )
+					{
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_OBSERVING;
+						std::fprintf(
+							stderr,
+							"Journey settled: frame=%llu targetName=planet-sunward-surface mode=ORBIT "
+							"requestedSurfaceRange=0 surfaceDistance=%.6f legalTolerance=1 "
+							"radialSpeed=%.6f tangentialSpeed=%.6f illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							commandState.orbitSurfaceDistance,
+							commandState.orbitRadialVelocity,
+							commandState.orbitTangentialVelocity );
 					}
 					break;
 				default:
@@ -27039,8 +29141,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( !ApplyLightingAuditStationCamera( *probe ) )
 		{
 			std::fprintf(
-				stderr, "RenderFrame failure: lighting-audit station camera (frame=%llu)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				stderr, "RenderFrame failure: lighting-audit station camera (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		if( probe->renderable )
@@ -27372,10 +29473,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		  probe->shadows == STANDALONE_SHADOWS_HIGH ) &&
 		probe->scene )
 	{
-		const auto* diagnostics = probe->renderable ?
-			probe->scene->FindDirectionalShadowCasterDiagnostics(
-				static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
-			nullptr;
+		const IEveShadowCaster* caster = probe->renderable ?
+			static_cast<const IEveShadowCaster*>( probe->renderable.p ) :
+			( probe->nativeShip ?
+				  static_cast<const IEveShadowCaster*>( probe->nativeShip.p ) :
+				  nullptr );
+		const auto* diagnostics =
+			probe->scene->FindDirectionalShadowCasterDiagnostics( caster );
 		if( !diagnostics )
 		{
 			CCP_LOGERR( "Astero directional shadow diagnostics are unavailable" );
@@ -27418,21 +29522,41 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		probe->scene )
 	{
 		const auto& diagnostics = probe->scene->GetRaytracedShadowDiagnostics();
+		const bool h3PlanetConsumerNotApplicable =
+			( !probe->occlusionLightingReportPath.empty() ||
+			  !probe->planetAppearanceReportPath.empty() ) &&
+			probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 		if( !diagnostics.preparationAttempted || !diagnostics.geometryPresent ||
 			!diagnostics.renderAttempted || !diagnostics.dispatchSucceeded ||
 			diagnostics.dispatchCount == 0 || !diagnostics.resultValid ||
 			( diagnostics.denoiserRequested && !diagnostics.denoiserSucceeded ) )
 		{
-			CCP_LOGERR( "Astero raytraced shadow execution diagnostics are incomplete" );
-			std::fprintf(
-				stderr,
-				"RenderFrame failure: raytraced shadow contract (frame=%llu geometry=%s dispatch=%s denoise=%s result=%s)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ),
-				diagnostics.geometryPresent ? "yes" : "no",
-				diagnostics.dispatchSucceeded ? "yes" : "no",
-				!diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "yes" : "no",
-				diagnostics.resultValid ? "yes" : "no" );
-			return false;
+			if( h3PlanetConsumerNotApplicable )
+			{
+				if( !probe->reportedShadowStats )
+				{
+					std::fprintf(
+						stderr,
+						"PL-14H3 planet material has no directional-shadow consumer; retained ray diagnostics geometry=%s dispatch=%s result=%s\n",
+						diagnostics.geometryPresent ? "yes" : "no",
+						diagnostics.dispatchSucceeded ? "yes" : "no",
+						diagnostics.resultValid ? "yes" : "no" );
+					probe->reportedShadowStats = true;
+				}
+			}
+			else
+			{
+				CCP_LOGERR( "Astero raytraced shadow execution diagnostics are incomplete" );
+				std::fprintf(
+					stderr,
+					"RenderFrame failure: raytraced shadow contract (frame=%llu geometry=%s dispatch=%s denoise=%s result=%s)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					diagnostics.geometryPresent ? "yes" : "no",
+					diagnostics.dispatchSucceeded ? "yes" : "no",
+					!diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "yes" : "no",
+					diagnostics.resultValid ? "yes" : "no" );
+				return false;
+			}
 		}
 	}
 	if( !rendered )

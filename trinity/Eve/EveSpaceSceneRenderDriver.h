@@ -63,6 +63,28 @@ public:
 		High,
 		Ultra,
 	};
+	enum class SsaoBindingProbe
+	{
+		None,
+		White,
+		Black,
+	};
+	struct SsaoBindingDiagnostics
+	{
+		SsaoBindingProbe probe = SsaoBindingProbe::None;
+		bool generatedValid = false;
+		bool publishedValid = false;
+		bool publishedMatchesGenerated = false;
+		bool globalVariablePresentAtDraw = false;
+		bool providerValidAtDraw = false;
+		bool providerMatchesPublishedAtDraw = false;
+		uint32_t generatedWidth = 0;
+		uint32_t generatedHeight = 0;
+		uint32_t generatedFormat = 0;
+		uint32_t publishedWidth = 0;
+		uint32_t publishedHeight = 0;
+		uint32_t publishedFormat = 0;
+	};
 	struct Settings
 	{
 		ShadowQuality shadowQuality = ShadowQuality::SHADOW_HIGH;
@@ -154,6 +176,22 @@ public:
 	{
 		m_ssao = ssao;
 	}
+	void SetSsaoBindingProbeForTesting( SsaoBindingProbe probe )
+	{
+		m_ssaoBindingProbe = probe;
+	}
+	const SsaoBindingDiagnostics& GetSsaoBindingDiagnostics() const
+	{
+		return m_ssaoBindingDiagnostics;
+	}
+	const Tr2TextureAL& GetLastGeneratedSsaoForDiagnostics() const
+	{
+		return m_lastGeneratedSsao;
+	}
+	const Tr2TextureAL& GetLastPublishedSsaoForDiagnostics() const
+	{
+		return m_lastPublishedSsao;
+	}
 	void SetView( TriView * view );
 	void SetProjection( TriProjection * projection );
 	void SetReflectionCorrectionEnabled( bool enabled )
@@ -182,7 +220,7 @@ public:
 		return m_postProcess ? m_postProcess->GetLastExecutionOrder() : empty;
 	}
 	bool GetPostProcessHistoryDiagnostics(
-		Tr2PostProcessRenderer::HistoryDiagnostics& diagnostics ) const
+		Tr2PostProcessRenderer::HistoryDiagnostics & diagnostics ) const
 	{
 		if( !m_postProcess )
 		{
@@ -209,7 +247,7 @@ public:
 	}
 	bool GetLastDistortionExecutionSucceeded() const;
 	void SetLensFlareDiagnosticsEnabled( bool enabled );
-	bool ReadLensFlareDiagnostics( Tr2RenderContext& renderContext, LensFlareDiagnostics& diagnostics );
+	bool ReadLensFlareDiagnostics( Tr2RenderContext & renderContext, LensFlareDiagnostics & diagnostics );
 
 	EXPOSE_TO_BLUE();
 
@@ -235,6 +273,10 @@ private:
 	EveSpaceScenePtr m_scene;
 
 	Tr2SSAOPtr m_ssao;
+	SsaoBindingProbe m_ssaoBindingProbe = SsaoBindingProbe::None;
+	SsaoBindingDiagnostics m_ssaoBindingDiagnostics;
+	Tr2TextureAL m_lastGeneratedSsao;
+	Tr2TextureAL m_lastPublishedSsao;
 
 
 	Tr2GpuResourcePool m_gpuResourcePool;

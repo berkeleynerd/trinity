@@ -1974,6 +1974,15 @@ void EveSpaceObject2::SetMesh( Tr2MeshBase* mesh )
 	}
 }
 
+void EveSpaceObject2::SetDisplay( bool display )
+{
+	if( m_display != display )
+	{
+		m_display = display;
+		ReRegister();
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Access to the bounding sphere radius, but make sure we use the dynamic one
@@ -3562,6 +3571,16 @@ void EveSpaceObject2::GetLights( Tr2LightManager& lightManager ) const
 		( *it )->SetBrightnessMultiplier( m_activationStrength );
 	}
 	auto displayChildren = DisplayChildren();
+}
+
+size_t EveSpaceObject2::GetLocalLightCountForDiagnostics() const
+{
+	return m_lights.size();
+}
+
+const Tr2Light* EveSpaceObject2::GetLocalLightForDiagnostics( size_t index ) const
+{
+	return index < m_lights.size() ? m_lights[index] : nullptr;
 }
 
 // --------------------------------------------------------------------------------
