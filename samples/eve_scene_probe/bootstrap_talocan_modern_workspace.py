@@ -8,10 +8,15 @@ TrinityRgbaToDds. Two modes:
   tint (default) — an unmistakable magenta shift on the albedo, every
     other map passing through: the determinism/A-B probe the rig was
     built on.
-  v1 — a procedural modernization pass. This iteration synthesizes a teal
-    glow into the _g slot (the client ships a flat 827-byte placeholder
-    there, shared with _p3) by tracing the albedo's panel-seam luminance
-    edges; the albedo and the remaining maps pass through unchanged.
+  v1 — a procedural modernization pass driven by the albedo's panel-seam
+    luminance field: a teal glow synthesized into the _g slot (the client
+    ships a flat 827-byte placeholder there, shared with _p3; note the
+    wreck material currently ignores the slot — see the doc), a bounded
+    gradient perturbation of the normal map's R/G channels (delta-based,
+    so it is agnostic to the map's channel basis; the wreck _n is not the
+    V5 128-centered convention), and a mean-pivoted contrast curve on the
+    grayscale roughness. Albedo, dirt, material, and paint mask pass
+    through unchanged.
 
 Everything written here is an EVE-client derivative: the workspace must
 stay outside git, and this script refuses paths inside a repository
@@ -77,6 +82,58 @@ def luminance(rgba):
     return lum
 
 
+def detail_normal(rgba, lum, width, height, strength):
+    """Bounded gradient deltas on the normal R/G channels.
+
+    The wreck _n is not the Astero-era 128-centered basis (R/G means sit
+    near 17, B/A pinned 255), so absolute re-authoring would gamble on the
+    convention. Signed deltas added to whatever the authored values are
+    tilt the surface along the seam gradient under any affine encoding;
+    B and A are never touched.
+    """
+    out = bytearray(rgba)
+    limit = max(1, int(60 * strength))
+    for y in range(height):
+        row = y * width
+        nextrow = row + width if y + 1 < height else row
+        for x in range(width):
+            i = row + x
+            here = lum[i]
+            dx = (lum[i + 1] if x + 1 < width else here) - here
+            dy = lum[nextrow + x] - here
+            if dx == 0 and dy == 0:
+                continue
+            dr = int(dx * strength) // 2
+            dg = int(dy * strength) // 2
+            dr = -limit if dr < -limit else limit if dr > limit else dr
+            dg = -limit if dg < -limit else limit if dg > limit else dg
+            o = i * 4
+            r = out[o] + dr
+            g = out[o + 1] + dg
+            out[o] = 0 if r < 0 else 255 if r > 255 else r
+            out[o + 1] = 0 if g < 0 else 255 if g > 255 else g
+    return bytes(out)
+
+
+def curve_roughness(rgba, contrast):
+    """Mean-pivoted contrast on the grayscale roughness (R/G/B together)."""
+    total = 0
+    count = len(rgba) // 4
+    for i in range(0, len(rgba), 4):
+        total += rgba[i]
+    pivot = total // count
+    table = bytes(
+        min(255, max(0, int(pivot + (v - pivot) * contrast)))
+        for v in range(256)
+    )
+    out = bytearray(rgba)
+    for i in range(0, len(out), 4):
+        out[i] = table[out[i]]
+        out[i + 1] = table[out[i + 1]]
+        out[i + 2] = table[out[i + 2]]
+    return bytes(out)
+
+
 def synth_glow(lum, width, height, hue_rgb, intensity, threshold):
     """Emissive teal seams from albedo luminance edges.
 
@@ -129,6 +186,12 @@ def main():
     parser.add_argument("--glow-threshold", type=int, default=14,
                         help="v1 glow edge knee; flat plating below this stays black "
                              "(default 14; lower picks up albedo micro-detail as speckle)")
+    parser.add_argument("--detail-normal-strength", type=float, default=1.0,
+                        help="v1 normal-detail gain; 0 disables the pass (default 1.0, "
+                             "deltas bounded to +-60 per channel)")
+    parser.add_argument("--roughness-contrast", type=float, default=1.25,
+                        help="v1 roughness contrast about the map mean; 1.0 disables "
+                             "the pass (default 1.25)")
     args = parser.parse_args()
 
     workspace = os.path.abspath(args.workspace)
@@ -160,17 +223,25 @@ def main():
             if suffix == "a":
                 rgba = tint_albedo(rgba)
                 note = ", tinted"
-        else:  # v1 — glow-only this iteration
+        else:  # v1 — glow + detail normals + roughness curve
             if suffix == "a":
                 albedo_lum = luminance(rgba)
                 albedo_dims = (width, height)
-            elif suffix == "g":
+            elif suffix in ("g", "n"):
                 if albedo_lum is None or albedo_dims != (width, height):
-                    sys.exit(f"v1 glow needs albedo at {width}x{height}; "
+                    sys.exit(f"v1 {suffix} pass needs albedo at {width}x{height}; "
                              f"got albedo {albedo_dims} — cannot derive seams")
-                rgba = synth_glow(albedo_lum, width, height,
-                                  args.glow_hue, args.glow_intensity, args.glow_threshold)
-                note = ", glow"
+                if suffix == "g":
+                    rgba = synth_glow(albedo_lum, width, height,
+                                      args.glow_hue, args.glow_intensity, args.glow_threshold)
+                    note = ", glow"
+                elif args.detail_normal_strength > 0.0:
+                    rgba = detail_normal(rgba, albedo_lum, width, height,
+                                         args.detail_normal_strength)
+                    note = ", detail-normal"
+            elif suffix == "r" and args.roughness_contrast != 1.0:
+                rgba = curve_roughness(rgba, args.roughness_contrast)
+                note = ", roughness-curve"
 
         png_path = os.path.join(workspace, f"{STEM}_{suffix}.png")
         write_png(png_path, width, height, rgba)

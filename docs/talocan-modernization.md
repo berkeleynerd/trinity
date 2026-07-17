@@ -183,11 +183,21 @@ already on disk when it fires). Default off; normal teardown unchanged.
 ## Procedural modernization pass v1 — glow (2026-07-17)
 
 `--mode v1` on the bootstrap replaces the tint spike with a procedural
-pass. This first iteration authors the `_g` slot the client ships as a
-flat 827-byte placeholder (shared with `_p3`): it traces a teal emissive
-glow along the hull's panel seams, so a dormant wreck reads as barely
-alive. The albedo and every other map pass through unchanged; detail
-normals and a roughness curve are the next passes on this lane.
+pass, all of it driven by the albedo's panel-seam luminance field:
+
+- `_g`: a teal emissive glow traced along the seams (authored against
+  the client's flat 827-byte placeholder; the wreck material currently
+  ignores the slot — see the findings below).
+- `_n`: bounded gradient deltas on the normal R/G channels
+  (`--detail-normal-strength`, default 1.0, deltas clamped to +-60).
+  Delta-based on purpose: the wreck `_n` is not the Astero-era
+  128-centered basis (R/G means near 17, B/A pinned 255), and signed
+  deltas tilt the surface along the seams under any affine channel
+  encoding without gambling on the convention.
+- `_r`: a mean-pivoted contrast curve on the grayscale roughness
+  (`--roughness-contrast`, default 1.25; 1.0 disables).
+
+Albedo, dirt, material, and paint mask pass through unchanged.
 
 The synthesis rides the albedo alone — panel grooves are dark lines, so
 a forward-difference luminance gradient peaks along them and is flat on
@@ -220,7 +230,15 @@ modern DDS are encoded.
 
 Findings (default knobs, `--asset talocan`): A/A determinism holds
 (`0.0 / 0.0`) and the modernized set loads with zero FAILED slots,
-GlowMap bound from `res:/modernized/…_g.dds`. But the wreck material
+GlowMap bound from `res:/modernized/…_g.dds`. The normal and roughness
+passes have real, attributable render effect: two modernized sets
+differing only in `_n`/`_r` (glow-only vs full v1) diverge by
+`diff_pixel_fraction = 0.0062` hull-localized — roughly twice the
+`~0.003` BC1/BC3 re-encode drift floor — and the full original-vs-v1
+A/B lands at `0.0070`, localized, passed. In the sunlit close-up the
+default-strength pass reads as crisper groove definition and sharper
+edge response, a refinement rather than a transformation; the knobs
+scale it. But the wreck material
 path **never samples the GlowMap**: with only the `_g` texture varied
 (authored teal vs all black), night side, `--sh-source none`,
 `--dynamic-exposure off`, `--ship-data 1`, the renders are
