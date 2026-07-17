@@ -8,10 +8,6 @@ on:
         required: false
         default: ""
 
-env:
-  CMAKE_BUILD_PARALLEL_LEVEL: "4"
-  VCPKG_BINARY_SOURCES: clear;files,/Users/buildrunner/.cache/vcpkg-binary,readwrite
-
 jobs:
   build:
     runs-on: macos
@@ -21,12 +17,10 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
-      - name: Configure
-        shell: bash
-        run: cmake --preset arm64-osx-release -S . -B build -DINSTALL_TO_MONOLITH=ON
-      - name: Build
-        shell: bash
-        run: cmake --build build --config Release --target all
-      - name: Test
-        shell: bash
-        run: ctest -C Release -V --output-on-failure --test-dir build
+      - name: Build (central carbon-build action)
+        uses: rebecca/safe-lang-ci/.gitea/actions/carbon-build@cef974725e916a49947712d24067a90cb6329402
+        with:
+          preset: arm64-osx-release
+          config: Release
+          target: all
+          install-to-monolith: "true"
