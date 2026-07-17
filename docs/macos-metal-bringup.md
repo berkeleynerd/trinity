@@ -3544,19 +3544,37 @@ effect when either changes.
 Those repairs make load-counter clear, depth/normal preparation, depth mips,
 four Q3 base passes, three importance passes, four main passes, four blur
 passes, and final apply all report successful. Prepared depth/normals and the
-Q3/main/blur products are finite and nonuniform. The CPU depth-neighbor oracle
+Q3/main/blur working products are finite. The CPU depth-neighbor oracle
 also finds 79,014 positive-obscurance pairs for the current Astero near-Sun
-fixture. This is real forward progress, but not acceptance: the final R8 apply
-still resolves to uniform white (`min=mean=max=1`).
+fixture, but its cardinal offsets are not the authored randomized shader
+pattern and therefore are not a pixel oracle.
 
 Publication and consumption are no longer ambiguous. The generated and
 published texture identities match, both V5 `Main` passes resolve the global
 provider at pixel register 1, and report-only black/white probes reach the
 same resource slot. White retains hull HDR mean `0.551967875015`; black lowers
-it to `0.0112871507474`. The remaining PL-14I1 candidate is therefore the
-legacy final-apply read/write mapping between the nonuniform blur working set
-and the R8 output, not the V5 shader consumer. PL-14I1 remains Active and the
-full 60-lane H3 rerun has not been claimed.
+it to `0.0112871507474`. Publication and the V5 consumer are therefore live.
+
+The final diagnosis disassembled the shipped `GenerateQ3Base`, `GenerateQ3`,
+and `Apply` Metal AIR and checked the exact 384-byte FidelityFX constant ABI,
+static point-clamp sampler, retained inputs, and draw-time resources. CACAO's
+working RG texture stores AO in channel zero and packed edge data in channel
+one. Channel zero remains exactly neutral `1.0`; only the auxiliary edge
+channel is nonuniform. `Apply` correctly publishes channel zero as uniform-
+white R8. Direct authored four-slice dispatch and the Metal physical-slice
+staging produce byte-identical output, and a SampleLevel-versus-Load probe
+finds zero discrepancy across all tested pixels and mips. A dedicated Metal
+apply effect now prevents cross-technique SRV/UAV state inheritance, but does
+not manufacture AO.
+
+PL-14I1 consequently qualifies H3's hull-AO `missing` result to source-correct,
+visually neutral for the audited isolated-space fixtures. No evidence supports
+a stronger radius, intensity, replacement shader, CORTAO promotion, or fill
+light. The historic 60-lane H3 matrix remains immutable; the focused transport
+and binding proof resolves its candidate without repeating the matrix for an
+unchanged image. A fresh 14-lane capture accepts producer and consumer as
+`correct` with zero repair candidates; verdict SHA-256 is
+`1cd777336ba96f2882220810066f8062d2649c12032caabebcec4a91e988fd1d`.
 
 ## Planet-limb darkness diagnostic (2026-07-17)
 
@@ -3616,7 +3634,7 @@ The accepted sequence is:
 | 14 | Authored decals | Pass |
 | 15 | Authored engines | Pass |
 | 16 | Authored distortion | Pass |
-| 17 | Client-selected AO | Pass as a staircase rung; output is still uniform white and therefore a known no-op, not AO acceptance |
+| 17 | Client-selected AO | Pass; later PL-14I1 evidence closes the neutral-white fixture result as source-correct rather than a missing renderer path |
 | 18 | High raster directional shadows | Pass |
 | 19 | Ray-traced directional shadows | Pass |
 | 20 | Authored Sun body and corona | Pass |

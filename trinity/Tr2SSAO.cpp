@@ -38,6 +38,13 @@ Tr2SSAO::Tr2SSAO( IRoot* lockobj )
 	m_detail.settings.detailShadowStrength = 5;
 	m_detail.effect.CreateInstance();
 	m_detail.effect->SetEffectPathName( "res:/graphics/effect/managed/space/System/SSAO/SSAO.fx" );
+	m_applyEffect.CreateInstance();
+	m_applyEffect->SetParameter(
+		BlueSharedString( "g_ApplyFinalSSAO" ), Tr2TextureAL{} );
+	m_applyEffect->SetParameter(
+		BlueSharedString( "g_ApplyOutput" ), Tr2TextureAL{} );
+	m_applyEffect->SetEffectPathName(
+		"res:/graphics/effect/managed/space/System/SSAO/SSAO.fx" );
 	m_depthMipEffect.CreateInstance();
 	m_depthMipEffect->SetEffectPathName(
 		"res:/graphics/effect/managed/space/system/ssaodepthmip.fx" );
@@ -224,8 +231,20 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 			layer.effect, diagnostics, technique, x, y, z );
 	};
 	Tr2Effect* generationEffect = layer.effect;
+	Tr2Effect* applyEffect = layer.effect;
 
 	m_detail.effect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( depthBuffer.GetMsaaDesc().samples > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
+#if __APPLE__
+	// CACAO reuses texture registers across its compute techniques. Keep the
+	// authored full-resolution apply technique on a dedicated material so its
+	// SRV/UAV set cannot inherit a binding assembled for an earlier pass.
+	applyEffect = m_applyEffect;
+	m_applyEffect->SetOption(
+		BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ),
+		BlueSharedString(
+			depthBuffer.GetMsaaDesc().samples > 1 ? "TEXTURE_2DMS" :
+													"TEXTURE_2D" ) );
+#endif
 
 	FFX_CACAO_BufferSizeInfo size{};
 	FFX_CACAO_UpdateBufferSizeInfo( depthBuffer.GetWidth(), depthBuffer.GetHeight(), layer.downsampled, &size );
@@ -481,8 +500,8 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	layer.effect->SetParameter( BlueSharedString( "g_BilateralUpscaleOutput" ), outputTarget );
 
 	// Apply pass
-	layer.effect->SetParameter( BlueSharedString( "g_ApplyFinalSSAO" ), settings.blurPassCount ? ssaoWorkerTargetA : ssaoWorkerTargetB );
-	layer.effect->SetParameter( BlueSharedString( "g_ApplyOutput" ), outputTarget );
+	applyEffect->SetParameter( BlueSharedString( "g_ApplyFinalSSAO" ), settings.blurPassCount ? ssaoWorkerTargetA : ssaoWorkerTargetB );
+	applyEffect->SetParameter( BlueSharedString( "g_ApplyOutput" ), outputTarget );
 
 	{
 		GPU_REGION( renderContext, "Upload const buffers" );
@@ -910,7 +929,13 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 			shader = "Apply";
 		}
 
-		dispatch( m_runtimeDiagnostics.apply, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
+		dispatchEffect(
+			applyEffect,
+			m_runtimeDiagnostics.apply,
+			BlueSharedString( shader.c_str() ),
+			dimX,
+			dimY,
+			1 );
 	}
 	snapshotDiagnostic(
 		"ssao_diagnostic_output", outputTarget.Get(), m_diagnosticTextures.output );
@@ -948,8 +973,10 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	layer.effect->SetParameter( BlueSharedString( "g_BilateralUpscaleOutput" ), Tr2TextureAL{} );
 
 	// Apply pass
-	layer.effect->SetParameter( BlueSharedString( "g_ApplyFinalSSAO" ), Tr2TextureAL{} );
-	layer.effect->SetParameter( BlueSharedString( "g_ApplyOutput" ), Tr2TextureAL{} );
+	applyEffect->SetParameter(
+		BlueSharedString( "g_ApplyFinalSSAO" ), Tr2TextureAL{} );
+	applyEffect->SetParameter(
+		BlueSharedString( "g_ApplyOutput" ), Tr2TextureAL{} );
 	return allDispatchesSucceeded ? outputTarget : Tr2GpuResourcePool::Texture{};
 }
 

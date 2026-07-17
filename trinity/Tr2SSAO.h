@@ -145,6 +145,7 @@ private:
 	Layer m_detail = { true, SSAOQuality::HIGHEST, false, 5.f };
 
 	Tr2ConstantBufferAL m_constBuffers[SSAO_PASS_COUNT + 1]{};
+	Tr2EffectPtr m_applyEffect;
 	Tr2EffectPtr m_depthMipEffect;
 	Tr2ConstantBufferAL m_depthMipConstantBuffer;
 
