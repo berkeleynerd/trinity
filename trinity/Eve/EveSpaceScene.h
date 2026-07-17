@@ -347,10 +347,18 @@ public:
 	{
 		m_planetScale = value;
 	}
+	float GetPlanetScale() const
+	{
+		return m_planetScale;
+	}
 	void AdvancePlanetUpdateForTesting( EvePlanet& planet, Be::Time simulationTime );
 	void SetPlanetCameraScale( float value )
 	{
 		m_planetCameraScale = value;
+	}
+	float GetPlanetCameraScale() const
+	{
+		return m_planetCameraScale;
 	}
 	void SetPlanetShadowsEnabled( bool value )
 	{
@@ -420,9 +428,23 @@ public:
 		uint64_t planetAdditive = 0;
 		uint64_t planetTransparent = 0;
 	};
+	struct PlanetPassDiagnostics
+	{
+		uint64_t executionCount = 0;
+		bool emptyVolumetricSlicesBound = false;
+		uint32_t emptyVolumetricWidth = 0;
+		uint32_t emptyVolumetricHeight = 0;
+		uint32_t emptyVolumetricArraySize = 0;
+		uint32_t emptyVolumetricMipCount = 0;
+		uint32_t emptyVolumetricFormat = 0;
+	};
 	const MainPassBatchDiagnostics& GetMainPassBatchDiagnostics() const
 	{
 		return m_mainPassBatchDiagnostics;
+	}
+	const PlanetPassDiagnostics& GetPlanetPassDiagnostics() const
+	{
+		return m_planetPassDiagnostics;
 	}
 	LightingSetup GetLightingSetup() const
 	{
@@ -807,6 +829,7 @@ protected:
 
 	PerFramePSData m_perFramePS;
 	MainPassBatchDiagnostics m_mainPassBatchDiagnostics;
+	PlanetPassDiagnostics m_planetPassDiagnostics;
 	PerFrameVSData m_perFrameVS;
 
 	EveVisualizeMethod m_visualizeMethod;

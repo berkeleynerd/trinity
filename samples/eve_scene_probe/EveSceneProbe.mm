@@ -125,6 +125,8 @@ extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested( void
 extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigurePlanetAudit( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWritePlanetAuditReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigurePlanetAppearance( void* opaqueProbe, int view, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWritePlanetAppearanceReport( void* opaqueProbe );
 extern "C" bool
 	TrinityStandaloneProbeConfigureBackgroundLayers( void* opaqueProbe, bool nebulaAuthored, bool starfieldAuthored );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
@@ -456,6 +458,15 @@ enum class PlanetLayers
 	All,
 };
 
+enum class PlanetAppearanceView
+{
+	Day = 0,
+	Limb,
+	Eclipse,
+	TourFinale,
+	TourOrbit,
+};
+
 enum class SunEffects
 {
 	Auto,
@@ -757,6 +768,7 @@ struct Options
 	std::string occlusionLightingReportPath;
 	std::string ssaoTransportReportPath;
 	std::string planetAuditReportPath;
+	std::string planetAppearanceReportPath;
 	std::string systemManifestPath;
 	std::string sceneConstructionReportPath;
 	std::string shipLightingReportPath;
@@ -797,6 +809,7 @@ struct Options
 	CameraView cameraView = CameraView::Model;
 	SceneComposition composition = SceneComposition::Cinematic;
 	PlanetLayers planetLayers = PlanetLayers::All;
+	PlanetAppearanceView planetAppearanceView = PlanetAppearanceView::Day;
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
 	SolarIllumination solarIllumination = SolarIllumination::Frozen;
@@ -2050,6 +2063,42 @@ bool ParsePlanetLayers( const std::string& value, PlanetLayers& layers )
 		if( normalized == PlanetLayersName( candidate ) )
 		{
 			layers = candidate;
+			return true;
+		}
+	}
+	return false;
+}
+
+std::string PlanetAppearanceViewName( PlanetAppearanceView view )
+{
+	switch( view )
+	{
+	case PlanetAppearanceView::Day:
+		return "day";
+	case PlanetAppearanceView::Limb:
+		return "limb";
+	case PlanetAppearanceView::Eclipse:
+		return "eclipse";
+	case PlanetAppearanceView::TourFinale:
+		return "tour-finale";
+	case PlanetAppearanceView::TourOrbit:
+		return "tour-orbit";
+	}
+	return "unknown";
+}
+
+bool ParsePlanetAppearanceView( const std::string& value, PlanetAppearanceView& view )
+{
+	const std::string normalized = ToLower( value );
+	for( PlanetAppearanceView candidate : { PlanetAppearanceView::Day,
+											PlanetAppearanceView::Limb,
+											PlanetAppearanceView::Eclipse,
+											PlanetAppearanceView::TourFinale,
+											PlanetAppearanceView::TourOrbit } )
+	{
+		if( normalized == PlanetAppearanceViewName( candidate ) )
+		{
+			view = candidate;
 			return true;
 		}
 	}
@@ -3373,6 +3422,7 @@ void PrintUsage( const char* executable )
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers off|surface|atmosphere-inner|atmosphere-outer|atmosphere|clouds|aurora|data-driven|all]\n"
 		<< "       [--planet-audit-report PATH]\n"
+		<< "       [--planet-appearance-view day|limb|eclipse|tour-finale|tour-orbit] [--planet-appearance-report PATH]\n"
 		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all|no-lens-flare]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
 		<< "       [--scene-construction legacy|canonical] [--canonical-diagnostic baseline|ship-mesh-off|ship-object-off]\n"
@@ -4161,6 +4211,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.planetAuditReportPath = argv[i];
+		}
+		else if( arg == "--planet-appearance-view" )
+		{
+			if( ++i >= argc || !ParsePlanetAppearanceView( argv[i], options.planetAppearanceView ) )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--planet-appearance-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.planetAppearanceReportPath = argv[i];
 		}
 		else if( arg == "--sun-effects" )
 		{
@@ -7078,6 +7143,16 @@ int main( int argc, char** argv )
 						 "a model-or-higher quality rung, and a positive finite --frames count\n";
 			return 2;
 		}
+		if( !options.planetAppearanceReportPath.empty() &&
+			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish || options.ballpark != BallparkMode::Static ||
+			  options.maxFrames <= 0 || options.capturePrefix.empty() || options.presentationAuditReportPath.empty() ) )
+		{
+			std::cerr << "--planet-appearance-report requires the finite-frame High-tier New Eden "
+						 "hdr-finish profile with --ballpark static, --presentation-audit-report, and "
+						 "--capture-prefix\n";
+			return 2;
+		}
 		const bool sceneConstructionRequested = options.sceneConstruction == SceneConstruction::Canonical ||
 			!options.systemManifestPath.empty() || !options.sceneConstructionReportPath.empty() ||
 			options.legacyShProxies != LegacyShProxies::Authored ||
@@ -7141,7 +7216,6 @@ int main( int argc, char** argv )
 			std::cerr << "CMF asset file is not present: " << options.inputPath << "\n";
 			return 1;
 		}
-
 		const std::string executableDirectory = ExecutableDirectory();
 		if( !TrinityStandaloneProbeStartup(
 				argc, const_cast<const char* const*>( argv ), executableDirectory.c_str() ) )
@@ -7266,6 +7340,17 @@ int main( int argc, char** argv )
 			  !TrinityStandaloneProbeConfigurePlanetAudit( probe, options.planetAuditReportPath.c_str() ) ) )
 		{
 			std::cerr << "Failed to configure the PL-14F planet audit report\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( !options.planetAppearanceReportPath.empty() &&
+			( !EnsureParentDirectory( options.planetAppearanceReportPath ) ||
+			  !TrinityStandaloneProbeConfigurePlanetAppearance( probe,
+																static_cast<int>( options.planetAppearanceView ),
+																options.planetAppearanceReportPath.c_str() ) ) )
+		{
+			std::cerr << "Failed to configure the PL-14J planet appearance report\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -8833,6 +8918,15 @@ int main( int argc, char** argv )
 				std::cout << "Planet audit report: " << options.planetAuditReportPath << "\n";
 			}
 		}
+		bool planetAppearanceReportSucceeded = true;
+		if( !options.planetAppearanceReportPath.empty() )
+		{
+			planetAppearanceReportSucceeded = TrinityStandaloneProbeWritePlanetAppearanceReport( probe );
+			if( planetAppearanceReportSucceeded )
+			{
+				std::cout << "Planet appearance report: " << options.planetAppearanceReportPath << "\n";
+			}
+		}
 		bool sceneConstructionReportSucceeded = true;
 		if( !options.sceneConstructionReportPath.empty() )
 		{
@@ -8889,17 +8983,18 @@ int main( int argc, char** argv )
 		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
-			planetAuditReportSucceeded && sceneConstructionReportSucceeded && presentationAuditReportSucceeded &&
-			shipLightingReportSucceeded && reflectionLightingReportSucceeded && occlusionLightingReportSucceeded &&
-			ssaoTransportReportSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
-			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
-			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
-			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
-			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded && ballparkOrbitValidationSucceeded &&
-			ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded &&
-			ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded && chaseCameraValidationSucceeded &&
-			chaseCameraReportSucceeded && celestialValidationSucceeded && celestialReportSucceeded &&
-			eveGateValidationSucceeded && eveGateReportSucceeded && exposureReportsSucceeded;
+			planetAuditReportSucceeded && planetAppearanceReportSucceeded && sceneConstructionReportSucceeded &&
+			presentationAuditReportSucceeded && shipLightingReportSucceeded && reflectionLightingReportSucceeded &&
+			occlusionLightingReportSucceeded && ssaoTransportReportSucceeded && framePacingSucceeded &&
+			compositionValidationSucceeded && exposureValidationSucceeded && toneValidationSucceeded &&
+			postFinishValidationSucceeded && distortionValidationSucceeded && volumetricValidationSucceeded &&
+			engineValidationSucceeded && temporalValidationSucceeded && ballparkValidationSucceeded &&
+			ballparkReportSucceeded && ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
+			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded &&
+			ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
+			chaseCameraValidationSucceeded && chaseCameraReportSucceeded && celestialValidationSucceeded &&
+			celestialReportSucceeded && eveGateValidationSucceeded && eveGateReportSucceeded &&
+			exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

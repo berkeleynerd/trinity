@@ -647,6 +647,11 @@ constexpr StandaloneLightingAuditRouteState kLightingAuditPlanetOrbit = {
 	{ 1083759455164.319213867, -205373044568.080596924, -787277901534.109863281 },
 	{ -0.091839448f, 0.600319982f, -0.068614691f, -0.791500866f },
 };
+constexpr StandaloneLightingAuditRouteState kPlanetAppearanceTourFinale = {
+	5581,
+	{ 1083772320672.260375977, -205375921935.839416504, -787229638668.005737305 },
+	{ 0.041035742f, 0.986779451f, 0.022761201f, -0.155126959f },
+};
 // landmarks.static record 1 ("EVE Gate") relative to the stargate anchor. The
 // landmark has no authored in-space item, so approaching it is explicit demo
 // policy rather than recovered client behavior (CP-36 recon).
@@ -864,6 +869,16 @@ public:
 
 	TrinityStandaloneRenderable( IRoot* lockobj = nullptr )
 	{
+	}
+
+	void SetStandaloneDisplay( bool display )
+	{
+		m_standaloneDisplay = display;
+	}
+
+	bool GetStandaloneDisplay() const
+	{
+		return m_standaloneDisplay;
 	}
 
 	EnvironmentBindingDiagnostics InspectEnvironmentBinding(
@@ -2438,6 +2453,10 @@ public:
 
 	void UpdateVisibility( const EveUpdateContext& updateContext, const Matrix& ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		for( const auto& set : m_spriteAttachmentSets )
 			set->UpdateVisibility( updateContext, m_worldTransform, nullptr, 0 );
 		for( const auto& set : m_spriteLineAttachmentSets )
@@ -2466,6 +2485,10 @@ public:
 
 	void RegisterWithQuadRenderer( Tr2QuadRenderer & quadRenderer ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		for( const auto& set : m_spriteAttachmentSets )
 			set->RegisterWithQuadRenderer( quadRenderer );
 		for( const auto& set : m_spriteLineAttachmentSets )
@@ -2480,6 +2503,10 @@ public:
 
 	void AddQuadsToQuadRenderer( const TriFrustum&, Tr2QuadRenderer& quadRenderer ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		const float boosterGain = GetAttachmentBoosterGain();
 		for( const auto& set : m_spriteAttachmentSets )
 			set->AddToQuadRenderer( quadRenderer, m_worldTransform, 1.0f, boosterGain, nullptr, 0 );
@@ -2495,6 +2522,10 @@ public:
 
 	void GetRenderables( std::vector<ITr2Renderable*> & renderables, Tr2ImpostorManager* ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		renderables.push_back( this );
 		if( m_engines )
 		{
@@ -2636,6 +2667,10 @@ public:
 
 	void GetBatches( ITriRenderBatchAccumulator * batches, TriBatchType batchType, const Tr2PerObjectData* perObjectData, Tr2RenderReason reason ) override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		if( m_useEveV5Material )
 		{
 			if( batchType == TRIBATCHTYPE_OPAQUE && !m_occlusionDepthOnly )
@@ -2721,7 +2756,8 @@ public:
 			++m_shadowCullTests;
 		}
 		sizeInShadow = 0.0f;
-		if( !m_shadowCastingEnabled || !m_useEveV5Material || m_shadowBoundingRadius <= 0.0f )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_useEveV5Material ||
+			m_shadowBoundingRadius <= 0.0f )
 		{
 			return false;
 		}
@@ -2745,7 +2781,7 @@ public:
 
 	void GetShadowBatches( ITriRenderBatchAccumulator * batches, const Tr2PerObjectData* perObjectData, float ) override
 	{
-		if( !m_shadowCastingEnabled || !m_useEveV5Material )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_useEveV5Material )
 		{
 			return;
 		}
@@ -2762,7 +2798,7 @@ public:
 
 	void PushRtGeometry( Tr2RaytracingManager & rtManager ) const override
 	{
-		if( !m_shadowCastingEnabled || !m_raytracingGeometryPrepared )
+		if( !m_standaloneDisplay || !m_shadowCastingEnabled || !m_raytracingGeometryPrepared )
 		{
 			return;
 		}
@@ -2983,6 +3019,10 @@ public:
 
 	void GetLights( Tr2LightManager & lightManager ) const override
 	{
+		if( !m_standaloneDisplay )
+		{
+			return;
+		}
 		auto addFamily = [&]( LightFamily family, const auto& lightSet ) {
 			const size_t before = lightManager.GetCurrentThreadPendingLightCount();
 			lightSet->GetLights( lightManager );
@@ -3951,6 +3991,7 @@ private:
 	Matrix m_decalWorldTransform = IdentityMatrix();
 	float m_shadowBoundingRadius = 0.0f;
 	float m_authoredWorldScale = 1.0f;
+	bool m_standaloneDisplay = true;
 	bool m_reportedMissingDecalAoMap = false;
 	bool m_reportedDecalSubmission = false;
 	bool m_reportedDecalFailure = false;
@@ -4274,6 +4315,16 @@ enum StandaloneLightingAuditStation
 	STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE = 5,
 	STANDALONE_LIGHTING_AUDIT_DEEP_SPACE = 6,
 	STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT = 7,
+	STANDALONE_LIGHTING_AUDIT_TOUR_FINALE = 8,
+};
+
+enum StandalonePlanetAppearanceView
+{
+	STANDALONE_PLANET_APPEARANCE_DAY = 0,
+	STANDALONE_PLANET_APPEARANCE_LIMB = 1,
+	STANDALONE_PLANET_APPEARANCE_ECLIPSE = 2,
+	STANDALONE_PLANET_APPEARANCE_TOUR_FINALE = 3,
+	STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT = 4,
 };
 
 enum StandaloneAmbientOcclusionMode
@@ -4628,11 +4679,31 @@ const char* LightingAuditStationName( int station )
 		"planet-eclipse",
 		"deep-space",
 		"planet-orbit",
+		"tour-finale",
 	};
 	return station >= STANDALONE_LIGHTING_AUDIT_NEAR_SUN &&
-			station <= STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ?
+			station <= STANDALONE_LIGHTING_AUDIT_TOUR_FINALE ?
 		names[station] :
 		"unspecified";
+}
+
+const char* PlanetAppearanceViewName( int view )
+{
+	switch( view )
+	{
+	case STANDALONE_PLANET_APPEARANCE_DAY:
+		return "day";
+	case STANDALONE_PLANET_APPEARANCE_LIMB:
+		return "limb";
+	case STANDALONE_PLANET_APPEARANCE_ECLIPSE:
+		return "eclipse";
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		return "tour-finale";
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		return "tour-orbit";
+	default:
+		return "invalid";
+	}
 }
 
 enum StandaloneSolarIlluminationProduct
@@ -4875,6 +4946,7 @@ struct StandalonePlanetAreaEvidence
 	std::string effectPath;
 	std::vector<std::pair<std::string, std::string>> sourceTextures;
 	std::vector<std::pair<std::string, std::string>> settledTextures;
+	std::vector<std::pair<std::string, Vector4>> vector4Constants;
 };
 
 struct StandalonePlanetNodeEvidence
@@ -5069,6 +5141,9 @@ struct StandaloneProbe
 	std::string reflectionLightingReportPath;
 	std::string occlusionLightingReportPath;
 	std::string ssaoTransportReportPath;
+	std::string planetAppearanceReportPath;
+	int planetAppearanceView = STANDALONE_PLANET_APPEARANCE_DAY;
+	bool planetAppearanceConfigured = false;
 	int aoBindingProbe = STANDALONE_AO_BINDING_NONE;
 	int lightingAuditStation = STANDALONE_LIGHTING_AUDIT_UNSPECIFIED;
 	int lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
@@ -7913,8 +7988,13 @@ bool PrepareNewEdenCelestialsWithoutYield(
 	const bool retainSurface = PlanetModeSelectsRole( planetLayers, "surface" );
 	const bool retainAtmosphere = PlanetModeSelectsRole( planetLayers, "atmosphere" );
 	const bool retainClouds = PlanetModeSelectsRole( planetLayers, "clouds" );
-	const bool selectAurora = PlanetModeSelectsRole( planetLayers, "aurora" );
-	const bool selectDataDriven = PlanetModeSelectsRole( planetLayers, "data-driven" );
+	// PL-14J audits the authored surface, atmosphere, and cloud stack.  Keep the
+	// asynchronous aurora and population traffic in their accepted PL-14F lanes
+	// so an `all` appearance isolate does not acquire audit-only activity.
+	const bool appearanceAudit = !probe.planetAppearanceReportPath.empty();
+	const bool selectAurora = PlanetModeSelectsRole( planetLayers, "aurora" ) && !appearanceAudit;
+	const bool selectDataDriven =
+		PlanetModeSelectsRole( planetLayers, "data-driven" ) && !appearanceAudit;
 	probe.planetAuditNodes.clear();
 	auto captureNode = [&]( IEveSpaceObjectChild& child,
 							const std::string& id,
@@ -7965,6 +8045,15 @@ bool PrepareNewEdenCelestialsWithoutYield(
 						if( Tr2Effect* effect = area->GetMaterialInterface() )
 						{
 							areaEvidence.effectPath = effect->GetEffectPathName();
+							for( ITriEffectParameter* parameter : effect->m_parameters )
+							{
+								Tr2Vector4ParameterPtr vector = BlueCastPtr( parameter );
+								if( vector )
+								{
+									areaEvidence.vector4Constants.emplace_back(
+										vector->GetParameterName(), vector->GetValue() );
+								}
+							}
 							for( auto* resource : effect->m_resources )
 							{
 								TriTextureParameterPtr texture = BlueCastPtr( resource );
@@ -8299,7 +8388,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		// low-security system before the data-driven controller starts. The
 		// authored controller condition separately requires displayFX=1 for
 		// the selected High-quality branch.
-		if( dataDrivenContainer )
+		if( retainDataDriven && dataDrivenContainer )
 		{
 			dataDrivenFx->SetControllerVariable( "populationLevel", 10.0f );
 			dataDrivenFx->SetControllerVariable( "displayFX", 1.0f );
@@ -8328,7 +8417,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			ExecuteMainThreadActions();
 			DrainResourceQueuesUntilSettled();
 			planet.UpdatePlanetSyncronous( controllerUpdate, EvePlanet::SCALE );
-			if( dataDrivenContainer )
+			if( retainDataDriven && dataDrivenContainer )
 			{
 				for( unsigned int controllerStep = 0; controllerStep < 4; ++controllerStep )
 				{
@@ -8346,7 +8435,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			}
 #endif
 		}
-		if( dataDrivenContainer )
+		if( retainDataDriven && dataDrivenContainer )
 		{
 			probe.planetDataDrivenControllerStates = dataDrivenContainer->GetControllerStatesForInspection();
 			bool populationStateTen = false;
@@ -8392,7 +8481,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 				hasDisplayVariable ? "present" : "missing",
 				probe.planetDataDrivenPopulationLoaded ? "loaded" : "missing" );
 		}
-		if( retainAurora )
+		if( retainAurora && !probe.planetAuditReportPath.empty() )
 		{
 			Tr2CurveConstant* auroraSeedCurve = nullptr;
 			for( size_t curveIndex = 0; playAurora && curveIndex < playAurora->GetCurvesCount(); ++curveIndex )
@@ -11978,7 +12067,8 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 	const bool atomicProductCaptureRequested = probe.solarIlluminationCaptureRequested ||
 		probe.presentationAuditCaptureRequested;
 	const bool h3PlanetConsumerNotApplicable =
-		!probe.occlusionLightingReportPath.empty() &&
+		( !probe.occlusionLightingReportPath.empty() ||
+		  !probe.planetAppearanceReportPath.empty() ) &&
 		probe.lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 	if( atomicProductCaptureRequested )
 	{
@@ -14071,7 +14161,11 @@ bool ApplyLightingAuditStationCamera( StandaloneProbe& probe )
 			viewDirection = -sunward;
 		}
 		constexpr float fovRadians = 48.0f * 3.1415926535f / 180.0f;
-		const float discRadiusPixels = 120.0f;
+		// The audit contract's 1280x960 backing target is a 240-pixel disc.
+		// Preserve that one-quarter-height composition at higher backing
+		// resolutions so native 4K review stills gain detail instead of merely
+		// adding empty pixels around a fixed-size diagnostic subject.
+		const float discRadiusPixels = 0.125f * static_cast<float>( probe.renderHeight );
 		const float distance = static_cast<float>( kNewEdenPlanetRadius ) *
 			( 0.5f * static_cast<float>( probe.renderHeight ) ) /
 			( discRadiusPixels * std::tan( 0.5f * fovRadians ) );
@@ -14088,9 +14182,11 @@ bool ApplyLightingAuditStationCamera( StandaloneProbe& probe )
 			2.0e13f );
 		return true;
 	}
-	if( !probe.nativeShip )
+	if( !probe.nativeShip && !probe.renderable )
 		return false;
-	const Vector3 ship = probe.nativeShip->GetWorldPosition();
+	const Vector3 ship = probe.nativeShip ?
+		probe.nativeShip->GetWorldPosition() :
+		probe.renderable->GetCurrentWorldTransform().GetTranslation();
 	const Vector3 eye = ship + Vector3( 0.0f, kNewEdenTourFinaleCameraHeight, -kNewEdenTourFinaleCameraDistance );
 	const Vector3 target = ship + Vector3( 0.0f, 5.0f, 25.0f );
 	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
@@ -14428,6 +14524,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 			break;
 		case STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT:
 			routeState = &kLightingAuditPlanetOrbit;
+			break;
+		case STANDALONE_LIGHTING_AUDIT_TOUR_FINALE:
+			routeState = &kPlanetAppearanceTourFinale;
 			break;
 		default:
 			break;
@@ -16384,7 +16483,11 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		probe.scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe.destinySession ) );
 		probe.scene->Objects().Insert( -1, probe.nativeShip->GetRawRoot() );
 		probe.canonicalNativeShipInserted = true;
-		if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
+		const bool planetAppearanceSuppressesShip =
+			!probe.planetAppearanceReportPath.empty() &&
+			probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE;
+		if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF ||
+			planetAppearanceSuppressesShip )
 		{
 			probe.nativeShip->SetDisplay( false );
 		}
@@ -16683,6 +16786,10 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			return false;
 		}
 		probe.renderable->SetShLightingEnabled( lightingView == STANDALONE_LIGHTING_COMBINED || lightingView == STANDALONE_LIGHTING_SH );
+		const bool planetAppearanceSuppressesShip =
+			!probe.planetAppearanceReportPath.empty() &&
+			probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE;
+		probe.renderable->SetStandaloneDisplay( !planetAppearanceSuppressesShip );
 		probe.scene->Objects().Insert( -1, probe.renderable->GetRawRoot() );
 	}
 	probe.sceneConstructionPublished = true;
@@ -18480,6 +18587,192 @@ void WriteSolarBodyMatrix( std::ostream& output, const Matrix& matrix )
 		   << matrix._41 << ',' << matrix._42 << ',' << matrix._43 << ',' << matrix._44 << ']';
 }
 
+bool WritePlanetAppearanceReport( StandaloneProbe& probe, std::string& error )
+{
+	if( probe.planetAppearanceReportPath.empty() || !probe.newEdenPlanet || !probe.scene ||
+		probe.renderedFrameCount == 0 )
+	{
+		error = "Planet appearance report is missing a path, scene, planet, or rendered frame";
+		return false;
+	}
+	if( probe.planetAuditNodes.size() != 6 )
+	{
+		error = "Planet appearance report requires the accepted PL-14F graph inventory";
+		return false;
+	}
+
+	std::ofstream output( probe.planetAppearanceReportPath.c_str(), std::ios::binary );
+	if( !output )
+	{
+		error = "Could not open planet appearance report output";
+		return false;
+	}
+
+	const EveSpaceScene::LightingSetup lighting = probe.scene->GetLightingSetup();
+	const EveSpaceScene::MainPassBatchDiagnostics& batches =
+		probe.scene->GetMainPassBatchDiagnostics();
+	const EveSpaceScene::PlanetPassDiagnostics& planetPass =
+		probe.scene->GetPlanetPassDiagnostics();
+	Color fogColor;
+	float fogStart = 0.0f;
+	float fogEnd = 0.0f;
+	float fogMaximum = 0.0f;
+	probe.scene->GetDistanceFog( fogColor, fogStart, fogEnd, fogMaximum );
+	const Vector3 position = probe.newEdenPlanet->GetWorldPosition();
+	const Quaternion rotation = probe.newEdenPlanet->GetWorldRotation();
+	const Matrix& view = Tr2Renderer::GetViewTransform();
+	const Matrix& projection = Tr2Renderer::GetProjectionTransform();
+
+	output << std::setprecision( 10 );
+	output << "{\n"
+		   << "  \"schema\":\"trinity.planet-appearance-report.v1\",\n"
+		   << "  \"source\":{\"eveBuild\":3430261,\"logicalBlack\":"
+		   << SolarBodyJsonString(
+				  "res:/dx9/model/worldobject/planet/template_hi/sandstorm/p_sandstorm_11.black" )
+		   << ",\"blackSha256\":\"991092ce46ce8c1cca2115c68e4d36d6210a3d507f5e03b52c0f0ea64d6913b3\","
+			  "\"claim\":\"structural-source-and-archive-backed\"},\n"
+		   << "  \"view\":" << SolarBodyJsonString( PlanetAppearanceViewName( probe.planetAppearanceView ) )
+		   << ",\n  \"sourceFrame\":";
+	switch( probe.planetAppearanceView )
+	{
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		output << kPlanetAppearanceTourFinale.sourceFrame;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		output << kLightingAuditPlanetOrbit.sourceFrame;
+		break;
+	default:
+		output << 0;
+		break;
+	}
+	output << ",\n  \"construction\":"
+		   << SolarBodyJsonString(
+				  probe.sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ? "canonical" : "legacy" )
+		   << ",\n  \"subject\":{\"shipSceneMember\":true,\"shipVisualSuppressed\":"
+		   << ( probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE ? "true" : "false" )
+		   << ",\"shipDisplay\":"
+		   << ( probe.nativeShip ? ( probe.nativeShip->GetDisplay() ? "true" : "false" ) :
+								   ( probe.renderable && probe.renderable->GetStandaloneDisplay() ? "true" : "false" ) )
+		   << ",\"sunOpticsSuppressed\":"
+		   << ( probe.sunEffectsMode == STANDALONE_SUN_EFFECTS_OFF ? "true" : "false" )
+		   << "}"
+		   << ",\n  \"qualityTier\":\"high\",\n  \"layerMode\":"
+		   << SolarBodyJsonString( PlanetLayersName( probe.planetLayerMode ) )
+		   << ",\n  \"backing\":{\"width\":" << probe.renderWidth << ",\"height\":" << probe.renderHeight
+		   << "},\n  \"renderedFrameCount\":" << probe.renderedFrameCount
+		   << ",\n  \"planet\":{\"display\":" << ( probe.newEdenPlanet->GetDisplay() ? "true" : "false" )
+		   << ",\"lod\":" << static_cast<int>( probe.newEdenPlanet->GetLodForInspection() )
+		   << ",\"radius\":" << probe.newEdenPlanet->GetRadius()
+		   << ",\"estimatedPixelDiameter\":" << probe.newEdenPlanet->GetEstimatedPixelDiameter()
+		   << ",\"planetScale\":" << probe.scene->GetPlanetScale()
+		   << ",\"planetCameraScale\":" << probe.scene->GetPlanetCameraScale()
+		   << ",\"position\":[" << position.x << ',' << position.y << ',' << position.z
+		   << "],\"rotation\":[" << rotation.x << ',' << rotation.y << ',' << rotation.z << ',' << rotation.w
+		   << "],\"viewMatrix\":";
+	WriteSolarBodyMatrix( output, view );
+	output << ",\"projectionMatrix\":";
+	WriteSolarBodyMatrix( output, projection );
+	output << "},\n  \"envelopes\":{\"surface\":{\"rawRadius\":" << probe.planetSurfaceRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetSurfaceAdjustedRadius
+		   << "},\"atmosphere\":{\"rawRadius\":" << probe.planetAtmosphereRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetAtmosphereAdjustedRadius
+		   << "},\"clouds\":{\"rawRadius\":" << probe.planetCloudRawRadius
+		   << ",\"adjustedRadius\":" << probe.planetCloudAdjustedRadius << "}},\n"
+		   << "  \"liveInputs\":{\"sunDirection\":[" << lighting.sunDirection.x << ','
+		   << lighting.sunDirection.y << ',' << lighting.sunDirection.z << "],\"sunColor\":["
+		   << lighting.sunColor.r << ',' << lighting.sunColor.g << ',' << lighting.sunColor.b << ','
+		   << lighting.sunColor.a << "],\"ambientColor\":[" << lighting.ambientColor.r << ','
+		   << lighting.ambientColor.g << ',' << lighting.ambientColor.b << ',' << lighting.ambientColor.a
+		   << "],\"distanceFog\":{\"color\":[" << fogColor.r << ',' << fogColor.g << ',' << fogColor.b
+		   << ',' << fogColor.a << "],\"start\":" << fogStart << ",\"end\":" << fogEnd
+		   << ",\"maximum\":" << fogMaximum << "}},\n"
+		   << "  \"volumeTransport\":{\"parameter\":\"EveSceneFogVolumeMap\","
+			  "\"provider\":\"EveSpaceScene::RenderPlanets/native-empty-four-slice-fallback\","
+			  "\"bound\":"
+		   << ( planetPass.emptyVolumetricSlicesBound ? "true" : "false" )
+		   << ",\"width\":" << planetPass.emptyVolumetricWidth
+		   << ",\"height\":" << planetPass.emptyVolumetricHeight
+		   << ",\"arraySize\":" << planetPass.emptyVolumetricArraySize
+		   << ",\"mipCount\":" << planetPass.emptyVolumetricMipCount
+		   << ",\"format\":" << planetPass.emptyVolumetricFormat
+		   << ",\"executionCount\":" << planetPass.executionCount
+		   << ",\"silk\":"
+		   << ( probe.volumetricMode == STANDALONE_VOLUMETRICS_SILK ||
+						probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+					"true" :
+					"false" )
+		   << ",\"froxels\":"
+		   << ( probe.volumetricMode == STANDALONE_VOLUMETRICS_FROXEL ||
+						probe.volumetricMode == STANDALONE_VOLUMETRICS_ALL ?
+					"true" :
+					"false" )
+		   << "},\n  \"submission\":{\"opaque\":" << batches.planetOpaque
+		   << ",\"additive\":" << batches.planetAdditive
+		   << ",\"transparent\":" << batches.planetTransparent << "},\n"
+		   << "  \"layers\":[\n";
+	bool wroteLayer = false;
+	for( const StandalonePlanetNodeEvidence& node : probe.planetAuditNodes )
+	{
+		if( node.role != "surface" && node.role != "atmosphere" && node.role != "clouds" )
+			continue;
+		output << ( wroteLayer ? ",\n" : "" ) << "    {\"id\":" << SolarBodyJsonString( node.id )
+			   << ",\"role\":" << SolarBodyJsonString( node.role )
+			   << ",\"class\":" << SolarBodyJsonString( node.className )
+			   << ",\"selected\":" << ( node.selected ? "true" : "false" )
+			   << ",\"displayed\":" << ( node.settledDisplay ? "true" : "false" )
+			   << ",\"areas\":[";
+		for( size_t areaIndex = 0; areaIndex < node.areas.size(); ++areaIndex )
+		{
+			const StandalonePlanetAreaEvidence& area = node.areas[areaIndex];
+			output << ( areaIndex ? "," : "" ) << "{\"name\":" << SolarBodyJsonString( area.name )
+				   << ",\"batchType\":"
+				   << SolarBodyJsonString( SolarBodyBatchName( static_cast<TriBatchType>( area.batchType ) ) )
+				   << ",\"effect\":" << SolarBodyJsonString( area.effectPath )
+				   << ",\"selected\":" << ( area.selected ? "true" : "false" )
+				   << ",\"displayed\":" << ( area.settledDisplay ? "true" : "false" )
+				   << ",\"textures\":[";
+			for( size_t textureIndex = 0; textureIndex < area.settledTextures.size(); ++textureIndex )
+			{
+				output << ( textureIndex ? "," : "" ) << "{\"parameter\":"
+					   << SolarBodyJsonString( area.settledTextures[textureIndex].first ) << ",\"path\":"
+					   << SolarBodyJsonString( area.settledTextures[textureIndex].second ) << '}';
+			}
+			output << "],\"vector4Constants\":[";
+			for( size_t constantIndex = 0; constantIndex < area.vector4Constants.size(); ++constantIndex )
+			{
+				const auto& constant = area.vector4Constants[constantIndex];
+				output << ( constantIndex ? "," : "" ) << "{\"parameter\":"
+					   << SolarBodyJsonString( constant.first ) << ",\"value\":[" << constant.second.x << ','
+					   << constant.second.y << ',' << constant.second.z << ',' << constant.second.w << "]}";
+			}
+			output << "]}";
+		}
+		output << "]}";
+		wroteLayer = true;
+	}
+	output << "\n  ],\n  \"presentationEvidence\":{\"retainedFrameCount\":"
+		   << probe.presentationAuditFrames.size() << ",\"capturedBeforeReuseOrRelease\":";
+	bool retained = !probe.presentationAuditFrames.empty();
+	if( retained )
+	{
+		for( const StandalonePresentationProductMetrics& metrics :
+			 probe.presentationAuditFrames.back().products )
+		{
+			retained = retained && ( !metrics.available || metrics.capturedBeforeReuseOrRelease );
+		}
+	}
+	output << ( retained ? "true" : "false" )
+		   << "},\n  \"scope\":{\"aurora\":\"PL-14F-regression-only\","
+			  "\"populationTraffic\":\"PL-14F-regression-only\","
+			  "\"exactClientPixels\":false,\"exactClientColor\":false,\"exactClientExposure\":false}\n}\n";
+	if( !output )
+	{
+		error = "Failed while writing planet appearance report";
+		return false;
+	}
+	return true;
+}
+
 bool WriteSolarBodyReport( StandaloneProbe& probe, std::string& error )
 {
 	if( probe.solarBodyReportPath.empty() || !probe.newEdenSunBody || !probe.newEdenSun ||
@@ -19012,6 +19305,69 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePlanetAuditReport( voi
 		return false;
 	}
 	std::fprintf( stderr, "PL-14F planet audit report: %s\n", probe->planetAuditReportPath.c_str() );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAppearance(
+	void* opaqueProbe,
+	int view,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !reportPath || !reportPath[0] ||
+		view < STANDALONE_PLANET_APPEARANCE_DAY ||
+		view > STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT )
+	{
+		CCP_LOGERR( "Planet appearance audit requires an initialized device, valid view, and report path" );
+		return false;
+	}
+	probe->planetAppearanceConfigured = true;
+	probe->planetAppearanceView = view;
+	probe->planetAppearanceReportPath = reportPath;
+	switch( view )
+	{
+	case STANDALONE_PLANET_APPEARANCE_DAY:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_DAY;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_LIMB:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_LIMB;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_ECLIPSE:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_ECLIPSE;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_FINALE:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_TOUR_FINALE;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+		break;
+	case STANDALONE_PLANET_APPEARANCE_TOUR_ORBIT:
+		probe->lightingAuditStation = STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT;
+		probe->lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePlanetAppearanceReport( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->planetAppearanceConfigured || probe->planetAppearanceReportPath.empty() )
+	{
+		CCP_LOGERR( "Planet appearance report was not configured" );
+		return false;
+	}
+	std::string error;
+	if( !WritePlanetAppearanceReport( *probe, error ) )
+	{
+		std::fprintf( stderr, "Failed to write PL-14J planet appearance report: %s\n", error.c_str() );
+		return false;
+	}
+	std::fprintf(
+		stderr, "PL-14J planet appearance report: %s\n", probe->planetAppearanceReportPath.c_str() );
 	return true;
 }
 
@@ -25635,6 +25991,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		case STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT:
 			routeState = &kLightingAuditPlanetOrbit;
 			break;
+		case STANDALONE_LIGHTING_AUDIT_TOUR_FINALE:
+			routeState = &kPlanetAppearanceTourFinale;
+			break;
 		default:
 			break;
 		}
@@ -28521,7 +28880,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	{
 		const auto& diagnostics = probe->scene->GetRaytracedShadowDiagnostics();
 		const bool h3PlanetConsumerNotApplicable =
-			!probe->occlusionLightingReportPath.empty() &&
+			( !probe->occlusionLightingReportPath.empty() ||
+			  !probe->planetAppearanceReportPath.empty() ) &&
 			probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
 		if( !diagnostics.preparationAttempted || !diagnostics.geometryPresent ||
 			!diagnostics.renderAttempted || !diagnostics.dispatchSucceeded ||

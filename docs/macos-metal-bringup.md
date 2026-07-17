@@ -3674,6 +3674,40 @@ the Venture cross-hull control `correct`. It creates no PL-14I repair candidate
 and changes no light value, shader, material, exposure, grade, Silk, or froxel
 setting. Aggregate PL-14H is Accepted.
 
+## PL-14J source-selected planet appearance (2026-07-17)
+
+PL-14J closes the remaining planetary appearance question with a compact
+source-backed audit rather than another broad renderer ratchet. The High-tier
+New Eden graph retains the SandStorm surface, the authored `Atmo` inner and
+outer areas, and the EarthlikeClouds shell. The report records every settled
+effect, texture, vector constant, native planet batch, live Sun input, camera,
+scale, envelope, and retained presentation product. Atmosphere and cloud AIR
+both consume `EveSceneFogVolumeMap`; `EveSpaceScene::RenderPlanets` publishes
+the native empty 1x1x4 fallback while Silk and froxels remain inactive.
+
+The first composite appeared to have broken planet geometry. The surface
+isolate proved otherwise: the black foreground cuts exactly matched the
+offscreen-lighting Astero. Fixed day, limb, and eclipse fixtures now retain the
+ship in scene state but suppress all ship visual participation. They also
+suppress Sun optics while retaining authored Sun illumination, because a
+planet-on/planet-off eclipse comparison otherwise measures full-screen lens
+flare occlusion instead of planet material. Finale/orbit fixtures and both
+complete 8,941-frame route repeats retain the ship and optics. This is audit
+isolation only; the Tour default is unchanged.
+
+Thirty-two fixed lanes close five views across the operator-approved bright
+legacy presentation and matched canonical controls. The surface is visible in
+day, limb, and eclipse; both atmosphere areas are distinct; the front-lit cloud
+shell contributes in its day control; combined stacks remain localized once
+optics are isolated. Legacy and canonical planet regions agree above repeat
+noise. The route repeats retain identical trajectory SHA-256 and exact HDR;
+post-tone/final/drawable differences are bounded to one LDR code value and are
+below the material-change gate. The Accepted verdict classifies surface,
+atmosphere, clouds, volume transport, construction equivalence, and route
+integration `correct`, records CP-45, and creates no repair candidate. Exact
+client pixels, color, camera, and exposure remain unclaimed. Aurora and native
+population traffic remain accepted PL-14F regression content.
+
 ## Bright-background feature staircase (2026-07-17)
 
 The planet-shadow investigation stopped using canonical on/off isolates after

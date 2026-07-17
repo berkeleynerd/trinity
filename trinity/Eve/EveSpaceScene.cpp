@@ -4271,6 +4271,17 @@ void EveSpaceScene::RenderPlanets( Tr2RenderContext& renderContext, bool runLens
 	// opaque dummy resource and suppress every fragment.
 	auto emptyVolumetricSlices =
 		Tr2VolumetricsRenderer::GetEmptyVolumetricTexture( GetGlobalGpuResourcePool() );
+	++m_planetPassDiagnostics.executionCount;
+	m_planetPassDiagnostics.emptyVolumetricSlicesBound = emptyVolumetricSlices.IsValid();
+	if( emptyVolumetricSlices.IsValid() )
+	{
+		const Tr2BitmapDimensions& dimensions = emptyVolumetricSlices->GetDesc();
+		m_planetPassDiagnostics.emptyVolumetricWidth = dimensions.GetWidth();
+		m_planetPassDiagnostics.emptyVolumetricHeight = dimensions.GetHeight();
+		m_planetPassDiagnostics.emptyVolumetricArraySize = dimensions.GetArraySize();
+		m_planetPassDiagnostics.emptyVolumetricMipCount = dimensions.GetMipCount();
+		m_planetPassDiagnostics.emptyVolumetricFormat = dimensions.GetFormat();
+	}
 	GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", emptyVolumetricSlices );
 	ON_BLOCK_EXIT( [] { GlobalStore().RegisterVariable( "EveSceneFogVolumeMap", Tr2TextureAL{} ); } );
 	RenderTransparentBatches( m_secondaryBatches, renderContext );
