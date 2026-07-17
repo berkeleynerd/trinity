@@ -145,6 +145,7 @@ extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqu
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
 extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
+extern "C" void TrinityStandaloneProbeSetShipDataBaseline( float intensity );
 extern "C" void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath );
 extern "C" void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height );
 extern "C" void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe, float azimuthDegrees, float elevationDegrees, float distance );
@@ -725,6 +726,7 @@ struct Options
 	float cameraElevation = 0.0f;
 	float cameraDistance = 0.0f;
 	bool fastExit = false;
+	float shipData = -1.0f;
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -4190,6 +4192,20 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		{
 			options.fastExit = true;
 		}
+		else if( arg == "--ship-data" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( end == argv[i] || parsed < 0.0f )
+			{
+				return false;
+			}
+			options.shipData = parsed;
+		}
 		else if( arg == "--camera-azimuth" || arg == "--camera-elevation" || arg == "--camera-distance" )
 		{
 			const std::string cameraArg = arg;
@@ -7414,6 +7430,10 @@ int main( int argc, char** argv )
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
 		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
 		TrinityStandaloneProbeSetSofTextureRoot( options.sofTextureSet == "modernized" ? "modernized" : "" );
+	if( options.shipData >= 0.0f )
+	{
+		TrinityStandaloneProbeSetShipDataBaseline( options.shipData );
+	}
 		for( const std::string& formationShip : options.formationShips )
 		{
 			const std::string formationCmf = CmfPathForAssetId( formationShip, executableDirectory );

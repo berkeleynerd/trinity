@@ -218,15 +218,29 @@ Assets tree but has no dependency edge on the modern target, so build
 separate steps — a single combined invocation can copy before the
 modern DDS are encoded.
 
-Accepted evidence (default knobs, `--asset talocan`): A/A
-`diff_pixel_fraction = 0.0` / `mean_abs_delta = 0.0`; A/B vs original
-`diff_pixel_fraction = 0.0037`, bbox tight on the hull; GlowMap binds
-from `res:/modernized/…_g.dds`, zero FAILED slots; astero and
-solo-talocan-original smokes exit 0. In the bright New Eden fixture the
-glow is a subtle, hull-localized contribution — the intended dormant
-reading; it dominates only against shadow. The authored seam network is
-clearest in texture space (the edge map) and in an amplified
-original-vs-modernized frame difference.
+Findings (default knobs, `--asset talocan`): A/A determinism holds
+(`0.0 / 0.0`) and the modernized set loads with zero FAILED slots,
+GlowMap bound from `res:/modernized/…_g.dds`. But the wreck material
+path **never samples the GlowMap**: with only the `_g` texture varied
+(authored teal vs all black), night side, `--sh-source none`,
+`--dynamic-exposure off`, `--ship-data 1`, the renders are
+byte-identical (`aa: 0.0 / 0.0`). The client's 827-byte placeholder is
+vestigial by construction — the slot binds but the shader ignores it —
+so texture-only authoring cannot light a dormant hull; an emissive
+wreck needs a material-path change, recorded as a follow-up decision.
+The small original-vs-modernized diff (`0.0037`) is BC1/BC3 re-encode
+drift across the other maps, not glow. The emissive multiplier is
+healthy and now logged per area (`GeneralGlowColor`, talocanbase hull
+`(1.08, 2.48, 2.87)`), eliminating the faction color set as the gate.
+
+`--ship-data X` fills the eve-v5 per-object shipData with the engine
+baseline (x = X, y = activation 1, w = boundingsphere 1; matching
+`EveEffectRoot2::GetPerObjectStructs`) instead of the probe's historic
+zeros. On the wreck hull the activation component wakes a white
+edge-light — panel edges and greebles rim-lit as if conduits are
+powered, binary with activation, not scaled by x. Default off: every
+accepted capture stays byte-stable. The v1 glow synthesis and knobs
+remain the authoring path for the day a live emissive route exists.
 
 ## Known limitations
 
