@@ -73,7 +73,8 @@ cmake --build $BUILD --config Debug \
 FLAGS=(--windowed 1024x768 --frames 180 --quality-rung hdr-finish
        --asset talocan --material-mode eve-v5 --scene-construction legacy
        --taa off --local-lights off --attachments off --decals off
-       --engines off --distortion off --motion static --deterministic-evidence)
+       --engines off --distortion off --motion static --deterministic-evidence
+       --background-capture)
 $PROBE $FLAGS --capture-prefix captures/tde1-ab
 $PROBE $FLAGS --sof-texture-set modernized --capture-prefix captures/tde1-ab
 
@@ -85,6 +86,12 @@ python3 samples/eve_scene_probe/compare_talocan_ab.py --mode ab --a <original> -
 `aa` demands a (near) byte-identical pair — the determinism floor under
 the rig. `ab` demands a difference that is more than codec noise, less
 than a scene-wide change, and localized (the hull's bounding box).
+
+`--background-capture` orders the probe window front without activating
+the app, so interactive runs do not steal keyboard focus. Verified
+byte-identical to a focused run on the same binary (aa: 0.0 / 0.0);
+determinism only holds within one binary — captures from different
+builds can carry sparse sub-0.2% float drift.
 
 ## Accepted evidence (2026-07-17)
 
