@@ -96,6 +96,13 @@ res:/dx9/model/spaceobjectfactory/factions/talocanbase.black
 res:/dx9/model/spaceobjectfactory/races/talocan.black
 ```
 
+The parallel `res:/modernized/` prefix (selected by
+`--sof-texture-set modernized`) is populated only from the out-of-repo
+workspace `~/TalocanModernization/` via `TrinityRgbaToDds` at build time.
+Its contents are either client derivatives or replacement art; both stay
+outside source control, and the staging target is not part of the default
+asset build. See `docs/talocan-modernization.md`.
+
 ### Universe and starfield
 
 ```text
