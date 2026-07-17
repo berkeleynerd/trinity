@@ -29,6 +29,7 @@ The resolver writes these build-tree reports on this host:
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroAttachmentResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/AsteroShadowAoResources.json`
 - `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/PostFinishResources.json`
+- `/Users/rebecca/src/github.com/berkeleynerd/trinity/.cmake-build-arm64-osx-debug/samples/eve_scene_probe/Reports/TalocanWreckResources.json`
 
 Every JSON entry records `logicalPath`, the relative and absolute source index,
 the relative and absolute hashed `ResFiles` source, byte size, SHA-256, and the
@@ -71,6 +72,28 @@ res:/dx9/scene/fitting/fitting.black
 res:/dx9/scene/fitting/fitting_cube.dds
 res:/dx9/scene/fitting/fitting_cube_blur.dds
 res:/dx9/scene/fitting/fitting_cube_refl.dds
+```
+
+### Talocan tde1 wreck (Stage-1 modernization rehearsal)
+
+The wreck is a single-area pre-V5 hull rendered through the same SOF/eve-v5
+path as the Astero; its closure is the hull's own maps plus the SOF
+hull/faction/race chain. No full-resolution `_o` map exists for this hull,
+and `_g` and `_p3` share one tiny placeholder payload in the client index.
+The staged CMF hash lands in `Reports/TalocanWreckCmf.sha256`.
+
+```text
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck.gr2
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_a.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_d.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_g.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_m.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_n.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_p3.dds
+res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_r.dds
+res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black
+res:/dx9/model/spaceobjectfactory/factions/talocanbase.black
+res:/dx9/model/spaceobjectfactory/races/talocan.black
 ```
 
 ### Universe and starfield

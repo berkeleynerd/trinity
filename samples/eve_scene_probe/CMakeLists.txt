@@ -309,6 +309,21 @@ set(EVE_SCENE_PROBE_VENTURE_MANIFEST
     ${CMAKE_CURRENT_BINARY_DIR}/Reports/VentureLightingControlResources.json)
 set(EVE_SCENE_PROBE_VENTURE_CMF_HASH
     ${CMAKE_CURRENT_BINARY_DIR}/Reports/VentureLightingControlCmf.sha256)
+set(EVE_SCENE_PROBE_TALOCAN_MODEL "res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck.gr2")
+set(EVE_SCENE_PROBE_TALOCAN_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/TalocanAssets)
+set(EVE_SCENE_PROBE_TALOCAN_GLTF ${EVE_SCENE_PROBE_TALOCAN_BUILD_DIR}/Talocan.gltf)
+set(EVE_SCENE_PROBE_TALOCAN_BIN ${EVE_SCENE_PROBE_TALOCAN_BUILD_DIR}/Talocan.bin)
+set(EVE_SCENE_PROBE_TALOCAN_CMF ${EVE_SCENE_PROBE_ASSETS_DIR}/Talocan.cmf)
+set(EVE_SCENE_PROBE_TALOCAN_RESOURCE_DIR
+    ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/ship/talocan/destroyer/tde1)
+set(EVE_SCENE_PROBE_TALOCAN_RACE_DIR ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/spaceobjectfactory/races)
+set(EVE_SCENE_PROBE_TALOCAN_HULL_BLACK ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}/tde1_t1_wreck.black)
+set(EVE_SCENE_PROBE_TALOCAN_FACTION_BLACK ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}/talocanbase.black)
+set(EVE_SCENE_PROBE_TALOCAN_RACE_BLACK ${EVE_SCENE_PROBE_TALOCAN_RACE_DIR}/talocan.black)
+set(EVE_SCENE_PROBE_TALOCAN_MANIFEST
+    ${CMAKE_CURRENT_BINARY_DIR}/Reports/TalocanWreckResources.json)
+set(EVE_SCENE_PROBE_TALOCAN_CMF_HASH
+    ${CMAKE_CURRENT_BINARY_DIR}/Reports/TalocanWreckCmf.sha256)
 set(EVE_SCENE_PROBE_SPRITE_STARS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/spritestars.black)
 set(EVE_SCENE_PROBE_STAR_ATLAS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/staratlas.dds)
 set(EVE_SCENE_PROBE_STAR_COLORS ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/scene/starfield/starcolors.dds)
@@ -2638,6 +2653,87 @@ if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_
             ${EVE_SCENE_PROBE_VENTURE_CMF_HASH})
     add_dependencies(TrinityEveSceneProbeAssets
         TrinityEveSceneProbeVentureLightingControlAssets)
+endif()
+
+# The Talocan tde1 wreck is the Stage-1 modernization rehearsal hull: a
+# single-area pre-V5 model rendered through the same SOF/eve-v5 path as the
+# Astero. Closure is the hull's own maps plus its SOF hull/faction/race
+# chain; the quadv5 shader family and black.dds are already staged by the
+# Astero lane. No full-resolution _o map exists for this wreck, and _g and
+# _p3 share a tiny placeholder payload in the client index; the probe's
+# empty-slot tolerance covers whatever the SOF areas leave unset.
+if(EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}" AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_TALOCAN_OUTPUTS)
+    set(EVE_SCENE_PROBE_TALOCAN_COPY_ARGS)
+    foreach(texture_suffix a d g m n p3 r)
+        set(logical_texture
+            "res:/dx9/model/ship/talocan/destroyer/tde1/tde1_t1_wreck_${texture_suffix}.dds")
+        set(staged_texture
+            "${EVE_SCENE_PROBE_TALOCAN_RESOURCE_DIR}/tde1_t1_wreck_${texture_suffix}.dds")
+        list(APPEND EVE_SCENE_PROBE_TALOCAN_OUTPUTS ${staged_texture})
+        list(APPEND EVE_SCENE_PROBE_TALOCAN_COPY_ARGS
+            --copy-resource ${logical_texture} ${staged_texture})
+    endforeach()
+    list(APPEND EVE_SCENE_PROBE_TALOCAN_OUTPUTS
+        ${EVE_SCENE_PROBE_TALOCAN_HULL_BLACK}
+        ${EVE_SCENE_PROBE_TALOCAN_FACTION_BLACK}
+        ${EVE_SCENE_PROBE_TALOCAN_RACE_BLACK})
+    list(APPEND EVE_SCENE_PROBE_TALOCAN_COPY_ARGS
+        --copy-resource
+            res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black
+            ${EVE_SCENE_PROBE_TALOCAN_HULL_BLACK}
+        --copy-resource
+            res:/dx9/model/spaceobjectfactory/factions/talocanbase.black
+            ${EVE_SCENE_PROBE_TALOCAN_FACTION_BLACK}
+        --copy-resource
+            res:/dx9/model/spaceobjectfactory/races/talocan.black
+            ${EVE_SCENE_PROBE_TALOCAN_RACE_BLACK})
+
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_TALOCAN_GLTF} ${EVE_SCENE_PROBE_TALOCAN_BIN}
+            ${EVE_SCENE_PROBE_TALOCAN_OUTPUTS} ${EVE_SCENE_PROBE_TALOCAN_MANIFEST}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_TALOCAN_BUILD_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_TALOCAN_RESOURCE_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_HULL_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_CLIENT_FACTION_DIR}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_TALOCAN_RACE_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --model ${EVE_SCENE_PROBE_TALOCAN_MODEL}
+            --output ${EVE_SCENE_PROBE_TALOCAN_GLTF}
+            ${EVE_SCENE_PROBE_TALOCAN_COPY_ARGS}
+            --manifest ${EVE_SCENE_PROBE_TALOCAN_MANIFEST}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_TALOCAN_CMF}
+        COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+            --input ${EVE_SCENE_PROBE_TALOCAN_GLTF}
+            --output ${EVE_SCENE_PROBE_TALOCAN_CMF}
+            --merge-meshes
+            --summary
+        DEPENDS TrinityGltfToCmf ${EVE_SCENE_PROBE_TALOCAN_GLTF}
+            ${EVE_SCENE_PROBE_TALOCAN_BIN}
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_TALOCAN_CMF_HASH}
+        COMMAND ${CMAKE_COMMAND}
+            -DINPUT=${EVE_SCENE_PROBE_TALOCAN_CMF}
+            -DOUTPUT=${EVE_SCENE_PROBE_TALOCAN_CMF_HASH}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        DEPENDS ${EVE_SCENE_PROBE_TALOCAN_CMF}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256.cmake
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeTalocanWreckAssets
+        DEPENDS ${EVE_SCENE_PROBE_TALOCAN_CMF}
+            ${EVE_SCENE_PROBE_TALOCAN_OUTPUTS}
+            ${EVE_SCENE_PROBE_TALOCAN_MANIFEST}
+            ${EVE_SCENE_PROBE_TALOCAN_CMF_HASH})
+    add_dependencies(TrinityEveSceneProbeAssets
+        TrinityEveSceneProbeTalocanWreckAssets)
 endif()
 
 if(TARGET TrinityAnimatedModelAssets)
