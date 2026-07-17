@@ -12933,6 +12933,26 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				}
 			}
 		}
+		// The one-time dynamic-reflection contract uses the shared diagnostic
+		// readback target. Preserve an already completed color capture so a
+		// continuous frame sequence does not lose the second rendered frame.
+		const bool preserveColorCapture =
+			captureProducts == STANDALONE_CAPTURE_COLOR && !probe.capturedProductPixels.empty();
+		std::vector<uint8_t> preservedColorPixels;
+		const uint32_t preservedColorWidth = probe.capturedProductWidth;
+		const uint32_t preservedColorHeight = probe.capturedProductHeight;
+		const uint64_t preservedColorHash = probe.capturedProductHash;
+		const uint64_t preservedColorNonzeroPixels = probe.capturedProductNonzeroPixels;
+		const uint8_t preservedColorMinimum = probe.capturedProductMinimum;
+		const uint8_t preservedColorMaximum = probe.capturedProductMaximum;
+		const uint32_t preservedColorMinX = probe.capturedProductMinX;
+		const uint32_t preservedColorMinY = probe.capturedProductMinY;
+		const uint32_t preservedColorMaxX = probe.capturedProductMaxX;
+		const uint32_t preservedColorMaxY = probe.capturedProductMaxY;
+		if( preserveColorCapture )
+		{
+			preservedColorPixels = std::move( probe.capturedProductPixels );
+		}
 		const bool validateDynamicReflection =
 			( captureProducts == 0 || captureProducts == STANDALONE_CAPTURE_COLOR ) &&
 			probe.reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC &&
@@ -12994,6 +13014,20 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			{
 				ok = false;
 			}
+		}
+		if( preserveColorCapture )
+		{
+			probe.capturedProductPixels = std::move( preservedColorPixels );
+			probe.capturedProductWidth = preservedColorWidth;
+			probe.capturedProductHeight = preservedColorHeight;
+			probe.capturedProductHash = preservedColorHash;
+			probe.capturedProductNonzeroPixels = preservedColorNonzeroPixels;
+			probe.capturedProductMinimum = preservedColorMinimum;
+			probe.capturedProductMaximum = preservedColorMaximum;
+			probe.capturedProductMinX = preservedColorMinX;
+			probe.capturedProductMinY = preservedColorMinY;
+			probe.capturedProductMaxX = preservedColorMaxX;
+			probe.capturedProductMaxY = preservedColorMaxY;
 		}
 		if( renderContextOpen )
 		{

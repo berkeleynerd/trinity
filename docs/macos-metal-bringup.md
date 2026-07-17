@@ -3584,3 +3584,151 @@ starfield. The next environment/background audit must resolve histogram and
 minimum-luminance semantics, background shader consumption, and any client
 background-specific exposure policy before changing a value. Generated PNGs,
 reports, and logs remain ignored under `.cmake-build-arm64-osx-debug/pl14/pl14i1/`.
+
+## Bright-background feature staircase (2026-07-17)
+
+The planet-shadow investigation stopped using canonical on/off isolates after
+they failed to reproduce the known-good sky. A new visual staircase instead
+started from the bright noncanonical probe and added one feature at a time.
+Every rung was rendered at 1280x960 for 301 frames, inspected at settled frame
+300, shown to the operator, and explicitly accepted before the next rung. The
+generated captures and runtime logs are retained under the ignored
+`.cmake-build-arm64-osx-debug/background-feature-staircase-20260717/` tree.
+
+The accepted sequence is:
+
+| Step | Single added capability | Operator result |
+| ---: | --- | --- |
+| 0 | Known-good bright probe baseline | Baseline; sky good, geometry invalid |
+| 1 | Eve V5 material and correct Astero geometry | Pass |
+| 2 | HDR blit | Pass |
+| 3 | Static tone mapping | Pass |
+| 4 | Settled client dynamic exposure | Pass |
+| 5 | Client bloom and final composition | Pass |
+| 6 | Client film grain | Pass |
+| 7 | High TAA | Pass |
+| 8 | New Eden scene, nebula, and starfield ownership | Pass |
+| 9 | New Eden SH transport | Pass; legacy `3.14` remains quarantined |
+| 10 | Authored local-light path | Pass |
+| 11 | Static A01 reflection | Pass |
+| 12 | Dynamic six-face/eight-mip reflection | Pass |
+| 13 | Authored attachments | Pass |
+| 14 | Authored decals | Pass |
+| 15 | Authored engines | Pass |
+| 16 | Authored distortion | Pass |
+| 17 | Client-selected AO | Pass as a staircase rung; output is still uniform white and therefore a known no-op, not AO acceptance |
+| 18 | High raster directional shadows | Pass |
+| 19 | Ray-traced directional shadows | Pass |
+| 20 | Authored Sun body and corona | Pass |
+| 21 | Remaining High Sun branches | Pass |
+| 22 | Complete planet graph | Pass |
+| 23 | Authored `SunFlares` | Pass |
+| 24 | System lens flare | Pass |
+| 25 | God rays | Pass |
+| 26 | Static embedded Ballpark and live ship curves | Pass |
+| 27 | Exact-system composition | Pass |
+| 28 | Live Destiny Sun and planet curves | Pass |
+| 29 | Live-distance solar-environment ownership while outside its radius | Pass |
+| 30 | Route-derived near-Sun position, naturally activating the solar environment | Pass, qualified: first material sky dimming, but not the near-black failure |
+| 31 | Authored EVE Gate target and phenomenon, with the ship still stationary near the Sun | Pass, qualified: second measurable dimming contributor, but not the near-black failure |
+| 32 | Persistent authored Sun desaturation grade | Pass; visually inert while the active Sun environment already selects the same grade |
+| 33 | Remove the duplicate legacy Sun/planet SH proxies | Pass; native scene membership alone preserves the image |
+| 34 | Sample SH at the live ship position instead of the ego-relative origin | Pass; the positions coincide at the stationary fixture and preserve the image |
+| 35 | Source-authored 100 ms Sun diffuse-color controller | Pass, qualified: third measurable dimming contributor, but not the near-black failure |
+| 36 | Native Destiny EVE Gate warp state machine in the ego reference | Pass; route alignment changes ship orientation without collapsing the sky |
+| 37 | Canonical 48-degree chase reference and camera | Pass; the Gate enters the composition but stars remain readable |
+| 38 | Authored warp tunnel during active outbound warp | Pass; strong intentional warp-local overlay, absent from the later planet view |
+| 39 | Full planet-finale choreography through settled frame 5701 | Pass; exact reported endpoint looks good on the accumulated legacy path |
+
+Steps 0-29 preserve a plainly bright, readable nebula and starfield. Step 29
+places the static ego about `1.370e12 m` from the Sun, approximately `136x` the
+`10,060,000,256 m` activation radius, and correctly leaves the solar
+environment inactive. Step 30 moves the same static Ballpark to the accepted
+near-Sun route position, approximately one `158,400,000 m` stellar radius from
+the Sun. Live polling then activates the selected environment. The hull
+becomes strongly exposed and the sky dims materially, but both the nebula and
+stars remain plainly visible. The operator explicitly accepted this as a
+qualified pass: it is the first suspect transition and must remain in the
+causal record, but it does not reproduce the reported global near-black sky.
+
+This staircase does not yet assign the Step 30 change to fog, finish,
+directional illumination, or exposure, because moving to the near-Sun station
+changes the source-selected inputs that drive all four. Those may be separated
+only after the route staircase reproduces the actual failure. In particular,
+do not cite Step 30 as proof that the solar environment alone is defective.
+
+Step 31 adds only the authored EVE Gate graph; the stargate anchor was already
+the default and Destiny motion remains stopped. Although the Gate is not
+visibly in the camera, the fixed upper-left background region changes from
+mean/max luma `25.4804/137` to `22.8934/80`, and full-frame SSIM against Step
+30 is `0.945041`. The operator again accepted the image because the nebula and
+stars remain readable, but explicitly classified the Gate graph as a dimming
+contributor. This is evidence of influence, not yet evidence of the final
+failure or of a particular Gate pass; exposure and off-camera additive content
+remain plausible mediators.
+
+Step 32 changes only the outside-volume Tour baseline from the default grade to
+the authored Sun desaturation. At the current inside-volume near-Sun station it
+is intentionally redundant: the fixed background mean/max remain
+`22.8934/80`, and full-frame SSIM against Step 31 is `0.999997`. This confirms
+that the persistent-grade policy is not an additional dimming contributor at
+this station; its behavior must still be observed after live environment exit.
+
+Step 33 disables the sample-owned fixed Sun/planet SH proxies while retaining
+the native scene sources. The fixed background mean/max again remain
+`22.8934/80`, with full-frame SSIM `0.999998` against Step 32. The operator then
+inspected the complete Sun to EVE Gate to Sun to planet-limb route using this
+Step 33 rendering state. Route motion and the chase camera were enabled only to
+exercise the journey; the final canonical-construction, live-receiver,
+authored-Sun-color, and warp-tunnel switches remained overridden to legacy,
+origin, frozen, and off respectively. The complete visual run passed. This is
+important negative evidence: route traversal alone does not reproduce the
+global near-black background with the accepted Step 33 renderer state.
+
+Step 34 changes only the receiver position policy to `live`. The background
+mean/max stay `22.8934/80` and full-frame SSIM against Step 33 is `0.999998`.
+This agrees with the earlier source review: the ego-relative origin and ship
+position are effectively coincident in this stationary fixture. The live
+receiver remains architecturally necessary for travel, but it is not a
+near-Sun dimming contributor.
+
+Step 35 replaces frozen direct-Sun color with the source-authored distance/HSV
+controller. The fixed background mean falls from `22.8934` to `21.2408`, its
+maximum falls from `80` to `70`, and full-frame SSIM against Step 34 is
+`0.963775`. The nebula and stars remain readable, so the operator accepted it
+as another qualified pass rather than the failure. The controller changes only
+scene diffuse-Sun color; the background response is therefore downstream
+exposure coupling, not evidence that the background shaders consume Sun color.
+
+Step 36 replaces the static near-Sun ball with the accepted Destiny warp-route
+state machine while retaining the ego reference, fixed model camera, and
+warp-tunnel-off control. At frame 300 the ship is visibly rotating into its EVE
+Gate departure alignment, but the starfield and nebula remain readable. The
+operator accepted the rung. This separates route motion from the subsequent
+chase-camera and tunnel switches and confirms that Destiny evolution alone is
+not the near-black trigger.
+
+Step 37 changes only the Ballpark reference/camera to the accepted chase
+contract. At frame 300 the new view contains the bright EVE Gate phenomenon,
+so exposure and pixel differences against the fixed model camera are expected
+and cannot be attributed to a renderer failure. Stars remain clearly visible
+across the darker right half of the image, and the operator accepted the rung.
+
+Step 38 compares tunnel-off and tunnel-on at outbound-warp frame 900 rather
+than at the earlier alignment frame where the tunnel cannot contribute. The
+authored transparent, additive, and distortion branches materially darken and
+streak the background while active. The operator accepted that appearance.
+This is a strong temporal background modifier but not a planet-shadow
+candidate: Ballpark state drives its lifetime and the graph is removed after
+warp exit. The paired evidence is retained in the `step-38-warp-frame900-off-control`
+and `step-38-warp-tunnel-run1` directories.
+
+Step 39 renders the entire 5,702-frame route with every previously accepted
+visual and transport feature enabled, including the warp tunnel, then captures
+settled planet-limb frame 5701. The planet crescent, sparse starfield, hull
+silhouette, and restrained optical residual are all readable; the operator's
+verdict was "This looks great." This is the strongest control in the
+staircase: the reported endpoint is healthy after the real environment exits,
+exposure history, three warp legs, Gate traversal, authored Sun controller,
+live SH receiver, and planet choreography. Canonical packet-born/native-SOF
+construction is now the only remaining delta.
