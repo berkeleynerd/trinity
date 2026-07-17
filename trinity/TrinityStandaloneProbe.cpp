@@ -2790,7 +2790,7 @@ public:
 			return;
 		}
 		uint32_t committed = 0;
-		committed += CommitShadowAreaBatch( batches, 1, m_hullEffect, perObjectData ) ? 1u : 0u;
+		committed += CommitShadowAreaBatch( batches, m_hullGroup, m_hullEffect, perObjectData ) ? 1u : 0u;
 		committed += CommitShadowAreaBatch( batches, 2, m_boosterEffect, perObjectData ) ? 1u : 0u;
 		m_shadowCommittedBatches += committed;
 	}
@@ -2849,6 +2849,13 @@ public:
 	uint32_t GetShadowCommittedBatches() const
 	{
 		return m_shadowCommittedBatches.load();
+	}
+
+	// Shadow-casting area groups this model actually carries; the directional
+	// contract expects one committed batch per group per accepted cascade.
+	uint32_t GetShadowAreaGroupCount() const
+	{
+		return ( m_hullEffect ? 1u : 0u ) + ( m_boosterEffect ? 1u : 0u );
 	}
 
 	uint32_t GetHazeShadowEligibleCount() const
@@ -26993,14 +27000,16 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		const uint32_t cullTests = diagnostics->tests;
 		const uint32_t acceptedCascades = diagnostics->acceptedCascades;
 		const uint32_t committedBatches = diagnostics->committedBatches;
-		if( acceptedCascades == 0 || committedBatches != acceptedCascades * 2 )
+		const uint32_t shadowAreaGroups = probe->renderable->GetShadowAreaGroupCount();
+		if( acceptedCascades == 0 || shadowAreaGroups == 0 ||
+			committedBatches != acceptedCascades * shadowAreaGroups )
 		{
 			CCP_LOGERR(
 				"Astero directional shadow contract failed: tests=%u accepted=%u batches=%u expected=%u",
 				cullTests,
 				acceptedCascades,
 				committedBatches,
-				acceptedCascades * 2 );
+				acceptedCascades * shadowAreaGroups );
 			std::fprintf( stderr,
 						  "RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u)\n",
 						  static_cast<unsigned long long>( probe->renderedFrameCount ),
