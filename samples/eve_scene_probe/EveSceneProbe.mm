@@ -143,6 +143,11 @@ extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
 	void* opaqueProbe, int station, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
+extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
+extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
+extern "C" void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath );
+extern "C" void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height );
+extern "C" void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe, float azimuthDegrees, float elevationDegrees, float distance );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -712,6 +717,14 @@ enum class ShSource
 struct Options
 {
 	std::string asset = "astero";
+	std::string sofTextureSet = "original";
+	std::vector<std::string> formationShips;
+	float chaseDistance = 0.0f;
+	float chaseHeight = 0.0f;
+	float cameraAzimuth = 0.0f;
+	float cameraElevation = 0.0f;
+	float cameraDistance = 0.0f;
+	bool fastExit = false;
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -2824,7 +2837,95 @@ std::string DefaultAssetPath( const Options& options )
 	{
 		return executableDirectory + "/Assets/Astero.cmf";
 	}
+	if( options.asset == "talocan" )
+	{
+		return executableDirectory + "/Assets/Talocan.cmf";
+	}
+	if( options.asset == "talocan-frigate" )
+	{
+		return executableDirectory + "/Assets/TalocanFrigate.cmf";
+	}
+	if( options.asset == "talocan-cruiser" )
+	{
+		return executableDirectory + "/Assets/TalocanCruiser.cmf";
+	}
+	if( options.asset == "talocan-battleship" )
+	{
+		return executableDirectory + "/Assets/TalocanBattleship.cmf";
+	}
 	return executableDirectory + "/Assets/11989_lite.cmf";
+}
+
+// The Talocan ship-class dormant hulls; "talocan" is the tde1 destroyer, the
+// original rehearsal hull.
+bool IsTalocanAsset( const Options& options )
+{
+	return options.asset == "talocan" || options.asset == "talocan-frigate" ||
+		options.asset == "talocan-cruiser" || options.asset == "talocan-battleship";
+}
+
+// Assets rendered through the EVE SOF / eve-v5 material path.
+bool IsSofAsset( const Options& options )
+{
+	return options.asset == "astero" || IsTalocanAsset( options );
+}
+
+// Each SOF hull declares its own areas and texture paths, so selecting the hull
+// (with its faction, for glow and color sets) retextures the rendered model.
+const char* SofHullPathForAssetId( const std::string& asset )
+{
+	if( asset == "talocan" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black";
+	}
+	if( asset == "talocan-frigate" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tf1_t1_wreck.black";
+	}
+	if( asset == "talocan-cruiser" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tc1_t1_wreck.black";
+	}
+	if( asset == "talocan-battleship" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tb1_t1_wreck.black";
+	}
+	return "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black";
+}
+
+const char* SofHullPath( const Options& options )
+{
+	return SofHullPathForAssetId( options.asset );
+}
+
+std::string CmfPathForAssetId( const std::string& asset, const std::string& executableDirectory )
+{
+	if( asset == "astero" )
+	{
+		return executableDirectory + "/Assets/Astero.cmf";
+	}
+	if( asset == "talocan" )
+	{
+		return executableDirectory + "/Assets/Talocan.cmf";
+	}
+	if( asset == "talocan-frigate" )
+	{
+		return executableDirectory + "/Assets/TalocanFrigate.cmf";
+	}
+	if( asset == "talocan-cruiser" )
+	{
+		return executableDirectory + "/Assets/TalocanCruiser.cmf";
+	}
+	return executableDirectory + "/Assets/TalocanBattleship.cmf";
+}
+
+const char* SofFactionPath( const Options& options )
+{
+	if( IsTalocanAsset( options ) )
+	{
+		return "res:/dx9/model/spaceobjectfactory/factions/talocanbase.black";
+	}
+	return "res:/dx9/model/spaceobjectfactory/factions/soebase.black";
 }
 
 #if defined( TRINITY_FROXEL_INCIDENT_LAB )
@@ -3371,7 +3472,9 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.asset = ToLower( argv[i] );
-			if( options.asset != "astero" && options.asset != "ship" && options.asset != "fox" )
+			if( options.asset != "astero" && options.asset != "ship" && options.asset != "fox" &&
+				options.asset != "talocan" && options.asset != "talocan-frigate" &&
+				options.asset != "talocan-cruiser" && options.asset != "talocan-battleship" )
 			{
 				return false;
 			}
@@ -4071,6 +4174,91 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--sof-texture-set" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.sofTextureSet = ToLower( argv[i] );
+			if( options.sofTextureSet != "original" && options.sofTextureSet != "modernized" )
+			{
+				return false;
+			}
+		}
+		else if( arg == "--fast-exit" )
+		{
+			options.fastExit = true;
+		}
+		else if( arg == "--camera-azimuth" || arg == "--camera-elevation" || arg == "--camera-distance" )
+		{
+			const std::string cameraArg = arg;
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) ||
+				( cameraArg == "--camera-distance" && parsed <= 0.0f ) )
+			{
+				return false;
+			}
+			if( cameraArg == "--camera-azimuth" )
+			{
+				options.cameraAzimuth = parsed;
+			}
+			else if( cameraArg == "--camera-elevation" )
+			{
+				options.cameraElevation = parsed;
+			}
+			else
+			{
+				options.cameraDistance = parsed;
+			}
+		}
+		else if( arg == "--chase-distance" || arg == "--chase-height" )
+		{
+			const bool isDistance = arg == "--chase-distance";
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) || parsed <= 0.0f )
+			{
+				return false;
+			}
+			( isDistance ? options.chaseDistance : options.chaseHeight ) = parsed;
+		}
+		else if( arg == "--formation-ships" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.formationShips.clear();
+			std::string shipList = ToLower( argv[i] );
+			size_t start = 0;
+			while( start <= shipList.size() )
+			{
+				const size_t comma = shipList.find( ',', start );
+				const std::string ship = shipList.substr(
+					start, comma == std::string::npos ? std::string::npos : comma - start );
+				if( ship != "astero" && ship != "talocan" && ship != "talocan-frigate" &&
+					ship != "talocan-cruiser" && ship != "talocan-battleship" )
+				{
+					return false;
+				}
+				options.formationShips.push_back( ship );
+				if( comma == std::string::npos )
+				{
+					break;
+				}
+				start = comma + 1;
+			}
+		}
 		else if( arg == "--nebula" )
 		{
 			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.nebula ) )
@@ -4303,9 +4491,28 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		options.inputPath = DefaultAssetPath( options );
 	}
-	if( !options.materialModeExplicit && options.asset == "astero" )
+	if( !options.materialModeExplicit && IsSofAsset( options ) )
 	{
 		options.materialMode = MaterialMode::EveV5;
+	}
+	if( options.sofTextureSet == "modernized" &&
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ) )
+	{
+		std::cerr << "--sof-texture-set modernized requires a SOF asset rendered with --material-mode eve-v5\n";
+		return false;
+	}
+	if( !options.formationShips.empty() &&
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
+		  options.sceneConstruction != SceneConstruction::Legacy ) )
+	{
+		std::cerr << "--formation-ships requires a SOF asset, eve-v5, and the legacy scene construction\n";
+		return false;
+	}
+	if( ( options.chaseDistance > 0.0f || options.chaseHeight > 0.0f ) &&
+		options.ballparkFrame != BallparkFrame::Chase )
+	{
+		std::cerr << "--chase-distance and --chase-height require --ballpark-frame chase\n";
+		return false;
 	}
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
 	{
@@ -4375,7 +4582,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Authored attachments require --asset astero --material-mode eve-v5\n";
 		return false;
 	}
-	const bool compatibleLightingModel = options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
+	const bool compatibleLightingModel = IsSofAsset( options ) && options.materialMode == MaterialMode::EveV5 &&
 		options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
 		options.qualityRung >= QualityRung::Model;
 	// The current macOS client disables dynamic-light shadows and ships no V5 receiver.
@@ -4395,7 +4602,9 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	options.resolvedDecals =
-		options.decals == Decals::Auto ? ( compatibleLightingModel ? Decals::Authored : Decals::Off ) : options.decals;
+		options.decals == Decals::Auto ?
+			( compatibleLightingModel && options.asset == "astero" ? Decals::Authored : Decals::Off ) :
+			options.decals;
 	if( options.resolvedDecals == Decals::Authored && !compatibleLightingModel )
 	{
 		std::cerr << "Authored decals require a lit, all-area Astero using eve-v5 at the model rung or higher\n";
@@ -4782,7 +4991,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Static &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model ||
 		  ( options.motion != MotionMode::Static && options.motion != MotionMode::Camera ) ) )
 	{
@@ -4790,28 +4999,28 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Goto &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "GOTO Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Orbit &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "ORBIT Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Warp &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "WARP Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Approach &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "APPROACH Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
@@ -5325,7 +5534,10 @@ std::string CaptureBasePath( const Options& options )
 		DecalViewName( options.decalView ) + "-kills-" + std::to_string( options.killCount ) + "_shadow-" +
 		ShadowsName( options.resolvedShadows ) + "_ao-" + AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
-	const std::string fullPath = options.capturePrefix + "_" + options.asset + "_" +
+	const std::string fullPath = options.capturePrefix + "_" + options.asset +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
+		( options.formationShips.empty() ? std::string() :
+			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
 		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
@@ -5349,7 +5561,11 @@ std::string CaptureBasePath( const Options& options )
 	}
 	char hashText[17];
 	std::snprintf( hashText, sizeof( hashText ), "%016llx", static_cast<unsigned long long>( hash ) );
-	return options.capturePrefix + "_" + options.asset + "_" + QualityRungName( options.qualityRung ) + "_decal-" +
+	return options.capturePrefix + "_" + options.asset +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
+		( options.formationShips.empty() ? std::string() :
+			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
+		QualityRungName( options.qualityRung ) + "_decal-" +
 		DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
 		std::to_string( options.killCount ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
 		PlanetCloudDateName( options ) + "_" + hashText;
@@ -7196,6 +7412,17 @@ int main( int argc, char** argv )
 		}
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
+		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
+		TrinityStandaloneProbeSetSofTextureRoot( options.sofTextureSet == "modernized" ? "modernized" : "" );
+		for( const std::string& formationShip : options.formationShips )
+		{
+			const std::string formationCmf = CmfPathForAssetId( formationShip, executableDirectory );
+			TrinityStandaloneProbeQueueFormationShip(
+				formationCmf.c_str(), SofHullPathForAssetId( formationShip ) );
+		}
+		TrinityStandaloneProbeSetChaseCameraRig( probe, options.chaseDistance, options.chaseHeight );
+		TrinityStandaloneProbeSetStaticCameraRig(
+			probe, options.cameraAzimuth, options.cameraElevation, options.cameraDistance );
 		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
@@ -8598,6 +8825,19 @@ int main( int argc, char** argv )
 			return 1;
 		}
 
+		if( options.fastExit )
+		{
+			// The OS reclaims GPU state at process exit. Skipping in-process
+			// context destruction sidesteps a Metal telemetry-vs-teardown race
+			// on current macOS that can trap heavy capture runs at shutdown
+			// (CoreAnalytics allocating on a dispatch worker while the last
+			// MetalContext drains); every capture, report, and evidence file
+			// is already written and closed by this point.
+			std::fprintf( stderr, "Fast exit: skipping in-process GPU teardown\n" );
+			std::fflush( stdout );
+			std::fflush( stderr );
+			_exit( 0 );
+		}
 		TrinityStandaloneProbeDestroyDevice( probe );
 		[window close];
 	}

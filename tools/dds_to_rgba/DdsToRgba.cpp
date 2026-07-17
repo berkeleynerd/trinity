@@ -108,24 +108,29 @@ enum class BcFormat
 {
 	None,
 	Bc1,
+	Bc2,
+	Bc3,
 	Bc4,
 	Bc5,
 	Bc7,
 };
 
-BcFormat GetBcFormat( const std::vector<uint8_t>& bytes )
+// The client mixes legacy-fourcc DDS (DXT1/DXT3/DXT5, ATI1/ATI2) with
+// DX10-extension files carrying the same BC payloads; map both spellings.
+BcFormat GetBcFormat( const std::vector<uint8_t>& bytes, size_t& dataOffset )
 {
 	constexpr uint32_t DDS_MAGIC = 0x20534444;
 	constexpr uint32_t DDS_HEADER_SIZE = 124;
 	constexpr uint32_t FOURCC_DXT1 = 0x31545844;
+	constexpr uint32_t FOURCC_DXT3 = 0x33545844;
+	constexpr uint32_t FOURCC_DXT5 = 0x35545844;
 	constexpr uint32_t FOURCC_ATI1 = 0x31495441;
 	constexpr uint32_t FOURCC_ATI2 = 0x32495441;
 	constexpr uint32_t FOURCC_DX10 = 0x30315844;
-	constexpr uint32_t DXGI_FORMAT_BC7_UNORM = 98;
-	constexpr uint32_t DXGI_FORMAT_BC7_UNORM_SRGB = 99;
 	constexpr size_t DDS_PIXEL_FORMAT_FOURCC_OFFSET = 84;
 	constexpr size_t DDS_DX10_FORMAT_OFFSET = 128;
 
+	dataOffset = 128;
 	if( bytes.size() < 128 || ReadUint32( bytes, 0 ) != DDS_MAGIC || ReadUint32( bytes, 4 ) != DDS_HEADER_SIZE )
 	{
 		return BcFormat::None;
@@ -134,6 +139,14 @@ BcFormat GetBcFormat( const std::vector<uint8_t>& bytes )
 	if( fourcc == FOURCC_DXT1 )
 	{
 		return BcFormat::Bc1;
+	}
+	if( fourcc == FOURCC_DXT3 )
+	{
+		return BcFormat::Bc2;
+	}
+	if( fourcc == FOURCC_DXT5 )
+	{
+		return BcFormat::Bc3;
 	}
 	if( fourcc == FOURCC_ATI1 )
 	{
@@ -148,15 +161,30 @@ BcFormat GetBcFormat( const std::vector<uint8_t>& bytes )
 		return BcFormat::None;
 	}
 
-	const uint32_t format = ReadUint32( bytes, DDS_DX10_FORMAT_OFFSET );
-	return format == DXGI_FORMAT_BC7_UNORM || format == DXGI_FORMAT_BC7_UNORM_SRGB ? BcFormat::Bc7 : BcFormat::None;
+	dataOffset = 148;
+	switch( ReadUint32( bytes, DDS_DX10_FORMAT_OFFSET ) )
+	{
+	case 70: case 71: case 72:
+		return BcFormat::Bc1;
+	case 73: case 74: case 75:
+		return BcFormat::Bc2;
+	case 76: case 77: case 78:
+		return BcFormat::Bc3;
+	case 79: case 80:
+		return BcFormat::Bc4;
+	case 82: case 83:
+		return BcFormat::Bc5;
+	case 97: case 98: case 99:
+		return BcFormat::Bc7;
+	default:
+		return BcFormat::None;
+	}
 }
 
-bool DecodeBcDds( const std::vector<uint8_t>& bytes, BcFormat format, uint32_t& width, uint32_t& height, std::vector<uint8_t>& rgba )
+bool DecodeBcDds( const std::vector<uint8_t>& bytes, BcFormat format, size_t dataOffset, uint32_t& width, uint32_t& height, std::vector<uint8_t>& rgba )
 {
-	const size_t dataOffset = format == BcFormat::Bc7 ? 148 : 128;
-	const size_t blockSize = format == BcFormat::Bc1 ? BCDEC_BC1_BLOCK_SIZE :
-		format == BcFormat::Bc4 ? BCDEC_BC4_BLOCK_SIZE : BCDEC_BC7_BLOCK_SIZE;
+	const size_t blockSize = format == BcFormat::Bc1 || format == BcFormat::Bc4 ?
+		BCDEC_BC1_BLOCK_SIZE : BCDEC_BC7_BLOCK_SIZE;
 	width = ReadUint32( bytes, 16 );
 	height = ReadUint32( bytes, 12 );
 	if( width == 0 || height == 0 )
@@ -183,6 +211,14 @@ bool DecodeBcDds( const std::vector<uint8_t>& bytes, BcFormat format, uint32_t& 
 			if( format == BcFormat::Bc1 )
 			{
 				bcdec_bc1( compressed, blockPixels, 4 * 4 );
+			}
+			else if( format == BcFormat::Bc2 )
+			{
+				bcdec_bc2( compressed, blockPixels, 4 * 4 );
+			}
+			else if( format == BcFormat::Bc3 )
+			{
+				bcdec_bc3( compressed, blockPixels, 4 * 4 );
 			}
 			else if( format == BcFormat::Bc4 )
 			{
@@ -276,10 +312,11 @@ int main( int argc, char** argv )
 	uint32_t width = 0;
 	uint32_t height = 0;
 	std::vector<uint8_t> rgba;
-	const BcFormat bcFormat = GetBcFormat( bytes );
+	size_t bcDataOffset = 128;
+	const BcFormat bcFormat = GetBcFormat( bytes, bcDataOffset );
 	if( bcFormat != BcFormat::None )
 	{
-		if( !DecodeBcDds( bytes, bcFormat, width, height, rgba ) )
+		if( !DecodeBcDds( bytes, bcFormat, bcDataOffset, width, height, rgba ) )
 		{
 			std::cerr << "BC DDS decode failed\n";
 			return 1;
