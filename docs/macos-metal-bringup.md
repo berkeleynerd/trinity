@@ -3859,3 +3859,32 @@ live SH receiver, and planet choreography. H4 proves the outer background is
 equivalent across canonical and legacy construction; the remaining
 construction difference is ship-owned geometry/presentation. The corrected
 source-readable control closes the common A01 `NebulaMap` path as healthy.
+
+## Sunward surface Tour and active aurora (2026-07-17)
+
+The operator selected the accepted bright legacy staircase as the default Tour
+construction path while the integrated canonical planet-shadow background gap
+remains tracked separately. This is a presentation policy, not a rollback of
+CP-44: canonical construction remains available for diagnostics, while the
+Tour uses legacy construction with duplicate SH proxies off, the live SH
+receiver, and live-distance solar-environment ownership.
+
+The optional `--planet-aurora active` control starts the authored `PlayAurora`
+curve set with the already accepted Python-2.7 seed, duration, and
+source-reachable midpoint. The default source policy remains unchanged when
+the switch is absent. The Tour enables the switch so the rare event is visible
+during an ordinary demonstration rather than waiting through its multi-day
+client period.
+
+`--journey-planet-surface` extends the existing limb finale without changing
+its validated frames. At frame 5,702 the ship first warps to a point 10,000 km
+above the Sun-facing radial, aligns directly inward, and then warps to the
+planet/Astero contact position. A coordinate-only stop was rejected after a
+test exposed 25 m of penetration and continuing drift. The landed ship now
+enters Destiny's native zero-surface-range ORBIT around ball `40334264`, which
+is the actual surface-to-surface gameplay contract. The station is accepted
+only after its surface error is within one metre of zero, radial speed is no
+more than 15 m/s, and tangential speed exceeds 300 m/s. At this radius the
+312 m/s motion changes the Sun-facing longitude only imperceptibly during a
+normal inspection while keeping the camera pointed down at the fully lit
+surface.

@@ -585,6 +585,12 @@ enum StandaloneJourneyPhase
 	STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING,
 	STANDALONE_JOURNEY_PLANET_ORBIT_WARPING,
 	STANDALONE_JOURNEY_PLANET_ORBITING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_WARPING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING,
+	STANDALONE_JOURNEY_PLANET_SURFACE_OBSERVING,
 };
 
 enum StandaloneCelestialBallparkMode
@@ -602,6 +608,7 @@ constexpr double kNewEdenStarRadius = 158400000.0;
 constexpr double kNewEdenSolarEnvironmentActivationRadius = 10060000256.0;
 constexpr double kNewEdenSolarEnvironmentFieldDimension = 475200000.0;
 constexpr double kNewEdenPlanetRadius = 2630000.0;
+constexpr double kNewEdenAsteroRadius = 35.0;
 constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -831868968960.0 };
 constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
 constexpr float kNewEdenSunEmissive[3] = { 5.0f, 4.274509906768799f, 2.3529412746429443f };
@@ -614,6 +621,7 @@ constexpr float kNewEdenTourFinaleCameraDistance = 150.0f;
 constexpr float kNewEdenTourFinaleCameraHeight = 55.0f;
 constexpr uint64_t kNewEdenTourPlanetOrbitFrame = 5702;
 constexpr float kNewEdenTourPlanetOrbitSurfaceRange = 2500.0f;
+constexpr double kNewEdenTourPlanetSurfaceStagingRange = 1.0e7;
 
 struct StandaloneLightingAuditRouteState
 {
@@ -667,6 +675,38 @@ struct StandalonePlanetFinaleGeometry
 	double limbOffset = 0.0;
 	double coverage = 0.0;
 };
+
+struct StandalonePlanetSurfaceGeometry
+{
+	double stagingPosition[3] = {};
+	double surfacePosition[3] = {};
+};
+
+bool BuildPlanetSunwardSurfaceGeometry(
+	const double sunPosition[3],
+	const double planetPosition[3],
+	StandalonePlanetSurfaceGeometry& output )
+{
+	double sunward[3] = {};
+	double lengthSquared = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunward[axis] = sunPosition[axis] - planetPosition[axis];
+		lengthSquared += sunward[axis] * sunward[axis];
+	}
+	const double length = std::sqrt( lengthSquared );
+	if( !std::isfinite( length ) || length <= 0.0 )
+		return false;
+	const double contactCenterRange = kNewEdenPlanetRadius + kNewEdenAsteroRadius;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		sunward[axis] /= length;
+		output.surfacePosition[axis] = planetPosition[axis] + sunward[axis] * contactCenterRange;
+		output.stagingPosition[axis] = output.surfacePosition[axis] +
+			sunward[axis] * kNewEdenTourPlanetSurfaceStagingRange;
+	}
+	return true;
+}
 
 bool BuildPlanetFinaleGeometry(
 	const double sunPosition[3],
@@ -5216,6 +5256,7 @@ struct StandaloneProbe
 	int journeyPhase = STANDALONE_JOURNEY_INACTIVE;
 	bool journeyPlanetFinale = false;
 	bool journeyPlanetOrbit = false;
+	bool journeyPlanetSurface = false;
 	bool journeyPlanetCameraReported = false;
 	bool ballparkAlignmentIssued = false;
 	bool ballparkCommandIssued = false;
@@ -5276,6 +5317,7 @@ struct StandaloneProbe
 	Tr2CurveEulerRotationPtr planetRotationCurve;
 	Tr2RotationAdapterPtr planetRotationAdapter;
 	bool planetAuroraRuntimeImplemented = false;
+	bool planetAuroraActive = false;
 	float planetAuroraDurationSeconds = 0.0f;
 	Vector4 planetAuroraSeed = {};
 	bool planetDataDrivenRuntimeImplemented = false;
@@ -8283,7 +8325,8 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		std::fprintf(
 			stderr,
 			"PL-14F deferred planet selection: aurora=%s dataDriven=%s\n",
-			retainAurora ? "audit-active" : ( selectAurora ? "selected-inactive" : "not-selected" ),
+			retainAurora ? ( probe.planetAuroraActive ? "tour-active" : "selected" ) :
+				( selectAurora ? "selected-inactive" : "not-selected" ),
 			selectDataDriven ? "selected" : "not-selected" );
 	}
 	if( !ApplyNewEdenPlanetRotation( probe, planet, 40334264, error ) )
@@ -8378,7 +8421,10 @@ bool PrepareNewEdenCelestialsWithoutYield(
 		retainSurface ? "yes" : "no",
 		retainAtmosphere ? "yes" : "no",
 		retainClouds ? "yes" : "no",
-		retainAurora ? "audit-force-now" : "source-selected-unresolved" );
+		retainAurora ?
+			( probe.planetAuroraActive ? "tour-active" :
+				( !probe.planetAuditReportPath.empty() ? "audit-active" : "source-selected" ) ) :
+			"not-selected" );
 	const bool initialized = sunBodyContainer->Initialize() && sun.Initialize() && planet.Initialize();
 	if( initialized )
 	{
@@ -8481,7 +8527,7 @@ bool PrepareNewEdenCelestialsWithoutYield(
 				hasDisplayVariable ? "present" : "missing",
 				probe.planetDataDrivenPopulationLoaded ? "loaded" : "missing" );
 		}
-		if( retainAurora && !probe.planetAuditReportPath.empty() )
+		if( retainAurora && ( !probe.planetAuditReportPath.empty() || probe.planetAuroraActive ) )
 		{
 			Tr2CurveConstant* auroraSeedCurve = nullptr;
 			for( size_t curveIndex = 0; playAurora && curveIndex < playAurora->GetCurvesCount(); ++curveIndex )
@@ -8516,8 +8562,9 @@ bool PrepareNewEdenCelestialsWithoutYield(
 			probe.planetAuroraRuntimeImplemented = true;
 			std::fprintf(
 				stderr,
-				"PL-14F source-selected Aurora audit activation: periodIndex=0 duration=%.9f "
+				"PL-14F source-selected Aurora activation: mode=%s periodIndex=0 duration=%.9f "
 				"scale=%.12f seed=(%.9f,%.9f,%.9f,%.9f)\n",
+				probe.planetAuroraActive ? "tour-active" : "audit-active",
 				probe.planetAuroraDurationSeconds,
 				playAurora->GetTimeScale(),
 				probe.planetAuroraSeed.x,
@@ -19275,6 +19322,17 @@ bool WriteSolarHighReport( StandaloneProbe& probe, std::string& error )
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAurora(
+	void* opaqueProbe,
+	bool active )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene )
+		return false;
+	probe->planetAuroraActive = active;
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigurePlanetAudit(
 	void* opaqueProbe,
 	const char* reportPath )
@@ -20344,6 +20402,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
 	probe->sceneConstructionTrace.clear();
 	probe->sceneConstructionTrace.push_back( "configuration-accepted" );
 	probe->sceneConstructionTrace.push_back( "fresh-host-asserted" );
+	std::fprintf(
+		stderr,
+		"PL-14G scene construction configured: mode=%s shProxies=%s shReceiver=%s solarEnvironment=%s\n",
+		constructionMode == STANDALONE_SCENE_CONSTRUCTION_CANONICAL ? "canonical" : "legacy",
+		legacyShProxies == STANDALONE_LEGACY_SH_PROXIES_OFF ? "off" : "authored",
+		legacyShReceiver == STANDALONE_LEGACY_SH_RECEIVER_LIVE ? "live" : "origin",
+		legacySolarEnvironment == STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE ?
+			"live-distance" : "scripted" );
 	return true;
 }
 
@@ -25808,6 +25874,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 		probe->journeyPhase = STANDALONE_JOURNEY_GATE_ALIGN_PENDING;
 		probe->journeyPlanetFinale = false;
 		probe->journeyPlanetOrbit = false;
+		probe->journeyPlanetSurface = false;
 		probe->journeyPlanetCameraReported = false;
 		probe->ballparkAlignmentIssued = false;
 		probe->ballparkCommandIssued = false;
@@ -25901,6 +25968,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 	probe->journeyPhase = STANDALONE_JOURNEY_INACTIVE;
 	probe->journeyPlanetFinale = false;
 	probe->journeyPlanetOrbit = false;
+	probe->journeyPlanetSurface = false;
 	probe->journeyPlanetCameraReported = false;
 	probe->ballparkAlignmentIssued = false;
 	probe->ballparkCommandIssued = false;
@@ -27113,6 +27181,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetOrbit(
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetSurface(
+	void* opaqueProbe,
+	bool enabled )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || ( enabled && ( !probe->journeyPlanetFinale || probe->journeyPlanetOrbit ) ) )
+		return false;
+	probe->journeyPlanetSurface = enabled;
+	if( enabled )
+	{
+		std::fprintf(
+			stderr,
+			"Tour sunward planet surface: startFrame=%llu surfaceRange=0 shipRadius=%.0f "
+			"planetRadius=%.0f stagingRange=%.0f\n",
+			static_cast<unsigned long long>( kNewEdenTourPlanetOrbitFrame ),
+			kNewEdenAsteroRadius,
+			kNewEdenPlanetRadius,
+			kNewEdenTourPlanetSurfaceStagingRange );
+	}
+	return true;
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* opaqueProbe, int anchor )
 {
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
@@ -28014,9 +28104,12 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			StandalonePlanetFinaleGeometry planetFinale;
 			const bool planetFinaleReady = !probe->journeyPlanetFinale ||
 				BuildPlanetFinaleGeometry( sunTarget, planetTarget, planetFinale );
-			if( !planetFinaleReady )
+			StandalonePlanetSurfaceGeometry planetSurface;
+			const bool planetSurfaceReady = !probe->journeyPlanetSurface ||
+				BuildPlanetSunwardSurfaceGeometry( sunTarget, planetTarget, planetSurface );
+			if( !planetFinaleReady || !planetSurfaceReady )
 			{
-				CCP_LOGERR( "Tour planet-finale geometry failed" );
+				CCP_LOGERR( "Tour planet-finale or sunward-surface geometry failed" );
 				return false;
 			}
 			auto directionTo = [&]( const double target[3], double direction[3] ) {
@@ -28253,7 +28346,17 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 					}
 					break;
 				case STANDALONE_JOURNEY_PLANET_OBSERVING:
-					if( probe->journeyPlanetOrbit &&
+					if( probe->journeyPlanetSurface &&
+						probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
+						!queueAlignment(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging alignment failed" );
+						return false;
+					}
+					else if( probe->journeyPlanetOrbit &&
 						probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
 						!queueAlignment(
 							planetTarget,
@@ -28299,6 +28402,88 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 							static_cast<long long>( commandState.nextTickTime ),
 							static_cast<long long>( kNewEdenPlanetBallId ),
 							kNewEdenTourPlanetOrbitSurfaceRange );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING:
+					if( alignmentTo( planetSurface.stagingPosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING:
+					if( alignmentTo( planetSurface.surfacePosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						if( !Destiny_CommandEmbeddedOrbit(
+								probe->destinySession,
+								commandState.nextTickTime,
+								kNewEdenPlanetBallId,
+								0.0f ) )
+						{
+							CCP_LOGERR( "Embedded Destiny zero-range planet ORBIT failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING;
+						std::fprintf(
+							stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=planet-sunward-surface "
+							"targetBall=%lld surfaceRange=0 illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenPlanetBallId ) );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING:
+					// The double-precision orbit converges to zero range while the
+					// float-radius surface diagnostic settles within sub-meter noise.
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_ORBIT &&
+						commandState.orbitSurfaceDistance >= -1.0 &&
+						commandState.orbitSurfaceDistance <= 150.0 &&
+						std::abs( commandState.orbitRadialVelocity ) <= 15.0 &&
+						commandState.orbitTangentialVelocity > 300.0 )
+					{
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_OBSERVING;
+						std::fprintf(
+							stderr,
+							"Journey settled: frame=%llu targetName=planet-sunward-surface mode=ORBIT "
+							"requestedSurfaceRange=0 surfaceDistance=%.6f legalTolerance=1 "
+							"radialSpeed=%.6f tangentialSpeed=%.6f illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							commandState.orbitSurfaceDistance,
+							commandState.orbitRadialVelocity,
+							commandState.orbitTangentialVelocity );
 					}
 					break;
 				default:

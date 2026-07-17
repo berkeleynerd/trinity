@@ -124,6 +124,7 @@ extern "C" bool TrinityStandaloneProbeConfigureSolarIllumination( void* opaquePr
 extern "C" bool TrinityStandaloneProbeSetSolarIlluminationCaptureRequested( void* opaqueProbe, bool requested );
 extern "C" bool TrinityStandaloneProbeWriteSolarIlluminationReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigurePlanetAudit( void* opaqueProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeConfigurePlanetAurora( void* opaqueProbe, bool active );
 extern "C" bool TrinityStandaloneProbeWritePlanetAuditReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigurePlanetAppearance( void* opaqueProbe, int view, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWritePlanetAppearanceReport( void* opaqueProbe );
@@ -809,6 +810,7 @@ struct Options
 	CameraView cameraView = CameraView::Model;
 	SceneComposition composition = SceneComposition::Cinematic;
 	PlanetLayers planetLayers = PlanetLayers::All;
+	bool planetAuroraActive = false;
 	PlanetAppearanceView planetAppearanceView = PlanetAppearanceView::Day;
 	SunEffects sunEffects = SunEffects::Auto;
 	SunEffects resolvedSunEffects = SunEffects::Off;
@@ -845,6 +847,7 @@ struct Options
 	uint32_t solarHighWarmup = 0;
 	bool journeyPlanetFinale = false;
 	bool journeyPlanetOrbit = false;
+	bool journeyPlanetSurface = false;
 	int cloudYear = 2026;
 	int cloudMonth = 7;
 	int cloudDay = 10;
@@ -3421,7 +3424,7 @@ void PrintUsage( const char* executable )
 		<< "       [--ao-method client|cortao|cacao]\n"
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers off|surface|atmosphere-inner|atmosphere-outer|atmosphere|clouds|aurora|data-driven|all]\n"
-		<< "       [--planet-audit-report PATH]\n"
+		<< "       [--planet-aurora source|active] [--planet-audit-report PATH]\n"
 		<< "       [--planet-appearance-view day|limb|eclipse|tour-finale|tour-orbit] [--planet-appearance-report PATH]\n"
 		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all|no-lens-flare]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
@@ -3448,7 +3451,7 @@ void PrintUsage( const char* executable )
 		<< "       [--bloom auto|off|client] [--film-grain auto|off|client] [--validate-post-finish]\n"
 		<< "       [--taa auto|off|low|medium|high] [--taa-debug off|motion-vectors|early-out]\n"
 		<< "       [--motion static|camera|object|combined] [--validate-temporal]\n"
-		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--warp-target planet|evegate] [--journey-planet-finale] [--journey-planet-orbit]\n"
+		<< "       [--ballpark off|static|goto|orbit|warp|approach] [--warp-target planet|evegate] [--journey-planet-finale] [--journey-planet-orbit|--journey-planet-surface]\n"
 		<< "       [--ballpark-frame ego|observer|chase]\n"
 		<< "       [--orbit-solver legacy|new] [--orbit-range FLOAT]\n"
 		<< "       [--validate-ballpark] [--validate-ballpark-motion] [--validate-ballpark-orbit]\n"
@@ -3641,6 +3644,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		else if( arg == "--journey-planet-orbit" )
 		{
 			options.journeyPlanetOrbit = true;
+		}
+		else if( arg == "--journey-planet-surface" )
+		{
+			options.journeyPlanetSurface = true;
 		}
 		else if( arg == "--ballpark-frame" )
 		{
@@ -4196,6 +4203,18 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			{
 				return false;
 			}
+		}
+		else if( arg == "--planet-aurora" )
+		{
+			if( ++i >= argc )
+				return false;
+			const std::string value = ToLower( argv[i] );
+			if( value == "source" )
+				options.planetAuroraActive = false;
+			else if( value == "active" )
+				options.planetAuroraActive = true;
+			else
+				return false;
 		}
 		else if( arg == "--planet-cloud-date" )
 		{
@@ -5074,6 +5093,22 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "--journey-planet-orbit requires --journey-planet-finale\n";
 		return false;
 	}
+	if( options.journeyPlanetSurface && !options.journeyPlanetFinale )
+	{
+		std::cerr << "--journey-planet-surface requires --journey-planet-finale\n";
+		return false;
+	}
+	if( options.journeyPlanetSurface && options.journeyPlanetOrbit )
+	{
+		std::cerr << "Choose either --journey-planet-surface or --journey-planet-orbit\n";
+		return false;
+	}
+	if( options.planetAuroraActive && options.planetLayers != PlanetLayers::Aurora &&
+		options.planetLayers != PlanetLayers::All )
+	{
+		std::cerr << "--planet-aurora active requires --planet-layers aurora|all\n";
+		return false;
+	}
 	if( options.ballparkFrame != BallparkFrame::Ego && options.ballpark != BallparkMode::Goto &&
 		options.ballpark != BallparkMode::Orbit && options.ballpark != BallparkMode::Warp &&
 		options.ballpark != BallparkMode::Approach )
@@ -5664,6 +5699,10 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "motion=" << MotionModeName( options.motion ) << "\n";
 	metadata << "ballpark=" << BallparkModeName( options.ballpark ) << "\n";
 	metadata << "warpTarget=" << ( options.warpTarget == WarpTarget::EveGate ? "evegate" : "planet" ) << "\n";
+	metadata << "journeyPlanetFinale=" << ( options.journeyPlanetFinale ? "true" : "false" ) << "\n";
+	metadata << "journeyPlanetOrbit=" << ( options.journeyPlanetOrbit ? "true" : "false" ) << "\n";
+	metadata << "journeyPlanetSurface=" << ( options.journeyPlanetSurface ? "true" : "false" ) << "\n";
+	metadata << "planetAurora=" << ( options.planetAuroraActive ? "active" : "source" ) << "\n";
 	metadata << "ballparkFrame=" << BallparkFrameName( options.ballparkFrame ) << "\n";
 	metadata << "validateBallpark=" << ( options.validateBallpark ? "true" : "false" ) << "\n";
 	metadata << "validateBallparkMotion=" << ( options.validateBallparkMotion ? "true" : "false" ) << "\n";
@@ -7297,6 +7336,13 @@ int main( int argc, char** argv )
 			[window close];
 			return 1;
 		}
+		if( options.planetAuroraActive && !TrinityStandaloneProbeConfigurePlanetAurora( probe, true ) )
+		{
+			std::cerr << "Failed to activate the authored planet aurora\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
 		if( sceneConstructionRequested &&
 			( ( !options.sceneConstructionReportPath.empty() &&
 				!EnsureParentDirectory( options.sceneConstructionReportPath ) ) ||
@@ -7657,6 +7703,13 @@ int main( int argc, char** argv )
 			if( !TrinityStandaloneProbeSetJourneyPlanetOrbit( probe, options.journeyPlanetOrbit ) )
 			{
 				std::cerr << "TrinityStandaloneProbeSetJourneyPlanetOrbit failed\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+			if( !TrinityStandaloneProbeSetJourneyPlanetSurface( probe, options.journeyPlanetSurface ) )
+			{
+				std::cerr << "TrinityStandaloneProbeSetJourneyPlanetSurface failed\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;

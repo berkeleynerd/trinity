@@ -738,6 +738,12 @@ extern "C" bool TrinityStandaloneProbeSetJourneyPlanetFinale(
 extern "C" bool TrinityStandaloneProbeSetJourneyPlanetOrbit(
 	void* opaqueProbe,
 	bool enabled );
+extern "C" bool TrinityStandaloneProbeSetJourneyPlanetSurface(
+	void* opaqueProbe,
+	bool enabled );
+extern "C" bool TrinityStandaloneProbeConfigurePlanetAurora(
+	void* opaqueProbe,
+	bool active );
 extern "C" bool TrinityStandaloneProbeSetCelestialAnchor(
 	void* opaqueProbe,
 	int anchor );
