@@ -95,7 +95,15 @@ void Tr2RuntimeTextureParameter::RebuildEffectHandles( Tr2Shader* effectRes )
 // --------------------------------------------------------------------------------------
 unsigned Tr2RuntimeTextureParameter::GetHashValue( unsigned startingHash ) const
 {
-	return CcpHashFNV1( m_texture.p, sizeof( m_texture.p ), startingHash );
+	startingHash = CcpHashFNV1( m_texture.p, sizeof( m_texture.p ), startingHash );
+	TrinityALImpl::Tr2TextureAL* textureObject = nullptr;
+	if( Tr2TextureAL* texture = m_texture ? m_texture->GetTexture() : nullptr )
+	{
+		textureObject = texture->TrinityALImpl_GetObject();
+	}
+	startingHash = CcpHashFNV1(
+		&textureObject, sizeof( textureObject ), startingHash );
+	return CcpHashFNV1( &m_uavMipLevel, sizeof( m_uavMipLevel ), startingHash );
 }
 
 // --------------------------------------------------------------------------------------
@@ -127,7 +135,15 @@ ITr2TextureProviderPtr Tr2RuntimeTextureParameter::GetTextureProvider() const
 
 void Tr2RuntimeTextureParameter::SetUavMipLevel( uint32_t mipLevel )
 {
+	if( m_uavMipLevel == mipLevel )
+	{
+		return;
+	}
 	m_uavMipLevel = mipLevel;
+	for( Tr2Material* material : m_materials )
+	{
+		material->InvalidateResourceSets();
+	}
 }
 
 void Tr2RuntimeTextureParameter::OnAddedToMaterial( Tr2Material* material )

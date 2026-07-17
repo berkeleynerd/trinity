@@ -128,25 +128,30 @@ extern "C" bool TrinityStandaloneProbeWritePlanetAuditReport( void* opaqueProbe 
 extern "C" bool
 	TrinityStandaloneProbeConfigureBackgroundLayers( void* opaqueProbe, bool nebulaAuthored, bool starfieldAuthored );
 extern "C" bool TrinityStandaloneProbeConfigureSolarOptics( void* opaqueProbe,
-														int environmentMode,
-														int environmentDistance,
-														bool sceneDistanceFogAuthored,
-														bool desaturateAuthored,
-														int occlusionView,
-														const char* reportPath );
+															int environmentMode,
+															int environmentDistance,
+															bool sceneDistanceFogAuthored,
+															bool desaturateAuthored,
+															int occlusionView,
+															const char* reportPath );
 extern "C" bool TrinityStandaloneProbeConfigureTourColorGrade( void* opaqueProbe, int colorGrade );
 extern "C" bool TrinityStandaloneProbeConfigureAmbientLighting( void* opaqueProbe, bool authored );
 extern "C" bool TrinityStandaloneProbeConfigureShipLightingReport( void* opaqueProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeConfigureShipLightingControl( void* opaqueProbe, int control );
 extern "C" bool TrinityStandaloneProbeWriteShipLightingReport( void* opaqueProbe );
-extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
-	void* opaqueProbe, int station, const char* reportPath );
+extern "C" bool
+	TrinityStandaloneProbeConfigureReflectionLightingAudit( void* opaqueProbe, int station, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
-extern "C" bool TrinityStandaloneProbeConfigureOcclusionLightingAudit(
-	void* opaqueProbe, int station, int subject, const char* reportPath );
-extern "C" bool TrinityStandaloneProbeSelectOcclusionLightingProduct(
-	void* opaqueProbe, uint32_t product );
+extern "C" bool TrinityStandaloneProbeConfigureOcclusionLightingAudit( void* opaqueProbe,
+																	   int station,
+																	   int subject,
+																	   const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSelectOcclusionLightingProduct( void* opaqueProbe, uint32_t product );
 extern "C" bool TrinityStandaloneProbeWriteOcclusionLightingReport( void* opaqueProbe );
+extern "C" bool
+	TrinityStandaloneProbeConfigureSsaoTransportAudit( void* opaqueProbe, int bindingProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeWriteSsaoTransportReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSubmissionDiagnostics( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
@@ -410,6 +415,13 @@ enum class AoMethod
 	Cortao,
 	Cacao,
 	Client,
+};
+
+enum class AoBindingProbe
+{
+	None,
+	White,
+	Black,
 };
 
 enum class LightingAuditSubject
@@ -735,6 +747,7 @@ struct Options
 	std::string presentationAuditReportPath;
 	std::string reflectionLightingReportPath;
 	std::string occlusionLightingReportPath;
+	std::string ssaoTransportReportPath;
 	std::string planetAuditReportPath;
 	std::string systemManifestPath;
 	std::string sceneConstructionReportPath;
@@ -772,6 +785,7 @@ struct Options
 	AmbientOcclusion ambientOcclusion = AmbientOcclusion::Auto;
 	AmbientOcclusion resolvedAmbientOcclusion = AmbientOcclusion::Off;
 	AoMethod aoMethod = AoMethod::Cortao;
+	AoBindingProbe aoBindingProbe = AoBindingProbe::None;
 	CameraView cameraView = CameraView::Model;
 	SceneComposition composition = SceneComposition::Cinematic;
 	PlanetLayers planetLayers = PlanetLayers::All;
@@ -1825,11 +1839,10 @@ bool ParseSolarIlluminationView( const std::string& value, SolarIlluminationView
 std::string LightingAuditStationName( LightingAuditStation station )
 {
 	static const char* names[] = {
-		"near-sun", "eve-gate", "return-sun", "planet-day", "planet-limb",
-		"planet-eclipse", "deep-space", "planet-orbit",
+		"near-sun",    "eve-gate",       "return-sun", "planet-day",
+		"planet-limb", "planet-eclipse", "deep-space", "planet-orbit",
 	};
-	return station == LightingAuditStation::Unspecified ?
-		"unspecified" : names[static_cast<int>( station )];
+	return station == LightingAuditStation::Unspecified ? "unspecified" : names[static_cast<int>( station )];
 }
 
 bool ParseLightingAuditStation( const std::string& value, LightingAuditStation& station )
@@ -1891,6 +1904,27 @@ bool ParseAoMethod( const std::string& value, AoMethod& method )
 	{
 		method = AoMethod::Client;
 		return true;
+	}
+	return false;
+}
+
+std::string AoBindingProbeName( AoBindingProbe probe )
+{
+	static const char* names[] = { "none", "white", "black" };
+	return names[static_cast<int>( probe )];
+}
+
+bool ParseAoBindingProbe( const std::string& value, AoBindingProbe& probe )
+{
+	const std::string normalized = ToLower( value );
+	for( int candidate = 0; candidate <= static_cast<int>( AoBindingProbe::Black ); ++candidate )
+	{
+		const auto candidateValue = static_cast<AoBindingProbe>( candidate );
+		if( normalized == AoBindingProbeName( candidateValue ) )
+		{
+			probe = candidateValue;
+			return true;
+		}
 	}
 	return false;
 }
@@ -3308,6 +3342,7 @@ void PrintUsage( const char* executable )
 		<< "       [--presentation-audit-report PATH]\n"
 		<< "       [--lighting-audit-station near-sun|eve-gate|return-sun|planet-day|planet-limb|planet-eclipse|deep-space|planet-orbit]\n"
 		<< "       [--lighting-audit-subject hull|planet] [--occlusion-lighting-report PATH]\n"
+		<< "       [--ssao-transport-report PATH] [--ao-binding-probe none|white|black]\n"
 		<< "       [--reflection-lighting-report PATH]\n"
 		<< "       [--solar-illumination-view near-sun-hull|gate-hull|planet-day|planet-limb|planet-eclipse]\n"
 		<< "       [--sun-body-layers off|surface|outer-beams|edge-clouds|corona|all]\n"
@@ -4330,6 +4365,21 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.occlusionLightingReportPath = argv[i];
+		}
+		else if( arg == "--ssao-transport-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.ssaoTransportReportPath = argv[i];
+		}
+		else if( arg == "--ao-binding-probe" )
+		{
+			if( ++i >= argc || !ParseAoBindingProbe( argv[i], options.aoBindingProbe ) )
+			{
+				return false;
+			}
 		}
 		else if( arg == "--ship-lighting-report" )
 		{
@@ -5365,10 +5415,10 @@ std::string CaptureBasePath( const Options& options )
 	const std::string materialSuffix = "_" + MaterialModeName( options.materialMode ) +
 		( options.materialView == MaterialView::Lit ? "" : "_" + MaterialViewName( options.materialView ) ) +
 		( options.areaView == AreaView::All ? "" : "_area-" + AreaViewName( options.areaView ) ) + "_lit-" +
-		LightingViewName( options.lightingView ) + "_ambient-" + AuthoredToggleName( options.ambientLight ) +
-		"_sh-" + ShSourceName( options.shSource ) + "_ll-" +
-		LocalLightsName( options.localLights ) + "_lsh-" + LocalShadowsName( options.resolvedLocalShadows ) +
-		"_reflsrc-" + ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
+		LightingViewName( options.lightingView ) + "_ambient-" + AuthoredToggleName( options.ambientLight ) + "_sh-" +
+		ShSourceName( options.shSource ) + "_ll-" + LocalLightsName( options.localLights ) + "_lsh-" +
+		LocalShadowsName( options.resolvedLocalShadows ) + "_reflsrc-" +
+		ReflectionSourceName( options.resolvedReflectionSource ) + "_reflcorr-" +
 		ReflectionCorrectionName( options.reflectionCorrection ) + "_nrm-" +
 		NormalMapModeName( options.normalMapMode ) + "_cam-" + CameraViewName( options.cameraView ) + "_comp-" +
 		SceneCompositionName( options.composition ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
@@ -6886,10 +6936,9 @@ int main( int argc, char** argv )
 			return 2;
 		}
 		if( !options.presentationAuditReportPath.empty() &&
-			( options.sceneFixture != SceneFixture::NewEden ||
-			  options.shaderTier != ShaderTier::High ||
-			  options.qualityRung != QualityRung::HdrFinish ||
-			  options.maxFrames <= 0 || options.capturePrefix.empty() ) )
+			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish || options.maxFrames <= 0 ||
+			  options.capturePrefix.empty() ) )
 		{
 			std::cerr << "--presentation-audit-report requires the High-tier New Eden "
 						 "hdr-finish profile, --capture-prefix, and a positive finite --frames count\n";
@@ -6898,11 +6947,9 @@ int main( int argc, char** argv )
 		if( !options.reflectionLightingReportPath.empty() &&
 			( options.lightingAuditStation == LightingAuditStation::Unspecified ||
 			  options.sceneFixture != SceneFixture::NewEden ||
-			  options.sceneConstruction != SceneConstruction::Canonical ||
-			  options.shaderTier != ShaderTier::High ||
-			  options.qualityRung != QualityRung::HdrFinish ||
-			  options.ballpark != BallparkMode::Static || options.maxFrames <= 0 ||
-			  options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
+			  options.sceneConstruction != SceneConstruction::Canonical || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish || options.ballpark != BallparkMode::Static ||
+			  options.maxFrames <= 0 || options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
 		{
 			std::cerr << "--reflection-lighting-report requires a named station and the finite-frame "
 						 "High-tier canonical New Eden hdr-finish profile with --ballpark static, "
@@ -6912,25 +6959,42 @@ int main( int argc, char** argv )
 		if( !options.occlusionLightingReportPath.empty() &&
 			( options.lightingAuditStation == LightingAuditStation::Unspecified ||
 			  options.sceneFixture != SceneFixture::NewEden ||
-			  options.sceneConstruction != SceneConstruction::Canonical ||
-			  options.shaderTier != ShaderTier::High ||
-			  options.qualityRung != QualityRung::HdrFinish ||
-			  options.ballpark != BallparkMode::Static || options.maxFrames <= 0 ||
-			  options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
+			  options.sceneConstruction != SceneConstruction::Canonical || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish || options.ballpark != BallparkMode::Static ||
+			  options.maxFrames <= 0 || options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
 		{
 			std::cerr << "--occlusion-lighting-report requires a named station and the finite-frame "
 						 "High-tier canonical New Eden hdr-finish profile with --ballpark static, "
 						 "--presentation-audit-report, and --capture-prefix\n";
 			return 2;
 		}
+		if( !options.ssaoTransportReportPath.empty() &&
+			( options.lightingAuditStation == LightingAuditStation::Unspecified ||
+			  options.lightingAuditSubject != LightingAuditSubject::Hull ||
+			  options.sceneFixture != SceneFixture::NewEden ||
+			  options.sceneConstruction != SceneConstruction::Canonical || options.shaderTier != ShaderTier::High ||
+			  options.qualityRung != QualityRung::HdrFinish || options.ballpark != BallparkMode::Static ||
+			  options.maxFrames <= 0 || options.presentationAuditReportPath.empty() || options.capturePrefix.empty() ) )
+		{
+			std::cerr << "--ssao-transport-report requires a named hull station and the finite-frame "
+						 "High-tier canonical New Eden hdr-finish profile with --ballpark static, "
+						 "--presentation-audit-report, and --capture-prefix\n";
+			return 2;
+		}
+		if( options.aoBindingProbe != AoBindingProbe::None && options.ssaoTransportReportPath.empty() )
+		{
+			std::cerr << "--ao-binding-probe white|black requires --ssao-transport-report\n";
+			return 2;
+		}
 		if( options.lightingAuditStation != LightingAuditStation::Unspecified &&
-			options.reflectionLightingReportPath.empty() &&
-			options.occlusionLightingReportPath.empty() )
+			options.reflectionLightingReportPath.empty() && options.occlusionLightingReportPath.empty() &&
+			options.ssaoTransportReportPath.empty() )
 		{
 			std::cerr << "--lighting-audit-station requires a lighting-audit report\n";
 			return 2;
 		}
-		if( options.lightingAuditSubjectExplicit && options.occlusionLightingReportPath.empty() )
+		if( options.lightingAuditSubjectExplicit && options.occlusionLightingReportPath.empty() &&
+			options.ssaoTransportReportPath.empty() )
 		{
 			std::cerr << "--lighting-audit-subject is valid only with --occlusion-lighting-report\n";
 			return 2;
@@ -6975,15 +7039,13 @@ int main( int argc, char** argv )
 		}
 		if( !options.shipLightingReportPath.empty() &&
 			( options.sceneFixture != SceneFixture::NewEden ||
-			  options.sceneConstruction != SceneConstruction::Canonical ||
-			  options.shaderTier != ShaderTier::High ||
+			  options.sceneConstruction != SceneConstruction::Canonical || options.shaderTier != ShaderTier::High ||
 			  options.qualityRung < QualityRung::Model || options.maxFrames <= 0 ) )
 		{
 			std::cerr << "--ship-lighting-report requires the finite-frame High-tier canonical New Eden scene\n";
 			return 2;
 		}
-		if( options.shipLightingControl != ShipLightingControl::Astero &&
-			options.shipLightingReportPath.empty() )
+		if( options.shipLightingControl != ShipLightingControl::Astero && options.shipLightingReportPath.empty() )
 		{
 			std::cerr << "--ship-lighting-control venture is valid only with --ship-lighting-report\n";
 			return 2;
@@ -7105,11 +7167,9 @@ int main( int argc, char** argv )
 		}
 		if( !options.shipLightingReportPath.empty() &&
 			( !EnsureParentDirectory( options.shipLightingReportPath ) ||
-			  !TrinityStandaloneProbeConfigureShipLightingReport(
-				  probe, options.shipLightingReportPath.c_str() ) ||
+			  !TrinityStandaloneProbeConfigureShipLightingReport( probe, options.shipLightingReportPath.c_str() ) ||
 			  !TrinityStandaloneProbeConfigureShipLightingControl(
-				  probe,
-				  options.shipLightingControl == ShipLightingControl::Venture ? 1 : 0 ) ) )
+				  probe, options.shipLightingControl == ShipLightingControl::Venture ? 1 : 0 ) ) )
 		{
 			std::cerr << "Failed to configure the ship-lighting inheritance report\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -7190,8 +7250,7 @@ int main( int argc, char** argv )
 				return 1;
 			}
 			if( !TrinityStandaloneProbeConfigureTourColorGrade(
-					probe,
-					options.tourColorGrade == TourColorGrade::SunDesaturate ? 1 : 0 ) )
+					probe, options.tourColorGrade == TourColorGrade::SunDesaturate ? 1 : 0 ) )
 			{
 				std::cerr << "Failed to configure the Tour color-grade policy\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
@@ -7240,6 +7299,19 @@ int main( int argc, char** argv )
 					options.occlusionLightingReportPath.c_str() ) )
 			{
 				std::cerr << "Failed to configure the PL-14H3 AO/shadow audit\n";
+				TrinityStandaloneProbeDestroyDevice( probe );
+				[window close];
+				return 1;
+			}
+		}
+		if( !options.ssaoTransportReportPath.empty() )
+		{
+			if( !EnsureParentDirectory( options.ssaoTransportReportPath ) ||
+				!TrinityStandaloneProbeConfigureSsaoTransportAudit(
+					probe, static_cast<int>( options.aoBindingProbe ), options.ssaoTransportReportPath.c_str() ) ||
+				!TrinityStandaloneProbeConfigureSubmissionDiagnostics( probe, true ) )
+			{
+				std::cerr << "Failed to configure the PL-14I1 SSAO transport audit\n";
 				TrinityStandaloneProbeDestroyDevice( probe );
 				[window close];
 				return 1;
@@ -7347,8 +7419,7 @@ int main( int argc, char** argv )
 			return 1;
 		}
 		if( options.qualityRung != QualityRung::Shell &&
-			!TrinityStandaloneProbeConfigureAmbientLighting(
-				probe, options.ambientLight == AuthoredToggle::Authored ) )
+			!TrinityStandaloneProbeConfigureAmbientLighting( probe, options.ambientLight == AuthoredToggle::Authored ) )
 		{
 			std::cerr << "TrinityStandaloneProbeConfigureAmbientLighting failed\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -7492,7 +7563,7 @@ int main( int argc, char** argv )
 			options.exposureSequence != ExposureSequence::None || !options.solarOpticsReportPath.empty() ||
 			!options.solarIlluminationReportPath.empty() || !options.shipLightingReportPath.empty() ||
 			!options.presentationAuditReportPath.empty() || !options.reflectionLightingReportPath.empty() ||
-			!options.occlusionLightingReportPath.empty();
+			!options.occlusionLightingReportPath.empty() || !options.ssaoTransportReportPath.empty();
 		// Product capture must not silently add a same-time diagnostic rerender.
 		// Tone validation is an explicit contract because it reconfigures bloom and
 		// reads both sides of the tone pass; ordinary post-tone/all captures observe
@@ -7514,8 +7585,8 @@ int main( int argc, char** argv )
 		}
 		if( !options.presentationAuditReportPath.empty() &&
 			( !EnsureParentDirectory( options.presentationAuditReportPath ) ||
-			  !TrinityStandaloneProbeConfigurePresentationAudit(
-				  probe, options.presentationAuditReportPath.c_str() ) ) )
+			  !TrinityStandaloneProbeConfigurePresentationAudit( probe,
+																 options.presentationAuditReportPath.c_str() ) ) )
 		{
 			std::cerr << "Failed to configure the PL-14H1 presentation audit\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
@@ -7666,20 +7737,17 @@ int main( int argc, char** argv )
 						  options.captureFrames.begin(), options.captureFrames.end(), renderedFrames ) );
 				const bool presentationSequenceFrame =
 					!options.presentationAuditReportPath.empty() && captureSequenceFrame;
-				const bool terminalAllSnapshot = options.renderProduct == RenderProduct::All &&
-					options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames;
-				const bool presentationSnapshotRequested =
-					presentationSequenceFrame || terminalAllSnapshot;
-				const int captureProducts = presentationSnapshotRequested ?
-					0 :
-					( ballparkMilestone || captureSequenceFrame ) ?
-					kCaptureColor :
-					captureTemporalSample ?
-					kCaptureTemporalSample :
-					( options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
-						  RenderProductApiValue( options.renderProduct == RenderProduct::All ? RenderProduct::Color :
-																							   options.renderProduct ) :
-						  0 );
+				const bool terminalAllSnapshot = options.renderProduct == RenderProduct::All && options.maxFrames > 0 &&
+					renderedFrames + 1 == options.maxFrames;
+				const bool presentationSnapshotRequested = presentationSequenceFrame || terminalAllSnapshot;
+				const int captureProducts = presentationSnapshotRequested ? 0 :
+					( ballparkMilestone || captureSequenceFrame )         ? kCaptureColor :
+					captureTemporalSample                                 ? kCaptureTemporalSample :
+											( options.maxFrames > 0 && renderedFrames + 1 == options.maxFrames ?
+												  RenderProductApiValue( options.renderProduct == RenderProduct::All ?
+																			 RenderProduct::Color :
+																			 options.renderProduct ) :
+												  0 );
 				if( !options.solarIlluminationReportPath.empty() &&
 					!TrinityStandaloneProbeSetSolarIlluminationCaptureRequested( probe, captureSequenceFrame ) )
 				{
@@ -7748,13 +7816,12 @@ int main( int argc, char** argv )
 						}
 						if( !options.reflectionLightingReportPath.empty() )
 						{
-							const std::string path = CaptureBasePath( options ) +
-								"_reflection-contact" + frameSuffix;
+							const std::string path = CaptureBasePath( options ) + "_reflection-contact" + frameSuffix;
 							if( !TrinityStandaloneProbeSelectReflectionLightingContact( probe ) ||
 								!EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
 							{
-								std::cerr << "PL-14H2 reflection contact capture failed at frame "
-										  << renderedFrames << "\n";
+								std::cerr << "PL-14H2 reflection contact capture failed at frame " << renderedFrames
+										  << "\n";
 								TrinityStandaloneProbeDestroyDevice( probe );
 								[window close];
 								return 1;
@@ -7773,8 +7840,8 @@ int main( int argc, char** argv )
 								if( !TrinityStandaloneProbeSelectOcclusionLightingProduct( probe, product ) ||
 									!EnsureParentDirectory( path ) || !CaptureProbeProductPng( probe, path ) )
 								{
-									std::cerr << "PL-14H3 retained occlusion capture failed at frame "
-											  << renderedFrames << "\n";
+									std::cerr << "PL-14H3 retained occlusion capture failed at frame " << renderedFrames
+											  << "\n";
 									TrinityStandaloneProbeDestroyDevice( probe );
 									[window close];
 									return 1;
@@ -8394,16 +8461,15 @@ int main( int argc, char** argv )
 					{
 						uint32_t presentationProduct = 0;
 						if( !PresentationProductApiValue( product, presentationProduct ) ||
-							!TrinityStandaloneProbeSelectPresentationAuditProduct(
-								probe, presentationProduct ) )
+							!TrinityStandaloneProbeSelectPresentationAuditProduct( probe, presentationProduct ) )
 						{
 							captureSucceeded = false;
 							break;
 						}
-						captureSucceeded = captureSucceeded &&
-							CapturePresentedProduct( probe, window, options, product );
+						captureSucceeded =
+							captureSucceeded && CapturePresentedProduct( probe, window, options, product );
 						productStats.emplace_back( RenderProductName( product ),
-															   RenderProductStats( options, product ) );
+												   RenderProductStats( options, product ) );
 					}
 					productStats.emplace_back(
 						"allCapturePolicy",
@@ -8659,12 +8725,10 @@ int main( int argc, char** argv )
 		bool presentationAuditReportSucceeded = true;
 		if( !options.presentationAuditReportPath.empty() )
 		{
-			presentationAuditReportSucceeded =
-				TrinityStandaloneProbeWritePresentationAuditReport( probe );
+			presentationAuditReportSucceeded = TrinityStandaloneProbeWritePresentationAuditReport( probe );
 			if( presentationAuditReportSucceeded )
 			{
-				std::cout << "Presentation audit report: "
-						  << options.presentationAuditReportPath << "\n";
+				std::cout << "Presentation audit report: " << options.presentationAuditReportPath << "\n";
 			}
 		}
 		bool shipLightingReportSucceeded = true;
@@ -8679,40 +8743,43 @@ int main( int argc, char** argv )
 		bool reflectionLightingReportSucceeded = true;
 		if( !options.reflectionLightingReportPath.empty() )
 		{
-			reflectionLightingReportSucceeded =
-				TrinityStandaloneProbeWriteReflectionLightingReport( probe );
+			reflectionLightingReportSucceeded = TrinityStandaloneProbeWriteReflectionLightingReport( probe );
 			if( reflectionLightingReportSucceeded )
 			{
-				std::cout << "Reflection-lighting report: "
-						  << options.reflectionLightingReportPath << "\n";
+				std::cout << "Reflection-lighting report: " << options.reflectionLightingReportPath << "\n";
 			}
 		}
 		bool occlusionLightingReportSucceeded = true;
 		if( !options.occlusionLightingReportPath.empty() )
 		{
-			occlusionLightingReportSucceeded =
-				TrinityStandaloneProbeWriteOcclusionLightingReport( probe );
+			occlusionLightingReportSucceeded = TrinityStandaloneProbeWriteOcclusionLightingReport( probe );
 			if( occlusionLightingReportSucceeded )
 			{
-				std::cout << "AO/shadow lighting report: "
-						  << options.occlusionLightingReportPath << "\n";
+				std::cout << "AO/shadow lighting report: " << options.occlusionLightingReportPath << "\n";
+			}
+		}
+		bool ssaoTransportReportSucceeded = true;
+		if( !options.ssaoTransportReportPath.empty() )
+		{
+			ssaoTransportReportSucceeded = TrinityStandaloneProbeWriteSsaoTransportReport( probe );
+			if( ssaoTransportReportSucceeded )
+			{
+				std::cout << "SSAO transport report: " << options.ssaoTransportReportPath << "\n";
 			}
 		}
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
-			planetAuditReportSucceeded && sceneConstructionReportSucceeded &&
-			presentationAuditReportSucceeded && shipLightingReportSucceeded &&
-			reflectionLightingReportSucceeded && occlusionLightingReportSucceeded &&
-			framePacingSucceeded &&
-			compositionValidationSucceeded && exposureValidationSucceeded && toneValidationSucceeded &&
-			postFinishValidationSucceeded && distortionValidationSucceeded && volumetricValidationSucceeded &&
-			engineValidationSucceeded && temporalValidationSucceeded && ballparkValidationSucceeded &&
-			ballparkReportSucceeded && ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
-			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded &&
-			ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
-			chaseCameraValidationSucceeded && chaseCameraReportSucceeded && celestialValidationSucceeded &&
-			celestialReportSucceeded && eveGateValidationSucceeded && eveGateReportSucceeded &&
-			exposureReportsSucceeded;
+			planetAuditReportSucceeded && sceneConstructionReportSucceeded && presentationAuditReportSucceeded &&
+			shipLightingReportSucceeded && reflectionLightingReportSucceeded && occlusionLightingReportSucceeded &&
+			ssaoTransportReportSucceeded && framePacingSucceeded && compositionValidationSucceeded &&
+			exposureValidationSucceeded && toneValidationSucceeded && postFinishValidationSucceeded &&
+			distortionValidationSucceeded && volumetricValidationSucceeded && engineValidationSucceeded &&
+			temporalValidationSucceeded && ballparkValidationSucceeded && ballparkReportSucceeded &&
+			ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded && ballparkOrbitValidationSucceeded &&
+			ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded &&
+			ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded && chaseCameraValidationSucceeded &&
+			chaseCameraReportSucceeded && celestialValidationSucceeded && celestialReportSucceeded &&
+			eveGateValidationSucceeded && eveGateReportSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

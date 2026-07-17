@@ -3520,3 +3520,67 @@ grading, shadow-compensation, geometry, Silk, or froxel value changed. The
 post-repair verdict SHA-256 is
 `4a5cd8f5425f364dc8a03063dccd95832fca6fc12edf33586bcc8fd35db207c6`;
 aggregate PL-14H remains Active.
+
+## PL-14I1: legacy CACAO transport boundary (2026-07-17)
+
+PL-14I1 traces the source-selected legacy SSAO path without changing the
+serialized `res:/dx9/default/ssao.black` selection or any AO strength. The
+report-only `--ssao-transport-report` lane records all nine required dispatch
+families, retained intermediates, publication identity, and the submitted V5
+hull/heat bindings. `--ao-binding-probe white|black` substitutes only the
+main-pass global `SSAOMap` and is invalid without that report.
+
+The first defect was Metal array-view transport rather than scene lighting.
+The authored CACAO AIR writes a logical pass to layer zero; Metal retains a
+single-slice SRV view but does not remap the corresponding UAV write through
+the parent array. The repaired diagnostic path renders the four logical passes
+into physical two-layer array targets and assembles them into the authored
+four-slice working textures. High quality also requires CACAO's depth-aware
+smart-average mip contract; generic color mip generation discarded the nearest
+surface at discontinuities. Runtime texture parameters now include the actual
+texture object and UAV mip in resource-set identity and invalidate the owning
+effect when either changes.
+
+Those repairs make load-counter clear, depth/normal preparation, depth mips,
+four Q3 base passes, three importance passes, four main passes, four blur
+passes, and final apply all report successful. Prepared depth/normals and the
+Q3/main/blur products are finite and nonuniform. The CPU depth-neighbor oracle
+also finds 79,014 positive-obscurance pairs for the current Astero near-Sun
+fixture. This is real forward progress, but not acceptance: the final R8 apply
+still resolves to uniform white (`min=mean=max=1`).
+
+Publication and consumption are no longer ambiguous. The generated and
+published texture identities match, both V5 `Main` passes resolve the global
+provider at pixel register 1, and report-only black/white probes reach the
+same resource slot. White retains hull HDR mean `0.551967875015`; black lowers
+it to `0.0112871507474`. The remaining PL-14I1 candidate is therefore the
+legacy final-apply read/write mapping between the nonuniform blur working set
+and the R8 output, not the V5 shader consumer. PL-14I1 remains Active and the
+full 60-lane H3 rerun has not been claimed.
+
+## Planet-limb darkness diagnostic (2026-07-17)
+
+The Tour contains two visually different planet compositions that must not be
+conflated. Frame 5,701 is the distant 48-degree limb stop: the planet is a
+small disc with a solar crescent. The opt-in continuation after frame 5,702
+eventually enters the close orbit. The close crescent is visually coherent and
+is not a repair target.
+
+A naive planet-on/off comparison at the distant limb made the whole image much
+brighter, but `--planet-layers off` also prevented the planet's background
+lens-flare occlusion query. That comparison restored broad additive Sun flare
+and god-ray energy and could not prove a fullscreen planet blend. The corrected
+pair disabled Sun optics in both lanes. It held adapted luminance at
+`0.486335635185` and the exposure multiplier at `1.13090622425`; the left and
+right 280-pixel strips were byte-identical, and the only material change was
+the small planet/crescent region. Separate ray-traced-shadow on/off captures at
+the EVE Gate likewise left the outer Gate and sky regions byte-identical.
+
+The observed darkness is therefore not a global planet mesh or directional-
+shadow multiply. Planet occlusion correctly removes a broad additive solar
+optics contribution, while the current source-selected exposure settles near
+its lower adaptation boundary and does not open the authored nebula or sparse
+starfield. The next environment/background audit must resolve histogram and
+minimum-luminance semantics, background shader consumption, and any client
+background-specific exposure policy before changing a value. Generated PNGs,
+reports, and logs remain ignored under `.cmake-build-arm64-osx-debug/pl14/pl14i1/`.

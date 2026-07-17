@@ -107,6 +107,15 @@ Tr2GpuResourcePool::Texture GetEmptySSAO( Tr2GpuResourcePool& gpuResourcePool )
 	return gpuResourcePool.GetPersistentTexture( "EmptySSAO", 1, 1, ImageIO::PIXEL_FORMAT_R8G8B8A8_UNORM, Tr2GpuUsage::SHADER_RESOURCE, &initData );
 }
 
+Tr2GpuResourcePool::Texture GetBlackSSAO( Tr2GpuResourcePool& gpuResourcePool )
+{
+	const uint8_t black[] = { 0, 0, 0, 0 };
+	Tr2SubresourceData initData = { black, 4, 4 };
+
+	return gpuResourcePool.GetPersistentTexture(
+		"BlackSSAO", 1, 1, ImageIO::PIXEL_FORMAT_R8G8B8A8_UNORM, Tr2GpuUsage::SHADER_RESOURCE, &initData );
+}
+
 void DeleteUpscalingContext( Tr2UpscalingContextAL* context )
 {
 	if( context )
@@ -676,7 +685,54 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 		ssaoSection.Stop();
 		SetNamedOutput( outputs, "SSAOMap", ssao );
 
-		GlobalStore().RegisterVariable( "SSAOMap", ssao );
+		Tr2GpuResourcePool::Texture publishedSsao = ssao;
+		if( m_ssaoBindingProbe == SsaoBindingProbe::White )
+		{
+			publishedSsao = GetEmptySSAO( m_gpuResourcePool );
+		}
+		else if( m_ssaoBindingProbe == SsaoBindingProbe::Black )
+		{
+			publishedSsao = GetBlackSSAO( m_gpuResourcePool );
+		}
+		m_lastGeneratedSsao = ssao.IsValid() ? ssao.Get() : Tr2TextureAL{};
+		m_lastPublishedSsao = publishedSsao.IsValid() ? publishedSsao.Get() : Tr2TextureAL{};
+		m_ssaoBindingDiagnostics = {};
+		m_ssaoBindingDiagnostics.probe = m_ssaoBindingProbe;
+		m_ssaoBindingDiagnostics.generatedValid = m_lastGeneratedSsao.IsValid();
+		m_ssaoBindingDiagnostics.publishedValid = m_lastPublishedSsao.IsValid();
+		m_ssaoBindingDiagnostics.publishedMatchesGenerated =
+			m_lastGeneratedSsao.IsValid() && m_lastPublishedSsao.IsValid() &&
+			m_lastGeneratedSsao == m_lastPublishedSsao;
+		if( m_lastGeneratedSsao.IsValid() )
+		{
+			m_ssaoBindingDiagnostics.generatedWidth = m_lastGeneratedSsao.GetWidth();
+			m_ssaoBindingDiagnostics.generatedHeight = m_lastGeneratedSsao.GetHeight();
+			m_ssaoBindingDiagnostics.generatedFormat =
+				static_cast<uint32_t>( m_lastGeneratedSsao.GetFormat() );
+		}
+		if( m_lastPublishedSsao.IsValid() )
+		{
+			m_ssaoBindingDiagnostics.publishedWidth = m_lastPublishedSsao.GetWidth();
+			m_ssaoBindingDiagnostics.publishedHeight = m_lastPublishedSsao.GetHeight();
+			m_ssaoBindingDiagnostics.publishedFormat =
+				static_cast<uint32_t>( m_lastPublishedSsao.GetFormat() );
+		}
+
+		GlobalStore().RegisterVariable( "SSAOMap", publishedSsao );
+		TriVariable* ssaoVariable = GlobalStore().FindVariable( "SSAOMap" );
+		m_ssaoBindingDiagnostics.globalVariablePresentAtDraw =
+			ssaoVariable && ssaoVariable->GetType() == TRIVARIABLE_TEXTURE_RES;
+		ITr2TextureProvider* ssaoProviderAtDraw = nullptr;
+		if( m_ssaoBindingDiagnostics.globalVariablePresentAtDraw )
+		{
+			ssaoVariable->GetValue( ssaoProviderAtDraw );
+		}
+		m_ssaoBindingDiagnostics.providerValidAtDraw =
+			ssaoProviderAtDraw && ssaoProviderAtDraw->GetTexture() &&
+			ssaoProviderAtDraw->GetTexture()->IsValid();
+		m_ssaoBindingDiagnostics.providerMatchesPublishedAtDraw =
+			m_ssaoBindingDiagnostics.providerValidAtDraw && m_lastPublishedSsao.IsValid() &&
+			*ssaoProviderAtDraw->GetTexture() == m_lastPublishedSsao;
 
 		if( auto lightManager = Tr2LightManager::GetInstance() )
 		{
@@ -806,9 +862,9 @@ void EveSpaceSceneRenderDriver::Execute( const Span<const Tr2TextureAL>& destina
 			const Tr2TextureAL& source = sceneColorTarget;
 			const bool prepared = source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R16G16B16A16_FLOAT &&
 				EnsureReadbackTexture(
-					m_preLensFlareReadback, source, "EvePreLensFlareReadback", renderContext ) &&
+									  m_preLensFlareReadback, source, "EvePreLensFlareReadback", renderContext ) &&
 				EnsureReadbackTexture(
-					m_postLensFlareReadback, source, "EvePostLensFlareReadback", renderContext );
+									  m_postLensFlareReadback, source, "EvePostLensFlareReadback", renderContext );
 			m_lastLensFlareDiagnostics.captured = prepared &&
 				SUCCEEDED( source.Resolve( m_preLensFlareReadback, renderContext ) );
 			if( m_lastLensFlareDiagnostics.captured )
@@ -1011,12 +1067,14 @@ bool EveSpaceSceneRenderDriver::ReadLensFlareDiagnostics(
 	uint32_t beforePitch = 0;
 	uint32_t afterPitch = 0;
 	if( FAILED( m_preLensFlareReadback.MapForReading(
-			Tr2TextureSubresource( 0 ), true, beforeData, beforePitch, renderContext ) ) || !beforeData )
+			Tr2TextureSubresource( 0 ), true, beforeData, beforePitch, renderContext ) ) ||
+		!beforeData )
 	{
 		return false;
 	}
 	if( FAILED( m_postLensFlareReadback.MapForReading(
-			Tr2TextureSubresource( 0 ), true, afterData, afterPitch, renderContext ) ) || !afterData )
+			Tr2TextureSubresource( 0 ), true, afterData, afterPitch, renderContext ) ) ||
+		!afterData )
 	{
 		m_preLensFlareReadback.UnmapForReading( renderContext );
 		return false;

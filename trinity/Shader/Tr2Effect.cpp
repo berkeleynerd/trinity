@@ -2196,6 +2196,11 @@ void Tr2Effect::SetParameter( const BlueSharedString& name, const Tr2TextureAL& 
 	if( param )
 	{
 		param->SetUavMipLevel( uavMipLevel );
+		// Compute effects cache their own resource sets in addition to any
+		// material-owned sets tracked by the runtime parameter. A mip-only
+		// change must invalidate that cache even when the
+		// underlying texture object is unchanged.
+		InvalidateResourceSets();
 		if( Tr2TextureReferencePtr ref = BlueCastPtr( param->GetTextureProvider() ) )
 		{
 			if( *ref->GetTexture() == texture )
@@ -2204,6 +2209,11 @@ void Tr2Effect::SetParameter( const BlueSharedString& name, const Tr2TextureAL& 
 			}
 			*ref->GetTexture() = texture;
 			ref->OnTextureChange().Broadcast();
+			// Runtime texture parameters share a stable Tr2TextureReference, while
+			// the effect resource sets cache the texture object that reference
+			// resolved to. Replacing the referenced texture therefore has to
+			// invalidate the effect-owned resource sets before the next dispatch.
+			InvalidateResourceSets();
 			return;
 		}
 	}

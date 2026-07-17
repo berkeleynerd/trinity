@@ -83,7 +83,9 @@ extern int g_grannyDeprecationLevel;
 #include "Shader/Tr2Effect.h"
 #include "Shader/Parameter/Tr2Vector4Parameter.h"
 #include "Shader/Parameter/TriTextureParameter.h"
+#include "Shader/Parameter/TriVariableParameter.h"
 #include "Shader/Tr2Shader.h"
+#include "Tr2VariableStore.h"
 #include "TrinityStandaloneCmfModel.h"
 #include "TrinityStandaloneSolarAudit.h"
 #include "TrinityStandaloneProbeApi.h"
@@ -4289,6 +4291,13 @@ enum StandaloneAoMethod
 	STANDALONE_AO_CLIENT = 2,
 };
 
+enum StandaloneAoBindingProbe
+{
+	STANDALONE_AO_BINDING_NONE = 0,
+	STANDALONE_AO_BINDING_WHITE = 1,
+	STANDALONE_AO_BINDING_BLACK = 2,
+};
+
 enum StandaloneLightingAuditSubject
 {
 	STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL = 0,
@@ -4299,7 +4308,17 @@ const char* AoMethodName( int method )
 {
 	static const char* names[] = { "cortao", "cacao", "client" };
 	return method >= STANDALONE_AO_CORTAO && method <= STANDALONE_AO_CLIENT ?
-		names[method] : "invalid";
+		names[method] :
+		"invalid";
+}
+
+const char* AoBindingProbeName( int probe )
+{
+	static const char* names[] = { "none", "white", "black" };
+	return probe >= STANDALONE_AO_BINDING_NONE &&
+			probe <= STANDALONE_AO_BINDING_BLACK ?
+		names[probe] :
+		"invalid";
 }
 
 enum StandaloneCameraView
@@ -4576,11 +4595,19 @@ const char* SolarIlluminationViewName( int view )
 const char* LightingAuditStationName( int station )
 {
 	static const char* names[] = {
-		"near-sun", "eve-gate", "return-sun", "planet-day", "planet-limb",
-		"planet-eclipse", "deep-space", "planet-orbit",
+		"near-sun",
+		"eve-gate",
+		"return-sun",
+		"planet-day",
+		"planet-limb",
+		"planet-eclipse",
+		"deep-space",
+		"planet-orbit",
 	};
 	return station >= STANDALONE_LIGHTING_AUDIT_NEAR_SUN &&
-		station <= STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ? names[station] : "unspecified";
+			station <= STANDALONE_LIGHTING_AUDIT_PLANET_ORBIT ?
+		names[station] :
+		"unspecified";
 }
 
 enum StandaloneSolarIlluminationProduct
@@ -4769,7 +4796,7 @@ struct StandalonePresentationAuditFrame
 	uint64_t frame = 0;
 	int64_t simulationTime = 0;
 	std::array<StandalonePresentationProductMetrics,
-		TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT>
+			   TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT>
 		products = {};
 	bool postProcessSucceeded = false;
 	bool exposureMeasured = false;
@@ -5005,6 +5032,8 @@ struct StandaloneProbe
 	std::string shipLightingReportPath;
 	std::string reflectionLightingReportPath;
 	std::string occlusionLightingReportPath;
+	std::string ssaoTransportReportPath;
+	int aoBindingProbe = STANDALONE_AO_BINDING_NONE;
 	int lightingAuditStation = STANDALONE_LIGHTING_AUDIT_UNSPECIFIED;
 	int lightingAuditSubject = STANDALONE_LIGHTING_AUDIT_SUBJECT_HULL;
 	int shipLightingControl = STANDALONE_SHIP_LIGHTING_ASTERO;
@@ -10234,17 +10263,17 @@ bool ReadPresentationProductMetrics(
 				const Float_16* pixel =
 					reinterpret_cast<const Float_16*>( row ) + x * 4;
 				accept( 0.2126 * static_cast<float>( pixel[0] ) +
-					0.7152 * static_cast<float>( pixel[1] ) +
-					0.0722 * static_cast<float>( pixel[2] ) );
+						0.7152 * static_cast<float>( pixel[1] ) +
+						0.0722 * static_cast<float>( pixel[2] ) );
 			}
 			else if( readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB )
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB )
 			{
 				const uint8_t* pixel = row + static_cast<size_t>( x ) * 4;
 				const bool bgra = readback.GetFormat() ==
@@ -10252,18 +10281,18 @@ bool ReadPresentationProductMetrics(
 					readback.GetFormat() ==
 						Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
 				accept( ( 0.2126 * pixel[bgra ? 2 : 0] + 0.7152 * pixel[1] +
-					0.0722 * pixel[bgra ? 0 : 2] ) /
-					255.0 );
+						  0.0722 * pixel[bgra ? 0 : 2] ) /
+						255.0 );
 			}
 			else if( readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
-				 readback.GetFormat() ==
-					 Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+						 Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+					 readback.GetFormat() ==
+						 Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
 			{
 				accept( reinterpret_cast<const float*>( row )[x] );
 			}
 			else if( readback.GetFormat() ==
-				Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+					 Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
 			{
 				const uint32_t packed = reinterpret_cast<const uint32_t*>( row )[x];
 				const double red = static_cast<double>( packed & 0x3ffu ) / 1023.0;
@@ -13981,8 +14010,7 @@ bool ApplyLightingAuditStationCamera( StandaloneProbe& probe )
 	if( !probe.nativeShip )
 		return false;
 	const Vector3 ship = probe.nativeShip->GetWorldPosition();
-	const Vector3 eye = ship + Vector3(
-		0.0f, kNewEdenTourFinaleCameraHeight, -kNewEdenTourFinaleCameraDistance );
+	const Vector3 eye = ship + Vector3( 0.0f, kNewEdenTourFinaleCameraHeight, -kNewEdenTourFinaleCameraDistance );
 	const Vector3 target = ship + Vector3( 0.0f, 5.0f, 25.0f );
 	probe.view->SetLookAtPosition( eye, target, Vector3( 0.0f, 1.0f, 0.0f ) );
 	probe.projection->PerspectiveFov(
@@ -14038,7 +14066,7 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 								diagnostics.absolutePosition[0] ),
 			static_cast<float>( kNewEdenSunRelative[1] - probe.celestialAnchorOffset[1] -
 								diagnostics.absolutePosition[1] ),
-				static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
+			static_cast<float>( kNewEdenSunRelative[2] - probe.celestialAnchorOffset[2] -
 								diagnostics.absolutePosition[2] ) );
 	}
 	Vector3 observationPlanet( 0.0f, 0.0f, 0.0f );
@@ -14116,7 +14144,7 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 	const float seconds = static_cast<float>( simulationTime ) / 10000000.0f;
 	const float shoulderAngle =
 		( gateAligned || planetObservation || ( planetOrbitAlignment && !moving ) ) ? 0.0f :
-											   25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
+																					  25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
 	const Vector3 shoulderDirection = Normalize(
 		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
 	const Vector3 desiredEye = ship - shoulderDirection * kNewEdenTourFinaleCameraDistance +
@@ -14353,13 +14381,15 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 					return false;
 				std::copy(
 					std::begin( geometry.cameraPosition ),
-					std::end( geometry.cameraPosition ), absolute );
+					std::end( geometry.cameraPosition ),
+					absolute );
 			}
 			else
 			{
 				const double sign =
 					probe->lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_DAY ?
-					1.0 : -1.0;
+					1.0 :
+					-1.0;
 				for( size_t axis = 0; axis < 3; ++axis )
 				{
 					absolute[axis] = kNewEdenPlanetRelative[axis] +
@@ -14374,7 +14404,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 			"PL-14H2 canonical station: name=%s sourceFrame=%llu position=(%.3f, %.3f, %.3f)\n",
 			LightingAuditStationName( probe->lightingAuditStation ),
 			static_cast<unsigned long long>( sourceFrame ),
-			primary.position[0], primary.position[1], primary.position[2] );
+			primary.position[0],
+			primary.position[1],
+			primary.position[2] );
 	}
 
 	DestinyEmbeddedSessionOptions options = {};
@@ -15173,8 +15205,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		return false;
 	}
-	if( !ventureControl && probe.nativeSof->GetLastBuildDiagnostics().impactEffectType !=
-		EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
+	if( !ventureControl && probe.nativeSof->GetLastBuildDiagnostics().impactEffectType != EveSOFDataHull::IMPACTEFFECT_ELLIPSOID )
 	{
 		error = "Astero impact type differs from the source-observed ELLIPSOID branch";
 		return false;
@@ -15192,11 +15223,7 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 	probe.nativeShip->SetModelRotationCurve( rotation );
 	probe.sceneConstructionTrace.push_back( "native-ship-built-and-curves-bound" );
 	Tr2MeshPtr mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
-	if( !mesh || !PrepareMeshWithoutYield(
-			 *mesh,
-			 stagedHullGeometry,
-			 ventureControl ? "PL-14H native Venture" : "canonical native Astero",
-			 error ) )
+	if( !mesh || !PrepareMeshWithoutYield( *mesh, stagedHullGeometry, ventureControl ? "PL-14H native Venture" : "canonical native Astero", error ) )
 	{
 		return false;
 	}
@@ -16237,7 +16264,15 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			probe.solarIlluminationDeterministicAoRandom =
 				probe.ssao->IsDeterministicRandomForTesting();
 		}
+		probe.ssao->SetRetainDiagnosticIntermediates(
+			!probe.ssaoTransportReportPath.empty() );
 		probe.driver->SetSSAO( probe.ssao );
+		if( !probe.ssaoTransportReportPath.empty() )
+		{
+			probe.driver->SetSsaoBindingProbeForTesting(
+				static_cast<EveSpaceSceneRenderDriver::SsaoBindingProbe>(
+					probe.aoBindingProbe ) );
+		}
 	}
 	const bool reflectionCorrectionEnabled = reflectionCorrection == STANDALONE_REFLECTION_CORRECTION_CLIENT;
 	const std::string reflectionCorrectionPath = reflectionCorrectionEnabled ? "res:/texture/reflectioncorrection/128x128.dds" : "res:/texture/global/black.dds";
@@ -17355,8 +17390,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRaytracedShadowDiagnosti
 		diagnostics.renderAttempted && diagnostics.dispatchSucceeded &&
 		diagnostics.dispatchCount != 0 && diagnostics.resultValid &&
 		( !diagnostics.denoiserRequested || diagnostics.denoiserSucceeded );
-	return complete || ( !probe->occlusionLightingReportPath.empty() &&
-		probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET );
+	return complete || ( !probe->occlusionLightingReportPath.empty() && probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetLocalShadowDiagnostics(
@@ -20037,7 +20071,8 @@ Tr2TextureAL* PresentationAuditTexture(
 	{
 		const StandaloneSolarIlluminationProduct source =
 			product == TRINITY_STANDALONE_PRESENTATION_HDR ?
-			STANDALONE_SOLAR_PRODUCT_TAA_INPUT : sources[product];
+			STANDALONE_SOLAR_PRODUCT_TAA_INPUT :
+			sources[product];
 		return &probe.solarIlluminationProductReadbacks[source];
 	}
 	return product == TRINITY_STANDALONE_PRESENTATION_DRAWABLE ?
@@ -20093,7 +20128,7 @@ bool ConvertPresentationAuditProduct(
 		}
 	}
 	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
-		 source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
+			 source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT )
 	{
 		float minimum = std::numeric_limits<float>::max();
 		float maximum = std::numeric_limits<float>::lowest();
@@ -20129,7 +20164,7 @@ bool ConvertPresentationAuditProduct(
 		}
 	}
 	else if( source.GetFormat() ==
-		Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
+			 Tr2RenderContextEnum::PIXEL_FORMAT_R10G10B10A2_UNORM )
 	{
 		for( uint32_t y = 0; y < height; ++y )
 		{
@@ -20173,8 +20208,7 @@ bool ConvertPresentationAuditProduct(
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM ||
 			source.GetFormat() ==
 				Tr2RenderContextEnum::PIXEL_FORMAT_B8G8R8A8_UNORM_SRGB;
-		converted = bgra || source.GetFormat() ==
-			Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
+		converted = bgra || source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM ||
 			source.GetFormat() ==
 				Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM_SRGB;
 		for( uint32_t y = 0; converted && y < height; ++y )
@@ -20232,22 +20266,20 @@ bool RecordPresentationAuditFrame(
 	sample.simulationTime = simulationTime;
 	Tr2TextureAL* hdrTexture = PresentationAuditTexture(
 		probe, TRINITY_STANDALONE_PRESENTATION_HDR );
-	if( !hdrTexture || !ReadRawHdrCompositeTexture(
-			probe, *hdrTexture, *probe.renderContext ) )
+	if( !hdrTexture || !ReadRawHdrCompositeTexture( probe, *hdrTexture, *probe.renderContext ) )
 	{
 		CCP_LOGERR( "PL-14H1 pre-tone HDR metrics are unavailable" );
 		return false;
 	}
 	for( uint32_t product = 0;
-		product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+		 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT;
+		 ++product )
 	{
 		Tr2TextureAL* texture = PresentationAuditTexture( probe, product );
-		if( !texture || !ReadPresentationProductMetrics(
-				*texture, sample.products[product], *probe.renderContext ) )
+		if( !texture || !ReadPresentationProductMetrics( *texture, sample.products[product], *probe.renderContext ) )
 		{
 			std::fprintf(
-				stderr, "PL-14H1 product %u could not be measured at frame %llu\n",
-				product, static_cast<unsigned long long>( frame ) );
+				stderr, "PL-14H1 product %u could not be measured at frame %llu\n", product, static_cast<unsigned long long>( frame ) );
 			return false;
 		}
 	}
@@ -20301,8 +20333,7 @@ bool RecordPresentationAuditFrame(
 		sample.exposure.maximum > sample.exposure.minimum;
 	const float exposedLuminance = std::max(
 		0.0001f,
-		0.5f + ( sample.adaptedLuminance - 0.5f ) *
-			diagnostics.exposureInfluence );
+		0.5f + ( sample.adaptedLuminance - 0.5f ) * diagnostics.exposureInfluence );
 	sample.exposureMultiplier = diagnostics.dynamicExposureActive ?
 		std::pow( 2.0f, diagnostics.exposureAdjustment ) *
 			diagnostics.exposureMiddleValue / exposedLuminance :
@@ -20333,7 +20364,8 @@ bool RecordPresentationAuditFrame(
 	sample.drawableByteEqual = sample.drawableFormatsMatch &&
 		finalProduct.hash == drawableProduct.hash;
 	sample.drawableConversion = sample.drawableFormatsMatch ?
-		"byte-copy" : "unresolved-format-conversion";
+		"byte-copy" :
+		"unresolved-format-conversion";
 	sample.trajectoryHash = probe.ballparkDiagnostics.trajectoryHash;
 	sample.view = Tr2Renderer::GetViewTransform();
 	sample.projection = Tr2Renderer::GetProjectionTransform();
@@ -20432,9 +20464,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectOcclusionLightingProd
 	{
 		return false;
 	}
-	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[
-		product == TRINITY_STANDALONE_OCCLUSION_SHADOW ?
-			STANDALONE_SOLAR_PRODUCT_SHADOW : STANDALONE_SOLAR_PRODUCT_AO];
+	Tr2TextureAL& source = probe->solarIlluminationProductReadbacks[product == TRINITY_STANDALONE_OCCLUSION_SHADOW ?
+																		STANDALONE_SOLAR_PRODUCT_SHADOW :
+																		STANDALONE_SOLAR_PRODUCT_AO];
 	if( product == TRINITY_STANDALONE_OCCLUSION_SHADOW ||
 		source.GetFormat() != Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM )
 	{
@@ -20442,8 +20474,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSelectOcclusionLightingProd
 	}
 	const void* data = nullptr;
 	uint32_t pitch = 0;
-	if( !source.IsValid() || FAILED( source.MapForReading(
-		Tr2TextureSubresource( 0 ), true, data, pitch, *probe->renderContext ) ) || !data )
+	if( !source.IsValid() || FAILED( source.MapForReading( Tr2TextureSubresource( 0 ), true, data, pitch, *probe->renderContext ) ) || !data )
 	{
 		return false;
 	}
@@ -20503,15 +20534,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		return false;
 	}
 	const char* productNames[] = {
-		"depth", "normal", "hdr", "taa-input", "taa-output", "exposure",
-		"bloom", "post-tone", "final", "drawable",
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"exposure",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
 	};
 	const char* owners[] = {
-		"EveSpaceSceneRenderDriver", "EveSpaceSceneRenderDriver",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2PostProcessRenderer",
-		"Tr2PostProcessRenderer", "Tr2RenderContext.defaultBackBuffer",
+		"EveSpaceSceneRenderDriver",
+		"EveSpaceSceneRenderDriver",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2PostProcessRenderer",
+		"Tr2RenderContext.defaultBackBuffer",
 	};
 	output << std::setprecision( 12 )
 		   << "{\n  \"schema\":\"trinity.presentation-audit-report.v1\",\n"
@@ -20551,11 +20595,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		}
 		output << "],\"products\":[";
 		for( uint32_t product = 0;
-			 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT; ++product )
+			 product < TRINITY_STANDALONE_PRESENTATION_PRODUCT_COUNT;
+			 ++product )
 		{
 			const auto& metrics = frame.products[product];
 			const uint32_t reportIndex = product < TRINITY_STANDALONE_PRESENTATION_BLOOM ?
-				product : product + 1;
+				product :
+				product + 1;
 			output << ( product ? "," : "" ) << "{\"identity\":"
 				   << SolarBodyJsonString( productNames[reportIndex] )
 				   << ",\"owner\":" << SolarBodyJsonString( owners[reportIndex] )
@@ -20575,8 +20621,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 		}
 		const auto& exposure = frame.exposure;
 		output << "],\"exposure\":{\"identity\":\"ExposureBuffer\","
-			  "\"owner\":\"Tr2PostProcessRenderer\",\"format\":\"R32_FLOAT\","
-			  "\"width\":8,\"height\":1,\"hash\":\"" << std::hex
+				  "\"owner\":\"Tr2PostProcessRenderer\",\"format\":\"R32_FLOAT\","
+				  "\"width\":8,\"height\":1,\"hash\":\""
+			   << std::hex
 			   << std::setw( 16 ) << std::setfill( '0' ) << exposure.hash
 			   << std::dec << std::setfill( ' ' )
 			   << "\",\"finiteSamples\":" << exposure.finiteSamples
@@ -20590,7 +20637,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWritePresentationAuditRepor
 			   << ",\"adaptedLuminance\":"
 			   << frame.adaptedLuminance << "},\"drawableCopy\":{\"source\":"
 			   << "\"FinalPostProcessColor\",\"destination\":\"defaultBackBuffer\","
-				  "\"formatsMatch\":" << ( frame.drawableFormatsMatch ? "true" : "false" )
+				  "\"formatsMatch\":"
+			   << ( frame.drawableFormatsMatch ? "true" : "false" )
 			   << ",\"byteEqual\":" << ( frame.drawableByteEqual ? "true" : "false" )
 			   << ",\"conversion\":" << SolarBodyJsonString( frame.drawableConversion )
 			   << "}}";
@@ -20639,6 +20687,682 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureOcclusionLightingA
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSsaoTransportAudit(
+	void* opaqueProbe,
+	int bindingProbe,
+	const char* reportPath )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !reportPath || !reportPath[0] ||
+		bindingProbe < STANDALONE_AO_BINDING_NONE ||
+		bindingProbe > STANDALONE_AO_BINDING_BLACK )
+	{
+		CCP_LOGERR( "PL-14I1 SSAO transport audit requires a valid binding probe and report path" );
+		return false;
+	}
+	probe->ssaoTransportReportPath = reportPath;
+	probe->aoBindingProbe = bindingProbe;
+	return true;
+}
+
+namespace
+{
+struct StandaloneSsaoBindingRecord
+{
+	std::string area;
+	std::string family;
+	std::string effect;
+	std::string technique;
+	std::string stage;
+	std::string sourcePrecedence;
+	uint32_t registerIndex = 0;
+	bool providerValid = false;
+	bool textureValid = false;
+	bool textureMatchesPublished = false;
+	uint32_t width = 0;
+	uint32_t height = 0;
+	uint32_t format = 0;
+};
+
+struct StandaloneSsaoDiagnosticMetrics
+{
+	struct Slice
+	{
+		uint32_t arraySlice = 0;
+		uint32_t mipLevel = 0;
+		StandalonePresentationProductMetrics aggregate;
+		uint32_t channelCount = 0;
+		std::array<double, 4> channelMinimum = {};
+		std::array<double, 4> channelMean = {};
+		std::array<double, 4> channelMaximum = {};
+	};
+
+	StandalonePresentationProductMetrics aggregate;
+	uint32_t channelCount = 0;
+	std::array<double, 4> channelMinimum = {};
+	std::array<double, 4> channelMean = {};
+	std::array<double, 4> channelMaximum = {};
+	std::vector<Slice> slices;
+	uint32_t rawMip0Width = 0;
+	uint32_t rawMip0Height = 0;
+	uint32_t rawMip0ArraySize = 0;
+	uint32_t rawMip0BytesPerPixel = 0;
+	std::vector<uint8_t> rawMip0;
+};
+
+bool ReadSsaoDiagnosticTextureMetrics(
+	const Tr2TextureAL& source,
+	StandaloneSsaoDiagnosticMetrics& metrics,
+	Tr2RenderContext& renderContext )
+{
+	metrics = {};
+	if( !source.IsValid() )
+	{
+		return false;
+	}
+	if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8_UNORM )
+	{
+		metrics.channelCount = 1;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8_UNORM )
+	{
+		metrics.channelCount = 2;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_UNORM )
+	{
+		metrics.channelCount = 4;
+	}
+	else if( source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM )
+	{
+		metrics.channelCount = 4;
+	}
+	const bool signedNormalized =
+		source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R8G8B8A8_SNORM;
+	const uint32_t rawBytesPerPixel =
+		source.GetFormat() == Tr2RenderContextEnum::PIXEL_FORMAT_R32_FLOAT ? 4u :
+		signedNormalized                                                   ? 4u :
+																			 0u;
+	metrics.aggregate.format = static_cast<uint32_t>( source.GetFormat() );
+	metrics.aggregate.width = source.GetWidth();
+	metrics.aggregate.height = source.GetHeight();
+	metrics.aggregate.minimum = std::numeric_limits<double>::max();
+	metrics.aggregate.maximum = -std::numeric_limits<double>::max();
+	metrics.channelMinimum.fill( 1.0 );
+	double aggregateSum = 0.0;
+	constexpr uint64_t fnvPrime = 1099511628211ull;
+	metrics.aggregate.hash = 14695981039346656037ull;
+	metrics.channelMaximum.fill( -1.0 );
+	const uint32_t arraySize = std::max( 1u, source.GetArraySize() );
+	const uint32_t mipCount = std::max( 1u, source.GetMipCount() );
+	if( rawBytesPerPixel )
+	{
+		metrics.rawMip0Width = source.GetWidth();
+		metrics.rawMip0Height = source.GetHeight();
+		metrics.rawMip0ArraySize = arraySize;
+		metrics.rawMip0BytesPerPixel = rawBytesPerPixel;
+		metrics.rawMip0.resize(
+			static_cast<size_t>( source.GetWidth() ) * source.GetHeight() *
+			arraySize * rawBytesPerPixel );
+	}
+	metrics.slices.reserve( static_cast<size_t>( arraySize ) * mipCount );
+	double channelSums[4] = {};
+	uint64_t channelSamples = 0;
+	for( uint32_t sliceIndex = 0; sliceIndex < arraySize; ++sliceIndex )
+	{
+		for( uint32_t mipLevel = 0; mipLevel < mipCount; ++mipLevel )
+		{
+			const uint32_t mipWidth = source.GetDesc().GetMipWidth( mipLevel );
+			const uint32_t mipHeight = source.GetDesc().GetMipHeight( mipLevel );
+			Tr2TextureAL readback;
+			if( FAILED( readback.Create(
+					Tr2BitmapDimensions(
+						mipWidth, mipHeight, 1, source.GetFormat() ),
+					Tr2GpuUsage::COPY_DESTINATION,
+					Tr2CpuUsage::READ,
+					renderContext.GetPrimaryRenderContext() ) ) ||
+				FAILED( readback.CopySubresourceRegion(
+					Tr2TextureSubresource( 0, 0 ),
+					source,
+					Tr2TextureSubresource( sliceIndex, mipLevel ),
+					renderContext ) ) )
+			{
+				return false;
+			}
+			metrics.slices.emplace_back();
+			StandaloneSsaoDiagnosticMetrics::Slice& slice = metrics.slices.back();
+			slice.arraySlice = sliceIndex;
+			slice.mipLevel = mipLevel;
+			slice.channelCount = metrics.channelCount;
+			if( !ReadPresentationProductMetrics( readback, slice.aggregate, renderContext ) )
+			{
+				return false;
+			}
+			metrics.aggregate.hash = ( metrics.aggregate.hash ^ slice.aggregate.hash ) * fnvPrime;
+			metrics.aggregate.finiteSamples += slice.aggregate.finiteSamples;
+			metrics.aggregate.invalidSamples += slice.aggregate.invalidSamples;
+			metrics.aggregate.minimum = std::min(
+				metrics.aggregate.minimum, slice.aggregate.minimum );
+			metrics.aggregate.maximum = std::max(
+				metrics.aggregate.maximum, slice.aggregate.maximum );
+			aggregateSum += slice.aggregate.mean *
+				static_cast<double>( slice.aggregate.finiteSamples );
+			if( metrics.channelCount == 0 && ( mipLevel != 0 || rawBytesPerPixel == 0 ) )
+			{
+				continue;
+			}
+			if( metrics.channelCount )
+			{
+				slice.channelMinimum.fill( 1.0 );
+				slice.channelMaximum.fill( -1.0 );
+			}
+			const void* data = nullptr;
+			uint32_t pitch = 0;
+			if( FAILED( readback.MapForReading(
+					Tr2TextureSubresource( 0 ), true, data, pitch, renderContext ) ) ||
+				!data )
+			{
+				return false;
+			}
+			const uint64_t pixelCount =
+				static_cast<uint64_t>( mipWidth ) * mipHeight;
+			if( mipLevel == 0 && rawBytesPerPixel )
+			{
+				const size_t sliceStride = static_cast<size_t>( mipWidth ) * mipHeight *
+					rawBytesPerPixel;
+				for( uint32_t y = 0; y < mipHeight; ++y )
+				{
+					std::memcpy(
+						metrics.rawMip0.data() + static_cast<size_t>( sliceIndex ) * sliceStride +
+							static_cast<size_t>( y ) * mipWidth * rawBytesPerPixel,
+						static_cast<const uint8_t*>( data ) + static_cast<size_t>( y ) * pitch,
+						static_cast<size_t>( mipWidth ) * rawBytesPerPixel );
+				}
+			}
+			channelSamples += metrics.channelCount ? pixelCount : 0;
+			for( uint32_t y = 0; y < mipHeight; ++y )
+			{
+				const uint8_t* row = static_cast<const uint8_t*>( data ) +
+					static_cast<size_t>( y ) * pitch;
+				for( uint32_t x = 0; x < mipWidth && metrics.channelCount; ++x )
+				{
+					for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+					{
+						const uint8_t encoded =
+							row[static_cast<size_t>( x ) * metrics.channelCount + channel];
+						const double value = signedNormalized ?
+							std::max( -1.0, static_cast<double>( static_cast<int8_t>( encoded ) ) / 127.0 ) :
+							encoded / 255.0;
+						slice.channelMinimum[channel] =
+							std::min( slice.channelMinimum[channel], value );
+						slice.channelMaximum[channel] =
+							std::max( slice.channelMaximum[channel], value );
+						slice.channelMean[channel] += value;
+					}
+				}
+			}
+			readback.UnmapForReading( renderContext );
+			for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+			{
+				slice.channelMean[channel] /= static_cast<double>( pixelCount );
+				metrics.channelMinimum[channel] = std::min(
+					metrics.channelMinimum[channel], slice.channelMinimum[channel] );
+				metrics.channelMaximum[channel] = std::max(
+					metrics.channelMaximum[channel], slice.channelMaximum[channel] );
+				channelSums[channel] += slice.channelMean[channel] * pixelCount;
+			}
+		}
+	}
+	if( metrics.aggregate.finiteSamples == 0 )
+	{
+		return false;
+	}
+	metrics.aggregate.mean = aggregateSum /
+		static_cast<double>( metrics.aggregate.finiteSamples );
+	metrics.aggregate.nonuniform =
+		metrics.aggregate.maximum - metrics.aggregate.minimum > 0.000001;
+	metrics.aggregate.available = true;
+	metrics.aggregate.capturedBeforeReuseOrRelease = true;
+	for( uint32_t channel = 0; channel < metrics.channelCount; ++channel )
+	{
+		metrics.channelMean[channel] = channelSamples ?
+			channelSums[channel] / static_cast<double>( channelSamples ) :
+			0.0;
+	}
+	return true;
+}
+
+struct StandaloneSsaoCpuOracle
+{
+	uint64_t finiteCenters = 0;
+	uint64_t testedNeighborPairs = 0;
+	uint64_t positiveNeighborPairs = 0;
+	double meanPositiveObscurance = 0.0;
+	double maximumObscurance = 0.0;
+};
+
+bool ReadSsaoCpuOracle(
+	const StandaloneSsaoDiagnosticMetrics& depthMetrics,
+	const StandaloneSsaoDiagnosticMetrics& normalMetrics,
+	const Tr2SSAO::RuntimeDiagnostics& runtime,
+	StandaloneSsaoCpuOracle& oracle )
+{
+	oracle = {};
+	if( depthMetrics.rawMip0BytesPerPixel != sizeof( float ) ||
+		normalMetrics.rawMip0BytesPerPixel != 4 ||
+		depthMetrics.rawMip0Width != normalMetrics.rawMip0Width ||
+		depthMetrics.rawMip0Height != normalMetrics.rawMip0Height ||
+		depthMetrics.rawMip0ArraySize != normalMetrics.rawMip0ArraySize ||
+		depthMetrics.rawMip0.empty() || normalMetrics.rawMip0.empty() ||
+		runtime.effectRadius <= 0.0f )
+	{
+		return false;
+	}
+	const uint32_t width = depthMetrics.rawMip0Width;
+	const uint32_t height = depthMetrics.rawMip0Height;
+	auto viewPosition = [&]( uint32_t x, uint32_t y, float depth ) {
+		const float u = ( static_cast<float>( x ) + 0.5f ) / width;
+		const float v = ( static_cast<float>( y ) + 0.5f ) / height;
+		return Vector3(
+			( runtime.ndcToViewMul.x * u + runtime.ndcToViewAdd.x ) * depth,
+			( runtime.ndcToViewMul.y * v + runtime.ndcToViewAdd.y ) * depth,
+			depth );
+	};
+	double positiveSum = 0.0;
+	const size_t depthSliceStride = static_cast<size_t>( width ) * height * sizeof( float );
+	const size_t normalSliceStride = static_cast<size_t>( width ) * height * 4u;
+	for( uint32_t slice = 0; slice < depthMetrics.rawMip0ArraySize; ++slice )
+	{
+		const float* depths = reinterpret_cast<const float*>(
+			depthMetrics.rawMip0.data() + static_cast<size_t>( slice ) * depthSliceStride );
+		const int8_t* normals = reinterpret_cast<const int8_t*>(
+			normalMetrics.rawMip0.data() + static_cast<size_t>( slice ) * normalSliceStride );
+		for( uint32_t y = 1; y + 1 < height; ++y )
+		{
+			for( uint32_t x = 1; x + 1 < width; ++x )
+			{
+				const size_t centerIndex = static_cast<size_t>( y ) * width + x;
+				const float centerDepth = depths[centerIndex];
+				if( !std::isfinite( centerDepth ) || centerDepth <= 0.0f )
+				{
+					continue;
+				}
+				++oracle.finiteCenters;
+				const int8_t* encodedNormal = normals + centerIndex * 4u;
+				const Vector3 normal(
+					std::max( -1.0f, encodedNormal[0] / 127.0f ),
+					std::max( -1.0f, encodedNormal[1] / 127.0f ),
+					std::max( -1.0f, encodedNormal[2] / 127.0f ) );
+				const Vector3 center = viewPosition( x, y, centerDepth );
+				const std::array<std::pair<uint32_t, uint32_t>, 4> neighbors = { {
+					{ x - 1, y },
+					{ x + 1, y },
+					{ x, y - 1 },
+					{ x, y + 1 },
+				} };
+				for( const auto& neighbor : neighbors )
+				{
+					const size_t neighborIndex =
+						static_cast<size_t>( neighbor.second ) * width + neighbor.first;
+					const float neighborDepth = depths[neighborIndex];
+					if( !std::isfinite( neighborDepth ) || neighborDepth <= 0.0f )
+					{
+						continue;
+					}
+					const Vector3 delta = viewPosition(
+											  neighbor.first, neighbor.second, neighborDepth ) -
+						center;
+					const float lengthSquared = Dot( delta, delta );
+					if( lengthSquared <= 0.0f )
+					{
+						continue;
+					}
+					++oracle.testedNeighborPairs;
+					const float ndotd = Dot( normal, delta ) / std::sqrt( lengthSquared );
+					const float falloff = std::max( 0.0f,
+													1.0f - lengthSquared / ( runtime.effectRadius * runtime.effectRadius ) );
+					const double obscurance = std::max( 0.0f,
+														ndotd - runtime.effectHorizonAngleThreshold ) *
+						falloff;
+					if( obscurance > 0.0 )
+					{
+						++oracle.positiveNeighborPairs;
+						positiveSum += obscurance;
+						oracle.maximumObscurance = std::max(
+							oracle.maximumObscurance, obscurance );
+					}
+				}
+			}
+		}
+	}
+	oracle.meanPositiveObscurance = oracle.positiveNeighborPairs ?
+		positiveSum / static_cast<double>( oracle.positiveNeighborPairs ) :
+		0.0;
+	return oracle.finiteCenters && oracle.testedNeighborPairs;
+}
+
+std::vector<StandaloneSsaoBindingRecord> InspectSsaoBindings(
+	StandaloneProbe& probe )
+{
+	std::vector<StandaloneSsaoBindingRecord> records;
+	Tr2MeshPtr mesh;
+	if( probe.nativeShip )
+	{
+		mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
+	}
+	if( !mesh || !probe.driver )
+	{
+		return records;
+	}
+	TriVariable* globalSsao = GlobalStore().FindVariable( "SSAOMap" );
+	const Tr2TextureAL& published = probe.driver->GetLastPublishedSsaoForDiagnostics();
+	const auto& drawSnapshot = probe.driver->GetSsaoBindingDiagnostics();
+	for( const Tr2MeshAreaPtr& area : mesh->GetAllAreas() )
+	{
+		Tr2Effect* effect = area ? area->GetMaterialInterface() : nullptr;
+		Tr2Shader* shader = effect ? effect->GetShaderStateInterface() : nullptr;
+		const std::string effectPath = effect && effect->GetEffectPathName() ?
+			effect->GetEffectPathName() :
+			"";
+		const bool hull = effectPath.find( "quadv5" ) != std::string::npos;
+		const bool heat = effectPath.find( "quadheatv5" ) != std::string::npos;
+		if( !shader || ( !hull && !heat ) )
+		{
+			continue;
+		}
+		uint32_t technique = 0;
+		if( !shader->GetTechniqueIndex( BlueSharedString( "Main" ), technique ) )
+		{
+			continue;
+		}
+		for( uint32_t passIndex = 0; passIndex < shader->GetPassCount( technique ); ++passIndex )
+		{
+			Tr2EffectPassParameters* pass = effect->GetPassDescription( technique, passIndex );
+			if( !pass )
+			{
+				continue;
+			}
+			for( uint32_t stage = 0; stage < Tr2RenderContextEnum::SHADER_TYPE_COUNT; ++stage )
+			{
+				for( const Tr2EffectParam& texture : pass->m_stageInput[stage].m_textures )
+				{
+					if( texture.m_sourceName != "SSAOMap" )
+					{
+						continue;
+					}
+					StandaloneSsaoBindingRecord record;
+					record.area = area->GetName();
+					record.family = heat ? "heat" : "hull";
+					record.effect = effectPath;
+					record.technique = "Main";
+					record.stage = stage == Tr2RenderContextEnum::PIXEL_SHADER ?
+						"pixel" :
+						std::to_string( stage );
+					record.registerIndex = texture.m_registerIndex;
+					ITr2TextureProvider* provider = nullptr;
+					ITr2EffectValue* source = texture.m_sourceValue.p;
+					const bool mappedGlobal = source && source == globalSsao;
+					if( mappedGlobal )
+					{
+						record.sourcePrecedence = "global-variable";
+						globalSsao->GetValue( provider );
+					}
+					else if( auto* localTexture = dynamic_cast<TriTextureParameter*>( source ) )
+					{
+						record.sourcePrecedence = "effect-local-resource";
+						provider = localTexture->GetResource();
+					}
+					else if( auto* variable = dynamic_cast<TriVariableParameter*>( source ) )
+					{
+						record.sourcePrecedence = "variable-parameter";
+						if( variable->m_variable &&
+							variable->m_variable->GetType() == TRIVARIABLE_TEXTURE_RES )
+						{
+							variable->m_variable->GetValue( provider );
+						}
+					}
+					else if( auto* variable = dynamic_cast<TriVariable*>( source ) )
+					{
+						record.sourcePrecedence = "local-variable";
+						if( variable->GetType() == TRIVARIABLE_TEXTURE_RES )
+						{
+							variable->GetValue( provider );
+						}
+					}
+					else
+					{
+						record.sourcePrecedence = "fallback";
+					}
+					record.providerValid = provider != nullptr;
+					Tr2TextureAL* bound = provider ? provider->GetTexture() : nullptr;
+					record.textureValid = bound && bound->IsValid();
+					if( record.textureValid )
+					{
+						record.textureMatchesPublished = published.IsValid() && *bound == published;
+						record.width = bound->GetWidth();
+						record.height = bound->GetHeight();
+						record.format = static_cast<uint32_t>( bound->GetFormat() );
+					}
+					if( mappedGlobal && drawSnapshot.globalVariablePresentAtDraw )
+					{
+						record.providerValid = drawSnapshot.providerValidAtDraw;
+						record.textureValid = drawSnapshot.providerValidAtDraw;
+						record.textureMatchesPublished =
+							drawSnapshot.providerMatchesPublishedAtDraw;
+						record.width = drawSnapshot.publishedWidth;
+						record.height = drawSnapshot.publishedHeight;
+						record.format = drawSnapshot.publishedFormat;
+					}
+					records.push_back( std::move( record ) );
+				}
+			}
+		}
+	}
+	return records;
+}
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSsaoTransportReport(
+	void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || probe->ssaoTransportReportPath.empty() || !probe->ssao ||
+		!probe->driver || !probe->renderContext || !probe->nativeShip ||
+		probe->presentationAuditFrames.empty() )
+	{
+		CCP_LOGERR( "PL-14I1 SSAO transport report is not configured or lacks retained evidence" );
+		return false;
+	}
+	const Tr2SSAO::RuntimeDiagnostics& runtime = probe->ssao->GetRuntimeDiagnostics();
+	const Tr2SSAO::DiagnosticTextures& textures = probe->ssao->GetDiagnosticTextures();
+	const std::array<std::pair<const char*, const Tr2TextureAL*>, 7> diagnosticTextures = { {
+		{ "prepared-depth", &textures.deinterleavedDepth },
+		{ "prepared-normal", &textures.deinterleavedNormal },
+		{ "q3-base", &textures.baseOutput },
+		{ "importance", &textures.importanceOutput },
+		{ "main-generation", &textures.mainOutput },
+		{ "blur", &textures.blurOutput },
+		{ "output", &textures.output },
+	} };
+	std::array<StandaloneSsaoDiagnosticMetrics, diagnosticTextures.size()> metrics;
+	for( size_t index = 0; index < diagnosticTextures.size(); ++index )
+	{
+		if( !ReadSsaoDiagnosticTextureMetrics(
+				*diagnosticTextures[index].second, metrics[index], *probe->renderContext ) )
+		{
+			CCP_LOGERR( "PL-14I1 could not retain SSAO intermediate '%s'",
+						diagnosticTextures[index].first );
+			return false;
+		}
+	}
+	StandaloneSsaoCpuOracle cpuOracle;
+	if( !ReadSsaoCpuOracle(
+			metrics[0], metrics[1], runtime, cpuOracle ) )
+	{
+		CCP_LOGERR( "PL-14I1 could not evaluate the retained CACAO CPU oracle" );
+		return false;
+	}
+	const std::vector<StandaloneSsaoBindingRecord> bindings = InspectSsaoBindings( *probe );
+	if( bindings.empty() )
+	{
+		CCP_LOGERR( "PL-14I1 found no submitted V5 SSAOMap mappings" );
+		return false;
+	}
+	const auto& driverBinding = probe->driver->GetSsaoBindingDiagnostics();
+	const StandalonePresentationAuditFrame& frame = probe->presentationAuditFrames.back();
+	auto writeDispatch = []( std::ostream& output,
+							 const Tr2SSAO::RuntimeDiagnostics::Dispatch& dispatch ) {
+		output << "{\"count\":" << dispatch.count << ",\"succeeded\":"
+			   << ( dispatch.succeeded ? "true" : "false" ) << '}';
+	};
+	auto writeMetrics = []( std::ostream& output,
+							const StandalonePresentationProductMetrics& value ) {
+		output << "{\"format\":" << value.format << ",\"width\":" << value.width
+			   << ",\"height\":" << value.height << ",\"hash\":\"" << std::hex
+			   << std::setw( 16 ) << std::setfill( '0' ) << value.hash << std::dec
+			   << std::setfill( ' ' ) << "\",\"finiteSamples\":" << value.finiteSamples
+			   << ",\"invalidSamples\":" << value.invalidSamples
+			   << ",\"minimum\":" << value.minimum << ",\"mean\":" << value.mean
+			   << ",\"maximum\":" << value.maximum << ",\"nonuniform\":"
+			   << ( value.nonuniform ? "true" : "false" ) << '}';
+	};
+
+	std::ofstream output(
+		probe->ssaoTransportReportPath, std::ios::binary | std::ios::trunc );
+	if( !output )
+	{
+		return false;
+	}
+	output << std::setprecision( 12 )
+		   << "{\n  \"schema\":\"trinity.ssao-transport-report.v1\",\n"
+		   << "  \"station\":"
+		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
+		   << ",\n  \"subject\":\"hull\",\n  \"selection\":{\"method\":"
+		   << SolarBodyJsonString( AoMethodName( probe->aoMethod ) )
+		   << ",\"bindingProbe\":" << SolarBodyJsonString( AoBindingProbeName( probe->aoBindingProbe ) )
+		   << ",\"clientResource\":\"res:/dx9/default/ssao.black\","
+			  "\"serializedCortaoEnabled\":false,\"tunedValuesAdded\":false},\n"
+		   << "  \"runtime\":{\"passSucceeded\":"
+		   << ( runtime.passSucceeded ? "true" : "false" )
+		   << ",\"inputWidth\":" << runtime.inputWidth
+		   << ",\"inputHeight\":" << runtime.inputHeight
+		   << ",\"outputWidth\":" << runtime.outputWidth
+		   << ",\"outputHeight\":" << runtime.outputHeight
+		   << ",\"outputFormat\":" << runtime.outputFormat
+		   << ",\"projection\":";
+	WriteSolarBodyMatrix( output, runtime.projection );
+	output << ",\"normalsWorldToView\":";
+	WriteSolarBodyMatrix( output, runtime.normalsWorldToView );
+	output << ",\"zoomLevel\":" << runtime.zoomLevel
+		   << ",\"constants\":{\"depthUnpack\":["
+		   << runtime.depthUnpackConsts.x << ',' << runtime.depthUnpackConsts.y
+		   << "],\"ndcToViewMul\":[" << runtime.ndcToViewMul.x << ','
+		   << runtime.ndcToViewMul.y << "],\"ndcToViewAdd\":["
+		   << runtime.ndcToViewAdd.x << ',' << runtime.ndcToViewAdd.y
+		   << "],\"effectRadius\":" << runtime.effectRadius
+		   << ",\"effectShadowStrength\":" << runtime.effectShadowStrength
+		   << ",\"effectHorizonAngleThreshold\":"
+		   << runtime.effectHorizonAngleThreshold << ",\"effectFadeOutMul\":"
+		   << runtime.effectFadeOutMul << ",\"effectFadeOutAdd\":"
+		   << runtime.effectFadeOutAdd << "},\"dispatches\":{";
+	const std::array<std::pair<const char*, const Tr2SSAO::RuntimeDiagnostics::Dispatch*>, 9> dispatches = { {
+		{ "load-counter-clear", &runtime.clearLoadCounter },
+		{ "depth-preparation", &runtime.prepareDepth },
+		{ "depth-mip-preparation", &runtime.prepareDepthMips },
+		{ "normal-preparation", &runtime.prepareNormal },
+		{ "q3-base", &runtime.generateBase },
+		{ "importance", &runtime.importance },
+		{ "main-generation", &runtime.generateMain },
+		{ "blur", &runtime.blur },
+		{ "final-apply", &runtime.apply },
+	} };
+	for( size_t index = 0; index < dispatches.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << SolarBodyJsonString( dispatches[index].first ) << ':';
+		writeDispatch( output, *dispatches[index].second );
+	}
+	output << "}},\n  \"intermediates\":[";
+	for( size_t index = 0; index < diagnosticTextures.size(); ++index )
+	{
+		output << ( index ? "," : "" ) << "{\"name\":"
+			   << SolarBodyJsonString( diagnosticTextures[index].first ) << ",\"metrics\":";
+		writeMetrics( output, metrics[index].aggregate );
+		output << ",\"channels\":[";
+		for( uint32_t channel = 0; channel < metrics[index].channelCount; ++channel )
+		{
+			output << ( channel ? "," : "" ) << "{\"minimum\":"
+				   << metrics[index].channelMinimum[channel] << ",\"mean\":"
+				   << metrics[index].channelMean[channel] << ",\"maximum\":"
+				   << metrics[index].channelMaximum[channel] << '}';
+		}
+		output << "],\"slices\":[";
+		for( size_t sliceIndex = 0; sliceIndex < metrics[index].slices.size(); ++sliceIndex )
+		{
+			const auto& slice = metrics[index].slices[sliceIndex];
+			output << ( sliceIndex ? "," : "" ) << "{\"arraySlice\":"
+				   << slice.arraySlice << ",\"mipLevel\":" << slice.mipLevel
+				   << ",\"metrics\":";
+			writeMetrics( output, slice.aggregate );
+			output << ",\"channels\":[";
+			for( uint32_t channel = 0; channel < slice.channelCount; ++channel )
+			{
+				output << ( channel ? "," : "" ) << "{\"minimum\":"
+					   << slice.channelMinimum[channel] << ",\"mean\":"
+					   << slice.channelMean[channel] << ",\"maximum\":"
+					   << slice.channelMaximum[channel] << '}';
+			}
+			output << "]}";
+		}
+		output << "]}";
+	}
+	output << "],\n  \"cpuOracle\":{\"finiteCenters\":" << cpuOracle.finiteCenters
+		   << ",\"testedNeighborPairs\":" << cpuOracle.testedNeighborPairs
+		   << ",\"positiveNeighborPairs\":" << cpuOracle.positiveNeighborPairs
+		   << ",\"meanPositiveObscurance\":" << cpuOracle.meanPositiveObscurance
+		   << ",\"maximumObscurance\":" << cpuOracle.maximumObscurance
+		   << "},\n  \"publication\":{\"generatedValid\":"
+		   << ( driverBinding.generatedValid ? "true" : "false" )
+		   << ",\"publishedValid\":" << ( driverBinding.publishedValid ? "true" : "false" )
+		   << ",\"publishedMatchesGenerated\":"
+		   << ( driverBinding.publishedMatchesGenerated ? "true" : "false" )
+		   << ",\"globalVariablePresentAtDraw\":"
+		   << ( driverBinding.globalVariablePresentAtDraw ? "true" : "false" )
+		   << ",\"providerValidAtDraw\":"
+		   << ( driverBinding.providerValidAtDraw ? "true" : "false" )
+		   << ",\"providerMatchesPublishedAtDraw\":"
+		   << ( driverBinding.providerMatchesPublishedAtDraw ? "true" : "false" )
+		   << ",\"generated\":{\"width\":" << driverBinding.generatedWidth
+		   << ",\"height\":" << driverBinding.generatedHeight
+		   << ",\"format\":" << driverBinding.generatedFormat
+		   << "},\"published\":{\"width\":" << driverBinding.publishedWidth
+		   << ",\"height\":" << driverBinding.publishedHeight
+		   << ",\"format\":" << driverBinding.publishedFormat << "}},\n"
+		   << "  \"bindings\":[";
+	for( size_t index = 0; index < bindings.size(); ++index )
+	{
+		const auto& binding = bindings[index];
+		output << ( index ? "," : "" ) << "{\"area\":" << SolarBodyJsonString( binding.area )
+			   << ",\"family\":" << SolarBodyJsonString( binding.family )
+			   << ",\"effect\":" << SolarBodyJsonString( binding.effect )
+			   << ",\"technique\":" << SolarBodyJsonString( binding.technique )
+			   << ",\"stage\":" << SolarBodyJsonString( binding.stage )
+			   << ",\"register\":" << binding.registerIndex
+			   << ",\"sourcePrecedence\":" << SolarBodyJsonString( binding.sourcePrecedence )
+			   << ",\"providerValid\":" << ( binding.providerValid ? "true" : "false" )
+			   << ",\"textureValid\":" << ( binding.textureValid ? "true" : "false" )
+			   << ",\"textureMatchesPublished\":"
+			   << ( binding.textureMatchesPublished ? "true" : "false" )
+			   << ",\"width\":" << binding.width << ",\"height\":" << binding.height
+			   << ",\"format\":" << binding.format << '}';
+	}
+	output << "],\n  \"receiver\":{\"pixels\":" << probe->solarIlluminationReceiverPixels
+		   << ",\"litPixels\":" << probe->solarIlluminationReceiverLitPixels
+		   << ",\"hdrMean\":" << probe->solarIlluminationReceiverMeanLuminance
+		   << ",\"hdrMaximum\":" << probe->solarIlluminationReceiverMaximumLuminance
+		   << "},\n  \"invariants\":{\"trajectoryHash\":\"" << std::hex
+		   << frame.trajectoryHash << std::dec << "\",\"silk\":false,\"froxels\":false}\n}\n";
+	return output.good();
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingReport(
 	void* opaqueProbe )
 {
@@ -20658,13 +21382,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	Tr2TextureAL* resolvedTexture = resolvedProvider ? resolvedProvider->GetTexture() : nullptr;
 	Tr2TextureAL* staticTexture = staticProvider ? staticProvider->GetTexture() : nullptr;
 	Tr2TextureAL* dynamicTexture = reflectionProbe && reflectionProbe->GetReflection() ?
-		reflectionProbe->GetReflection()->GetTexture() : nullptr;
+		reflectionProbe->GetReflection()->GetTexture() :
+		nullptr;
 	const bool resolvedStatic = resolvedTexture && staticTexture && resolvedTexture == staticTexture;
 	const bool resolvedDynamic = resolvedTexture && dynamicTexture && resolvedTexture == dynamicTexture;
 	Tr2ReflectionProbe::RawDiagnosticsForTesting raw;
 	if( probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC &&
-		( !reflectionProbe || !reflectionProbe->CollectRawDiagnosticsForTesting(
-			*probe->renderContext, raw ) ) )
+		( !reflectionProbe || !reflectionProbe->CollectRawDiagnosticsForTesting( *probe->renderContext, raw ) ) )
 	{
 		CCP_LOGERR( "PL-14H2 could not collect dynamic reflection content" );
 		return false;
@@ -20700,9 +21424,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	const Vector3 viewPosition = Tr2Renderer::GetViewPosition();
 	const Vector3 probePosition = reflectionProbe ? reflectionProbe->GetPosition() : Vector3();
 	const Color backlight = reflectionProbe ? reflectionProbe->GetBackLightColor() :
-		lighting.reflectionBackLightingColor;
+											  lighting.reflectionBackLightingColor;
 	const float backlightContrast = reflectionProbe ? reflectionProbe->GetBackLightContrast() :
-		lighting.reflectionBackLightingContrast;
+													  lighting.reflectionBackLightingContrast;
 	Vector3 auditSunPosition;
 	bool analyticPlanetSelected = false;
 	float planetOcclusionFraction = 0.0f;
@@ -20719,8 +21443,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 			continue;
 		analyticPlanetSelected = true;
 		planetOcclusionFraction = SolarDiscOcclusionCoverage(
-			auditSunPosition, static_cast<float>( kNewEdenStarRadius ),
-			sphere.GetXYZ(), sphere.w );
+			auditSunPosition, static_cast<float>( kNewEdenStarRadius ), sphere.GetXYZ(), sphere.w );
 		break;
 	}
 	const float cpuIrradianceLuminance = SolarColorLuminance( lighting.sunColor ) *
@@ -20730,7 +21453,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		probe->capturedProductWidth == 0 || probe->capturedProductHeight == 0 ||
 		probe->capturedProductPixels.size() !=
 			static_cast<size_t>( probe->capturedProductWidth ) *
-			probe->capturedProductHeight * 4u )
+				probe->capturedProductHeight * 4u )
 	{
 		std::fprintf( stderr, "PL-14H2 retained reflection contact sheet is unavailable\n" );
 		return false;
@@ -20802,20 +21525,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		output << ']';
 	};
 	const char* productNames[] = {
-		"depth", "normal", "hdr", "taa-input", "taa-output", "bloom",
-		"post-tone", "final", "drawable",
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
 	};
 	output << std::setprecision( 12 )
 		   << "{\n  \"schema\":\"trinity.reflection-lighting-report.v1\",\n"
 		   << "  \"station\":{\"name\":"
 		   << SolarBodyJsonString( LightingAuditStationName( probe->lightingAuditStation ) )
 		   << ",\"sourceFrame\":" << sourceFrame << ",\"fovDegrees\":48,"
-			  "\"objectMask\":\"hull\",\"environmentActive\":"
+													"\"objectMask\":\"hull\",\"environmentActive\":"
 		   << ( probe->solarEnvironmentFieldActive ? "true" : "false" ) << "},\n"
 		   << "  \"ship\":{\"class\":\"EveShip2\",\"dna\":"
 		   << SolarBodyJsonString(
-			  probe->shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE ?
-				  "oref1_t1:orebase:ore" : "soef1_t1:soebase:soe" )
+				  probe->shipLightingControl == STANDALONE_SHIP_LIGHTING_VENTURE ?
+					  "oref1_t1:orebase:ore" :
+					  "soef1_t1:soebase:soe" )
 		   << ",\"worldPosition\":[" << shipPosition.x << ',' << shipPosition.y << ','
 		   << shipPosition.z << "],\"materialAreas\":"
 		   << probe->nativeSofDiagnostics.materialAreaCount << "},\n"
@@ -20830,7 +21561,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 	output << ",\"projection\":";
 	WriteSolarBodyMatrix( output, frame.projection );
 	output << "},\n  \"reflectionContact\":{\"source\":\"resolved-cube-contact-sheet\","
-			  "\"format\":" << reflectionContact.format
+			  "\"format\":"
+		   << reflectionContact.format
 		   << ",\"width\":" << reflectionContact.width
 		   << ",\"height\":" << reflectionContact.height
 		   << ",\"hash\":\"" << std::hex << std::setw( 16 ) << std::setfill( '0' )
@@ -20855,12 +21587,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << SolarBodyJsonString( lighting.environmentMapPath )
 		   << ",\"resolvedControlResource\":"
 		   << SolarBodyJsonString(
-			  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF ?
-				  "res:/dx9/scene/cinematic/black_cube_refl.dds" :
-			  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_STATIC ?
-				  lighting.environmentMapPath : "native-dynamic-probe" )
+				  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_OFF ?
+					  "res:/dx9/scene/cinematic/black_cube_refl.dds" :
+					  probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_STATIC ?
+					  lighting.environmentMapPath :
+					  "native-dynamic-probe" )
 		   << ",\"stagedSha256\":\"32cb1d396c96d8395e9dd9919fb8e629b9a8e851fa9aff5113636e7af928e8ff\","
-			  "\"ready\":" << ( staticTexture && staticTexture->IsValid() ? "true" : "false" )
+			  "\"ready\":"
+		   << ( staticTexture && staticTexture->IsValid() ? "true" : "false" )
 		   << ",\"format\":" << ( staticTexture ? staticTexture->GetFormat() : 0 )
 		   << ",\"width\":" << ( staticTexture ? staticTexture->GetWidth() : 0 )
 		   << ",\"height\":" << ( staticTexture ? staticTexture->GetHeight() : 0 )
@@ -20875,9 +21609,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << ( probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC ? "true" : "false" )
 		   << ",\"quality\":" << static_cast<int>( probe->scene->GetReflectionSetting() )
 		   << ",\"policy\":"
-		   << SolarBodyJsonString( reflectionProbe && reflectionProbe->GetRenderFrequency() ==
-									  Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ?
-								  "all-sides-per-frame" : "none" )
+		   << SolarBodyJsonString( reflectionProbe && reflectionProbe->GetRenderFrequency() == Tr2ReflectionProbe::ALL_SIDES_PER_FRAME ?
+									   "all-sides-per-frame" :
+									   "none" )
 		   << ",\"forceOpaqueBuffer\":" << ( settings.forceOpaqueBuffer ? "true" : "false" )
 		   << ",\"positionOwner\":\"Tr2Renderer.view-position\",\"position\":["
 		   << probePosition.x << ',' << probePosition.y << ',' << probePosition.z
@@ -20973,7 +21707,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 		return false;
 	}
 	const Tr2SSAO::RuntimeDiagnostics ssao = probe->ssao ?
-		probe->ssao->GetRuntimeDiagnostics() : Tr2SSAO::RuntimeDiagnostics{};
+		probe->ssao->GetRuntimeDiagnostics() :
+		Tr2SSAO::RuntimeDiagnostics{};
 	const EveSpaceScene::RaytracedShadowDiagnostics& raytraced =
 		probe->scene->GetRaytracedShadowDiagnostics();
 	const EveSpaceScene::DirectionalShadowDiagnostics& directional =
@@ -20995,7 +21730,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 			probe->scene->GetSunBall(), frame.simulationTime, auditSunPosition );
 	}
 	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
-		 index < raytraced.analyticPlanetSpheres.size(); ++index )
+		 index < raytraced.analyticPlanetSpheres.size();
+		 ++index )
 	{
 		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
 		if( sphere.w <= 0.0f )
@@ -21008,14 +21744,22 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 			sphere.w );
 		break;
 	}
-	const char* resolvedAo = !aoEnabled ? "neutral" :
-		probe->aoMethod == STANDALONE_AO_CORTAO ? "cortao" : "ssao";
+	const char* resolvedAo = !aoEnabled         ? "neutral" :
+		probe->aoMethod == STANDALONE_AO_CORTAO ? "cortao" :
+												  "ssao";
 	const char* productNames[] = {
-		"depth", "normal", "hdr", "taa-input", "taa-output", "bloom",
-		"post-tone", "final", "drawable",
+		"depth",
+		"normal",
+		"hdr",
+		"taa-input",
+		"taa-output",
+		"bloom",
+		"post-tone",
+		"final",
+		"drawable",
 	};
 	auto writeMetrics = []( std::ostream& output,
-		const StandalonePresentationProductMetrics& metrics ) {
+							const StandalonePresentationProductMetrics& metrics ) {
 		output << "{\"format\":" << metrics.format
 			   << ",\"width\":" << metrics.width
 			   << ",\"height\":" << metrics.height
@@ -21043,7 +21787,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 		   << SolarBodyJsonString( hull ? "hull" : "planet" )
 		   << ",\"mask\":"
 		   << SolarBodyJsonString( hull ? "depth-owned-hull" :
-			  "depth-owned-planet-surface-excluding-limb" ) << "},\n"
+										  "depth-owned-planet-surface-excluding-limb" )
+		   << "},\n"
 		   << "  \"ao\":{\"requested\":"
 		   << SolarBodyJsonString( AoMethodName( probe->aoMethod ) )
 		   << ",\"resolvedAlgorithm\":" << SolarBodyJsonString( resolvedAo )
@@ -21051,7 +21796,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 		   << SolarBodyJsonString( aoEnabled ? "high" : "off" )
 		   << ",\"serializedResource\":"
 		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ?
-			  SolarBodyJsonString( "res:/dx9/default/ssao.black" ) : "null" )
+					SolarBodyJsonString( "res:/dx9/default/ssao.black" ) :
+					"null" )
 		   << ",\"serializedCortaoEnabled\":"
 		   << ( probe->aoMethod == STANDALONE_AO_CLIENT ? "false" : "null" )
 		   << ",\"settledCortaoEnabled\":"
@@ -21079,8 +21825,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 		   << ",\"maxBlockerSearchRadius\":" << ssao.maxBlockerSearchRadius
 		   << ",\"mipBias\":" << ssao.mipBias << "}},\n"
 		   << "  \"directionalShadow\":{\"requested\":"
-		   << SolarBodyJsonString( !shadowsEnabled ? "off" :
-			  raytracedSelected ? "raytraced" : "raster" )
+		   << SolarBodyJsonString( !shadowsEnabled       ? "off" :
+									   raytracedSelected ? "raytraced" :
+														   "raster" )
 		   << ",\"maximumQualityPolicy\":\"UltraRaytracedShadows\",\"product\":";
 	writeMetrics( output, shadowMetrics );
 	output << ",\"neutralFallback\":{\"bound\":"
@@ -21108,7 +21855,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingRepor
 		   << ",\"analyticVisibility\":" << ( 1.0 - planetOcclusionFraction )
 		   << ",\"analyticPlanetSpheres\":[";
 	for( uint32_t index = 0; index < raytraced.analyticPlanetSphereCount &&
-		 index < raytraced.analyticPlanetSpheres.size(); ++index )
+		 index < raytraced.analyticPlanetSpheres.size();
+		 ++index )
 	{
 		const Vector4& sphere = raytraced.analyticPlanetSpheres[index];
 		output << ( index ? "," : "" ) << '[' << sphere.x << ',' << sphere.y << ','
@@ -24495,7 +25243,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			else
 			{
 				const double sign = probe->lightingAuditStation == STANDALONE_LIGHTING_AUDIT_PLANET_DAY ?
-					1.0 : -1.0;
+					1.0 :
+					-1.0;
 				for( size_t axis = 0; axis < 3; ++axis )
 					absolute[axis] = kNewEdenPlanetRelative[axis] +
 						sign * planetToSun[axis] * ( 20.0 * kNewEdenPlanetRadius );
@@ -24508,7 +25257,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 			"PL-14H2 station: name=%s sourceFrame=%llu position=(%.3f, %.3f, %.3f)\n",
 			LightingAuditStationName( probe->lightingAuditStation ),
 			static_cast<unsigned long long>( sourceFrame ),
-			config.position[0], config.position[1], config.position[2] );
+			config.position[0],
+			config.position[1],
+			config.position[2] );
 	}
 	else if( probe->solarIlluminationView != STANDALONE_SOLAR_ILLUMINATION_VIEW_UNSPECIFIED )
 	{
@@ -26964,8 +27715,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		if( !ApplyLightingAuditStationCamera( *probe ) )
 		{
 			std::fprintf(
-				stderr, "RenderFrame failure: lighting-audit station camera (frame=%llu)\n",
-				static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				stderr, "RenderFrame failure: lighting-audit station camera (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
 		if( probe->renderable )

@@ -9,6 +9,7 @@
 #include "Tr2SSAO.h"
 #include "Tr2Renderer.h"
 #include "Shader/Tr2Effect.h"
+#include "Shader/Tr2Shader.h"
 #include "Resources/TriTextureRes.h"
 
 using namespace Tr2RenderContextEnum;
@@ -37,6 +38,9 @@ Tr2SSAO::Tr2SSAO( IRoot* lockobj )
 	m_detail.settings.detailShadowStrength = 5;
 	m_detail.effect.CreateInstance();
 	m_detail.effect->SetEffectPathName( "res:/graphics/effect/managed/space/System/SSAO/SSAO.fx" );
+	m_depthMipEffect.CreateInstance();
+	m_depthMipEffect->SetEffectPathName(
+		"res:/graphics/effect/managed/space/system/ssaodepthmip.fx" );
 }
 
 void Tr2SSAO::ResetRandomSeedForTesting( uint32_t seed )
@@ -94,13 +98,13 @@ Tr2SSAO::RuntimeDiagnostics Tr2SSAO::GetRuntimeDiagnostics() const
 	diagnostics.cortaoInitialized = m_cortaoInitialized;
 	diagnostics.deterministicRandom = m_cortaoDeterministicRandom;
 	diagnostics.blurEnabled = m_cortaoEnabled ? m_cortaoBlur :
-		m_detail.settings.blurPassCount != 0;
+												m_detail.settings.blurPassCount != 0;
 	diagnostics.downsampled = m_detail.downsampled;
 	diagnostics.quality = static_cast<uint32_t>( m_detail.quality );
 	diagnostics.strength = m_cortaoEnabled ? m_cortaoStrength :
-		m_detail.settings.shadowMultiplier;
+											 m_detail.settings.shadowMultiplier;
 	diagnostics.radius = m_cortaoEnabled ? m_cortaoRadius :
-		m_detail.settings.radius;
+										   m_detail.settings.radius;
 	diagnostics.maxBlockerSearchRadius = m_cortaoMaxBlockerSearchRadius;
 	diagnostics.mipBias = m_cortaoMipBias;
 	return diagnostics;
@@ -115,6 +119,9 @@ HRESULT Tr2SSAO::ApplyConstBuffer( unsigned pass, Tr2RenderContext& renderContex
 Tr2GpuResourcePool::Texture Tr2SSAO::Filter( const Tr2TextureAL& depthBuffer, const Tr2TextureAL& normalBuffer, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext, bool temporal )
 {
 	++m_runtimeDiagnostics.filterCount;
+	const uint64_t filterCount = m_runtimeDiagnostics.filterCount;
+	m_runtimeDiagnostics = {};
+	m_runtimeDiagnostics.filterCount = filterCount;
 	m_runtimeDiagnostics.temporal = temporal;
 	m_runtimeDiagnostics.depthReady = depthBuffer.IsValid();
 	m_runtimeDiagnostics.normalReady = normalBuffer.IsValid();
@@ -125,6 +132,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::Filter( const Tr2TextureAL& depthBuffer, co
 	m_runtimeDiagnostics.outputWidth = 0;
 	m_runtimeDiagnostics.outputHeight = 0;
 	m_runtimeDiagnostics.outputFormat = 0;
+	m_diagnosticTextures = {};
 
 	if( !m_detail.enabled )
 	{
@@ -184,6 +192,39 @@ Tr2GpuResourcePool::Texture Tr2SSAO::Filter( const Tr2TextureAL& depthBuffer, co
 
 Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2TextureAL& depthBuffer, const Tr2TextureAL& normalBuffer, bool reuseNormals, Tr2GpuResourcePool& gpuResourcePool, Tr2RenderContext& renderContext )
 {
+	bool allDispatchesSucceeded = true;
+	auto dispatchEffect = [&]( Tr2Material* material,
+							   RuntimeDiagnostics::Dispatch& diagnostics,
+							   const BlueSharedString& technique,
+							   unsigned x,
+							   unsigned y,
+							   unsigned z ) {
+		uint32_t passCount = 1;
+		if( Tr2Shader* shader = material ? material->GetShaderStateInterface() : nullptr )
+		{
+			uint32_t techniqueIndex = 0;
+			if( shader->GetTechniqueIndex( technique, techniqueIndex ) )
+			{
+				passCount = std::max( 1u, shader->GetPassCount( techniqueIndex ) );
+			}
+		}
+		const bool succeeded = Tr2Renderer::RunComputeShader(
+			material, technique, x, y, z, renderContext );
+		diagnostics.count += passCount;
+		diagnostics.succeeded = diagnostics.succeeded && succeeded;
+		allDispatchesSucceeded = allDispatchesSucceeded && succeeded;
+		return succeeded;
+	};
+	auto dispatch = [&]( RuntimeDiagnostics::Dispatch& diagnostics,
+						 const BlueSharedString& technique,
+						 unsigned x,
+						 unsigned y,
+						 unsigned z ) {
+		return dispatchEffect(
+			layer.effect, diagnostics, technique, x, y, z );
+	};
+	Tr2Effect* generationEffect = layer.effect;
+
 	m_detail.effect->SetOption( BlueSharedString( "SSAO_INPUT_2D_TEXTURE_TYPE" ), BlueSharedString( depthBuffer.GetMsaaDesc().samples > 1 ? "TEXTURE_2DMS" : "TEXTURE_2D" ) );
 
 	FFX_CACAO_BufferSizeInfo size{};
@@ -224,7 +265,9 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 		proj.elements[3][1] = p._42;
 		proj.elements[3][2] = p._43;
 		proj.elements[3][3] = p._44;
-		XMMATRIX xNormalsWorldToView = XMMATRIX( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1 ) * Tr2Renderer::GetInverseViewTransform(); // should be transpose(inverse(view)), but XMM is row-major and HLSL is column-major
+		XMMATRIX xNormalsWorldToView =
+			XMMATRIX( 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1 ) *
+			Tr2Renderer::GetInverseViewTransform(); // should be transpose(inverse(view)), but XMM is row-major and HLSL is column-major
 		XMStoreFloat4x4( &p, xNormalsWorldToView );
 		normalsWorldToView.elements[0][0] = p._11;
 		normalsWorldToView.elements[0][1] = p._12;
@@ -245,6 +288,15 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	}
 
 	proj.elements[3][2] /= layer.zoomLevel;
+	m_runtimeDiagnostics.zoomLevel = layer.zoomLevel;
+	for( size_t row = 0; row < 4; ++row )
+	{
+		for( size_t column = 0; column < 4; ++column )
+		{
+			m_runtimeDiagnostics.projection.m[row][column] = proj.elements[row][column];
+			m_runtimeDiagnostics.normalsWorldToView.m[row][column] = normalsWorldToView.elements[row][column];
+		}
+	}
 
 	bool hasNormals = normalBuffer.IsValid();
 
@@ -282,6 +334,74 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 		"ssao_worker_b",
 		Tr2BitmapDimensions( TEX_TYPE_2D, PIXEL_FORMAT_R8G8_UNORM, size.ssaoBufferWidth, size.ssaoBufferHeight, 1, 1, SSAO_PASS_COUNT ),
 		Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+#if __APPLE__
+	// The authored CACAO AIR writes logical pass output to layer zero. Metal
+	// preserves single-slice SRV views but does not remap UAV writes through a
+	// parent-array view, so render each pass into a physical 2D-array target
+	// and assemble the four-slice working texture afterward. Layer one is
+	// unused and exists only to retain MTLTextureType2DArray.
+	std::array<Tr2GpuResourcePool::Texture, SSAO_PASS_COUNT> sliceDepthTargets;
+	std::array<Tr2GpuResourcePool::Texture, SSAO_PASS_COUNT> sliceNormalTargets;
+	std::array<Tr2GpuResourcePool::Texture, SSAO_PASS_COUNT> sliceBaseTargets;
+	std::array<Tr2GpuResourcePool::Texture, SSAO_PASS_COUNT> sliceMainTargets;
+	std::array<Tr2GpuResourcePool::Texture, SSAO_PASS_COUNT> sliceBlurTargets;
+	static const char* DEPTH_NAMES[SSAO_PASS_COUNT] = {
+		"ssao_slice_depth_0", "ssao_slice_depth_1", "ssao_slice_depth_2", "ssao_slice_depth_3"
+	};
+	static const char* NORMAL_NAMES[SSAO_PASS_COUNT] = {
+		"ssao_slice_normal_0", "ssao_slice_normal_1", "ssao_slice_normal_2", "ssao_slice_normal_3"
+	};
+	static const char* BASE_NAMES[SSAO_PASS_COUNT] = {
+		"ssao_slice_base_0", "ssao_slice_base_1", "ssao_slice_base_2", "ssao_slice_base_3"
+	};
+	static const char* MAIN_NAMES[SSAO_PASS_COUNT] = {
+		"ssao_slice_main_0", "ssao_slice_main_1", "ssao_slice_main_2", "ssao_slice_main_3"
+	};
+	static const char* BLUR_NAMES[SSAO_PASS_COUNT] = {
+		"ssao_slice_blur_0", "ssao_slice_blur_1", "ssao_slice_blur_2", "ssao_slice_blur_3"
+	};
+	for( uint32_t pass = 0; pass < SSAO_PASS_COUNT; ++pass )
+	{
+		sliceDepthTargets[pass] = GetTempTexture(
+			DEPTH_NAMES[pass],
+			Tr2BitmapDimensions( TEX_TYPE_2D, PIXEL_FORMAT_R32_FLOAT, size.deinterleavedDepthBufferWidth, size.deinterleavedDepthBufferHeight, 1, settings.qualityLevel >= FFX_CACAO_QUALITY_MEDIUM ? 4 : 1, 2 ),
+			Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::SHADER_RESOURCE );
+		sliceNormalTargets[pass] = GetTempTexture(
+			NORMAL_NAMES[pass],
+			Tr2BitmapDimensions( TEX_TYPE_2D, PIXEL_FORMAT_R8G8B8A8_SNORM, size.deinterleavedDepthBufferWidth, size.deinterleavedDepthBufferHeight, 1, 1, 2 ),
+			Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::SHADER_RESOURCE );
+		auto dimensions = Tr2BitmapDimensions(
+			TEX_TYPE_2D, PIXEL_FORMAT_R8G8_UNORM, size.ssaoBufferWidth, size.ssaoBufferHeight, 1, 1, 2 );
+		sliceBaseTargets[pass] = GetTempTexture(
+			BASE_NAMES[pass], dimensions, Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+		sliceMainTargets[pass] = GetTempTexture(
+			MAIN_NAMES[pass], dimensions, Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+		sliceBlurTargets[pass] = GetTempTexture(
+			BLUR_NAMES[pass], dimensions, Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+	}
+	auto assemblePasses = [&]( const Tr2TextureAL& destination,
+							   const auto& sources ) {
+		bool succeeded = destination.IsValid();
+		for( uint32_t pass = 0; succeeded && pass < SSAO_PASS_COUNT; ++pass )
+		{
+			succeeded = sources[pass].IsValid() && SUCCEEDED( destination.CopySubresourceRegion( Tr2TextureSubresource( pass, 0 ), sources[pass].Get(), Tr2TextureSubresource( 0, 0 ), renderContext ) );
+		}
+		allDispatchesSucceeded = allDispatchesSucceeded && succeeded;
+		return succeeded;
+	};
+	auto copyPassInput = [&]( const Tr2TextureAL& destination,
+							  const Tr2TextureAL& source,
+							  uint32_t sourcePass ) {
+		bool succeeded = destination.IsValid() && source.IsValid();
+		for( uint32_t mip = 0; succeeded && mip < source.GetMipCount(); ++mip )
+		{
+			succeeded = SUCCEEDED( destination.CopySubresourceRegion(
+				Tr2TextureSubresource( 0, mip ), source, Tr2TextureSubresource( sourcePass, mip ), renderContext ) );
+		}
+		allDispatchesSucceeded = allDispatchesSucceeded && succeeded;
+		return succeeded;
+	};
+#endif
 	Tr2GpuResourcePool::Texture importanceTargetA;
 	Tr2GpuResourcePool::Texture importanceTargetB;
 	if( settings.qualityLevel == FFX_CACAO_QUALITY_HIGHEST )
@@ -299,6 +419,26 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 		"ssao_output",
 		Tr2BitmapDimensions( TEX_TYPE_2D, PIXEL_FORMAT_R8_UNORM, depthBuffer.GetWidth(), depthBuffer.GetHeight(), 1, 1, 1 ),
 		Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+	auto snapshotDiagnostic = [&]( const char* name,
+								   const Tr2TextureAL& source,
+								   Tr2TextureAL& destination ) {
+		if( !m_retainDiagnosticIntermediates )
+		{
+			return true;
+		}
+		auto snapshot = gpuResourcePool.GetPersistentTexture(
+			name,
+			source.GetDesc(),
+			Tr2GpuUsage::COPY_DESTINATION | Tr2GpuUsage::SHADER_RESOURCE,
+			[]( auto&, auto& ) {} );
+		const bool succeeded = snapshot.IsValid() && SUCCEEDED( snapshot->CopySubresourceRegion( Tr2TextureSubresource(), source, Tr2TextureSubresource(), renderContext ) );
+		if( succeeded )
+		{
+			destination = snapshot.Get();
+		}
+		allDispatchesSucceeded = allDispatchesSucceeded && succeeded;
+		return succeeded;
+	};
 
 
 	Tr2GpuResourcePool::Buffer loadCounterBuffer;
@@ -349,6 +489,18 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 		FFX_CACAO_Constants consts{};
 		FFX_CACAO_UpdateConstants( &consts, &settings, &size, &proj, &normalsWorldToView );
+		m_runtimeDiagnostics.depthUnpackConsts = Vector2(
+			consts.DepthUnpackConsts[0], consts.DepthUnpackConsts[1] );
+		m_runtimeDiagnostics.ndcToViewMul = Vector2(
+			consts.NDCToViewMul[0], consts.NDCToViewMul[1] );
+		m_runtimeDiagnostics.ndcToViewAdd = Vector2(
+			consts.NDCToViewAdd[0], consts.NDCToViewAdd[1] );
+		m_runtimeDiagnostics.effectRadius = consts.EffectRadius;
+		m_runtimeDiagnostics.effectShadowStrength = consts.EffectShadowStrength;
+		m_runtimeDiagnostics.effectHorizonAngleThreshold =
+			consts.EffectHorizonAngleThreshold;
+		m_runtimeDiagnostics.effectFadeOutMul = consts.EffectFadeOutMul;
+		m_runtimeDiagnostics.effectFadeOutAdd = consts.EffectFadeOutAdd;
 		FFX_CACAO_Constants constsPP[SSAO_PASS_COUNT + 1]{};
 
 		for( unsigned i = 0; i <= SSAO_PASS_COUNT; i++ )
@@ -358,6 +510,9 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 			if( i < SSAO_PASS_COUNT )
 			{
 				FFX_CACAO_UpdatePerPassConstants( constsPP + i, &settings, &size, i );
+#if __APPLE__
+				constsPP[i].PassIndex = 0;
+#endif
 			}
 
 			void* data;
@@ -371,7 +526,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	{
 		GPU_REGION( renderContext, "Clear load counter" );
 		layer.effect->SetParameter( BlueSharedString( "g_ClearLoadCounter_LoadCounter" ), loadCounterBuffer );
-		Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( "ClearLoadCounter" ), 1, 1, 1, renderContext );
+		dispatch( m_runtimeDiagnostics.clearLoadCounter, BlueSharedString( "ClearLoadCounter" ), 1, 1, 1 );
 		layer.effect->SetParameter( BlueSharedString( "g_ClearLoadCounter_LoadCounter" ), Tr2BufferAL{} );
 	}
 
@@ -386,7 +541,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 			unsigned dimX = DispatchSize( FFX_CACAO_PREPARE_DEPTHS_HALF_WIDTH, size.deinterleavedDepthBufferWidth );
 			unsigned dimY = DispatchSize( FFX_CACAO_PREPARE_DEPTHS_HALF_HEIGHT, size.deinterleavedDepthBufferHeight );
-			Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+			dispatch( m_runtimeDiagnostics.prepareDepth, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 		}
 		else
 		{
@@ -394,7 +549,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 			unsigned dimX = DispatchSize( FFX_CACAO_PREPARE_DEPTHS_WIDTH, size.deinterleavedDepthBufferWidth );
 			unsigned dimY = DispatchSize( FFX_CACAO_PREPARE_DEPTHS_HEIGHT, size.deinterleavedDepthBufferHeight );
-			Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+			dispatch( m_runtimeDiagnostics.prepareDepth, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 		}
 
 		if( !reuseNormals )
@@ -405,7 +560,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 				unsigned dimX = DispatchSize( FFX_CACAO_PREPARE_NORMALS_WIDTH, size.deinterleavedDepthBufferWidth );
 				unsigned dimY = DispatchSize( FFX_CACAO_PREPARE_NORMALS_HEIGHT, size.deinterleavedDepthBufferHeight );
-				Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+				dispatch( m_runtimeDiagnostics.prepareNormal, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 			}
 			else
 			{
@@ -413,32 +568,163 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 				unsigned dimX = DispatchSize( PREPARE_NORMALS_FROM_INPUT_NORMALS_WIDTH, size.deinterleavedDepthBufferWidth );
 				unsigned dimY = DispatchSize( PREPARE_NORMALS_FROM_INPUT_NORMALS_HEIGHT, size.deinterleavedDepthBufferHeight );
-				Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+				dispatch( m_runtimeDiagnostics.prepareNormal, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 			}
 		}
 	}
 
 	if( deinterleavedDepthTarget->GetMipCount() > 1 )
 	{
-		GPU_REGION( renderContext, "Prepare mips" );
-		deinterleavedDepthTarget->GenerateMipMaps( renderContext );
+		GPU_REGION( renderContext, "Prepare CACAO depth mips" );
+		struct DepthMipData
+		{
+			uint32_t sourceWidth;
+			uint32_t sourceHeight;
+			uint32_t arraySize;
+			uint32_t unused;
+			Vector4 effectInfo;
+		};
+		if( !m_depthMipConstantBuffer.IsValid() )
+		{
+			CR_RETURN_VAL( m_depthMipConstantBuffer.Create(
+							   sizeof( DepthMipData ), renderContext.GetPrimaryRenderContext() ),
+						   {} );
+		}
+		Tr2GpuResourcePool::Texture mipTargets[4];
+		static const char* DEPTH_MIP_NAMES[4] = {
+			nullptr, "ssao_depth_mip_1", "ssao_depth_mip_2", "ssao_depth_mip_3"
+		};
+		static const char* DEPTH_MIP_PARAMETERS[4] = {
+			nullptr, "OutputMip1", "OutputMip2", "OutputMip3"
+		};
+		for( uint32_t mipLevel = 1;
+			 mipLevel < deinterleavedDepthTarget->GetMipCount();
+			 ++mipLevel )
+		{
+			const uint32_t mipWidth =
+				deinterleavedDepthTarget->GetDesc().GetMipWidth( mipLevel );
+			const uint32_t mipHeight =
+				deinterleavedDepthTarget->GetDesc().GetMipHeight( mipLevel );
+			mipTargets[mipLevel] = GetTempTexture(
+				DEPTH_MIP_NAMES[mipLevel],
+				Tr2BitmapDimensions( TEX_TYPE_2D, PIXEL_FORMAT_R32_FLOAT, mipWidth, mipHeight, 1, 1, deinterleavedDepthTarget->GetArraySize() ),
+				Tr2GpuUsage::UNORDERED_ACCESS | Tr2GpuUsage::SHADER_RESOURCE );
+			m_depthMipEffect->SetParameter(
+				BlueSharedString( DEPTH_MIP_PARAMETERS[mipLevel] ),
+				mipTargets[mipLevel] );
+		}
+		DepthMipData* data = nullptr;
+		CR_RETURN_VAL( m_depthMipConstantBuffer.Lock(
+						   reinterpret_cast<void**>( &data ), renderContext ),
+					   {} );
+		data->sourceWidth = deinterleavedDepthTarget->GetWidth();
+		data->sourceHeight = deinterleavedDepthTarget->GetHeight();
+		data->arraySize = deinterleavedDepthTarget->GetArraySize();
+		data->unused = 0;
+		data->effectInfo = Vector4( settings.radius, 0.0f, 0.0f, 0.0f );
+		CR_RETURN_VAL( m_depthMipConstantBuffer.Unlock( renderContext ), {} );
+		CR_RETURN_VAL( renderContext.SetConstants(
+						   m_depthMipConstantBuffer, COMPUTE_SHADER, Tr2Renderer::GetPerFramePSStartRegister() ),
+					   {} );
+		m_depthMipEffect->SetParameter(
+			BlueSharedString( "SourceDepth" ), deinterleavedDepthTarget );
+		dispatchEffect(
+			m_depthMipEffect,
+			m_runtimeDiagnostics.prepareDepthMips,
+			BlueSharedString( "Main" ),
+			DispatchSize( 8, deinterleavedDepthTarget->GetWidth() ),
+			DispatchSize( 8, deinterleavedDepthTarget->GetHeight() ),
+			deinterleavedDepthTarget->GetArraySize() );
+		for( uint32_t mipLevel = 1;
+			 mipLevel < deinterleavedDepthTarget->GetMipCount();
+			 ++mipLevel )
+		{
+			for( uint32_t arraySlice = 0;
+				 arraySlice < deinterleavedDepthTarget->GetArraySize();
+				 ++arraySlice )
+			{
+				const bool copied = SUCCEEDED(
+					deinterleavedDepthTarget->CopySubresourceRegion(
+						Tr2TextureSubresource( arraySlice, mipLevel ),
+						mipTargets[mipLevel].Get(),
+						Tr2TextureSubresource( arraySlice, 0 ),
+						renderContext ) );
+				allDispatchesSucceeded = allDispatchesSucceeded && copied;
+			}
+		}
+		m_depthMipEffect->SetParameter(
+			BlueSharedString( "SourceDepth" ), Tr2TextureAL{} );
+		for( uint32_t mipLevel = 1;
+			 mipLevel < deinterleavedDepthTarget->GetMipCount();
+			 ++mipLevel )
+		{
+			m_depthMipEffect->SetParameter(
+				BlueSharedString( DEPTH_MIP_PARAMETERS[mipLevel] ), Tr2TextureAL{} );
+		}
 	}
+	snapshotDiagnostic(
+		"ssao_diagnostic_prepared_depth",
+		deinterleavedDepthTarget.Get(),
+		m_diagnosticTextures.deinterleavedDepth );
+	snapshotDiagnostic(
+		"ssao_diagnostic_prepared_normal",
+		deinterleavedNormalTarget.Get(),
+		m_diagnosticTextures.deinterleavedNormal );
+
+#if __APPLE__
+	for( uint32_t pass = 0; pass < SSAO_PASS_COUNT; ++pass )
+	{
+		CR_RETURN_VAL( copyPassInput(
+						   sliceDepthTargets[pass].Get(),
+						   deinterleavedDepthTarget.Get(),
+						   pass ),
+					   {} );
+		CR_RETURN_VAL( copyPassInput(
+						   sliceNormalTargets[pass].Get(),
+						   deinterleavedNormalTarget.Get(),
+						   pass ),
+					   {} );
+	}
+#endif
 
 	if( settings.qualityLevel == FFX_CACAO_QUALITY_HIGHEST )
 	{
 		{
 			GPU_REGION( renderContext, "Interactive base pass" );
-
-			layer.effect->SetParameter( BlueSharedString( "g_SSAOOutput" ), ssaoWorkerTargetA );
-
 			unsigned dimX = DispatchSize( FFX_CACAO_GENERATE_WIDTH, size.ssaoBufferWidth );
 			unsigned dimY = DispatchSize( FFX_CACAO_GENERATE_HEIGHT, size.ssaoBufferHeight );
-
 			for( unsigned i = 0; i < SSAO_PASS_COUNT; i++ )
 			{
+#if __APPLE__
+				generationEffect->SetParameter(
+					BlueSharedString( "g_ViewspaceDepthSource" ),
+					sliceDepthTargets[i].Get() );
+				generationEffect->SetParameter(
+					BlueSharedString( "g_DeinterleavedNormals" ),
+					sliceNormalTargets[i].Get() );
+				generationEffect->SetParameter(
+					BlueSharedString( "g_SSAOOutput" ),
+					sliceBaseTargets[i].Get() );
+#else
+				layer.effect->SetParameter(
+					BlueSharedString( "g_ViewspaceDepthSource" ),
+					deinterleavedDepthTarget.Get() );
+				layer.effect->SetParameter(
+					BlueSharedString( "g_SSAOOutput" ),
+					ssaoWorkerTargetA.Get() );
+#endif
 				CR_RETURN_VAL( ApplyConstBuffer( i, renderContext ), {} );
-				Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( "GenerateQ3Base" ), dimX, dimY, 1, renderContext );
+				dispatchEffect( generationEffect, m_runtimeDiagnostics.generateBase, BlueSharedString( "GenerateQ3Base" ), dimX, dimY, 1 );
 			}
+#if __APPLE__
+			CR_RETURN_VAL( assemblePasses(
+							   ssaoWorkerTargetA.Get(), sliceBaseTargets ),
+						   {} );
+#endif
+			snapshotDiagnostic(
+				"ssao_diagnostic_base",
+				ssaoWorkerTargetA.Get(),
+				m_diagnosticTextures.baseOutput );
 		}
 
 		{
@@ -448,15 +734,16 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 			unsigned dimX = DispatchSize( IMPORTANCE_MAP_WIDTH, size.importanceMapWidth );
 			unsigned dimY = DispatchSize( IMPORTANCE_MAP_HEIGHT, size.importanceMapHeight );
-			Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( "PostprocessImportanceMap" ), dimX, dimY, 1, renderContext );
+			dispatch( m_runtimeDiagnostics.importance, BlueSharedString( "PostprocessImportanceMap" ), dimX, dimY, 1 );
+			snapshotDiagnostic(
+				"ssao_diagnostic_importance",
+				importanceTargetA.Get(),
+				m_diagnosticTextures.importanceOutput );
 		}
 	}
 
 	{
 		GPU_REGION( renderContext, "Main pass" );
-
-		layer.effect->SetParameter( BlueSharedString( "g_SSAOOutput" ), ssaoWorkerTargetB );
-
 		unsigned dimX, dimY, dimZ;
 		if( settings.qualityLevel <= FFX_CACAO_QUALITY_MEDIUM )
 		{
@@ -477,8 +764,57 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 
 		for( unsigned i = 0; i < SSAO_PASS_COUNT; i++ )
 		{
+#if __APPLE__
+			generationEffect->SetParameter(
+				BlueSharedString( "g_ViewspaceDepthSource" ),
+				sliceDepthTargets[i].Get() );
+			generationEffect->SetParameter(
+				BlueSharedString( "g_DeinterleavedNormals" ),
+				sliceNormalTargets[i].Get() );
+			generationEffect->SetParameter(
+				BlueSharedString( "g_SSAOOutput" ),
+				sliceMainTargets[i].Get() );
+			generationEffect->SetParameter(
+				BlueSharedString( "g_LoadCounter" ), loadCounterBuffer );
+			generationEffect->SetParameter(
+				BlueSharedString( "g_ImportanceMap" ), importanceTargetA.Get() );
+			if( settings.qualityLevel == FFX_CACAO_QUALITY_HIGHEST )
+			{
+				generationEffect->SetParameter(
+					BlueSharedString( "g_FinalSSAO" ),
+					sliceBaseTargets[i].Get() );
+			}
+#else
+			layer.effect->SetParameter(
+				BlueSharedString( "g_ViewspaceDepthSource" ),
+				deinterleavedDepthTarget.Get() );
+			layer.effect->SetParameter(
+				BlueSharedString( "g_SSAOOutput" ),
+				ssaoWorkerTargetB.Get() );
+			if( settings.qualityLevel == FFX_CACAO_QUALITY_HIGHEST )
+			{
+				layer.effect->SetParameter(
+					BlueSharedString( "g_FinalSSAO" ),
+					ssaoWorkerTargetA.Get() );
+			}
+#endif
 			CR_RETURN_VAL( ApplyConstBuffer( i, renderContext ), {} );
-			Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, dimZ, renderContext );
+			dispatchEffect(
+				generationEffect, m_runtimeDiagnostics.generateMain, BlueSharedString( shader.c_str() ), dimX, dimY, dimZ );
+		}
+#if __APPLE__
+		CR_RETURN_VAL( assemblePasses(
+						   ssaoWorkerTargetB.Get(), sliceMainTargets ),
+					   {} );
+#endif
+		snapshotDiagnostic(
+			"ssao_diagnostic_main",
+			ssaoWorkerTargetB.Get(),
+			m_diagnosticTextures.mainOutput );
+		if( settings.qualityLevel != FFX_CACAO_QUALITY_HIGHEST )
+		{
+			m_diagnosticTextures.baseOutput = m_diagnosticTextures.mainOutput;
+			m_diagnosticTextures.importanceOutput = m_diagnosticTextures.mainOutput;
 		}
 	}
 	loadCounterBuffer = {};
@@ -486,7 +822,6 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	if( settings.blurPassCount )
 	{
 		GPU_REGION( renderContext, "Edge sensitive blur" );
-
 		unsigned dimX = DispatchSize( 4 * FFX_CACAO_BLUR_WIDTH - 2 * settings.blurPassCount, size.ssaoBufferWidth );
 		unsigned dimY = DispatchSize( 3 * FFX_CACAO_BLUR_HEIGHT - 2 * settings.blurPassCount, size.ssaoBufferHeight );
 
@@ -497,11 +832,35 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 				continue;
 			}
 
+#if __APPLE__
+			layer.effect->SetParameter(
+				BlueSharedString( "g_EdgeSensitiveBlur_Input" ),
+				sliceMainTargets[i].Get() );
+			layer.effect->SetParameter(
+				BlueSharedString( "g_EdgeSensitiveBlur_Output" ),
+				sliceBlurTargets[i].Get() );
+#else
+			layer.effect->SetParameter(
+				BlueSharedString( "g_EdgeSensitiveBlur_Input" ),
+				ssaoWorkerTargetB.Get() );
+			layer.effect->SetParameter(
+				BlueSharedString( "g_EdgeSensitiveBlur_Output" ),
+				ssaoWorkerTargetA.Get() );
+#endif
 			CR_RETURN_VAL( ApplyConstBuffer( i, renderContext ), {} );
 
 			std::string passName = "EdgeSensitiveBlur" + std::to_string( settings.blurPassCount );
-			Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( passName.c_str() ), dimX, dimY, 1, renderContext );
+			dispatch( m_runtimeDiagnostics.blur, BlueSharedString( passName.c_str() ), dimX, dimY, 1 );
 		}
+#if __APPLE__
+		CR_RETURN_VAL( assemblePasses(
+						   ssaoWorkerTargetA.Get(), sliceBlurTargets ),
+					   {} );
+#endif
+		snapshotDiagnostic(
+			"ssao_diagnostic_blur",
+			ssaoWorkerTargetA.Get(),
+			m_diagnosticTextures.blurOutput );
 	}
 
 	if( layer.downsampled )
@@ -527,7 +886,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 			shader = "UpscaleBilateral5x5Smart";
 		}
 
-		Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+		dispatch( m_runtimeDiagnostics.apply, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 	}
 	else
 	{
@@ -551,8 +910,10 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 			shader = "Apply";
 		}
 
-		Tr2Renderer::RunComputeShader( layer.effect, BlueSharedString( shader.c_str() ), dimX, dimY, 1, renderContext );
+		dispatch( m_runtimeDiagnostics.apply, BlueSharedString( shader.c_str() ), dimX, dimY, 1 );
 	}
+	snapshotDiagnostic(
+		"ssao_diagnostic_output", outputTarget.Get(), m_diagnosticTextures.output );
 
 
 	layer.effect->SetParameter( BlueSharedString( "g_DepthIn" ), Tr2TextureAL{} );
@@ -589,7 +950,7 @@ Tr2GpuResourcePool::Texture Tr2SSAO::PerformPass( const Layer& layer, const Tr2T
 	// Apply pass
 	layer.effect->SetParameter( BlueSharedString( "g_ApplyFinalSSAO" ), Tr2TextureAL{} );
 	layer.effect->SetParameter( BlueSharedString( "g_ApplyOutput" ), Tr2TextureAL{} );
-	return outputTarget;
+	return allDispatchesSucceeded ? outputTarget : Tr2GpuResourcePool::Texture{};
 }
 
 uint32_t Tr2SSAO::Hash( uint32_t n )
