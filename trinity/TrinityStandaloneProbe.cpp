@@ -500,6 +500,16 @@ std::string g_sofFactionPath = kDefaultSofFactionPath;
 // hull's original maps.
 std::string g_sofTextureRoot;
 
+// Per-object shipData baseline for the eve-v5 material. The engine's own
+// children fill shipData with x = intensity, y = activation, w =
+// boundingsphere (EveEffectRoot2::GetPerObjectStructs); the probe
+// historically leaves the vector zeroed. Negative keeps that zeroed
+// baseline so every accepted capture stays byte-stable; non-negative fills
+// the engine baseline with x = value. On the talocan wreck hull the
+// activation component wakes a white edge-light (binary, not scaled by x);
+// the GlowMap emissive stays inert either way — see the modernization doc.
+float g_shipDataBaseline = -1.0f;
+
 // Formation wingmen queued by the sample before scene creation: each entry
 // is a staged CMF plus the SOF hull that textures it. Consumed (and cleared)
 // by TrinityStandaloneProbeCreateEveScene. Legacy-lane composition only.
@@ -2236,6 +2246,13 @@ public:
 		for( size_t maskIndex = 0; maskIndex < EVE_SPACEOBJECT_CUSTOWMASK_MAX; ++maskIndex )
 		{
 			m_eveV5PerObjectData.m_vsData.customMaskMatrix[maskIndex] = IdentityMatrix();
+		}
+		if( m_useEveV5Material && g_shipDataBaseline >= 0.0f )
+		{
+			const Vector4 shipData( g_shipDataBaseline, 1.0f, 0.0f, 1.0f );
+			m_eveV5PerObjectData.m_vsData.shipData = shipData;
+			m_eveV5PerObjectData.m_psData.shipData = shipData;
+			std::fprintf( stderr, "Ship data baseline: shipData=(%.3f, 1, 0, 1)\n", g_shipDataBaseline );
 		}
 		if( !m_useEveV5Material &&
 			( !CreateTexture( m_model.BaseColorTexture(), m_baseColorTexture, renderContext ) ||
@@ -9675,6 +9692,16 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 	const auto glowType = sourceGroup == 2 ? SOFDataFactionColorChooser::TYPE_BOOSTER : SOFDataFactionColorChooser::TYPE_HULL;
 	const Color& glow = faction->m_colorSet->m_colors[glowType];
 	const Vector4 glowValue( glow.r, glow.g, glow.b, glow.a );
+	// The faction color set scales the GlowMap: a zeroed faction glow makes
+	// any authored emissive invisible, so surface the multiplier per area.
+	std::fprintf(
+		stderr,
+		"Astero group %u GeneralGlowColor: (%.4f, %.4f, %.4f, %.4f)\n",
+		sourceGroup,
+		glowValue.x,
+		glowValue.y,
+		glowValue.z,
+		glowValue.w );
 	effect.AddParameterVector4( BlueSharedString( "GeneralGlowColor" ), &glowValue );
 	effect.SetParameter( BlueSharedString( "areaId" ), sourceGroup );
 	effect.SetParameter( BlueSharedString( "objectId" ), uint32_t( 0 ) );
@@ -22727,6 +22754,11 @@ TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofTextureRoot( const ch
 	g_sofTextureRoot = root ? root : "";
 	std::fprintf( stderr, "SOF texture set selected: %s\n",
 				  g_sofTextureRoot.empty() ? "original" : g_sofTextureRoot.c_str() );
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetShipDataBaseline( float intensity )
+{
+	g_shipDataBaseline = intensity;
 }
 
 TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath )

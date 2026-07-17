@@ -180,6 +180,86 @@ race (CoreAnalytics allocating on a dispatch worker while the last
 MetalContext drains — probabilistic, load-dependent, all outputs
 already on disk when it fires). Default off; normal teardown unchanged.
 
+## Procedural modernization pass v1 — glow (2026-07-17)
+
+`--mode v1` on the bootstrap replaces the tint spike with a procedural
+pass, all of it driven by the albedo's panel-seam luminance field:
+
+- `_g`: a teal emissive glow traced along the seams (authored against
+  the client's flat 827-byte placeholder; the wreck material currently
+  ignores the slot — see the findings below).
+- `_n`: bounded gradient deltas on the normal R/G channels
+  (`--detail-normal-strength`, default 1.0, deltas clamped to +-60).
+  Delta-based on purpose: the wreck `_n` is not the Astero-era
+  128-centered basis (R/G means near 17, B/A pinned 255), and signed
+  deltas tilt the surface along the seams under any affine channel
+  encoding without gambling on the convention.
+- `_r`: a mean-pivoted contrast curve on the grayscale roughness
+  (`--roughness-contrast`, default 1.25; 1.0 disables).
+
+Albedo, dirt, material, and paint mask pass through unchanged.
+
+The synthesis rides the albedo alone — panel grooves are dark lines, so
+a forward-difference luminance gradient peaks along them and is flat on
+clean plating. (`_p3` is the flat placeholder and cannot gate the seams;
+`_m`, real content, is a possible future gate.) Knobs, all with
+defaults: `--glow-hue R,G,B` (`0,180,200`), `--glow-intensity` (`2.0`;
+~1 whispers, 4+ is pronounced), `--glow-threshold` (`14`; lower picks up
+albedo micro-detail as speckle). Glow is opaque RGB, so the encoder
+auto-picks BC1 — the same path the other opaque maps take.
+
+```sh
+# Seed v1 into an ISOLATED workspace (see below), then stage:
+python3 samples/eve_scene_probe/bootstrap_talocan_modern_workspace.py --mode v1 \
+    --dds-to-rgba $BUILD/tools/dds_to_rgba/Debug/TrinityDdsToRgba_debug \
+    --originals-dir $BUILD/samples/eve_scene_probe/Assets/dx9/model/ship/talocan/destroyer/tde1 \
+    --workspace ~/TalocanModernization/tm1-tde1_t1_wreck
+cmake --build $BUILD --config Debug --target TrinityEveSceneProbeTalocanModernAssets
+cmake --build $BUILD --config Debug --target TrinityEveSceneProbeRuntimeAssets
+```
+
+Isolated workspace for parallel agents: pass a distinct `--workspace`
+and the matching `-DEVE_SCENE_PROBE_TALOCAN_MODERN_DIR=` at configure so
+a second lane on the host does not clobber the shared default masters.
+
+Build order matters: `TrinityEveSceneProbeRuntimeAssets` copies the
+Assets tree but has no dependency edge on the modern target, so build
+`TrinityEveSceneProbeTalocanModernAssets` first, then RuntimeAssets, as
+separate steps — a single combined invocation can copy before the
+modern DDS are encoded.
+
+Findings (default knobs, `--asset talocan`): A/A determinism holds
+(`0.0 / 0.0`) and the modernized set loads with zero FAILED slots,
+GlowMap bound from `res:/modernized/…_g.dds`. The normal and roughness
+passes have real, attributable render effect: two modernized sets
+differing only in `_n`/`_r` (glow-only vs full v1) diverge by
+`diff_pixel_fraction = 0.0062` hull-localized — roughly twice the
+`~0.003` BC1/BC3 re-encode drift floor — and the full original-vs-v1
+A/B lands at `0.0070`, localized, passed. In the sunlit close-up the
+default-strength pass reads as crisper groove definition and sharper
+edge response, a refinement rather than a transformation; the knobs
+scale it. But the wreck material
+path **never samples the GlowMap**: with only the `_g` texture varied
+(authored teal vs all black), night side, `--sh-source none`,
+`--dynamic-exposure off`, `--ship-data 1`, the renders are
+byte-identical (`aa: 0.0 / 0.0`). The client's 827-byte placeholder is
+vestigial by construction — the slot binds but the shader ignores it —
+so texture-only authoring cannot light a dormant hull; an emissive
+wreck needs a material-path change, recorded as a follow-up decision.
+The small original-vs-modernized diff (`0.0037`) is BC1/BC3 re-encode
+drift across the other maps, not glow. The emissive multiplier is
+healthy and now logged per area (`GeneralGlowColor`, talocanbase hull
+`(1.08, 2.48, 2.87)`), eliminating the faction color set as the gate.
+
+`--ship-data X` fills the eve-v5 per-object shipData with the engine
+baseline (x = X, y = activation 1, w = boundingsphere 1; matching
+`EveEffectRoot2::GetPerObjectStructs`) instead of the probe's historic
+zeros. On the wreck hull the activation component wakes a white
+edge-light — panel edges and greebles rim-lit as if conduits are
+powered, binary with activation, not scaled by x. Default off: every
+accepted capture stays byte-stable. The v1 glow synthesis and knobs
+remain the authoring path for the day a live emissive route exists.
+
 ## Known limitations
 
 - `TrinityRgbaToDds` mip generation is a byte-space 2x2 box (not
