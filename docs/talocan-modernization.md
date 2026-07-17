@@ -156,6 +156,13 @@ formation flags with `--scene-fixture new-eden --composition system
 --eve-gate authored --celestial-anchor stargate` and no ballpark
 render all four hulls lit three-quarter on the default model camera.
 
+With `--motion camera`, the posed rig also seeds the built-in orbit:
+after the 180 warm-up frames the camera circles the formation once per
+900 frames starting at the posed azimuth, banked at the posed
+elevation, at the posed distance — the soaring eagle-eye pass. Capture
+with `--capture-start-frame 180 --capture-every 3` and assemble at 30
+fps for a 10-second loop.
+
 For a posed static shot, `--camera-azimuth DEG --camera-elevation DEG
 --camera-distance M` re-aim the model camera around the formation
 (azimuth rotates from the authored -Z eye; zero distance keeps the

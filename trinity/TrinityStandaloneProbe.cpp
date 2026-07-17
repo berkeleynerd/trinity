@@ -14165,11 +14165,20 @@ void UpdateProbeCamera( StandaloneProbe& probe )
 	float reportedRadius = 0.0f;
 	if( probe.cameraView == STANDALONE_CAMERA_MODEL && probe.renderable )
 	{
-		reportedRadius = kCameraRadius * probe.modelWorldScale;
+		// The posed static rig, when set, seeds the orbit: its azimuth is the
+		// starting bearing, its elevation banks the circle, and its distance
+		// replaces the authored 5.2-scale radius.
+		constexpr float degreesToRadians = 3.1415926535f / 180.0f;
+		const bool posedRig = probe.staticCameraDistance > 0.0f;
+		const float baseAzimuth = posedRig ? probe.staticCameraAzimuthDegrees * degreesToRadians : 0.0f;
+		const float elevation = posedRig ? probe.staticCameraElevationDegrees * degreesToRadians : 0.0f;
+		reportedRadius = posedRig ? probe.staticCameraDistance : kCameraRadius * probe.modelWorldScale;
+		const float orbitAngle = angle + baseAzimuth;
+		const float horizontalRadius = reportedRadius * std::cos( elevation );
 		const Vector3 eye(
-			reportedRadius * std::sin( angle ),
-			0.0f,
-			-reportedRadius * std::cos( angle ) );
+			horizontalRadius * std::sin( orbitAngle ),
+			reportedRadius * std::sin( elevation ),
+			-horizontalRadius * std::cos( orbitAngle ) );
 		probe.view->SetLookAtPosition( eye, Vector3( 0.0f, 0.0f, 0.0f ), Vector3( 0.0f, 1.0f, 0.0f ) );
 	}
 	else if( probe.cameraView == STANDALONE_CAMERA_CELESTIALS && probe.newEdenSystemComposition &&
