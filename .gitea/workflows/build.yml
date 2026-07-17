@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
           submodules: recursive
       - name: Build (central carbon-build action)
-        uses: rebecca/safe-lang-ci/.gitea/actions/carbon-build@cef974725e916a49947712d24067a90cb6329402
+        uses: https://git.idril.is/rebecca/safe-lang-ci/.gitea/actions/carbon-build@cef974725e916a49947712d24067a90cb6329402
         with:
           preset: arm64-osx-release
           config: Release
