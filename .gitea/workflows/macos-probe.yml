@@ -1,0 +1,13 @@
+name: macOS Probe
+on:
+  workflow_dispatch:
+jobs:
+  probe:
+    runs-on: macos
+    steps:
+      - run: |
+          echo "hello from trinity macos lane"
+          uname -a
+          sw_vers
+          echo "--- tools ---"
+          which git cmake ninja xcodebuild || true
