@@ -465,6 +465,7 @@ enum class SunEffects
 	All,
 	SunFlares,
 	LensFlare,
+	NoLensFlare,
 };
 
 enum class SolarEnvironment
@@ -2064,6 +2065,8 @@ std::string SunEffectsName( SunEffects effects )
 		return "sun-flares";
 	case SunEffects::LensFlare:
 		return "lens-flare";
+	case SunEffects::NoLensFlare:
+		return "no-lens-flare";
 	}
 	return "unknown";
 }
@@ -2073,7 +2076,7 @@ bool ParseSunEffects( const std::string& value, SunEffects& effects )
 	const std::string normalized = ToLower( value );
 	const SunEffects values[] = {
 		SunEffects::Auto, SunEffects::Off,       SunEffects::Flare,     SunEffects::GodRays,
-		SunEffects::All,  SunEffects::SunFlares, SunEffects::LensFlare,
+		SunEffects::All,  SunEffects::SunFlares, SunEffects::LensFlare, SunEffects::NoLensFlare,
 	};
 	for( SunEffects candidate : values )
 	{
@@ -3328,7 +3331,7 @@ void PrintUsage( const char* executable )
 		<< "       [--camera-view model|celestials|planet]\n"
 		<< "       [--composition system|cinematic] [--planet-layers off|surface|atmosphere-inner|atmosphere-outer|atmosphere|clouds|aurora|data-driven|all]\n"
 		<< "       [--planet-audit-report PATH]\n"
-		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all]\n"
+		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all|no-lens-flare]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
 		<< "       [--scene-construction legacy|canonical] [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
 		<< "       [--legacy-sh-proxies authored|off] [--legacy-sh-receiver origin|live]\n"
@@ -4572,7 +4575,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Sun effects require --scene-fixture new-eden\n";
 		return false;
 	}
-	if( ( options.resolvedSunEffects == SunEffects::GodRays || options.resolvedSunEffects == SunEffects::All ) &&
+	if( ( options.resolvedSunEffects == SunEffects::GodRays || options.resolvedSunEffects == SunEffects::All ||
+		  options.resolvedSunEffects == SunEffects::NoLensFlare ) &&
 		options.qualityRung < QualityRung::HdrPost )
 	{
 		std::cerr << "God rays require --quality-rung hdr-post or hdr-exposure\n";
@@ -4895,28 +4899,32 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	}
 	if( options.ballpark == BallparkMode::Goto &&
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
-		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
+		  options.qualityRung < QualityRung::Model ||
+		  options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "GOTO Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Orbit &&
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
-		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
+		  options.qualityRung < QualityRung::Model ||
+		  options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "ORBIT Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Warp &&
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
-		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
+		  options.qualityRung < QualityRung::Model ||
+		  options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "WARP Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Approach &&
 		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
-		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
+		  options.qualityRung < QualityRung::Model ||
+		  options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "APPROACH Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
@@ -4924,21 +4932,23 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	if( options.warpTarget == WarpTarget::EveGate &&
 		( options.ballpark != BallparkMode::Warp || options.sceneFixture != SceneFixture::NewEden ||
 		  options.composition != SceneComposition::System ||
-		  options.celestialBallpark != CelestialBallparkMode::Natural || options.eveGate != 1 ||
-		  options.celestialAnchor != 0 ) )
+		  options.celestialBallpark != CelestialBallparkMode::Natural || options.celestialAnchor != 0 ||
+		  ( options.eveGate != 1 && options.sceneConstruction != SceneConstruction::Canonical ) ) )
 	{
 		std::cerr << "--warp-target evegate requires --ballpark warp, the exact-system New Eden fixture, "
-					 "natural celestials, the authored EVE Gate, and --celestial-anchor stargate\n";
+					 "natural celestials, --celestial-anchor stargate, and either the authored EVE Gate visual or "
+					 "canonical construction\n";
 		return false;
 	}
 	if( options.journeyPlanetFinale &&
 		( options.warpTarget != WarpTarget::EveGate || options.ballpark != BallparkMode::Warp ||
 		  options.ballparkFrame != BallparkFrame::Chase || options.sceneFixture != SceneFixture::NewEden ||
 		  options.composition != SceneComposition::System ||
-		  options.celestialBallpark != CelestialBallparkMode::Natural || options.eveGate != 1 ||
-		  options.celestialAnchor != 0 || options.validateBallpark || options.validateBallparkMotion ||
-		  options.validateBallparkOrbit || options.validateBallparkWarp || options.validateBallparkApproach ||
-		  options.validateCelestialBallpark || options.validateChaseCamera || options.validateEveGate ) )
+		  options.celestialBallpark != CelestialBallparkMode::Natural || options.celestialAnchor != 0 ||
+		  ( options.eveGate != 1 && options.sceneConstruction != SceneConstruction::Canonical ) ||
+		  options.validateBallpark || options.validateBallparkMotion || options.validateBallparkOrbit ||
+		  options.validateBallparkWarp || options.validateBallparkApproach || options.validateCelestialBallpark ||
+		  options.validateChaseCamera || options.validateEveGate ) )
 	{
 		std::cerr << "--journey-planet-finale is a Tour-only extension of the New Eden EVE Gate warp/chase route\n";
 		return false;
@@ -6901,12 +6911,18 @@ int main( int argc, char** argv )
 			options.solarDesaturate != AuthoredToggle::Authored ||
 			options.tourColorGrade != TourColorGrade::ClientDefault ||
 			options.solarOcclusionView != SolarOcclusionView::Unobscured;
+		const bool solarOpticsAuditRequested = !options.solarOpticsReportPath.empty() ||
+			options.solarEnvironmentDistance != SolarEnvironmentDistance::Canonical ||
+			options.sceneDistanceFog != AuthoredToggle::Authored ||
+			options.solarDesaturate != AuthoredToggle::Authored ||
+			options.solarOcclusionView != SolarOcclusionView::Unobscured;
 		if( solarOpticsRequested &&
-			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			( options.sceneFixture != SceneFixture::NewEden ||
+			  ( solarOpticsAuditRequested && options.shaderTier != ShaderTier::High ) ||
 			  options.qualityRung < QualityRung::HdrExposure ) )
 		{
-			std::cerr
-				<< "PL-14D solar optics controls require the High-tier New Eden fixture at hdr-exposure or higher\n";
+			std::cerr << "PL-14D solar optics audit controls require the High-tier New Eden fixture at "
+						 "hdr-exposure or higher\n";
 			return 2;
 		}
 		if( options.backgroundLayersExplicit && options.sceneFixture != SceneFixture::A01 &&
@@ -6923,11 +6939,13 @@ int main( int argc, char** argv )
 		const bool solarIlluminationRequested = options.solarIlluminationExplicit ||
 			options.solarIlluminationViewExplicit || !options.solarIlluminationReportPath.empty();
 		if( solarIlluminationRequested &&
-			( options.sceneFixture != SceneFixture::NewEden || options.shaderTier != ShaderTier::High ||
+			( options.sceneFixture != SceneFixture::NewEden ||
+			  ( ( options.solarIlluminationViewExplicit || !options.solarIlluminationReportPath.empty() ) &&
+				options.shaderTier != ShaderTier::High ) ||
 			  options.qualityRung < QualityRung::Model ) )
 		{
-			std::cerr
-				<< "PL-14E solar illumination controls require the High-tier New Eden fixture at the model rung or higher\n";
+			std::cerr << "PL-14E solar illumination views and reports require the High-tier New Eden fixture "
+						 "at the model rung or higher\n";
 			return 2;
 		}
 		if( !options.solarIlluminationReportPath.empty() && options.maxFrames <= 0 )

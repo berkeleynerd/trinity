@@ -4383,6 +4383,7 @@ enum StandaloneSunEffects
 	STANDALONE_SUN_EFFECTS_ALL = 4,
 	STANDALONE_SUN_EFFECTS_SUN_FLARES = 5,
 	STANDALONE_SUN_EFFECTS_LENS_FLARE = 6,
+	STANDALONE_SUN_EFFECTS_NO_LENS_FLARE = 7,
 };
 
 enum StandaloneSolarEnvironment
@@ -4495,6 +4496,8 @@ const char* SunEffectsName( int effects )
 		return "sun-flares";
 	case STANDALONE_SUN_EFFECTS_LENS_FLARE:
 		return "lens-flare";
+	case STANDALONE_SUN_EFFECTS_NO_LENS_FLARE:
+		return "no-lens-flare";
 	default:
 		return "invalid";
 	}
@@ -7693,7 +7696,8 @@ bool PrepareNewEdenCelestialsWithoutYield(
 
 	const bool retainSunFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
 		sunEffects == STANDALONE_SUN_EFFECTS_ALL ||
-		sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES;
+		sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES ||
+		sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	EveChildMeshPtr sunBody;
 	EveChildMeshPtr sunFlare;
 	for( IEveSpaceObjectChild* child : sunBodyContainer->m_objects )
@@ -8824,7 +8828,8 @@ bool ConfigureNewEdenSystem(
 	probe.planetCloudsPrepared = PlanetModeSelectsRole( planetLayers, "clouds" );
 	probe.sunGeometryPrepared = true;
 	probe.authoredSunFlarePrepared = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
-		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES;
+		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_SUN_FLARES ||
+		sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	const bool enableLensFlare = sunEffects == STANDALONE_SUN_EFFECTS_FLARE ||
 		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_LENS_FLARE;
 	if( enableLensFlare && cameraView != STANDALONE_CAMERA_PLANET )
@@ -15558,7 +15563,7 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Invalid standalone scene composition" );
 		return false;
 	}
-	if( sunEffects < STANDALONE_SUN_EFFECTS_OFF || sunEffects > STANDALONE_SUN_EFFECTS_LENS_FLARE )
+	if( sunEffects < STANDALONE_SUN_EFFECTS_OFF || sunEffects > STANDALONE_SUN_EFFECTS_NO_LENS_FLARE )
 	{
 		CCP_LOGERR( "Invalid standalone sun-effects mode" );
 		return false;
@@ -15568,7 +15573,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		CCP_LOGERR( "Standalone sun effects require the New Eden scene fixture" );
 		return false;
 	}
-	const bool enableGodRays = sunEffects == STANDALONE_SUN_EFFECTS_GOD_RAYS || sunEffects == STANDALONE_SUN_EFFECTS_ALL;
+	const bool enableGodRays = sunEffects == STANDALONE_SUN_EFFECTS_GOD_RAYS ||
+		sunEffects == STANDALONE_SUN_EFFECTS_ALL || sunEffects == STANDALONE_SUN_EFFECTS_NO_LENS_FLARE;
 	probe.sunEffectsMode = sunEffects;
 	if( enableGodRays && qualityRung < STANDALONE_PROBE_RUNG_HDR_POST )
 	{
@@ -17349,10 +17355,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetShadowDiagnostics(
 	{
 		return false;
 	}
-	const auto* diagnostics = probe->renderable ?
-		probe->scene->FindDirectionalShadowCasterDiagnostics(
-			static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
-		nullptr;
+	const IEveShadowCaster* caster = probe->renderable ?
+		static_cast<const IEveShadowCaster*>( probe->renderable.p ) :
+		( probe->nativeShip ?
+			  static_cast<const IEveShadowCaster*>( probe->nativeShip.p ) :
+			  nullptr );
+	const auto* diagnostics =
+		probe->scene->FindDirectionalShadowCasterDiagnostics( caster );
 	if( !diagnostics )
 	{
 		return false;
@@ -28047,10 +28056,13 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		  probe->shadows == STANDALONE_SHADOWS_HIGH ) &&
 		probe->scene )
 	{
-		const auto* diagnostics = probe->renderable ?
-			probe->scene->FindDirectionalShadowCasterDiagnostics(
-				static_cast<const IEveShadowCaster*>( probe->renderable.p ) ) :
-			nullptr;
+		const IEveShadowCaster* caster = probe->renderable ?
+			static_cast<const IEveShadowCaster*>( probe->renderable.p ) :
+			( probe->nativeShip ?
+				  static_cast<const IEveShadowCaster*>( probe->nativeShip.p ) :
+				  nullptr );
+		const auto* diagnostics =
+			probe->scene->FindDirectionalShadowCasterDiagnostics( caster );
 		if( !diagnostics )
 		{
 			CCP_LOGERR( "Astero directional shadow diagnostics are unavailable" );
