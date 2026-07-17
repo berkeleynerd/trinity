@@ -724,6 +724,7 @@ struct Options
 	float cameraAzimuth = 0.0f;
 	float cameraElevation = 0.0f;
 	float cameraDistance = 0.0f;
+	bool fastExit = false;
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -4184,6 +4185,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			{
 				return false;
 			}
+		}
+		else if( arg == "--fast-exit" )
+		{
+			options.fastExit = true;
 		}
 		else if( arg == "--camera-azimuth" || arg == "--camera-elevation" || arg == "--camera-distance" )
 		{
@@ -8820,6 +8825,19 @@ int main( int argc, char** argv )
 			return 1;
 		}
 
+		if( options.fastExit )
+		{
+			// The OS reclaims GPU state at process exit. Skipping in-process
+			// context destruction sidesteps a Metal telemetry-vs-teardown race
+			// on current macOS that can trap heavy capture runs at shutdown
+			// (CoreAnalytics allocating on a dispatch worker while the last
+			// MetalContext drains); every capture, report, and evidence file
+			// is already written and closed by this point.
+			std::fprintf( stderr, "Fast exit: skipping in-process GPU teardown\n" );
+			std::fflush( stdout );
+			std::fflush( stderr );
+			_exit( 0 );
+		}
 		TrinityStandaloneProbeDestroyDevice( probe );
 		[window close];
 	}

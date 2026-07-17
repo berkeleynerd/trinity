@@ -147,7 +147,7 @@ $PROBE --windowed 1600x1000 --frames 1700 --quality-rung hdr-finish \
     --ballpark-frame chase --chase-distance 5200 --chase-height 1400 \
     --celestial-ballpark natural --eve-gate authored --warp-tunnel authored \
     --celestial-anchor stargate --volumetrics all --volumetric-quality high \
-    --enable-froxels --background-capture \
+    --enable-froxels --background-capture --fast-exit \
     --capture-prefix captures/formation/fleet --capture-frames 1626,1650,1680
 ```
 
@@ -172,6 +172,13 @@ sits behind the line: `--camera-azimuth -119 --camera-elevation 2
 --camera-distance 4300` (the anchor's gate bearing is close to the sun
 direction, so dead-on aim silhouettes the hulls; ~10-20 degrees off
 keeps them lit).
+
+`--fast-exit` skips in-process GPU teardown on the success path (the OS
+reclaims everything at exit). Use it on heavy capture runs: current
+macOS can trap at shutdown in a Metal telemetry-vs-context-destruction
+race (CoreAnalytics allocating on a dispatch worker while the last
+MetalContext drains — probabilistic, load-dependent, all outputs
+already on disk when it fires). Default off; normal teardown unchanged.
 
 ## Known limitations
 
