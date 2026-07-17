@@ -145,6 +145,8 @@ extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqu
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
 extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
+extern "C" void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath );
+extern "C" void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -715,6 +717,9 @@ struct Options
 {
 	std::string asset = "astero";
 	std::string sofTextureSet = "original";
+	std::vector<std::string> formationShips;
+	float chaseDistance = 0.0f;
+	float chaseHeight = 0.0f;
 	std::string inputPath;
 	std::string capturePrefix;
 	std::string inspectionReportPath;
@@ -2862,25 +2867,51 @@ bool IsSofAsset( const Options& options )
 
 // Each SOF hull declares its own areas and texture paths, so selecting the hull
 // (with its faction, for glow and color sets) retextures the rendered model.
-const char* SofHullPath( const Options& options )
+const char* SofHullPathForAssetId( const std::string& asset )
 {
-	if( options.asset == "talocan" )
+	if( asset == "talocan" )
 	{
 		return "res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black";
 	}
-	if( options.asset == "talocan-frigate" )
+	if( asset == "talocan-frigate" )
 	{
 		return "res:/dx9/model/spaceobjectfactory/hulls/tf1_t1_wreck.black";
 	}
-	if( options.asset == "talocan-cruiser" )
+	if( asset == "talocan-cruiser" )
 	{
 		return "res:/dx9/model/spaceobjectfactory/hulls/tc1_t1_wreck.black";
 	}
-	if( options.asset == "talocan-battleship" )
+	if( asset == "talocan-battleship" )
 	{
 		return "res:/dx9/model/spaceobjectfactory/hulls/tb1_t1_wreck.black";
 	}
 	return "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black";
+}
+
+const char* SofHullPath( const Options& options )
+{
+	return SofHullPathForAssetId( options.asset );
+}
+
+std::string CmfPathForAssetId( const std::string& asset, const std::string& executableDirectory )
+{
+	if( asset == "astero" )
+	{
+		return executableDirectory + "/Assets/Astero.cmf";
+	}
+	if( asset == "talocan" )
+	{
+		return executableDirectory + "/Assets/Talocan.cmf";
+	}
+	if( asset == "talocan-frigate" )
+	{
+		return executableDirectory + "/Assets/TalocanFrigate.cmf";
+	}
+	if( asset == "talocan-cruiser" )
+	{
+		return executableDirectory + "/Assets/TalocanCruiser.cmf";
+	}
+	return executableDirectory + "/Assets/TalocanBattleship.cmf";
 }
 
 const char* SofFactionPath( const Options& options )
@@ -4150,6 +4181,48 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 		}
+		else if( arg == "--chase-distance" || arg == "--chase-height" )
+		{
+			const bool isDistance = arg == "--chase-distance";
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			char* end = nullptr;
+			const float parsed = std::strtof( argv[i], &end );
+			if( !end || *end != '\0' || !std::isfinite( parsed ) || parsed <= 0.0f )
+			{
+				return false;
+			}
+			( isDistance ? options.chaseDistance : options.chaseHeight ) = parsed;
+		}
+		else if( arg == "--formation-ships" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.formationShips.clear();
+			std::string shipList = ToLower( argv[i] );
+			size_t start = 0;
+			while( start <= shipList.size() )
+			{
+				const size_t comma = shipList.find( ',', start );
+				const std::string ship = shipList.substr(
+					start, comma == std::string::npos ? std::string::npos : comma - start );
+				if( ship != "astero" && ship != "talocan" && ship != "talocan-frigate" &&
+					ship != "talocan-cruiser" && ship != "talocan-battleship" )
+				{
+					return false;
+				}
+				options.formationShips.push_back( ship );
+				if( comma == std::string::npos )
+				{
+					break;
+				}
+				start = comma + 1;
+			}
+		}
 		else if( arg == "--nebula" )
 		{
 			if( ++i >= argc || !ParseAuthoredToggle( argv[i], options.nebula ) )
@@ -4390,6 +4463,19 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ) )
 	{
 		std::cerr << "--sof-texture-set modernized requires a SOF asset rendered with --material-mode eve-v5\n";
+		return false;
+	}
+	if( !options.formationShips.empty() &&
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
+		  options.sceneConstruction != SceneConstruction::Legacy ) )
+	{
+		std::cerr << "--formation-ships requires a SOF asset, eve-v5, and the legacy scene construction\n";
+		return false;
+	}
+	if( ( options.chaseDistance > 0.0f || options.chaseHeight > 0.0f ) &&
+		options.ballparkFrame != BallparkFrame::Chase )
+	{
+		std::cerr << "--chase-distance and --chase-height require --ballpark-frame chase\n";
 		return false;
 	}
 	if( !options.localLightsExplicit && options.asset == "astero" && options.materialMode == MaterialMode::EveV5 )
@@ -5413,7 +5499,9 @@ std::string CaptureBasePath( const Options& options )
 		ShadowsName( options.resolvedShadows ) + "_ao-" + AmbientOcclusionName( options.resolvedAmbientOcclusion ) +
 		( options.resolvedAmbientOcclusion == AmbientOcclusion::Off ? "" : "-" + AoMethodName( options.aoMethod ) );
 	const std::string fullPath = options.capturePrefix + "_" + options.asset +
-		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) + "_" +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
+		( options.formationShips.empty() ? std::string() :
+			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
 		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
 		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
@@ -5438,7 +5526,9 @@ std::string CaptureBasePath( const Options& options )
 	char hashText[17];
 	std::snprintf( hashText, sizeof( hashText ), "%016llx", static_cast<unsigned long long>( hash ) );
 	return options.capturePrefix + "_" + options.asset +
-		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) + "_" +
+		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
+		( options.formationShips.empty() ? std::string() :
+			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
 		QualityRungName( options.qualityRung ) + "_decal-" +
 		DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
 		std::to_string( options.killCount ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
@@ -7288,6 +7378,13 @@ int main( int argc, char** argv )
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
 		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
 		TrinityStandaloneProbeSetSofTextureRoot( options.sofTextureSet == "modernized" ? "modernized" : "" );
+		for( const std::string& formationShip : options.formationShips )
+		{
+			const std::string formationCmf = CmfPathForAssetId( formationShip, executableDirectory );
+			TrinityStandaloneProbeQueueFormationShip(
+				formationCmf.c_str(), SofHullPathForAssetId( formationShip ) );
+		}
+		TrinityStandaloneProbeSetChaseCameraRig( probe, options.chaseDistance, options.chaseHeight );
 		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||

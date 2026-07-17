@@ -500,6 +500,16 @@ std::string g_sofFactionPath = kDefaultSofFactionPath;
 // hull's original maps.
 std::string g_sofTextureRoot;
 
+// Formation wingmen queued by the sample before scene creation: each entry
+// is a staged CMF plus the SOF hull that textures it. Consumed (and cleared)
+// by TrinityStandaloneProbeCreateEveScene. Legacy-lane composition only.
+struct FormationShipRequest
+{
+	std::string cmfPath;
+	std::string sofHullPath;
+};
+std::vector<FormationShipRequest> g_formationShipQueue;
+
 struct StandaloneProbe;
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
 std::string ToNarrowPath( const wchar_t* path );
@@ -2633,7 +2643,12 @@ public:
 
 	bool GetBoundingSphere( Vector4 & sphere, BoundingSphereQuery ) const override
 	{
-		sphere = Vector4( 0.0f, 0.0f, 0.0f, m_shadowBoundingRadius );
+		float radius = m_shadowBoundingRadius;
+		for( const auto& shipPtr : m_formationShips )
+		{
+			radius = std::max( radius, Length( shipPtr->localOffset ) + shipPtr->radius );
+		}
+		sphere = Vector4( 0.0f, 0.0f, 0.0f, radius );
 		return true;
 	}
 
@@ -2679,6 +2694,10 @@ public:
 				{
 					CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
 				}
+				for( const auto& shipPtr : m_formationShips )
+				{
+					CommitFormationBatch( *shipPtr, batches );
+				}
 			}
 			else if( batchType == TRIBATCHTYPE_DEPTH && m_occlusionDepthOnly )
 			{
@@ -2686,6 +2705,10 @@ public:
 				if( m_boosterEffect )
 				{
 					CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+				}
+				for( const auto& shipPtr : m_formationShips )
+				{
+					CommitFormationBatch( *shipPtr, batches );
 				}
 			}
 			else if( batchType == TRIBATCHTYPE_DISTORTION )
@@ -2795,6 +2818,10 @@ public:
 		uint32_t committed = 0;
 		committed += CommitShadowAreaBatch( batches, m_hullGroup, m_hullEffect, perObjectData ) ? 1u : 0u;
 		committed += CommitShadowAreaBatch( batches, 2, m_boosterEffect, perObjectData ) ? 1u : 0u;
+		for( const auto& shipPtr : m_formationShips )
+		{
+			committed += CommitFormationShadowBatch( *shipPtr, batches ) ? 1u : 0u;
+		}
 		m_shadowCommittedBatches += committed;
 	}
 
@@ -2858,7 +2885,12 @@ public:
 	// contract expects one committed batch per group per accepted cascade.
 	uint32_t GetShadowAreaGroupCount() const
 	{
-		return ( m_hullEffect ? 1u : 0u ) + ( m_boosterEffect ? 1u : 0u );
+		uint32_t groups = ( m_hullEffect ? 1u : 0u ) + ( m_boosterEffect ? 1u : 0u );
+		for( const auto& shipPtr : m_formationShips )
+		{
+			groups += shipPtr->hullEffect ? 1u : 0u;
+		}
+		return groups;
 	}
 
 	uint32_t GetHazeShadowEligibleCount() const
@@ -3886,6 +3918,194 @@ private:
 		return true;
 	}
 
+	// A wingman hull rendered beside the primary model: own geometry, own
+	// hull material, riding the primary root transform at a fixed local
+	// offset. Hull area only — no distortion, booster, attachments, or RT.
+	struct FormationShip
+	{
+		TrinityStandaloneCmfModel model;
+		Tr2BufferAL vertexBuffer;
+		Tr2BufferAL indexBuffer;
+		std::array<const TrinityStandaloneCmfSection*, 3> sectionsByGroup = {};
+		uint32_t hullGroup = 0;
+		Tr2EffectPtr hullEffect;
+		StandaloneEveV5PerObjectData perObjectData;
+		Matrix previousWorld = IdentityMatrix();
+		bool worldInitialized = false;
+		Vector3 localOffset = Vector3( 0.0f, 0.0f, 0.0f );
+		float center[3] = { 0.0f, 0.0f, 0.0f };
+		float radius = 0.0f;
+		bool reportedBatch = false;
+	};
+	std::vector<std::unique_ptr<FormationShip>> m_formationShips;
+
+public:
+	bool InitializeFormation( Tr2PrimaryRenderContext & renderContext,
+							  const std::vector<FormationShipRequest>& requests )
+	{
+		using namespace Tr2RenderContextEnum;
+		if( requests.empty() )
+		{
+			return true;
+		}
+		if( !m_useEveV5Material )
+		{
+			std::fprintf( stderr, "Formation ships require the eve-v5 material path\n" );
+			return false;
+		}
+		// Line abreast along local X, alternating starboard and port, spaced
+		// from the primary hull's radius so silhouettes never overlap.
+		float sideCursor[2] = { m_shadowBoundingRadius, m_shadowBoundingRadius };
+		for( size_t shipIndex = 0; shipIndex < requests.size(); ++shipIndex )
+		{
+			const FormationShipRequest& request = requests[shipIndex];
+			auto ship = std::make_unique<FormationShip>();
+			std::string loadError;
+			if( !ship->model.Load( request.cmfPath, loadError ) )
+			{
+				std::fprintf( stderr, "Formation ship %zu failed to load %s: %s\n",
+							  shipIndex, request.cmfPath.c_str(), loadError.c_str() );
+				return false;
+			}
+			float centerScale[4];
+			ship->model.GetCenterAndScale( centerScale );
+			ship->center[0] = centerScale[0];
+			ship->center[1] = centerScale[1];
+			ship->center[2] = centerScale[2];
+			for( const TrinityStandaloneEveV5Vertex& vertex : ship->model.EveV5Vertices() )
+			{
+				ship->radius = std::max(
+					ship->radius,
+					Length( Vector3(
+						vertex.position[0] - centerScale[0],
+						vertex.position[1] - centerScale[1],
+						vertex.position[2] - centerScale[2] ) ) );
+			}
+			if( ship->radius <= 0.0f )
+			{
+				std::fprintf( stderr, "Formation ship %zu carries no EVE V5 vertices\n", shipIndex );
+				return false;
+			}
+			if( FAILED( ship->vertexBuffer.Create(
+					sizeof( TrinityStandaloneEveV5Vertex ),
+					ship->model.VertexCount(),
+					Tr2GpuUsage::VERTEX_BUFFER,
+					Tr2CpuUsage::NONE,
+					ship->model.EveV5Vertices().data(),
+					renderContext ) ) ||
+				FAILED( ship->indexBuffer.Create(
+					sizeof( uint32_t ),
+					ship->model.IndexCount(),
+					Tr2GpuUsage::INDEX_BUFFER,
+					Tr2CpuUsage::NONE,
+					ship->model.Indices().data(),
+					renderContext ) ) )
+			{
+				std::fprintf( stderr, "Formation ship %zu GPU buffer creation failed\n", shipIndex );
+				return false;
+			}
+			for( const TrinityStandaloneCmfSection& section : ship->model.Sections() )
+			{
+				if( section.sourceGroup < ship->sectionsByGroup.size() )
+				{
+					ship->sectionsByGroup[section.sourceGroup] = &section;
+				}
+			}
+			uint32_t hullGroup = 1;
+			if( !ship->sectionsByGroup[hullGroup] )
+			{
+				hullGroup = ship->sectionsByGroup.size();
+				for( uint32_t group = 0; group < ship->sectionsByGroup.size(); ++group )
+				{
+					if( ship->sectionsByGroup[group] )
+					{
+						hullGroup = group;
+						break;
+					}
+				}
+				if( hullGroup == ship->sectionsByGroup.size() )
+				{
+					std::fprintf( stderr, "Formation ship %zu CMF declares no GR2 groups\n", shipIndex );
+					return false;
+				}
+			}
+			ship->hullGroup = hullGroup;
+			// ConfigureAsteroEveV5Effect reads the hull from the module-level
+			// selection; swap it in for this ship's material configuration.
+			const std::string savedHullPath = g_sofHullPath;
+			g_sofHullPath = request.sofHullPath;
+			const bool effectReady = InitializeAsteroEffect(
+				ship->hullEffect, ship->hullGroup,
+				"res:/graphics/effect/managed/space/spaceobject/v5/quad/quadv5.fx", true );
+			g_sofHullPath = savedHullPath;
+			if( !effectReady )
+			{
+				std::fprintf( stderr, "Formation ship %zu hull material failed (%s)\n",
+							  shipIndex, request.sofHullPath.c_str() );
+				return false;
+			}
+			const size_t sideIndex = shipIndex % 2;
+			const float side = sideIndex == 0 ? 1.0f : -1.0f;
+			const float lateral = sideCursor[sideIndex] * 1.25f + ship->radius;
+			ship->localOffset = Vector3( side * lateral, 0.0f, 0.0f );
+			sideCursor[sideIndex] = lateral + ship->radius;
+			std::fprintf(
+				stderr,
+				"Formation ship %zu ready: cmf=%s hull=%s radius=%.3f offset=(%.2f, 0.00, 0.00)\n",
+				shipIndex,
+				request.cmfPath.c_str(),
+				request.sofHullPath.c_str(),
+				ship->radius,
+				ship->localOffset.x );
+			m_formationShips.push_back( std::move( ship ) );
+		}
+		return true;
+	}
+
+	void CommitFormationBatch( FormationShip & ship, ITriRenderBatchAccumulator * batches )
+	{
+		if( m_areaView != 0 || ship.hullGroup >= ship.sectionsByGroup.size() ||
+			!ship.sectionsByGroup[ship.hullGroup] || !ship.hullEffect ||
+			!ship.hullEffect->GetShaderStateInterface() )
+		{
+			return;
+		}
+		const TrinityStandaloneCmfSection& section = *ship.sectionsByGroup[ship.hullGroup];
+		Tr2RenderBatch batch;
+		batch.SetMaterial( ship.hullEffect );
+		batch.SetGeometry( m_vertexDeclaration, ship.vertexBuffer, sizeof( TrinityStandaloneEveV5Vertex ), ship.indexBuffer, sizeof( uint32_t ) );
+		batch.SetPerObjectData( &ship.perObjectData );
+		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
+		batch.SetRenderingMode( Tr2EffectStateManager::RM_OPAQUE );
+		batches->Commit( batch );
+		if( !ship.reportedBatch )
+		{
+			std::fprintf( stderr, "Formation ship batch committed: group=%u indices=%u offset=%.2f\n",
+						  ship.hullGroup, section.indexCount, ship.localOffset.x );
+			ship.reportedBatch = true;
+		}
+	}
+
+	bool CommitFormationShadowBatch( FormationShip & ship, ITriRenderBatchAccumulator * batches ) const
+	{
+		if( m_areaView != 0 || ship.hullGroup >= ship.sectionsByGroup.size() ||
+			!ship.sectionsByGroup[ship.hullGroup] || !ship.hullEffect ||
+			!ship.hullEffect->GetShaderStateInterface() )
+		{
+			return false;
+		}
+		const TrinityStandaloneCmfSection& section = *ship.sectionsByGroup[ship.hullGroup];
+		Tr2RenderBatch batch;
+		batch.SetMaterial( ship.hullEffect );
+		batch.SetGeometry( m_vertexDeclaration, ship.vertexBuffer, sizeof( TrinityStandaloneEveV5Vertex ), ship.indexBuffer, sizeof( uint32_t ) );
+		batch.SetPerObjectData( &ship.perObjectData );
+		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
+		batch.SetRenderingMode( Tr2EffectStateManager::RM_OPAQUE );
+		batches->Commit( batch );
+		return true;
+	}
+
+private:
 	static bool CreateTexture( const TrinityStandaloneCmfTexture& source, Tr2TextureAL& texture, Tr2PrimaryRenderContext& renderContext )
 	{
 		Tr2SubresourceData data = {};
@@ -3947,6 +4167,34 @@ private:
 			m_eveV5PerObjectData.m_psData.clipSphereFactor2 = 0.0f;
 			m_eveV5PerObjectData.m_psData.clipSphereFactor = 0.0f;
 			m_eveV5PerObjectData.m_psData.screenSize = Vector4( 0.0f, 0.0f, 0.0f, 0.0f );
+			for( auto& shipPtr : m_formationShips )
+			{
+				FormationShip& ship = *shipPtr;
+				const Matrix shipWorldRaw =
+					TranslationMatrix( Vector3( -ship.center[0], -ship.center[1], -ship.center[2] ) ) *
+					TranslationMatrix( ship.localOffset ) *
+					m_rootTransform->GetLastUpdateMatrix();
+				if( !ship.worldInitialized )
+				{
+					ship.previousWorld = shipWorldRaw;
+					ship.worldInitialized = true;
+				}
+				// Scene-wide constants (SH receiver, clip, ship data) ride the
+				// primary's block; only the transforms and radius are per-ship.
+				ship.perObjectData = m_eveV5PerObjectData;
+				const Matrix shipWorld = Transpose( shipWorldRaw );
+				const Matrix shipWorldLast = Transpose( ship.previousWorld );
+				const Matrix shipInverseWorld = Transpose( Inverse( shipWorldRaw ) );
+				ship.perObjectData.m_vsData.worldTransform = shipWorld;
+				ship.perObjectData.m_vsData.worldTransformLast = shipWorldLast;
+				ship.perObjectData.m_vsData.invWorldTransform = shipInverseWorld;
+				ship.perObjectData.m_vsData.shipData.w = ship.radius;
+				ship.perObjectData.m_psData.worldTransform = shipWorld;
+				ship.perObjectData.m_psData.worldTransformLast = shipWorldLast;
+				ship.perObjectData.m_psData.invWorldTransform = shipInverseWorld;
+				ship.perObjectData.m_psData.shipData = ship.perObjectData.m_vsData.shipData;
+				ship.previousWorld = shipWorldRaw;
+			}
 		}
 		else
 		{
@@ -5129,6 +5377,10 @@ struct StandaloneProbe
 	bool ballparkCommandIssued = false;
 	bool chaseCameraInitialized = false;
 	int64_t chaseCameraTime = 0;
+	// Zero keeps the authored tour-finale rig; positive values re-frame the
+	// chase for hulls far larger than the Astero the constants were tuned for.
+	float chaseCameraDistanceOverride = 0.0f;
+	float chaseCameraHeightOverride = 0.0f;
 	Vector3 chaseCameraEye = Vector3( 0.0f, 0.0f, 0.0f );
 	Vector3 chaseCameraTarget = Vector3( 0.0f, 0.0f, 0.0f );
 	TrinityStandaloneCelestialDiagnostics celestialDiagnostics;
@@ -14122,8 +14374,12 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 											   25.0f * pi / 180.0f * std::sin( seconds * 2.0f * pi / 20.0f );
 	const Vector3 shoulderDirection = Normalize(
 		forward * std::cos( shoulderAngle ) + right * std::sin( shoulderAngle ) );
-	const Vector3 desiredEye = ship - shoulderDirection * kNewEdenTourFinaleCameraDistance +
-		up * kNewEdenTourFinaleCameraHeight;
+	const float chaseDistance = probe.chaseCameraDistanceOverride > 0.0f ?
+		probe.chaseCameraDistanceOverride : kNewEdenTourFinaleCameraDistance;
+	const float chaseHeight = probe.chaseCameraHeightOverride > 0.0f ?
+		probe.chaseCameraHeightOverride : kNewEdenTourFinaleCameraHeight;
+	const Vector3 desiredEye = ship - shoulderDirection * chaseDistance +
+		up * chaseHeight;
 	// The ship is aligned to the Sun/planet line by Destiny. Preserve the native
 	// near chase focus so the hull remains the subject while that authored line
 	// of sight places the planet and optical response above it.
@@ -14141,7 +14397,9 @@ bool UpdateBallparkChaseCamera( StandaloneProbe& probe, Be::Time simulationTime 
 		probe.chaseCameraInitialized = true;
 		std::fprintf(
 			stderr,
-			"PL-11A chase camera: distance=150 height=55 lookAhead=25 fov=48 orbit=+/-25deg period=20s damping=0.75s\n" );
+			"PL-11A chase camera: distance=%g height=%g lookAhead=25 fov=48 orbit=+/-25deg period=20s damping=0.75s\n",
+			chaseDistance,
+			chaseHeight );
 	}
 	else
 	{
@@ -16417,6 +16675,12 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			CCP_LOGERR( "Failed to initialize the standalone EVE renderable GPU resources" );
 			return false;
 		}
+		if( !probe.renderable->InitializeFormation( primaryRenderContext, g_formationShipQueue ) )
+		{
+			CCP_LOGERR( "Failed to initialize the formation ships" );
+			return false;
+		}
+		g_formationShipQueue.clear();
 		if( shadows == STANDALONE_SHADOWS_RAYTRACED &&
 			!probe.renderable->PrepareRaytracingGeometry( loadError ) )
 		{
@@ -22408,6 +22672,21 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrewarmSolarParticles( void
 	return true;
 }
 
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath )
+{
+	FormationShipRequest request;
+	request.cmfPath = cmfPath ? cmfPath : "";
+	request.sofHullPath = sofHullPath ? sofHullPath : "";
+	if( request.cmfPath.empty() || request.sofHullPath.empty() )
+	{
+		std::fprintf( stderr, "Formation ship request needs both a CMF and a SOF hull\n" );
+		return;
+	}
+	std::fprintf( stderr, "Formation ship queued: %s (%s)\n",
+				  request.cmfPath.c_str(), request.sofHullPath.c_str() );
+	g_formationShipQueue.push_back( std::move( request ) );
+}
+
 TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofTextureRoot( const char* root )
 {
 	g_sofTextureRoot = root ? root : "";
@@ -25283,6 +25562,19 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetJourneyPlanetOrbit(
 		return false;
 	probe->journeyPlanetOrbit = enabled;
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	probe->chaseCameraDistanceOverride = distance > 0.0f ? distance : 0.0f;
+	probe->chaseCameraHeightOverride = height > 0.0f ? height : 0.0f;
+	if( distance > 0.0f || height > 0.0f )
+	{
+		std::fprintf( stderr, "Chase camera rig override: distance=%g height=%g\n",
+					  probe->chaseCameraDistanceOverride,
+					  probe->chaseCameraHeightOverride );
+	}
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeSetCelestialAnchor( void* opaqueProbe, int anchor )

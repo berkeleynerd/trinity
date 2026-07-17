@@ -111,6 +111,51 @@ builds can carry sparse sub-0.2% float drift.
 - Astero regression after every probe change: exit 0, unchanged area
   configuration, `accepted-cascades=3 batches=6`.
 
+## Formation composition (legacy lane)
+
+`--formation-ships id[,id...]` renders additional SOF hulls beside the
+primary model: each wingman carries its own geometry, hull material, and
+per-object transforms, riding the primary root transform at a computed
+line-abreast offset — so a formation follows the primary through journey
+legs, warp included. Wingmen contribute directional-shadow batches (the
+contract expectation scales with the hulls present) and are excluded
+from raytracing, attachments, decals, and distortion. Legacy-lane, SOF
+assets, eve-v5 only.
+
+`--chase-distance M` / `--chase-height M` re-frame the tour chase rig,
+whose authored constants (150/55) shoulder-frame an Astero-sized hull;
+a Talocan battleship swallows the default rig whole. Zero keeps the
+authored tour behavior exactly.
+
+The accepted four-wreck EVE Gate shot: warp the family to the gate on
+the tour route and capture the post-arrival gate-facing window (the
+warp leg completes near frame 1620 of the journey; the tunnel resets
+there and the fleet parks at the warp-in point):
+
+```sh
+$PROBE --windowed 1600x1000 --frames 1700 --quality-rung hdr-finish \
+    --asset talocan-battleship \
+    --formation-ships talocan-cruiser,talocan,talocan-frigate \
+    --scene-construction legacy --scene-fixture new-eden \
+    --lighting-view combined --sh-source new-eden-celestials \
+    --local-lights off --local-shadows off --attachments off --decals off \
+    --engines off --distortion off --reflection-source dynamic \
+    --reflection-correction client --shadows high --ao high --ao-method cortao \
+    --composition system --planet-layers all --sun-effects all \
+    --dynamic-exposure client --bloom client --film-grain client --taa high \
+    --motion static --ballpark warp --warp-target evegate \
+    --ballpark-frame chase --chase-distance 5200 --chase-height 1400 \
+    --celestial-ballpark natural --eve-gate authored --warp-tunnel authored \
+    --celestial-anchor stargate --volumetrics all --volumetric-quality high \
+    --enable-froxels --background-capture \
+    --capture-prefix captures/formation/fleet --capture-frames 1626,1650,1680
+```
+
+A static family portrait (no ballpark) also composes: the same
+formation flags with `--scene-fixture new-eden --composition system
+--eve-gate authored --celestial-anchor stargate` and no ballpark
+render all four hulls lit three-quarter on the default model camera.
+
 ## Known limitations
 
 - `TrinityRgbaToDds` mip generation is a byte-space 2x2 box (not
