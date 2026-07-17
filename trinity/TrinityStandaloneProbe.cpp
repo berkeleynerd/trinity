@@ -4408,6 +4408,28 @@ enum StandaloneSceneConstruction
 	STANDALONE_SCENE_CONSTRUCTION_CANONICAL = 1,
 };
 
+enum StandaloneCanonicalDiagnostic
+{
+	STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE = 0,
+	STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF = 1,
+	STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF = 2,
+};
+
+const char* CanonicalDiagnosticName( int mode )
+{
+	switch( mode )
+	{
+	case STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE:
+		return "baseline";
+	case STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF:
+		return "ship-mesh-off";
+	case STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF:
+		return "ship-object-off";
+	default:
+		return "invalid";
+	}
+}
+
 enum StandaloneLegacyShProxies
 {
 	STANDALONE_LEGACY_SH_PROXIES_AUTHORED = 0,
@@ -5029,6 +5051,17 @@ struct StandaloneProbe
 	int legacyShProxies = STANDALONE_LEGACY_SH_PROXIES_AUTHORED;
 	int legacyShReceiver = STANDALONE_LEGACY_SH_RECEIVER_ORIGIN;
 	int legacySolarEnvironment = STANDALONE_LEGACY_SOLAR_ENVIRONMENT_SCRIPTED;
+	int canonicalDiagnostic = STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE;
+	bool canonicalDiagnosticConfigured = false;
+	bool canonicalNativeShipInserted = false;
+	bool canonicalHullAreaPresent = false;
+	bool canonicalHeatAreaPresent = false;
+	bool canonicalDistortionAreaPresent = false;
+	bool canonicalHullAreaDisplayed = false;
+	bool canonicalHeatAreaDisplayed = false;
+	bool canonicalDistortionAreaDisplayed = false;
+	uint32_t canonicalUniqueMeshAreaCount = 0;
+	uint32_t canonicalDisplayedMeshAreaCount = 0;
 	std::string systemManifestPath;
 	std::string systemManifestSha256;
 	std::string sceneConstructionReportPath;
@@ -5047,6 +5080,8 @@ struct StandaloneProbe
 	bool sceneConstructionPublished = false;
 	bool backgroundNebulaAuthored = true;
 	bool backgroundStarfieldAuthored = true;
+	bool backgroundNebulaReady = false;
+	bool backgroundStarfieldReady = false;
 	bool backgroundLayersConfigured = false;
 	bool canonicalStatePrepared = false;
 	uint64_t canonicalPacketSize = 0;
@@ -8514,6 +8549,9 @@ bool ConfigureBackgroundEffectLayers(
 	{
 		background->SetResourceTexture2D( BlueSharedString( "StarMap" ), "res:/texture/global/black.dds" );
 	}
+	Tr2EffectRes* effectResource = background->GetEffectRes();
+	probe.backgroundNebulaReady =
+		probe.backgroundNebulaAuthored && effectResource && effectResource->IsGood();
 	return true;
 }
 
@@ -8672,10 +8710,12 @@ bool ConfigureNewEdenSystem(
 			return false;
 		}
 		scene.SetStarfield( starfield );
+		probe.backgroundStarfieldReady = true;
 	}
 	else
 	{
 		scene.SetStarfield( nullptr );
+		probe.backgroundStarfieldReady = false;
 	}
 
 	auto sun = LoadBlackObjectWithoutYield<EvePlanet>(
@@ -12173,12 +12213,14 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			if( ok && !ReadSolarIlluminationReceiverMetrics( probe, renderContext ) )
 			{
 				if( probe.ballparkReferenceFrame == STANDALONE_BALLPARK_OBSERVER ||
-					h3PlanetConsumerNotApplicable )
+					h3PlanetConsumerNotApplicable ||
+					probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF ||
+					probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
 				{
 					probe.solarIlluminationReceiverMeasurementReachable = false;
 					std::fprintf(
 						stderr,
-						"PL-14E/H3 frame has no reachable hull receiver at frame %llu\n",
+						"PL-14E/H3/canonical diagnostic frame has no reachable hull receiver at frame %llu\n",
 						static_cast<unsigned long long>( probe.renderedFrameCount ) );
 				}
 				else
@@ -15091,6 +15133,101 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 #endif
 }
 
+bool ApplyCanonicalNativeShipDiagnostic(
+	StandaloneProbe& probe,
+	Tr2MeshBase& mesh,
+	std::string& error )
+{
+	std::set<Tr2MeshArea*> uniqueAreas;
+	Tr2MeshArea* hullArea = nullptr;
+	Tr2MeshArea* heatArea = nullptr;
+	Tr2MeshArea* distortionArea = nullptr;
+	for( const Tr2MeshAreaPtr& areaPtr : mesh.GetAllAreas() )
+	{
+		Tr2MeshArea* area = areaPtr;
+		if( !area || !uniqueAreas.insert( area ).second )
+		{
+			continue;
+		}
+		Tr2Effect* effect = area->GetMaterialInterface();
+		const char* effectPath = effect ? effect->GetEffectPathName() : nullptr;
+		std::string normalized = effectPath ? effectPath : "";
+		std::transform(
+			normalized.begin(),
+			normalized.end(),
+			normalized.begin(),
+			[]( unsigned char value ) { return static_cast<char>( std::tolower( value ) ); } );
+		if( normalized.find( "skinned_quadv5.fx" ) != std::string::npos )
+		{
+			if( hullArea )
+			{
+				error = "canonical Astero contains duplicate V5 hull areas";
+				return false;
+			}
+			hullArea = area;
+		}
+		else if( normalized.find( "skinned_quadheatv5.fx" ) != std::string::npos )
+		{
+			if( heatArea )
+			{
+				error = "canonical Astero contains duplicate V5 heat areas";
+				return false;
+			}
+			heatArea = area;
+		}
+		else if( normalized.find( "skinned_fxdistortionv5.fx" ) != std::string::npos )
+		{
+			if( distortionArea )
+			{
+				error = "canonical Astero contains duplicate V5 distortion areas";
+				return false;
+			}
+			distortionArea = area;
+		}
+		else
+		{
+			error = "canonical Astero contains an unexpected mesh effect: " + normalized;
+			return false;
+		}
+	}
+	if( uniqueAreas.size() != 3 || !hullArea || !heatArea || !distortionArea )
+	{
+		std::ostringstream message;
+		message << "canonical Astero diagnostic expected exactly the V5 hull, heat, and distortion areas; found "
+				<< uniqueAreas.size();
+		error = message.str();
+		return false;
+	}
+	if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_MESH_OFF )
+	{
+		hullArea->SetDisplay( false );
+		heatArea->SetDisplay( false );
+		distortionArea->SetDisplay( false );
+	}
+	probe.canonicalUniqueMeshAreaCount = static_cast<uint32_t>( uniqueAreas.size() );
+	probe.canonicalHullAreaPresent = true;
+	probe.canonicalHeatAreaPresent = true;
+	probe.canonicalDistortionAreaPresent = true;
+	probe.canonicalHullAreaDisplayed = hullArea->GetDisplay();
+	probe.canonicalHeatAreaDisplayed = heatArea->GetDisplay();
+	probe.canonicalDistortionAreaDisplayed = distortionArea->GetDisplay();
+	probe.canonicalDisplayedMeshAreaCount =
+		static_cast<uint32_t>( probe.canonicalHullAreaDisplayed ) +
+		static_cast<uint32_t>( probe.canonicalHeatAreaDisplayed ) +
+		static_cast<uint32_t>( probe.canonicalDistortionAreaDisplayed );
+	std::fprintf(
+		stderr,
+		"Canonical diagnostic: mode=%s native=EveShip2 dna=soef1_t1:soebase:soe "
+		"meshAreas=%u displayed=%u hull=%s heat=%s distortion=%s\n",
+		CanonicalDiagnosticName( probe.canonicalDiagnostic ),
+		probe.canonicalUniqueMeshAreaCount,
+		probe.canonicalDisplayedMeshAreaCount,
+		probe.canonicalHullAreaDisplayed ? "displayed" : "hidden",
+		probe.canonicalHeatAreaDisplayed ? "displayed" : "hidden",
+		probe.canonicalDistortionAreaDisplayed ? "displayed" : "hidden" );
+	return true;
+}
+
 bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 {
 	if( !probe.canonicalStatePrepared || !probe.destinySession )
@@ -15304,6 +15441,16 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		}
 		census << "]";
 		error = census.str();
+		return false;
+	}
+	if( ventureControl &&
+		probe.canonicalDiagnostic != STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE )
+	{
+		error = "canonical ship diagnostic isolation is defined only for the Astero";
+		return false;
+	}
+	if( !ventureControl && !ApplyCanonicalNativeShipDiagnostic( probe, *mesh, error ) )
+	{
 		return false;
 	}
 	const float nativeShipRadius = probe.nativeShip->GetRadius();
@@ -16192,6 +16339,16 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 		}
 		probe.scene->SetBallpark( Destiny_GetEmbeddedBallpark( probe.destinySession ) );
 		probe.scene->Objects().Insert( -1, probe.nativeShip->GetRawRoot() );
+		probe.canonicalNativeShipInserted = true;
+		if( probe.canonicalDiagnostic == STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
+		{
+			probe.nativeShip->SetDisplay( false );
+		}
+		std::fprintf(
+			stderr,
+			"Canonical diagnostic publication: mode=%s inScene=yes objectDisplay=%s\n",
+			CanonicalDiagnosticName( probe.canonicalDiagnostic ),
+			probe.nativeShip->GetDisplay() ? "on" : "off" );
 		probe.sceneConstructionTrace.push_back( "native-ship-inserted" );
 		probe.sceneConstructionTrace.push_back( "ballpark-bound" );
 		if( !probe.newEdenSun || !probe.newEdenSun->GetTranslationCurve() ||
@@ -19787,6 +19944,67 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureSceneConstruction(
 	probe->sceneConstructionTrace.clear();
 	probe->sceneConstructionTrace.push_back( "configuration-accepted" );
 	probe->sceneConstructionTrace.push_back( "fresh-host-asserted" );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureCanonicalDiagnostic(
+	void* opaqueProbe,
+	int mode )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || probe->scene || probe->driver ||
+		!probe->sceneConstructionConfigured ||
+		probe->sceneConstruction != STANDALONE_SCENE_CONSTRUCTION_CANONICAL ||
+		mode < STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE ||
+		mode > STANDALONE_CANONICAL_DIAGNOSTIC_SHIP_OBJECT_OFF )
+	{
+		CCP_LOGERR( "Invalid canonical scene diagnostic configuration" );
+		return false;
+	}
+	probe->canonicalDiagnostic = mode;
+	probe->canonicalDiagnosticConfigured = true;
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCanonicalDiagnosticState(
+	void* opaqueProbe,
+	TrinityStandaloneCanonicalDiagnosticState* state )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !state || !probe->canonicalDiagnosticConfigured ||
+		probe->sceneConstruction != STANDALONE_SCENE_CONSTRUCTION_CANONICAL )
+	{
+		return false;
+	}
+	*state = {};
+	state->mode = probe->canonicalDiagnostic;
+	state->nativeShip = probe->nativeShip != nullptr;
+	state->nativeShipInScene = probe->canonicalNativeShipInserted;
+	state->nativeShipDisplay = probe->nativeShip && probe->nativeShip->GetDisplay();
+	state->positionCurveBound =
+		probe->nativeShip && probe->nativeShip->GetModelTranslationCurve() != nullptr;
+	state->rotationCurveBound =
+		probe->nativeShip && probe->nativeShip->GetModelRotationCurve() != nullptr;
+	state->hullAreaPresent = probe->canonicalHullAreaPresent;
+	state->heatAreaPresent = probe->canonicalHeatAreaPresent;
+	state->distortionAreaPresent = probe->canonicalDistortionAreaPresent;
+	state->hullAreaDisplayed = probe->canonicalHullAreaDisplayed;
+	state->heatAreaDisplayed = probe->canonicalHeatAreaDisplayed;
+	state->distortionAreaDisplayed = probe->canonicalDistortionAreaDisplayed;
+	state->uniqueMeshAreaCount = probe->canonicalUniqueMeshAreaCount;
+	state->displayedMeshAreaCount = probe->canonicalDisplayedMeshAreaCount;
+	state->nebulaReady = probe->backgroundNebulaReady;
+	state->starfieldReady = probe->backgroundStarfieldReady;
+	if( probe->scene )
+	{
+		Tr2EffectPtr background = probe->scene->GetBackgroundEffect();
+		Tr2EffectRes* effectResource = background ? background->GetEffectRes() : nullptr;
+		state->nebulaReady = probe->backgroundNebulaAuthored && effectResource && effectResource->IsGood();
+		const auto& batches = probe->scene->GetMainPassBatchDiagnostics();
+		state->submittedOpaqueBatches = batches.opaque;
+		state->submittedAdditiveBatches = batches.additive;
+		state->submittedTransparentBatches = batches.transparent;
+	}
 	return true;
 }
 

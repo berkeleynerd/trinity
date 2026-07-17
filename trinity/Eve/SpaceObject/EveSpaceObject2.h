@@ -256,6 +256,11 @@ public:
 		return m_mesh;
 	}
 	void SetMesh( Tr2MeshBase * mesh );
+	bool GetDisplay() const
+	{
+		return m_display;
+	}
+	void SetDisplay( bool display );
 
 	void PlayAnimation( const char* animName, bool replace, int loopCount, float start, float speed, Be::OptionalWithDefaultValue<bool, true> clearWhenDone );
 	void PlayAnimationOnce( const char* animName );

@@ -490,6 +490,13 @@ enum class SceneConstruction
 	Canonical,
 };
 
+enum class CanonicalDiagnostic
+{
+	Baseline,
+	ShipMeshOff,
+	ShipObjectOff,
+};
+
 enum class LegacyShProxies
 {
 	Authored,
@@ -802,6 +809,8 @@ struct Options
 	SolarEnvironment solarEnvironment = SolarEnvironment::Off;
 	SolarEnvironmentDistance solarEnvironmentDistance = SolarEnvironmentDistance::Canonical;
 	SceneConstruction sceneConstruction = SceneConstruction::Legacy;
+	CanonicalDiagnostic canonicalDiagnostic = CanonicalDiagnostic::Baseline;
+	bool canonicalDiagnosticExplicit = false;
 	LegacyShProxies legacyShProxies = LegacyShProxies::Authored;
 	LegacyShReceiver legacyShReceiver = LegacyShReceiver::Origin;
 	LegacySolarEnvironment legacySolarEnvironment = LegacySolarEnvironment::Scripted;
@@ -2133,6 +2142,39 @@ bool ParseSceneConstruction( const std::string& value, SceneConstruction& constr
 	return true;
 }
 
+const char* SceneConstructionName( SceneConstruction construction )
+{
+	return construction == SceneConstruction::Canonical ? "canonical" : "legacy";
+}
+
+const char* CanonicalDiagnosticName( CanonicalDiagnostic diagnostic )
+{
+	switch( diagnostic )
+	{
+	case CanonicalDiagnostic::Baseline:
+		return "baseline";
+	case CanonicalDiagnostic::ShipMeshOff:
+		return "ship-mesh-off";
+	case CanonicalDiagnostic::ShipObjectOff:
+		return "ship-object-off";
+	}
+	return "unknown";
+}
+
+bool ParseCanonicalDiagnostic( const std::string& value, CanonicalDiagnostic& diagnostic )
+{
+	const std::string normalized = ToLower( value );
+	if( normalized == "baseline" )
+		diagnostic = CanonicalDiagnostic::Baseline;
+	else if( normalized == "ship-mesh-off" )
+		diagnostic = CanonicalDiagnostic::ShipMeshOff;
+	else if( normalized == "ship-object-off" )
+		diagnostic = CanonicalDiagnostic::ShipObjectOff;
+	else
+		return false;
+	return true;
+}
+
 bool ParseLegacyShProxies( const std::string& value, LegacyShProxies& proxies )
 {
 	const std::string normalized = ToLower( value );
@@ -3333,7 +3375,8 @@ void PrintUsage( const char* executable )
 		<< "       [--planet-audit-report PATH]\n"
 		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all|no-lens-flare]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
-		<< "       [--scene-construction legacy|canonical] [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
+		<< "       [--scene-construction legacy|canonical] [--canonical-diagnostic baseline|ship-mesh-off|ship-object-off]\n"
+		<< "       [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
 		<< "       [--legacy-sh-proxies authored|off] [--legacy-sh-receiver origin|live]\n"
 		<< "       [--legacy-solar-environment scripted|live-distance]\n"
 		<< "       [--tour-color-grade client-default|sun-desaturate]\n"
@@ -4146,6 +4189,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			{
 				return false;
 			}
+		}
+		else if( arg == "--canonical-diagnostic" )
+		{
+			if( ++i >= argc || !ParseCanonicalDiagnostic( argv[i], options.canonicalDiagnostic ) )
+			{
+				return false;
+			}
+			options.canonicalDiagnosticExplicit = true;
 		}
 		else if( arg == "--nebula" )
 		{
@@ -5561,6 +5612,8 @@ bool WriteCaptureMetadata( const Options& options,
 	metadata << "temporalTest=" << TemporalTestName( options.temporalTest ) << "\n";
 	metadata << "cameraView=" << CameraViewName( options.cameraView ) << "\n";
 	metadata << "composition=" << SceneCompositionName( options.composition ) << "\n";
+	metadata << "sceneConstruction=" << SceneConstructionName( options.sceneConstruction ) << "\n";
+	metadata << "canonicalDiagnostic=" << CanonicalDiagnosticName( options.canonicalDiagnostic ) << "\n";
 	metadata << "planetLayers=" << PlanetLayersName( options.planetLayers ) << "\n";
 	metadata << "planetCloudDate=" << PlanetCloudDateName( options ) << "\n";
 	metadata << "sunEffectsRequested=" << SunEffectsName( options.sunEffects ) << "\n";
@@ -7035,6 +7088,11 @@ int main( int argc, char** argv )
 			std::cerr << "PL-14G scene construction controls require --scene-fixture new-eden\n";
 			return 2;
 		}
+		if( options.canonicalDiagnosticExplicit && options.sceneConstruction != SceneConstruction::Canonical )
+		{
+			std::cerr << "--canonical-diagnostic is valid only with --scene-construction canonical\n";
+			return 2;
+		}
 		if( options.sceneConstruction == SceneConstruction::Canonical &&
 			( options.systemManifestPath.empty() || options.legacyShProxies != LegacyShProxies::Off ||
 			  options.legacyShReceiver != LegacyShReceiver::Live ||
@@ -7179,6 +7237,15 @@ int main( int argc, char** argv )
 																options.sceneConstructionReportPath.c_str() ) ) )
 		{
 			std::cerr << "Failed to configure the PL-14G scene-construction contract\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( options.sceneConstruction == SceneConstruction::Canonical &&
+			!TrinityStandaloneProbeConfigureCanonicalDiagnostic( probe,
+																 static_cast<int>( options.canonicalDiagnostic ) ) )
+		{
+			std::cerr << "Failed to configure the canonical scene diagnostic\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -8664,6 +8731,41 @@ int main( int argc, char** argv )
 							  << " shPrimaryIntensity=" << shPrimaryIntensity
 							  << " shSecondaryIntensity=" << shSecondaryIntensity;
 						productStats.emplace_back( "reflectionRuntime", stats.str() );
+					}
+				}
+				if( options.sceneConstruction == SceneConstruction::Canonical )
+				{
+					TrinityStandaloneCanonicalDiagnosticState diagnostics = {};
+					if( !TrinityStandaloneProbeGetCanonicalDiagnosticState( probe, &diagnostics ) ||
+						diagnostics.mode != static_cast<int>( options.canonicalDiagnostic ) )
+					{
+						std::cerr << "Failed to read the settled canonical diagnostic state\n";
+						captureSucceeded = false;
+					}
+					else
+					{
+						std::ostringstream stats;
+						stats << "mode=" << CanonicalDiagnosticName( options.canonicalDiagnostic )
+							  << " nativeClass=" << ( diagnostics.nativeShip ? "EveShip2" : "none" )
+							  << " dna=" << ( diagnostics.nativeShip ? "soef1_t1:soebase:soe" : "none" )
+							  << " inScene=" << ( diagnostics.nativeShipInScene ? "true" : "false" )
+							  << " objectDisplay=" << ( diagnostics.nativeShipDisplay ? "true" : "false" )
+							  << " positionCurve=" << ( diagnostics.positionCurveBound ? "bound" : "missing" )
+							  << " rotationCurve=" << ( diagnostics.rotationCurveBound ? "bound" : "missing" )
+							  << " meshAreas=" << diagnostics.uniqueMeshAreaCount
+							  << " displayedMeshAreas=" << diagnostics.displayedMeshAreaCount
+							  << " hullPresent=" << ( diagnostics.hullAreaPresent ? "true" : "false" )
+							  << " heatPresent=" << ( diagnostics.heatAreaPresent ? "true" : "false" )
+							  << " distortionPresent=" << ( diagnostics.distortionAreaPresent ? "true" : "false" )
+							  << " hull=" << ( diagnostics.hullAreaDisplayed ? "displayed" : "hidden" )
+							  << " heat=" << ( diagnostics.heatAreaDisplayed ? "displayed" : "hidden" )
+							  << " distortion=" << ( diagnostics.distortionAreaDisplayed ? "displayed" : "hidden" )
+							  << " submittedOpaque=" << diagnostics.submittedOpaqueBatches
+							  << " submittedAdditive=" << diagnostics.submittedAdditiveBatches
+							  << " submittedTransparent=" << diagnostics.submittedTransparentBatches
+							  << " nebulaReady=" << ( diagnostics.nebulaReady ? "true" : "false" )
+							  << " starfieldReady=" << ( diagnostics.starfieldReady ? "true" : "false" );
+						productStats.emplace_back( "canonicalDiagnostic", stats.str() );
 					}
 				}
 #if defined( TRINITY_FROXEL_INCIDENT_LAB )

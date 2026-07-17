@@ -1974,6 +1974,15 @@ void EveSpaceObject2::SetMesh( Tr2MeshBase* mesh )
 	}
 }
 
+void EveSpaceObject2::SetDisplay( bool display )
+{
+	if( m_display != display )
+	{
+		m_display = display;
+		ReRegister();
+	}
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Access to the bounding sphere radius, but make sure we use the dynamic one

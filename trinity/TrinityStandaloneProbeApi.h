@@ -32,6 +32,29 @@ enum TrinityStandaloneOcclusionLightingProduct : uint32_t
 	TRINITY_STANDALONE_OCCLUSION_SHADOW = 2,
 };
 
+struct TrinityStandaloneCanonicalDiagnosticState
+{
+	int mode = 0;
+	bool nativeShip = false;
+	bool nativeShipInScene = false;
+	bool nativeShipDisplay = false;
+	bool positionCurveBound = false;
+	bool rotationCurveBound = false;
+	bool hullAreaPresent = false;
+	bool heatAreaPresent = false;
+	bool distortionAreaPresent = false;
+	bool hullAreaDisplayed = false;
+	bool heatAreaDisplayed = false;
+	bool distortionAreaDisplayed = false;
+	bool nebulaReady = false;
+	bool starfieldReady = false;
+	uint32_t uniqueMeshAreaCount = 0;
+	uint32_t displayedMeshAreaCount = 0;
+	uint64_t submittedOpaqueBatches = 0;
+	uint64_t submittedAdditiveBatches = 0;
+	uint64_t submittedTransparentBatches = 0;
+};
+
 struct TrinityStandaloneRaytracedShadowDiagnostics
 {
 	bool preparationAttempted = false;
@@ -540,6 +563,12 @@ extern "C" bool TrinityStandaloneProbeConfigureSceneConstruction( void* opaquePr
 	int legacySolarEnvironment,
 	const char* manifestPath,
 	const char* reportPath );
+extern "C" bool TrinityStandaloneProbeConfigureCanonicalDiagnostic(
+	void* opaqueProbe,
+	int mode );
+extern "C" bool TrinityStandaloneProbeGetCanonicalDiagnosticState(
+	void* opaqueProbe,
+	TrinityStandaloneCanonicalDiagnosticState* state );
 extern "C" bool TrinityStandaloneProbePrepareCanonicalState( void* opaqueProbe,
 	int mode,
 	int referenceFrame,
