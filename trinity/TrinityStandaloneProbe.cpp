@@ -488,6 +488,15 @@ const Be::ClassInfo* TrinityProbePyOS::ExposeToBlue()
 
 namespace
 {
+// SOF hull the eve-v5 material path renders. Each hull declares its own areas
+// and texture paths, so selecting a different hull retextures the model without
+// any further plumbing. The faction supplies glow and color sets. Defaults to
+// the Astero pairing.
+const char* const kDefaultSofHullPath = "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black";
+const char* const kDefaultSofFactionPath = "res:/dx9/model/spaceobjectfactory/factions/soebase.black";
+std::string g_sofHullPath = kDefaultSofHullPath;
+std::string g_sofFactionPath = kDefaultSofFactionPath;
+
 struct StandaloneProbe;
 bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int normalMapMode, std::string& error );
 std::string ToNarrowPath( const wchar_t* path );
@@ -2282,17 +2291,41 @@ public:
 				}
 				std::fprintf( stderr, "CMF area section: name=%s group=%u firstIndex=%u indexCount=%u\n", section.name.c_str(), section.sourceGroup, section.firstIndex, section.indexCount );
 			}
-			for( uint32_t group = 0; group < m_sectionsByGroup.size(); ++group )
+			// The Astero authors three areas (0 distortion, 1 hull, 2 booster). Pre-V5
+			// hulls such as the Talocan wrecks author a single undifferentiated area,
+			// which is the hull. Bind whichever groups the model actually carries; the
+			// SOF hull supplies the area (and therefore the textures) for each index.
+			uint32_t hullGroup = 1;
+			if( !m_sectionsByGroup[hullGroup] )
 			{
-				if( !m_sectionsByGroup[group] )
+				hullGroup = m_sectionsByGroup.size();
+				for( uint32_t group = 0; group < m_sectionsByGroup.size(); ++group )
 				{
-					std::fprintf( stderr, "Astero CMF is missing authored GR2 group %u\n", group );
+					if( m_sectionsByGroup[group] )
+					{
+						hullGroup = group;
+						break;
+					}
+				}
+				if( hullGroup == m_sectionsByGroup.size() )
+				{
+					std::fprintf( stderr, "SOF CMF declares no GR2 groups\n" );
 					return false;
 				}
+				std::fprintf( stderr, "SOF CMF is single-area; treating GR2 group %u as the hull\n", hullGroup );
 			}
+			m_hullGroup = hullGroup;
 
-			if( !InitializeAsteroEffect( m_distortionEffect, 0, "res:/graphics/effect/managed/space/spaceobject/v5/fx/fxdistortionv5.fx", false ) ||
-				!InitializeAsteroEffect( m_hullEffect, 1, "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadv5.fx", true ) ||
+			if( hullGroup != 0 && m_sectionsByGroup[0] &&
+				!InitializeAsteroEffect( m_distortionEffect, 0, "res:/graphics/effect/managed/space/spaceobject/v5/fx/fxdistortionv5.fx", false ) )
+			{
+				return false;
+			}
+			if( !InitializeAsteroEffect( m_hullEffect, hullGroup, "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadv5.fx", true ) )
+			{
+				return false;
+			}
+			if( m_sectionsByGroup[2] &&
 				!InitializeAsteroEffect( m_boosterEffect, 2, "res:/graphics/effect/managed/space/spaceobject/v5/quad/quadheatv5.fx", true ) )
 			{
 				return false;
@@ -2335,7 +2368,7 @@ public:
 
 	bool PrepareRaytracingGeometry( std::string & error )
 	{
-		if( !m_useEveV5Material || !m_hullEffect || !m_boosterEffect )
+		if( !m_useEveV5Material || !m_hullEffect )
 		{
 			error = "Raytraced Astero geometry requires prepared EVE V5 hull materials";
 			return false;
@@ -2638,17 +2671,26 @@ public:
 		{
 			if( batchType == TRIBATCHTYPE_OPAQUE && !m_occlusionDepthOnly )
 			{
-				CommitAreaBatch( batches, 1, m_hullEffect, Tr2EffectStateManager::RM_OPAQUE );
-				CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+				CommitAreaBatch( batches, m_hullGroup, m_hullEffect, Tr2EffectStateManager::RM_OPAQUE );
+				if( m_boosterEffect )
+				{
+					CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+				}
 			}
 			else if( batchType == TRIBATCHTYPE_DEPTH && m_occlusionDepthOnly )
 			{
-				CommitAreaBatch( batches, 1, m_hullEffect, Tr2EffectStateManager::RM_OPAQUE );
-				CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+				CommitAreaBatch( batches, m_hullGroup, m_hullEffect, Tr2EffectStateManager::RM_OPAQUE );
+				if( m_boosterEffect )
+				{
+					CommitAreaBatch( batches, 2, m_boosterEffect, Tr2EffectStateManager::RM_OPAQUE );
+				}
 			}
 			else if( batchType == TRIBATCHTYPE_DISTORTION )
 			{
-				CommitAreaBatch( batches, 0, m_distortionEffect, Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
+				if( m_distortionEffect )
+				{
+					CommitAreaBatch( batches, 0, m_distortionEffect, Tr2EffectStateManager::RM_ALPHA_ADDITIVE );
+				}
 			}
 			ForwardAttachmentBatches( batches, batchType, perObjectData, reason );
 			return;
@@ -3765,12 +3807,23 @@ private:
 				texture->Reload();
 			}
 			std::fprintf( stderr, "Astero group %u texture %s: %s path=%ls\n", sourceGroup, textureName, texture && texture->IsGood() ? "ready" : "FAILED", texture ? texture->GetPath() : L"" );
-			if( !texture || !texture->IsGood() )
+			if( !texture )
 			{
+				continue;
+			}
+			if( !texture->IsGood() )
+			{
+				const wchar_t* texturePath = texture->GetPath();
+				if( !texturePath || !*texturePath )
+				{
+					// The hull's area does not supply this slot; pre-V5 hulls
+					// declare fewer maps than the Astero.
+					continue;
+				}
 				return false;
 			}
 		}
-		return ValidateEffect( *effect, sourceGroup == 0 ? "distortion" : ( sourceGroup == 1 ? "hull" : "booster" ), requireDepth );
+		return ValidateEffect( *effect, requireDepth ? ( sourceGroup == m_hullGroup ? "hull" : "booster" ) : "distortion", requireDepth );
 	}
 
 	void CommitAreaBatch( ITriRenderBatchAccumulator * batches, uint32_t sourceGroup, Tr2Effect* effect, Tr2EffectStateManager::RenderingMode renderMode )
@@ -3789,11 +3842,11 @@ private:
 		batch.SetDrawIndexedInstanced( section.indexCount, 1, section.firstIndex, 0, 0 );
 		batch.SetRenderingMode( renderMode );
 		batches->Commit( batch );
-		if( sourceGroup == 1 )
+		if( sourceGroup == m_hullGroup )
 		{
 			++m_hullSubmittedBatches;
 		}
-		if( sourceGroup == 0 )
+		if( sourceGroup == 0 && m_hullGroup != 0 )
 		{
 			++m_distortionSubmittedBatches;
 			m_distortionSubmittedIndices += section.indexCount;
@@ -3965,6 +4018,9 @@ private:
 	Tr2CurveConstantPtr m_constantRotation;
 	TriGeometryResPtr m_decalGeometry;
 	std::array<const TrinityStandaloneCmfSection*, 3> m_sectionsByGroup = {};
+	// GR2 group carrying the hull area: 1 for Astero-style three-area models,
+	// the model's only group for single-area pre-V5 hulls.
+	uint32_t m_hullGroup = 1;
 	std::array<bool, 3> m_reportedAreaBatch = {};
 	std::array<DecalStats, DECAL_FAMILY_COUNT> m_decalStats = {};
 	StandaloneEveV5PerObjectData m_eveV5PerObjectData;
@@ -9233,16 +9289,12 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 		"res:/dx9/model/spaceobjectfactory/materials/red_crimson_enamel.black",
 	};
 
-	auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>(
-		"res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black",
-		error );
+	auto hull = LoadBlackObjectWithoutYield<EveSOFDataHull>( g_sofHullPath.c_str(), error );
 	if( !hull )
 	{
 		return false;
 	}
-	auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>(
-		"res:/dx9/model/spaceobjectfactory/factions/soebase.black",
-		error );
+	auto faction = LoadBlackObjectWithoutYield<EveSOFDataFaction>( g_sofFactionPath.c_str(), error );
 	if( !faction || !faction->m_colorSet )
 	{
 		if( error.empty() )
@@ -9253,11 +9305,13 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 	}
 
 	EveSOFDataHullAreaPtr selectedArea;
+	bool selectedAreaIsOpaque = false;
 	for( const auto& area : hull->m_opaqueAreas )
 	{
 		if( area->m_index == sourceGroup )
 		{
 			selectedArea = area;
+			selectedAreaIsOpaque = true;
 			break;
 		}
 	}
@@ -9278,7 +9332,9 @@ bool ConfigureAsteroEveV5Effect( Tr2Effect& effect, uint32_t sourceGroup, int no
 		return false;
 	}
 
-	const bool opaqueArea = sourceGroup == 1 || sourceGroup == 2;
+	// Membership decides, not the index: single-area pre-V5 hulls author their
+	// hull as area 0, which the Astero-era index test would misread.
+	const bool opaqueArea = selectedAreaIsOpaque;
 	Vector4 patternMaterialValues[2][3] = {};
 	if( opaqueArea )
 	{
@@ -22332,6 +22388,14 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrewarmSolarParticles( void
 		static_cast<double>( probe->solarParticlePrewarmTime ) / 10000000.0,
 		emitter->GetEmittedParticleCount() );
 	return true;
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath )
+{
+	g_sofHullPath = ( hullPath && *hullPath ) ? hullPath : kDefaultSofHullPath;
+	g_sofFactionPath = ( factionPath && *factionPath ) ? factionPath : kDefaultSofFactionPath;
+	std::fprintf( stderr, "SOF hull selected: %s\n", g_sofHullPath.c_str() );
+	std::fprintf( stderr, "SOF faction selected: %s\n", g_sofFactionPath.c_str() );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSolarHighReport( void* opaqueProbe )

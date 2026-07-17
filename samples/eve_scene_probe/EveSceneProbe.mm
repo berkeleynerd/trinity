@@ -143,6 +143,7 @@ extern "C" bool TrinityStandaloneProbeConfigureReflectionLightingAudit(
 	void* opaqueProbe, int station, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteReflectionLightingReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
+extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -2824,7 +2825,37 @@ std::string DefaultAssetPath( const Options& options )
 	{
 		return executableDirectory + "/Assets/Astero.cmf";
 	}
+	if( options.asset == "talocan" )
+	{
+		return executableDirectory + "/Assets/Talocan.cmf";
+	}
 	return executableDirectory + "/Assets/11989_lite.cmf";
+}
+
+// Assets rendered through the EVE SOF / eve-v5 material path.
+bool IsSofAsset( const Options& options )
+{
+	return options.asset == "astero" || options.asset == "talocan";
+}
+
+// Each SOF hull declares its own areas and texture paths, so selecting the hull
+// (with its faction, for glow and color sets) retextures the rendered model.
+const char* SofHullPath( const Options& options )
+{
+	if( options.asset == "talocan" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/hulls/tde1_t1_wreck.black";
+	}
+	return "res:/dx9/model/spaceobjectfactory/hulls/soef1_t1.black";
+}
+
+const char* SofFactionPath( const Options& options )
+{
+	if( options.asset == "talocan" )
+	{
+		return "res:/dx9/model/spaceobjectfactory/factions/talocanbase.black";
+	}
+	return "res:/dx9/model/spaceobjectfactory/factions/soebase.black";
 }
 
 #if defined( TRINITY_FROXEL_INCIDENT_LAB )
@@ -3371,7 +3402,8 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.asset = ToLower( argv[i] );
-			if( options.asset != "astero" && options.asset != "ship" && options.asset != "fox" )
+			if( options.asset != "astero" && options.asset != "ship" && options.asset != "fox" &&
+				options.asset != "talocan" )
 			{
 				return false;
 			}
@@ -4303,7 +4335,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 	{
 		options.inputPath = DefaultAssetPath( options );
 	}
-	if( !options.materialModeExplicit && options.asset == "astero" )
+	if( !options.materialModeExplicit && IsSofAsset( options ) )
 	{
 		options.materialMode = MaterialMode::EveV5;
 	}
@@ -4375,7 +4407,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		std::cerr << "Authored attachments require --asset astero --material-mode eve-v5\n";
 		return false;
 	}
-	const bool compatibleLightingModel = options.asset == "astero" && options.materialMode == MaterialMode::EveV5 &&
+	const bool compatibleLightingModel = IsSofAsset( options ) && options.materialMode == MaterialMode::EveV5 &&
 		options.materialView == MaterialView::Lit && options.areaView == AreaView::All &&
 		options.qualityRung >= QualityRung::Model;
 	// The current macOS client disables dynamic-light shadows and ships no V5 receiver.
@@ -4395,7 +4427,9 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	options.resolvedDecals =
-		options.decals == Decals::Auto ? ( compatibleLightingModel ? Decals::Authored : Decals::Off ) : options.decals;
+		options.decals == Decals::Auto ?
+			( compatibleLightingModel && options.asset == "astero" ? Decals::Authored : Decals::Off ) :
+			options.decals;
 	if( options.resolvedDecals == Decals::Authored && !compatibleLightingModel )
 	{
 		std::cerr << "Authored decals require a lit, all-area Astero using eve-v5 at the model rung or higher\n";
@@ -4782,7 +4816,7 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Static &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model ||
 		  ( options.motion != MotionMode::Static && options.motion != MotionMode::Camera ) ) )
 	{
@@ -4790,28 +4824,28 @@ bool ParseArgs( int argc, char** argv, Options& options )
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Goto &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "GOTO Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Orbit &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "ORBIT Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Warp &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "WARP Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
 		return false;
 	}
 	if( options.ballpark == BallparkMode::Approach &&
-		( options.asset != "astero" || options.materialMode != MaterialMode::EveV5 ||
+		( !IsSofAsset( options ) || options.materialMode != MaterialMode::EveV5 ||
 		  options.qualityRung < QualityRung::Model || options.motion != MotionMode::Static ) )
 	{
 		std::cerr << "APPROACH Ballpark mode requires an Astero eve-v5 model render with sample motion static\n";
@@ -7196,6 +7230,7 @@ int main( int argc, char** argv )
 		}
 
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
+		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
 		if( options.qualityRung != QualityRung::Shell && options.sceneConstruction == SceneConstruction::Canonical )
 		{
 			if( !TrinityStandaloneProbeSetCelestialAnchor( probe, options.celestialAnchor ) ||
