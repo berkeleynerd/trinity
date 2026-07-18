@@ -127,6 +127,9 @@ if (BUILD_SHADER_COMPILER OR BUILD_FOR_PYTHON_2)
     add_subdirectory(shadercompiler)
 endif ()
 
+# Register tests with CTest from the build root (PL-05); subdirectories
+# gate actual test creation on BUILD_TESTING.
+enable_testing()
 add_subdirectory(trinityal)
 if(BUILD_GLTF_IMPORTER OR BUILD_ANIMATED_MODEL_SAMPLE OR BUILD_EVE_SCENE_PROBE)
     add_subdirectory(tools/gltf_to_cmf)
