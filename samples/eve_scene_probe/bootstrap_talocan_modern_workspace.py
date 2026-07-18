@@ -18,6 +18,18 @@ TrinityRgbaToDds. Two modes:
     grayscale roughness. Albedo, dirt, material, and paint mask pass
     through unchanged.
 
+An optional upscale stage (--upscale pixelmator) super-resolves the
+masters to --upscale-size (default 2048) before the transforms run:
+albedo, dirt, normal, and roughness through Pixelmator Pro's local ML
+Super Resolution (pixelmator_super_resolution.sh), the material and
+paint-mask ID maps through exact point sampling, and the glow
+synthesized directly at the target size. The stage shells to
+ImageMagick (magick) for PNG readback and point resampling; both
+Pixelmator Pro and ImageMagick are checked up front with clear
+failures. The normal map is NOT renormalized after upscale: the wreck
+_n is not the 128-centered V5 basis, so no unit-length invariant
+exists to restore.
+
 Everything written here is an EVE-client derivative: the workspace must
 stay outside git, and this script refuses paths inside a repository
 checkout. Stdlib only (the host python has no PIL/numpy).
@@ -25,6 +37,7 @@ checkout. Stdlib only (the host python has no PIL/numpy).
 
 import argparse
 import os
+import shutil
 import struct
 import subprocess
 import sys
@@ -50,6 +63,33 @@ def write_png(path, width, height, rgba):
         handle.write(chunk(b"IHDR", header))
         handle.write(chunk(b"IDAT", zlib.compress(bytes(scanlines), 6)))
         handle.write(chunk(b"IEND", b""))
+
+
+def require_upscale_tools():
+    if shutil.which("magick") is None:
+        sys.exit("--upscale pixelmator needs ImageMagick (magick) on PATH; "
+                 "brew install imagemagick, or run without --upscale")
+
+
+def png_to_rgba(path):
+    """PNG -> (width, height, RGBA8 bytes) via ImageMagick, tolerant of
+    whatever channel layout Pixelmator exported."""
+    size = subprocess.run(["magick", "identify", "-format", "%w %h", path],
+                          check=True, capture_output=True, text=True).stdout
+    width, height = (int(v) for v in size.split())
+    raw = subprocess.run(["magick", path, "-depth", "8", "RGBA:-"],
+                         check=True, capture_output=True).stdout
+    expected = width * height * 4
+    if len(raw) != expected:
+        sys.exit(f"magick RGBA readback size mismatch for {path}: "
+                 f"{len(raw)} != {expected}")
+    return width, height, raw
+
+
+def point_upscale(path_in, path_out, size):
+    """Exact point-sampled upscale for ID/mask maps."""
+    subprocess.run(["magick", path_in, "-sample", f"{size}x{size}", path_out],
+                   check=True)
 
 
 def tint_albedo(rgba):
@@ -192,7 +232,16 @@ def main():
     parser.add_argument("--roughness-contrast", type=float, default=1.25,
                         help="v1 roughness contrast about the map mean; 1.0 disables "
                              "the pass (default 1.25)")
+    parser.add_argument("--upscale", choices=["off", "pixelmator"], default="off",
+                        help="off: keep source resolution (default). pixelmator: "
+                             "super-resolve masters to --upscale-size via local ML "
+                             "(albedo/dirt/normal/roughness; masks nearest; glow "
+                             "synthesized at target size)")
+    parser.add_argument("--upscale-size", type=int, default=2048,
+                        help="upscale target edge in texels (default 2048)")
     args = parser.parse_args()
+    if args.upscale == "pixelmator":
+        require_upscale_tools()
 
     workspace = os.path.abspath(args.workspace)
     probe = workspace
@@ -219,6 +268,28 @@ def main():
             rgba = handle.read()
 
         note = ""
+        if args.upscale == "pixelmator" and width < args.upscale_size and suffix != "g":
+            if args.upscale_size % width != 0:
+                sys.exit(f"upscale size {args.upscale_size} is not an integer "
+                         f"multiple of {width} ({suffix})")
+            sr_in = os.path.join(workspace, f"{STEM}_{suffix}_sr_in.png")
+            sr_out = os.path.join(workspace, f"{STEM}_{suffix}_sr_out.png")
+            write_png(sr_in, width, height, rgba)
+            if suffix in ("m", "p3"):
+                point_upscale(sr_in, sr_out, args.upscale_size)
+                note = ", point-sampled"
+            else:
+                helper = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                      "pixelmator_super_resolution.sh")
+                subprocess.run([helper, sr_in, sr_out, str(args.upscale_size)],
+                               check=True)
+                note = ", ml-sr"
+            width, height, rgba = png_to_rgba(sr_out)
+            os.remove(sr_in)
+            os.remove(sr_out)
+            # The glow map skips upscale entirely: v1 synthesizes it at the
+            # albedo's (already upscaled) size, and tint mode passes the
+            # placeholder through at source size deliberately.
         if args.mode == "tint":
             if suffix == "a":
                 rgba = tint_albedo(rgba)
@@ -228,20 +299,26 @@ def main():
                 albedo_lum = luminance(rgba)
                 albedo_dims = (width, height)
             elif suffix in ("g", "n"):
-                if albedo_lum is None or albedo_dims != (width, height):
-                    sys.exit(f"v1 {suffix} pass needs albedo at {width}x{height}; "
-                             f"got albedo {albedo_dims} — cannot derive seams")
+                if albedo_lum is None:
+                    sys.exit(f"v1 {suffix} pass needs the albedo decoded first")
                 if suffix == "g":
+                    # Synthesized at the albedo's size: with the upscale stage
+                    # active that is the target size, and the placeholder's own
+                    # decoded dimensions are irrelevant.
+                    width, height = albedo_dims
                     rgba = synth_glow(albedo_lum, width, height,
                                       args.glow_hue, args.glow_intensity, args.glow_threshold)
                     note = ", glow"
                 elif args.detail_normal_strength > 0.0:
+                    if albedo_dims != (width, height):
+                        sys.exit(f"v1 n pass needs albedo at {width}x{height}; "
+                                 f"got albedo {albedo_dims} — cannot derive seams")
                     rgba = detail_normal(rgba, albedo_lum, width, height,
                                          args.detail_normal_strength)
-                    note = ", detail-normal"
+                    note = note + ", detail-normal" if note else ", detail-normal"
             elif suffix == "r" and args.roughness_contrast != 1.0:
                 rgba = curve_roughness(rgba, args.roughness_contrast)
-                note = ", roughness-curve"
+                note = note + ", roughness-curve" if note else ", roughness-curve"
 
         png_path = os.path.join(workspace, f"{STEM}_{suffix}.png")
         write_png(png_path, width, height, rgba)

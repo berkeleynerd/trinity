@@ -260,6 +260,92 @@ powered, binary with activation, not scaled by x. Default off: every
 accepted capture stays byte-stable. The v1 glow synthesis and knobs
 remain the authoring path for the day a live emissive route exists.
 
+## ML super-resolution stage (TM-2)
+
+`--upscale pixelmator` on the bootstrap super-resolves the decoded
+masters to `--upscale-size` (default 2048) before the mode transforms
+run. Per-map policy:
+
+- `_a`, `_d`, `_n`, `_r`: Pixelmator Pro ML Super Resolution
+  (`pixelmator_super_resolution.sh`, fully local, AppleScript-driven;
+  the app name is compiled into the script at run time because
+  app-specific terminology cannot compile against a variable).
+- `_m`, `_p3`: exact point sampling (ImageMagick `-sample`) — ID/mask
+  semantics must not be interpolated.
+- `_g`: synthesized by v1 directly at the albedo's upscaled size.
+- The normal map is NOT renormalized after upscale: the wreck `_n` is
+  not the 128-centered V5 basis, so no unit-length invariant exists to
+  restore; SR's local interpolation is the basis-agnostic operation.
+
+Host requirements for the stage (checked up front, clear failures):
+Pixelmator Pro (either bundle name) and ImageMagick (`magick`, used
+for PNG readback and point resampling). Both optional — the stage is
+off by default and the lane runs without them.
+
+Accepted evidence (2048, default v1 knobs): all seven staged DDS at
+2048x2048 with full 12-level mip chains, legacy DXT1 (auto-format,
+matching the 1024 baseline's encode); zero FAILED slots; A/A
+`0.0 / 0.0`; A/B vs original `diff_pixel_fraction = 0.0065`,
+hull-localized, passed; close-camera pair (camera-distance 300) shows
+crisper panel grooves and vent rows without hallucination artifacts.
+
+## Generative reauthoring spike (TM-3)
+
+Conditioned img2img over the decoded albedo, judged by a UV-fidelity
+harness (void contamination: texels painted into the black atlas gaps;
+edge recall: original panel edges surviving in the candidate; both
+sampled at 120k points). Engines evaluated, all conditioned on the
+same 1024 master, same harness:
+
+| engine | void contam | edge recall | mean abs delta |
+| --- | --- | --- | --- |
+| FLUX.1-schnell 4-bit (mflux), adherence 0.70 | 3.4% | 55.9% | 12.5 |
+| schnell, adherence 0.85 | 1.1% | 62.7% | 8.8 |
+| schnell, adherence 0.95 | 0.2% | 72.5% | 4.4 |
+| OpenAI image_gen (codex CLI) | 0.0% | 94.6% | 4.8 |
+
+Verdict: the commercial engine reaches an operating point the local
+schnell tier cannot — 1.56x fine-edge density at 94.6% layout recall —
+and its output survived the full lane (SR to 2048, BC1 encode, 12-mip
+stage, zero FAILED slots, A/A 0.0/0.0, A/B 0.0068 hull-localized,
+passed). Local schnell trades enhancement against fidelity
+monotonically and tops out at 72.5% recall with negligible added
+detail. FLUX.2-klein (larger local model, same mflux stack) remains
+the untested local follow-up.
+
+Two mflux gotchas for the record: --image-strength is init-image
+ADHERENCE (higher preserves more), not diffusers-style denoise; and at
+schnell's native 4 steps the strength quantizes to 1/4 resolution, so
+nearby values collapse to pixel-identical outputs — sweep at 16+
+steps.
+
+The codex recipe (prompt on stdin; positional args are ignored without
+a TTY): codex exec --skip-git-repo-check --sandbox workspace-write
+-i MASTER.png - < prompt.txt, instructing layout-preserving
+enhancement and a saved 1024 PNG. IP basis recorded on issue #5:
+uploads of derivatives for processing are maintainer-approved under
+the fan-content posture (CCP Content Creation Terms of Use,
+non-commercial); the no-payload distribution rule is unchanged and all
+generated sets stay in the out-of-repo workspace.
+
+## Accepted look: the relic set (2026-07-17)
+
+The accepted tde1 texture set is the "relic" styling: the codex
+image_gen relic pass over the albedo (millennia-of-decay styling —
+micro-meteorite pitting, scorch, mineral staining; harness numbers
+void 0.0%, edge recall 73.8%, 2.04x fine-edge density, mad 45.9)
+super-resolved to 2048, over the TM-2 ML-SR set for every other map
+with the TM-1 detail-normal/roughness passes. A render matrix at a
+fixed camera (original / conservative / bold / bold+dirt / relic)
+established that ~73% edge recall with zero void contamination stays
+unmistakably the same hull — the recall spends itself inside panel
+interiors, and macro identity (silhouette, panel groups, vent rows)
+holds. Acceptance evidence: zero FAILED slots, A/A 0.0 / 0.0, A/B vs
+original 0.0170 hull-localized, passed. Spike masters and all five
+range variants live in the out-of-repo spike directory
+(~/TalocanModernization/tm3-spike); the workspace carries the
+accepted set.
+
 ## Known limitations
 
 - `TrinityRgbaToDds` mip generation is a byte-space 2x2 box (not
