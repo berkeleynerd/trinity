@@ -29,7 +29,7 @@ Format C, C++, and Objective-C++ with the root `.clang-format`. Use four-column 
 
 ## Testing Guidelines
 
-TrinityAL uses GoogleTest sources in `trinityal/tests/`; shader compiler tests use pytest in `shadercompiler/python/shadercompiler/test/`. Apple sample work currently relies on finite-frame smoke runs because the full TrinityAL suite is not wired as a macOS test executable. Test the smallest affected target, run relevant `--frames N` captures, then build `all`. Treat warnings as failures; presets set `CMAKE_COMPILE_WARNING_AS_ERROR=ON`.
+TrinityAL uses GoogleTest sources in `trinityal/tests/`; shader compiler tests use pytest in `shadercompiler/python/shadercompiler/test/`. The TrinityAL GPU conformance suite is wired as a macOS ctest target `TrinityALTest_metal` (configure with `-DBUILD_TESTING=ON`; run `trinityal/tests/run_metal_suite.sh` or `ctest --test-dir <build> -R TrinityALTest_metal`). Runtime scope trims live in one place — the `_METAL_GTEST_EXCLUDES` ledger in `trinityal/tests/CMakeLists.txt`, each entry justified; see `docs/macos-metal-bringup.md` for the current baseline and known backend gaps. Apple sample work may still use finite-frame smoke runs for engine-level changes. Test the smallest affected target, run relevant `--frames N` captures, then build `all`. Treat warnings as failures; presets set `CMAKE_COMPILE_WARNING_AS_ERROR=ON`.
 
 ## Commit & Pull Request Guidelines
 

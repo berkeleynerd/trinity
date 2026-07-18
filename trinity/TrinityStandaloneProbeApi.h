@@ -786,3 +786,89 @@ extern "C" bool TrinityStandaloneProbeGetBallparkCapture(
 	uint32_t* width,
 	uint32_t* height,
 	uint32_t* pitch );
+
+// --------------------------------------------------------------------------------------
+// External-visualizer seam (Wave 0 of the Swift renderer migration).
+//
+// TRINITY_STANDALONE_CAPTURE_EXTERNAL_VISUALIZER is a modifier bit for
+// RenderFrame's captureProducts argument (masked out before product
+// validation, like the freeze-scene bit). When set and RenderFrame returns
+// true: the requested product was rendered and resolved by the same
+// selection the internal visualizer uses, and the engine retains the
+// product texture (pool lease + object retain) until the NEXT RenderFrame
+// on this probe, or DestroyDevice. The engine performs no visualizer draw,
+// no readback, and no on-screen product draw; the drawable presents the
+// raw scene. Cube and volume products (Reflection, MieEnvironment,
+// VolumeSlices, FroxelFog) are not supported and fail the frame.
+//
+// GetRenderProductTexture may then be called (render thread only). On a
+// true return the texture is GPU-complete — the call drains the engine's
+// command queue — and its contents are immutable until the next
+// RenderFrame. The caller must: create its own command queue from
+// GetMetalDevice's device; treat the texture as sample/read-only; complete
+// all GPU work that references it BEFORE the next RenderFrame; never cache
+// the pointer across frames; and consume metalPixelFormat rather than
+// assuming formats (depth is Depth32Float; normals RGB10A2Unorm; color is
+// the backbuffer format). The device is engine-owned and process-lifetime.
+// --------------------------------------------------------------------------------------
+enum TrinityStandaloneCaptureModifier : uint32_t
+{
+	TRINITY_STANDALONE_CAPTURE_EXTERNAL_VISUALIZER = 1u << 25,
+};
+extern "C" void* TrinityStandaloneProbeGetMetalDevice( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeGetRenderProductTexture(
+	void* opaqueProbe,
+	void** metalTexture,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* metalPixelFormat );
+
+// --------------------------------------------------------------------------------------
+// Wave-1 lower C surface (W1-A): the shell frame bracket, granular — the
+// exact DrawShellFrame sequence exposed call-by-call so a host-side
+// orchestrator can own the shell frame loop. All calls render-thread only,
+// after CreateDevice (no scene required). Sequence contract per frame:
+// BeginFrame -> BeginRenderContext -> BindDefaultBackBuffer -> ClearColor
+// -> EndRenderContext -> EndFrame -> Present. CaptureShellFrame runs one
+// complete offscreen frame clearing the render-product readback target and
+// publishes it through GetCapturedProduct (deterministic, byte-comparable).
+// --------------------------------------------------------------------------------------
+extern "C" bool TrinityStandaloneProbeBeginFrame( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeBeginRenderContext( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeBindDefaultBackBuffer( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeClearColor( void* opaqueProbe, uint32_t argb );
+extern "C" bool TrinityStandaloneProbeEndRenderContext( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeEndFrame( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbePresent( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeCaptureShellFrame( void* opaqueProbe );
+
+// W1-B: the render-product readback metrics (FNV-1a hash, nonzero-pixel
+// count, RGB min/max, nonzero bounding box) computed by the internal
+// ReadCapturedRenderProduct for the last captured product. Reference
+// values for a host-side contract-faithful readback port. Fails if no
+// product has been captured.
+extern "C" bool TrinityStandaloneProbeGetCapturedProductMetrics(
+	void* opaqueProbe,
+	uint64_t* hash,
+	uint64_t* nonzeroPixels,
+	uint32_t* minimum,
+	uint32_t* maximum,
+	uint32_t* minX,
+	uint32_t* minY,
+	uint32_t* maxX,
+	uint32_t* maxY );
+
+// --------------------------------------------------------------------------------------
+// W1-C: the driver frame loop, granular (the driver.Execute crossing). A
+// host orchestrator sequences the driver frame itself for the static
+// (ballparkMode==OFF) capture path: BeginFrame -> ConfigureDriverProducts
+// -> ValidateDriverFrame -> ExecuteDriverProducts -> ResolveAndRetainProduct
+// -> (host visualize/readback via GetRenderProductTexture) -> Present.
+// RenderFrame and DrawDriverFrame are unchanged and remain the oracle (the
+// journey/tour lane still flows through them). ConfigureDriverProducts
+// covers color/depth/normal; other products append with their own chunks.
+// --------------------------------------------------------------------------------------
+extern "C" bool TrinityStandaloneProbeConfigureDriverProducts( void* opaqueProbe, int captureProducts, uint32_t* outCount );
+extern "C" bool TrinityStandaloneProbeValidateDriverFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
+extern "C" bool TrinityStandaloneProbeExecuteDriverProducts( void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene );
+extern "C" bool TrinityStandaloneProbeResolveAndRetainProduct( void* opaqueProbe, int captureProduct );

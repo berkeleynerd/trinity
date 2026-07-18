@@ -4,6 +4,10 @@
 
 #include <Blue.h>
 
+// Self-guarded platform headers for the Wave-0 external-visualizer seam.
+#include "../trinityal/metal/Tr2RenderContextMetal.h"
+#include "../trinityal/metal/Tr2TextureALMetal.h"
+
 #include "Eve/EveSpaceScene.h"
 #include "Eve/EveSpaceSceneRenderDriver.h"
 #include "Eve/EveEntity.h"
@@ -4627,6 +4631,10 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_TAA_OUTPUT = 1 << 22,
 	STANDALONE_CAPTURE_TAA_COOLDOWN = 1 << 23,
 	STANDALONE_CAPTURE_TEMPORAL_SAMPLE = 1 << 24,
+	// Modifier bit, masked out before product validation (like FREEZE_SCENE):
+	// render and retain the selected product for an external (host-side)
+	// visualizer instead of drawing the internal one.
+	STANDALONE_CAPTURE_EXTERNAL_VISUALIZER = 1 << 25,
 };
 
 enum StandaloneTemporalTest
@@ -5577,6 +5585,22 @@ struct StandaloneProbe
 	Tr2EffectPtr froxelProductVisualizer;
 	Tr2EffectPtr dynamicLightShadowResolveEffect;
 	Tr2TextureAL renderProductReadback;
+	// External-visualizer retention: pins the selected product (pool lease +
+	// facade retain) from the frame that requested it until the next
+	// DrawDriverFrame. Empty otherwise.
+	Tr2GpuResourcePool::Texture externalVisualizerProductLock;
+	Tr2TextureAL externalVisualizerProduct;
+	const char* externalVisualizerProductName = nullptr;
+	// W1-C driver-frame state: the requested-product decode arrays that
+	// DrawDriverFrame keeps as stack locals become probe-held so the
+	// granular Configure/Validate/Execute exports can share them. Valid
+	// from ConfigureDriverProducts until the next one.
+	std::array<BlueSharedString, 32> driverRequestedNames;
+	std::array<ITr2RenderNode::TempOutput, 32> driverOutputStorage;
+	size_t driverRequestedCount = 0;
+	// Log throttle only — not cleared per frame, so per-frame monitor use
+	// announces the handoff once per product instead of once per frame.
+	const char* externalVisualizerLoggedName = nullptr;
 	Tr2TextureAL hdrCompositeReadback;
 	Tr2TextureAL postTonemapReadback;
 	Tr2TextureAL bloomReadback;
@@ -12451,8 +12475,14 @@ bool ReadRawFinalPostProcessProduct(
 
 float SolarHullSweepCoverage( uint64_t state );
 
-bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts )
+bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts,
+					  bool externalVisualizer = false )
 {
+	// Release last frame's external-visualizer retention: the exported
+	// product handle is valid exactly until the next DrawDriverFrame.
+	probe.externalVisualizerProductLock = {};
+	probe.externalVisualizerProduct = {};
+	probe.externalVisualizerProductName = nullptr;
 	Tr2RenderContext& renderContext = *probe.renderContext;
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
@@ -13167,6 +13197,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				renderContextOpen = ok;
 			}
 			const Tr2TextureAL* selectedTexture = nullptr;
+			const ITr2RenderNode::TempOutput* matchedOutput = nullptr;
 			if( colorProduct )
 			{
 				selectedTexture = &destination;
@@ -13186,6 +13217,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					if( outputStorage[outputIndex].name == BlueSharedString( selectedName ) && outputStorage[outputIndex].texture.IsValid() )
 					{
 						selectedTexture = &outputStorage[outputIndex].texture.Get();
+						matchedOutput = &outputStorage[outputIndex];
 						break;
 					}
 				}
@@ -13194,6 +13226,35 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			{
 				std::fprintf( stderr, "Requested EVE render product '%s' was not produced\n", selectedName );
 				ok = false;
+			}
+			else if( externalVisualizer )
+			{
+				if( reflectionProduct || mieEnvironmentProduct || volumeSlicesProduct || froxelFogProduct )
+				{
+					std::fprintf(
+						stderr,
+						"External visualizer does not support cube or volume render product '%s'\n",
+						selectedName );
+					ok = false;
+				}
+				else
+				{
+					if( matchedOutput )
+					{
+						probe.externalVisualizerProductLock = matchedOutput->texture;
+					}
+					probe.externalVisualizerProduct = *selectedTexture;
+					probe.externalVisualizerProductName = selectedName;
+					if( probe.externalVisualizerLoggedName != selectedName )
+					{
+						probe.externalVisualizerLoggedName = selectedName;
+						std::printf(
+							"EVE render-product external handoff: product=%s dimensions=%ux%u\n",
+							selectedName,
+							probe.externalVisualizerProduct.GetWidth(),
+							probe.externalVisualizerProduct.GetHeight() );
+					}
+				}
 			}
 			else
 			{
@@ -18230,6 +18291,384 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
 	*height = probe->capturedProductHeight;
 	*pitch = probe->capturedProductWidth * 4;
 	return true;
+}
+
+// W1-B: the readback metrics computed by ReadCapturedRenderProduct
+// (FNV-1a hash over the tight RGBA rows, RGB min/max, nonzero-pixel count,
+// and the nonzero bounding box). Additive; ReadCapturedRenderProduct is
+// unchanged and remains the oracle. Lets a host-side readback prove its
+// transcription of the metric contract byte-for-byte, not just the pixels.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProductMetrics(
+	void* opaqueProbe,
+	uint64_t* hash,
+	uint64_t* nonzeroPixels,
+	uint32_t* minimum,
+	uint32_t* maximum,
+	uint32_t* minX,
+	uint32_t* minY,
+	uint32_t* maxX,
+	uint32_t* maxY )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !hash || !nonzeroPixels || !minimum || !maximum ||
+		!minX || !minY || !maxX || !maxY || probe->capturedProductPixels.empty() )
+	{
+		return false;
+	}
+	*hash = probe->capturedProductHash;
+	*nonzeroPixels = probe->capturedProductNonzeroPixels;
+	*minimum = probe->capturedProductMinimum;
+	*maximum = probe->capturedProductMaximum;
+	*minX = probe->capturedProductMinX;
+	*minY = probe->capturedProductMinY;
+	*maxX = probe->capturedProductMaxX;
+	*maxY = probe->capturedProductMaxY;
+	return true;
+}
+
+// W1-C: the driver frame loop, granular (the driver.Execute crossing). A
+// host orchestrator sequences BeginFrame -> ConfigureDriverProducts ->
+// ValidateDriverFrame -> ExecuteDriverProducts -> ResolveAndRetainProduct
+// -> [host visualize/readback via GetRenderProductTexture] -> Present,
+// replacing the monolithic RenderFrame for the static (ballparkMode==OFF)
+// capture path. RenderFrame and DrawDriverFrame are unchanged and remain
+// the oracle (the tour/journey lane still flows through them). The product
+// decode here covers the capture products the Swift visualizer supports
+// (color/depth/normal); the temporal-sample / solar-sweep / atomic-solar
+// append families port with their own product chunks.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureDriverProducts(
+	void* opaqueProbe, int captureProducts, uint32_t* outCount )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !outCount )
+	{
+		return false;
+	}
+	// Release the previous frame's external-visualizer retention (mirrors
+	// DrawDriverFrame's per-frame reset).
+	probe->externalVisualizerProductLock = {};
+	probe->externalVisualizerProduct = {};
+	probe->externalVisualizerProductName = nullptr;
+	probe->driverRequestedCount = 0;
+	auto request = [&]( const char* name ) {
+		probe->driverRequestedNames[probe->driverRequestedCount] = BlueSharedString( name );
+		probe->driverOutputStorage[probe->driverRequestedCount].name =
+			probe->driverRequestedNames[probe->driverRequestedCount];
+		++probe->driverRequestedCount;
+	};
+	// Color resolves from the back buffer (no named output). Depth/normal are
+	// named driver outputs. Other products append later with their chunks.
+	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
+	{
+		request( "DepthMap" );
+	}
+	if( captureProducts & STANDALONE_CAPTURE_NORMAL )
+	{
+		request( "NormalMap" );
+	}
+	*outCount = static_cast<uint32_t>( probe->driverRequestedCount );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateDriverFrame(
+	void* opaqueProbe, int64_t realTime, int64_t simTime )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderContext )
+	{
+		return false;
+	}
+	const Tr2BitmapDimensions destinationDimensions =
+		probe->renderContext->GetDefaultBackBuffer().GetDesc();
+	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
+	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = {
+		probe->driverRequestedNames.data(), probe->driverRequestedCount };
+	return probe->driver->Validate(
+		destinationDimensionSpan, requestedOutputs,
+		static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeExecuteDriverProducts(
+	void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderContext || !probe->device )
+	{
+		return false;
+	}
+	// The two per-frame pixel pokes RenderFrame performs around DrawDriverFrame
+	// (SetAnimationTime, temporal-history freeze — false for warmup frames,
+	// true for the diagnostic frozen re-render of non-color products).
+	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
+	probe->driver->SetTemporalHistoryFrozen( freezeScene );
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
+	const Tr2TextureAL* destinationTexture = &destination;
+	ITr2RenderNode::Span<const Tr2TextureAL> destinationSpan = { destinationTexture, 1 };
+	ITr2RenderNode::Span<ITr2RenderNode::TempOutput> outputSpan = {
+		probe->driverOutputStorage.data(), probe->driverRequestedCount };
+	Tr2ProfileTimer rootTimer;
+	probe->driver->Execute(
+		destinationSpan, outputSpan,
+		static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ),
+		rootTimer, renderContext );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeResolveAndRetainProduct(
+	void* opaqueProbe, int captureProduct )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	const Tr2TextureAL* selectedTexture = nullptr;
+	const ITr2RenderNode::TempOutput* matchedOutput = nullptr;
+	const char* selectedName = nullptr;
+	if( captureProduct == STANDALONE_CAPTURE_COLOR )
+	{
+		selectedName = "Color";
+		selectedTexture = &renderContext.GetDefaultBackBuffer();
+	}
+	else
+	{
+		if( captureProduct == STANDALONE_CAPTURE_DEPTH )
+		{
+			selectedName = "DepthMap";
+		}
+		else if( captureProduct == STANDALONE_CAPTURE_NORMAL )
+		{
+			selectedName = "NormalMap";
+		}
+		else
+		{
+			std::fprintf( stderr, "ResolveAndRetainProduct: unsupported product %d\n", captureProduct );
+			return false;
+		}
+		for( size_t outputIndex = 0; outputIndex < probe->driverRequestedCount; ++outputIndex )
+		{
+			if( probe->driverOutputStorage[outputIndex].name == BlueSharedString( selectedName ) &&
+				probe->driverOutputStorage[outputIndex].texture.IsValid() )
+			{
+				selectedTexture = &probe->driverOutputStorage[outputIndex].texture.Get();
+				matchedOutput = &probe->driverOutputStorage[outputIndex];
+				break;
+			}
+		}
+	}
+	if( !selectedTexture )
+	{
+		std::fprintf( stderr, "Requested EVE render product '%s' was not produced\n",
+					  selectedName ? selectedName : "?" );
+		return false;
+	}
+	if( matchedOutput )
+	{
+		probe->externalVisualizerProductLock = matchedOutput->texture;
+	}
+	probe->externalVisualizerProduct = *selectedTexture;
+	probe->externalVisualizerProductName = selectedName;
+	return true;
+}
+
+// External-visualizer seam (Wave 0): after a RenderFrame carrying
+// STANDALONE_CAPTURE_EXTERNAL_VISUALIZER returns true, the selected render
+// product is engine-retained (pool lease + object retain) until the next
+// RenderFrame or DestroyDevice. GetRenderProductTexture drains the engine
+// command queue before returning, so the texture is GPU-complete; the caller
+// samples it read-only and must finish its own GPU work before the next
+// RenderFrame.
+TRINITY_STANDALONE_EXPORT void* TrinityStandaloneProbeGetMetalDevice( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return nullptr;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	TrinityALImpl::MetalContext* metalContext = probe->renderContext->GetMetalContext();
+	if( !metalContext )
+	{
+		return nullptr;
+	}
+	return (__bridge void*)metalContext->GetDevice();
+#else
+	return nullptr;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRenderProductTexture(
+	void* opaqueProbe,
+	void** metalTexture,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* metalPixelFormat )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !metalTexture || !width || !height || !metalPixelFormat )
+	{
+		return false;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	if( !probe->externalVisualizerProduct.IsValid() )
+	{
+		return false;
+	}
+	TrinityALImpl::MetalContext* metalContext = probe->renderContext->GetMetalContext();
+	TrinityALImpl::Tr2TextureAL* impl = probe->externalVisualizerProduct.TrinityALImpl_GetObject();
+	if( !metalContext || !impl )
+	{
+		return false;
+	}
+	id<MTLTexture> texture = impl->GetMetalTexture();
+	if( !texture )
+	{
+		return false;
+	}
+	// Drain the engine queue: command buffers execute in commit order, so an
+	// empty buffer completing implies every prior frame command completed.
+	id<MTLCommandQueue> queue = metalContext->GetCommandQueue();
+	if( queue )
+	{
+		id<MTLCommandBuffer> drain = [queue commandBuffer];
+		[drain commit];
+		[drain waitUntilCompleted];
+	}
+	*metalTexture = (__bridge void*)texture;
+	*width = probe->externalVisualizerProduct.GetWidth();
+	*height = probe->externalVisualizerProduct.GetHeight();
+	*metalPixelFormat = static_cast<uint32_t>( [texture pixelFormat] );
+	return true;
+#else
+	return false;
+#endif
+}
+
+// Wave-1 lower C surface (W1-A): the shell frame bracket, granular. These
+// mirror DrawShellFrame's exact sequence so a Swift orchestrator can own
+// the shell frame loop: BeginFrame -> BeginRenderContext -> bind default
+// backbuffer (depth unbound) -> Clear(color) -> EndRenderContext ->
+// EndFrame -> Present. All additive; RenderFrame's shell dispatch is
+// unchanged and remains the oracle path.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBeginFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2Renderer::BeginFrame();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBeginRenderContext( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( Tr2Renderer::BeginRenderContext() );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBindDefaultBackBuffer( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	if( FAILED( renderContext.SetRenderTarget( renderContext.GetDefaultBackBuffer() ) ) )
+	{
+		return false;
+	}
+	return SUCCEEDED( renderContext.SetDepthStencil( Tr2TextureAL() ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeClearColor( void* opaqueProbe, uint32_t argb )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED(
+		probe->renderContext->Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, argb, 1.0f ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeEndRenderContext( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( Tr2Renderer::EndRenderContext() );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeEndFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2Renderer::EndFrame();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePresent( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( probe->renderContext->Present() );
+}
+
+// Deterministic shell capture for the W1-A parity gate: a full frame that
+// clears the offscreen render-product readback target (the same recipe the
+// internal visualizer uses, minus the draw) and reads it back through the
+// shared GetCapturedProduct CPU-pixel path. Byte-comparable on any host.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCaptureShellFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	if( !EnsureRenderProductReadback( *probe, renderContext ) )
+	{
+		return false;
+	}
+	Tr2Renderer::BeginFrame();
+	bool ok = SUCCEEDED( Tr2Renderer::BeginRenderContext() );
+	if( ok )
+	{
+		renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+		renderContext.m_esm.SetRenderTarget( 0, probe->renderProductReadback );
+		renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+		renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+		renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+		renderContext.m_esm.SetDepthStencilBuffer( {} );
+		renderContext.m_esm.SetFullScreenViewport();
+		ok = SUCCEEDED(
+				 renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0xff000000, 1.0f ) ) &&
+			ok;
+		ok = SUCCEEDED( Tr2Renderer::EndRenderContext() ) && ok;
+	}
+	Tr2Renderer::EndFrame();
+	if( !ok )
+	{
+		return false;
+	}
+	return ReadCapturedRenderProduct(
+		*probe, probe->renderProductReadback, STANDALONE_CAPTURE_COLOR, false, renderContext );
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetHdrCompositeDiagnostics(
@@ -29221,7 +29660,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		simTime += probe->solarParticlePrewarmTime;
 	}
 	const bool freezeScene = ( captureProducts & STANDALONE_CAPTURE_FREEZE_SCENE ) != 0;
-	const int captureProduct = captureProducts & ~STANDALONE_CAPTURE_FREEZE_SCENE;
+	const bool externalVisualizer = ( captureProducts & STANDALONE_CAPTURE_EXTERNAL_VISUALIZER ) != 0;
+	const int captureProduct = captureProducts & ~( STANDALONE_CAPTURE_FREEZE_SCENE | STANDALONE_CAPTURE_EXTERNAL_VISUALIZER );
 	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
 		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL &&
 		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
@@ -29982,7 +30422,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		probe->driver->SetDynamicExposureApplicationEnabledForTesting( false );
 	}
 	const bool rendered =
-		DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
+		DrawDriverFrame(
+			*probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct,
+			externalVisualizer );
 	if( exposureIsolationCapture )
 	{
 		probe->driver->SetDynamicExposureApplicationEnabledForTesting( true );
