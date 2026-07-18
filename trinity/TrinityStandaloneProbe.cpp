@@ -18359,6 +18359,131 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRenderProductTexture(
 #endif
 }
 
+// Wave-1 lower C surface (W1-A): the shell frame bracket, granular. These
+// mirror DrawShellFrame's exact sequence so a Swift orchestrator can own
+// the shell frame loop: BeginFrame -> BeginRenderContext -> bind default
+// backbuffer (depth unbound) -> Clear(color) -> EndRenderContext ->
+// EndFrame -> Present. All additive; RenderFrame's shell dispatch is
+// unchanged and remains the oracle path.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBeginFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2Renderer::BeginFrame();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBeginRenderContext( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( Tr2Renderer::BeginRenderContext() );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeBindDefaultBackBuffer( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	if( FAILED( renderContext.SetRenderTarget( renderContext.GetDefaultBackBuffer() ) ) )
+	{
+		return false;
+	}
+	return SUCCEEDED( renderContext.SetDepthStencil( Tr2TextureAL() ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeClearColor( void* opaqueProbe, uint32_t argb )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED(
+		probe->renderContext->Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, argb, 1.0f ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeEndRenderContext( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( Tr2Renderer::EndRenderContext() );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeEndFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2Renderer::EndFrame();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePresent( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	return SUCCEEDED( probe->renderContext->Present() );
+}
+
+// Deterministic shell capture for the W1-A parity gate: a full frame that
+// clears the offscreen render-product readback target (the same recipe the
+// internal visualizer uses, minus the draw) and reads it back through the
+// shared GetCapturedProduct CPU-pixel path. Byte-comparable on any host.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCaptureShellFrame( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	if( !EnsureRenderProductReadback( *probe, renderContext ) )
+	{
+		return false;
+	}
+	Tr2Renderer::BeginFrame();
+	bool ok = SUCCEEDED( Tr2Renderer::BeginRenderContext() );
+	if( ok )
+	{
+		renderContext.RenderPassHint( { Tr2LoadAction::DONT_CARE, Tr2StoreAction::STORE }, {} );
+		renderContext.m_esm.SetRenderTarget( 0, probe->renderProductReadback );
+		renderContext.m_esm.SetRenderTarget( 1, Tr2TextureAL{} );
+		renderContext.m_esm.SetRenderTarget( 2, Tr2TextureAL{} );
+		renderContext.m_esm.SetRenderTarget( 3, Tr2TextureAL{} );
+		renderContext.m_esm.SetDepthStencilBuffer( {} );
+		renderContext.m_esm.SetFullScreenViewport();
+		ok = SUCCEEDED(
+				 renderContext.Clear( Tr2RenderContextEnum::CLEARFLAGS_TARGET, 0xff000000, 1.0f ) ) &&
+			ok;
+		ok = SUCCEEDED( Tr2Renderer::EndRenderContext() ) && ok;
+	}
+	Tr2Renderer::EndFrame();
+	if( !ok )
+	{
+		return false;
+	}
+	return ReadCapturedRenderProduct(
+		*probe, probe->renderProductReadback, STANDALONE_CAPTURE_COLOR, false, renderContext );
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetHdrCompositeDiagnostics(
 	void* opaqueProbe,
 	uint32_t* format,

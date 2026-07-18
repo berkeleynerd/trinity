@@ -822,3 +822,22 @@ extern "C" bool TrinityStandaloneProbeGetRenderProductTexture(
 	uint32_t* width,
 	uint32_t* height,
 	uint32_t* metalPixelFormat );
+
+// --------------------------------------------------------------------------------------
+// Wave-1 lower C surface (W1-A): the shell frame bracket, granular — the
+// exact DrawShellFrame sequence exposed call-by-call so a host-side
+// orchestrator can own the shell frame loop. All calls render-thread only,
+// after CreateDevice (no scene required). Sequence contract per frame:
+// BeginFrame -> BeginRenderContext -> BindDefaultBackBuffer -> ClearColor
+// -> EndRenderContext -> EndFrame -> Present. CaptureShellFrame runs one
+// complete offscreen frame clearing the render-product readback target and
+// publishes it through GetCapturedProduct (deterministic, byte-comparable).
+// --------------------------------------------------------------------------------------
+extern "C" bool TrinityStandaloneProbeBeginFrame( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeBeginRenderContext( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeBindDefaultBackBuffer( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeClearColor( void* opaqueProbe, uint32_t argb );
+extern "C" bool TrinityStandaloneProbeEndRenderContext( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeEndFrame( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbePresent( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeCaptureShellFrame( void* opaqueProbe );
