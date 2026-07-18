@@ -596,7 +596,7 @@ the intended result.
 | Item | Setting or behavior | Reason |
 | --- | --- | --- |
 | Granny SDK | `WITH_GRANNY=OFF` | Keep the runtime public and avoid the licensed dependency. Current EVE `.gr2` is converted by an open build-time tool; Trinity itself neither loads `.gr2` nor emulates Granny. |
-| Repository tests | `BUILD_TESTING=OFF` | The initial macOS demo work focused on executable smoke tests; the existing Trinity tests are not wired as an Apple test executable. |
+| Repository tests | `BUILD_TESTING=OFF` by default | The TrinityAL GPU conformance suite is now wired as the macOS ctest target `TrinityALTest_metal` (configure `-DBUILD_TESTING=ON`); see "TrinityAL conformance suite on Metal" below. The shader-compiler pytest suite and destiny tests remain separate. |
 | Dynamic exposure | Isolated checkpoint only | Client histogram and exposure effects execute, but their visual result is not accepted against the incomplete black-background scene. |
 | Bloom and film grain | Not enabled | They are intentionally blocked until a representative in-space scene makes HDR composition and exposure meaningful. |
 | AO and shadows | Not enabled | The bridge now emits depth/normal-compatible batches, but AO has not been visually validated and shadow-caster techniques/resources are still absent. |
@@ -609,6 +609,52 @@ the intended result.
 `otool -L` was used on the sample and `_trinity_metal_debug.so`; neither linked
 Granny. Compatibility-named source files may still compile when
 `WITH_GRANNY=OFF`, but the proprietary library is not a runtime dependency.
+
+## TrinityAL conformance suite on Metal
+
+The TrinityAL GPU conformance suite (`trinityal/tests`, ~13k lines of
+GoogleTest) is wired as the macOS ctest target `TrinityALTest_metal` — the
+first time it has run on Apple hardware; upstream it was `if(WIN32)`-gated
+with even the DX discovery commented out. It becomes the Wave-2 Swift RHI
+acceptance suite (`promised-land/docs/research/swift-renderer-strategy.md`).
+
+Build and run:
+
+```sh
+# configure adds -DBUILD_TESTING=ON to the standard recipe, then:
+trinityal/tests/run_metal_suite.sh                       # build + ctest + report
+ctest --test-dir .cmake-build-arm64-osx-debug -R TrinityALTest_metal --output-on-failure
+```
+
+The suite runs as one process (per-suite static device state); per-case
+results land in `<build>/trinityal/tests/reports/TrinityALTest_metal.xml`.
+The Metal shader test fixtures are compiled from `Shaders.metal/*.{psh,vsh,csh}`
+via `xcrun metal` → `bin2h` at build time.
+
+**Baseline: 242 cases, 0 failures, 3 consecutive green ctest runs.**
+
+Scope trims (the single authoritative ledger is `_METAL_GTEST_EXCLUDES` in
+`trinityal/tests/CMakeLists.txt`; source-level exclusions are the pre-existing
+platform guards):
+
+- **`Raytracing.cpp`** — excluded from the target sources. Its cases include
+  a backend-private header (`../metal/Tr2RtTopLevelAccelerationStructureALMetal.h`)
+  and exercise the experimental RT path; RT is Apple-Silicon-gated at runtime.
+- **`Compute.*`** (runtime ledger) — a genuine backend gap the suite exposed.
+  Compute buffer SRVs and UAVs share one 0-based Metal buffer index space
+  (`METAL_SRV_BUFFER_OFFSET == METAL_UAV_BUFFER_OFFSET == 0` in
+  `MetalWorkQueue.h`), so a kernel binding SRV register *i* and UAV register
+  *i* simultaneously — a DX-conformant pattern these cases encode — collides
+  on a single Metal buffer slot and trips the resource-mask assert in
+  `Tr2ShaderALMetal.mm`. **Follow-up backend gap:** giving buffer SRVs and
+  UAVs a disjoint index space, coordinated with `EffectCompilerMetal`'s
+  `[[buffer(N)]]` emission and the vertex-stream reservation (slots 0–3) that
+  `MetalWorkQueue::SetBuffers` enforces. A blind repartition attempt broke the
+  graphics SRV path (which binds past a naively-reduced count), so this needs
+  real backend design, not a test-wiring change.
+- `GPUTimer` compute-timer cases already compile out on Metal
+  (`GPUTimer.cpp` `#if TRINITY_PLATFORM != TRINITY_METAL`); one DX11-only
+  BC7 software-context case self-excludes.
 
 ## What was stubbed, faked, or bypassed
 
