@@ -262,6 +262,72 @@ if(WIN32)
 
     endif()
 
+elseif(APPLE AND BUILD_METAL)
+    # PL-05: the GPU conformance suite on the Metal backend. Scope trim:
+    # Raytracing.cpp includes a backend-private header
+    # (../metal/Tr2RtTopLevelAccelerationStructureALMetal.h) and exercises
+    # the experimental RT path; excluded from the conformance baseline.
+    set(_SOURCES_METAL ${_SOURCES})
+    list(REMOVE_ITEM _SOURCES_METAL Raytracing.cpp)
+
+    ccp_add_executable(TrinityALTest_metal ${_SOURCES_METAL})
+    target_link_libraries(TrinityALTest_metal PRIVATE TrinityAL_metal)
+    target_compile_definitions(TrinityALTest_metal PRIVATE TRINITY_PLATFORM=TRINITY_METAL)
+    set_shared_trinityaltest_properties(TrinityALTest_metal)
+    set_target_properties(TrinityALTest_metal PROPERTIES FOLDER "Tests")
+
+    target_sources(TrinityALTest_metal PRIVATE ${_SHADERS_METAL})
+    source_group(Shaders FILES ${_SHADERS_METAL})
+
+    # Shader -> header generation, transcribed from Shaders.metal/compile.sh:
+    # xcrun metal produces a metallib per shader; bin2h emits the bare hex
+    # byte list the tests include via INCLUDE_SHADER_CODE. MetalDefines.h is
+    # a shared include of every shader; .rsh raytracing shaders are only
+    # consumed by the excluded Raytracing.cpp.
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    foreach(shaderSource ${_SHADERS_METAL})
+        if(shaderSource MATCHES "\\.h$" OR shaderSource MATCHES "\\.rsh$")
+            continue()
+        endif()
+        string(REGEX REPLACE "h$" ".h" shaderOutput ${shaderSource})
+        add_custom_command(
+            OUTPUT ${GENERATED_SOURCES_DIR}/${shaderOutput}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${GENERATED_SOURCES_DIR}/Shaders.metal
+            COMMAND xcrun metal -x metal -gline-tables-only -MO
+                    ${CMAKE_CURRENT_SOURCE_DIR}/${shaderSource}
+                    -o ${GENERATED_SOURCES_DIR}/${shaderSource}.bin
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/bin2h.cmd
+                    ${GENERATED_SOURCES_DIR}/${shaderSource}.bin
+                    ${GENERATED_SOURCES_DIR}/${shaderOutput}
+            MAIN_DEPENDENCY ${shaderSource}
+            DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Shaders.metal/MetalDefines.h
+        )
+    endforeach()
+
+    # PL-05 baseline trim ledger: the single authoritative list of
+    # runtime-excluded cases, one justified "Suite.Case" entry per line.
+    # Empty means the full compiled set runs.
+    set(_METAL_GTEST_EXCLUDES
+    )
+    set(_METAL_GTEST_FILTER "")
+    if(_METAL_GTEST_EXCLUDES)
+        list(JOIN _METAL_GTEST_EXCLUDES ":" _METAL_GTEST_JOINED)
+        set(_METAL_GTEST_FILTER "--gtest_filter=-${_METAL_GTEST_JOINED}")
+    endif()
+
+    if(BUILD_TESTING)
+        # One ctest entry running the suite as designed (a single process
+        # with per-suite device state); per-case evidence lives in the XML
+        # report. Per-case discovery would re-create the window and device
+        # for every case across 18 suites.
+        add_test(NAME TrinityALTest_metal
+            COMMAND TrinityALTest_metal
+                ${_METAL_GTEST_FILTER}
+                --gtest_output=xml:${CMAKE_CURRENT_BINARY_DIR}/reports/TrinityALTest_metal.xml
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:TrinityALTest_metal>)
+        set_tests_properties(TrinityALTest_metal PROPERTIES TIMEOUT 900)
+    endif()
+
 endif()
 
 
