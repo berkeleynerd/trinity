@@ -4,6 +4,10 @@
 
 #include <Blue.h>
 
+// Self-guarded platform headers for the Wave-0 external-visualizer seam.
+#include "../trinityal/metal/Tr2RenderContextMetal.h"
+#include "../trinityal/metal/Tr2TextureALMetal.h"
+
 #include "Eve/EveSpaceScene.h"
 #include "Eve/EveSpaceSceneRenderDriver.h"
 #include "Eve/EveEntity.h"
@@ -4627,6 +4631,10 @@ enum StandaloneCaptureProduct
 	STANDALONE_CAPTURE_TAA_OUTPUT = 1 << 22,
 	STANDALONE_CAPTURE_TAA_COOLDOWN = 1 << 23,
 	STANDALONE_CAPTURE_TEMPORAL_SAMPLE = 1 << 24,
+	// Modifier bit, masked out before product validation (like FREEZE_SCENE):
+	// render and retain the selected product for an external (host-side)
+	// visualizer instead of drawing the internal one.
+	STANDALONE_CAPTURE_EXTERNAL_VISUALIZER = 1 << 25,
 };
 
 enum StandaloneTemporalTest
@@ -5577,6 +5585,15 @@ struct StandaloneProbe
 	Tr2EffectPtr froxelProductVisualizer;
 	Tr2EffectPtr dynamicLightShadowResolveEffect;
 	Tr2TextureAL renderProductReadback;
+	// External-visualizer retention: pins the selected product (pool lease +
+	// facade retain) from the frame that requested it until the next
+	// DrawDriverFrame. Empty otherwise.
+	Tr2GpuResourcePool::Texture externalVisualizerProductLock;
+	Tr2TextureAL externalVisualizerProduct;
+	const char* externalVisualizerProductName = nullptr;
+	// Log throttle only — not cleared per frame, so per-frame monitor use
+	// announces the handoff once per product instead of once per frame.
+	const char* externalVisualizerLoggedName = nullptr;
 	Tr2TextureAL hdrCompositeReadback;
 	Tr2TextureAL postTonemapReadback;
 	Tr2TextureAL bloomReadback;
@@ -12451,8 +12468,14 @@ bool ReadRawFinalPostProcessProduct(
 
 float SolarHullSweepCoverage( uint64_t state );
 
-bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts )
+bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTime, int captureProducts,
+					  bool externalVisualizer = false )
 {
+	// Release last frame's external-visualizer retention: the exported
+	// product handle is valid exactly until the next DrawDriverFrame.
+	probe.externalVisualizerProductLock = {};
+	probe.externalVisualizerProduct = {};
+	probe.externalVisualizerProductName = nullptr;
 	Tr2RenderContext& renderContext = *probe.renderContext;
 	EveSpaceSceneRenderDriver& driver = *probe.driver;
 	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
@@ -13167,6 +13190,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 				renderContextOpen = ok;
 			}
 			const Tr2TextureAL* selectedTexture = nullptr;
+			const ITr2RenderNode::TempOutput* matchedOutput = nullptr;
 			if( colorProduct )
 			{
 				selectedTexture = &destination;
@@ -13186,6 +13210,7 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					if( outputStorage[outputIndex].name == BlueSharedString( selectedName ) && outputStorage[outputIndex].texture.IsValid() )
 					{
 						selectedTexture = &outputStorage[outputIndex].texture.Get();
+						matchedOutput = &outputStorage[outputIndex];
 						break;
 					}
 				}
@@ -13194,6 +13219,35 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 			{
 				std::fprintf( stderr, "Requested EVE render product '%s' was not produced\n", selectedName );
 				ok = false;
+			}
+			else if( externalVisualizer )
+			{
+				if( reflectionProduct || mieEnvironmentProduct || volumeSlicesProduct || froxelFogProduct )
+				{
+					std::fprintf(
+						stderr,
+						"External visualizer does not support cube or volume render product '%s'\n",
+						selectedName );
+					ok = false;
+				}
+				else
+				{
+					if( matchedOutput )
+					{
+						probe.externalVisualizerProductLock = matchedOutput->texture;
+					}
+					probe.externalVisualizerProduct = *selectedTexture;
+					probe.externalVisualizerProductName = selectedName;
+					if( probe.externalVisualizerLoggedName != selectedName )
+					{
+						probe.externalVisualizerLoggedName = selectedName;
+						std::printf(
+							"EVE render-product external handoff: product=%s dimensions=%ux%u\n",
+							selectedName,
+							probe.externalVisualizerProduct.GetWidth(),
+							probe.externalVisualizerProduct.GetHeight() );
+					}
+				}
 			}
 			else
 			{
@@ -18230,6 +18284,79 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
 	*height = probe->capturedProductHeight;
 	*pitch = probe->capturedProductWidth * 4;
 	return true;
+}
+
+// External-visualizer seam (Wave 0): after a RenderFrame carrying
+// STANDALONE_CAPTURE_EXTERNAL_VISUALIZER returns true, the selected render
+// product is engine-retained (pool lease + object retain) until the next
+// RenderFrame or DestroyDevice. GetRenderProductTexture drains the engine
+// command queue before returning, so the texture is GPU-complete; the caller
+// samples it read-only and must finish its own GPU work before the next
+// RenderFrame.
+TRINITY_STANDALONE_EXPORT void* TrinityStandaloneProbeGetMetalDevice( void* opaqueProbe )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return nullptr;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	TrinityALImpl::MetalContext* metalContext = probe->renderContext->GetMetalContext();
+	if( !metalContext )
+	{
+		return nullptr;
+	}
+	return (__bridge void*)metalContext->GetDevice();
+#else
+	return nullptr;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetRenderProductTexture(
+	void* opaqueProbe,
+	void** metalTexture,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* metalPixelFormat )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !metalTexture || !width || !height || !metalPixelFormat )
+	{
+		return false;
+	}
+#if TRINITY_PLATFORM == TRINITY_METAL
+	if( !probe->externalVisualizerProduct.IsValid() )
+	{
+		return false;
+	}
+	TrinityALImpl::MetalContext* metalContext = probe->renderContext->GetMetalContext();
+	TrinityALImpl::Tr2TextureAL* impl = probe->externalVisualizerProduct.TrinityALImpl_GetObject();
+	if( !metalContext || !impl )
+	{
+		return false;
+	}
+	id<MTLTexture> texture = impl->GetMetalTexture();
+	if( !texture )
+	{
+		return false;
+	}
+	// Drain the engine queue: command buffers execute in commit order, so an
+	// empty buffer completing implies every prior frame command completed.
+	id<MTLCommandQueue> queue = metalContext->GetCommandQueue();
+	if( queue )
+	{
+		id<MTLCommandBuffer> drain = [queue commandBuffer];
+		[drain commit];
+		[drain waitUntilCompleted];
+	}
+	*metalTexture = (__bridge void*)texture;
+	*width = probe->externalVisualizerProduct.GetWidth();
+	*height = probe->externalVisualizerProduct.GetHeight();
+	*metalPixelFormat = static_cast<uint32_t>( [texture pixelFormat] );
+	return true;
+#else
+	return false;
+#endif
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetHdrCompositeDiagnostics(
@@ -29221,7 +29348,8 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		simTime += probe->solarParticlePrewarmTime;
 	}
 	const bool freezeScene = ( captureProducts & STANDALONE_CAPTURE_FREEZE_SCENE ) != 0;
-	const int captureProduct = captureProducts & ~STANDALONE_CAPTURE_FREEZE_SCENE;
+	const bool externalVisualizer = ( captureProducts & STANDALONE_CAPTURE_EXTERNAL_VISUALIZER ) != 0;
+	const int captureProduct = captureProducts & ~( STANDALONE_CAPTURE_FREEZE_SCENE | STANDALONE_CAPTURE_EXTERNAL_VISUALIZER );
 	if( captureProduct != 0 && captureProduct != STANDALONE_CAPTURE_COLOR &&
 		captureProduct != STANDALONE_CAPTURE_DEPTH && captureProduct != STANDALONE_CAPTURE_NORMAL &&
 		captureProduct != STANDALONE_CAPTURE_SHADOW && captureProduct != STANDALONE_CAPTURE_SHADOW_ATLAS &&
@@ -29982,7 +30110,9 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		probe->driver->SetDynamicExposureApplicationEnabledForTesting( false );
 	}
 	const bool rendered =
-		DrawDriverFrame( *probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct );
+		DrawDriverFrame(
+			*probe, static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ), captureProduct,
+			externalVisualizer );
 	if( exposureIsolationCapture )
 	{
 		probe->driver->SetDynamicExposureApplicationEnabledForTesting( true );

@@ -1053,6 +1053,20 @@ depth with a fourth-root display curve and displays packed
 replaced an invalid Metal CPU-map experiment that returned cleared or striped
 data even when the presented drawable was correct.
 
+Wave 0 of the Swift renderer migration adds an external-visualizer seam to
+this path: `STANDALONE_CAPTURE_EXTERNAL_VISUALIZER` (a modifier bit masked
+out before product validation, like freeze-scene) renders and resolves the
+selected product exactly as the internal path does, but skips the visualizer
+draw, the readback, and the on-screen product draw, retaining the product
+texture (pool lease + object retain) until the next `RenderFrame`.
+`TrinityStandaloneProbeGetMetalDevice` and
+`TrinityStandaloneProbeGetRenderProductTexture` then hand the engine device
+and the GPU-complete `MTLTexture` (the call drains the engine queue) to a
+host-side visualizer — the Swift Metal reimplementation lives in
+promised-land's `experiments/swift-probe/` with its parity gate. Cube and
+volume products are rejected on this seam; the contract comment lives in
+`TrinityStandaloneProbeApi.h`.
+
 The 180-frame accepted depth product has a clean Astero silhouette and coherent
 surface variation. Authored and flat-normal captures use the same final-frame
 simulation time and frozen camera. Their silhouettes match, while the authored
