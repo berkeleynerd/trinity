@@ -841,3 +841,19 @@ extern "C" bool TrinityStandaloneProbeEndRenderContext( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeEndFrame( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbePresent( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeCaptureShellFrame( void* opaqueProbe );
+
+// W1-B: the render-product readback metrics (FNV-1a hash, nonzero-pixel
+// count, RGB min/max, nonzero bounding box) computed by the internal
+// ReadCapturedRenderProduct for the last captured product. Reference
+// values for a host-side contract-faithful readback port. Fails if no
+// product has been captured.
+extern "C" bool TrinityStandaloneProbeGetCapturedProductMetrics(
+	void* opaqueProbe,
+	uint64_t* hash,
+	uint64_t* nonzeroPixels,
+	uint32_t* minimum,
+	uint32_t* maximum,
+	uint32_t* minX,
+	uint32_t* minY,
+	uint32_t* maxX,
+	uint32_t* maxY );
