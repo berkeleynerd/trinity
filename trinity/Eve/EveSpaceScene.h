@@ -468,6 +468,49 @@ public:
 			m_lowQualityNebulaMixResPath,
 		};
 	}
+	struct NebulaIntensityDiagnostics
+	{
+		float authored = 0;
+		float settled = 0;
+		float effective = 0;
+		bool forceAuthored = false;
+	};
+	void SetForceAuthoredNebulaIntensityForDiagnostics( bool value )
+	{
+		m_forceAuthoredNebulaIntensityForDiagnostics = value;
+	}
+	void SetBackgroundPostDrawMarkerForDiagnostics( bool value )
+	{
+		m_backgroundPostDrawMarkerForDiagnostics = value;
+	}
+	NebulaIntensityDiagnostics GetNebulaIntensityDiagnostics() const
+	{
+		return {
+			m_nebulaIntensity,
+			m_currentNebulaIntensity,
+			m_forceAuthoredNebulaIntensityForDiagnostics ? m_nebulaIntensity : m_currentNebulaIntensity,
+			m_forceAuthoredNebulaIntensityForDiagnostics,
+		};
+	}
+	struct BackgroundDrawDiagnostics
+	{
+		uint64_t callCount = 0;
+		bool attempted = false;
+		bool shaderPresent = false;
+		bool cullModeInverted = false;
+		bool succeeded = false;
+		uint32_t passCount = 0;
+		uint32_t renderTargetWidth = 0;
+		uint32_t renderTargetHeight = 0;
+		int32_t viewportX = 0;
+		int32_t viewportY = 0;
+		uint32_t viewportWidth = 0;
+		uint32_t viewportHeight = 0;
+	};
+	const BackgroundDrawDiagnostics& GetBackgroundDrawDiagnostics() const
+	{
+		return m_backgroundDrawDiagnostics;
+	}
 	void SetAmbientColorForDiagnostics( const Color& color )
 	{
 		m_ambientColor = color;
@@ -475,6 +518,10 @@ public:
 	Tr2EffectPtr GetBackgroundEffect() const
 	{
 		return m_backgroundEffect;
+	}
+	void SetBackgroundEffectForDiagnostics( Tr2Effect * effect )
+	{
+		m_backgroundEffect = effect;
 	}
 	void SetSunLighting( const Vector3& direction, const Color& color )
 	{
@@ -822,6 +869,9 @@ protected:
 
 	Color m_currentSunColor;
 	float m_currentNebulaIntensity;
+	bool m_forceAuthoredNebulaIntensityForDiagnostics;
+	bool m_backgroundPostDrawMarkerForDiagnostics;
+	BackgroundDrawDiagnostics m_backgroundDrawDiagnostics;
 
 	float m_fogStart; // Depth at which fogging starts
 	float m_fogEnd; // Depth at which fog does not get stronger

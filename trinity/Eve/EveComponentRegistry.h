@@ -45,6 +45,7 @@ public:
 	virtual uint32_t GetBit() const = 0;
 
 	virtual size_t Size() const = 0;
+	virtual void AppendEntitiesForDiagnostics( std::vector<EveEntity*>& entities ) const = 0;
 };
 
 template <typename T>
@@ -58,6 +59,7 @@ public:
 	EveEntity* SwapWithBack( uint32_t index ) override;
 	void Clear() override;
 	size_t Size() const override;
+	void AppendEntitiesForDiagnostics( std::vector<EveEntity*>& entities ) const override;
 
 	uint32_t GetBit() const override;
 
@@ -107,6 +109,9 @@ public:
 
 	template <typename T>
 	size_t ComponentCount() const;
+
+	std::vector<std::pair<std::string, std::vector<EveEntity*>>>
+		GetRegisteredComponentsForDiagnostics() const;
 
 	void Register( EveEntity * entity );
 	void UnRegister( EveEntity * entity );
@@ -189,6 +194,19 @@ template <typename T>
 size_t EveComponentCollection<T>::Size() const
 {
 	return m_collection.size();
+}
+
+template <typename T>
+void EveComponentCollection<T>::AppendEntitiesForDiagnostics(
+	std::vector<EveEntity*>& entities ) const
+{
+	for( T* component : m_collection )
+	{
+		if( EveEntity* entity = dynamic_cast<EveEntity*>( component ) )
+		{
+			entities.push_back( entity );
+		}
+	}
 }
 
 // Registers a specific components for a specific entity, creates a component collection if it doesn´t exist

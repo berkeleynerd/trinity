@@ -53,6 +53,10 @@ struct TrinityStandaloneCanonicalDiagnosticState
 	uint64_t submittedOpaqueBatches = 0;
 	uint64_t submittedAdditiveBatches = 0;
 	uint64_t submittedTransparentBatches = 0;
+	float authoredNebulaIntensity = 0;
+	float settledNebulaIntensity = 0;
+	float effectiveNebulaIntensity = 0;
+	bool forceAuthoredNebulaIntensity = false;
 };
 
 struct TrinityStandaloneRaytracedShadowDiagnostics

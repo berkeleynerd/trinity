@@ -3878,13 +3878,72 @@ client period.
 
 `--journey-planet-surface` extends the existing limb finale without changing
 its validated frames. At frame 5,702 the ship first warps to a point 10,000 km
-above the Sun-facing radial, aligns directly inward, and then warps to the
-planet/Astero contact position. A coordinate-only stop was rejected after a
-test exposed 25 m of penetration and continuing drift. The landed ship now
-enters Destiny's native zero-surface-range ORBIT around ball `40334264`, which
-is the actual surface-to-surface gameplay contract. The station is accepted
-only after its surface error is within one metre of zero, radial speed is no
-more than 15 m/s, and tangential speed exceeds 300 m/s. At this radius the
-312 m/s motion changes the Sun-facing longitude only imperceptibly during a
-normal inspection while keeping the camera pointed down at the fully lit
-surface.
+above the Sun-facing radial, aligns directly inward, and then approaches to a
+five-million-metre surface range. A coordinate-only contact stop was rejected
+after a test exposed penetration, continuing drift, and a camera inside the
+authored atmosphere/cloud envelope. The ship now enters Destiny's native ORBIT
+around ball `40334264` at the declared positive range. The station is accepted
+only after its surface-range error, radial speed, and tangential motion satisfy
+the Tour's terminal gates. The motion changes the Sun-facing longitude only
+imperceptibly during a normal inspection while keeping the camera pointed down
+at the fully lit surface.
+
+## Canonical background projection diagnosis (2026-07-18)
+
+The integrated canonical Tour did reproduce the operator's missing-nebula
+report at the first settled checkpoint. A frame-180 upper-left oracle measured
+307,159 changed HDR pixels and 307,190 changed drawable pixels between legacy
+and canonical construction. Turning the nebula off changed 292,788 HDR pixels
+in legacy and zero in canonical. This replaced the earlier visual assumptions
+with a stable failure detector before any more causal experiments.
+
+`--scene-graph-report` now records deterministic configured and captured-frame
+snapshots of the readable Blue graph, ownership and list order, component and
+variable-store registrations, resolved effect resources, submission traces,
+and retained presentation products. The normalized reports did not show a
+missing nebula object, resource, or background submission. Narrow controls
+also ruled out authored intensity, resource freshness, and `NebulaMap`
+contents. A post-draw marker proved the pass and destination were live. Only a
+finite-far projection restored the canonical background.
+
+The defect was in `SetupScreenQuadInCameraSpace`. It unprojected clip-space
+Z=1 to generate camera-space background rays. Canonical exact-system cameras
+use the infinite-far perspective form (`_33 == -1`, `_44 == 0` at float
+precision), for which that point lies at infinity and its homogeneous W is
+zero. The resulting quad directions were invalid before the background shader
+could meaningfully sample the ready A01 cube. Finite legacy projections happen
+to avoid the singularity.
+
+The production correction detects that infinite-far form and unprojects at
+clip Z=0.5. Perspective division is then finite while the normalized view ray
+is unchanged; ordinary finite projections retain Z=1. The operator inspected
+the repaired maximum-quality Tour and confirmed that the nebula and starfield
+were restored. This is a renderer geometry fix, not a nebula intensity,
+exposure, gamma, grade, or asset change. Exact legacy/canonical pixel equality
+is still not claimed because their ship construction and camera contracts
+differ.
+
+## Journey journal — planet envelope and moving hull highlights (2026-07-18)
+
+The Sunward planet approach originally honored zero solid-surface range, but
+the authored atmosphere and cloud envelopes extend well beyond the sphere.
+That placed the inspection camera inside visible planet content. The Tour now
+settles five million metres above the solid-surface contact distance, outside
+the complete authored envelope, while retaining the Sun-facing radial and
+native journey choreography.
+
+The two bright highlights that move around the Astero as the ship maneuvers
+were separately tested at the terminal view. They remain with attachments,
+authored local lights, engines, decals, dynamic reflection, and direct solar
+illumination disabled individually and in the relevant combinations. They are
+therefore not submitted spotlight attachments or a camera-fixed sample light.
+They belong to the selected V5 hull/heat material response, which consumes the
+authored glow maps and the remaining scene/material inputs as the object
+orientation changes.
+
+Two attempted presentation changes—removing the chase shoulder orbit and
+rebinding the ship directly to native Ballpark curves—did not remove the
+highlights and were reverted. The operator chose to retain the source-selected
+effect for now. Its value and exact client appearance remain unexplained and
+deferred; it must not be reported later as a fixed spotlight regression or
+rediscovered by repeating the same broad isolation matrix.

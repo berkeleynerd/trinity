@@ -1741,6 +1741,8 @@ set(_SOURCES
     TrinityStandaloneCmfModel.cpp
     TrinityStandaloneCmfModel.h
     TrinityStandaloneProbe.cpp
+    TrinityStandaloneSceneGraph.cpp
+    TrinityStandaloneSceneGraph.h
     TrinityStandaloneSolarAudit.cpp
     TrinityStandaloneSolarAudit.h
     TriObserverLocal.cpp

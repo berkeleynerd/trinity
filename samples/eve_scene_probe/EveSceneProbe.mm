@@ -154,6 +154,10 @@ extern "C" bool TrinityStandaloneProbeWriteOcclusionLightingReport( void* opaque
 extern "C" bool
 	TrinityStandaloneProbeConfigureSsaoTransportAudit( void* opaqueProbe, int bindingProbe, const char* reportPath );
 extern "C" bool TrinityStandaloneProbeWriteSsaoTransportReport( void* opaqueProbe );
+extern "C" bool TrinityStandaloneProbeConfigureSceneGraphReport( void* opaqueProbe, const char* reportPath );
+extern "C" bool TrinityStandaloneProbeSetSceneGraphCaptureRequested( void* opaqueProbe, bool requested );
+extern "C" bool TrinityStandaloneProbeRecordSceneGraphSnapshot( void* opaqueProbe, const char* phase, uint64_t frame );
+extern "C" bool TrinityStandaloneProbeWriteSceneGraphReport( void* opaqueProbe );
 extern "C" bool TrinityStandaloneProbeConfigureSubmissionDiagnostics( void* opaqueProbe, bool enabled );
 extern "C" bool TrinityStandaloneProbeWriteSolarOpticsReport( void* opaqueProbe );
 extern "C" void TrinityStandaloneProbeSetSofHull( const char* hullPath, const char* factionPath );
@@ -161,7 +165,10 @@ extern "C" void TrinityStandaloneProbeSetSofTextureRoot( const char* root );
 extern "C" void TrinityStandaloneProbeSetShipDataBaseline( float intensity );
 extern "C" void TrinityStandaloneProbeQueueFormationShip( const char* cmfPath, const char* sofHullPath );
 extern "C" void TrinityStandaloneProbeSetChaseCameraRig( void* opaqueProbe, float distance, float height );
-extern "C" void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe, float azimuthDegrees, float elevationDegrees, float distance );
+extern "C" void TrinityStandaloneProbeSetStaticCameraRig( void* opaqueProbe,
+														  float azimuthDegrees,
+														  float elevationDegrees,
+														  float distance );
 extern "C" bool TrinityStandaloneProbeCreateEveScene( void* opaqueProbe,
 													  int qualityRung,
 													  const char* assetPath,
@@ -513,6 +520,11 @@ enum class CanonicalDiagnostic
 	Baseline,
 	ShipMeshOff,
 	ShipObjectOff,
+	BackgroundAuthoredIntensity,
+	BackgroundFreshEffect,
+	BackgroundWhiteTexture,
+	BackgroundPostDrawMarker,
+	BackgroundLegacyProjection,
 };
 
 enum class LegacyShProxies
@@ -787,6 +799,7 @@ struct Options
 	std::string planetAppearanceReportPath;
 	std::string systemManifestPath;
 	std::string sceneConstructionReportPath;
+	std::string sceneGraphReportPath;
 	std::string shipLightingReportPath;
 	QualityRung qualityRung = QualityRung::Model;
 	MaterialView materialView = MaterialView::Lit;
@@ -2224,6 +2237,16 @@ const char* CanonicalDiagnosticName( CanonicalDiagnostic diagnostic )
 		return "ship-mesh-off";
 	case CanonicalDiagnostic::ShipObjectOff:
 		return "ship-object-off";
+	case CanonicalDiagnostic::BackgroundAuthoredIntensity:
+		return "background-authored-intensity";
+	case CanonicalDiagnostic::BackgroundFreshEffect:
+		return "background-fresh-effect";
+	case CanonicalDiagnostic::BackgroundWhiteTexture:
+		return "background-white-texture";
+	case CanonicalDiagnostic::BackgroundPostDrawMarker:
+		return "background-post-draw-marker";
+	case CanonicalDiagnostic::BackgroundLegacyProjection:
+		return "background-legacy-projection";
 	}
 	return "unknown";
 }
@@ -2237,6 +2260,16 @@ bool ParseCanonicalDiagnostic( const std::string& value, CanonicalDiagnostic& di
 		diagnostic = CanonicalDiagnostic::ShipMeshOff;
 	else if( normalized == "ship-object-off" )
 		diagnostic = CanonicalDiagnostic::ShipObjectOff;
+	else if( normalized == "background-authored-intensity" )
+		diagnostic = CanonicalDiagnostic::BackgroundAuthoredIntensity;
+	else if( normalized == "background-fresh-effect" )
+		diagnostic = CanonicalDiagnostic::BackgroundFreshEffect;
+	else if( normalized == "background-white-texture" )
+		diagnostic = CanonicalDiagnostic::BackgroundWhiteTexture;
+	else if( normalized == "background-post-draw-marker" )
+		diagnostic = CanonicalDiagnostic::BackgroundPostDrawMarker;
+	else if( normalized == "background-legacy-projection" )
+		diagnostic = CanonicalDiagnostic::BackgroundLegacyProjection;
 	else
 		return false;
 	return true;
@@ -3030,8 +3063,8 @@ std::string DefaultAssetPath( const Options& options )
 // original rehearsal hull.
 bool IsTalocanAsset( const Options& options )
 {
-	return options.asset == "talocan" || options.asset == "talocan-frigate" ||
-		options.asset == "talocan-cruiser" || options.asset == "talocan-battleship";
+	return options.asset == "talocan" || options.asset == "talocan-frigate" || options.asset == "talocan-cruiser" ||
+		options.asset == "talocan-battleship";
 }
 
 // Assets rendered through the EVE SOF / eve-v5 material path.
@@ -3531,8 +3564,8 @@ void PrintUsage( const char* executable )
 		<< "       [--planet-appearance-view day|limb|eclipse|tour-finale|tour-orbit] [--planet-appearance-report PATH]\n"
 		<< "       [--sun-effects auto|off|flare|sun-flares|lens-flare|god-rays|all|no-lens-flare]\n"
 		<< "       [--solar-environment off|fog|finish|all] [--solar-environment-distance canonical|inside-boundary|outside-boundary|exit-boundary]\n"
-		<< "       [--scene-construction legacy|canonical] [--canonical-diagnostic baseline|ship-mesh-off|ship-object-off]\n"
-		<< "       [--system-manifest PATH] [--scene-construction-report REPORT.json]\n"
+		<< "       [--scene-construction legacy|canonical] [--canonical-diagnostic baseline|ship-mesh-off|ship-object-off|background-authored-intensity|background-fresh-effect|background-white-texture|background-post-draw-marker|background-legacy-projection]\n"
+		<< "       [--system-manifest PATH] [--scene-construction-report REPORT.json] [--scene-graph-report REPORT.json]\n"
 		<< "       [--legacy-sh-proxies authored|off] [--legacy-sh-receiver origin|live]\n"
 		<< "       [--legacy-solar-environment scripted|live-distance]\n"
 		<< "       [--tour-color-grade client-default|sun-desaturate]\n"
@@ -4471,10 +4504,10 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			while( start <= shipList.size() )
 			{
 				const size_t comma = shipList.find( ',', start );
-				const std::string ship = shipList.substr(
-					start, comma == std::string::npos ? std::string::npos : comma - start );
-				if( ship != "astero" && ship != "talocan" && ship != "talocan-frigate" &&
-					ship != "talocan-cruiser" && ship != "talocan-battleship" )
+				const std::string ship =
+					shipList.substr( start, comma == std::string::npos ? std::string::npos : comma - start );
+				if( ship != "astero" && ship != "talocan" && ship != "talocan-frigate" && ship != "talocan-cruiser" &&
+					ship != "talocan-battleship" )
 				{
 					return false;
 				}
@@ -4517,6 +4550,14 @@ bool ParseArgs( int argc, char** argv, Options& options )
 				return false;
 			}
 			options.sceneConstructionReportPath = argv[i];
+		}
+		else if( arg == "--scene-graph-report" )
+		{
+			if( ++i >= argc )
+			{
+				return false;
+			}
+			options.sceneGraphReportPath = argv[i];
 		}
 		else if( arg == "--legacy-sh-proxies" )
 		{
@@ -4859,10 +4900,9 @@ bool ParseArgs( int argc, char** argv, Options& options )
 			<< "Validation local shadows require the validation local light on a lit, all-area Astero using eve-v5\n";
 		return false;
 	}
-	options.resolvedDecals =
-		options.decals == Decals::Auto ?
-			( compatibleLightingModel && options.asset == "astero" ? Decals::Authored : Decals::Off ) :
-			options.decals;
+	options.resolvedDecals = options.decals == Decals::Auto ?
+		( compatibleLightingModel && options.asset == "astero" ? Decals::Authored : Decals::Off ) :
+		options.decals;
 	if( options.resolvedDecals == Decals::Authored && !compatibleLightingModel )
 	{
 		std::cerr << "Authored decals require a lit, all-area Astero using eve-v5 at the model rung or higher\n";
@@ -5814,8 +5854,8 @@ std::string CaptureBasePath( const Options& options )
 	const std::string fullPath = options.capturePrefix + "_" + options.asset +
 		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
 		( options.formationShips.empty() ? std::string() :
-			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
-		QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
+										   "_formation-" + std::to_string( options.formationShips.size() ) ) +
+		"_" + QualityRungName( options.qualityRung ) + materialSuffix + sunSuffix + "_bloom-" +
 		PostFinishModeName( options.resolvedBloom ) + "_grain-" + PostFinishModeName( options.resolvedFilmGrain ) +
 		"_dist-" + DistortionModeName( options.resolvedDistortion ) + "_vol-" +
 		VolumetricModeName( options.resolvedVolumetrics ) + "-" +
@@ -5841,11 +5881,10 @@ std::string CaptureBasePath( const Options& options )
 	return options.capturePrefix + "_" + options.asset +
 		( options.sofTextureSet == "original" ? std::string() : "_tex-" + options.sofTextureSet ) +
 		( options.formationShips.empty() ? std::string() :
-			"_formation-" + std::to_string( options.formationShips.size() ) ) + "_" +
-		QualityRungName( options.qualityRung ) + "_decal-" +
-		DecalsName( options.resolvedDecals ) + "-" + DecalViewName( options.decalView ) + "-kills-" +
-		std::to_string( options.killCount ) + "_pl-" + PlanetLayersName( options.planetLayers ) + "_date-" +
-		PlanetCloudDateName( options ) + "_" + hashText;
+										   "_formation-" + std::to_string( options.formationShips.size() ) ) +
+		"_" + QualityRungName( options.qualityRung ) + "_decal-" + DecalsName( options.resolvedDecals ) + "-" +
+		DecalViewName( options.decalView ) + "-kills-" + std::to_string( options.killCount ) + "_pl-" +
+		PlanetLayersName( options.planetLayers ) + "_date-" + PlanetCloudDateName( options ) + "_" + hashText;
 }
 
 bool WriteCaptureMetadata( const Options& options,
@@ -7422,7 +7461,7 @@ int main( int argc, char** argv )
 		}
 		const bool sceneConstructionRequested = options.sceneConstruction == SceneConstruction::Canonical ||
 			!options.systemManifestPath.empty() || !options.sceneConstructionReportPath.empty() ||
-			options.legacyShProxies != LegacyShProxies::Authored ||
+			!options.sceneGraphReportPath.empty() || options.legacyShProxies != LegacyShProxies::Authored ||
 			options.legacyShReceiver != LegacyShReceiver::Origin ||
 			options.legacySolarEnvironment != LegacySolarEnvironment::Scripted;
 		if( sceneConstructionRequested && options.sceneFixture != SceneFixture::NewEden )
@@ -7453,6 +7492,13 @@ int main( int argc, char** argv )
 		if( !options.sceneConstructionReportPath.empty() && options.maxFrames <= 0 )
 		{
 			std::cerr << "--scene-construction-report requires a positive finite --frames count\n";
+			return 2;
+		}
+		if( !options.sceneGraphReportPath.empty() &&
+			( options.maxFrames <= 0 || options.capturePrefix.empty() || options.captureFrames.empty() ) )
+		{
+			std::cerr << "--scene-graph-report requires a positive finite --frames count, "
+						 "--capture-prefix, and --capture-frames\n";
 			return 2;
 		}
 		if( !options.shipLightingReportPath.empty() &&
@@ -7803,15 +7849,14 @@ int main( int argc, char** argv )
 		const int qualityRung = QualityRungApiValue( options.qualityRung );
 		TrinityStandaloneProbeSetSofHull( SofHullPath( options ), SofFactionPath( options ) );
 		TrinityStandaloneProbeSetSofTextureRoot( options.sofTextureSet == "modernized" ? "modernized" : "" );
-	if( options.shipData >= 0.0f )
-	{
-		TrinityStandaloneProbeSetShipDataBaseline( options.shipData );
-	}
+		if( options.shipData >= 0.0f )
+		{
+			TrinityStandaloneProbeSetShipDataBaseline( options.shipData );
+		}
 		for( const std::string& formationShip : options.formationShips )
 		{
 			const std::string formationCmf = CmfPathForAssetId( formationShip, executableDirectory );
-			TrinityStandaloneProbeQueueFormationShip(
-				formationCmf.c_str(), SofHullPathForAssetId( formationShip ) );
+			TrinityStandaloneProbeQueueFormationShip( formationCmf.c_str(), SofHullPathForAssetId( formationShip ) );
 		}
 		TrinityStandaloneProbeSetChaseCameraRig( probe, options.chaseDistance, options.chaseHeight );
 		TrinityStandaloneProbeSetStaticCameraRig(
@@ -8029,7 +8074,8 @@ int main( int argc, char** argv )
 			options.exposureSequence != ExposureSequence::None || !options.solarOpticsReportPath.empty() ||
 			!options.solarIlluminationReportPath.empty() || !options.shipLightingReportPath.empty() ||
 			!options.presentationAuditReportPath.empty() || !options.reflectionLightingReportPath.empty() ||
-			!options.occlusionLightingReportPath.empty() || !options.ssaoTransportReportPath.empty();
+			!options.occlusionLightingReportPath.empty() || !options.ssaoTransportReportPath.empty() ||
+			!options.sceneGraphReportPath.empty();
 		// Product capture must not silently add a same-time diagnostic rerender.
 		// Tone validation is an explicit contract because it reconfigures bloom and
 		// reads both sides of the tone pass; ordinary post-tone/all captures observe
@@ -8055,6 +8101,16 @@ int main( int argc, char** argv )
 																 options.presentationAuditReportPath.c_str() ) ) )
 		{
 			std::cerr << "Failed to configure the PL-14H1 presentation audit\n";
+			TrinityStandaloneProbeDestroyDevice( probe );
+			[window close];
+			return 1;
+		}
+		if( !options.sceneGraphReportPath.empty() &&
+			( !EnsureParentDirectory( options.sceneGraphReportPath ) ||
+			  !TrinityStandaloneProbeConfigureSceneGraphReport( probe, options.sceneGraphReportPath.c_str() ) ||
+			  !TrinityStandaloneProbeRecordSceneGraphSnapshot( probe, "configured", 0 ) ) )
+		{
+			std::cerr << "Failed to record the configured runtime scene graph\n";
 			TrinityStandaloneProbeDestroyDevice( probe );
 			[window close];
 			return 1;
@@ -8201,8 +8257,9 @@ int main( int argc, char** argv )
 						( renderedFrames - options.captureStartFrame ) % options.captureEvery == 0 ) ||
 					  std::binary_search(
 						  options.captureFrames.begin(), options.captureFrames.end(), renderedFrames ) );
+				const bool graphSequenceFrame = !options.sceneGraphReportPath.empty() && captureSequenceFrame;
 				const bool presentationSequenceFrame =
-					!options.presentationAuditReportPath.empty() && captureSequenceFrame;
+					( !options.presentationAuditReportPath.empty() || graphSequenceFrame ) && captureSequenceFrame;
 				const bool terminalAllSnapshot = options.renderProduct == RenderProduct::All && options.maxFrames > 0 &&
 					renderedFrames + 1 == options.maxFrames;
 				const bool presentationSnapshotRequested = presentationSequenceFrame || terminalAllSnapshot;
@@ -8230,6 +8287,14 @@ int main( int argc, char** argv )
 					[window close];
 					return 1;
 				}
+				if( !options.sceneGraphReportPath.empty() &&
+					!TrinityStandaloneProbeSetSceneGraphCaptureRequested( probe, graphSequenceFrame ) )
+				{
+					std::cerr << "Failed to mark the runtime graph capture frame\n";
+					TrinityStandaloneProbeDestroyDevice( probe );
+					[window close];
+					return 1;
+				}
 				if( presentationSnapshotRequested &&
 					!TrinityStandaloneProbeSetPresentationAuditCaptureRequested( probe, true ) )
 				{
@@ -8245,6 +8310,15 @@ int main( int argc, char** argv )
 				if( !rendered )
 				{
 					std::cerr << "TrinityStandaloneProbeRenderFrame failed\n";
+					TrinityStandaloneProbeDestroyDevice( probe );
+					[window close];
+					return 1;
+				}
+				if( graphSequenceFrame &&
+					!TrinityStandaloneProbeRecordSceneGraphSnapshot(
+						probe, "frame", static_cast<uint64_t>( renderedFrames ) ) )
+				{
+					std::cerr << "Runtime graph snapshot failed at frame " << renderedFrames << "\n";
 					TrinityStandaloneProbeDestroyDevice( probe );
 					[window close];
 					return 1;
@@ -9145,7 +9219,12 @@ int main( int argc, char** argv )
 							  << " submittedAdditive=" << diagnostics.submittedAdditiveBatches
 							  << " submittedTransparent=" << diagnostics.submittedTransparentBatches
 							  << " nebulaReady=" << ( diagnostics.nebulaReady ? "true" : "false" )
-							  << " starfieldReady=" << ( diagnostics.starfieldReady ? "true" : "false" );
+							  << " starfieldReady=" << ( diagnostics.starfieldReady ? "true" : "false" )
+							  << " nebulaAuthoredIntensity=" << diagnostics.authoredNebulaIntensity
+							  << " nebulaSettledIntensity=" << diagnostics.settledNebulaIntensity
+							  << " nebulaEffectiveIntensity=" << diagnostics.effectiveNebulaIntensity
+							  << " nebulaForceAuthored="
+							  << ( diagnostics.forceAuthoredNebulaIntensity ? "true" : "false" );
 						productStats.emplace_back( "canonicalDiagnostic", stats.str() );
 					}
 				}
@@ -9232,6 +9311,15 @@ int main( int argc, char** argv )
 				std::cout << "Scene construction report: " << options.sceneConstructionReportPath << "\n";
 			}
 		}
+		bool sceneGraphReportSucceeded = true;
+		if( !options.sceneGraphReportPath.empty() )
+		{
+			sceneGraphReportSucceeded = TrinityStandaloneProbeWriteSceneGraphReport( probe );
+			if( sceneGraphReportSucceeded )
+			{
+				std::cout << "Runtime scene graph report: " << options.sceneGraphReportPath << "\n";
+			}
+		}
 		bool presentationAuditReportSucceeded = true;
 		if( !options.presentationAuditReportPath.empty() )
 		{
@@ -9280,17 +9368,17 @@ int main( int argc, char** argv )
 		captureSucceeded = captureSucceeded && solarAuditSucceeded && solarBodyReportSucceeded &&
 			solarHighReportSucceeded && solarOpticsReportSucceeded && solarIlluminationReportSucceeded &&
 			planetAuditReportSucceeded && planetAppearanceReportSucceeded && sceneConstructionReportSucceeded &&
-			presentationAuditReportSucceeded && shipLightingReportSucceeded && reflectionLightingReportSucceeded &&
-			occlusionLightingReportSucceeded && ssaoTransportReportSucceeded && framePacingSucceeded &&
-			compositionValidationSucceeded && exposureValidationSucceeded && toneValidationSucceeded &&
-			postFinishValidationSucceeded && distortionValidationSucceeded && volumetricValidationSucceeded &&
-			engineValidationSucceeded && temporalValidationSucceeded && ballparkValidationSucceeded &&
-			ballparkReportSucceeded && ballparkMotionValidationSucceeded && ballparkMotionReportSucceeded &&
-			ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded && ballparkWarpValidationSucceeded &&
-			ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded && ballparkApproachReportSucceeded &&
-			chaseCameraValidationSucceeded && chaseCameraReportSucceeded && celestialValidationSucceeded &&
-			celestialReportSucceeded && eveGateValidationSucceeded && eveGateReportSucceeded &&
-			exposureReportsSucceeded;
+			sceneGraphReportSucceeded && presentationAuditReportSucceeded && shipLightingReportSucceeded &&
+			reflectionLightingReportSucceeded && occlusionLightingReportSucceeded && ssaoTransportReportSucceeded &&
+			framePacingSucceeded && compositionValidationSucceeded && exposureValidationSucceeded &&
+			toneValidationSucceeded && postFinishValidationSucceeded && distortionValidationSucceeded &&
+			volumetricValidationSucceeded && engineValidationSucceeded && temporalValidationSucceeded &&
+			ballparkValidationSucceeded && ballparkReportSucceeded && ballparkMotionValidationSucceeded &&
+			ballparkMotionReportSucceeded && ballparkOrbitValidationSucceeded && ballparkOrbitReportSucceeded &&
+			ballparkWarpValidationSucceeded && ballparkWarpReportSucceeded && ballparkApproachValidationSucceeded &&
+			ballparkApproachReportSucceeded && chaseCameraValidationSucceeded && chaseCameraReportSucceeded &&
+			celestialValidationSucceeded && celestialReportSucceeded && eveGateValidationSucceeded &&
+			eveGateReportSucceeded && exposureReportsSucceeded;
 		if( !captureSucceeded )
 		{
 			TrinityStandaloneProbeDestroyDevice( probe );

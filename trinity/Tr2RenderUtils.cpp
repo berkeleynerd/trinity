@@ -56,11 +56,18 @@ void SetupScreenQuadInCameraSpace( Tr2ScreenVertex quad[4], int width, int heigh
 
 	// Top-left and bottom-right in projection space:
 	// See explanation in SetupScreenQuad for pixel offsets
-	Vector3 tl( -1.0f, 1.0f, 1.0f );
-	Vector3 br( 1.0f, -1.0f, 1.0f );
+	const Matrix& projectionRaw = Tr2Renderer::GetProjectionRawTransform();
+	// At float precision, a sufficiently distant far plane becomes the
+	// infinite-far perspective form (_33 == -1, _44 == 0). Its far clip plane
+	// cannot be unprojected: clip-space z=1 produces w=0. Camera-space
+	// background quads only need the view ray, so sample that same ray at a
+	// finite interior depth instead.
+	const bool infiniteFarProjection = projectionRaw._33 == -1.0f && projectionRaw._44 == 0.0f;
+	const float clipDepth = infiniteFarProjection ? 0.5f : 1.0f;
+	Vector3 tl( -1.0f, 1.0f, clipDepth );
+	Vector3 br( 1.0f, -1.0f, clipDepth );
 
 	// Transform to view space:
-	const Matrix& projectionRaw = Tr2Renderer::GetProjectionRawTransform();
 	Matrix proj2view = Inverse( projectionRaw );
 	tl = TransformCoord( tl, proj2view );
 	br = TransformCoord( br, proj2view );

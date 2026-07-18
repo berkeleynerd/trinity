@@ -50,6 +50,12 @@ public:
 	TriVariable* GetVariable( const char* name );
 	TriVariable* GetLocalVariable( const char* name );
 
+	// Read-only audit surface. The returned variables remain owned by this
+	// store and the result is sorted by name so observing it cannot perturb
+	// shader-variable precedence or report ordering.
+	std::vector<std::pair<std::string, const TriVariable*>>
+		GetLocalVariablesForDiagnostics() const;
+
 protected:
 	Tr2VariableStore( IRoot * lockobj, int );
 

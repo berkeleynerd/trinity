@@ -147,6 +147,10 @@ bool Tr2Blitter::DrawHelper( Tr2RenderContext& renderContext, Tr2Shader* shader,
 	}
 
 	unsigned int passCount = shader->GetPassCount( 0 );
+	if( passCount == 0 )
+	{
+		return false;
+	}
 
 	for( unsigned int passIx = 0; passIx < passCount; ++passIx )
 	{
@@ -154,7 +158,7 @@ bool Tr2Blitter::DrawHelper( Tr2RenderContext& renderContext, Tr2Shader* shader,
 		material->ApplyMaterialDataForPass( 0, passIx, renderContext );
 		{
 			renderContext.SetTopology( TOP_TRIANGLE_STRIP );
-			renderContext.DrawPrimitive( 0, 2 );
+			CR_RETURN_VAL( renderContext.DrawPrimitive( 0, 2 ), false );
 		}
 	}
 

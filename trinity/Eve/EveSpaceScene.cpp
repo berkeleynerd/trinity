@@ -223,10 +223,12 @@ EveSpaceScene::EveSpaceScene( IRoot* lockobj ) :
 	m_sharedIndexVertexBufferVar( "SharedIndexVertexBuffer", (ITr2GpuBuffer*)nullptr ),
 	m_bakedMorphTargetBufferVar( "BakedMorphTargetBuffer", (ITr2GpuBuffer*)nullptr ),
 	m_nebulaIntensity( 1.f ),
-	m_currentNebulaIntensity( 1.f ),
 	m_backgroundReflectionIntensity( 1.f ),
 	m_defaultDiffuseRoughness( 1.f ),
 	m_nebulaIntensityVar( "NebulaIntensity", m_nebulaIntensity ),
+	m_currentNebulaIntensity( 1.f ),
+	m_forceAuthoredNebulaIntensityForDiagnostics( false ),
+	m_backgroundPostDrawMarkerForDiagnostics( false ),
 	m_planetScale( 1e6 ),
 	m_planetCameraScale( 1e6 ),
 	m_planetShadowsEnabled( true ),
@@ -2245,12 +2247,36 @@ bool EveSpaceScene::RenderBackgroundPassObjects( const Tr2TextureAL& depthMap, c
 		}
 
 		renderContext.m_esm.ApplyStandardStates( Tr2EffectStateManager::RM_OPAQUE );
-		Tr2Renderer::DrawCameraSpaceScreenQuad( renderContext, m_backgroundEffect->GetShaderStateInterface(), m_backgroundEffect );
+		Tr2Shader* backgroundShader = m_backgroundEffect->GetShaderStateInterface();
+		const bool backgroundDrawSucceeded =
+			Tr2Renderer::DrawCameraSpaceScreenQuad( renderContext, backgroundShader, m_backgroundEffect );
+		if( reason == BACKGROUND_RENDER_COLOR )
+		{
+			const TriViewport& viewport = renderContext.m_esm.GetViewport();
+			++m_backgroundDrawDiagnostics.callCount;
+			m_backgroundDrawDiagnostics.attempted = true;
+			m_backgroundDrawDiagnostics.shaderPresent = backgroundShader != nullptr;
+			m_backgroundDrawDiagnostics.cullModeInverted = renderContext.m_esm.IsCullModeInverted();
+			m_backgroundDrawDiagnostics.succeeded = backgroundDrawSucceeded;
+			m_backgroundDrawDiagnostics.passCount = backgroundShader ? backgroundShader->GetPassCount( 0 ) : 0;
+			m_backgroundDrawDiagnostics.renderTargetWidth = renderContext.m_esm.GetRenderTargetWidth();
+			m_backgroundDrawDiagnostics.renderTargetHeight = renderContext.m_esm.GetRenderTargetHeight();
+			m_backgroundDrawDiagnostics.viewportX = viewport.x;
+			m_backgroundDrawDiagnostics.viewportY = viewport.y;
+			m_backgroundDrawDiagnostics.viewportWidth = viewport.width;
+			m_backgroundDrawDiagnostics.viewportHeight = viewport.height;
+		}
+		if( reason == BACKGROUND_RENDER_COLOR && m_backgroundPostDrawMarkerForDiagnostics )
+		{
+			renderContext.Clear( CLEARFLAGS_TARGET, 0xffff00ff, 1.f, 0 );
+		}
 
 		if( reason == BACKGROUND_RENDER_REFLECTION )
 		{
 			// Reset the nebula intensity to the original one
-			m_nebulaIntensityVar = m_currentNebulaIntensity;
+			m_nebulaIntensityVar = m_forceAuthoredNebulaIntensityForDiagnostics ?
+				m_nebulaIntensity :
+				m_currentNebulaIntensity;
 		}
 	}
 
@@ -3345,7 +3371,9 @@ void EveSpaceScene::UpdateVariableStore()
 	m_envMap2Var = m_envMap2;
 	m_reflectionMapVar = m_envMap1;
 	m_reflectionMaskMapVar = m_envMap2;
-	m_nebulaIntensityVar = m_currentNebulaIntensity;
+	m_nebulaIntensityVar = m_forceAuthoredNebulaIntensityForDiagnostics ?
+		m_nebulaIntensity :
+		m_currentNebulaIntensity;
 	// the environment cubemap (aka nebula) is passed theough the global variable store
 	m_staticEnvMapHandle->SetValue( m_staticEnvMapTextureRes );
 	m_envMapHandle->SetValue( m_envMapTextureRes );

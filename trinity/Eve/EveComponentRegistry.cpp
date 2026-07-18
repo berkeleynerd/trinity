@@ -161,3 +161,20 @@ std::vector<std::pair<const char*, size_t>> EveComponentRegistry::GetComponentIn
 
 	return info;
 }
+
+std::vector<std::pair<std::string, std::vector<EveEntity*>>>
+	EveComponentRegistry::GetRegisteredComponentsForDiagnostics() const
+{
+	std::shared_lock<std::shared_mutex> lock( m_componentCollectionLoopGuard );
+	std::vector<std::pair<std::string, std::vector<EveEntity*>>> result;
+	result.reserve( m_componentCollections.size() );
+	for( const auto& [name, collection] : m_componentCollections )
+	{
+		std::vector<EveEntity*> entities;
+		collection->AppendEntitiesForDiagnostics( entities );
+		result.emplace_back( name ? name : "", std::move( entities ) );
+	}
+	std::sort(
+		result.begin(), result.end(), []( const auto& left, const auto& right ) { return left.first < right.first; } );
+	return result;
+}

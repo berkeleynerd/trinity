@@ -225,7 +225,7 @@ public:
 
 	static void DrawScreenQuad( Tr2RenderContext& renderContext, Tr2Material* effect );
 	static void DrawScreenQuad( Tr2RenderContext& renderContext, Tr2Effect* effect, const Vector2& topLeft, const Vector2& bottomRight );
-	static void DrawCameraSpaceScreenQuad( Tr2RenderContext& renderContext, Tr2Shader* shader, Tr2Material* material );
+	static bool DrawCameraSpaceScreenQuad( Tr2RenderContext& renderContext, Tr2Shader* shader, Tr2Material* material );
 	static bool DrawFullScreenWithShader( Tr2RenderContext& renderContext, Tr2Material* material );
 
 	static bool RunComputeShader( Tr2Material* effect, unsigned groupDimX, unsigned groupDimY, unsigned groupDimZ, Tr2RenderContext& renderContext );

@@ -1019,12 +1019,13 @@ void Tr2Renderer::DrawScreenQuad( Tr2RenderContext& renderContext, Tr2Effect* ef
 	}
 }
 
-void Tr2Renderer::DrawCameraSpaceScreenQuad( Tr2RenderContext& renderContext, Tr2Shader* shader, Tr2Material* material )
+bool Tr2Renderer::DrawCameraSpaceScreenQuad( Tr2RenderContext& renderContext, Tr2Shader* shader, Tr2Material* material )
 {
 	if( s_blitter )
 	{
-		s_blitter->DrawInCameraSpace( renderContext, shader, material );
+		return s_blitter->DrawInCameraSpace( renderContext, shader, material );
 	}
+	return false;
 }
 
 float Tr2Renderer::GetAnimationTime()
