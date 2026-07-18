@@ -5559,6 +5559,9 @@ struct StandaloneProbe
 	Tr2GpuResourcePool::Texture externalVisualizerProductLock;
 	Tr2TextureAL externalVisualizerProduct;
 	const char* externalVisualizerProductName = nullptr;
+	// Log throttle only — not cleared per frame, so per-frame monitor use
+	// announces the handoff once per product instead of once per frame.
+	const char* externalVisualizerLoggedName = nullptr;
 	Tr2TextureAL hdrCompositeReadback;
 	Tr2TextureAL postTonemapReadback;
 	Tr2TextureAL bloomReadback;
@@ -13119,11 +13122,15 @@ bool DrawDriverFrame( StandaloneProbe& probe, Be::Time realTime, Be::Time simTim
 					}
 					probe.externalVisualizerProduct = *selectedTexture;
 					probe.externalVisualizerProductName = selectedName;
-					std::printf(
-						"EVE render-product external handoff: product=%s dimensions=%ux%u\n",
-						selectedName,
-						probe.externalVisualizerProduct.GetWidth(),
-						probe.externalVisualizerProduct.GetHeight() );
+					if( probe.externalVisualizerLoggedName != selectedName )
+					{
+						probe.externalVisualizerLoggedName = selectedName;
+						std::printf(
+							"EVE render-product external handoff: product=%s dimensions=%ux%u\n",
+							selectedName,
+							probe.externalVisualizerProduct.GetWidth(),
+							probe.externalVisualizerProduct.GetHeight() );
+					}
 				}
 			}
 			else
