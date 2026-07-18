@@ -18286,6 +18286,39 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProduct(
 	return true;
 }
 
+// W1-B: the readback metrics computed by ReadCapturedRenderProduct
+// (FNV-1a hash over the tight RGBA rows, RGB min/max, nonzero-pixel count,
+// and the nonzero bounding box). Additive; ReadCapturedRenderProduct is
+// unchanged and remains the oracle. Lets a host-side readback prove its
+// transcription of the metric contract byte-for-byte, not just the pixels.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProductMetrics(
+	void* opaqueProbe,
+	uint64_t* hash,
+	uint64_t* nonzeroPixels,
+	uint32_t* minimum,
+	uint32_t* maximum,
+	uint32_t* minX,
+	uint32_t* minY,
+	uint32_t* maxX,
+	uint32_t* maxY )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !hash || !nonzeroPixels || !minimum || !maximum ||
+		!minX || !minY || !maxX || !maxY || probe->capturedProductPixels.empty() )
+	{
+		return false;
+	}
+	*hash = probe->capturedProductHash;
+	*nonzeroPixels = probe->capturedProductNonzeroPixels;
+	*minimum = probe->capturedProductMinimum;
+	*maximum = probe->capturedProductMaximum;
+	*minX = probe->capturedProductMinX;
+	*minY = probe->capturedProductMinY;
+	*maxX = probe->capturedProductMaxX;
+	*maxY = probe->capturedProductMaxY;
+	return true;
+}
+
 // External-visualizer seam (Wave 0): after a RenderFrame carrying
 // STANDALONE_CAPTURE_EXTERNAL_VISUALIZER returns true, the selected render
 // product is engine-retained (pool lease + object retain) until the next
