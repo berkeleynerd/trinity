@@ -5591,6 +5591,13 @@ struct StandaloneProbe
 	Tr2GpuResourcePool::Texture externalVisualizerProductLock;
 	Tr2TextureAL externalVisualizerProduct;
 	const char* externalVisualizerProductName = nullptr;
+	// W1-C driver-frame state: the requested-product decode arrays that
+	// DrawDriverFrame keeps as stack locals become probe-held so the
+	// granular Configure/Validate/Execute exports can share them. Valid
+	// from ConfigureDriverProducts until the next one.
+	std::array<BlueSharedString, 32> driverRequestedNames;
+	std::array<ITr2RenderNode::TempOutput, 32> driverOutputStorage;
+	size_t driverRequestedCount = 0;
 	// Log throttle only — not cleared per frame, so per-frame monitor use
 	// announces the handoff once per product instead of once per frame.
 	const char* externalVisualizerLoggedName = nullptr;
@@ -18316,6 +18323,153 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeGetCapturedProductMetrics(
 	*minY = probe->capturedProductMinY;
 	*maxX = probe->capturedProductMaxX;
 	*maxY = probe->capturedProductMaxY;
+	return true;
+}
+
+// W1-C: the driver frame loop, granular (the driver.Execute crossing). A
+// host orchestrator sequences BeginFrame -> ConfigureDriverProducts ->
+// ValidateDriverFrame -> ExecuteDriverProducts -> ResolveAndRetainProduct
+// -> [host visualize/readback via GetRenderProductTexture] -> Present,
+// replacing the monolithic RenderFrame for the static (ballparkMode==OFF)
+// capture path. RenderFrame and DrawDriverFrame are unchanged and remain
+// the oracle (the tour/journey lane still flows through them). The product
+// decode here covers the capture products the Swift visualizer supports
+// (color/depth/normal); the temporal-sample / solar-sweep / atomic-solar
+// append families port with their own product chunks.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureDriverProducts(
+	void* opaqueProbe, int captureProducts, uint32_t* outCount )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !outCount )
+	{
+		return false;
+	}
+	// Release the previous frame's external-visualizer retention (mirrors
+	// DrawDriverFrame's per-frame reset).
+	probe->externalVisualizerProductLock = {};
+	probe->externalVisualizerProduct = {};
+	probe->externalVisualizerProductName = nullptr;
+	probe->driverRequestedCount = 0;
+	auto request = [&]( const char* name ) {
+		probe->driverRequestedNames[probe->driverRequestedCount] = BlueSharedString( name );
+		probe->driverOutputStorage[probe->driverRequestedCount].name =
+			probe->driverRequestedNames[probe->driverRequestedCount];
+		++probe->driverRequestedCount;
+	};
+	// Color resolves from the back buffer (no named output). Depth/normal are
+	// named driver outputs. Other products append later with their chunks.
+	if( captureProducts & STANDALONE_CAPTURE_DEPTH )
+	{
+		request( "DepthMap" );
+	}
+	if( captureProducts & STANDALONE_CAPTURE_NORMAL )
+	{
+		request( "NormalMap" );
+	}
+	*outCount = static_cast<uint32_t>( probe->driverRequestedCount );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeValidateDriverFrame(
+	void* opaqueProbe, int64_t realTime, int64_t simTime )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderContext )
+	{
+		return false;
+	}
+	const Tr2BitmapDimensions destinationDimensions =
+		probe->renderContext->GetDefaultBackBuffer().GetDesc();
+	ITr2RenderNode::Span<const Tr2BitmapDimensions> destinationDimensionSpan = { &destinationDimensions, 1 };
+	ITr2RenderNode::Span<const BlueSharedString> requestedOutputs = {
+		probe->driverRequestedNames.data(), probe->driverRequestedCount };
+	return probe->driver->Validate(
+		destinationDimensionSpan, requestedOutputs,
+		static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ) );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeExecuteDriverProducts(
+	void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->driver || !probe->renderContext || !probe->device )
+	{
+		return false;
+	}
+	// The two per-frame pixel pokes RenderFrame performs around DrawDriverFrame
+	// (SetAnimationTime, temporal-history freeze — false for warmup frames,
+	// true for the diagnostic frozen re-render of non-color products).
+	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
+	probe->driver->SetTemporalHistoryFrozen( freezeScene );
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	const Tr2TextureAL& destination = renderContext.GetDefaultBackBuffer();
+	const Tr2TextureAL* destinationTexture = &destination;
+	ITr2RenderNode::Span<const Tr2TextureAL> destinationSpan = { destinationTexture, 1 };
+	ITr2RenderNode::Span<ITr2RenderNode::TempOutput> outputSpan = {
+		probe->driverOutputStorage.data(), probe->driverRequestedCount };
+	Tr2ProfileTimer rootTimer;
+	probe->driver->Execute(
+		destinationSpan, outputSpan,
+		static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ),
+		rootTimer, renderContext );
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeResolveAndRetainProduct(
+	void* opaqueProbe, int captureProduct )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext )
+	{
+		return false;
+	}
+	Tr2RenderContext& renderContext = *probe->renderContext;
+	const Tr2TextureAL* selectedTexture = nullptr;
+	const ITr2RenderNode::TempOutput* matchedOutput = nullptr;
+	const char* selectedName = nullptr;
+	if( captureProduct == STANDALONE_CAPTURE_COLOR )
+	{
+		selectedName = "Color";
+		selectedTexture = &renderContext.GetDefaultBackBuffer();
+	}
+	else
+	{
+		if( captureProduct == STANDALONE_CAPTURE_DEPTH )
+		{
+			selectedName = "DepthMap";
+		}
+		else if( captureProduct == STANDALONE_CAPTURE_NORMAL )
+		{
+			selectedName = "NormalMap";
+		}
+		else
+		{
+			std::fprintf( stderr, "ResolveAndRetainProduct: unsupported product %d\n", captureProduct );
+			return false;
+		}
+		for( size_t outputIndex = 0; outputIndex < probe->driverRequestedCount; ++outputIndex )
+		{
+			if( probe->driverOutputStorage[outputIndex].name == BlueSharedString( selectedName ) &&
+				probe->driverOutputStorage[outputIndex].texture.IsValid() )
+			{
+				selectedTexture = &probe->driverOutputStorage[outputIndex].texture.Get();
+				matchedOutput = &probe->driverOutputStorage[outputIndex];
+				break;
+			}
+		}
+	}
+	if( !selectedTexture )
+	{
+		std::fprintf( stderr, "Requested EVE render product '%s' was not produced\n",
+					  selectedName ? selectedName : "?" );
+		return false;
+	}
+	if( matchedOutput )
+	{
+		probe->externalVisualizerProductLock = matchedOutput->texture;
+	}
+	probe->externalVisualizerProduct = *selectedTexture;
+	probe->externalVisualizerProductName = selectedName;
 	return true;
 }
 

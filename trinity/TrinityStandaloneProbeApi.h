@@ -857,3 +857,18 @@ extern "C" bool TrinityStandaloneProbeGetCapturedProductMetrics(
 	uint32_t* minY,
 	uint32_t* maxX,
 	uint32_t* maxY );
+
+// --------------------------------------------------------------------------------------
+// W1-C: the driver frame loop, granular (the driver.Execute crossing). A
+// host orchestrator sequences the driver frame itself for the static
+// (ballparkMode==OFF) capture path: BeginFrame -> ConfigureDriverProducts
+// -> ValidateDriverFrame -> ExecuteDriverProducts -> ResolveAndRetainProduct
+// -> (host visualize/readback via GetRenderProductTexture) -> Present.
+// RenderFrame and DrawDriverFrame are unchanged and remain the oracle (the
+// journey/tour lane still flows through them). ConfigureDriverProducts
+// covers color/depth/normal; other products append with their own chunks.
+// --------------------------------------------------------------------------------------
+extern "C" bool TrinityStandaloneProbeConfigureDriverProducts( void* opaqueProbe, int captureProducts, uint32_t* outCount );
+extern "C" bool TrinityStandaloneProbeValidateDriverFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
+extern "C" bool TrinityStandaloneProbeExecuteDriverProducts( void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene );
+extern "C" bool TrinityStandaloneProbeResolveAndRetainProduct( void* opaqueProbe, int captureProduct );
