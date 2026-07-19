@@ -20,6 +20,15 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+      # Cheap text-only guard, deliberately before the build so it fails fast.
+      # The W1-D exports (AdvanceJourneyFrame / RecordBallparkTelemetry) are
+      # verbatim copies of RenderFrame's journey halves, kept independent so the
+      # granular-vs-monolith A/B gate in run_w1d.sh compares real alternatives.
+      # Nothing else notices when RenderFrame changes and the copies do not:
+      # PR #22 merged textually clean with stale copies and a green tour gate,
+      # and had to be reverted (#24). This check is what makes that loud.
+      - name: W1-D export/RenderFrame copy-drift check
+        run: python3 tools/w1d_sync_exports.py --check
       - name: Build (central carbon-build action)
         uses: https://git.idril.is/rebecca/safe-lang-ci/.gitea/actions/carbon-build@cef974725e916a49947712d24067a90cb6329402
         with:
