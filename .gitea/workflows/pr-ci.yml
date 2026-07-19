@@ -26,4 +26,4 @@ jobs:
           preset: arm64-osx-release
           config: Release
           target: all
-          install-to-monolith: "true"
+          install-to-monolith: "false"
