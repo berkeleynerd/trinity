@@ -57,6 +57,22 @@ public:
 	// set warhead's inital launchdelay
 	void PrepareLaunch();
 
+	// Host-side presentation controls. These expose the authored lateral path
+	// noise without changing the missile ball or its collision trajectory.
+	float GetPathOffsetNoiseScale() const;
+	float GetPathOffsetNoiseSpeed() const;
+	bool SetPathOffsetNoiseScaleForHost( float value );
+	void SetHostImpactControl( bool enabled );
+	void UpdateGuidedInterceptForHost(
+		float deltaT,
+		float speed,
+		const Vector3& targetPosition,
+		const Matrix& missileTransform );
+	bool SetWarheadIDForHost( int id );
+	const Vector3& GetExplosionPositionForHost() const;
+	float GetMaximumExplosionDistanceForHost() const;
+	bool ResolveImpactAtTargetForHost( ITriTargetable* target );
+
 	// set warhead's inital position/orientation (aka Launch)
 	void Launch( const Matrix& startTransform );
 
@@ -183,6 +199,9 @@ private:
 	//bombs
 	bool m_bombFlightpath;
 	bool m_lastPositionValid;
+	bool m_hostImpactControl;
+	Vector3 m_hostGuidanceLaunchPosition;
+	bool m_hostGuidanceLaunchPositionValid;
 };
 
 TYPEDEF_BLUECLASS( EveMissileWarhead );

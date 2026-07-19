@@ -191,6 +191,7 @@ EveSpaceObject2::EveSpaceObject2( IRoot* lockobj ) :
 	m_generatedShapeEllipsoidCenter( 0.f, 0.f, 0.f ),
 	m_generatedShapeEllipsoidRadius( -1.f, -1.f, -1.f ),
 	m_lastCurveUpdateTime( 0 ),
+	m_lastUpdateTransformTime( std::numeric_limits<Be::Time>::min() ),
 	m_previousPosition( UNINITIALIZED_POSITION, UNINITIALIZED_POSITION, UNINITIALIZED_POSITION ),
 	m_spaceObjectShipData( 1.f, 1.f, EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT, 1.f ),
 	m_dirtLevel( EVE_SPACEOBJECT_DIRT_LEVEL_DEFAULT ),
@@ -3079,6 +3080,16 @@ void EveSpaceObject2::SetModelTranslationCurve( ITriVectorFunctionPtr translatio
 	m_modelTranslation = translationCurve;
 }
 
+void EveSpaceObject2::SetBallRotationCurve( ITriQuaternionFunctionPtr rotationCurve )
+{
+	m_ballRotation = rotationCurve;
+}
+
+void EveSpaceObject2::SetBallPositionCurve( ITriVectorFunctionPtr positionCurve )
+{
+	m_ballPosition = positionCurve;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   Store the DNA string of this guy
@@ -3581,6 +3592,16 @@ size_t EveSpaceObject2::GetLocalLightCountForDiagnostics() const
 const Tr2Light* EveSpaceObject2::GetLocalLightForDiagnostics( size_t index ) const
 {
 	return index < m_lights.size() ? m_lights[index] : nullptr;
+}
+
+size_t EveSpaceObject2::GetShadowBatchAreaCountForDiagnostics() const
+{
+	size_t count = 0;
+	for( const TriRenderBatchAreaBlocksWithSharedMaterial& areas : m_shadowMeshOpaqueAreas )
+	{
+		count += areas.m_areaBlockVector.size();
+	}
+	return count;
 }
 
 // --------------------------------------------------------------------------------

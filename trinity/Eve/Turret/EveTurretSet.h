@@ -218,6 +218,14 @@ public:
 	// get worldmatrix of the currently firing bone
 	Matrix GetFiringBoneWorldTransform( unsigned int muzzle ) const;
 
+	// Standalone native-host seams. Production graphs still deserialize these
+	// fields through Blue; these methods only close authored resource staging
+	// and target assignment without exposing the rest of the turret internals.
+	bool SetGeometryResPathForHost( const char* path );
+	const char* GetGeometryResPathForInspection() const;
+	TriGeometryRes* GetGeometryResourceForInspection() const;
+	void SetTargetForHost( ITriTargetable* target );
+
 	// missed shots
 	void SetShotMissed( bool missed );
 	double GetLastShotTime() const;

@@ -2889,6 +2889,225 @@ if(TARGET TrinityAnimatedModelAssets)
     add_dependencies(TrinityEveSceneProbeAssets TrinityAnimatedModelAssets)
 endif()
 
+# PL-C1 stages only the authored launcher/missile geometry substitutions that
+# the public Metal path can prove. Black graphs, textures, and shaders retain
+# their logical res:/ identities and continue through BePaths/SharedCache.
+if(EVE_SCENE_PROBE_SHARED_CACHE
+    AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}"
+    AND EXISTS "${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}")
+    set(EVE_SCENE_PROBE_COMBAT_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/CombatWeaponAssets)
+    set(EVE_SCENE_PROBE_COMBAT_REPORT ${CMAKE_CURRENT_BINARY_DIR}/Reports/CombatWeaponGeometry.json)
+    set(EVE_SCENE_PROBE_COMBAT_RESOURCE_REPORT ${CMAKE_CURRENT_BINARY_DIR}/Reports/CombatWeaponResources.json)
+    set(EVE_SCENE_PROBE_COMBAT_SUPPORT_REPORT ${CMAKE_CURRENT_BINARY_DIR}/Reports/CombatWeaponSupportResources.json)
+    set(EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/turret/launcher/light)
+    set(EVE_SCENE_PROBE_COMBAT_LAUNCHER_BLACK
+        ${EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR}/light_t1.black)
+    set(EVE_SCENE_PROBE_COMBAT_MISSILE_BLACK
+        ${EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR}/light_missile.black)
+    set(EVE_SCENE_PROBE_COMBAT_IMPACT_BLACK
+        ${EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR}/light_impact_scourge.black)
+    # light_t1.black authors firingEffectResPath with the legacy .red spelling,
+    # while the SharedCache index resolves the serialized payload as
+    # light_fx.black. Stage that payload at the authored runtime path.
+    set(EVE_SCENE_PROBE_COMBAT_FIRING_EFFECT_RED_ALIAS
+        ${EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR}/light_fx.red)
+    set(EVE_SCENE_PROBE_COMBAT_GEOMETRY_NAMES
+        light_t1 unit_cube halo_01a halo_01b unit_plane
+        unitplane_mirroreddoublesided_01b cone2_fixeduvs_highdetail_z)
+    set(EVE_SCENE_PROBE_COMBAT_GEOMETRY_LOGICAL_PATHS
+        res:/dx9/model/turret/launcher/light/light_t1.gr2
+        res:/graphics/generic/unit_cube.gr2
+        res:/graphics/generic/custom/halo_01a.gr2
+        res:/graphics/generic/custom/halo_01b.gr2
+        res:/graphics/generic/unit_plane.gr2
+        res:/graphics/generic/unitplane/unitplane_mirroreddoublesided_01b.gr2
+        res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.gr2)
+    set(EVE_SCENE_PROBE_COMBAT_GEOMETRY_CMF_PATHS
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/dx9/model/turret/launcher/light/light_t1.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unit_cube.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/custom/halo_01a.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/custom/halo_01b.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unit_plane.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/unitplane/unitplane_mirroreddoublesided_01b.cmf
+        ${EVE_SCENE_PROBE_ASSETS_DIR}/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.cmf)
+    set(EVE_SCENE_PROBE_COMBAT_GEOMETRY_OUTPUTS)
+    list(LENGTH EVE_SCENE_PROBE_COMBAT_GEOMETRY_NAMES COMBAT_GEOMETRY_COUNT)
+    math(EXPR COMBAT_GEOMETRY_LAST "${COMBAT_GEOMETRY_COUNT} - 1")
+    foreach(INDEX RANGE ${COMBAT_GEOMETRY_LAST})
+        list(GET EVE_SCENE_PROBE_COMBAT_GEOMETRY_NAMES ${INDEX} NAME)
+        list(GET EVE_SCENE_PROBE_COMBAT_GEOMETRY_LOGICAL_PATHS ${INDEX} LOGICAL_PATH)
+        list(GET EVE_SCENE_PROBE_COMBAT_GEOMETRY_CMF_PATHS ${INDEX} CMF_PATH)
+        # These two authored primitives are already staged by the accepted
+        # solar-high inventory; share the exact generated outputs.
+        if(INDEX EQUAL 4 OR INDEX EQUAL 6)
+            list(APPEND EVE_SCENE_PROBE_COMBAT_GEOMETRY_OUTPUTS ${CMF_PATH})
+            continue()
+        endif()
+        set(GLTF_PATH ${EVE_SCENE_PROBE_COMBAT_BUILD_DIR}/${NAME}.gltf)
+        set(BIN_PATH ${EVE_SCENE_PROBE_COMBAT_BUILD_DIR}/${NAME}.bin)
+        set(CONVERTER_OPTIONS)
+        set(CMF_OPTIONS)
+        if(INDEX EQUAL 0)
+            list(APPEND CONVERTER_OPTIONS --preserve-skin)
+            list(APPEND CMF_OPTIONS --merge-meshes)
+        endif()
+        add_custom_command(
+            OUTPUT ${GLTF_PATH} ${BIN_PATH}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_COMBAT_BUILD_DIR}
+            COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+                --model ${LOGICAL_PATH}
+                --output ${GLTF_PATH}
+                ${CONVERTER_OPTIONS}
+                --summary
+            DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+                ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            VERBATIM)
+        get_filename_component(CMF_DIRECTORY ${CMF_PATH} DIRECTORY)
+        add_custom_command(
+            OUTPUT ${CMF_PATH}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMF_DIRECTORY}
+            COMMAND $<TARGET_FILE:TrinityGltfToCmf>
+                --input ${GLTF_PATH}
+                --output ${CMF_PATH}
+                ${CMF_OPTIONS}
+                --summary
+            DEPENDS TrinityGltfToCmf ${GLTF_PATH} ${BIN_PATH}
+            VERBATIM)
+        list(APPEND EVE_SCENE_PROBE_COMBAT_GEOMETRY_OUTPUTS ${CMF_PATH})
+    endforeach()
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_COMBAT_REPORT}
+        COMMAND ${CMAKE_COMMAND}
+            "-DINPUTS=${EVE_SCENE_PROBE_COMBAT_GEOMETRY_CMF_PATHS}"
+            "-DLOGICAL_PATHS=${EVE_SCENE_PROBE_COMBAT_GEOMETRY_LOGICAL_PATHS}"
+            -DOUTPUT=${EVE_SCENE_PROBE_COMBAT_REPORT}
+            -P ${CMAKE_SOURCE_DIR}/cmake/write_sha256_manifest.cmake
+        DEPENDS ${EVE_SCENE_PROBE_COMBAT_GEOMETRY_OUTPUTS}
+            ${CMAKE_SOURCE_DIR}/cmake/write_sha256_manifest.cmake
+        VERBATIM)
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_COMBAT_LAUNCHER_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_MISSILE_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_IMPACT_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_RESOURCE_REPORT}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${EVE_SCENE_PROBE_COMBAT_RESOURCE_DIR}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            --copy-resource res:/dx9/model/turret/launcher/light/light_t1.black
+                ${EVE_SCENE_PROBE_COMBAT_LAUNCHER_BLACK}
+            --copy-resource res:/dx9/model/turret/launcher/light/light_missile.black
+                ${EVE_SCENE_PROBE_COMBAT_MISSILE_BLACK}
+            --copy-resource res:/dx9/model/turret/launcher/light/light_impact_scourge.black
+                ${EVE_SCENE_PROBE_COMBAT_IMPACT_BLACK}
+            --manifest ${EVE_SCENE_PROBE_COMBAT_RESOURCE_REPORT}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+        VERBATIM)
+    set(EVE_SCENE_PROBE_COMBAT_SUPPORT_RESOURCES
+        dx9/model/turret/launcher/light/light_t1_a.dds
+        dx9/model/turret/launcher/light/light_t1_d.dds
+        dx9/model/turret/launcher/light/light_t1_g.dds
+        dx9/model/turret/launcher/light/light_t1_m.dds
+        dx9/model/turret/launcher/light/light_t1_n.dds
+        dx9/model/turret/launcher/light/light_t1_p3.dds
+        dx9/model/turret/launcher/light/light_t1_r.dds
+        dx9/model/turret/shared_textures/missile_d.dds
+        texture/fx/gradients/ramp_abyss_electric_01c.dds
+        texture/fx/motionparticles/explosion/explosionflash_01b_flw.dds
+        texture/fx/motionparticles/explosion/explosionflash_01b.dds
+        texture/fx/motionparticles/explosion/particles/particle_06a_elementb_flw.dds
+        texture/fx/motionparticles/explosion/particles/particle_06a_elementb2.dds
+        texture/fx/gradients/color_heightmap/colorheightmap_01b.dds
+        texture/fx/motionparticles/mpramp_smoke_01d_flw.dds
+        texture/fx/motionparticles/explosion/explosion_01a.dds
+        texture/fx/particles/blocks_01a.dds
+        texture/fx/lightnings/fx_electro_06a.dds
+        texture/fx/gradients/aurora_01_bw2.dds
+        texture/fx/gradients/ramp_blue_02c.dds
+        texture/fx/caustics/caustic_16e2.dds
+        texture/fx/caustics/caustic_13d2.dds
+        texture/patterns/circles_02a.dds
+        texture/fx/caustics/caustic_13c2.dds
+        texture/fx/caustics/caustic_05c.dds
+        texture/fx/gradients/vertical_graviton_02a.dds
+        texture/fx/caustics/caustic_12d.dds
+        texture/fx/caustics/caustic_17.dds
+        texture/fx/gradients/aurora_01.dds
+        texture/particle/puff.dds
+        texture/particle/puff3.dds
+        texture/fx/caustics/caustic_16e.dds
+        texture/fx/gradients/ramp_auroras_01a.dds
+        texture/fx/gradients/ramp_bioluminescence_01a.dds
+        texture/fx/motionparticles/explosion/explosionflash_01a.dds
+        graphics/effect.metal/managed/space/turret/v5/quadv5.sm_hi
+        graphics/effect.metal/managed/space/turret/v5/quadv5.sm_lo
+        graphics/effect.metal/managed/space/turret/v5/quadv5.sm_depth
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/lights.sm_hi
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/lights.sm_lo
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/lights.sm_depth
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/missile.sm_hi
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/missile.sm_lo
+        graphics/effect.metal/managed/space/spaceobject/fx/missile/missile.sm_depth
+        graphics/effect.metal/managed/space/specialfx/particles/motionvector.sm_hi
+        graphics/effect.metal/managed/space/specialfx/particles/motionvector.sm_lo
+        graphics/effect.metal/managed/space/specialfx/particles/motionvector.sm_depth
+        graphics/effect.metal/managed/space/specialfx/flarequad.sm_hi
+        graphics/effect.metal/managed/space/specialfx/flarequad.sm_lo
+        graphics/effect.metal/managed/space/specialfx/flarequad.sm_depth
+        graphics/effect.metal/managed/space/specialfx/flarequadsoft.sm_hi
+        graphics/effect.metal/managed/space/specialfx/flarequadsoft.sm_lo
+        graphics/effect.metal/managed/space/specialfx/flarequadsoft.sm_depth
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdyndistortionv2.sm_hi
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdyndistortionv2.sm_lo
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdyndistortionv2.sm_depth
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdynv2.sm_hi
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdynv2.sm_lo
+        graphics/effect.metal/managed/space/specialfx/particles/dynamic/1layerdynv2.sm_depth
+        graphics/effect.metal/managed/space/specialfx/ubershaderdistortion.sm_hi
+        graphics/effect.metal/managed/space/specialfx/ubershaderdistortion.sm_lo
+        graphics/effect.metal/managed/space/specialfx/ubershaderdistortion.sm_depth
+        graphics/effect.metal/managed/space/specialfx/particles/2layermask.sm_hi
+        graphics/effect.metal/managed/space/specialfx/particles/2layermask.sm_lo
+        graphics/effect.metal/managed/space/specialfx/particles/2layermask.sm_depth)
+    set(EVE_SCENE_PROBE_COMBAT_SUPPORT_OUTPUTS)
+    set(EVE_SCENE_PROBE_COMBAT_SUPPORT_COPY_ARGS)
+    foreach(RESOURCE IN LISTS EVE_SCENE_PROBE_COMBAT_SUPPORT_RESOURCES)
+        set(OUTPUT ${EVE_SCENE_PROBE_ASSETS_DIR}/${RESOURCE})
+        list(APPEND EVE_SCENE_PROBE_COMBAT_SUPPORT_OUTPUTS ${OUTPUT})
+        list(APPEND EVE_SCENE_PROBE_COMBAT_SUPPORT_COPY_ARGS
+            --copy-resource res:/${RESOURCE} ${OUTPUT})
+    endforeach()
+    add_custom_command(
+        OUTPUT ${EVE_SCENE_PROBE_COMBAT_SUPPORT_OUTPUTS}
+            ${EVE_SCENE_PROBE_COMBAT_FIRING_EFFECT_RED_ALIAS}
+            ${EVE_SCENE_PROBE_COMBAT_SUPPORT_REPORT}
+        COMMAND ${TRINITY_SHARED_CACHE_NODE_TOOL} ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            --cache-root ${EVE_SCENE_PROBE_SHARED_CACHE}
+            ${EVE_SCENE_PROBE_COMBAT_SUPPORT_COPY_ARGS}
+            --copy-resource res:/dx9/model/turret/launcher/light/light_fx.black
+                ${EVE_SCENE_PROBE_COMBAT_FIRING_EFFECT_RED_ALIAS}
+            --manifest ${EVE_SCENE_PROBE_COMBAT_SUPPORT_REPORT}
+            --summary
+        DEPENDS TrinitySharedCacheToGltf ${TRINITY_SHARED_CACHE_TO_GLTF_SCRIPT}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_INDEX}
+            ${EVE_SCENE_PROBE_SHARED_CACHE_MACOS_INDEX}
+        VERBATIM)
+    add_custom_target(TrinityEveSceneProbeCombatWeaponAssets
+        DEPENDS ${EVE_SCENE_PROBE_COMBAT_GEOMETRY_OUTPUTS}
+            ${EVE_SCENE_PROBE_COMBAT_REPORT}
+            ${EVE_SCENE_PROBE_COMBAT_LAUNCHER_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_MISSILE_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_IMPACT_BLACK}
+            ${EVE_SCENE_PROBE_COMBAT_RESOURCE_REPORT}
+            ${EVE_SCENE_PROBE_COMBAT_SUPPORT_OUTPUTS}
+            ${EVE_SCENE_PROBE_COMBAT_FIRING_EFFECT_RED_ALIAS}
+            ${EVE_SCENE_PROBE_COMBAT_SUPPORT_REPORT})
+    add_dependencies(TrinityEveSceneProbeAssets TrinityEveSceneProbeCombatWeaponAssets)
+endif()
+
 ccp_add_executable(TrinityALEveSceneProbe_metal
     EveSceneProbe.mm
 )

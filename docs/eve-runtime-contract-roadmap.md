@@ -108,6 +108,67 @@ These checkpoints prove machinery, not necessarily visual fidelity.
 | CP-44 | Canonical Destiny-first New Eden scene construction | Accepted | A timestamp-zero full-state packet now creates the active Ballpark before any visual graph is published. The native Astero is built through `EveSOF::BuildFromDNA` with its live Destiny curves bound before insertion; Sun and planet each have one authoritative scene membership, one SH manager consumes the native sources, and the receiver follows the live ship. The solar environment polls live ego-to-Sun distance every 30 frames and the 5,702-frame route records transitions at 0/900/2520/4260 with two setups, two teardowns, and terminal inactive. Promised Land PL-14G accepts the packet fixed point, native SOF lanes, construction A/B, and journey A/B while retaining trajectory SHA-256 `80df58ee0cfc3c637eb24ef710ea2835e8485552a7b03acbd5a5ef2885aa2852`. | PL-14H found that `a01_cube.black` serializes no SH manager. Canonical mode retains engine-default `1.0/1.0` intensities while the client owner remains unresolved. Selected High V5 hull/heat AIR consumes reflection intensity in the ambient block's W component but not ambient RGB; matched ambient isolates are byte-inert. SH contributes near the Sun and source-correctly culls at the Gate, while static and dynamic reflection each materially illuminate the hull without changing depth/normals. Settled exposure changes only post-tone/final. H3 retains maximum-quality ray-traced directional shadows as `correct`; PL-14I1 closes source-selected SSAO generation and V5 consumption as `correct`. Corrected H4 proves starfield, exposure, and A01 BC6H-SF16 transport in its isolated fixtures. The later integrated route differential qualified H4's cross-construction equivalence claim: canonical's effectively infinite-far projection made the camera-space background quad singular. The renderer now generates the same finite view rays at clip Z `0.5` for that projection form, restoring the canonical nebula without changing authored content. H5 closes native SOF local-light ownership, tiled publication, exact High-V5 binding, and Astero/Venture response as `correct`; its engine-off audit also makes the canonical native booster set honor the existing diagnostic control. Aggregate PL-14H is Accepted with no open PL-14I repair candidate. CP-44 is unchanged. No lighting value, AO strength, fill light, alternate grade, Silk, or froxel path was introduced. |
 | CP-45 | Source-selected New Eden planet appearance | Accepted | PL-14J closes the High-tier SandStorm surface, authored inner/outer atmosphere, EarthlikeClouds layer, live Sun inputs, and `EveSceneFogVolumeMap` transport through native `EvePlanet` submission. Thirty-two fixed lanes isolate five views and compare the operator-approved legacy presentation with canonical construction; two 8,941-frame routes retain identical Destiny trajectory, exact pre-tone HDR, and only one-code-value downstream repeat noise. All six classifications—surface, atmosphere, clouds, volume transport, construction equivalence, and route integration—are `correct`. | Structural, source- and archive-backed appearance only. Fixed planet views suppress the ship and solar optics while retaining scene membership and authored Sun illumination; integrated routes retain both. The native empty 1×1×4 fog-volume fallback is accepted for New Eden. Aurora and population traffic remain PL-14F regression content. Exact client pixels, color, camera, and exposure remain unclaimed; Silk and froxels remain off. |
 
+### Application consumer: PL-C0 Combat Rehearsal
+
+PL-C0 is Accepted without allocating another renderer capability number. A
+small C-compatible API creates or imports one timestamp-zero combat snapshot,
+builds native Astero and Venture `EveShip2` objects from one settled SOF
+database, binds each ball's live curves before unique scene insertion, renders
+frames, copies the initial packet, and projects the target center/radius/depth
+for Swift. The fixed fixture uses canonical construction, V5 High, dynamic
+reflection, client SSAO, High raster shadows, High TAA, exposure, bloom, and
+film grain with Silk/froxels off. Solar optics are disabled only in the replay
+fixture because their off-screen stochastic contribution is unrelated to the
+target-lock contract; authored Sun and background content remain present.
+
+The engine does not own selection or locking. Swift consumes projection and
+ball diagnostics through the C seam and owns the UI, command state machine,
+and local replay journal. Record A/B and replay retain exact packet, command,
+normalized trace, projection, Destiny state, and shadow-mask evidence. High
+raster shadow submission contributes bounded final-image repeat noise. The
+contract permits 256 pixels and two 8-bit code values. This is recorded rather
+than hidden by the probe's intrusive deterministic batch mode, which
+suppresses the native two-ship HDR pass.
+
+The first fresh-process replay also exposed an uninitialized
+`EveSpaceObject2::m_lastUpdateTransformTime`. If its indeterminate value
+happened to equal timestamp zero, the first synchronous update skipped curve
+sampling and projected the target from the identity transform for one frame.
+The constructor now initializes that cache stamp to the minimum `Be::Time`, so
+every native object deterministically samples its bound curve at frame zero.
+
+### Application consumer: PL-C1 Light Missile
+
+PL-C1 extends the same application seam without allocating a renderer
+capability number. The native Astero owns one authored `EveTurretSet` loaded
+from `light_t1.black`; SOF supplies its material and four turret locators. The
+renderer binds both ships' model and true-ball curves and starts the authored
+`EveMissile`/warhead from the selected firing-bone transform. The inspection
+profile disables decorative noise and native semi-smart offset interpolation;
+the visible warhead advances by deterministic pure pursuit toward the live
+damage locator, curving only when the intercept point moves. Destiny's
+swept-sphere collision remains the recorded gameplay prediction, while the
+renderer waits for visible locator contact before handing presentation to the
+Scourge impact graph. The stopped missile ball never drives a terminal loop.
+Only proven GR2→CMF substitutions are staged in the ignored build tree.
+
+The close-inspection profile places the Venture at offset `(100, 20, 1200)` m
+(1,204.326 m center distance), runs the source-recorded 3,750 m/s missile at
+750 m/s with zero decorative lateral wander, and uses a 36° two-hull camera
+while retaining source provenance. The accepted script locks at frame 412,
+fires at 420, records Destiny's coarse swept collision at 480, and reaches the
+rendered damage locator at frame 514. The deterministic contact error is below
+`1e-4 m`; the observed pursuit path deviates by less than four metres over its
+roughly 1.16 km visible span as it follows the live locator. Frame 600
+records the settled visual impact while the graph
+continues through its authored six-second duration and then unregisters both
+missile and effect. Record A/B and replay use the exact launcher, missile, and
+impact logical resources; their trajectories and normalized reports are
+identical. High-shadow repeat noise remains within 45 pixels and one code.
+Swift remains authoritative for the 40-round
+load and 16-second cycle. Trinity applies no damage, grading, fill light,
+Silk, or froxel change.
+
 ## Rung-model holes
 
 | Original claim | Missing contract | Correction |

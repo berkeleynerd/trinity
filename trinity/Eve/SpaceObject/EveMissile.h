@@ -59,6 +59,11 @@ public:
 
 	// start this whole MIRV
 	void Start( const Vector3& shipVelocity, float estimatedFlyingTime );
+	bool AddWarhead( EveMissileWarhead* warhead );
+	EveMissileWarhead* GetWarhead( size_t index );
+	size_t GetWarheadCount() const;
+	void SetTargetForHost( ITriTargetable* target, float targetRadius );
+	void SetHostGuidedIntercept( bool enabled );
 
 	// rebuild bounding sphere based on all warheads of this MIRV
 	bool RebuildMissileBoundingSphere();
@@ -69,6 +74,8 @@ private:
 
 	// enable control of warheads
 	bool m_updateWarheads;
+	bool m_hostGuidedIntercept;
+	Be::Time m_lastHostGuidanceTime;
 
 	// start data from ship
 	Vector3 m_inheritedStartVelocity;

@@ -9,6 +9,8 @@
 #include "Eve/EveUpdateContext.h"
 #include "include/IEveReferencePoint.h"
 
+#include <limits>
+
 // keep track of missiles
 CCP_STATS_DECLARE( eveMissileObjects, "Trinity/Missiles/missileObjects", true, CST_COUNTER_LOW, "Number of missiles (MIRVs) in this frame." );
 
@@ -19,6 +21,8 @@ CCP_STATS_DECLARE( eveMissileObjects, "Trinity/Missiles/missileObjects", true, C
 EveMissile::EveMissile( IRoot* lockobj ) :
 	PARENTLOCK( m_warheads ),
 	m_updateWarheads( true ),
+	m_hostGuidedIntercept( false ),
+	m_lastHostGuidanceTime( std::numeric_limits<Be::Time>::min() ),
 	m_inheritedStartVelocity( 0.f, 0.f, 0.f ),
 	m_inheritedVelocity( 0.f, 0.f, 0.f ),
 	m_time( 0.f ),
@@ -34,6 +38,33 @@ EveMissile::EveMissile( IRoot* lockobj ) :
 // --------------------------------------------------------------------------------
 EveMissile::~EveMissile()
 {
+}
+
+bool EveMissile::AddWarhead( EveMissileWarhead* warhead )
+{
+	if( !warhead )
+		return false;
+	for( EveMissileWarhead* existing : m_warheads )
+		if( existing == warhead )
+			return false;
+	m_warheads.Insert( -1, warhead->GetRawRoot() );
+	return !m_warheads.empty() && m_warheads.back() == warhead;
+}
+
+EveMissileWarhead* EveMissile::GetWarhead( size_t index )
+{
+	return index < m_warheads.size() ? m_warheads[index] : nullptr;
+}
+
+size_t EveMissile::GetWarheadCount() const
+{
+	return m_warheads.size();
+}
+
+void EveMissile::SetTargetForHost( ITriTargetable* target, float targetRadius )
+{
+	m_target = target;
+	m_targetRadius = targetRadius;
 }
 
 // --------------------------------------------------------------------------------
@@ -163,6 +194,8 @@ void EveMissile::UpdateSyncronous( const EveUpdateContext& updateContext )
 	}
 
 	Vector3 worldPos = GetWorldPosition();
+	const bool updateHostGuidance =
+		m_hostGuidedIntercept && time != m_lastHostGuidanceTime;
 
 	// update the submissiles aka warheads
 	for( EveMissileWarheadVector::const_iterator it = m_warheads.begin(); it != m_warheads.end(); ++it )
@@ -181,13 +214,22 @@ void EveMissile::UpdateSyncronous( const EveUpdateContext& updateContext )
 				m_target->GetDamageLocatorPosition( &locatorPositionWS, wh->GetTargetLocator(), true );
 			}
 			const Vector3 locatorOffset = locatorPositionWS - worldPos;
-			locatorPositionWS = TransformCoord( locatorOffset, invBallRotationMatrix );
-			locatorMatrix = TranslationMatrix( locatorPositionWS );
+			const Vector3 locatorPositionOS =
+				TransformCoord( locatorOffset, invBallRotationMatrix );
+			locatorMatrix = TranslationMatrix( locatorPositionOS );
 
 			wh->UpdateEndTransform( locatorMatrix, evt == EveMissileWarhead::EVT_SWITCH_TARGET );
 
 			// update warhead position, orientation, etc. if enabled
-			if( m_updateWarheads )
+			if( updateHostGuidance )
+			{
+				wh->UpdateGuidedInterceptForHost(
+					deltaT,
+					m_lastValidSpeed,
+					locatorPositionWS,
+					m_worldTransform );
+			}
+			else if( m_updateWarheads && !m_hostGuidedIntercept )
 			{
 				wh->UpdateWarhead( deltaT, m_estimatedTotalAliveTime, &myVelocity, &m_inheritedVelocity, &invBallRotationMatrix, m_worldTransform, updateContext.GetOriginShift() );
 			}
@@ -206,9 +248,18 @@ void EveMissile::UpdateSyncronous( const EveUpdateContext& updateContext )
 			}
 		}
 	}
+	if( updateHostGuidance )
+		m_lastHostGuidanceTime = time;
 
 	// update the bounding sphere: take all warheads of this MIRV into account
 	RebuildMissileBoundingSphere();
+}
+
+void EveMissile::SetHostGuidedIntercept( bool enabled )
+{
+	if( enabled != m_hostGuidedIntercept )
+		m_lastHostGuidanceTime = std::numeric_limits<Be::Time>::min();
+	m_hostGuidedIntercept = enabled;
 }
 
 void EveMissile::UpdateVisibility( const EveUpdateContext& updateContext, const Matrix& parentTransform )

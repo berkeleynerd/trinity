@@ -55,6 +55,9 @@ EveMissileWarhead::EveMissileWarhead( IRoot* lockobj ) :
 	m_bombFlightpath( false ),
 	m_doSpread( true ),
 	m_lastPositionValid( false ),
+	m_hostImpactControl( false ),
+	m_hostGuidanceLaunchPosition( 0.f, 0.f, 0.f ),
+	m_hostGuidanceLaunchPositionValid( false ),
 	m_currentOffsetTransform( IdentityMatrix() ),
 	m_pathOffsetNoiseScale( 0 ),
 	m_pathOffsetNoiseSpeed( 1 )
@@ -69,6 +72,172 @@ EveMissileWarhead::EveMissileWarhead( IRoot* lockobj ) :
 // --------------------------------------------------------------------------------
 EveMissileWarhead::~EveMissileWarhead()
 {
+}
+
+float EveMissileWarhead::GetPathOffsetNoiseScale() const
+{
+	return m_pathOffsetNoiseScale;
+}
+
+float EveMissileWarhead::GetPathOffsetNoiseSpeed() const
+{
+	return m_pathOffsetNoiseSpeed;
+}
+
+bool EveMissileWarhead::SetPathOffsetNoiseScaleForHost( float value )
+{
+	if( !std::isfinite( value ) || value < 0.0f )
+		return false;
+	m_pathOffsetNoiseScale = value;
+	return true;
+}
+
+void EveMissileWarhead::SetHostImpactControl( bool enabled )
+{
+	m_hostImpactControl = enabled;
+}
+
+void EveMissileWarhead::UpdateGuidedInterceptForHost(
+	float deltaT,
+	float speed,
+	const Vector3& targetPosition,
+	const Matrix& missileTransform )
+{
+	if( !std::isfinite( deltaT ) || deltaT <= 0.0f ||
+		!std::isfinite( speed ) || speed <= 0.0f ||
+		!std::isfinite( targetPosition.x ) ||
+		!std::isfinite( targetPosition.y ) ||
+		!std::isfinite( targetPosition.z ) )
+	{
+		return;
+	}
+
+	// Launch publishes its world-space muzzle transform before the first
+	// visibility pass. Use that retained position exactly once so a new or
+	// recycled warhead cannot inherit an identity or previous-impact transform.
+	// Subsequent updates continue from the last rendered world position; the
+	// Destiny parent may have moved, and rebuilding an old local offset against
+	// the new parent would add that motion a second time.
+	const Vector3 currentPosition = m_hostGuidanceLaunchPositionValid ?
+		m_hostGuidanceLaunchPosition : GetWorldPosition();
+	const Vector3 toTarget = targetPosition - currentPosition;
+	const float distance = Length( toTarget );
+	if( !std::isfinite( distance ) || distance <= 0.0f )
+		return;
+
+	const float step = std::min( speed * deltaT, distance );
+	const Vector3 nextPosition = currentPosition + toTarget * ( step / distance );
+	const Matrix inverseMissileTransform = Inverse( missileTransform );
+	const Vector3 nextOffset = TransformCoord( nextPosition, inverseMissileTransform );
+	m_currentOffset = nextOffset;
+	m_currentEndOffset = TransformCoord( targetPosition, inverseMissileTransform );
+	m_endOffset = m_currentEndOffset;
+
+	// Missile meshes face opposite the local travel vector in the authored
+	// warhead convention (the native semi-smart path uses old - new here too).
+	Vector3 facing = TransformNormal( -toTarget, inverseMissileTransform );
+	if( LengthSq( facing ) > 0.0f )
+	{
+		TriQuaternionArcFromForward( &m_currentOrientation, &facing );
+		m_currentOrientation = Normalize( m_currentOrientation );
+	}
+
+	m_currentOffsetTransform =
+		RotationMatrix( m_currentOrientation ) * TranslationMatrix( m_currentOffset );
+	m_hostGuidanceLaunchPositionValid = false;
+	m_perObjectDataVs.InvalidateBufferData();
+	m_perObjectDataPs.InvalidateBufferData();
+}
+
+bool EveMissileWarhead::SetWarheadIDForHost( int id )
+{
+	if( id < 0 )
+		return false;
+	m_id = id;
+	return true;
+}
+
+const Vector3& EveMissileWarhead::GetExplosionPositionForHost() const
+{
+	return m_explosionPosition;
+}
+
+float EveMissileWarhead::GetMaximumExplosionDistanceForHost() const
+{
+	return m_maxExplosionDistance;
+}
+
+bool EveMissileWarhead::ResolveImpactAtTargetForHost( ITriTargetable* target )
+{
+	if( !target || m_state == STATE_DEAD )
+		return false;
+
+	const Vector3 currentPosition = GetWorldPosition();
+	if( m_targetLocator < 0 )
+		m_targetLocator = target->GetGoodDamageLocatorIndex( currentPosition );
+
+	Vector3 locatorPosition;
+	target->GetDamageLocatorPosition(
+		&locatorPosition, m_targetLocator, true );
+	Vector3 direction = locatorPosition - currentPosition;
+	const float distance = Length( direction );
+	if( !std::isfinite( distance ) )
+		return false;
+	if( distance > 0.0f )
+	{
+		direction /= distance;
+	}
+	else
+	{
+		// Host guidance may land exactly on the authored locator. Preserve the
+		// arrival direction for shield intersection and impact orientation instead
+		// of rejecting the most accurate possible contact.
+		direction = m_movement;
+		const float movementDistance = Length( direction );
+		if( std::isfinite( movementDistance ) && movementDistance > 0.0f )
+			direction /= movementDistance;
+		else
+			direction = Vector3( 0.0f, 0.0f, 1.0f );
+	}
+
+	if( target->HasImpactConfigurationShield() )
+	{
+		const float extension = std::max(
+			target->GetRadius(), m_maxExplosionDistance );
+		const Vector3 beyondTarget = locatorPosition + direction * extension;
+		Vector3 shieldContact;
+		if( !target->GetImpactPosition(
+				shieldContact,
+				m_targetLocator,
+				currentPosition,
+				beyondTarget,
+				m_explosionDistance ) )
+		{
+			return false;
+		}
+		m_explosionPosition = shieldContact;
+	}
+	else
+	{
+		// A non-shielded ship exposes authored damage locators but no triangle
+		// impact query. Use the selected locator itself as the closest available
+		// hull-contact authority. The serialized explosion envelope is useful to
+		// the normal client animation, but applying it during an immediate host
+		// handoff visibly detonates the rehearsal missile in empty space.
+		m_explosionPosition = locatorPosition;
+	}
+
+	if( !std::isfinite( m_explosionPosition.x ) ||
+		!std::isfinite( m_explosionPosition.y ) ||
+		!std::isfinite( m_explosionPosition.z ) )
+	{
+		return false;
+	}
+	m_state = STATE_EXPLODED;
+	if( m_impactSize > 0.0f )
+		target->CreateImpact(
+			m_targetLocator, -direction, m_impactDuration, m_impactSize );
+	return true;
 }
 
 // --------------------------------------------------------------------------------
@@ -286,6 +455,8 @@ void EveMissileWarhead::PrepareLaunch()
 	m_finalTargetTime = 0.f;
 	m_targetLocator = -1;
 	m_explosionPosition = Vector3( 0.f, 0.f, 0.f );
+	m_hostGuidanceLaunchPosition = Vector3( 0.f, 0.f, 0.f );
+	m_hostGuidanceLaunchPositionValid = false;
 
 	// inits from the constructor of this class
 	m_currentOffsetTransform = IdentityMatrix();
@@ -304,14 +475,22 @@ void EveMissileWarhead::PrepareLaunch()
 // --------------------------------------------------------------------------------
 void EveMissileWarhead::Launch( const Matrix& startTransform )
 {
+	// Launch receives a world-space firing-bone transform. Retain its translation
+	// directly for host guidance before the legacy animation path treats the same
+	// numeric value as its initial offset.
+	const Vector3 launchPositionWorld(
+		startTransform._41, startTransform._42, startTransform._43 );
+
 	// warhead data: which way is the warhead pointing?
 	m_startOrientation = RotationQuaternion( startTransform );
 	// warhead data: translation offset
-	m_currentStartOffset = Vector3( startTransform._41, startTransform._42, startTransform._43 );
+	m_currentStartOffset = launchPositionWorld;
 
 	// start!
 	m_currentOrientation = m_startOrientation;
 	m_currentOffset = m_currentStartOffset;
+	m_hostGuidanceLaunchPosition = launchPositionWorld;
+	m_hostGuidanceLaunchPositionValid = true;
 
 	// now we have start data, so we are good and armed and ready to go!
 	m_startDataValid = true;
@@ -426,6 +605,8 @@ EveMissileWarhead::StateChangeEvent EveMissileWarhead::CheckImpact( float deltaT
 	{
 		return evt;
 	}
+	if( m_hostImpactControl )
+		return evt;
 	const float estimatedTotalFlyingTime = ( estimatedTotalAliveTime + 0.1f ) * m_speedModifier;
 	// calc a value from 0 to 1 across the whole (estimated) flying time, (excluding eject-phase time and delay time)
 	const float flight01 = TriClamp( ( m_flyingTime - deltaT ) / estimatedTotalFlyingTime, 0.f, 1.f );

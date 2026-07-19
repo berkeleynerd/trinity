@@ -32,6 +32,7 @@ else()
 endif()
 
 set(PUBLIC_HEADER_FILES
+    Include/TrinityCombatRehearsal.h
     Include/IEveBallpark.h
     Include/IEveReferencePoint.h
     Include/ITr2AnimationUpdater.h

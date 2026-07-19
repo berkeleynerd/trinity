@@ -263,6 +263,7 @@ public:
 	void SetDisplay( bool display );
 	size_t GetLocalLightCountForDiagnostics() const;
 	const Tr2Light* GetLocalLightForDiagnostics( size_t index ) const;
+	size_t GetShadowBatchAreaCountForDiagnostics() const;
 
 	void PlayAnimation( const char* animName, bool replace, int loopCount, float start, float speed, Be::OptionalWithDefaultValue<bool, true> clearWhenDone );
 	void PlayAnimationOnce( const char* animName );
@@ -487,6 +488,8 @@ public:
 	// access to curves
 	void SetModelRotationCurve( ITriQuaternionFunctionPtr rotationCurve );
 	void SetModelTranslationCurve( ITriVectorFunctionPtr translationCurve );
+	void SetBallRotationCurve( ITriQuaternionFunctionPtr rotationCurve );
+	void SetBallPositionCurve( ITriVectorFunctionPtr positionCurve );
 	ITriQuaternionFunctionPtr GetModelRotationCurve() const
 	{
 		return m_modelRotation;
@@ -494,6 +497,14 @@ public:
 	ITriVectorFunctionPtr GetModelTranslationCurve() const
 	{
 		return m_modelTranslation;
+	};
+	ITriQuaternionFunctionPtr GetBallRotationCurve() const
+	{
+		return m_ballRotation;
+	};
+	ITriVectorFunctionPtr GetBallPositionCurve() const
+	{
+		return m_ballPosition;
 	};
 
 	// access to dna

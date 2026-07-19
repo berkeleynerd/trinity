@@ -4007,3 +4007,94 @@ highlights and were reverted. The operator chose to retain the source-selected
 effect for now. Its value and exact client appearance remain unexplained and
 deferred; it must not be reported later as a fixed spotlight regression or
 rediscovered by repeating the same broad isolation matrix.
+
+## PL-C0 native two-ship combat consumer (2026-07-18)
+
+Combat Rehearsal is the first interactive consumer to build two native SOF
+ships in one canonical scene. Ball 1 is an Astero
+(`soef1_t1:soebase:soe`); ball 2 is a Venture
+(`oref1_t1:orebase:ore`) at the current close-inspection offset
+`(100, 20, 1200)` m. Both visuals are built from one
+settled `EveSOFDataMgr`, receive their distinct Destiny position/rotation
+curves before insertion, and appear exactly once in the authoritative scene.
+The new C-compatible seam deliberately stays small: configure or import the
+fixture, measure/copy its Destiny packet, render one frame, read diagnostics,
+and query the Venture projection. Swift owns everything above that seam.
+
+The multi-ball fixture exposed a subtle packet-import defect outside Trinity:
+only the primary ball's interpolation history had been initialized after
+`ReadFullStateFromStream`. In the original 5,000 m fixture, the Venture
+therefore interpolated from the origin for its first 120 frames
+ahead. Destiny now initializes history for every packet-born ball; Trinity sees
+a stationary target and live curve at frame zero without a visual-side patch.
+
+A second frame-zero defect lived in Trinity itself:
+`EveSpaceObject2::m_lastUpdateTransformTime` was not initialized. On a fresh
+process whose indeterminate cache value happened to equal zero,
+`UpdateWorldTransform(0)` returned before sampling the already-correct Venture
+curve and projected the target from the identity transform for exactly one
+frame. Initializing the stamp to the minimum `Be::Time` forces the first
+evaluation and makes all record/replay projection traces exact.
+
+One diagnostic path was explicitly rejected. The probe's broad deterministic
+evidence mode enables a scene-batch collection configuration that suppresses
+the native multi-ship pre-tone HDR pass, yielding a repeatable black result.
+Combat Rehearsal resets only authored particle/booster random sources and
+orders native local-light lists deterministically. With High raster shadows,
+fresh processes retain exact simulation, camera, projection, shadow mask, and
+all journal evidence while the accepted final images remain below the
+256-pixel/two-code contract bound. Disabling shadows makes the pixels exact but
+would
+weaken the requested gameplay profile, so the bounded Metal repeat noise is
+qualified in PL-C0 rather than tuned away.
+
+The accepted 450-frame script selects at frame 180, begins locking at 210, and
+first reports locked at frame 412 for the source-derived
+`3359.597987673188 ms` client UI estimate. This is a rendering/application
+contract, not a new CP entry and not a server Dogma timing claim.
+
+## PL-C1 authored light-missile presentation (2026-07-18)
+
+Combat Rehearsal now fits the native Astero with one `EveTurretSet` from
+`res:/dx9/model/turret/launcher/light/light_t1.black`. SOF applies the Astero
+DNA material and authored locators; the host exposes only list insertion,
+true-ball curve binding, target assignment, warhead insertion, and read-only
+diagnostics. The Scourge visual comes from `light_missile.black`, and contact
+starts `light_impact_scourge.black`. All Black payloads and GR2→CMF staging
+remain beneath the ignored focused-build tree.
+
+The first runtime configure exposed an incomplete resource closure: the
+launcher texture family and the impact graph's nested particles, halos,
+distortion, textures, and Metal shaders had not been staged. Closing those
+logical dependencies made every authored branch prepare without fallback. A
+second contract finding was temporal rather than visual: the impact graph has
+an authored six-second duration. The close-inspection profile preserves the
+source-recorded 3,750 m/s as provenance, runs at 750 m/s, places the Venture
+1,204.326 m away, disables decorative lateral path noise, and uses a 36°
+two-hull camera.
+
+The first presentation handoff incorrectly treated Destiny's swept-sphere
+collision position as visual contact. With the missile ball's 300 m gameplay
+radius, that started the impact while the projectile center remained roughly
+296 m from the Venture center. A rejected intermediate fix let Trinity's
+semi-smart warhead animation keep running after Destiny stopped its parent
+ball. That exposed 94 frames of target interpolation and path noise as a wild
+terminal loop. The animation is not a replacement collision trajectory.
+
+The accepted inspection path now bypasses the decorative semi-smart offset
+animation and advances the rendered warhead by deterministic pure pursuit
+toward the live selected damage locator. A stationary intercept is straight;
+only movement of the intercept point can bend the path. Destiny records its
+coarse swept collision at frame 480, but presentation keeps flying until
+visible locator contact at frame 514, then removes the missile and starts the
+Scourge graph. In the focused run the contact error is below `1e-4 m` and the
+maximum line deviation is 3.862 m over the roughly 1.16 km visible flight. The
+fixed matrix records a settled impact sample at 600; an extended smoke observes
+the later cleanup rather than truncating the graph.
+
+Record A/B and replay accept the same collision frame, state trace, command
+journal, and staged resource identities. Final captures differ only by the
+qualified High raster-shadow noise: every recorded frame remains within 45
+pixels and one code value.
+Swift owns ammunition/cycle and no target damage
+is applied. PL-C1 therefore adds an application consumer, not a new CP entry.

@@ -38,6 +38,10 @@
         "lhs": "${hostSystemName}",
         "rhs": "Darwin"
       },
+      "cacheVariables": {
+        "BUILD_METAL": "ON",
+        "BUILD_SHADER_COMPILER": "ON"
+      },
       "hidden": true
     },
     {

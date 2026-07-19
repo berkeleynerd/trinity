@@ -1591,6 +1591,31 @@ Matrix EveTurretSet::GetFiringBoneWorldTransform( unsigned int muzzle ) const
 	return GetTurretBoneTransform( closestTurret, boneID );
 }
 
+bool EveTurretSet::SetGeometryResPathForHost( const char* path )
+{
+	if( !path || !path[0] )
+		return false;
+	m_geomResPath = path;
+	FreezeHighDetailLOD();
+	InitializeGeometryResource();
+	return m_geometryResource != nullptr;
+}
+
+const char* EveTurretSet::GetGeometryResPathForInspection() const
+{
+	return m_geomResPath.c_str();
+}
+
+TriGeometryRes* EveTurretSet::GetGeometryResourceForInspection() const
+{
+	return m_geometryResource;
+}
+
+void EveTurretSet::SetTargetForHost( ITriTargetable* target )
+{
+	SetTargetObject( target );
+}
+
 // --------------------------------------------------------------------------------
 Matrix EveTurretSet::GetTurretBoneTransform( uint32_t closestTurret, uint32_t boneID ) const
 {

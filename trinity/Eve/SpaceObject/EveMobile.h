@@ -63,6 +63,13 @@ public:
 	// Asynch update for turret sets
 	virtual void UpdateTurretsAsyncronous( const EveUpdateContext& updateContext );
 
+	// Narrow native-host seam used by the combat rehearsal after loading an
+	// authored turret graph. Insertion preserves the normal list notification,
+	// locator rebuild, and component registration path.
+	bool AddTurretSet( EveTurretSet* turretSet );
+	size_t GetTurretSetCount() const;
+	EveTurretSet* GetTurretSet( size_t index );
+
 	void SetShaderOption( const BlueSharedString& name, const BlueSharedString& value ) override;
 
 	// Active turret info

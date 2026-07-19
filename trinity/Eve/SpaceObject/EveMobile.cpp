@@ -30,6 +30,27 @@ EveMobile::~EveMobile()
 {
 }
 
+bool EveMobile::AddTurretSet( EveTurretSet* turretSet )
+{
+	if( !turretSet )
+		return false;
+	for( EveTurretSet* existing : m_turretSets )
+		if( existing == turretSet )
+			return false;
+	m_turretSets.Insert( -1, turretSet->GetRawRoot() );
+	return !m_turretSets.empty() && m_turretSets.back() == turretSet;
+}
+
+size_t EveMobile::GetTurretSetCount() const
+{
+	return m_turretSets.size();
+}
+
+EveTurretSet* EveMobile::GetTurretSet( size_t index )
+{
+	return index < m_turretSets.size() ? m_turretSets[index] : nullptr;
+}
+
 // --------------------------------------------------------------------------------
 // Description:
 //   REset things once the red file is fully loaded

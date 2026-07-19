@@ -30,6 +30,10 @@
 #include "Eve/SpaceObjectFactory/EveSOF.h"
 #include "Controllers/ITr2Controller.h"
 #include "Eve/SpaceObject/EveShip2.h"
+#include "Eve/SpaceObject/EveMobile.h"
+#include "Eve/SpaceObject/EveMissile.h"
+#include "Eve/SpaceObject/EveMissileWarhead.h"
+#include "Eve/Turret/EveTurretSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveBannerSet.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveHazeSetItem.h"
 #include "Eve/SpaceObject/Attachments/Sets/EveHazeSet.h"
@@ -92,6 +96,7 @@ extern int g_grannyDeprecationLevel;
 #include "Tr2VariableStore.h"
 #include "TrinityStandaloneCmfModel.h"
 #include "TrinityStandaloneSolarAudit.h"
+#include "Include/TrinityCombatRehearsal.h"
 #include "TrinityStandaloneProbeApi.h"
 #include "TrinityStandaloneSceneGraph.h"
 #include "TriRenderBatch.h"
@@ -127,6 +132,8 @@ extern int g_grannyDeprecationLevel;
 #if TRINITY_WITH_DESTINY_EMBEDDED
 #include <DestinyEmbedded.h>
 #else
+struct DestinyEmbeddedSession;
+
 enum DestinyEmbeddedOrbitPolicyFallback
 {
 	DESTINY_EMBEDDED_ORBIT_CHECKOUT_DEFAULT = 0,
@@ -136,6 +143,12 @@ enum DestinyEmbeddedOrbitPolicyFallback
 
 extern "C" void TrinityStandaloneStartup();
 extern "C" bool BlueInitializeResourceLoading();
+extern "C" bool TrinityStandaloneProbeRenderFrame(
+	void* opaqueProbe,
+	int qualityRung,
+	int64_t realTime,
+	int64_t simTime,
+	int captureProducts );
 extern bool g_eveSpaceSceneDynamicLighting;
 extern float g_eveSpaceSceneGammaBrightness;
 
@@ -646,6 +659,19 @@ constexpr double kNewEdenSolarEnvironmentActivationRadius = 10060000256.0;
 constexpr double kNewEdenSolarEnvironmentFieldDimension = 475200000.0;
 constexpr double kNewEdenPlanetRadius = 2630000.0;
 constexpr double kNewEdenAsteroRadius = 35.0;
+// Operator visualization fixture. The client-selected missile speed remains
+// 3,750 m/s in the PL-C1 source contract; Combat Rehearsal deliberately uses
+// twenty percent speed and a proportionally closer, laterally offset target so
+// both native hulls and the complete missile flight stay legible together.
+constexpr double kCombatTargetOffset[3] = { 100.0, 20.0, 1200.0 };
+constexpr double kCombatTargetCenterDistance = 1204.3255373859677;
+constexpr float kCombatVisualizationMissileSpeed = 750.0f;
+// The rehearsal presents a guided intercept rather than the client-authored
+// decorative weave. Destiny owns the direct/homing trajectory; the native
+// warhead still supplies muzzle ejection, orientation, trail, and impact.
+constexpr float kCombatVisualizationPathOffsetScale = 0.0f;
+constexpr Be::Time kCombatMissileLifetime = 50000000;
+constexpr float kCombatCameraTarget[3] = { 20.0f, 5.0f, 350.0f };
 constexpr double kNewEdenSunRelative[3] = { 1069486940160.0, -202669301760.0, -831868968960.0 };
 constexpr double kNewEdenPlanetRelative[3] = { 1083758787326.0, -205372890997.0, -787280443197.0 };
 constexpr float kNewEdenSunEmissive[3] = { 5.0f, 4.274509906768799f, 2.3529412746429443f };
@@ -5476,6 +5502,10 @@ struct StandaloneProbe
 		silkCloudRoot.Unlock();
 		eveGateRoot.Unlock();
 		scene.Unlock();
+		combatTargetShip.Unlock();
+		combatImpact.Unlock();
+		combatMissile.Unlock();
+		combatLauncher.Unlock();
 		nativeShip.Unlock();
 		nativeSof.Unlock();
 		renderable.Unlock();
@@ -5524,7 +5554,12 @@ struct StandaloneProbe
 	BluePtr<TrinityStandaloneRenderable> renderable;
 	EveSOFPtr nativeSof;
 	EveShip2Ptr nativeShip;
+	EveShip2Ptr combatTargetShip;
+	EveTurretSetPtr combatLauncher;
+	BluePtr<EveMissile> combatMissile;
+	EveEffectRoot2Ptr combatImpact;
 	EveSOFBuildDiagnostics nativeSofDiagnostics;
+	EveSOFBuildDiagnostics combatTargetSofDiagnostics;
 	std::vector<BluePtr<TrinityStandaloneSecondaryLight>> secondaryLights;
 	Tr2ShLightingManagerPtr shLightingManager;
 	Tr2ShLightingManagerPtr serializedShLightingManager;
@@ -5536,6 +5571,30 @@ struct StandaloneProbe
 	int canonicalDiagnostic = STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE;
 	bool canonicalDiagnosticConfigured = false;
 	bool canonicalNativeShipInserted = false;
+	bool combatTargetShipInserted = false;
+	bool combatRehearsal = false;
+	bool combatConfigured = false;
+	bool combatFrameRendered = false;
+	std::vector<uint8_t> combatInitialSnapshot;
+	int64_t combatMissileBallId = 0;
+	bool combatMissileCommandQueued = false;
+	bool combatMissileVisualInserted = false;
+	bool combatMissileCollisionPredicted = false;
+	bool combatMissileRemoved = false;
+	bool combatImpactInserted = false;
+	bool combatImpactActive = false;
+	bool combatWeaponCleaned = false;
+	Be::Time combatMissileLaunchTime = 0;
+	Be::Time combatMissileCollisionTime = 0;
+	Be::Time combatImpactStartTime = 0;
+	float combatAuthoredPathOffsetNoiseScale = 0.0f;
+	float combatAppliedPathOffsetNoiseScale = 0.0f;
+	float combatPathOffsetNoiseSpeed = 0.0f;
+	Vector3 combatVisualImpactPosition = Vector3( 0.0f, 0.0f, 0.0f );
+	float combatVisualImpactTargetDistance = 0.0f;
+	float combatMaximumExplosionDistance = 0.0f;
+	bool combatAuthoredVisualContact = false;
+	Matrix combatMuzzleTransform = IdentityMatrix();
 	bool canonicalHullAreaPresent = false;
 	bool canonicalHeatAreaPresent = false;
 	bool canonicalDistortionAreaPresent = false;
@@ -5851,8 +5910,8 @@ struct StandaloneProbe
 	std::vector<StandaloneSolarHighFrame> solarHighFrames;
 	EveChildMesh* newEdenSunCover = nullptr;
 	bool newEdenSystemComposition = false;
-#if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedSession* destinySession = nullptr;
+#if TRINITY_WITH_DESTINY_EMBEDDED
 	DestinyEmbeddedRegistration destinyRegistration = {};
 #endif
 	std::vector<TemporalSample> temporalSamples;
@@ -15882,6 +15941,236 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbePrepareCanonicalState(
 #endif
 }
 
+bool PrepareCombatRehearsalState(
+	StandaloneProbe& probe,
+	const void* suppliedPacket,
+	size_t suppliedPacketSize,
+	std::string& error )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( probe.scene || probe.driver || probe.destinySession || !probe.combatRehearsal )
+	{
+		error = "combat rehearsal requires a fresh configured probe";
+		return false;
+	}
+	DestinyEmbeddedRegistration registration = {};
+	if( !Destiny_RegisterBlueClasses( &registration ) || !registration.valid )
+	{
+		error = "combat rehearsal could not register embedded Destiny";
+		return false;
+	}
+
+	DestinyEmbeddedSessionOptions options = {};
+	options.orientationPolicy = DESTINY_EMBEDDED_NATIVE_ORIENTATION;
+	options.referenceFrame = DESTINY_EMBEDDED_PRIMARY_EGO;
+	options.orbitPolicy = DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW;
+	DestinyEmbeddedFullStateDescriptor descriptor = {};
+	descriptor.wireProfile = DESTINY_EMBEDDED_DYNAMIC_ORIENTATION_V1;
+	descriptor.solarSystemId = 30005286;
+	descriptor.initialTimestamp = 0;
+	descriptor.primaryBallId = 1;
+	descriptor.egoBallId = 1;
+	descriptor.fixedTargetBallId = kNewEdenEveGateBallId;
+	descriptor.celestialBallIds[0] = kNewEdenSunBallId;
+	descriptor.celestialBallIds[1] = kNewEdenPlanetBallId;
+	descriptor.celestialBallCount = 2;
+
+	std::vector<uint8_t> packet;
+	char destinyError[512] = {};
+	if( suppliedPacket )
+	{
+		if( suppliedPacketSize == 0 )
+		{
+			error = "combat replay packet is empty";
+			return false;
+		}
+		const auto* bytes = static_cast<const uint8_t*>( suppliedPacket );
+		packet.assign( bytes, bytes + suppliedPacketSize );
+	}
+	else
+	{
+		if( suppliedPacketSize != 0 )
+		{
+			error = "combat fixture received a size without packet bytes";
+			return false;
+		}
+		DestinyEmbeddedBallConfig astero = {};
+		astero.ballId = 1;
+		astero.solarSystemId = descriptor.solarSystemId;
+		astero.mass = 975000.0;
+		astero.radius = 35.0f;
+		astero.maximumVelocity = 312.0f;
+		astero.maximumAngularVelocity = 1.0f;
+		astero.agility = 2.87f;
+		astero.rotationalAgility = 1.0f;
+		astero.speedFraction = 1.0f;
+		astero.isFree = true;
+		astero.isMassive = true;
+		astero.isInteractive = true;
+		std::copy(
+			std::begin( kLightingAuditNearSun.rotation ),
+			std::end( kLightingAuditNearSun.rotation ),
+			astero.rotation );
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			// Use the accepted route-derived near-Sun station for a readable
+			// maximum-quality presentation without inventing a lighting or
+			// exposure override. Destiny coordinates share the
+			// canonical scene's stargate-relative frame; feeding absolute system
+			// coordinates here loses the renderable scene near the float origin.
+			astero.position[axis] =
+				kLightingAuditNearSun.position[axis] - probe.celestialAnchorOffset[axis];
+		}
+		DestinyEmbeddedSession* seed = Destiny_CreateEmbeddedSessionWithOptions(
+			&astero, &options, destinyError, sizeof( destinyError ) );
+		if( !seed )
+		{
+			error = std::string( "combat Astero creation failed: " ) + destinyError;
+			return false;
+		}
+		auto destroySeed = [&]() {
+			if( seed )
+			{
+				Destiny_DestroyEmbeddedSession( seed );
+				seed = nullptr;
+			}
+		};
+		DestinyEmbeddedBallConfig venture = {};
+		venture.ballId = 2;
+		venture.solarSystemId = descriptor.solarSystemId;
+		venture.mass = 1200000.0;
+		venture.radius = 38.0f;
+		venture.maximumVelocity = 335.0f;
+		venture.maximumAngularVelocity = 1.0f;
+		venture.agility = 3.0f;
+		venture.rotationalAgility = 1.0f;
+		venture.speedFraction = 1.0f;
+		venture.isFree = true;
+		venture.isMassive = true;
+		venture.isInteractive = true;
+		venture.rotation[3] = 1.0f;
+		std::copy( std::begin( astero.position ), std::end( astero.position ), venture.position );
+		for( size_t axis = 0; axis < 3; ++axis )
+			venture.position[axis] += kCombatTargetOffset[axis];
+		DestinyEmbeddedCelestialConfig sun = {};
+		sun.ballId = kNewEdenSunBallId;
+		sun.radius = static_cast<float>( kNewEdenStarRadius );
+		DestinyEmbeddedCelestialConfig planet = {};
+		planet.ballId = kNewEdenPlanetBallId;
+		planet.radius = static_cast<float>( kNewEdenPlanetRadius );
+		DestinyEmbeddedFixedTargetConfig gate = {};
+		gate.ballId = kNewEdenEveGateBallId;
+		gate.radius = 1.0f;
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			sun.position[axis] =
+				kNewEdenSunRelative[axis] - probe.celestialAnchorOffset[axis];
+			planet.position[axis] =
+				kNewEdenPlanetRelative[axis] - probe.celestialAnchorOffset[axis];
+			gate.position[axis] =
+				kNewEdenEveGateRelative[axis] - probe.celestialAnchorOffset[axis];
+		}
+		if( !Destiny_AddEmbeddedDynamicBall( seed, &venture, destinyError, sizeof( destinyError ) ) ||
+			!Destiny_AddEmbeddedCelestial( seed, &sun, destinyError, sizeof( destinyError ) ) ||
+			!Destiny_AddEmbeddedCelestial( seed, &planet, destinyError, sizeof( destinyError ) ) ||
+			!Destiny_AddEmbeddedFixedTarget( seed, &gate, destinyError, sizeof( destinyError ) ) )
+		{
+			error = std::string( "combat Ballpark population failed: " ) + destinyError;
+			destroySeed();
+			return false;
+		}
+		size_t packetSize = 0;
+		if( !Destiny_MeasureEmbeddedFullState( seed, &packetSize ) || packetSize == 0 )
+		{
+			error = "combat snapshot measurement failed";
+			destroySeed();
+			return false;
+		}
+		packet.resize( packetSize );
+		size_t bytesWritten = 0;
+		if( !Destiny_WriteEmbeddedFullState(
+				seed, packet.data(), packet.size(), &bytesWritten ) ||
+			bytesWritten != packet.size() )
+		{
+			error = "combat snapshot write failed";
+			destroySeed();
+			return false;
+		}
+		destroySeed();
+	}
+
+	DestinyEmbeddedFullStatePreflightDiagnostics preflight = {};
+	if( !Destiny_InspectEmbeddedFullState(
+			packet.data(),
+			packet.size(),
+			&descriptor,
+			&options,
+		&preflight,
+		destinyError,
+		sizeof( destinyError ) ) ||
+		preflight.parsedBallCount != 5 )
+	{
+		error = std::string( "combat snapshot preflight failed: " ) + destinyError;
+		return false;
+	}
+	probe.destinySession = Destiny_CreateEmbeddedSessionFromFullState(
+		packet.data(), packet.size(), &descriptor, &options, destinyError, sizeof( destinyError ) );
+	if( !probe.destinySession )
+	{
+		error = std::string( "combat snapshot import failed: " ) + destinyError;
+		return false;
+	}
+	DestinyEmbeddedBallState asteroState = {};
+	DestinyEmbeddedBallState ventureState = {};
+	if( !Destiny_GetEmbeddedBallState( probe.destinySession, 1, &asteroState ) ||
+		!Destiny_GetEmbeddedBallState( probe.destinySession, 2, &ventureState ) ||
+		asteroState.mode != DESTINY_EMBEDDED_BALL_MODE_STOP ||
+		ventureState.mode != DESTINY_EMBEDDED_BALL_MODE_STOP ||
+		!Destiny_GetEmbeddedBallPosition( probe.destinySession, 1 ) ||
+		!Destiny_GetEmbeddedBallRotation( probe.destinySession, 1 ) ||
+		!Destiny_GetEmbeddedBallPosition( probe.destinySession, 2 ) ||
+		!Destiny_GetEmbeddedBallRotation( probe.destinySession, 2 ) )
+	{
+		error = "combat imported state does not contain two live STOP ship curves";
+		Destiny_DestroyEmbeddedSession( probe.destinySession );
+		probe.destinySession = nullptr;
+		return false;
+	}
+	double separationSquared = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		const double delta = ventureState.position[axis] - asteroState.position[axis];
+		separationSquared += delta * delta;
+	}
+	const double centerDistance = std::sqrt( separationSquared );
+	const bool freshFixtureDistance =
+		std::abs( centerDistance - kCombatTargetCenterDistance ) <= 1.0e-6;
+	if( !std::isfinite( centerDistance ) || centerDistance > 37000.0 ||
+		( !suppliedPacket && !freshFixtureDistance ) )
+	{
+		error = "combat target separation is outside the close visualization fixture";
+		Destiny_DestroyEmbeddedSession( probe.destinySession );
+		probe.destinySession = nullptr;
+		return false;
+	}
+	probe.combatInitialSnapshot = std::move( packet );
+	probe.canonicalStatePrepared = true;
+	probe.canonicalPacketSize = probe.combatInitialSnapshot.size();
+	probe.ballparkMode = STANDALONE_BALLPARK_STATIC;
+	probe.ballparkReferenceFrame = STANDALONE_BALLPARK_EGO;
+	probe.ballparkOrbitPolicy = DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW;
+	probe.destinyRegistration = registration;
+	probe.sceneConstructionTrace.push_back( "combat-two-ball-snapshot-imported" );
+	return true;
+#else
+	(void)probe;
+	(void)suppliedPacket;
+	(void)suppliedPacketSize;
+	error = "combat rehearsal requires BUILD_DESTINY_INTEGRATION";
+	return false;
+#endif
+}
+
 bool ApplyCanonicalNativeShipDiagnostic(
 	StandaloneProbe& probe,
 	Tr2MeshBase& mesh,
@@ -15977,8 +16266,453 @@ bool ApplyCanonicalNativeShipDiagnostic(
 	return true;
 }
 
+bool ResolveCombatGeometryPath(
+	const char* authoredPath,
+	std::string& stagedPath )
+{
+	std::string normalized = authoredPath ? authoredPath : "";
+	std::transform(
+		normalized.begin(), normalized.end(), normalized.begin(),
+		[]( unsigned char value ) { return static_cast<char>( std::tolower( value ) ); } );
+	static const std::map<std::string, std::string> substitutions = {
+		{ "res:/graphics/generic/unit_cube.gr2", "res:/graphics/generic/unit_cube.cmf" },
+		{ "res:/graphics/generic/custom/halo_01a.gr2", "res:/graphics/generic/custom/halo_01a.cmf" },
+		{ "res:/graphics/generic/custom/halo_01b.gr2", "res:/graphics/generic/custom/halo_01b.cmf" },
+		{ "res:/graphics/generic/unit_plane.gr2", "res:/graphics/generic/unit_plane.cmf" },
+		{ "res:/graphics/generic/unitplane/unitplane.gr2", "res:/graphics/generic/unitplane/unitplane.cmf" },
+		{ "res:/graphics/generic/unitplane/unitplane_mirroreddoublesided_01b.gr2", "res:/graphics/generic/unitplane/unitplane_mirroreddoublesided_01b.cmf" },
+		{ "res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.gr2", "res:/graphics/generic/vortex/cone2_fixeduvs_highdetail_z.cmf" },
+	};
+	const auto found = substitutions.find( normalized );
+	if( found == substitutions.end() )
+		return false;
+	stagedPath = found->second;
+	return true;
+}
+
+bool PrepareCombatEffectChild(
+	IEveSpaceObjectChild* child,
+	uint32_t& preparedMeshCount,
+	std::string& error )
+{
+	if( !child )
+	{
+		error = "PL-C1 Scourge impact contains a null authored child";
+		return false;
+	}
+	if( EveChildContainerPtr container = BlueCastPtr( child ) )
+	{
+		for( IEveSpaceObjectChild* nested : container->m_objects )
+			if( !PrepareCombatEffectChild( nested, preparedMeshCount, error ) )
+				return false;
+		return true;
+	}
+
+	Tr2MeshPtr mesh;
+	EveChildParticleSystemPtr particle = BlueCastPtr( child );
+	EveChildMeshPtr meshChild = BlueCastPtr( child );
+	if( particle )
+		mesh = BlueCastPtr( particle->GetMesh() );
+	else if( meshChild )
+		mesh = BlueCastPtr( meshChild->GetMesh() );
+	if( !mesh )
+		return true;
+
+	std::string stagedPath;
+	if( !ResolveCombatGeometryPath( mesh->GetMeshResPath(), stagedPath ) ||
+		!PrepareMeshWithoutYield( *mesh, stagedPath.c_str(), "PL-C1 Scourge impact", error ) )
+	{
+		if( error.empty() )
+			error = std::string( "PL-C1 impact contains an unstaged authored geometry: " ) +
+				( mesh->GetMeshResPath() ? mesh->GetMeshResPath() : "<null>" );
+		return false;
+	}
+	++preparedMeshCount;
+	if( particle )
+	{
+		for( Tr2ParticleSystem* system : particle->GetParticleSystems() )
+			if( !system || !system->Initialize() )
+			{
+				error = "PL-C1 Scourge impact particle system failed to initialize";
+				return false;
+			}
+		if( !mesh->Initialize() || !particle->Initialize() )
+		{
+			error = "PL-C1 Scourge impact instanced mesh failed to initialize";
+			return false;
+		}
+	}
+	return true;
+}
+
+bool ConfigureCombatWeaponPresentation( StandaloneProbe& probe, std::string& error )
+{
+	constexpr const char* launcherResource =
+		"res:/dx9/model/turret/launcher/light/light_t1.black";
+	constexpr const char* missileResource =
+		"res:/dx9/model/turret/launcher/light/light_missile.black";
+	constexpr const char* impactResource =
+		"res:/dx9/model/turret/launcher/light/light_impact_scourge.black";
+
+	probe.combatLauncher = LoadBlackObjectWithoutYield<EveTurretSet>( launcherResource, error );
+	if( !probe.combatLauncher ||
+		!probe.combatLauncher->SetGeometryResPathForHost(
+			"res:/dx9/model/turret/launcher/light/light_t1.cmf" ) )
+	{
+		if( error.empty() )
+			error = "PL-C1 authored Light Missile Launcher I graph or staged geometry is unavailable";
+		return false;
+	}
+	TriGeometryRes* launcherGeometry =
+		probe.combatLauncher->GetGeometryResourceForInspection();
+	if( launcherGeometry )
+	{
+		launcherGeometry->ForceSynchronousLoad();
+		launcherGeometry->Reload();
+	}
+	if( !launcherGeometry || !launcherGeometry->IsGood() || !launcherGeometry->IsUsingCMF() ||
+		!probe.combatLauncher->GetShader() ||
+		!PrepareEffectResourcesWithoutYield(
+			*probe.combatLauncher->GetShader(), "PL-C1 Light Missile Launcher I", error ) )
+	{
+		if( error.empty() )
+			error = "PL-C1 launcher geometry or material failed to prepare";
+		return false;
+	}
+	probe.nativeSof->SetupTurretMaterialFromDNA(
+		probe.combatLauncher, "soef1_t1:soebase:soe" );
+	probe.combatLauncher->SetTargetForHost( probe.combatTargetShip );
+	if( !probe.nativeShip->AddTurretSet( probe.combatLauncher ) ||
+		probe.nativeShip->GetTurretSetCount() != 1 ||
+		probe.nativeShip->GetTurretSet( 0 ) != probe.combatLauncher )
+	{
+		error = "PL-C1 launcher did not enter the Astero's native EveMobile turret list exactly once";
+		return false;
+	}
+	probe.combatLauncher->EnterStateIdle();
+	probe.combatLauncher->PrepareResources();
+
+	probe.combatMissile = LoadBlackObjectWithoutYield<EveMissile>( missileResource, error );
+	EveMissileWarhead* warhead =
+		probe.combatMissile ? probe.combatMissile->GetWarhead( 0 ) : nullptr;
+	Tr2MeshPtr missileMesh;
+	if( warhead )
+		missileMesh = BlueCastPtr( warhead->GetMesh() );
+	if( !probe.combatMissile || probe.combatMissile->GetWarheadCount() != 1 || !warhead ||
+		!missileMesh ||
+		!PrepareMeshWithoutYield(
+			*missileMesh,
+			"res:/graphics/generic/unit_cube.cmf",
+			"PL-C1 Scourge light missile warhead",
+			error ) )
+	{
+		if( error.empty() )
+			error = "PL-C1 authored light missile graph is incomplete";
+		return false;
+	}
+	probe.combatAuthoredPathOffsetNoiseScale = warhead->GetPathOffsetNoiseScale();
+	probe.combatPathOffsetNoiseSpeed = warhead->GetPathOffsetNoiseSpeed();
+	probe.combatAppliedPathOffsetNoiseScale =
+		probe.combatAuthoredPathOffsetNoiseScale * kCombatVisualizationPathOffsetScale;
+	probe.combatMaximumExplosionDistance = warhead->GetMaximumExplosionDistanceForHost();
+	if( !std::isfinite( probe.combatAuthoredPathOffsetNoiseScale ) ||
+		probe.combatAuthoredPathOffsetNoiseScale < 0.0f ||
+		!std::isfinite( probe.combatPathOffsetNoiseSpeed ) ||
+		probe.combatPathOffsetNoiseSpeed < 0.0f ||
+		!std::isfinite( probe.combatMaximumExplosionDistance ) ||
+		probe.combatMaximumExplosionDistance <= 0.0f ||
+		!warhead->SetWarheadIDForHost( 0 ) ||
+		!warhead->SetPathOffsetNoiseScaleForHost(
+			probe.combatAppliedPathOffsetNoiseScale ) )
+	{
+		error = "PL-C1 authored missile warhead host values are invalid";
+		return false;
+	}
+	warhead->SetHostImpactControl( true );
+	probe.combatMissile->SetTargetForHost(
+		probe.combatTargetShip, probe.combatTargetShip->GetRadius() );
+
+	probe.combatImpact = LoadBlackObjectWithoutYield<EveEffectRoot2>( impactResource, error );
+	uint32_t impactMeshCount = 0;
+	if( !probe.combatImpact )
+		return false;
+	for( IEveSpaceObjectChild* child : probe.combatImpact->GetChildren() )
+		if( !PrepareCombatEffectChild( child, impactMeshCount, error ) )
+			return false;
+	if( impactMeshCount == 0 || !std::isfinite( probe.combatImpact->GetEffectDuration() ) ||
+		probe.combatImpact->GetEffectDuration() <= 0.0f )
+	{
+		error = "PL-C1 Scourge impact graph has no prepared mesh or authored duration";
+		return false;
+	}
+	probe.combatImpact->SetDisplay( false );
+	DrainResourceQueuesUntilSettled();
+	probe.sceneConstructionTrace.push_back( "combat-authored-light-missile-presentation-ready" );
+	std::fprintf(
+		stderr,
+		"PL-C1 weapon presentation ready: launcher=%s missile=%s impact=%s "
+		"launcherLocators=%u warheads=%zu impactMeshes=%u impactDuration=%.6f "
+		"pathNoiseScale=%.6f->%.6f pathNoiseSpeed=%.6f\n",
+		launcherResource,
+		missileResource,
+		impactResource,
+		probe.nativeShip->GetTurretLocatorCount(),
+		probe.combatMissile->GetWarheadCount(),
+		impactMeshCount,
+		probe.combatImpact->GetEffectDuration(),
+		probe.combatAuthoredPathOffsetNoiseScale,
+		probe.combatAppliedPathOffsetNoiseScale,
+		probe.combatPathOffsetNoiseSpeed );
+	return probe.nativeShip->GetTurretLocatorCount() > 0;
+}
+
+bool RemoveCombatSceneObject( StandaloneProbe& probe, IEveSpaceObject2* object )
+{
+	if( !probe.scene || !object )
+		return false;
+	IEveSpaceObject2Vector& objects = probe.scene->Objects();
+	for( size_t index = 0; index < objects.size(); ++index )
+	{
+		if( objects[index] == object )
+		{
+			objects.Remove( index );
+			return true;
+		}
+	}
+	return false;
+}
+
+bool UpdateCombatWeaponPresentation(
+	StandaloneProbe& probe,
+	Be::Time simulationTime,
+	std::string& error )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	if( !probe.combatRehearsal || probe.combatMissileBallId == 0 )
+		return true;
+
+	DestinyEmbeddedMissileState missile = {};
+	const bool missileStateAvailable = Destiny_GetEmbeddedMissileState(
+		probe.destinySession, probe.combatMissileBallId, &missile );
+	if( !missileStateAvailable )
+	{
+		// The fire command is queued for the next native tick. The record does
+		// not exist before that tick and is not a presentation failure.
+		if( !probe.combatMissileVisualInserted )
+			return probe.combatMissileCommandQueued;
+
+		// Destiny may release its removed-missile record while the authored
+		// impact graph is still playing. The visual has its own retained contact
+		// transform and lifetime, so finish that teardown without failing the
+		// render frame. If the record disappeared earlier, retire the orphaned
+		// visual rather than leaving it registered indefinitely.
+		if( !probe.combatMissileRemoved )
+		{
+			RemoveCombatSceneObject( probe, probe.combatMissile );
+			probe.combatMissileRemoved = true;
+		}
+		if( !probe.combatImpactActive )
+			probe.combatWeaponCleaned = true;
+	}
+
+	if( missileStateAvailable && missile.active && !probe.combatMissileVisualInserted )
+	{
+		ITriVectorFunction* position = Destiny_GetEmbeddedBallPosition(
+			probe.destinySession, probe.combatMissileBallId );
+		ITriQuaternionFunction* rotation = Destiny_GetEmbeddedBallRotation(
+			probe.destinySession, probe.combatMissileBallId );
+		EveMissileWarhead* warhead = probe.combatMissile->GetWarhead( 0 );
+		if( !position || !rotation || !warhead )
+		{
+			error = "PL-C1 live missile curves or authored warhead are unavailable";
+			return false;
+		}
+
+		probe.combatMissile->SetBallPositionCurve( position );
+		probe.combatMissile->SetBallRotationCurve( rotation );
+		probe.combatMissile->SetTargetForHost(
+			probe.combatTargetShip, probe.combatTargetShip->GetRadius() );
+
+		probe.combatMuzzleTransform = probe.combatLauncher->GetFiringBoneWorldTransform( 0 );
+		if( !warhead->SetPathOffsetNoiseScaleForHost(
+				probe.combatAppliedPathOffsetNoiseScale ) )
+		{
+			error = "PL-C1 could not restore the authored launch path";
+			return false;
+		}
+		warhead->SetHostImpactControl( true );
+		warhead->PrepareLaunch();
+		warhead->Launch( probe.combatMuzzleTransform );
+		probe.combatMissile->SetHostGuidedIntercept( true );
+		Vector3 ownerVelocity( 0.0f, 0.0f, 0.0f );
+		DestinyEmbeddedBallState owner = {};
+		DestinyEmbeddedBallState target = {};
+		if( !Destiny_GetEmbeddedBallState( probe.destinySession, 1, &owner ) ||
+			!Destiny_GetEmbeddedBallState( probe.destinySession, 2, &target ) )
+		{
+			error = "PL-C1 owner or target diagnostics are unavailable at launch";
+			return false;
+		}
+		ownerVelocity = Vector3(
+			static_cast<float>( owner.velocity[0] ),
+			static_cast<float>( owner.velocity[1] ),
+			static_cast<float>( owner.velocity[2] ) );
+		double distanceSquared = 0.0;
+		for( size_t axis = 0; axis < 3; ++axis )
+		{
+			const double delta = target.position[axis] - owner.position[axis];
+			distanceSquared += delta * delta;
+		}
+		probe.combatMissile->Start(
+			ownerVelocity,
+			static_cast<float>(
+				std::sqrt( distanceSquared ) / kCombatVisualizationMissileSpeed ) );
+		probe.scene->Objects().Insert( -1, probe.combatMissile->GetRawRoot() );
+		probe.combatMissileVisualInserted = true;
+		probe.combatMissileLaunchTime = missile.launchTime;
+		std::fprintf(
+			stderr,
+			"PL-C1 missile visual launched: ball=%lld owner=%lld target=%lld tick=%lld\n",
+			static_cast<long long>( probe.combatMissileBallId ),
+			static_cast<long long>( missile.ownerBallId ),
+			static_cast<long long>( missile.targetBallId ),
+			static_cast<long long>( missile.launchTime ) );
+	}
+
+	EveMissileWarhead* warhead = probe.combatMissile->GetWarhead( 0 );
+	if( missileStateAvailable && missile.collided && probe.combatMissileCollisionTime == 0 )
+		probe.combatMissileCollisionTime = missile.firstCollisionTime;
+
+	// Destiny exposes a tick-level swept-collision prediction before the
+	// rendered warhead necessarily reaches the target. Record the prediction,
+	// retain pure pursuit, and wait for the visible warhead to reach the selected
+	// authored damage locator before handing presentation to the impact graph.
+	if( missileStateAvailable && missile.collided && !probe.combatMissileCollisionPredicted )
+	{
+		probe.combatMissileCollisionPredicted = true;
+		if( !warhead || !warhead->SetPathOffsetNoiseScaleForHost( 0.0f ) )
+		{
+			error = "PL-C1 could not settle the terminal visual path";
+			return false;
+		}
+		std::fprintf(
+			stderr,
+			"PL-C1 predicted target collision: ball=%lld destinyTick=%lld "
+			"renderedDistance=%.6f\n",
+			static_cast<long long>( probe.combatMissileBallId ),
+			static_cast<long long>( missile.firstCollisionTime ),
+			Length( warhead->GetWorldPosition() - probe.combatTargetShip->GetWorldPosition() ) );
+	}
+	Vector3 renderedTargetLocator;
+	const bool hasRenderedTargetLocator = warhead && warhead->GetTargetLocator() >= 0 &&
+		probe.combatTargetShip->GetDamageLocatorPosition(
+			&renderedTargetLocator, warhead->GetTargetLocator(), true );
+	Vector4 renderedMissileBounds;
+	const bool hasRenderedMissileBounds = warhead &&
+		warhead->GetLocalBoundingSphere( renderedMissileBounds ) &&
+		std::isfinite( renderedMissileBounds.w ) && renderedMissileBounds.w > 0.0f;
+	const float renderedLocatorDistance = hasRenderedTargetLocator ?
+		Length( warhead->GetWorldPosition() - renderedTargetLocator ) : FLT_MAX;
+	const bool renderedHullContact = missileStateAvailable && missile.collided && hasRenderedMissileBounds &&
+		renderedLocatorDistance <= renderedMissileBounds.w;
+	if( renderedHullContact && !probe.combatMissileRemoved )
+	{
+		if( !warhead ||
+			!warhead->ResolveImpactAtTargetForHost( probe.combatTargetShip ) )
+		{
+			error = "PL-C1 could not resolve immediate authored target contact";
+			return false;
+		}
+		const Vector3 contactPosition = warhead->GetExplosionPositionForHost();
+		Vector3 targetPosition;
+		probe.combatTargetShip->GetDamageLocatorPosition(
+			&targetPosition, warhead->GetTargetLocator(), true );
+		if( !std::isfinite( contactPosition.x ) ||
+			!std::isfinite( contactPosition.y ) ||
+			!std::isfinite( contactPosition.z ) ||
+			!std::isfinite( targetPosition.x ) ||
+			!std::isfinite( targetPosition.y ) ||
+			!std::isfinite( targetPosition.z ) )
+		{
+			error = "PL-C1 native warhead produced a nonfinite visual contact";
+			return false;
+		}
+		probe.combatVisualImpactPosition = contactPosition;
+		probe.combatVisualImpactTargetDistance =
+			Length( contactPosition - targetPosition );
+		probe.combatAuthoredVisualContact = true;
+
+		if( !Destiny_RemoveEmbeddedMissile(
+				probe.destinySession, probe.combatMissileBallId ) )
+		{
+			error = "PL-C1 Destiny missile removal failed after visual contact";
+			return false;
+		}
+		probe.combatMissileRemoved = true;
+		RemoveCombatSceneObject( probe, probe.combatMissile );
+		const Quaternion contactRotation(
+			missile.ball.rotation[0],
+			missile.ball.rotation[1],
+			missile.ball.rotation[2],
+			missile.ball.rotation[3] );
+		probe.combatImpact->SetTransform(
+			RotationMatrix( contactRotation ) * TranslationMatrix( contactPosition ) );
+		probe.combatImpact->SetDisplay( true );
+		probe.combatImpact->StartControllers();
+		probe.combatImpact->Start();
+		probe.scene->Objects().Insert( -1, probe.combatImpact->GetRawRoot() );
+		probe.combatImpactInserted = true;
+		probe.combatImpactActive = true;
+		probe.combatImpactStartTime = simulationTime;
+		std::fprintf(
+			stderr,
+			"PL-C1 rendered hull contact: ball=%lld destinyTick=%lld "
+			"visualTick=%lld locatorDistance=%.6f authoredMaximum=%.6f\n",
+			static_cast<long long>( probe.combatMissileBallId ),
+			static_cast<long long>( missile.firstCollisionTime ),
+			static_cast<long long>( simulationTime ),
+			probe.combatVisualImpactTargetDistance,
+			probe.combatMaximumExplosionDistance );
+	}
+	else if( missileStateAvailable && missile.expired && !probe.combatMissileRemoved )
+	{
+		if( !Destiny_RemoveEmbeddedMissile(
+				probe.destinySession, probe.combatMissileBallId ) )
+		{
+			error = "PL-C1 Destiny missile removal failed after expiry";
+			return false;
+		}
+		probe.combatMissileRemoved = true;
+		RemoveCombatSceneObject( probe, probe.combatMissile );
+		probe.combatWeaponCleaned = true;
+	}
+
+	if( probe.combatImpactActive )
+	{
+		const Be::Time authoredDuration = static_cast<Be::Time>(
+			std::ceil( probe.combatImpact->GetEffectDuration() * 10000000.0 ) );
+		if( simulationTime >= probe.combatImpactStartTime + authoredDuration )
+		{
+			probe.combatImpact->Stop();
+			probe.combatImpact->SetDisplay( false );
+			RemoveCombatSceneObject( probe, probe.combatImpact );
+			RemoveCombatSceneObject( probe, probe.combatMissile );
+			probe.combatImpactActive = false;
+			probe.combatWeaponCleaned = true;
+		}
+	}
+	return true;
+#else
+	( void )probe;
+	( void )simulationTime;
+	error = "PL-C1 combat missile presentation requires embedded Destiny";
+	return false;
+#endif
+}
+
 bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 {
+#if TRINITY_WITH_DESTINY_EMBEDDED
 	if( !probe.canonicalStatePrepared || !probe.destinySession )
 	{
 		error = "canonical native ship construction requires the packet-born Ballpark";
@@ -16110,8 +16844,16 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		error = "packet-born primary ball curves are unavailable for native EveShip2";
 		return false;
 	}
-	probe.nativeShip->SetModelTranslationCurve( position );
-	probe.nativeShip->SetModelRotationCurve( rotation );
+	if( probe.combatRehearsal )
+	{
+		probe.nativeShip->SetBallPositionCurve( position );
+		probe.nativeShip->SetBallRotationCurve( rotation );
+	}
+	else
+	{
+		probe.nativeShip->SetModelTranslationCurve( position );
+		probe.nativeShip->SetModelRotationCurve( rotation );
+	}
 	probe.sceneConstructionTrace.push_back( "native-ship-built-and-curves-bound" );
 	Tr2MeshPtr mesh = BlueCastPtr( probe.nativeShip->GetMesh() );
 	if( !mesh || !PrepareMeshWithoutYield( *mesh, stagedHullGeometry, ventureControl ? "PL-14H native Venture" : "canonical native Astero", error ) )
@@ -16220,8 +16962,135 @@ bool BuildCanonicalNativeShip( StandaloneProbe& probe, std::string& error )
 		ventureControl ? "Venture" : "Astero",
 		nativeShipRadius,
 		5.2f * nativeShipRadius );
+	if( probe.combatRehearsal )
+	{
+		constexpr const char* ventureDna = "oref1_t1:orebase:ore";
+		constexpr const char* ventureGeometry = "res:/VentureNative.cmf";
+		// Strict native construction closes one DNA at a time. Reuse the settled
+		// SOF database, but reset and install the Venture's exact resource closure
+		// before the second BuildFromDNA call; a union closure would incorrectly
+		// require Astero construction to consume Venture-only resources.
+		probe.nativeSof->ClearGeometrySubstitutions();
+		if( !probe.nativeSof->ConfigureControllerSubstitution(
+				"res:/dx9/model/controller/shipstandard.red", shipController ) ||
+			!probe.nativeSof->ConfigureControllerSubstitution(
+				"res:/dx9/model/controller/audioshipstandard.red", audioController ) ||
+			!probe.nativeSof->ConfigureControllerSubstitution(
+				"res:/fisfx/vds/visualdamagecontroller.red", visualDamageController ) )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+			return false;
+		}
+		constexpr std::array<const char*, 2> ventureEffectChildPaths = {
+			"res:/dx9/model/ship/ore/frigate/oref1/effects/oref1_t1_fx_01a.red",
+			"res:/dx9/model/shared/fx/smartlightsets/ore_primaryspotlight_01a.red",
+		};
+		for( const char* ventureEffectChildPath : ventureEffectChildPaths )
+		{
+			IRootPtr ventureEffectChild =
+				LoadBlackObjectWithoutYield<IRoot>( ventureEffectChildPath, error );
+			if( !ventureEffectChild ||
+				!probe.nativeSof->ConfigureEffectChildSubstitution(
+					ventureEffectChildPath, ventureEffectChild ) )
+			{
+				if( error.empty() )
+					error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+				return false;
+			}
+		}
+		const std::vector<EveSOFGeometrySubstitution> ventureSubstitutions = {
+			{
+				"res:/dx9/model/ship/ore/frigate/oref1/oref1_t1.gr2",
+				ventureGeometry,
+			},
+			{
+				"res:/dx9/model/ship/booster/volumetrictrail.gr2",
+				"res:/dx9/model/ship/booster/volumetrictrail.cmf",
+			},
+			{
+				"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.gr2",
+				"res:/graphics/generic/unitsphere/unitsphere_shieldgeo_01a.cmf",
+			},
+		};
+		if( !probe.nativeSof->ConfigureGeometrySubstitutions(
+				ventureSubstitutions,
+				"res:/dx9/model/ship/booster/volumetrictrail.gr2" ) )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+			return false;
+		}
+		if( !probe.nativeSof->ValidateDNA( ventureDna ) )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+			if( error.empty() )
+				error = "Venture DNA did not validate for combat rehearsal";
+			return false;
+		}
+		IRootPtr targetBuilt = probe.nativeSof->BuildFromDNA( ventureDna );
+		probe.combatTargetShip = BlueCastPtr( targetBuilt );
+		if( !probe.combatTargetShip )
+		{
+			error = probe.nativeSof->GetLastBuildDiagnostics().failureReason;
+			if( error.empty() )
+				error = "EveSOF::BuildFromDNA did not return a native Venture EveShip2";
+			return false;
+		}
+		ITriVectorFunction* targetPosition =
+			Destiny_GetEmbeddedBallPosition( probe.destinySession, 2 );
+		ITriQuaternionFunction* targetRotation =
+			Destiny_GetEmbeddedBallRotation( probe.destinySession, 2 );
+		if( !targetPosition || !targetRotation )
+		{
+			error = "packet-born Venture curves are unavailable";
+			return false;
+		}
+		probe.combatTargetShip->SetBallPositionCurve( targetPosition );
+		probe.combatTargetShip->SetBallRotationCurve( targetRotation );
+		if( EveBoosterSet2* boosters = probe.combatTargetShip->GetBoosters() )
+			boosters->SetDisplay( false );
+		Tr2MeshPtr targetMesh = BlueCastPtr( probe.combatTargetShip->GetMesh() );
+		if( !targetMesh || !PrepareMeshWithoutYield(
+				*targetMesh, ventureGeometry, "PL-C0 native Venture", error ) )
+		{
+			return false;
+		}
+		DrainResourceQueuesUntilSettled();
+		const bool targetInventoryComplete = probe.nativeSof->InspectNativeBuild(
+			probe.combatTargetShip->GetRawRoot(), probe.combatTargetSofDiagnostics );
+		if( !targetInventoryComplete || !probe.combatTargetSofDiagnostics.nativeShip ||
+			!probe.combatTargetSofDiagnostics.structuralComplete ||
+			!probe.combatTargetSofDiagnostics.meshAreasComplete ||
+			!probe.combatTargetSofDiagnostics.materialsComplete ||
+			!probe.combatTargetSofDiagnostics.geometryPrepared ||
+			!probe.combatTargetSofDiagnostics.geometrySkinningComplete )
+		{
+			error = probe.combatTargetSofDiagnostics.failureReason;
+			if( error.empty() )
+				error = "native Venture SOF inventory is incomplete";
+			return false;
+		}
+		const float targetRadius = probe.combatTargetShip->GetRadius();
+		if( !std::isfinite( targetRadius ) || targetRadius <= 0.0f )
+		{
+			error = "native Venture has no finite positive authored bounding radius";
+			return false;
+		}
+		probe.sceneConstructionTrace.push_back( "combat-target-built-and-curves-bound" );
+		std::fprintf(
+			stderr,
+			"PL-C0 native target ready: class=EveShip2 dna=%s ball=2 radius=%.8f\n",
+			ventureDna,
+			targetRadius );
+		if( !ConfigureCombatWeaponPresentation( probe, error ) )
+			return false;
+	}
 	probe.sceneConstructionTrace.push_back( "native-ship-resources-settled" );
 	return true;
+#else
+	(void)probe;
+	error = "canonical native ship construction requires BUILD_DESTINY_INTEGRATION";
+	return false;
+#endif
 }
 
 bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* assetPath, int materialView, int materialMode, int areaView, const char* sceneResourcePath, int sceneFixture, int lightingView, int shSource, int localLights, int localShadows, int reflectionSource, int reflectionCorrection, int normalMapMode, int distortionMode, int cameraView, int composition, int planetLayers, int cloudYear, int cloudMonth, int cloudDay, int sunEffects, int attachments, int attachmentView, int decals, int decalView, uint32_t killCount, int engines, int engineView, float engineThrottle, float modelYawDegrees, int taaMode, int taaDebug, int motionMode, int shadows, int ambientOcclusion, int aoMethod )
@@ -16550,7 +17419,8 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			CCP_LOGERR( "Failed to create Tr2LightManager" );
 			return false;
 		}
-		if( probe.deterministicEvidence || !probe.solarIlluminationReportPath.empty() )
+		if( probe.deterministicEvidence || probe.combatRehearsal ||
+			!probe.solarIlluminationReportPath.empty() )
 		{
 			// The native compute pass allocates every authored tiled-light node.
 			// Evidence runs then read back and canonically relink those nodes on
@@ -17160,6 +18030,17 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			STANDALONE_CANONICAL_DIAGNOSTIC_BACKGROUND_AUTHORED_INTENSITY );
 		probe.scene->Objects().Insert( -1, probe.nativeShip->GetRawRoot() );
 		probe.canonicalNativeShipInserted = true;
+		if( probe.combatRehearsal )
+		{
+			if( !probe.combatTargetShip )
+			{
+				CCP_LOGERR( "Combat scene publication has no native Venture" );
+				return false;
+			}
+			probe.scene->Objects().Insert( -1, probe.combatTargetShip->GetRawRoot() );
+			probe.combatTargetShipInserted = true;
+			probe.sceneConstructionTrace.push_back( "combat-target-inserted" );
+		}
 		const bool planetAppearanceSuppressesShip =
 			!probe.planetAppearanceReportPath.empty() &&
 			probe.planetAppearanceView <= STANDALONE_PLANET_APPEARANCE_ECLIPSE;
@@ -17321,12 +18202,31 @@ bool ConfigureDriverScene( StandaloneProbe& probe, int qualityRung, const char* 
 			probe.staticCameraElevationDegrees,
 			probe.staticCameraDistance );
 	}
+	if( probe.combatRehearsal )
+	{
+		posedEye = Vector3(
+			3.0f * probe.modelWorldScale,
+			1.2f * probe.modelWorldScale,
+			-9.0f * probe.modelWorldScale );
+		posedTarget = Vector3(
+			kCombatCameraTarget[0],
+			kCombatCameraTarget[1],
+			kCombatCameraTarget[2] );
+	}
 	probe.view->SetLookAtPosition( posedEye, posedTarget, Vector3( 0.0f, 1.0f, 0.0f ) );
 	const char* cameraName = cameraView == STANDALONE_CAMERA_CELESTIALS ? "celestials" :
 																		  ( cameraView == STANDALONE_CAMERA_PLANET ? "planet" : "model" );
-	const float cameraFovRadians = exactSystemInspection ? probe.celestialInspectionFovRadians : 60.0f * 3.1415926535f / 180.0f;
+	const float cameraFovRadians = probe.combatRehearsal ?
+		36.0f * 3.1415926535f / 180.0f :
+		( exactSystemInspection ?
+			  probe.celestialInspectionFovRadians :
+			  60.0f * 3.1415926535f / 180.0f );
 	std::fprintf( stderr, "EVE camera view: %s fov=%.8f degrees diagnostic=%s\n", cameraName, cameraFovRadians * 180.0f / 3.1415926535f, exactSystemInspection ? "yes" : "no" );
-	probe.projection->PerspectiveFov( cameraFovRadians, aspect, 1.0f, 10000.0f );
+	probe.projection->PerspectiveFov(
+		cameraFovRadians,
+		aspect,
+		1.0f,
+		10000.0f );
 
 	EveSpaceSceneRenderDriver::Settings settings;
 	settings.clearColor = Color( 0.0f, 0.0f, 0.0f, 1.0f );
@@ -23664,6 +24564,7 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteSsaoTransportReport(
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingReport(
 	void* opaqueProbe )
 {
+#if TRINITY_WITH_DESTINY_EMBEDDED
 	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
 	if( !probe || probe->reflectionLightingReportPath.empty() || !probe->scene ||
 		!probe->driver || !probe->renderContext || !probe->nativeShip ||
@@ -23980,6 +24881,11 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteReflectionLightingRepo
 		   << SolarBodyJsonString( frame.dynamicExposureApplied ? "client" : "off" )
 		   << ",\"tunedValuesAdded\":false,\"silk\":false,\"froxels\":false}\n}\n";
 	return output.good();
+#else
+	(void)opaqueProbe;
+	CCP_LOGERR( "PL-14H2 reflection-lighting reporting requires BUILD_DESTINY_INTEGRATION" );
+	return false;
+#endif
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeWriteOcclusionLightingReport(
@@ -25991,6 +26897,617 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeCreateEveScene( void* opaqu
 	return ConfigureDriverScene( *probe, qualityRung, assetPath, materialView, materialMode, areaView, sceneResourcePath, sceneFixture, lightingView, shSource, localLights, localShadows, reflectionSource, reflectionCorrection, normalMapMode, distortionMode, cameraView, composition, planetLayers, cloudYear, cloudMonth, cloudDay, sunEffects, attachments, attachmentView, decals, decalView, killCount, engines, engineView, engineThrottle, modelYawDegrees, taaMode, taaDebug, motionMode, shadows, ambientOcclusion, aoMethod );
 }
 
+TRINITY_STANDALONE_EXPORT bool TrinityCombatStartup(
+	int argc,
+	const char* const* argv,
+	const char* executableDirectory )
+{
+	return TrinityStandaloneProbeStartup( argc, argv, executableDirectory );
+}
+
+TRINITY_STANDALONE_EXPORT void* TrinityCombatCreateDevice(
+	void* windowHandle,
+	uint32_t renderWidth,
+	uint32_t renderHeight )
+{
+	return TrinityStandaloneProbeCreateDevice(
+		windowHandle, renderWidth, renderHeight, 1 );
+}
+
+TRINITY_STANDALONE_EXPORT void TrinityCombatDestroyDevice( void* combat )
+{
+	TrinityStandaloneProbeDestroyDevice( combat );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatConfigureRehearsal(
+	void* combat,
+	const char* canonicalManifestPath,
+	const void* fullStatePacket,
+	size_t fullStatePacketSize )
+{
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !probe->renderContext || probe->combatConfigured || probe->scene || probe->driver ||
+		!canonicalManifestPath || !canonicalManifestPath[0] ||
+		( !fullStatePacket && fullStatePacketSize != 0 ) )
+	{
+		return false;
+	}
+	// The rehearsal needs repeatable authored animation and particles, but the
+	// older deterministic-evidence switch also replaces quad submission. That
+	// renderer diagnostic is observationally intrusive for multi-object
+	// canonical scenes, so keep only the deterministic clocks and RNGs here.
+	constexpr uint32_t combatEvidenceSeed = 3430261;
+	if( !TrinityStandaloneProbeConfigureBackgroundLayers( probe, true, true ) ||
+		!TrinityStandaloneProbeConfigureSceneConstruction(
+			probe,
+			STANDALONE_SCENE_CONSTRUCTION_CANONICAL,
+			STANDALONE_LEGACY_SH_PROXIES_OFF,
+			STANDALONE_LEGACY_SH_RECEIVER_LIVE,
+			STANDALONE_LEGACY_SOLAR_ENVIRONMENT_LIVE_DISTANCE,
+			canonicalManifestPath,
+			nullptr ) ||
+		!TrinityStandaloneProbeSetCelestialAnchor(
+			probe, STANDALONE_CELESTIAL_ANCHOR_STARGATE ) ||
+		!TrinityStandaloneProbeConfigureCanonicalDiagnostic(
+			probe, STANDALONE_CANONICAL_DIAGNOSTIC_BASELINE ) ||
+		!TrinityStandaloneProbeConfigureSolarHigh(
+			probe,
+			STANDALONE_SUN_HIGH_ALL,
+			nullptr,
+			nullptr,
+			nullptr,
+			nullptr,
+			0,
+			false ) ||
+		!TrinityStandaloneProbeConfigureSolarOptics(
+			probe,
+			STANDALONE_SOLAR_ENVIRONMENT_ALL,
+			STANDALONE_SOLAR_DISTANCE_CANONICAL,
+			true,
+			true,
+			0,
+			nullptr ) ||
+		!TrinityStandaloneProbeConfigureTourColorGrade(
+			probe, STANDALONE_TOUR_COLOR_GRADE_SUN_DESATURATE ) ||
+		!TrinityStandaloneProbeConfigureSolarIllumination(
+			probe,
+			STANDALONE_SOLAR_ILLUMINATION_AUTHORED,
+			STANDALONE_SOLAR_ILLUMINATION_VIEW_UNSPECIFIED,
+			nullptr ) )
+	{
+		return false;
+	}
+	// Solar High configuration deliberately restores production particle timing
+	// when no PL-14C report is requested. Apply the combat evidence policy after
+	// every shared configuration helper and before constructing any live graph.
+	if( !Tr2ParticleSystem::ResetRandomSeedForTesting( combatEvidenceSeed ) )
+		return false;
+	Tr2ParticleSystem::SetDeterministicUpdatesForTesting( true );
+	EveBoosterSet2::ResetRandomSeedForTesting( combatEvidenceSeed );
+	LightData::SetDeterministicEvaluationTimeForTesting( 0 );
+	probe->combatRehearsal = true;
+	std::string stateError;
+	if( !PrepareCombatRehearsalState(
+			*probe, fullStatePacket, fullStatePacketSize, stateError ) )
+	{
+		std::fprintf( stderr, "PL-C0 combat state failed: %s\n", stateError.c_str() );
+		return false;
+	}
+	const bool created = TrinityStandaloneProbeCreateEveScene(
+		probe,
+		STANDALONE_PROBE_RUNG_HDR_FINISH,
+		"res:/AsteroNative.cmf",
+		0,
+		1,
+		0,
+		"res:/dx9/scene/universe/a01_cube.black",
+		3,
+		STANDALONE_LIGHTING_COMBINED,
+		STANDALONE_SH_SOURCE_NEW_EDEN_CELESTIALS,
+		STANDALONE_LOCAL_LIGHTS_AUTHORED,
+		STANDALONE_LOCAL_SHADOWS_OFF,
+		STANDALONE_REFLECTION_SOURCE_DYNAMIC,
+		STANDALONE_REFLECTION_CORRECTION_CLIENT,
+		STANDALONE_NORMAL_MAP_AUTHORED,
+		STANDALONE_DISTORTION_AUTHORED,
+		STANDALONE_CAMERA_MODEL,
+		STANDALONE_COMPOSITION_SYSTEM,
+		STANDALONE_PLANET_ALL,
+		2026,
+		7,
+		18,
+		STANDALONE_SUN_EFFECTS_ALL,
+		2,
+		0,
+		STANDALONE_DECALS_AUTHORED,
+		STANDALONE_DECAL_VIEW_ALL,
+		0,
+		STANDALONE_ENGINES_OFF,
+		STANDALONE_ENGINE_VIEW_ALL,
+		0.0f,
+		0.0f,
+		STANDALONE_TAA_HIGH,
+		Tr2PPTaaEffect::TAA_DEBUG_OFF,
+		STANDALONE_MOTION_STATIC,
+		STANDALONE_SHADOWS_HIGH,
+		STANDALONE_AO_HIGH,
+		STANDALONE_AO_CLIENT );
+	const bool sceneFinalized = created &&
+		TrinityStandaloneProbeConfigureAmbientLighting( probe, true ) &&
+		TrinityStandaloneProbeConfigureBallparkEx(
+			probe,
+			STANDALONE_BALLPARK_STATIC,
+			STANDALONE_BALLPARK_EGO,
+			DESTINY_EMBEDDED_ORBIT_FRONTIER_NEW,
+			probe->ballparkOrbitRange,
+			nullptr ) &&
+		TrinityStandaloneProbeConfigureCelestialBallpark(
+			probe, STANDALONE_CELESTIAL_BALLPARK_NATURAL, nullptr ) &&
+		TrinityStandaloneProbeConfigureVolumetrics(
+			probe, STANDALONE_VOLUMETRICS_OFF, 0, 0, false );
+	const bool postProcessConfigured = sceneFinalized &&
+		TrinityStandaloneProbeConfigurePostProcess(
+			probe,
+			STANDALONE_DYNAMIC_EXPOSURE_CLIENT,
+			STANDALONE_POST_FINISH_CLIENT,
+			STANDALONE_POST_FINISH_CLIENT,
+			false );
+	probe->combatConfigured = created && sceneFinalized && postProcessConfigured &&
+		probe->nativeShip && probe->combatTargetShip &&
+		probe->canonicalNativeShipInserted && probe->combatTargetShipInserted;
+	return probe->combatConfigured;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatMeasureInitialSnapshot(
+	void* combat,
+	size_t* bytesRequired )
+{
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !bytesRequired || probe->combatInitialSnapshot.empty() )
+		return false;
+	*bytesRequired = probe->combatInitialSnapshot.size();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatCopyInitialSnapshot(
+	void* combat,
+	void* destination,
+	size_t destinationSize,
+	size_t* bytesWritten )
+{
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !destination || !bytesWritten || probe->combatInitialSnapshot.empty() ||
+		destinationSize < probe->combatInitialSnapshot.size() )
+	{
+		return false;
+	}
+	std::memcpy(
+		destination, probe->combatInitialSnapshot.data(), probe->combatInitialSnapshot.size() );
+	*bytesWritten = probe->combatInitialSnapshot.size();
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatRenderFrame(
+	void* combat,
+	int64_t realTime,
+	int64_t simulationTime,
+	bool captureColor )
+{
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !probe->combatConfigured )
+		return false;
+	const bool rendered = TrinityStandaloneProbeRenderFrame(
+		probe,
+		STANDALONE_PROBE_RUNG_HDR_FINISH,
+		realTime,
+		simulationTime,
+		captureColor ? STANDALONE_CAPTURE_FINAL_POSTPROCESS : 0 );
+	probe->combatFrameRendered = probe->combatFrameRendered || rendered;
+	return rendered;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatGetCapturedFrame(
+	void* combat,
+	const uint8_t** pixels,
+	uint32_t* width,
+	uint32_t* height,
+	uint32_t* pitch )
+{
+	return TrinityStandaloneProbeGetCapturedProduct(
+		combat, pixels, width, height, pitch );
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatGetSceneDiagnostics(
+	void* combat,
+	TrinityCombatSceneDiagnostics* diagnostics )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !diagnostics || !probe->combatConfigured || !probe->destinySession ||
+		!probe->scene || !probe->nativeShip || !probe->combatTargetShip )
+	{
+		return false;
+	}
+	*diagnostics = {};
+	diagnostics->asteroClass = "EveShip2";
+	diagnostics->asteroDna = "soef1_t1:soebase:soe";
+	diagnostics->ventureClass = "EveShip2";
+	diagnostics->ventureDna = "oref1_t1:orebase:ore";
+	DestinyEmbeddedBallState astero = {};
+	DestinyEmbeddedBallState venture = {};
+	if( !Destiny_GetEmbeddedBallState( probe->destinySession, 1, &astero ) ||
+		!Destiny_GetEmbeddedBallState( probe->destinySession, 2, &venture ) )
+	{
+		return false;
+	}
+	diagnostics->asteroBallId = astero.ballId;
+	diagnostics->ventureBallId = venture.ballId;
+	diagnostics->asteroMode = astero.mode;
+	diagnostics->ventureMode = venture.mode;
+	diagnostics->asteroFlags = astero.flags;
+	diagnostics->ventureFlags = venture.flags;
+	diagnostics->asteroPositionCurveBound = probe->nativeShip->GetBallPositionCurve() != nullptr;
+	diagnostics->asteroRotationCurveBound = probe->nativeShip->GetBallRotationCurve() != nullptr;
+	diagnostics->venturePositionCurveBound =
+		probe->combatTargetShip->GetBallPositionCurve() != nullptr;
+	diagnostics->ventureRotationCurveBound =
+		probe->combatTargetShip->GetBallRotationCurve() != nullptr;
+	auto uniqueAreaCount = []( EveShip2* ship ) {
+		std::set<Tr2MeshArea*> unique;
+		Tr2MeshPtr mesh;
+		if( ship )
+			mesh = BlueCastPtr( ship->GetMesh() );
+		if( mesh )
+		{
+			for( const Tr2MeshAreaPtr& area : mesh->GetAllAreas() )
+				if( area )
+					unique.insert( area );
+		}
+		return static_cast<uint32_t>( unique.size() );
+	};
+	diagnostics->asteroMeshAreas = uniqueAreaCount( probe->nativeShip );
+	diagnostics->ventureMeshAreas = uniqueAreaCount( probe->combatTargetShip );
+	uint32_t asteroMembership = 0;
+	uint32_t ventureMembership = 0;
+	for( IEveSpaceObject2* object : probe->scene->Objects() )
+	{
+		asteroMembership += object == probe->nativeShip.p ? 1u : 0u;
+		ventureMembership += object == probe->combatTargetShip.p ? 1u : 0u;
+	}
+	diagnostics->asteroUniqueSceneMembership = asteroMembership == 1;
+	diagnostics->ventureUniqueSceneMembership = ventureMembership == 1;
+	const EveSpaceScene::MainPassBatchDiagnostics& batches =
+		probe->scene->GetMainPassBatchDiagnostics();
+	diagnostics->submittedOpaqueBatches = batches.opaque;
+	diagnostics->submittedAdditiveBatches = batches.additive;
+	diagnostics->submittedTransparentBatches = batches.transparent;
+	diagnostics->cameraFovDegrees = 36.0;
+	diagnostics->cameraEye[0] = 3.0 * probe->modelWorldScale;
+	diagnostics->cameraEye[1] = 1.2 * probe->modelWorldScale;
+	diagnostics->cameraEye[2] = -9.0 * probe->modelWorldScale;
+	double targetDistanceSquared = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		diagnostics->cameraTarget[axis] = kCombatCameraTarget[axis];
+		diagnostics->targetOffset[axis] = venture.position[axis] - astero.position[axis];
+		targetDistanceSquared +=
+			diagnostics->targetOffset[axis] * diagnostics->targetOffset[axis];
+	}
+	diagnostics->targetCenterDistance = std::sqrt( targetDistanceSquared );
+	diagnostics->starfieldReady = probe->backgroundStarfieldReady;
+	diagnostics->nebulaReady = probe->backgroundNebulaReady;
+	diagnostics->clientSsaoSelected =
+		probe->ambientOcclusion == STANDALONE_AO_HIGH && probe->aoMethod == STANDALONE_AO_CLIENT;
+	diagnostics->highRasterShadowsSelected = probe->shadows == STANDALONE_SHADOWS_HIGH;
+	diagnostics->highTaaSelected = probe->taaMode == STANDALONE_TAA_HIGH;
+	diagnostics->dynamicReflectionSelected =
+		probe->reflectionSource == STANDALONE_REFLECTION_SOURCE_DYNAMIC;
+	diagnostics->silkEnabled = probe->silkCloudRoot && probe->silkCloudRoot->GetDisplay();
+	diagnostics->froxelsEnabled = probe->froxelRenderingEnabled;
+	return true;
+#else
+	(void)combat;
+	(void)diagnostics;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatGetTargetProjection(
+	void* combat,
+	TrinityCombatTargetProjection* projection )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !projection || !probe->combatConfigured || !probe->combatFrameRendered ||
+		!probe->combatTargetShip || !probe->destinySession )
+	{
+		return false;
+	}
+	*projection = {};
+	Tr2Viewport viewport;
+	Tr2Renderer::GetViewport().ConvertToTr2Viewport( viewport );
+	Matrix targetTransform;
+	probe->combatTargetShip->GetLocalToWorldTransform( targetTransform );
+	const Vector3 center(
+		targetTransform._41,
+		targetTransform._42,
+		targetTransform._43 );
+	const Vector3 screen = Tr2Renderer::ProjectWorldToScreen( center, viewport );
+	const float worldRadius = probe->combatTargetShip->GetRadius();
+	double projectedRadius = 0.0;
+	const Matrix& inverseView = Tr2Renderer::GetInverseViewTransform();
+	const Vector3 cameraRight = Normalize(
+		TransformNormal( Vector3( 1.0f, 0.0f, 0.0f ), inverseView ) );
+	const Vector3 cameraUp = Normalize(
+		TransformNormal( Vector3( 0.0f, 1.0f, 0.0f ), inverseView ) );
+	const Vector3 offsets[] = {
+		cameraRight * worldRadius,
+		cameraRight * -worldRadius,
+		cameraUp * worldRadius,
+		cameraUp * -worldRadius,
+	};
+	for( const Vector3& offset : offsets )
+	{
+		const Vector3 edge = Tr2Renderer::ProjectWorldToScreen( center + offset, viewport );
+		const double dx = edge.x - screen.x;
+		const double dy = edge.y - screen.y;
+		projectedRadius = std::max( projectedRadius, std::sqrt( dx * dx + dy * dy ) );
+	}
+	DestinyEmbeddedBallState astero = {};
+	DestinyEmbeddedBallState venture = {};
+	if( !Destiny_GetEmbeddedBallState( probe->destinySession, 1, &astero ) ||
+		!Destiny_GetEmbeddedBallState( probe->destinySession, 2, &venture ) )
+	{
+		return false;
+	}
+	double distanceSquared = 0.0;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		const double delta = venture.position[axis] - astero.position[axis];
+		distanceSquared += delta * delta;
+	}
+	projection->centerX = screen.x;
+	projection->centerY = screen.y;
+	projection->radius = projectedRadius;
+	projection->depth = screen.z;
+	projection->centerDistance = std::sqrt( distanceSquared );
+	projection->surfaceDistance = projection->centerDistance - astero.radius - venture.radius;
+	projection->visible = screen.z > 0.0f && screen.z < 1.0f && projectedRadius > 0.0 &&
+		screen.x + projectedRadius >= viewport.m_x &&
+		screen.x - projectedRadius <= viewport.m_x + viewport.m_width &&
+		screen.y + projectedRadius >= viewport.m_y &&
+		screen.y - projectedRadius <= viewport.m_y + viewport.m_height;
+	return std::isfinite( projection->centerX ) && std::isfinite( projection->centerY ) &&
+		std::isfinite( projection->radius ) && std::isfinite( projection->depth ) &&
+		std::isfinite( projection->surfaceDistance );
+#else
+	(void)combat;
+	(void)projection;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatFireMissile(
+	void* combat,
+	int64_t missileBallId )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !probe->combatConfigured || !probe->destinySession ||
+		!probe->combatLauncher || !probe->combatMissile || missileBallId <= 2 ||
+		( probe->combatMissileBallId != 0 && !probe->combatWeaponCleaned ) )
+	{
+		return false;
+	}
+	if( probe->combatWeaponCleaned )
+	{
+		probe->combatMissileCommandQueued = false;
+		probe->combatMissileVisualInserted = false;
+		probe->combatMissileCollisionPredicted = false;
+		probe->combatMissileRemoved = false;
+		probe->combatImpactInserted = false;
+		probe->combatImpactActive = false;
+		probe->combatMissileLaunchTime = 0;
+		probe->combatMissileCollisionTime = 0;
+		probe->combatImpactStartTime = 0;
+		probe->combatVisualImpactPosition = Vector3( 0.0f, 0.0f, 0.0f );
+		probe->combatVisualImpactTargetDistance = 0.0f;
+		probe->combatAuthoredVisualContact = false;
+	}
+	DestinyEmbeddedDiagnostics commandState = {};
+	DestinyEmbeddedBallState astero = {};
+	if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+		!Destiny_GetEmbeddedBallState( probe->destinySession, 1, &astero ) )
+	{
+		return false;
+	}
+
+	DestinyEmbeddedMissileConfig missile = {};
+	missile.ball.ballId = missileBallId;
+	missile.ball.solarSystemId = 30005286;
+	missile.ball.mass = 700.0;
+	Vector4 authoredMissileBounds;
+	EveMissileWarhead* warhead = probe->combatMissile->GetWarhead( 0 );
+	if( !warhead || !warhead->GetLocalBoundingSphere( authoredMissileBounds ) ||
+		!std::isfinite( authoredMissileBounds.w ) || authoredMissileBounds.w <= 0.0f )
+	{
+		return false;
+	}
+	// Destiny collision must follow the rendered projectile, not the 300 m
+	// placeholder previously used by the rehearsal. The renderer's authored
+	// warhead bound is the narrowest source-owned sphere that encloses the
+	// visible missile and prevents an early presentation handoff.
+	missile.ball.radius = authoredMissileBounds.w;
+	missile.ball.maximumVelocity = kCombatVisualizationMissileSpeed;
+	missile.ball.maximumAngularVelocity = 1.0f;
+	missile.ball.agility = 0.00014449800378457667f;
+	missile.ball.rotationalAgility = 1.0f;
+	missile.ball.speedFraction = 1.0f;
+	missile.ball.isFree = true;
+	missile.ball.isMassive = true;
+	missile.ball.isInteractive = true;
+	for( size_t axis = 0; axis < 3; ++axis )
+	{
+		missile.ball.position[axis] = astero.position[axis];
+		missile.ball.velocity[axis] = astero.velocity[axis];
+	}
+	for( size_t component = 0; component < 4; ++component )
+		missile.ball.rotation[component] = astero.rotation[component];
+	missile.lifetime = kCombatMissileLifetime;
+	if( !Destiny_CommandEmbeddedLaunchMissile(
+			probe->destinySession,
+			commandState.nextTickTime,
+			&missile,
+			1,
+			2,
+			true,
+			true ) )
+	{
+		return false;
+	}
+	probe->combatLauncher->SetTargetForHost( probe->combatTargetShip );
+	probe->combatLauncher->EnterStateFiring();
+	probe->combatMissileBallId = missileBallId;
+	probe->combatMissileCommandQueued = true;
+	probe->combatWeaponCleaned = false;
+	probe->combatMissileLaunchTime = commandState.nextTickTime;
+	return true;
+#else
+	( void )combat;
+	( void )missileBallId;
+	return false;
+#endif
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityCombatGetWeaponDiagnostics(
+	void* combat,
+	TrinityCombatWeaponDiagnostics* diagnostics )
+{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+	auto* probe = static_cast<StandaloneProbe*>( combat );
+	if( !probe || !diagnostics || !probe->combatConfigured || !probe->destinySession ||
+		!probe->nativeShip || !probe->combatLauncher || !probe->combatMissile ||
+		!probe->combatImpact )
+	{
+		return false;
+	}
+	*diagnostics = {};
+	diagnostics->launcherResource =
+		"res:/dx9/model/turret/launcher/light/light_t1.black";
+	diagnostics->missileResource =
+		"res:/dx9/model/turret/launcher/light/light_missile.black";
+	diagnostics->impactResource =
+		"res:/dx9/model/turret/launcher/light/light_impact_scourge.black";
+	diagnostics->launcherTypeId = 499;
+	diagnostics->ammunitionTypeId = 210;
+	diagnostics->sourceMissileSpeed = 3750.0;
+	diagnostics->simulationMissileSpeed = kCombatVisualizationMissileSpeed;
+	diagnostics->visualizationSpeedScale =
+		kCombatVisualizationMissileSpeed / diagnostics->sourceMissileSpeed;
+	diagnostics->authoredPathOffsetNoiseScale =
+		probe->combatAuthoredPathOffsetNoiseScale;
+	diagnostics->appliedPathOffsetNoiseScale =
+		probe->combatAppliedPathOffsetNoiseScale;
+	diagnostics->pathOffsetNoiseSpeed = probe->combatPathOffsetNoiseSpeed;
+	diagnostics->visualizationPathOffsetScale =
+		kCombatVisualizationPathOffsetScale;
+	diagnostics->visualImpactPosition[0] = probe->combatVisualImpactPosition.x;
+	diagnostics->visualImpactPosition[1] = probe->combatVisualImpactPosition.y;
+	diagnostics->visualImpactPosition[2] = probe->combatVisualImpactPosition.z;
+	diagnostics->visualImpactTargetDistance =
+		probe->combatVisualImpactTargetDistance;
+	diagnostics->maximumExplosionDistance = probe->combatMaximumExplosionDistance;
+	diagnostics->missileBallId = probe->combatMissileBallId;
+	diagnostics->ownerBallId = probe->combatMissileBallId ? 1 : 0;
+	diagnostics->targetBallId = probe->combatMissileBallId ? 2 : 0;
+	diagnostics->launcherCount = probe->nativeShip->GetTurretSetCount();
+	diagnostics->warheadCount =
+		static_cast<uint32_t>( probe->combatMissile->GetWarheadCount() );
+	diagnostics->launcherLocatorCount = probe->nativeShip->GetTurretLocatorCount();
+	diagnostics->launcherState = static_cast<uint32_t>( probe->combatLauncher->GetState() );
+	EveMissileWarhead* warhead = probe->combatMissile->GetWarhead( 0 );
+	diagnostics->warheadState = warhead ? static_cast<uint32_t>( warhead->GetState() ) : 0;
+	if( warhead )
+	{
+		const Vector3 renderedPosition = warhead->GetWorldPosition();
+		const Vector3 targetCenter = probe->combatTargetShip->GetWorldPosition();
+		Vector3 targetLocator = targetCenter;
+		probe->combatTargetShip->GetDamageLocatorPosition(
+			&targetLocator, warhead->GetTargetLocator(), true );
+		diagnostics->renderedWarheadPosition[0] = renderedPosition.x;
+		diagnostics->renderedWarheadPosition[1] = renderedPosition.y;
+		diagnostics->renderedWarheadPosition[2] = renderedPosition.z;
+		diagnostics->renderedWarheadTargetDistance =
+			Length( renderedPosition - targetCenter );
+		diagnostics->renderedWarheadLocatorDistance =
+			Length( renderedPosition - targetLocator );
+		Vector4 authoredMissileBounds;
+		if( warhead->GetLocalBoundingSphere( authoredMissileBounds ) )
+			diagnostics->missileCollisionRadius = authoredMissileBounds.w;
+	}
+	diagnostics->launcherAuthored = diagnostics->launcherCount == 1;
+	TriGeometryRes* launcherGeometry =
+		probe->combatLauncher->GetGeometryResourceForInspection();
+	diagnostics->launcherGeometryReady = launcherGeometry && launcherGeometry->IsGood() &&
+		launcherGeometry->IsUsingCMF();
+	diagnostics->launcherCurvesBound =
+		probe->nativeShip->GetBallPositionCurve() != nullptr &&
+		probe->nativeShip->GetBallRotationCurve() != nullptr;
+	diagnostics->missileAuthored = diagnostics->warheadCount == 1;
+	diagnostics->missileCurvesBound =
+		probe->combatMissileVisualInserted &&
+		probe->combatMissile->GetBallPositionCurve() != nullptr &&
+		probe->combatMissile->GetBallRotationCurve() != nullptr;
+	for( IEveSpaceObject2* object : probe->scene->Objects() )
+	{
+		diagnostics->missileSceneMember =
+			diagnostics->missileSceneMember || object == probe->combatMissile.p;
+		diagnostics->impactSceneMember =
+			diagnostics->impactSceneMember || object == probe->combatImpact.p;
+	}
+	diagnostics->impactAuthored =
+		std::isfinite( probe->combatImpact->GetEffectDuration() ) &&
+		probe->combatImpact->GetEffectDuration() > 0.0f;
+	diagnostics->authoredVisualContact = probe->combatAuthoredVisualContact;
+	diagnostics->impactActive = probe->combatImpactActive;
+	diagnostics->launchTime = probe->combatMissileLaunchTime;
+	diagnostics->firstCollisionTime = probe->combatMissileCollisionTime;
+	diagnostics->missileActive = probe->combatMissileVisualInserted &&
+		!probe->combatMissileRemoved;
+	diagnostics->missileCollided = probe->combatMissileCollisionPredicted;
+	diagnostics->missileRemoved = probe->combatMissileRemoved;
+
+	if( probe->combatMissileBallId != 0 )
+	{
+		DestinyEmbeddedMissileState missile = {};
+		if( Destiny_GetEmbeddedMissileState(
+				probe->destinySession, probe->combatMissileBallId, &missile ) )
+		{
+			diagnostics->ownerBallId = missile.ownerBallId;
+			diagnostics->targetBallId = missile.targetBallId;
+			diagnostics->missileMode = missile.ball.mode;
+			diagnostics->launchTime = missile.launchTime;
+			diagnostics->firstCollisionTime = missile.firstCollisionTime;
+			for( size_t axis = 0; axis < 3; ++axis )
+			{
+				diagnostics->missilePosition[axis] = missile.ball.position[axis];
+				diagnostics->missileVelocity[axis] = missile.ball.velocity[axis];
+			}
+			diagnostics->missileActive = missile.active;
+			diagnostics->missileInitialStraightFlight = missile.initialStraightFlight;
+			diagnostics->missileCollided = missile.collided;
+			diagnostics->missileExpired = missile.expired;
+			diagnostics->missileRemoved = missile.removed;
+		}
+	}
+	return true;
+#else
+	(void)combat;
+	(void)diagnostics;
+	return false;
+#endif
+}
+
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureVolumetrics(
 	void* opaqueProbe,
 	int mode,
@@ -27597,14 +29114,28 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeConfigureBallparkEx(
 				   "accumulated_phase\n";
 		}
 		probe->sceneConstructionTrace.push_back( "canonical-ballpark-finalized" );
-		std::fprintf(
-			stderr,
-			"PL-14G canonical Ballpark: packetBytes=%llu system=30005286 primary=1 ego=1 "
-			"observer=2 fixedTarget=%lld celestials=(%lld,%lld) profile=dynamic-orientation-v1\n",
-			static_cast<unsigned long long>( probe->canonicalPacketSize ),
-			static_cast<long long>( kNewEdenEveGateBallId ),
-			static_cast<long long>( kNewEdenSunBallId ),
-			static_cast<long long>( kNewEdenPlanetBallId ) );
+		DestinyEmbeddedDiagnostics finalizedDiagnostics = {};
+		if( Destiny_GetEmbeddedDiagnostics(
+				probe->destinySession, &finalizedDiagnostics ) )
+		{
+			std::fprintf(
+				stderr,
+				"PL-14G canonical Ballpark: packetBytes=%llu system=30005286 primary=%lld ego=%lld "
+				"observer=%lld fixedTarget=%lld celestials=(%lld,%lld) profile=dynamic-orientation-v1\n",
+				static_cast<unsigned long long>( probe->canonicalPacketSize ),
+				static_cast<long long>( finalizedDiagnostics.primaryBallId ),
+				static_cast<long long>( finalizedDiagnostics.egoBallId ),
+				static_cast<long long>( finalizedDiagnostics.observerBallId ),
+				static_cast<long long>( kNewEdenEveGateBallId ),
+				static_cast<long long>( kNewEdenSunBallId ),
+				static_cast<long long>( kNewEdenPlanetBallId ) );
+		}
+		else
+		{
+			std::fprintf(
+				stderr,
+				"PL-14G canonical Ballpark configured; optional final diagnostics are unavailable\n" );
+		}
 		return true;
 #else
 		return false;
@@ -30232,6 +31763,21 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 			std::fprintf( stderr, "RenderFrame failure: direct evolve (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 			return false;
 		}
+		if( probe->combatRehearsal )
+		{
+			std::string combatError;
+			if( !UpdateCombatWeaponPresentation(
+					*probe, static_cast<Be::Time>( simTime ), combatError ) )
+			{
+				CCP_LOGERR( "PL-C1 weapon presentation update failed: %s", combatError.c_str() );
+				std::fprintf(
+					stderr,
+					"PL-C1 weapon presentation update failed at frame=%llu: %s\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					combatError.c_str() );
+				return false;
+			}
+		}
 		if( ( probe->ballparkMode == STANDALONE_BALLPARK_GOTO ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
 			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ||
@@ -30720,22 +32266,32 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 		const uint32_t cullTests = diagnostics->tests;
 		const uint32_t acceptedCascades = diagnostics->acceptedCascades;
 		const uint32_t committedBatches = diagnostics->committedBatches;
-		const uint32_t shadowAreaGroups = probe->renderable->GetShadowAreaGroupCount();
-		if( acceptedCascades == 0 || shadowAreaGroups == 0 ||
-			committedBatches != acceptedCascades * shadowAreaGroups )
+		// DirectionalShadowDiagnostics is keyed by the selected caster, so the
+		// Astero contract must not include the Venture's separately recorded
+		// shadow batches in the expected per-cascade count.
+		const uint32_t shadowBatchesPerCascade = probe->renderable ?
+			probe->renderable->GetShadowAreaGroupCount() :
+			( probe->nativeShip ?
+				  static_cast<uint32_t>(
+					  probe->nativeShip->GetShadowBatchAreaCountForDiagnostics() ) :
+				  0 );
+		const bool submissionValid = shadowBatchesPerCascade > 0 && acceptedCascades > 0 &&
+			committedBatches == acceptedCascades * shadowBatchesPerCascade;
+		if( !submissionValid )
 		{
 			CCP_LOGERR(
 				"Astero directional shadow contract failed: tests=%u accepted=%u batches=%u expected=%u",
 				cullTests,
 				acceptedCascades,
 				committedBatches,
-				acceptedCascades * shadowAreaGroups );
+				acceptedCascades * shadowBatchesPerCascade );
 			std::fprintf( stderr,
-						  "RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u)\n",
+						  "RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u expected=%u)\n",
 						  static_cast<unsigned long long>( probe->renderedFrameCount ),
 						  cullTests,
 						  acceptedCascades,
-						  committedBatches );
+						  committedBatches,
+						  acceptedCascades * shadowBatchesPerCascade );
 			return false;
 		}
 		if( !probe->reportedShadowStats )

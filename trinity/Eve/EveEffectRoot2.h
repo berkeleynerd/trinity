@@ -159,6 +159,10 @@ public:
 
 	void Start();
 	void Stop();
+	float GetEffectDuration() const
+	{
+		return m_effectDuration;
+	}
 
 	PIEveSpaceObjectChildVector& GetChildren();
 	const PTriCurveSetVector& GetCurveSetsForInspection() const
