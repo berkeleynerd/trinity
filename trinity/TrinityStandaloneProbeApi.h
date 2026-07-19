@@ -872,3 +872,17 @@ extern "C" bool TrinityStandaloneProbeConfigureDriverProducts( void* opaqueProbe
 extern "C" bool TrinityStandaloneProbeValidateDriverFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
 extern "C" bool TrinityStandaloneProbeExecuteDriverProducts( void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene );
 extern "C" bool TrinityStandaloneProbeResolveAndRetainProduct( void* opaqueProbe, int captureProduct );
+
+// W1-D: the journey/ballpark/gate crossing (the New Eden tour). Two exports
+// that let the host sequence a tour frame (ballparkMode != OFF) itself:
+//   AdvanceJourneyFrame -> [W1-C driver rungs, captureProducts 0] ->
+//   RecordBallparkTelemetry, in strict order once per frame. AdvanceJourneyFrame
+// is RenderFrame's pre-draw journey half (Destiny command issue + the journey
+// state machine + kinematics/warp-tunnel + chase-camera/solar tail + the
+// SetAnimationTime poke); it emits the ordered "Journey ..." evidence lines.
+// RecordBallparkTelemetry is the post-draw tail (ballpark/celestial/eve-gate
+// diagnostics + solar records + the sole ++renderedFrameCount + the shadow
+// contract validators + the DrawFailed contract). Both assume the tour-lane
+// invariants freezeScene==false and solarParticlePrewarmCompleted==false.
+extern "C" bool TrinityStandaloneProbeAdvanceJourneyFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
+extern "C" bool TrinityStandaloneProbeRecordBallparkTelemetry( void* opaqueProbe, int64_t realTime, int64_t simTime );
