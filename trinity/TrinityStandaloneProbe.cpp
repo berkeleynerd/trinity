@@ -19312,7 +19312,23 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeExecuteDriverProducts(
 		destinationSpan, outputSpan,
 		static_cast<Be::Time>( realTime ), static_cast<Be::Time>( simTime ),
 		rootTimer, renderContext );
-	return true;
+	// Surface the same post-Execute success contract DrawDriverFrame enforces
+	// (its `ok` accumulator). Without these the granular path would report a
+	// successful draw on a failed postprocess/distortion pass, and the caller
+	// would go on to record ballpark telemetry and advance renderedFrameCount
+	// for a frame the monolith would have abandoned.
+	bool ok = true;
+	if( !probe->driver->GetLastPostProcessExecutionSucceeded() )
+	{
+		CCP_LOGERR( "EVE postprocess execution failed" );
+		ok = false;
+	}
+	if( !probe->driver->GetLastDistortionExecutionSucceeded() )
+	{
+		CCP_LOGERR( "EVE distortion execution failed" );
+		ok = false;
+	}
+	return ok;
 }
 
 TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeResolveAndRetainProduct(
@@ -32351,4 +32367,1156 @@ TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRenderFrame( void* opaquePr
 	else if( probe->renderable && probe->renderable->DrawFailed() )
 		std::fprintf( stderr, "RenderFrame failure: renderable draw contract (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
 	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );
+}
+
+
+
+
+
+// W1-D: the journey/ballpark/gate crossing, granular. Two additive exports
+// that let the Swift host sequence the TOUR frame itself (ballparkMode != OFF)
+// instead of calling the monolithic RenderFrame. Per tour frame, in strict
+// order exactly once:
+//   AdvanceJourneyFrame -> [W1-C driver rungs, captureProducts 0] ->
+//   RecordBallparkTelemetry.
+//
+// Both bodies are VERBATIM COPIES of RenderFrame's two journey halves,
+// delimited by BEGIN/END VERBATIM COPY markers. The duplication is
+// deliberate -- RenderFrame remains the internal-path oracle so that
+// run_w1d.sh's granular-vs-monolith A/B gate compares independent code.
+// Do not hand-edit the marked regions: after changing RenderFrame's journey
+// halves, run `tools/w1d_sync_exports.py --generate`, and let
+// `--check` guard the invariant in CI.
+//
+// renderedFrameCount stays engine-owned: RecordBallparkTelemetry owns the
+// sole per-frame ++, so the host's frame index only computes realTime/simTime.
+// Tour-lane invariants: freezeScene == false and
+// solarParticlePrewarmCompleted == false.
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeAdvanceJourneyFrame(
+	void* opaqueProbe, int64_t realTime, int64_t simTime )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !probe->driver )
+	{
+		return false;
+	}
+	// Tour-lane invariant: the journey never freezes, so the copied
+	// if(!freezeScene) guards are always taken.
+	bool freezeScene = false;
+	(void)realTime;
+	// >>> BEGIN VERBATIM COPY of RenderFrame journey half -- do not hand-edit;
+	// >>> regenerate with tools/w1d_sync_exports.py --generate <<<
+	if( !freezeScene )
+	{
+#if TRINITY_WITH_DESTINY_EMBEDDED
+		if( probe->ballparkMode == STANDALONE_BALLPARK_GOTO && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			const double target[3] = { 0.0, 0.0, 1000.0 };
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+				!Destiny_CommandEmbeddedGoto( probe->destinySession, commandState.nextTickTime, target ) )
+			{
+				CCP_LOGERR( "Embedded Destiny GOTO command failed" );
+				return false;
+			}
+			probe->ballparkCommandIssued = true;
+			std::fprintf(
+				stderr,
+				"PL-11A command: frame=180 effectiveTime=%lld target=(0,0,1000)\n",
+				static_cast<long long>( commandState.nextTickTime ) );
+		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) )
+			{
+				CCP_LOGERR( "Embedded Destiny command state query failed" );
+				return false;
+			}
+			if( probe->eveGateDirectTravel )
+			{
+				const double travelTarget[3] = {
+					kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+					kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+					kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+				};
+				if( !Destiny_CommandEmbeddedGoto(
+						probe->destinySession, commandState.nextTickTime, travelTarget ) )
+				{
+					CCP_LOGERR( "Embedded Destiny direct-to-gate command failed" );
+					return false;
+				}
+				probe->eveGateApproachIssued = true;
+				std::fprintf( stderr,
+							  "CP-36 direct-to-gate travel: frame=180 effectiveTime=%lld target=(%.0f, %.0f, %.0f)\n",
+							  static_cast<long long>( commandState.nextTickTime ),
+							  travelTarget[0],
+							  travelTarget[1],
+							  travelTarget[2] );
+			}
+			else if( !Destiny_CommandEmbeddedOrbit(
+						 probe->destinySession, commandState.nextTickTime, 3, probe->ballparkOrbitRange ) )
+			{
+				CCP_LOGERR( "Embedded Destiny ORBIT command failed" );
+				return false;
+			}
+			else
+			{
+				std::fprintf( stderr, "PL-11B command: frame=180 effectiveTime=%lld target=3 range=%.3f\n", static_cast<long long>( commandState.nextTickTime ), probe->ballparkOrbitRange );
+			}
+			probe->ballparkCommandIssued = true;
+		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_WARP &&
+			( probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE || !probe->ballparkCommandIssued ) )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			if( !probe->destinySession || !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) )
+			{
+				CCP_LOGERR( "Embedded Destiny journey command state query failed" );
+				return false;
+			}
+			const double gateTarget[3] = {
+				kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			const double sunTarget[3] = {
+				kNewEdenSunRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenSunRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenSunRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			const double planetTarget[3] = {
+				kNewEdenPlanetRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenPlanetRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenPlanetRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			StandalonePlanetFinaleGeometry planetFinale;
+			const bool planetFinaleReady = !probe->journeyPlanetFinale ||
+				BuildPlanetFinaleGeometry( sunTarget, planetTarget, planetFinale );
+			StandalonePlanetSurfaceGeometry planetSurface;
+			const bool planetSurfaceReady = !probe->journeyPlanetSurface ||
+				BuildPlanetSunwardSurfaceGeometry( sunTarget, planetTarget, planetSurface );
+			if( !planetFinaleReady || !planetSurfaceReady )
+			{
+				CCP_LOGERR( "Tour planet-finale or sunward-surface geometry failed" );
+				return false;
+			}
+			auto directionTo = [&]( const double target[3], double direction[3] ) {
+				double lengthSquared = 0.0;
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					direction[axis] = target[axis] - commandState.rawPosition[axis];
+					lengthSquared += direction[axis] * direction[axis];
+				}
+				const double length = std::sqrt( lengthSquared );
+				if( length <= 0.0 )
+					return false;
+				for( size_t axis = 0; axis < 3; ++axis )
+					direction[axis] /= length;
+				return true;
+			};
+			auto alignmentTo = [&]( const double target[3], double& speed, double& dot ) {
+				double direction[3] = {};
+				if( !directionTo( target, direction ) )
+					return false;
+				double speedSquared = 0.0;
+				dot = 0.0;
+				for( size_t axis = 0; axis < 3; ++axis )
+				{
+					speedSquared += commandState.rawVelocity[axis] * commandState.rawVelocity[axis];
+					dot += direction[axis] * commandState.rawVelocity[axis];
+				}
+				speed = std::sqrt( speedSquared );
+				if( speed > 0.0 )
+					dot /= speed;
+				return commandState.mode == DESTINY_EMBEDDED_BALL_MODE_GOTO &&
+					speed >= 0.75 * 312.0 && dot >= 0.99;
+			};
+			auto recordJourneyCommand = [&]() {
+				if( probe->sceneConstruction == STANDALONE_SCENE_CONSTRUCTION_CANONICAL &&
+					std::find(
+						probe->sceneConstructionTrace.begin(),
+						probe->sceneConstructionTrace.end(),
+						"journey-command-issued" ) == probe->sceneConstructionTrace.end() )
+				{
+					probe->sceneConstructionTrace.push_back( "journey-command-issued" );
+				}
+			};
+			auto queueAlignment = [&]( const double target[3], const char* targetName, int nextPhase ) {
+				double direction[3] = {};
+				if( !directionTo( target, direction ) ||
+					!Destiny_CommandEmbeddedGotoDirection(
+						probe->destinySession, commandState.nextTickTime, direction ) )
+					return false;
+				recordJourneyCommand();
+				probe->journeyPhase = nextPhase;
+				std::fprintf( stderr,
+							  "Journey align: frame=%llu effectiveTime=%lld command=GotoDirection "
+							  "targetName=%s direction=(%.9f, %.9f, %.9f)\n",
+							  static_cast<unsigned long long>( probe->renderedFrameCount ),
+							  static_cast<long long>( commandState.nextTickTime ),
+							  targetName,
+							  direction[0],
+							  direction[1],
+							  direction[2] );
+				return true;
+			};
+			auto queueWarp = [&]( const double target[3], const char* targetName, double minimumRange, double speed, double dot, int nextPhase ) {
+				if( !Destiny_CommandEmbeddedWarp( probe->destinySession, commandState.nextTickTime, target, minimumRange, kBallparkWarpFactor ) )
+					return false;
+				recordJourneyCommand();
+				probe->journeyPhase = nextPhase;
+				probe->ballparkCommandIssued = true;
+				std::fprintf( stderr,
+							  "Journey warp: frame=%llu effectiveTime=%lld targetName=%s "
+							  "target=(%.0f, %.0f, %.0f) minRange=%.0f warpFactor=%d "
+							  "alignmentSpeed=%.6f alignmentDot=%.9f\n",
+							  static_cast<unsigned long long>( probe->renderedFrameCount ),
+							  static_cast<long long>( commandState.nextTickTime ),
+							  targetName,
+							  target[0],
+							  target[1],
+							  target[2],
+							  minimumRange,
+							  kBallparkWarpFactor,
+							  speed,
+							  dot );
+				return true;
+			};
+
+			if( probe->warpTarget == STANDALONE_WARP_TARGET_PLANET && probe->renderedFrameCount == 180 )
+			{
+				if( !queueWarp( planetTarget, "planet", kBallparkWarpMinimumRange, 0.0, 0.0, STANDALONE_JOURNEY_INACTIVE ) )
+				{
+					CCP_LOGERR( "Embedded Destiny planet WARP command failed" );
+					return false;
+				}
+			}
+			else if( probe->warpTarget == STANDALONE_WARP_TARGET_EVE_GATE )
+			{
+				double speed = 0.0;
+				double dot = 0.0;
+				switch( probe->journeyPhase )
+				{
+				case STANDALONE_JOURNEY_GATE_ALIGN_PENDING:
+					if( probe->renderedFrameCount == 180 &&
+						!queueAlignment( gateTarget, "eve-gate", STANDALONE_JOURNEY_GATE_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny EVE Gate alignment command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_GATE_ALIGNING:
+					if( alignmentTo( gateTarget, speed, dot ) &&
+						!queueWarp( gateTarget, "eve-gate", kBallparkWarpMinimumRange, speed, dot, STANDALONE_JOURNEY_GATE_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny EVE Gate WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_GATE_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment( sunTarget, "sun", STANDALONE_JOURNEY_SUN_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny Sun alignment command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_ALIGNING:
+					if( alignmentTo( sunTarget, speed, dot ) &&
+						!queueWarp( sunTarget, "sun", kNewEdenStarRadius + 35.0, speed, dot, STANDALONE_JOURNEY_SUN_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny Sun WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						constexpr float kSunOrbitSurfaceRange = 2500.0f;
+						if( !Destiny_CommandEmbeddedOrbit( probe->destinySession, commandState.nextTickTime, kNewEdenSunBallId, kSunOrbitSurfaceRange ) )
+						{
+							CCP_LOGERR( "Embedded Destiny Sun ORBIT command failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_SUN_ORBITING;
+						std::fprintf( stderr,
+									  "Journey orbit: frame=%llu effectiveTime=%lld targetName=sun targetBall=%lld "
+									  "surfaceRange=%.3f\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ),
+									  static_cast<long long>( commandState.nextTickTime ),
+									  static_cast<long long>( kNewEdenSunBallId ),
+									  kSunOrbitSurfaceRange );
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_ORBITING:
+					if( probe->journeyPlanetFinale &&
+						probe->renderedFrameCount >= kNewEdenTourPlanetFinaleFrame )
+					{
+						if( !Destiny_CommandEmbeddedStop(
+								probe->destinySession, commandState.nextTickTime ) )
+						{
+							CCP_LOGERR( "Embedded Destiny Sun-orbit STOP command failed" );
+							return false;
+						}
+						if( probe->warpTunnelRoot && probe->warpTunnelDetached )
+						{
+							probe->warpTunnelSpeedSource->m_value = 0.0f;
+							probe->warpTunnelRoot->SetRotation( probe->warpTunnelAuthoredRotation );
+							probe->scene->SetWarpTunnel( probe->warpTunnelRoot.p );
+							probe->warpTunnelAligned = false;
+							probe->warpTunnelDetached = false;
+							std::fprintf( stderr,
+										  "CP-37b warp tunnel: reattached for planet finale at frame=%llu\n",
+										  static_cast<unsigned long long>( probe->renderedFrameCount ) );
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_SUN_STOPPING;
+						std::fprintf( stderr,
+									  "Journey stop: frame=%llu effectiveTime=%lld targetName=sun-orbit\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ),
+									  static_cast<long long>( commandState.nextTickTime ) );
+					}
+					break;
+				case STANDALONE_JOURNEY_SUN_STOPPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment( planetFinale.warpTarget, "planet-limb", STANDALONE_JOURNEY_PLANET_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-finale alignment command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_ALIGNING:
+					if( alignmentTo( planetFinale.warpTarget, speed, dot ) &&
+						!queueWarp( planetFinale.warpTarget, "planet-limb", kNewEdenTourPlanetWarpMinimumRange, speed, dot, STANDALONE_JOURNEY_PLANET_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-finale WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment( sunTarget, "sun-through-planet", STANDALONE_JOURNEY_PLANET_OBSERVATION_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-finale observation alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_OBSERVATION_ALIGNING:
+					if( alignmentTo( sunTarget, speed, dot ) )
+					{
+						if( !Destiny_CommandEmbeddedStop(
+								probe->destinySession, commandState.nextTickTime ) )
+						{
+							CCP_LOGERR( "Embedded Destiny planet-finale STOP command failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_OBSERVATION_STOPPING;
+						std::fprintf( stderr,
+									  "Journey stop: frame=%llu effectiveTime=%lld targetName=planet-limb "
+									  "alignedTo=sun targetCoverage=%.6f limbOffset=%.3f\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ),
+									  static_cast<long long>( commandState.nextTickTime ),
+									  planetFinale.coverage,
+									  planetFinale.limbOffset );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_OBSERVATION_STOPPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_OBSERVING;
+						std::fprintf( stderr,
+									  "Journey settled: frame=%llu targetName=planet-limb mode=STOP "
+									  "position=(%.3f, %.3f, %.3f) targetCoverage=%.6f\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ),
+									  commandState.rawPosition[0],
+									  commandState.rawPosition[1],
+									  commandState.rawPosition[2],
+									  planetFinale.coverage );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_OBSERVING:
+					if( probe->journeyPlanetSurface &&
+						probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
+						!queueAlignment(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging alignment failed" );
+						return false;
+					}
+					else if( probe->journeyPlanetOrbit &&
+							 probe->renderedFrameCount >= kNewEdenTourPlanetOrbitFrame &&
+							 !queueAlignment(
+								 planetTarget,
+								 "planet-orbit",
+								 STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-orbit alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_ORBIT_ALIGNING:
+					if( alignmentTo( planetTarget, speed, dot ) &&
+						!queueWarp(
+							planetTarget,
+							"planet-orbit",
+							kNewEdenPlanetRadius + 35.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_ORBIT_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny planet-orbit WARP command failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_ORBIT_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						if( !Destiny_CommandEmbeddedOrbit(
+								probe->destinySession,
+								commandState.nextTickTime,
+								kNewEdenPlanetBallId,
+								kNewEdenTourPlanetOrbitSurfaceRange ) )
+						{
+							CCP_LOGERR( "Embedded Destiny planet ORBIT command failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_ORBITING;
+						std::fprintf(
+							stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=planet "
+							"targetBall=%lld surfaceRange=%.3f\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenPlanetBallId ),
+							kNewEdenTourPlanetOrbitSurfaceRange );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_ALIGNING:
+					if( alignmentTo( planetSurface.stagingPosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.stagingPosition,
+							"planet-sunward-staging",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface staging WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_STAGING_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP &&
+						!queueAlignment(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final alignment failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ALIGNING:
+					if( alignmentTo( planetSurface.surfacePosition, speed, dot ) &&
+						!queueWarp(
+							planetSurface.surfacePosition,
+							"planet-sunward-surface",
+							0.0,
+							speed,
+							dot,
+							STANDALONE_JOURNEY_PLANET_SURFACE_WARPING ) )
+					{
+						CCP_LOGERR( "Embedded Destiny sunward-surface final WARP failed" );
+						return false;
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_WARPING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+					{
+						if( !Destiny_CommandEmbeddedOrbit(
+								probe->destinySession,
+								commandState.nextTickTime,
+								kNewEdenPlanetBallId,
+								kNewEdenTourPlanetSurfaceRange ) )
+						{
+							CCP_LOGERR( "Embedded Destiny sunward planet ORBIT failed" );
+							return false;
+						}
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING;
+						std::fprintf(
+							stderr,
+							"Journey orbit: frame=%llu effectiveTime=%lld targetName=planet-sunward-surface "
+							"targetBall=%lld surfaceRange=%.3f illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							static_cast<long long>( commandState.nextTickTime ),
+							static_cast<long long>( kNewEdenPlanetBallId ),
+							kNewEdenTourPlanetSurfaceRange );
+					}
+					break;
+				case STANDALONE_JOURNEY_PLANET_SURFACE_ORBITING:
+					if( commandState.mode == DESTINY_EMBEDDED_BALL_MODE_ORBIT &&
+						std::abs(
+							commandState.orbitSurfaceDistance - kNewEdenTourPlanetSurfaceRange ) <= 150.0 &&
+						std::abs( commandState.orbitRadialVelocity ) <= 15.0 &&
+						commandState.orbitTangentialVelocity > 300.0 )
+					{
+						probe->journeyPhase = STANDALONE_JOURNEY_PLANET_SURFACE_OBSERVING;
+						std::fprintf(
+							stderr,
+							"Journey settled: frame=%llu targetName=planet-sunward-surface mode=ORBIT "
+							"requestedSurfaceRange=%.3f surfaceDistance=%.6f rangeTolerance=150 "
+							"radialSpeed=%.6f tangentialSpeed=%.6f illumination=full-day\n",
+							static_cast<unsigned long long>( probe->renderedFrameCount ),
+							kNewEdenTourPlanetSurfaceRange,
+							commandState.orbitSurfaceDistance,
+							commandState.orbitRadialVelocity,
+							commandState.orbitTangentialVelocity );
+					}
+					break;
+				default:
+					break;
+				}
+			}
+		}
+		if( probe->ballparkMode == STANDALONE_BALLPARK_APPROACH && !probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == 180 )
+		{
+			DestinyEmbeddedDiagnostics commandState = {};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &commandState ) ||
+				!Destiny_CommandEmbeddedFollow( probe->destinySession, commandState.nextTickTime, kBallparkApproachTargetBallId, static_cast<float>( kBallparkApproachRange ) ) )
+			{
+				CCP_LOGERR( "Embedded Destiny FOLLOW command failed" );
+				std::fprintf( stderr, "RenderFrame failure: FOLLOW command (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				return false;
+			}
+			probe->ballparkCommandIssued = true;
+			std::fprintf( stderr,
+						  "PL-11D command: frame=180 effectiveTime=%lld FollowBall target=%lld range=%.1f\n",
+						  static_cast<long long>( commandState.nextTickTime ),
+						  static_cast<long long>( kBallparkApproachTargetBallId ),
+						  kBallparkApproachRange );
+		}
+
+		if( probe->ballparkMode == STANDALONE_BALLPARK_ORBIT && probe->eveGateApproachFrame != 0 &&
+			!probe->eveGateApproachIssued && probe->ballparkCommandIssued &&
+			probe->renderedFrameCount == probe->eveGateApproachFrame )
+		{
+			DestinyEmbeddedDiagnostics approachState = {};
+			const double approachTarget[3] = {
+				kNewEdenEveGateRelative[0] - probe->celestialAnchorOffset[0],
+				kNewEdenEveGateRelative[1] - probe->celestialAnchorOffset[1],
+				kNewEdenEveGateRelative[2] - probe->celestialAnchorOffset[2],
+			};
+			if( !probe->destinySession ||
+				!Destiny_GetEmbeddedDiagnostics( probe->destinySession, &approachState ) ||
+				!Destiny_CommandEmbeddedGoto(
+					probe->destinySession, approachState.nextTickTime, approachTarget ) )
+			{
+				CCP_LOGERR( "Embedded Destiny EVE Gate approach command failed" );
+				return false;
+			}
+			probe->eveGateApproachIssued = true;
+			std::fprintf( stderr,
+						  "PL-12B demo command: frame=%llu effectiveTime=%lld GotoPoint=EVE Gate landmark "
+						  "anchored (%.0f, %.0f, %.0f)\n",
+						  static_cast<unsigned long long>( probe->renderedFrameCount ),
+						  static_cast<long long>( approachState.nextTickTime ),
+						  approachTarget[0],
+						  approachTarget[1],
+						  approachTarget[2] );
+		}
+		if( probe->ballparkMode != STANDALONE_BALLPARK_OFF &&
+			( !probe->destinySession ||
+			  !Destiny_AdvanceEmbeddedSession( probe->destinySession, static_cast<Be::Time>( simTime ) ) ) )
+		{
+			CCP_LOGERR( "Embedded Destiny direct evolve failed" );
+			std::fprintf( stderr, "RenderFrame failure: direct evolve (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( probe->combatRehearsal )
+		{
+			std::string combatError;
+			if( !UpdateCombatWeaponPresentation(
+					*probe, static_cast<Be::Time>( simTime ), combatError ) )
+			{
+				CCP_LOGERR( "PL-C1 weapon presentation update failed: %s", combatError.c_str() );
+				std::fprintf(
+					stderr,
+					"PL-C1 weapon presentation update failed at frame=%llu: %s\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					combatError.c_str() );
+				return false;
+			}
+		}
+		if( ( probe->ballparkMode == STANDALONE_BALLPARK_GOTO ||
+			  probe->ballparkMode == STANDALONE_BALLPARK_ORBIT ||
+			  probe->ballparkMode == STANDALONE_BALLPARK_WARP ||
+			  probe->ballparkMode == STANDALONE_BALLPARK_APPROACH ) &&
+			( probe->renderable || probe->nativeShip ) )
+		{
+			DestinyEmbeddedDiagnostics kinematics = {};
+			if( !Destiny_GetEmbeddedDiagnostics( probe->destinySession, &kinematics ) )
+			{
+				std::fprintf( stderr, "RenderFrame failure: kinematics diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				return false;
+			}
+			if( probe->renderable )
+			{
+				const float speed = static_cast<float>( std::sqrt(
+					kinematics.velocity[0] * kinematics.velocity[0] +
+					kinematics.velocity[1] * kinematics.velocity[1] +
+					kinematics.velocity[2] * kinematics.velocity[2] ) );
+				probe->renderable->SetBallparkEngineKinematics(
+					speed,
+					Vector3(
+						static_cast<float>( kinematics.acceleration[0] ),
+						static_cast<float>( kinematics.acceleration[1] ),
+						static_cast<float>( kinematics.acceleration[2] ) ) );
+			}
+			if( probe->ballparkMode == STANDALONE_BALLPARK_WARP && probe->warpTunnelRoot &&
+				probe->warpTunnelSpeedSource && !probe->warpTunnelDetached )
+			{
+				// The client feeds the warping ship's raw speed into the ship
+				// model's speed TriFloat each frame; the configure-time
+				// binding rescale (1/(3*AU*warpSpeedModifier), Warp.py
+				// SetupTunnelBindings) makes visibility purely speed-driven —
+				// invisible while aligning, ~1/3 at cruise, gone by dropout.
+				probe->warpTunnelSpeedSource->m_value = static_cast<float>( std::sqrt(
+					kinematics.rawVelocity[0] * kinematics.rawVelocity[0] +
+					kinematics.rawVelocity[1] * kinematics.rawVelocity[1] +
+					kinematics.rawVelocity[2] * kinematics.rawVelocity[2] ) );
+				if( !probe->warpTunnelAligned && kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_WARP )
+				{
+					// Client AlignToDirection (Warp.py): computed once when
+					// the warp effect starts (warp state entry, before the
+					// aligning phase completes). The tunnel's +Z spans the
+					// leg pointing from the destination back at the ship,
+					// basis built against world up. The default 21048 tunnel
+					// takes the legacy path — no pitch flip; the minRange
+					// pull-in is along the same line, so the direction is
+					// identical either side of it.
+					const double leg[3] = {
+						kinematics.rawPosition[0] - kinematics.gotoPoint[0],
+						kinematics.rawPosition[1] - kinematics.gotoPoint[1],
+						kinematics.rawPosition[2] - kinematics.gotoPoint[2],
+					};
+					const double legLength = std::sqrt(
+						leg[0] * leg[0] + leg[1] * leg[1] + leg[2] * leg[2] );
+					if( legLength > 0.0 )
+					{
+						const double zAxis[3] = { leg[0] / legLength, leg[1] / legLength, leg[2] / legLength };
+						double xAxis[3] = { zAxis[2], 0.0, -zAxis[0] }; // cross((0,1,0), z)
+						const double xLength = std::sqrt(
+							xAxis[0] * xAxis[0] + xAxis[1] * xAxis[1] + xAxis[2] * xAxis[2] );
+						if( xLength > 0.0 )
+						{
+							xAxis[0] /= xLength;
+							xAxis[1] /= xLength;
+							xAxis[2] /= xLength;
+							const double yAxis[3] = {
+								zAxis[1] * xAxis[2] - zAxis[2] * xAxis[1],
+								zAxis[2] * xAxis[0] - zAxis[0] * xAxis[2],
+								zAxis[0] * xAxis[1] - zAxis[1] * xAxis[0],
+							};
+							const Matrix alignment(
+								static_cast<float>( xAxis[0] ), static_cast<float>( xAxis[1] ), static_cast<float>( xAxis[2] ), 0.0f, static_cast<float>( yAxis[0] ), static_cast<float>( yAxis[1] ), static_cast<float>( yAxis[2] ), 0.0f, static_cast<float>( zAxis[0] ), static_cast<float>( zAxis[1] ), static_cast<float>( zAxis[2] ), 0.0f, 0.0f, 0.0f, 0.0f, 1.0f );
+							// The client leaves the authored local rotation on
+							// the EveTransform and puts the alignment on a
+							// wrapping root; composing (authored first, then
+							// alignment) on the single node is equivalent.
+							probe->warpTunnelRoot->SetRotation(
+								probe->warpTunnelRoot->GetRotation() * RotationQuaternion( alignment ) );
+						}
+					}
+					probe->warpTunnelAligned = true;
+					std::fprintf( stderr,
+								  "CP-37b warp tunnel: leg-aligned at frame=%llu (warp state start)\n",
+								  static_cast<unsigned long long>( probe->renderedFrameCount ) );
+				}
+				else if( probe->warpTunnelAligned &&
+						 kinematics.mode == DESTINY_EMBEDDED_BALL_MODE_STOP )
+				{
+					if( probe->journeyPhase == STANDALONE_JOURNEY_GATE_WARPING )
+					{
+						// Keep the prepared graph authored-invisible between journey
+						// legs, then align it afresh when the return warp enters.
+						probe->warpTunnelSpeedSource->m_value = 0.0f;
+						probe->warpTunnelRoot->SetRotation( probe->warpTunnelAuthoredRotation );
+						probe->warpTunnelAligned = false;
+						std::fprintf( stderr,
+									  "CP-37b warp tunnel: reset at frame=%llu (journey leg complete)\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ) );
+					}
+					else
+					{
+						// The client tears the effect down when the final warp ends
+						// (ShipEffect.Stop -> _CleanUp -> scene.warpTunnel = None).
+						probe->scene->SetWarpTunnel( nullptr );
+						probe->warpTunnelDetached = true;
+						std::fprintf( stderr,
+									  "CP-37b warp tunnel: detached at frame=%llu (journey warp end)\n",
+									  static_cast<unsigned long long>( probe->renderedFrameCount ) );
+					}
+				}
+			}
+		}
+#endif
+		if( !UpdateBallparkChaseCamera( *probe, static_cast<Be::Time>( simTime ) ) )
+		{
+			CCP_LOGERR( "Embedded Destiny chase-camera update failed" );
+			std::fprintf( stderr, "RenderFrame failure: chase-camera update (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( !UpdateSolarEnvironmentState( *probe ) )
+		{
+			std::fprintf(
+				stderr,
+				"RenderFrame failure: solar environment lifetime (frame=%llu)\n",
+				static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		UpdateSolarOcclusionView( *probe );
+		UpdateProbeCamera( *probe );
+		if( !ApplySolarIlluminationViewCamera( *probe, static_cast<Be::Time>( simTime ) ) )
+		{
+			std::fprintf(
+				stderr, "RenderFrame failure: solar illumination view camera (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( !ApplyLightingAuditStationCamera( *probe ) )
+		{
+			std::fprintf(
+				stderr, "RenderFrame failure: lighting-audit station camera (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( probe->renderable )
+		{
+			const bool objectMotion = probe->renderedFrameCount >= 180 &&
+				( probe->motionMode == STANDALONE_MOTION_OBJECT ||
+				  probe->motionMode == STANDALONE_MOTION_COMBINED );
+			probe->renderable->SetObjectMotionActive( objectMotion );
+		}
+	}
+	if( !freezeScene && !UpdateSolarIllumination( *probe, static_cast<Be::Time>( simTime ) ) )
+	{
+		std::fprintf( stderr, "RenderFrame failure: solar illumination controller (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+		return false;
+	}
+	if( probe->deterministicEvidence ||
+		probe->solarIlluminationDeterministicLocalLightEvaluation )
+	{
+		// PL-14E evidence advances authored noise at the finite-frame simulation
+		// time. Production retains the client runtime's BeOS clock and per-light
+		// construction phase.
+		LightData::SetDeterministicEvaluationTimeForTesting( static_cast<Be::Time>( simTime ) );
+	}
+	probe->device->SetAnimationTime( static_cast<float>( simTime ) / 10000000.0f );
+	probe->lastRealTime = realTime;
+	probe->lastSimTime = simTime;
+	// >>> END VERBATIM COPY of RenderFrame journey half <<<
+	return true;
+}
+
+TRINITY_STANDALONE_EXPORT bool TrinityStandaloneProbeRecordBallparkTelemetry(
+	void* opaqueProbe, int64_t realTime, int64_t simTime, bool rendered )
+{
+	auto* probe = static_cast<StandaloneProbe*>( opaqueProbe );
+	if( !probe || !probe->renderContext || !probe->driver )
+	{
+		return false;
+	}
+	// `rendered` is the caller's driver-frame result, mirroring RenderFrame's
+	// `if( rendered && !freezeScene )` gate: on a failed draw the copied tail
+	// is skipped and renderedFrameCount does NOT advance, exactly as the
+	// monolith abandons the frame. Do not hard-code this true -- the granular
+	// path would otherwise record telemetry for a frame that never rendered.
+	// The tour never freezes.
+	bool freezeScene = false;
+	(void)realTime;
+	// >>> BEGIN VERBATIM COPY of RenderFrame telemetry tail -- do not hand-edit;
+	// >>> regenerate with tools/w1d_sync_exports.py --generate <<<
+	probe->driver->SetTemporalHistoryFrozen( false );
+	if( rendered && !freezeScene )
+	{
+		if( !CompleteSolarEnvironmentExitFrameEvidence( *probe ) )
+		{
+			CCP_LOGERR( "PL-14G could not close post-teardown history evidence" );
+			return false;
+		}
+		if( ( !probe->solarIlluminationReportPath.empty() ||
+			  !probe->presentationAuditReportPath.empty() ) &&
+			probe->postProcessDiagnosticsEnabled &&
+			!ReadPostProcessDiagnostics( *probe, *probe->renderContext ) )
+		{
+			CCP_LOGERR( "Failed to refresh solar illumination exposure diagnostics" );
+			return false;
+		}
+		if( probe->solarIlluminationDeterministicTaaExposure )
+		{
+			constexpr float exposureQuantum = 0.0001f;
+			probe->solarIlluminationDeterministicTaaExposureValue =
+				std::round( probe->postProcessDiagnostics.exposure[0] / exposureQuantum ) *
+				exposureQuantum;
+			probe->driver->SetDeterministicTaaExposureForTesting(
+				true,
+				probe->solarIlluminationDeterministicTaaExposureValue );
+		}
+		if( !UpdateBallparkDiagnostics(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
+		{
+			CCP_LOGERR( "Failed to record embedded Ballpark diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: ballpark diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( !UpdateCelestialDiagnostics(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ), true ) )
+		{
+			CCP_LOGERR( "Failed to record celestial Ballpark diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: celestial diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( !UpdateEveGateDiagnostics( *probe, true ) )
+		{
+			CCP_LOGERR( "Failed to record EVE Gate diagnostics" );
+			std::fprintf( stderr, "RenderFrame failure: EVE Gate diagnostics (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		if( !RecordSolarBodyFrame( *probe, probe->renderedFrameCount, simTime ) )
+		{
+			return false;
+		}
+		if( !RecordSolarHighFrame( *probe, probe->renderedFrameCount, simTime ) )
+		{
+			return false;
+		}
+		if( probe->sceneConstructionCaptureRequested &&
+			probe->solarIlluminationReportPath.empty() )
+		{
+			// The advancing draw has collected the synchronized product and hull
+			// evidence. Do not repeat that collection during the frontend's frozen
+			// same-time PNG readbacks.
+			probe->solarIlluminationCaptureRequested = false;
+		}
+		if( !RecordSolarIlluminationFrame(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ) ) )
+		{
+			return false;
+		}
+		if( !RecordPresentationAuditFrame(
+				*probe, probe->renderedFrameCount, static_cast<Be::Time>( simTime ) ) )
+		{
+			return false;
+		}
+		++probe->renderedFrameCount;
+	}
+	if( rendered && !freezeScene && probe->celestialInspectionTarget &&
+		!probe->celestialInspectionValidated && probe->renderedFrameCount >= 2 )
+	{
+		const float reported = probe->celestialInspectionTarget->GetEstimatedPixelDiameter() *
+			( probe->solarBodyReportPath.empty() && probe->solarHighReportPath.empty() ?
+				  1.0f :
+				  probe->solarBodyGeometryRadius );
+		const float expected = probe->celestialExpectedPixelDiameter;
+		const float relativeError = expected > 0.0f ? std::abs( reported - expected ) / expected : 1.0f;
+		std::fprintf(
+			stderr,
+			"New Eden celestial inspection validation: target=%s expectedPixels=%.4f trinityPixels=%.4f "
+			"relativeError=%.4f scale=%.6f fovDegrees=%.8f\n",
+			probe->celestialInspectionName,
+			expected,
+			reported,
+			relativeError,
+			probe->celestialInspectionScale,
+			probe->celestialInspectionFovRadians * 180.0f / 3.1415926535f );
+		if( !std::isfinite( reported ) || relativeError > 0.05f )
+		{
+			CCP_LOGERR( "New Eden celestial inspection pixel diameter differs from the derived target by more than five percent" );
+			return false;
+		}
+		probe->celestialInspectionValidated = true;
+	}
+	const bool engineLightsActive = probe->renderable && probe->renderable->HasAuthoredEngines() &&
+		( probe->renderable->GetEngineView() == STANDALONE_ENGINE_VIEW_ALL ||
+		  probe->renderable->GetEngineView() == STANDALONE_ENGINE_VIEW_LIGHTS );
+	if( rendered && ( probe->localLights != STANDALONE_LOCAL_LIGHTS_OFF || engineLightsActive ) )
+	{
+		Tr2LightManager* manager = Tr2LightManager::GetInstance();
+		if( !manager || FAILED( manager->GetLastUpdateResult() ) )
+		{
+			CCP_LOGERR( "Trinity tiled local-light list generation failed" );
+			std::fprintf( stderr, "RenderFrame failure: tiled light update (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		const size_t resolved = manager->GetResolvedLightCount();
+		if( probe->localLights == STANDALONE_LOCAL_LIGHTS_VALIDATION && resolved == 0 )
+		{
+			CCP_LOGERR( "Synthetic validation light resolved to zero tiled lights" );
+			return false;
+		}
+		if( engineLightsActive && probe->localLights == STANDALONE_LOCAL_LIGHTS_OFF && resolved != 2 )
+		{
+			CCP_LOGERR( "Astero isolated booster-light fixture must resolve exactly two tiled lights" );
+			return false;
+		}
+		if( !probe->reportedResolvedLights )
+		{
+			const uint32_t tilesX = ( probe->renderWidth + 15 ) / 16;
+			const uint32_t tilesY = ( probe->renderHeight + 15 ) / 16;
+			std::fprintf( stderr, "Trinity tiled local-light result: resolved=%zu tile-grid=%ux%u tile-count=%u update=success\n", resolved, tilesX, tilesY, tilesX * tilesY );
+			probe->reportedResolvedLights = true;
+		}
+	}
+	if( rendered && !freezeScene && probe->localShadows != STANDALONE_LOCAL_SHADOWS_OFF &&
+		probe->renderedFrameCount >= 2 )
+	{
+		Tr2LightManager* manager = Tr2LightManager::GetInstance();
+		if( !manager || !probe->scene || !probe->renderable )
+		{
+			CCP_LOGERR( "Dynamic-light shadow diagnostics are unavailable" );
+			return false;
+		}
+		const Tr2LightManager::DynamicShadowDiagnostics& managerStats = manager->GetDynamicShadowDiagnostics();
+		const EveSpaceScene::DynamicLightShadowDiagnostics& sceneStats =
+			probe->scene->GetDynamicLightShadowDiagnostics();
+		const uint32_t expectedLights = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 6u : 1u;
+		const bool tourInspection = probe->journeyPhase == STANDALONE_JOURNEY_PLANET_OBSERVATION_STOPPING ||
+			probe->journeyPhase == STANDALONE_JOURNEY_PLANET_OBSERVING;
+		const uint32_t expectedSelectedLights = tourInspection ? managerStats.eligibleLightCount : expectedLights;
+		const bool lightCountsValid = tourInspection ?
+			managerStats.eligibleLightCount > 0 && managerStats.eligibleLightCount <= expectedLights :
+			managerStats.eligibleLightCount == expectedLights;
+		bool entriesValid = managerStats.entries.size() == expectedSelectedLights;
+		for( size_t i = 0; i < managerStats.entries.size() && entriesValid; ++i )
+		{
+			const auto& entry = managerStats.entries[i];
+			entriesValid = !entry.isSpotLight && entry.faceSize > 0 &&
+				entry.offsetX + entry.width <= managerStats.atlasSettings.size &&
+				entry.offsetY + entry.height <= managerStats.atlasSettings.size;
+			for( size_t j = i + 1; j < managerStats.entries.size() && entriesValid; ++j )
+			{
+				const auto& other = managerStats.entries[j];
+				const bool overlaps = entry.offsetX < other.offsetX + other.width &&
+					entry.offsetX + entry.width > other.offsetX &&
+					entry.offsetY < other.offsetY + other.height &&
+					entry.offsetY + entry.height > other.offsetY;
+				entriesValid = !overlaps;
+			}
+		}
+		const uint32_t expectedHaze = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 2u : 0u;
+		const uint32_t expectedBanner = probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? 4u : 0u;
+		const uint32_t expectedValidation = probe->localShadows == STANDALONE_LOCAL_SHADOWS_VALIDATION ? 1u : 0u;
+		const bool ownerCountsValid =
+			probe->renderable->GetHazeShadowEligibleCount() == expectedHaze &&
+			probe->renderable->GetBannerShadowEligibleCount() == expectedBanner &&
+			probe->renderable->GetValidationShadowEligibleCount() == expectedValidation;
+		if( !managerStats.enabled || !managerStats.allocationSucceeded ||
+			!lightCountsValid || managerStats.selectedLightCount != expectedSelectedLights ||
+			managerStats.droppedLightCount != 0 || managerStats.atlasSettings.actualTextureSize != 16384 ||
+			managerStats.atlasSettings.size != 16384 || !entriesValid || !sceneStats.atlasValid ||
+			sceneStats.atlasFormat != Tr2RenderContextEnum::PIXEL_FORMAT_D32_FLOAT ||
+			sceneStats.atlasWidth != 16384 || sceneStats.atlasHeight != 16384 ||
+			sceneStats.selectedLights != expectedSelectedLights ||
+			sceneStats.pointLights != expectedSelectedLights ||
+			sceneStats.spotLights != 0 || sceneStats.facePasses != expectedSelectedLights * 6 ||
+			sceneStats.casterTests != sceneStats.facePasses || sceneStats.acceptedCasterPasses == 0 ||
+			sceneStats.committedBatches != sceneStats.acceptedCasterPasses * 2 ||
+			!ownerCountsValid ||
+			!sceneStats.receiverMaskResolved ||
+			sceneStats.receiverMaskFormat != Tr2RenderContextEnum::PIXEL_FORMAT_R16_UINT ||
+			sceneStats.receiverMaskWidth != probe->renderWidth ||
+			sceneStats.receiverMaskHeight != probe->renderHeight )
+		{
+			std::fprintf(
+				stderr,
+				"Astero local-shadow contract failed: manager(enabled=%u allocation=%u eligible=%u selected=%u dropped=%u packed=%zu) atlas(format=%u size=%ux%u valid=%u) receiver(format=%u size=%ux%u resolved=%u) faces=%u accepted=%u batches=%u\n",
+				managerStats.enabled ? 1u : 0u,
+				managerStats.allocationSucceeded ? 1u : 0u,
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				managerStats.droppedLightCount,
+				managerStats.entries.size(),
+				sceneStats.atlasFormat,
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				sceneStats.atlasValid ? 1u : 0u,
+				sceneStats.receiverMaskFormat,
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight,
+				sceneStats.receiverMaskResolved ? 1u : 0u,
+				sceneStats.facePasses,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches );
+			CCP_LOGERR(
+				"Astero local-shadow contract failed: eligible=%u selected=%u dropped=%u packed=%zu atlas=%ux%u valid=%u point=%u spot=%u faces=%u tests=%u accepted=%u batches=%u haze=%u banner=%u validation=%u receiver=%ux%u format=%u resolved=%u",
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				managerStats.droppedLightCount,
+				managerStats.entries.size(),
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				sceneStats.atlasValid ? 1u : 0u,
+				sceneStats.pointLights,
+				sceneStats.spotLights,
+				sceneStats.facePasses,
+				sceneStats.casterTests,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches,
+				probe->renderable->GetHazeShadowEligibleCount(),
+				probe->renderable->GetBannerShadowEligibleCount(),
+				probe->renderable->GetValidationShadowEligibleCount(),
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight,
+				sceneStats.receiverMaskFormat,
+				sceneStats.receiverMaskResolved ? 1u : 0u );
+			return false;
+		}
+		if( !probe->reportedLocalShadowStats )
+		{
+			std::fprintf(
+				stderr,
+				"Astero local-shadow result: mode=%s eligibility=%s eligible=%u selected=%u point=%u spot=%u faces=%u accepted=%u batches=%u atlas=D32 %ux%u entries=%zu receiver=R16_UINT %ux%u\n",
+				probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "authored" : "validation",
+				probe->localShadows == STANDALONE_LOCAL_SHADOWS_AUTHORED ? "probe-all-active" : "probe-validation",
+				managerStats.eligibleLightCount,
+				managerStats.selectedLightCount,
+				sceneStats.pointLights,
+				sceneStats.spotLights,
+				sceneStats.facePasses,
+				sceneStats.acceptedCasterPasses,
+				sceneStats.committedBatches,
+				sceneStats.atlasWidth,
+				sceneStats.atlasHeight,
+				managerStats.entries.size(),
+				sceneStats.receiverMaskWidth,
+				sceneStats.receiverMaskHeight );
+			for( const auto& entry : managerStats.entries )
+			{
+				std::fprintf(
+					stderr,
+					"  local-shadow entry: light=%u type=%s offset=(%u,%u) face=%u block=%ux%u\n",
+					entry.lightIndex,
+					entry.isSpotLight ? "spot" : "point",
+					entry.offsetX,
+					entry.offsetY,
+					entry.faceSize,
+					entry.width,
+					entry.height );
+			}
+			probe->reportedLocalShadowStats = true;
+		}
+	}
+	if( rendered && !freezeScene &&
+		( probe->shadows == STANDALONE_SHADOWS_LOW ||
+		  probe->shadows == STANDALONE_SHADOWS_HIGH ) &&
+		probe->scene )
+	{
+		const IEveShadowCaster* caster = probe->renderable ?
+			static_cast<const IEveShadowCaster*>( probe->renderable.p ) :
+			( probe->nativeShip ?
+				  static_cast<const IEveShadowCaster*>( probe->nativeShip.p ) :
+				  nullptr );
+		const auto* diagnostics =
+			probe->scene->FindDirectionalShadowCasterDiagnostics( caster );
+		if( !diagnostics )
+		{
+			CCP_LOGERR( "Astero directional shadow diagnostics are unavailable" );
+			std::fprintf( stderr, "RenderFrame failure: directional shadow diagnostics unavailable (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+			return false;
+		}
+		const uint32_t cullTests = diagnostics->tests;
+		const uint32_t acceptedCascades = diagnostics->acceptedCascades;
+		const uint32_t committedBatches = diagnostics->committedBatches;
+		// DirectionalShadowDiagnostics is keyed by the selected caster, so the
+		// Astero contract must not include the Venture's separately recorded
+		// shadow batches in the expected per-cascade count.
+		const uint32_t shadowBatchesPerCascade = probe->renderable ?
+			probe->renderable->GetShadowAreaGroupCount() :
+			( probe->nativeShip ?
+				  static_cast<uint32_t>(
+					  probe->nativeShip->GetShadowBatchAreaCountForDiagnostics() ) :
+				  0 );
+		const bool submissionValid = shadowBatchesPerCascade > 0 && acceptedCascades > 0 &&
+			committedBatches == acceptedCascades * shadowBatchesPerCascade;
+		if( !submissionValid )
+		{
+			CCP_LOGERR(
+				"Astero directional shadow contract failed: tests=%u accepted=%u batches=%u expected=%u",
+				cullTests,
+				acceptedCascades,
+				committedBatches,
+				acceptedCascades * shadowBatchesPerCascade );
+			std::fprintf( stderr,
+						  "RenderFrame failure: directional shadow contract (frame=%llu tests=%u accepted=%u batches=%u expected=%u)\n",
+						  static_cast<unsigned long long>( probe->renderedFrameCount ),
+						  cullTests,
+						  acceptedCascades,
+						  committedBatches,
+						  acceptedCascades * shadowBatchesPerCascade );
+			return false;
+		}
+		if( !probe->reportedShadowStats )
+		{
+			std::fprintf(
+				stderr,
+				"Astero directional shadow result: caster=1 tests=%u accepted-cascades=%u batches=%u atlas=16384x4096\n",
+				cullTests,
+				acceptedCascades,
+				committedBatches );
+			probe->reportedShadowStats = true;
+		}
+	}
+	if( rendered && !freezeScene && probe->shadows == STANDALONE_SHADOWS_RAYTRACED &&
+		probe->scene )
+	{
+		const auto& diagnostics = probe->scene->GetRaytracedShadowDiagnostics();
+		const bool h3PlanetConsumerNotApplicable =
+			( !probe->occlusionLightingReportPath.empty() ||
+			  !probe->planetAppearanceReportPath.empty() ) &&
+			probe->lightingAuditSubject == STANDALONE_LIGHTING_AUDIT_SUBJECT_PLANET;
+		if( !diagnostics.preparationAttempted || !diagnostics.geometryPresent ||
+			!diagnostics.renderAttempted || !diagnostics.dispatchSucceeded ||
+			diagnostics.dispatchCount == 0 || !diagnostics.resultValid ||
+			( diagnostics.denoiserRequested && !diagnostics.denoiserSucceeded ) )
+		{
+			if( h3PlanetConsumerNotApplicable )
+			{
+				if( !probe->reportedShadowStats )
+				{
+					std::fprintf(
+						stderr,
+						"PL-14H3 planet material has no directional-shadow consumer; retained ray diagnostics geometry=%s dispatch=%s result=%s\n",
+						diagnostics.geometryPresent ? "yes" : "no",
+						diagnostics.dispatchSucceeded ? "yes" : "no",
+						diagnostics.resultValid ? "yes" : "no" );
+					probe->reportedShadowStats = true;
+				}
+			}
+			else
+			{
+				CCP_LOGERR( "Astero raytraced shadow execution diagnostics are incomplete" );
+				std::fprintf(
+					stderr,
+					"RenderFrame failure: raytraced shadow contract (frame=%llu geometry=%s dispatch=%s denoise=%s result=%s)\n",
+					static_cast<unsigned long long>( probe->renderedFrameCount ),
+					diagnostics.geometryPresent ? "yes" : "no",
+					diagnostics.dispatchSucceeded ? "yes" : "no",
+					!diagnostics.denoiserRequested || diagnostics.denoiserSucceeded ? "yes" : "no",
+					diagnostics.resultValid ? "yes" : "no" );
+				return false;
+			}
+		}
+	}
+	if( !rendered )
+		std::fprintf( stderr, "RenderFrame failure: DrawDriverFrame (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+	else if( probe->renderable && probe->renderable->DrawFailed() )
+		std::fprintf( stderr, "RenderFrame failure: renderable draw contract (frame=%llu)\n", static_cast<unsigned long long>( probe->renderedFrameCount ) );
+	return rendered && ( !probe->renderable || !probe->renderable->DrawFailed() );
+	// >>> END VERBATIM COPY of RenderFrame telemetry tail <<<
 }

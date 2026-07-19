@@ -872,3 +872,25 @@ extern "C" bool TrinityStandaloneProbeConfigureDriverProducts( void* opaqueProbe
 extern "C" bool TrinityStandaloneProbeValidateDriverFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
 extern "C" bool TrinityStandaloneProbeExecuteDriverProducts( void* opaqueProbe, int64_t realTime, int64_t simTime, bool freezeScene );
 extern "C" bool TrinityStandaloneProbeResolveAndRetainProduct( void* opaqueProbe, int captureProduct );
+
+// W1-D: the journey/ballpark/gate crossing (the New Eden tour). The host
+// sequences a tour frame (ballparkMode != OFF) itself:
+//   AdvanceJourneyFrame -> [W1-C driver rungs, captureProducts 0] ->
+//   RecordBallparkTelemetry, in strict order once per frame.
+// AdvanceJourneyFrame is RenderFrame's pre-draw journey half (Destiny command
+// issue, the journeyPhase state machine, kinematics/warp-tunnel, the
+// chase-camera/solar tail, SetAnimationTime); it emits the ordered
+// "Journey ..." evidence lines. RecordBallparkTelemetry is the post-draw tail
+// (ballpark/celestial/eve-gate diagnostics, solar records, the sole
+// ++renderedFrameCount, the shadow contract validators, the DrawFailed
+// contract). Both bodies are verbatim copies of RenderFrame kept in sync by
+// tools/w1d_sync_exports.py. Tour-lane invariants: freezeScene == false and
+// solarParticlePrewarmCompleted == false.
+//
+// RecordBallparkTelemetry takes `rendered` -- the caller's driver-frame result
+// (the AND of the W1-C rungs, whose ExecuteDriverProducts surfaces the same
+// postprocess/distortion contract DrawDriverFrame enforces). It mirrors
+// RenderFrame's `if( rendered && !freezeScene )`: on a failed draw the tail is
+// skipped and renderedFrameCount does not advance.
+extern "C" bool TrinityStandaloneProbeAdvanceJourneyFrame( void* opaqueProbe, int64_t realTime, int64_t simTime );
+extern "C" bool TrinityStandaloneProbeRecordBallparkTelemetry( void* opaqueProbe, int64_t realTime, int64_t simTime, bool rendered );
